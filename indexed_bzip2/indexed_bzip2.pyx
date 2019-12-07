@@ -72,11 +72,6 @@ cdef class _IndexedBzip2File():
                 free(buffer)
             return result
 
-        # todo: iterate over small buffer and append to larger bytes if size == -1
-        # if size == -1:
-        #    size = self.bz2reader.read( 1, NULL, -1 )
-        #    print( "Read {} bytes form bz2".format( size ), file = sys.stderr )
-
         raise Exception("Invalid size argument")
 
     def seek(self, offset, whence):
@@ -118,6 +113,12 @@ class IndexedBzip2File(io.BufferedIOBase):
         return False
 
     def read(self, size=-1):
+        if size == -1:
+            result = b''
+            fixedBufferSize = 1*1024*1024 # 1 MiB
+            for data in iter(lambda: self.read(fixedBufferSize), b''):
+                result += data
+            return result
         return self.bz2reader.read(size)
 
     def seek(self, offset, whence=io.SEEK_SET):

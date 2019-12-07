@@ -159,7 +159,7 @@ def testBz2( parameters ):
     return True
 
 if __name__ == '__main__':
-    buffersizes = [ 128, 333, 500, 1024, 1024*1024, 64*1024*1024 ]
+    buffersizes = [ -1, 128, 333, 500, 1024, 1024*1024, 64*1024*1024 ]
     parameters = [
         Bzip2TestParameters( size, encoder, compressionlevel, pattern, patternsize, buffersizes )
         for size in [ 1, 2, 3, 4, 5, 10, 20, 30, 100, 1000, 10000, 100000, 200000, 0 ]
