@@ -38,11 +38,14 @@ cdef extern from "bzip2.h":
 cdef class _IndexedBzip2File():
     cdef BZ2Reader* bz2reader
 
-    def __init__( self, fileNameOrDescriptor ):
+    def __cinit__( self, fileNameOrDescriptor ):
         if isinstance( fileNameOrDescriptor, basestring ):
             self.bz2reader = new BZ2Reader( <string>fileNameOrDescriptor.encode() )
         else:
             self.bz2reader = new BZ2Reader( <int> fileNameOrDescriptor )
+
+    def  __dealloc__( self ):
+        del self.bz2reader
 
     def close( self ):
         self.bz2reader.close()

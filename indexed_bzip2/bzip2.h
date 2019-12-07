@@ -35,7 +35,7 @@ public:
     }
 
     BitReader( int fileDescriptor ) :
-        m_file( fdopen( fileDescriptor, "rb" ) )
+        m_file( fdopen( dup( fileDescriptor ), "rb" ) )
     {
         init();
     }
