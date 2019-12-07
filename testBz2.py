@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import bz2
+import collections
+import concurrent.futures
 import hashlib
 import os
 import pprint
@@ -111,76 +113,63 @@ def storeFiles( rawFile, bz2File, name ):
 
     print( "Created files {} and {}.bz2 with the failed test".format( name, name ) )
 
-def testDecompression():
-    for size in [ 1, 2, 3, 4, 5, 10, 20, 30, 100, 1000, 10000, 100000, 1000000, 2000000, 0 ]:
-        print( "Check BZip2 sized {} bytes".format( size ) )
-        for compressionlevel in range( 1, 9 + 1 ):
-            for encoder in [ 'pbzip2', 'bzip2', 'pybz2' ]:
-                for sequenceLength in [ 1, 2, 7, 8, 123, 200, 255, 256, 257, 1024, 2048 ]:
-                    rawFile, bz2File = createStripedBz2( size, compressionlevel, encoder, sequenceLength )
-                    for bufferSize in [ 128, 333, 500, 1024, 1024*1024, 64*1024*1024 ]:
-                        try:
-                            checkDecompression( rawFile, bz2File, bufferSize )
-                        except Exception as e:
-                            print( "Test for size {}, compression level {}, encoder {}, sequenceLength {}, "
-                                   "and buffer size {} failed"
-                                   .format( size, compressionlevel, encoder, sequenceLength, bufferSize ) )
-                            storeFiles( rawFile, bz2File )
-                            raise e
 
-                #t0 = time.time()
-                rawFile, bz2File = createRandomBz2( size, compressionlevel, encoder )
-                #t1 = time.time()
-                #print( "Creating compressed test file sized {} B raw and {} B compressed with {} took {:.3f} s"
-                #       .format( os.fstat( rawFile.fileno() ).st_size, os.fstat( bz2File.fileno() ).st_size,
-                #                encoder, t1 - t0 ) )
-                # For some reason, creating a 0B file with pbzip2 takes 1s instead of ~2ms Oo?!
-                for bufferSize in [ 128, 333, 500, 1024, 1024*1024, 64*1024*1024 ]:
-                    try:
-                        checkDecompression( rawFile, bz2File, bufferSize )
-                    except Exception as e:
-                        print( "Test for size {}, compression level {}, encoder {}, and buffer size {} failed"
-                               .format( size, compressionlevel, encoder, bufferSize ) )
-                        storeFiles( rawFile, bz2File )
-                        raise e
+Bzip2TestParameters = collections.namedtuple( "Bzip2TestParameters",
+                                              "size encoder compressionlevel pattern patternsize buffersizes" )
 
-def testSeeking():
-    for size in [ 1, 2, 3, 4, 5, 10, 20, 30, 100, 1000, 10000, 100000, 1000000, 10000000 ]:
-        print( "Check seeking BZip2 sized {} bytes".format( size ) )
-        seekPositions = np.append( np.random.randint( 0, size ), [ 0, size - 1 ] )
-        for compressionlevel in range( 1, 9 + 1, 20 ):
-            for encoder in [ 'pbzip2', 'bzip2', 'pybz2' ]:
-                for sequenceLength in [ 1, 2, 7, 8, 123, 200, 255, 256, 257, 1024, 2048 ]:
-                    rawFile, bz2File = createStripedBz2( size, compressionlevel, encoder, sequenceLength )
-                    sbzip2 = IndexedBzip2File( bz2File.fileno() )
-                    for seekPos in seekPositions:
-                        try:
-                            checkSeek( rawFile, sbzip2, seekPos )
-                        except Exception as e:
-                            print( "Test for size {}, compression level {}, encoder {}, and seek pos {} failed"
-                                   .format( size, compressionlevel, encoder, seekPos ) )
-                            sb = IndexedBzip2File( bz2File )
-                            sb.read( seekPos )
-                            print( "Char when doing naive seek:", sb.read( 1 ).hex() )
+def testBz2( parameters ):
+    print( "Testing", parameters )
 
-                            storeFiles( rawFile, bz2File )
-                            raise e
+    if parameters.pattern == 'random':
+        rawFile, bz2File = createRandomBz2( parameters.size, parameters.compressionlevel, parameters.encoder )
 
-                rawFile, bz2File = createRandomBz2( size, compressionlevel, encoder )
-                sbzip2 = IndexedBzip2File( bz2File.fileno() )
-                for seekPos in seekPositions:
-                    try:
-                        checkSeek( rawFile, sbzip2, seekPos )
-                    except Exception as e:
-                        print( "Test for size {}, compression level {}, encoder {}, and seek pos {} failed"
-                               .format( size, compressionlevel, encoder, seekPos ) )
-                        sb = IndexedBzip2File( bz2File )
-                        sb.read( seekPos )
-                        print( "Char when doing naive seek:", sb.read( 1 ).hex() )
+    if parameters.pattern == 'sequences':
+        rawFile, bz2File = createStripedBz2( parameters.size,
+                                             parameters.compressionlevel,
+                                             parameters.encoder,
+                                             parameters.patternsize )
 
-                        storeFiles( rawFile, bz2File )
-                        raise e
+    t0 = time.time()
+    for bufferSize in parameters.buffersizes:
+        t1 = time.time()
+        if t1 - t0 > 10:
+            print( "Testing", parameters, "and buffer size", bufferSize )
+
+        try:
+            checkDecompression( rawFile, bz2File, bufferSize )
+        except Exception as e:
+            print( "Test for", parameters, "and buffer size", bufferSize, "failed" )
+            storeFiles( rawFile, bz2File )
+            raise e
+
+    if parameters.size > 0:
+        sbzip2 = IndexedBzip2File( bz2File.fileno() )
+        for seekPos in np.append( np.random.randint( 0, parameters.size ), [ 0, parameters.size - 1 ] ):
+            try:
+                checkSeek( rawFile, sbzip2, seekPos )
+            except Exception as e:
+                print( "Test for", parameters, "failed when seeking to", seekPos )
+                sb = IndexedBzip2File( bz2File )
+                sb.read( seekPos )
+                print( "Char when doing naive seek:", sb.read( 1 ).hex() )
+
+                storeFiles( rawFile, bz2File )
+                raise e
+
+    return True
 
 if __name__ == '__main__':
-    testDecompression()
-    testSeeking()
+    buffersizes = [ 128, 333, 500, 1024, 1024*1024, 64*1024*1024 ]
+    parameters = [
+        Bzip2TestParameters( size, encoder, compressionlevel, pattern, patternsize, buffersizes )
+        for size in [ 1, 2, 3, 4, 5, 10, 20, 30, 100, 1000, 10000, 100000, 200000, 0 ]
+        for encoder in [ 'pbzip2', 'bzip2', 'pybz2' ]
+        for compressionlevel in range( 1, 9 + 1 )
+        for pattern in [ 'random', 'sequences' ]
+        for patternsize in ( [ None ] if pattern == 'random' else [ 1, 2, 8, 123, 257, 2048, 100000 ] )
+    ]
+
+    print( "Will test with", len( parameters ), "different bzip2 files" )
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        for input, output in zip( parameters, executor.map( testBz2, parameters ) ):
+            assert output == True
