@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 import time
 
-import bzip2
+from indexed_bzip2 import IndexedBzip2File
 
 import numpy as np
 
@@ -25,7 +25,7 @@ def checkDecompressionBytewise( rawFile, bz2File, bufferSize ):
     rawFile.seek( 0 )
     bz2File.seek( 0 )
 
-    decFile = bzip2.SeekableBzip2( bz2File.fileno() )
+    decFile = IndexedBzip2File( bz2File.fileno() )
 
     while True:
         oldPos1 = rawFile.tell()
@@ -51,7 +51,7 @@ def checkDecompression( rawFile, bz2File, bufferSize ):
     rawFile.seek( 0 )
     bz2File.seek( 0 )
 
-    file = bzip2.SeekableBzip2( bz2File.fileno() )
+    file = IndexedBzip2File( bz2File.fileno() )
     sha1 = sha1_160( file, bufferSize )
     sha2 = sha1_160( rawFile )
 
@@ -116,14 +116,14 @@ def testSeeking():
         for compressionlevel in range( 1, 9 + 1, 20 ):
             for encoder in [ 'pbzip2', 'bzip2', 'pybz2' ]:
                 rawFile, bz2File = createRandomBz2( size, compressionlevel, encoder )
-                sbzip2 = bzip2.SeekableBzip2( bz2File.fileno() )
+                sbzip2 = IndexedBzip2File( bz2File.fileno() )
                 for seekPos in seekPositions:
                     try:
                         checkSeek( rawFile, sbzip2, seekPos )
                     except Exception as e:
                         print( "Test for size {}, compression level {}, encoder {}, and seek pos {} failed"
                                .format( size, compressionlevel, encoder, seekPos ) )
-                        sb = bzip2.SeekableBzip2( bz2File )
+                        sb = IndexedBzip2File( bz2File )
                         sb.read( seekPos )
                         print( "Char when doing naive seek:", sb.read( 1 ).hex() )
                         raise e

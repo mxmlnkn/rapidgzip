@@ -4,7 +4,7 @@
 {
     "distutils": {
         "depends": [
-            "bzip2.h"
+            "indexed_bzip2/bzip2.h"
         ],
         "extra_compile_args": [
             "-std=c++11",
@@ -12,15 +12,16 @@
             "-DNDEBUG"
         ],
         "include_dirs": [
+            "indexed_bzip2",
             "."
         ],
         "language": "c++",
-        "name": "bzip2",
+        "name": "indexed_bzip2",
         "sources": [
-            "bzip2.pyx"
+            "indexed_bzip2/indexed_bzip2.pyx"
         ]
     },
-    "module_name": "bzip2"
+    "module_name": "indexed_bzip2"
 }
 END: Cython Metadata */
 
@@ -643,8 +644,8 @@ static CYTHON_INLINE float __PYX_NAN() {
   #endif
 #endif
 
-#define __PYX_HAVE__bzip2
-#define __PYX_HAVE_API__bzip2
+#define __PYX_HAVE__indexed_bzip2
+#define __PYX_HAVE_API__indexed_bzip2
 /* Early includes */
 #include <string.h>
 #include <stdlib.h>
@@ -864,44 +865,44 @@ static const char *__pyx_filename;
 
 
 static const char *__pyx_f[] = {
-  "bzip2.pyx",
+  "indexed_bzip2/indexed_bzip2.pyx",
   "stringsource",
 };
 
-/* "bzip2.pyx":16
+/* "indexed_bzip2.pyx":16
  * import sys
  * 
  * ctypedef (unsigned long long int) size_t             # <<<<<<<<<<<<<<
  * ctypedef (long long int) lli
  * 
  */
-typedef unsigned PY_LONG_LONG __pyx_t_5bzip2_size_t;
+typedef unsigned PY_LONG_LONG __pyx_t_13indexed_bzip2_size_t;
 
-/* "bzip2.pyx":17
+/* "indexed_bzip2.pyx":17
  * 
  * ctypedef (unsigned long long int) size_t
  * ctypedef (long long int) lli             # <<<<<<<<<<<<<<
  * 
  * 
  */
-typedef PY_LONG_LONG __pyx_t_5bzip2_lli;
+typedef PY_LONG_LONG __pyx_t_13indexed_bzip2_lli;
 
 /*--- Type declarations ---*/
-struct __pyx_obj_5bzip2_BZ2ReaderWrapper;
+struct __pyx_obj_13indexed_bzip2__IndexedBzip2File;
 struct __pyx_defaults;
 typedef struct __pyx_defaults __pyx_defaults;
 struct __pyx_defaults {
   PyObject *__pyx_arg_whence;
 };
 
-/* "bzip2.pyx":38
+/* "indexed_bzip2.pyx":38
  *         void setBlockOffsets( map[size_t,size_t] ) except +
  * 
- * cdef class BZ2ReaderWrapper():             # <<<<<<<<<<<<<<
+ * cdef class _IndexedBzip2File():             # <<<<<<<<<<<<<<
  *     cdef BZ2Reader* bz2reader
  * 
  */
-struct __pyx_obj_5bzip2_BZ2ReaderWrapper {
+struct __pyx_obj_13indexed_bzip2__IndexedBzip2File {
   PyObject_HEAD
   BZ2Reader *bz2reader;
 };
@@ -1411,16 +1412,16 @@ static int __Pyx_InitStrings(__Pyx_StringTabEntry *t);
 
 /* Module declarations from 'libcpp' */
 
-/* Module declarations from 'bzip2' */
-static PyTypeObject *__pyx_ptype_5bzip2_BZ2ReaderWrapper = 0;
+/* Module declarations from 'indexed_bzip2' */
+static PyTypeObject *__pyx_ptype_13indexed_bzip2__IndexedBzip2File = 0;
 static std::string __pyx_convert_string_from_py_std__in_string(PyObject *); /*proto*/
 static PyObject *__pyx_convert_map_to_py_size_t____size_t(std::map<size_t,size_t>  const &); /*proto*/
 static std::map<size_t,size_t>  __pyx_convert_map_from_py_size_t__and_size_t(PyObject *); /*proto*/
-#define __Pyx_MODULE_NAME "bzip2"
-extern int __pyx_module_is_main_bzip2;
-int __pyx_module_is_main_bzip2 = 0;
+#define __Pyx_MODULE_NAME "indexed_bzip2"
+extern int __pyx_module_is_main_indexed_bzip2;
+int __pyx_module_is_main_indexed_bzip2 = 0;
 
-/* Implementation of 'bzip2' */
+/* Implementation of 'indexed_bzip2' */
 static PyObject *__pyx_builtin_MemoryError;
 static PyObject *__pyx_builtin_TypeError;
 static const char __pyx_k_[] = "";
@@ -1444,7 +1445,6 @@ static const char __pyx_k_self[] = "self";
 static const char __pyx_k_size[] = "size";
 static const char __pyx_k_tell[] = "tell";
 static const char __pyx_k_test[] = "__test__";
-static const char __pyx_k_bzip2[] = "bzip2";
 static const char __pyx_k_close[] = "close";
 static const char __pyx_k_read1[] = "read1";
 static const char __pyx_k_write[] = "write";
@@ -1471,7 +1471,6 @@ static const char __pyx_k_setstate[] = "__setstate__";
 static const char __pyx_k_writable[] = "writable";
 static const char __pyx_k_TypeError[] = "TypeError";
 static const char __pyx_k_bz2reader[] = "bz2reader";
-static const char __pyx_k_bzip2_pyx[] = "bzip2.pyx";
 static const char __pyx_k_iteritems[] = "iteritems";
 static const char __pyx_k_metaclass[] = "__metaclass__";
 static const char __pyx_k_readlines[] = "readlines";
@@ -1479,69 +1478,69 @@ static const char __pyx_k_reduce_ex[] = "__reduce_ex__";
 static const char __pyx_k_writelines[] = "writelines";
 static const char __pyx_k_MemoryError[] = "MemoryError";
 static const char __pyx_k_blockOffsets[] = "blockOffsets";
-static const char __pyx_k_SeekableBzip2[] = "SeekableBzip2";
+static const char __pyx_k_indexed_bzip2[] = "indexed_bzip2";
 static const char __pyx_k_not_supported[] = "not supported";
 static const char __pyx_k_reduce_cython[] = "__reduce_cython__";
 static const char __pyx_k_BufferedIOBase[] = "BufferedIOBase";
 static const char __pyx_k_setBlockOffsets[] = "setBlockOffsets";
 static const char __pyx_k_setstate_cython[] = "__setstate_cython__";
-static const char __pyx_k_BZ2ReaderWrapper[] = "BZ2ReaderWrapper";
-static const char __pyx_k_SeekableBzip2_peek[] = "SeekableBzip2.peek";
-static const char __pyx_k_SeekableBzip2_read[] = "SeekableBzip2.read";
-static const char __pyx_k_SeekableBzip2_seek[] = "SeekableBzip2.seek";
-static const char __pyx_k_SeekableBzip2_tell[] = "SeekableBzip2.tell";
+static const char __pyx_k_IndexedBzip2File[] = "_IndexedBzip2File";
+static const char __pyx_k_IndexedBzip2File_2[] = "IndexedBzip2File";
 static const char __pyx_k_cline_in_traceback[] = "cline_in_traceback";
-static const char __pyx_k_SeekableBzip2_close[] = "SeekableBzip2.close";
-static const char __pyx_k_SeekableBzip2_read1[] = "SeekableBzip2.read1";
-static const char __pyx_k_SeekableBzip2_write[] = "SeekableBzip2.write";
-static const char __pyx_k_SeekableBzip2___init[] = "SeekableBzip2.__init__";
-static const char __pyx_k_SeekableBzip2_closed[] = "SeekableBzip2.closed";
-static const char __pyx_k_SeekableBzip2_fileno[] = "SeekableBzip2.fileno";
 static const char __pyx_k_fileNameOrDescriptor[] = "fileNameOrDescriptor";
+static const char __pyx_k_IndexedBzip2File_peek[] = "IndexedBzip2File.peek";
+static const char __pyx_k_IndexedBzip2File_read[] = "IndexedBzip2File.read";
+static const char __pyx_k_IndexedBzip2File_seek[] = "IndexedBzip2File.seek";
+static const char __pyx_k_IndexedBzip2File_tell[] = "IndexedBzip2File.tell";
 static const char __pyx_k_Invalid_size_argument[] = "Invalid size argument";
-static const char __pyx_k_SeekableBzip2_readable[] = "SeekableBzip2.readable";
-static const char __pyx_k_SeekableBzip2_readinto[] = "SeekableBzip2.readinto";
-static const char __pyx_k_SeekableBzip2_readline[] = "SeekableBzip2.readline";
-static const char __pyx_k_SeekableBzip2_seekable[] = "SeekableBzip2.seekable";
-static const char __pyx_k_SeekableBzip2_writable[] = "SeekableBzip2.writable";
-static const char __pyx_k_SeekableBzip2_readlines[] = "SeekableBzip2.readlines";
-static const char __pyx_k_SeekableBzip2_writelines[] = "SeekableBzip2.writelines";
-static const char __pyx_k_SeekableBzip2_blockOffsets[] = "SeekableBzip2.blockOffsets";
-static const char __pyx_k_SeekableBzip2_setBlockOffsets[] = "SeekableBzip2.setBlockOffsets";
+static const char __pyx_k_IndexedBzip2File_close[] = "IndexedBzip2File.close";
+static const char __pyx_k_IndexedBzip2File_read1[] = "IndexedBzip2File.read1";
+static const char __pyx_k_IndexedBzip2File_write[] = "IndexedBzip2File.write";
+static const char __pyx_k_IndexedBzip2File___init[] = "IndexedBzip2File.__init__";
+static const char __pyx_k_IndexedBzip2File_closed[] = "IndexedBzip2File.closed";
+static const char __pyx_k_IndexedBzip2File_fileno[] = "IndexedBzip2File.fileno";
+static const char __pyx_k_IndexedBzip2File_readable[] = "IndexedBzip2File.readable";
+static const char __pyx_k_IndexedBzip2File_readinto[] = "IndexedBzip2File.readinto";
+static const char __pyx_k_IndexedBzip2File_readline[] = "IndexedBzip2File.readline";
+static const char __pyx_k_IndexedBzip2File_seekable[] = "IndexedBzip2File.seekable";
+static const char __pyx_k_IndexedBzip2File_writable[] = "IndexedBzip2File.writable";
+static const char __pyx_k_IndexedBzip2File_readlines[] = "IndexedBzip2File.readlines";
+static const char __pyx_k_IndexedBzip2File_writelines[] = "IndexedBzip2File.writelines";
+static const char __pyx_k_IndexedBzip2File_blockOffsets[] = "IndexedBzip2File.blockOffsets";
 static const char __pyx_k_Pyrex_C_extension_supporting_bx[] = "\nPyrex/C extension supporting `bx.misc.seekbzip2` (wrapping the low level\nfunctions in `micro-bunzip.c`).\n";
+static const char __pyx_k_indexed_bzip2_indexed_bzip2_pyx[] = "indexed_bzip2/indexed_bzip2.pyx";
+static const char __pyx_k_IndexedBzip2File_setBlockOffsets[] = "IndexedBzip2File.setBlockOffsets";
 static const char __pyx_k_self_bz2reader_cannot_be_convert[] = "self.bz2reader cannot be converted to a Python object for pickling";
 static PyObject *__pyx_kp_b_;
-static PyObject *__pyx_n_s_BZ2ReaderWrapper;
 static PyObject *__pyx_n_s_BufferedIOBase;
+static PyObject *__pyx_n_s_IndexedBzip2File;
+static PyObject *__pyx_n_s_IndexedBzip2File_2;
+static PyObject *__pyx_n_s_IndexedBzip2File___init;
+static PyObject *__pyx_n_s_IndexedBzip2File_blockOffsets;
+static PyObject *__pyx_n_s_IndexedBzip2File_close;
+static PyObject *__pyx_n_s_IndexedBzip2File_closed;
+static PyObject *__pyx_n_s_IndexedBzip2File_fileno;
+static PyObject *__pyx_n_s_IndexedBzip2File_peek;
+static PyObject *__pyx_n_s_IndexedBzip2File_read;
+static PyObject *__pyx_n_s_IndexedBzip2File_read1;
+static PyObject *__pyx_n_s_IndexedBzip2File_readable;
+static PyObject *__pyx_n_s_IndexedBzip2File_readinto;
+static PyObject *__pyx_n_s_IndexedBzip2File_readline;
+static PyObject *__pyx_n_s_IndexedBzip2File_readlines;
+static PyObject *__pyx_n_s_IndexedBzip2File_seek;
+static PyObject *__pyx_n_s_IndexedBzip2File_seekable;
+static PyObject *__pyx_n_s_IndexedBzip2File_setBlockOffsets;
+static PyObject *__pyx_n_s_IndexedBzip2File_tell;
+static PyObject *__pyx_n_s_IndexedBzip2File_writable;
+static PyObject *__pyx_n_s_IndexedBzip2File_write;
+static PyObject *__pyx_n_s_IndexedBzip2File_writelines;
 static PyObject *__pyx_kp_u_Invalid_size_argument;
 static PyObject *__pyx_n_s_MemoryError;
 static PyObject *__pyx_n_s_SEEK_SET;
-static PyObject *__pyx_n_s_SeekableBzip2;
-static PyObject *__pyx_n_s_SeekableBzip2___init;
-static PyObject *__pyx_n_s_SeekableBzip2_blockOffsets;
-static PyObject *__pyx_n_s_SeekableBzip2_close;
-static PyObject *__pyx_n_s_SeekableBzip2_closed;
-static PyObject *__pyx_n_s_SeekableBzip2_fileno;
-static PyObject *__pyx_n_s_SeekableBzip2_peek;
-static PyObject *__pyx_n_s_SeekableBzip2_read;
-static PyObject *__pyx_n_s_SeekableBzip2_read1;
-static PyObject *__pyx_n_s_SeekableBzip2_readable;
-static PyObject *__pyx_n_s_SeekableBzip2_readinto;
-static PyObject *__pyx_n_s_SeekableBzip2_readline;
-static PyObject *__pyx_n_s_SeekableBzip2_readlines;
-static PyObject *__pyx_n_s_SeekableBzip2_seek;
-static PyObject *__pyx_n_s_SeekableBzip2_seekable;
-static PyObject *__pyx_n_s_SeekableBzip2_setBlockOffsets;
-static PyObject *__pyx_n_s_SeekableBzip2_tell;
-static PyObject *__pyx_n_s_SeekableBzip2_writable;
-static PyObject *__pyx_n_s_SeekableBzip2_write;
-static PyObject *__pyx_n_s_SeekableBzip2_writelines;
 static PyObject *__pyx_n_s_TypeError;
 static PyObject *__pyx_n_s_b;
 static PyObject *__pyx_n_s_blockOffsets;
 static PyObject *__pyx_n_s_bz2reader;
-static PyObject *__pyx_n_s_bzip2;
-static PyObject *__pyx_kp_s_bzip2_pyx;
 static PyObject *__pyx_n_s_cline_in_traceback;
 static PyObject *__pyx_n_s_close;
 static PyObject *__pyx_n_s_closed;
@@ -1553,6 +1552,8 @@ static PyObject *__pyx_n_s_filename;
 static PyObject *__pyx_n_s_fileno;
 static PyObject *__pyx_n_s_getstate;
 static PyObject *__pyx_n_s_import;
+static PyObject *__pyx_n_s_indexed_bzip2;
+static PyObject *__pyx_kp_s_indexed_bzip2_indexed_bzip2_pyx;
 static PyObject *__pyx_n_s_init;
 static PyObject *__pyx_n_s_io;
 static PyObject *__pyx_n_s_iteritems;
@@ -1596,38 +1597,38 @@ static PyObject *__pyx_n_s_whence;
 static PyObject *__pyx_n_s_writable;
 static PyObject *__pyx_n_s_write;
 static PyObject *__pyx_n_s_writelines;
-static int __pyx_pf_5bzip2_16BZ2ReaderWrapper___init__(struct __pyx_obj_5bzip2_BZ2ReaderWrapper *__pyx_v_self, PyObject *__pyx_v_fileNameOrDescriptor); /* proto */
-static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_2close(struct __pyx_obj_5bzip2_BZ2ReaderWrapper *__pyx_v_self); /* proto */
-static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_4closed(struct __pyx_obj_5bzip2_BZ2ReaderWrapper *__pyx_v_self); /* proto */
-static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_6fileno(struct __pyx_obj_5bzip2_BZ2ReaderWrapper *__pyx_v_self); /* proto */
-static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_8read(struct __pyx_obj_5bzip2_BZ2ReaderWrapper *__pyx_v_self, PyObject *__pyx_v_size); /* proto */
-static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_10seek(struct __pyx_obj_5bzip2_BZ2ReaderWrapper *__pyx_v_self, PyObject *__pyx_v_offset, PyObject *__pyx_v_whence); /* proto */
-static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_12tell(struct __pyx_obj_5bzip2_BZ2ReaderWrapper *__pyx_v_self); /* proto */
-static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_14blockOffsets(struct __pyx_obj_5bzip2_BZ2ReaderWrapper *__pyx_v_self); /* proto */
-static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_16setBlockOffsets(struct __pyx_obj_5bzip2_BZ2ReaderWrapper *__pyx_v_self, PyObject *__pyx_v_offsets); /* proto */
-static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_18__reduce_cython__(CYTHON_UNUSED struct __pyx_obj_5bzip2_BZ2ReaderWrapper *__pyx_v_self); /* proto */
-static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_20__setstate_cython__(CYTHON_UNUSED struct __pyx_obj_5bzip2_BZ2ReaderWrapper *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v___pyx_state); /* proto */
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2___init__(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self, PyObject *__pyx_v_filename); /* proto */
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_2close(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self); /* proto */
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_4closed(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self); /* proto */
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_6fileno(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self); /* proto */
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_8seekable(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self); /* proto */
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_10readable(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self); /* proto */
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_12writable(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self); /* proto */
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_14read(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self, PyObject *__pyx_v_size); /* proto */
-static PyObject *__pyx_pf_5bzip2___defaults__(CYTHON_UNUSED PyObject *__pyx_self); /* proto */
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_16seek(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self, PyObject *__pyx_v_offset, PyObject *__pyx_v_whence); /* proto */
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_18tell(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self); /* proto */
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_20peek(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_n); /* proto */
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_22read1(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_size); /* proto */
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_24readinto(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_b); /* proto */
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_26readline(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_size); /* proto */
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_28readlines(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_size); /* proto */
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_30write(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_data); /* proto */
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_32writelines(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_seq); /* proto */
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_34blockOffsets(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self); /* proto */
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_36setBlockOffsets(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self, PyObject *__pyx_v_offsets); /* proto */
-static PyObject *__pyx_tp_new_5bzip2_BZ2ReaderWrapper(PyTypeObject *t, PyObject *a, PyObject *k); /*proto*/
+static int __pyx_pf_13indexed_bzip2_17_IndexedBzip2File___init__(struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *__pyx_v_self, PyObject *__pyx_v_fileNameOrDescriptor); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_17_IndexedBzip2File_2close(struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *__pyx_v_self); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_17_IndexedBzip2File_4closed(struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *__pyx_v_self); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_17_IndexedBzip2File_6fileno(struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *__pyx_v_self); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_17_IndexedBzip2File_8read(struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *__pyx_v_self, PyObject *__pyx_v_size); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_17_IndexedBzip2File_10seek(struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *__pyx_v_self, PyObject *__pyx_v_offset, PyObject *__pyx_v_whence); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_17_IndexedBzip2File_12tell(struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *__pyx_v_self); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_17_IndexedBzip2File_14blockOffsets(struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *__pyx_v_self); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_17_IndexedBzip2File_16setBlockOffsets(struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *__pyx_v_self, PyObject *__pyx_v_offsets); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_17_IndexedBzip2File_18__reduce_cython__(CYTHON_UNUSED struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *__pyx_v_self); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_17_IndexedBzip2File_20__setstate_cython__(CYTHON_UNUSED struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v___pyx_state); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File___init__(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self, PyObject *__pyx_v_filename); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_2close(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_4closed(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_6fileno(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_8seekable(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_10readable(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_12writable(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_14read(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self, PyObject *__pyx_v_size); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2___defaults__(CYTHON_UNUSED PyObject *__pyx_self); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_16seek(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self, PyObject *__pyx_v_offset, PyObject *__pyx_v_whence); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_18tell(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_20peek(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_n); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_22read1(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_size); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_24readinto(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_b); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_26readline(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_size); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_28readlines(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_size); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_30write(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_data); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_32writelines(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_seq); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_34blockOffsets(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self); /* proto */
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_36setBlockOffsets(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self, PyObject *__pyx_v_offsets); /* proto */
+static PyObject *__pyx_tp_new_13indexed_bzip2__IndexedBzip2File(PyTypeObject *t, PyObject *a, PyObject *k); /*proto*/
 static PyObject *__pyx_int_0;
 static PyObject *__pyx_int_neg_1;
 static PyObject *__pyx_tuple__2;
@@ -1679,7 +1680,7 @@ static PyObject *__pyx_codeobj__46;
 static PyObject *__pyx_codeobj__48;
 /* Late includes */
 
-/* "bzip2.pyx":41
+/* "indexed_bzip2.pyx":41
  *     cdef BZ2Reader* bz2reader
  * 
  *     def __init__( self, fileNameOrDescriptor ):             # <<<<<<<<<<<<<<
@@ -1688,8 +1689,8 @@ static PyObject *__pyx_codeobj__48;
  */
 
 /* Python wrapper */
-static int __pyx_pw_5bzip2_16BZ2ReaderWrapper_1__init__(PyObject *__pyx_v_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
-static int __pyx_pw_5bzip2_16BZ2ReaderWrapper_1__init__(PyObject *__pyx_v_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
+static int __pyx_pw_13indexed_bzip2_17_IndexedBzip2File_1__init__(PyObject *__pyx_v_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
+static int __pyx_pw_13indexed_bzip2_17_IndexedBzip2File_1__init__(PyObject *__pyx_v_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
   PyObject *__pyx_v_fileNameOrDescriptor = 0;
   int __pyx_r;
   __Pyx_RefNannyDeclarations
@@ -1726,18 +1727,18 @@ static int __pyx_pw_5bzip2_16BZ2ReaderWrapper_1__init__(PyObject *__pyx_v_self, 
   __pyx_L5_argtuple_error:;
   __Pyx_RaiseArgtupleInvalid("__init__", 1, 1, 1, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 41, __pyx_L3_error)
   __pyx_L3_error:;
-  __Pyx_AddTraceback("bzip2.BZ2ReaderWrapper.__init__", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2._IndexedBzip2File.__init__", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
   return -1;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_5bzip2_16BZ2ReaderWrapper___init__(((struct __pyx_obj_5bzip2_BZ2ReaderWrapper *)__pyx_v_self), __pyx_v_fileNameOrDescriptor);
+  __pyx_r = __pyx_pf_13indexed_bzip2_17_IndexedBzip2File___init__(((struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *)__pyx_v_self), __pyx_v_fileNameOrDescriptor);
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static int __pyx_pf_5bzip2_16BZ2ReaderWrapper___init__(struct __pyx_obj_5bzip2_BZ2ReaderWrapper *__pyx_v_self, PyObject *__pyx_v_fileNameOrDescriptor) {
+static int __pyx_pf_13indexed_bzip2_17_IndexedBzip2File___init__(struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *__pyx_v_self, PyObject *__pyx_v_fileNameOrDescriptor) {
   int __pyx_r;
   __Pyx_RefNannyDeclarations
   int __pyx_t_1;
@@ -1750,7 +1751,7 @@ static int __pyx_pf_5bzip2_16BZ2ReaderWrapper___init__(struct __pyx_obj_5bzip2_B
   int __pyx_t_8;
   __Pyx_RefNannySetupContext("__init__", 0);
 
-  /* "bzip2.pyx":42
+  /* "indexed_bzip2.pyx":42
  * 
  *     def __init__( self, fileNameOrDescriptor ):
  *         if isinstance( fileNameOrDescriptor, basestring ):             # <<<<<<<<<<<<<<
@@ -1761,7 +1762,7 @@ static int __pyx_pf_5bzip2_16BZ2ReaderWrapper___init__(struct __pyx_obj_5bzip2_B
   __pyx_t_2 = (__pyx_t_1 != 0);
   if (__pyx_t_2) {
 
-    /* "bzip2.pyx":43
+    /* "indexed_bzip2.pyx":43
  *     def __init__( self, fileNameOrDescriptor ):
  *         if isinstance( fileNameOrDescriptor, basestring ):
  *             self.bz2reader = new BZ2Reader( <string>fileNameOrDescriptor.encode() )             # <<<<<<<<<<<<<<
@@ -1795,7 +1796,7 @@ static int __pyx_pf_5bzip2_16BZ2ReaderWrapper___init__(struct __pyx_obj_5bzip2_B
     }
     __pyx_v_self->bz2reader = __pyx_t_7;
 
-    /* "bzip2.pyx":42
+    /* "indexed_bzip2.pyx":42
  * 
  *     def __init__( self, fileNameOrDescriptor ):
  *         if isinstance( fileNameOrDescriptor, basestring ):             # <<<<<<<<<<<<<<
@@ -1805,7 +1806,7 @@ static int __pyx_pf_5bzip2_16BZ2ReaderWrapper___init__(struct __pyx_obj_5bzip2_B
     goto __pyx_L3;
   }
 
-  /* "bzip2.pyx":45
+  /* "indexed_bzip2.pyx":45
  *             self.bz2reader = new BZ2Reader( <string>fileNameOrDescriptor.encode() )
  *         else:
  *             self.bz2reader = new BZ2Reader( <int> fileNameOrDescriptor )             # <<<<<<<<<<<<<<
@@ -1824,7 +1825,7 @@ static int __pyx_pf_5bzip2_16BZ2ReaderWrapper___init__(struct __pyx_obj_5bzip2_B
   }
   __pyx_L3:;
 
-  /* "bzip2.pyx":41
+  /* "indexed_bzip2.pyx":41
  *     cdef BZ2Reader* bz2reader
  * 
  *     def __init__( self, fileNameOrDescriptor ):             # <<<<<<<<<<<<<<
@@ -1839,14 +1840,14 @@ static int __pyx_pf_5bzip2_16BZ2ReaderWrapper___init__(struct __pyx_obj_5bzip2_B
   __Pyx_XDECREF(__pyx_t_3);
   __Pyx_XDECREF(__pyx_t_4);
   __Pyx_XDECREF(__pyx_t_5);
-  __Pyx_AddTraceback("bzip2.BZ2ReaderWrapper.__init__", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2._IndexedBzip2File.__init__", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = -1;
   __pyx_L0:;
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-/* "bzip2.pyx":47
+/* "indexed_bzip2.pyx":47
  *             self.bz2reader = new BZ2Reader( <int> fileNameOrDescriptor )
  * 
  *     def close( self ):             # <<<<<<<<<<<<<<
@@ -1855,24 +1856,24 @@ static int __pyx_pf_5bzip2_16BZ2ReaderWrapper___init__(struct __pyx_obj_5bzip2_B
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_16BZ2ReaderWrapper_3close(PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *unused); /*proto*/
-static PyObject *__pyx_pw_5bzip2_16BZ2ReaderWrapper_3close(PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *unused) {
+static PyObject *__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_3close(PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *unused); /*proto*/
+static PyObject *__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_3close(PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *unused) {
   PyObject *__pyx_r = 0;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("close (wrapper)", 0);
-  __pyx_r = __pyx_pf_5bzip2_16BZ2ReaderWrapper_2close(((struct __pyx_obj_5bzip2_BZ2ReaderWrapper *)__pyx_v_self));
+  __pyx_r = __pyx_pf_13indexed_bzip2_17_IndexedBzip2File_2close(((struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *)__pyx_v_self));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_2close(struct __pyx_obj_5bzip2_BZ2ReaderWrapper *__pyx_v_self) {
+static PyObject *__pyx_pf_13indexed_bzip2_17_IndexedBzip2File_2close(struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *__pyx_v_self) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("close", 0);
 
-  /* "bzip2.pyx":48
+  /* "indexed_bzip2.pyx":48
  * 
  *     def close( self ):
  *         self.bz2reader.close()             # <<<<<<<<<<<<<<
@@ -1886,7 +1887,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_2close(struct __pyx_obj_5bzi
     __PYX_ERR(0, 48, __pyx_L1_error)
   }
 
-  /* "bzip2.pyx":47
+  /* "indexed_bzip2.pyx":47
  *             self.bz2reader = new BZ2Reader( <int> fileNameOrDescriptor )
  * 
  *     def close( self ):             # <<<<<<<<<<<<<<
@@ -1898,7 +1899,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_2close(struct __pyx_obj_5bzi
   __pyx_r = Py_None; __Pyx_INCREF(Py_None);
   goto __pyx_L0;
   __pyx_L1_error:;
-  __Pyx_AddTraceback("bzip2.BZ2ReaderWrapper.close", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2._IndexedBzip2File.close", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
   __Pyx_XGIVEREF(__pyx_r);
@@ -1906,7 +1907,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_2close(struct __pyx_obj_5bzi
   return __pyx_r;
 }
 
-/* "bzip2.pyx":50
+/* "indexed_bzip2.pyx":50
  *         self.bz2reader.close()
  * 
  *     def closed( self ):             # <<<<<<<<<<<<<<
@@ -1915,26 +1916,26 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_2close(struct __pyx_obj_5bzi
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_16BZ2ReaderWrapper_5closed(PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *unused); /*proto*/
-static PyObject *__pyx_pw_5bzip2_16BZ2ReaderWrapper_5closed(PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *unused) {
+static PyObject *__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_5closed(PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *unused); /*proto*/
+static PyObject *__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_5closed(PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *unused) {
   PyObject *__pyx_r = 0;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("closed (wrapper)", 0);
-  __pyx_r = __pyx_pf_5bzip2_16BZ2ReaderWrapper_4closed(((struct __pyx_obj_5bzip2_BZ2ReaderWrapper *)__pyx_v_self));
+  __pyx_r = __pyx_pf_13indexed_bzip2_17_IndexedBzip2File_4closed(((struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *)__pyx_v_self));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_4closed(struct __pyx_obj_5bzip2_BZ2ReaderWrapper *__pyx_v_self) {
+static PyObject *__pyx_pf_13indexed_bzip2_17_IndexedBzip2File_4closed(struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *__pyx_v_self) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   bool __pyx_t_1;
   PyObject *__pyx_t_2 = NULL;
   __Pyx_RefNannySetupContext("closed", 0);
 
-  /* "bzip2.pyx":51
+  /* "indexed_bzip2.pyx":51
  * 
  *     def closed( self ):
  *         return self.bz2reader.closed()             # <<<<<<<<<<<<<<
@@ -1954,7 +1955,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_4closed(struct __pyx_obj_5bz
   __pyx_t_2 = 0;
   goto __pyx_L0;
 
-  /* "bzip2.pyx":50
+  /* "indexed_bzip2.pyx":50
  *         self.bz2reader.close()
  * 
  *     def closed( self ):             # <<<<<<<<<<<<<<
@@ -1965,7 +1966,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_4closed(struct __pyx_obj_5bz
   /* function exit code */
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_2);
-  __Pyx_AddTraceback("bzip2.BZ2ReaderWrapper.closed", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2._IndexedBzip2File.closed", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
   __Pyx_XGIVEREF(__pyx_r);
@@ -1973,7 +1974,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_4closed(struct __pyx_obj_5bz
   return __pyx_r;
 }
 
-/* "bzip2.pyx":53
+/* "indexed_bzip2.pyx":53
  *         return self.bz2reader.closed()
  * 
  *     def fileno( self ):             # <<<<<<<<<<<<<<
@@ -1982,26 +1983,26 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_4closed(struct __pyx_obj_5bz
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_16BZ2ReaderWrapper_7fileno(PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *unused); /*proto*/
-static PyObject *__pyx_pw_5bzip2_16BZ2ReaderWrapper_7fileno(PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *unused) {
+static PyObject *__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_7fileno(PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *unused); /*proto*/
+static PyObject *__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_7fileno(PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *unused) {
   PyObject *__pyx_r = 0;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("fileno (wrapper)", 0);
-  __pyx_r = __pyx_pf_5bzip2_16BZ2ReaderWrapper_6fileno(((struct __pyx_obj_5bzip2_BZ2ReaderWrapper *)__pyx_v_self));
+  __pyx_r = __pyx_pf_13indexed_bzip2_17_IndexedBzip2File_6fileno(((struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *)__pyx_v_self));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_6fileno(struct __pyx_obj_5bzip2_BZ2ReaderWrapper *__pyx_v_self) {
+static PyObject *__pyx_pf_13indexed_bzip2_17_IndexedBzip2File_6fileno(struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *__pyx_v_self) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   int __pyx_t_1;
   PyObject *__pyx_t_2 = NULL;
   __Pyx_RefNannySetupContext("fileno", 0);
 
-  /* "bzip2.pyx":54
+  /* "indexed_bzip2.pyx":54
  * 
  *     def fileno( self ):
  *         return self.bz2reader.fileno()             # <<<<<<<<<<<<<<
@@ -2021,7 +2022,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_6fileno(struct __pyx_obj_5bz
   __pyx_t_2 = 0;
   goto __pyx_L0;
 
-  /* "bzip2.pyx":53
+  /* "indexed_bzip2.pyx":53
  *         return self.bz2reader.closed()
  * 
  *     def fileno( self ):             # <<<<<<<<<<<<<<
@@ -2032,7 +2033,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_6fileno(struct __pyx_obj_5bz
   /* function exit code */
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_2);
-  __Pyx_AddTraceback("bzip2.BZ2ReaderWrapper.fileno", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2._IndexedBzip2File.fileno", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
   __Pyx_XGIVEREF(__pyx_r);
@@ -2040,7 +2041,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_6fileno(struct __pyx_obj_5bz
   return __pyx_r;
 }
 
-/* "bzip2.pyx":56
+/* "indexed_bzip2.pyx":56
  *         return self.bz2reader.fileno()
  * 
  *     def read( self, size = -1 ):             # <<<<<<<<<<<<<<
@@ -2049,8 +2050,8 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_6fileno(struct __pyx_obj_5bz
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_16BZ2ReaderWrapper_9read(PyObject *__pyx_v_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
-static PyObject *__pyx_pw_5bzip2_16BZ2ReaderWrapper_9read(PyObject *__pyx_v_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
+static PyObject *__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_9read(PyObject *__pyx_v_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
+static PyObject *__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_9read(PyObject *__pyx_v_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
   PyObject *__pyx_v_size = 0;
   PyObject *__pyx_r = 0;
   __Pyx_RefNannyDeclarations
@@ -2093,18 +2094,18 @@ static PyObject *__pyx_pw_5bzip2_16BZ2ReaderWrapper_9read(PyObject *__pyx_v_self
   __pyx_L5_argtuple_error:;
   __Pyx_RaiseArgtupleInvalid("read", 0, 0, 1, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 56, __pyx_L3_error)
   __pyx_L3_error:;
-  __Pyx_AddTraceback("bzip2.BZ2ReaderWrapper.read", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2._IndexedBzip2File.read", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_5bzip2_16BZ2ReaderWrapper_8read(((struct __pyx_obj_5bzip2_BZ2ReaderWrapper *)__pyx_v_self), __pyx_v_size);
+  __pyx_r = __pyx_pf_13indexed_bzip2_17_IndexedBzip2File_8read(((struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *)__pyx_v_self), __pyx_v_size);
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_8read(struct __pyx_obj_5bzip2_BZ2ReaderWrapper *__pyx_v_self, PyObject *__pyx_v_size) {
+static PyObject *__pyx_pf_13indexed_bzip2_17_IndexedBzip2File_8read(struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *__pyx_v_self, PyObject *__pyx_v_size) {
   char *__pyx_v_buffer;
   PyObject *__pyx_v_result = NULL;
   PyObject *__pyx_r = NULL;
@@ -2129,7 +2130,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_8read(struct __pyx_obj_5bzip
   __Pyx_RefNannySetupContext("read", 0);
   __Pyx_INCREF(__pyx_v_size);
 
-  /* "bzip2.pyx":57
+  /* "indexed_bzip2.pyx":57
  * 
  *     def read( self, size = -1 ):
  *         if size == 0 or self.bz2reader.eof():             # <<<<<<<<<<<<<<
@@ -2156,7 +2157,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_8read(struct __pyx_obj_5bzip
   __pyx_L4_bool_binop_done:;
   if (__pyx_t_1) {
 
-    /* "bzip2.pyx":58
+    /* "indexed_bzip2.pyx":58
  *     def read( self, size = -1 ):
  *         if size == 0 or self.bz2reader.eof():
  *             return b''             # <<<<<<<<<<<<<<
@@ -2168,7 +2169,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_8read(struct __pyx_obj_5bzip
     __pyx_r = __pyx_kp_b_;
     goto __pyx_L0;
 
-    /* "bzip2.pyx":57
+    /* "indexed_bzip2.pyx":57
  * 
  *     def read( self, size = -1 ):
  *         if size == 0 or self.bz2reader.eof():             # <<<<<<<<<<<<<<
@@ -2177,7 +2178,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_8read(struct __pyx_obj_5bzip
  */
   }
 
-  /* "bzip2.pyx":61
+  /* "indexed_bzip2.pyx":61
  * 
  *         cdef char* buffer
  *         if size > 0:             # <<<<<<<<<<<<<<
@@ -2189,7 +2190,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_8read(struct __pyx_obj_5bzip
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   if (__pyx_t_1) {
 
-    /* "bzip2.pyx":62
+    /* "indexed_bzip2.pyx":62
  *         cdef char* buffer
  *         if size > 0:
  *             buffer = <char*> malloc( size * sizeof( char ) )             # <<<<<<<<<<<<<<
@@ -2205,7 +2206,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_8read(struct __pyx_obj_5bzip
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
     __pyx_v_buffer = ((char *)malloc(__pyx_t_6));
 
-    /* "bzip2.pyx":63
+    /* "indexed_bzip2.pyx":63
  *         if size > 0:
  *             buffer = <char*> malloc( size * sizeof( char ) )
  *             if not buffer:             # <<<<<<<<<<<<<<
@@ -2215,7 +2216,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_8read(struct __pyx_obj_5bzip
     __pyx_t_1 = ((!(__pyx_v_buffer != 0)) != 0);
     if (unlikely(__pyx_t_1)) {
 
-      /* "bzip2.pyx":64
+      /* "indexed_bzip2.pyx":64
  *             buffer = <char*> malloc( size * sizeof( char ) )
  *             if not buffer:
  *                 raise MemoryError()             # <<<<<<<<<<<<<<
@@ -2224,7 +2225,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_8read(struct __pyx_obj_5bzip
  */
       PyErr_NoMemory(); __PYX_ERR(0, 64, __pyx_L1_error)
 
-      /* "bzip2.pyx":63
+      /* "indexed_bzip2.pyx":63
  *         if size > 0:
  *             buffer = <char*> malloc( size * sizeof( char ) )
  *             if not buffer:             # <<<<<<<<<<<<<<
@@ -2233,7 +2234,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_8read(struct __pyx_obj_5bzip
  */
     }
 
-    /* "bzip2.pyx":65
+    /* "indexed_bzip2.pyx":65
  *             if not buffer:
  *                 raise MemoryError()
  *             size = self.bz2reader.read( -1, buffer, size )             # <<<<<<<<<<<<<<
@@ -2252,7 +2253,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_8read(struct __pyx_obj_5bzip
     __Pyx_DECREF_SET(__pyx_v_size, __pyx_t_5);
     __pyx_t_5 = 0;
 
-    /* "bzip2.pyx":66
+    /* "indexed_bzip2.pyx":66
  *                 raise MemoryError()
  *             size = self.bz2reader.read( -1, buffer, size )
  *             try:             # <<<<<<<<<<<<<<
@@ -2261,7 +2262,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_8read(struct __pyx_obj_5bzip
  */
     /*try:*/ {
 
-      /* "bzip2.pyx":67
+      /* "indexed_bzip2.pyx":67
  *             size = self.bz2reader.read( -1, buffer, size )
  *             try:
  *                 result = <bytes> buffer[:size]             # <<<<<<<<<<<<<<
@@ -2287,7 +2288,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_8read(struct __pyx_obj_5bzip
       __pyx_t_2 = 0;
     }
 
-    /* "bzip2.pyx":69
+    /* "indexed_bzip2.pyx":69
  *                 result = <bytes> buffer[:size]
  *             finally:
  *                 free( buffer )             # <<<<<<<<<<<<<<
@@ -2335,7 +2336,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_8read(struct __pyx_obj_5bzip
       __pyx_L10:;
     }
 
-    /* "bzip2.pyx":70
+    /* "indexed_bzip2.pyx":70
  *             finally:
  *                 free( buffer )
  *             return result             # <<<<<<<<<<<<<<
@@ -2347,7 +2348,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_8read(struct __pyx_obj_5bzip
     __pyx_r = __pyx_v_result;
     goto __pyx_L0;
 
-    /* "bzip2.pyx":61
+    /* "indexed_bzip2.pyx":61
  * 
  *         cdef char* buffer
  *         if size > 0:             # <<<<<<<<<<<<<<
@@ -2356,7 +2357,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_8read(struct __pyx_obj_5bzip
  */
   }
 
-  /* "bzip2.pyx":77
+  /* "indexed_bzip2.pyx":77
  *         #    print( "Read {} bytes form bz2".format( size ), file = sys.stderr )
  * 
  *         raise Exception( "Invalid size argument" )             # <<<<<<<<<<<<<<
@@ -2369,7 +2370,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_8read(struct __pyx_obj_5bzip
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __PYX_ERR(0, 77, __pyx_L1_error)
 
-  /* "bzip2.pyx":56
+  /* "indexed_bzip2.pyx":56
  *         return self.bz2reader.fileno()
  * 
  *     def read( self, size = -1 ):             # <<<<<<<<<<<<<<
@@ -2381,7 +2382,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_8read(struct __pyx_obj_5bzip
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_2);
   __Pyx_XDECREF(__pyx_t_5);
-  __Pyx_AddTraceback("bzip2.BZ2ReaderWrapper.read", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2._IndexedBzip2File.read", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
   __Pyx_XDECREF(__pyx_v_result);
@@ -2391,7 +2392,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_8read(struct __pyx_obj_5bzip
   return __pyx_r;
 }
 
-/* "bzip2.pyx":79
+/* "indexed_bzip2.pyx":79
  *         raise Exception( "Invalid size argument" )
  * 
  *     def seek( self, offset, whence ):             # <<<<<<<<<<<<<<
@@ -2400,8 +2401,8 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_8read(struct __pyx_obj_5bzip
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_16BZ2ReaderWrapper_11seek(PyObject *__pyx_v_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
-static PyObject *__pyx_pw_5bzip2_16BZ2ReaderWrapper_11seek(PyObject *__pyx_v_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
+static PyObject *__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_11seek(PyObject *__pyx_v_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
+static PyObject *__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_11seek(PyObject *__pyx_v_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
   PyObject *__pyx_v_offset = 0;
   PyObject *__pyx_v_whence = 0;
   PyObject *__pyx_r = 0;
@@ -2449,27 +2450,27 @@ static PyObject *__pyx_pw_5bzip2_16BZ2ReaderWrapper_11seek(PyObject *__pyx_v_sel
   __pyx_L5_argtuple_error:;
   __Pyx_RaiseArgtupleInvalid("seek", 1, 2, 2, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 79, __pyx_L3_error)
   __pyx_L3_error:;
-  __Pyx_AddTraceback("bzip2.BZ2ReaderWrapper.seek", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2._IndexedBzip2File.seek", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_5bzip2_16BZ2ReaderWrapper_10seek(((struct __pyx_obj_5bzip2_BZ2ReaderWrapper *)__pyx_v_self), __pyx_v_offset, __pyx_v_whence);
+  __pyx_r = __pyx_pf_13indexed_bzip2_17_IndexedBzip2File_10seek(((struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *)__pyx_v_self), __pyx_v_offset, __pyx_v_whence);
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_10seek(struct __pyx_obj_5bzip2_BZ2ReaderWrapper *__pyx_v_self, PyObject *__pyx_v_offset, PyObject *__pyx_v_whence) {
+static PyObject *__pyx_pf_13indexed_bzip2_17_IndexedBzip2File_10seek(struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *__pyx_v_self, PyObject *__pyx_v_offset, PyObject *__pyx_v_whence) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
-  __pyx_t_5bzip2_lli __pyx_t_1;
+  __pyx_t_13indexed_bzip2_lli __pyx_t_1;
   int __pyx_t_2;
   size_t __pyx_t_3;
   PyObject *__pyx_t_4 = NULL;
   __Pyx_RefNannySetupContext("seek", 0);
 
-  /* "bzip2.pyx":80
+  /* "indexed_bzip2.pyx":80
  * 
  *     def seek( self, offset, whence ):
  *         return self.bz2reader.seek( offset, whence )             # <<<<<<<<<<<<<<
@@ -2491,7 +2492,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_10seek(struct __pyx_obj_5bzi
   __pyx_t_4 = 0;
   goto __pyx_L0;
 
-  /* "bzip2.pyx":79
+  /* "indexed_bzip2.pyx":79
  *         raise Exception( "Invalid size argument" )
  * 
  *     def seek( self, offset, whence ):             # <<<<<<<<<<<<<<
@@ -2502,7 +2503,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_10seek(struct __pyx_obj_5bzi
   /* function exit code */
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_4);
-  __Pyx_AddTraceback("bzip2.BZ2ReaderWrapper.seek", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2._IndexedBzip2File.seek", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
   __Pyx_XGIVEREF(__pyx_r);
@@ -2510,7 +2511,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_10seek(struct __pyx_obj_5bzi
   return __pyx_r;
 }
 
-/* "bzip2.pyx":82
+/* "indexed_bzip2.pyx":82
  *         return self.bz2reader.seek( offset, whence )
  * 
  *     def tell( self ):             # <<<<<<<<<<<<<<
@@ -2519,26 +2520,26 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_10seek(struct __pyx_obj_5bzi
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_16BZ2ReaderWrapper_13tell(PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *unused); /*proto*/
-static PyObject *__pyx_pw_5bzip2_16BZ2ReaderWrapper_13tell(PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *unused) {
+static PyObject *__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_13tell(PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *unused); /*proto*/
+static PyObject *__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_13tell(PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *unused) {
   PyObject *__pyx_r = 0;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("tell (wrapper)", 0);
-  __pyx_r = __pyx_pf_5bzip2_16BZ2ReaderWrapper_12tell(((struct __pyx_obj_5bzip2_BZ2ReaderWrapper *)__pyx_v_self));
+  __pyx_r = __pyx_pf_13indexed_bzip2_17_IndexedBzip2File_12tell(((struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *)__pyx_v_self));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_12tell(struct __pyx_obj_5bzip2_BZ2ReaderWrapper *__pyx_v_self) {
+static PyObject *__pyx_pf_13indexed_bzip2_17_IndexedBzip2File_12tell(struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *__pyx_v_self) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   size_t __pyx_t_1;
   PyObject *__pyx_t_2 = NULL;
   __Pyx_RefNannySetupContext("tell", 0);
 
-  /* "bzip2.pyx":83
+  /* "indexed_bzip2.pyx":83
  * 
  *     def tell( self ):
  *         return self.bz2reader.tell()             # <<<<<<<<<<<<<<
@@ -2558,7 +2559,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_12tell(struct __pyx_obj_5bzi
   __pyx_t_2 = 0;
   goto __pyx_L0;
 
-  /* "bzip2.pyx":82
+  /* "indexed_bzip2.pyx":82
  *         return self.bz2reader.seek( offset, whence )
  * 
  *     def tell( self ):             # <<<<<<<<<<<<<<
@@ -2569,7 +2570,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_12tell(struct __pyx_obj_5bzi
   /* function exit code */
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_2);
-  __Pyx_AddTraceback("bzip2.BZ2ReaderWrapper.tell", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2._IndexedBzip2File.tell", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
   __Pyx_XGIVEREF(__pyx_r);
@@ -2577,7 +2578,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_12tell(struct __pyx_obj_5bzi
   return __pyx_r;
 }
 
-/* "bzip2.pyx":85
+/* "indexed_bzip2.pyx":85
  *         return self.bz2reader.tell()
  * 
  *     def blockOffsets( self ):             # <<<<<<<<<<<<<<
@@ -2586,26 +2587,26 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_12tell(struct __pyx_obj_5bzi
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_16BZ2ReaderWrapper_15blockOffsets(PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *unused); /*proto*/
-static PyObject *__pyx_pw_5bzip2_16BZ2ReaderWrapper_15blockOffsets(PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *unused) {
+static PyObject *__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_15blockOffsets(PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *unused); /*proto*/
+static PyObject *__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_15blockOffsets(PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *unused) {
   PyObject *__pyx_r = 0;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("blockOffsets (wrapper)", 0);
-  __pyx_r = __pyx_pf_5bzip2_16BZ2ReaderWrapper_14blockOffsets(((struct __pyx_obj_5bzip2_BZ2ReaderWrapper *)__pyx_v_self));
+  __pyx_r = __pyx_pf_13indexed_bzip2_17_IndexedBzip2File_14blockOffsets(((struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *)__pyx_v_self));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_14blockOffsets(struct __pyx_obj_5bzip2_BZ2ReaderWrapper *__pyx_v_self) {
+static PyObject *__pyx_pf_13indexed_bzip2_17_IndexedBzip2File_14blockOffsets(struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *__pyx_v_self) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   std::map<size_t,size_t>  __pyx_t_1;
   PyObject *__pyx_t_2 = NULL;
   __Pyx_RefNannySetupContext("blockOffsets", 0);
 
-  /* "bzip2.pyx":86
+  /* "indexed_bzip2.pyx":86
  * 
  *     def blockOffsets( self ):
  *         return <dict> self.bz2reader.blockOffsets()             # <<<<<<<<<<<<<<
@@ -2627,7 +2628,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_14blockOffsets(struct __pyx_
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   goto __pyx_L0;
 
-  /* "bzip2.pyx":85
+  /* "indexed_bzip2.pyx":85
  *         return self.bz2reader.tell()
  * 
  *     def blockOffsets( self ):             # <<<<<<<<<<<<<<
@@ -2638,7 +2639,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_14blockOffsets(struct __pyx_
   /* function exit code */
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_2);
-  __Pyx_AddTraceback("bzip2.BZ2ReaderWrapper.blockOffsets", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2._IndexedBzip2File.blockOffsets", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
   __Pyx_XGIVEREF(__pyx_r);
@@ -2646,7 +2647,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_14blockOffsets(struct __pyx_
   return __pyx_r;
 }
 
-/* "bzip2.pyx":88
+/* "indexed_bzip2.pyx":88
  *         return <dict> self.bz2reader.blockOffsets()
  * 
  *     def setBlockOffsets( self, offsets ):             # <<<<<<<<<<<<<<
@@ -2655,26 +2656,26 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_14blockOffsets(struct __pyx_
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_16BZ2ReaderWrapper_17setBlockOffsets(PyObject *__pyx_v_self, PyObject *__pyx_v_offsets); /*proto*/
-static PyObject *__pyx_pw_5bzip2_16BZ2ReaderWrapper_17setBlockOffsets(PyObject *__pyx_v_self, PyObject *__pyx_v_offsets) {
+static PyObject *__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_17setBlockOffsets(PyObject *__pyx_v_self, PyObject *__pyx_v_offsets); /*proto*/
+static PyObject *__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_17setBlockOffsets(PyObject *__pyx_v_self, PyObject *__pyx_v_offsets) {
   PyObject *__pyx_r = 0;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("setBlockOffsets (wrapper)", 0);
-  __pyx_r = __pyx_pf_5bzip2_16BZ2ReaderWrapper_16setBlockOffsets(((struct __pyx_obj_5bzip2_BZ2ReaderWrapper *)__pyx_v_self), ((PyObject *)__pyx_v_offsets));
+  __pyx_r = __pyx_pf_13indexed_bzip2_17_IndexedBzip2File_16setBlockOffsets(((struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *)__pyx_v_self), ((PyObject *)__pyx_v_offsets));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_16setBlockOffsets(struct __pyx_obj_5bzip2_BZ2ReaderWrapper *__pyx_v_self, PyObject *__pyx_v_offsets) {
+static PyObject *__pyx_pf_13indexed_bzip2_17_IndexedBzip2File_16setBlockOffsets(struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *__pyx_v_self, PyObject *__pyx_v_offsets) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   std::map<size_t,size_t>  __pyx_t_1;
   PyObject *__pyx_t_2 = NULL;
   __Pyx_RefNannySetupContext("setBlockOffsets", 0);
 
-  /* "bzip2.pyx":89
+  /* "indexed_bzip2.pyx":89
  * 
  *     def setBlockOffsets( self, offsets ):
  *         return self.bz2reader.setBlockOffsets( offsets )             # <<<<<<<<<<<<<<
@@ -2695,7 +2696,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_16setBlockOffsets(struct __p
   __pyx_t_2 = 0;
   goto __pyx_L0;
 
-  /* "bzip2.pyx":88
+  /* "indexed_bzip2.pyx":88
  *         return <dict> self.bz2reader.blockOffsets()
  * 
  *     def setBlockOffsets( self, offsets ):             # <<<<<<<<<<<<<<
@@ -2706,7 +2707,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_16setBlockOffsets(struct __p
   /* function exit code */
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_2);
-  __Pyx_AddTraceback("bzip2.BZ2ReaderWrapper.setBlockOffsets", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2._IndexedBzip2File.setBlockOffsets", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
   __Pyx_XGIVEREF(__pyx_r);
@@ -2721,19 +2722,19 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_16setBlockOffsets(struct __p
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_16BZ2ReaderWrapper_19__reduce_cython__(PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *unused); /*proto*/
-static PyObject *__pyx_pw_5bzip2_16BZ2ReaderWrapper_19__reduce_cython__(PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *unused) {
+static PyObject *__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_19__reduce_cython__(PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *unused); /*proto*/
+static PyObject *__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_19__reduce_cython__(PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *unused) {
   PyObject *__pyx_r = 0;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("__reduce_cython__ (wrapper)", 0);
-  __pyx_r = __pyx_pf_5bzip2_16BZ2ReaderWrapper_18__reduce_cython__(((struct __pyx_obj_5bzip2_BZ2ReaderWrapper *)__pyx_v_self));
+  __pyx_r = __pyx_pf_13indexed_bzip2_17_IndexedBzip2File_18__reduce_cython__(((struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *)__pyx_v_self));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_18__reduce_cython__(CYTHON_UNUSED struct __pyx_obj_5bzip2_BZ2ReaderWrapper *__pyx_v_self) {
+static PyObject *__pyx_pf_13indexed_bzip2_17_IndexedBzip2File_18__reduce_cython__(CYTHON_UNUSED struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *__pyx_v_self) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
@@ -2760,7 +2761,7 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_18__reduce_cython__(CYTHON_U
   /* function exit code */
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_1);
-  __Pyx_AddTraceback("bzip2.BZ2ReaderWrapper.__reduce_cython__", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2._IndexedBzip2File.__reduce_cython__", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __Pyx_XGIVEREF(__pyx_r);
   __Pyx_RefNannyFinishContext();
@@ -2775,19 +2776,19 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_18__reduce_cython__(CYTHON_U
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_16BZ2ReaderWrapper_21__setstate_cython__(PyObject *__pyx_v_self, PyObject *__pyx_v___pyx_state); /*proto*/
-static PyObject *__pyx_pw_5bzip2_16BZ2ReaderWrapper_21__setstate_cython__(PyObject *__pyx_v_self, PyObject *__pyx_v___pyx_state) {
+static PyObject *__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_21__setstate_cython__(PyObject *__pyx_v_self, PyObject *__pyx_v___pyx_state); /*proto*/
+static PyObject *__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_21__setstate_cython__(PyObject *__pyx_v_self, PyObject *__pyx_v___pyx_state) {
   PyObject *__pyx_r = 0;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("__setstate_cython__ (wrapper)", 0);
-  __pyx_r = __pyx_pf_5bzip2_16BZ2ReaderWrapper_20__setstate_cython__(((struct __pyx_obj_5bzip2_BZ2ReaderWrapper *)__pyx_v_self), ((PyObject *)__pyx_v___pyx_state));
+  __pyx_r = __pyx_pf_13indexed_bzip2_17_IndexedBzip2File_20__setstate_cython__(((struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *)__pyx_v_self), ((PyObject *)__pyx_v___pyx_state));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_20__setstate_cython__(CYTHON_UNUSED struct __pyx_obj_5bzip2_BZ2ReaderWrapper *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v___pyx_state) {
+static PyObject *__pyx_pf_13indexed_bzip2_17_IndexedBzip2File_20__setstate_cython__(CYTHON_UNUSED struct __pyx_obj_13indexed_bzip2__IndexedBzip2File *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v___pyx_state) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
@@ -2814,25 +2815,25 @@ static PyObject *__pyx_pf_5bzip2_16BZ2ReaderWrapper_20__setstate_cython__(CYTHON
   /* function exit code */
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_1);
-  __Pyx_AddTraceback("bzip2.BZ2ReaderWrapper.__setstate_cython__", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2._IndexedBzip2File.__setstate_cython__", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __Pyx_XGIVEREF(__pyx_r);
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-/* "bzip2.pyx":94
+/* "indexed_bzip2.pyx":94
  * # Extra class because cdefs are not visible from otuside but cdef class can't inherit from io.BufferedIOBase
- * class SeekableBzip2( io.BufferedIOBase ):
+ * class IndexedBzip2File( io.BufferedIOBase ):
  *     def __init__( self, filename ):             # <<<<<<<<<<<<<<
- *         self.bz2reader = BZ2ReaderWrapper( filename )
+ *         self.bz2reader = _IndexedBzip2File( filename )
  *         self.name = filename
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_1__init__(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
-static PyMethodDef __pyx_mdef_5bzip2_13SeekableBzip2_1__init__ = {"__init__", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_5bzip2_13SeekableBzip2_1__init__, METH_VARARGS|METH_KEYWORDS, 0};
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_1__init__(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_1__init__(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
+static PyMethodDef __pyx_mdef_13indexed_bzip2_16IndexedBzip2File_1__init__ = {"__init__", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_13indexed_bzip2_16IndexedBzip2File_1__init__, METH_VARARGS|METH_KEYWORDS, 0};
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_1__init__(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
   PyObject *__pyx_v_self = 0;
   PyObject *__pyx_v_filename = 0;
   PyObject *__pyx_r = 0;
@@ -2880,46 +2881,46 @@ static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_1__init__(PyObject *__pyx_self,
   __pyx_L5_argtuple_error:;
   __Pyx_RaiseArgtupleInvalid("__init__", 1, 2, 2, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 94, __pyx_L3_error)
   __pyx_L3_error:;
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.__init__", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.__init__", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_5bzip2_13SeekableBzip2___init__(__pyx_self, __pyx_v_self, __pyx_v_filename);
+  __pyx_r = __pyx_pf_13indexed_bzip2_16IndexedBzip2File___init__(__pyx_self, __pyx_v_self, __pyx_v_filename);
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2___init__(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self, PyObject *__pyx_v_filename) {
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File___init__(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self, PyObject *__pyx_v_filename) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
   __Pyx_RefNannySetupContext("__init__", 0);
 
-  /* "bzip2.pyx":95
- * class SeekableBzip2( io.BufferedIOBase ):
+  /* "indexed_bzip2.pyx":95
+ * class IndexedBzip2File( io.BufferedIOBase ):
  *     def __init__( self, filename ):
- *         self.bz2reader = BZ2ReaderWrapper( filename )             # <<<<<<<<<<<<<<
+ *         self.bz2reader = _IndexedBzip2File( filename )             # <<<<<<<<<<<<<<
  *         self.name = filename
  *         self.mode = 'rb'
  */
-  __pyx_t_1 = __Pyx_PyObject_CallOneArg(((PyObject *)__pyx_ptype_5bzip2_BZ2ReaderWrapper), __pyx_v_filename); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 95, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_CallOneArg(((PyObject *)__pyx_ptype_13indexed_bzip2__IndexedBzip2File), __pyx_v_filename); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 95, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   if (__Pyx_PyObject_SetAttrStr(__pyx_v_self, __pyx_n_s_bz2reader, __pyx_t_1) < 0) __PYX_ERR(0, 95, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "bzip2.pyx":96
+  /* "indexed_bzip2.pyx":96
  *     def __init__( self, filename ):
- *         self.bz2reader = BZ2ReaderWrapper( filename )
+ *         self.bz2reader = _IndexedBzip2File( filename )
  *         self.name = filename             # <<<<<<<<<<<<<<
  *         self.mode = 'rb'
  * 
  */
   if (__Pyx_PyObject_SetAttrStr(__pyx_v_self, __pyx_n_s_name, __pyx_v_filename) < 0) __PYX_ERR(0, 96, __pyx_L1_error)
 
-  /* "bzip2.pyx":97
- *         self.bz2reader = BZ2ReaderWrapper( filename )
+  /* "indexed_bzip2.pyx":97
+ *         self.bz2reader = _IndexedBzip2File( filename )
  *         self.name = filename
  *         self.mode = 'rb'             # <<<<<<<<<<<<<<
  * 
@@ -2927,11 +2928,11 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2___init__(CYTHON_UNUSED PyObject
  */
   if (__Pyx_PyObject_SetAttrStr(__pyx_v_self, __pyx_n_s_mode, __pyx_n_u_rb) < 0) __PYX_ERR(0, 97, __pyx_L1_error)
 
-  /* "bzip2.pyx":94
+  /* "indexed_bzip2.pyx":94
  * # Extra class because cdefs are not visible from otuside but cdef class can't inherit from io.BufferedIOBase
- * class SeekableBzip2( io.BufferedIOBase ):
+ * class IndexedBzip2File( io.BufferedIOBase ):
  *     def __init__( self, filename ):             # <<<<<<<<<<<<<<
- *         self.bz2reader = BZ2ReaderWrapper( filename )
+ *         self.bz2reader = _IndexedBzip2File( filename )
  *         self.name = filename
  */
 
@@ -2940,7 +2941,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2___init__(CYTHON_UNUSED PyObject
   goto __pyx_L0;
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_1);
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.__init__", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.__init__", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
   __Pyx_XGIVEREF(__pyx_r);
@@ -2948,7 +2949,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2___init__(CYTHON_UNUSED PyObject
   return __pyx_r;
 }
 
-/* "bzip2.pyx":99
+/* "indexed_bzip2.pyx":99
  *         self.mode = 'rb'
  * 
  *     def close( self ):             # <<<<<<<<<<<<<<
@@ -2957,20 +2958,20 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2___init__(CYTHON_UNUSED PyObject
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_3close(PyObject *__pyx_self, PyObject *__pyx_v_self); /*proto*/
-static PyMethodDef __pyx_mdef_5bzip2_13SeekableBzip2_3close = {"close", (PyCFunction)__pyx_pw_5bzip2_13SeekableBzip2_3close, METH_O, 0};
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_3close(PyObject *__pyx_self, PyObject *__pyx_v_self) {
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_3close(PyObject *__pyx_self, PyObject *__pyx_v_self); /*proto*/
+static PyMethodDef __pyx_mdef_13indexed_bzip2_16IndexedBzip2File_3close = {"close", (PyCFunction)__pyx_pw_13indexed_bzip2_16IndexedBzip2File_3close, METH_O, 0};
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_3close(PyObject *__pyx_self, PyObject *__pyx_v_self) {
   PyObject *__pyx_r = 0;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("close (wrapper)", 0);
-  __pyx_r = __pyx_pf_5bzip2_13SeekableBzip2_2close(__pyx_self, ((PyObject *)__pyx_v_self));
+  __pyx_r = __pyx_pf_13indexed_bzip2_16IndexedBzip2File_2close(__pyx_self, ((PyObject *)__pyx_v_self));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_2close(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self) {
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_2close(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
@@ -2978,7 +2979,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_2close(CYTHON_UNUSED PyObject *
   PyObject *__pyx_t_3 = NULL;
   __Pyx_RefNannySetupContext("close", 0);
 
-  /* "bzip2.pyx":100
+  /* "indexed_bzip2.pyx":100
  * 
  *     def close( self ):
  *         self.bz2reader.close()             # <<<<<<<<<<<<<<
@@ -3007,7 +3008,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_2close(CYTHON_UNUSED PyObject *
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "bzip2.pyx":99
+  /* "indexed_bzip2.pyx":99
  *         self.mode = 'rb'
  * 
  *     def close( self ):             # <<<<<<<<<<<<<<
@@ -3022,7 +3023,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_2close(CYTHON_UNUSED PyObject *
   __Pyx_XDECREF(__pyx_t_1);
   __Pyx_XDECREF(__pyx_t_2);
   __Pyx_XDECREF(__pyx_t_3);
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.close", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.close", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
   __Pyx_XGIVEREF(__pyx_r);
@@ -3030,7 +3031,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_2close(CYTHON_UNUSED PyObject *
   return __pyx_r;
 }
 
-/* "bzip2.pyx":102
+/* "indexed_bzip2.pyx":102
  *         self.bz2reader.close()
  * 
  *     def closed( self ):             # <<<<<<<<<<<<<<
@@ -3039,20 +3040,20 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_2close(CYTHON_UNUSED PyObject *
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_5closed(PyObject *__pyx_self, PyObject *__pyx_v_self); /*proto*/
-static PyMethodDef __pyx_mdef_5bzip2_13SeekableBzip2_5closed = {"closed", (PyCFunction)__pyx_pw_5bzip2_13SeekableBzip2_5closed, METH_O, 0};
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_5closed(PyObject *__pyx_self, PyObject *__pyx_v_self) {
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_5closed(PyObject *__pyx_self, PyObject *__pyx_v_self); /*proto*/
+static PyMethodDef __pyx_mdef_13indexed_bzip2_16IndexedBzip2File_5closed = {"closed", (PyCFunction)__pyx_pw_13indexed_bzip2_16IndexedBzip2File_5closed, METH_O, 0};
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_5closed(PyObject *__pyx_self, PyObject *__pyx_v_self) {
   PyObject *__pyx_r = 0;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("closed (wrapper)", 0);
-  __pyx_r = __pyx_pf_5bzip2_13SeekableBzip2_4closed(__pyx_self, ((PyObject *)__pyx_v_self));
+  __pyx_r = __pyx_pf_13indexed_bzip2_16IndexedBzip2File_4closed(__pyx_self, ((PyObject *)__pyx_v_self));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_4closed(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self) {
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_4closed(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
@@ -3060,7 +3061,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_4closed(CYTHON_UNUSED PyObject 
   PyObject *__pyx_t_3 = NULL;
   __Pyx_RefNannySetupContext("closed", 0);
 
-  /* "bzip2.pyx":103
+  /* "indexed_bzip2.pyx":103
  * 
  *     def closed( self ):
  *         return self.bz2reader.closed()             # <<<<<<<<<<<<<<
@@ -3092,7 +3093,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_4closed(CYTHON_UNUSED PyObject 
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "bzip2.pyx":102
+  /* "indexed_bzip2.pyx":102
  *         self.bz2reader.close()
  * 
  *     def closed( self ):             # <<<<<<<<<<<<<<
@@ -3105,7 +3106,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_4closed(CYTHON_UNUSED PyObject 
   __Pyx_XDECREF(__pyx_t_1);
   __Pyx_XDECREF(__pyx_t_2);
   __Pyx_XDECREF(__pyx_t_3);
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.closed", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.closed", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
   __Pyx_XGIVEREF(__pyx_r);
@@ -3113,7 +3114,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_4closed(CYTHON_UNUSED PyObject 
   return __pyx_r;
 }
 
-/* "bzip2.pyx":105
+/* "indexed_bzip2.pyx":105
  *         return self.bz2reader.closed()
  * 
  *     def fileno( self ):             # <<<<<<<<<<<<<<
@@ -3122,20 +3123,20 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_4closed(CYTHON_UNUSED PyObject 
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_7fileno(PyObject *__pyx_self, PyObject *__pyx_v_self); /*proto*/
-static PyMethodDef __pyx_mdef_5bzip2_13SeekableBzip2_7fileno = {"fileno", (PyCFunction)__pyx_pw_5bzip2_13SeekableBzip2_7fileno, METH_O, 0};
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_7fileno(PyObject *__pyx_self, PyObject *__pyx_v_self) {
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_7fileno(PyObject *__pyx_self, PyObject *__pyx_v_self); /*proto*/
+static PyMethodDef __pyx_mdef_13indexed_bzip2_16IndexedBzip2File_7fileno = {"fileno", (PyCFunction)__pyx_pw_13indexed_bzip2_16IndexedBzip2File_7fileno, METH_O, 0};
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_7fileno(PyObject *__pyx_self, PyObject *__pyx_v_self) {
   PyObject *__pyx_r = 0;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("fileno (wrapper)", 0);
-  __pyx_r = __pyx_pf_5bzip2_13SeekableBzip2_6fileno(__pyx_self, ((PyObject *)__pyx_v_self));
+  __pyx_r = __pyx_pf_13indexed_bzip2_16IndexedBzip2File_6fileno(__pyx_self, ((PyObject *)__pyx_v_self));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_6fileno(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self) {
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_6fileno(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
@@ -3143,7 +3144,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_6fileno(CYTHON_UNUSED PyObject 
   PyObject *__pyx_t_3 = NULL;
   __Pyx_RefNannySetupContext("fileno", 0);
 
-  /* "bzip2.pyx":106
+  /* "indexed_bzip2.pyx":106
  * 
  *     def fileno( self ):
  *         return self.bz2reader.fileno()             # <<<<<<<<<<<<<<
@@ -3175,7 +3176,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_6fileno(CYTHON_UNUSED PyObject 
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "bzip2.pyx":105
+  /* "indexed_bzip2.pyx":105
  *         return self.bz2reader.closed()
  * 
  *     def fileno( self ):             # <<<<<<<<<<<<<<
@@ -3188,7 +3189,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_6fileno(CYTHON_UNUSED PyObject 
   __Pyx_XDECREF(__pyx_t_1);
   __Pyx_XDECREF(__pyx_t_2);
   __Pyx_XDECREF(__pyx_t_3);
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.fileno", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.fileno", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
   __Pyx_XGIVEREF(__pyx_r);
@@ -3196,7 +3197,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_6fileno(CYTHON_UNUSED PyObject 
   return __pyx_r;
 }
 
-/* "bzip2.pyx":108
+/* "indexed_bzip2.pyx":108
  *         return self.bz2reader.fileno()
  * 
  *     def seekable( self ):             # <<<<<<<<<<<<<<
@@ -3205,25 +3206,25 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_6fileno(CYTHON_UNUSED PyObject 
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_9seekable(PyObject *__pyx_self, PyObject *__pyx_v_self); /*proto*/
-static PyMethodDef __pyx_mdef_5bzip2_13SeekableBzip2_9seekable = {"seekable", (PyCFunction)__pyx_pw_5bzip2_13SeekableBzip2_9seekable, METH_O, 0};
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_9seekable(PyObject *__pyx_self, PyObject *__pyx_v_self) {
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_9seekable(PyObject *__pyx_self, PyObject *__pyx_v_self); /*proto*/
+static PyMethodDef __pyx_mdef_13indexed_bzip2_16IndexedBzip2File_9seekable = {"seekable", (PyCFunction)__pyx_pw_13indexed_bzip2_16IndexedBzip2File_9seekable, METH_O, 0};
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_9seekable(PyObject *__pyx_self, PyObject *__pyx_v_self) {
   PyObject *__pyx_r = 0;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("seekable (wrapper)", 0);
-  __pyx_r = __pyx_pf_5bzip2_13SeekableBzip2_8seekable(__pyx_self, ((PyObject *)__pyx_v_self));
+  __pyx_r = __pyx_pf_13indexed_bzip2_16IndexedBzip2File_8seekable(__pyx_self, ((PyObject *)__pyx_v_self));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_8seekable(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self) {
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_8seekable(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("seekable", 0);
 
-  /* "bzip2.pyx":109
+  /* "indexed_bzip2.pyx":109
  * 
  *     def seekable( self ):
  *         return True             # <<<<<<<<<<<<<<
@@ -3235,7 +3236,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_8seekable(CYTHON_UNUSED PyObjec
   __pyx_r = Py_True;
   goto __pyx_L0;
 
-  /* "bzip2.pyx":108
+  /* "indexed_bzip2.pyx":108
  *         return self.bz2reader.fileno()
  * 
  *     def seekable( self ):             # <<<<<<<<<<<<<<
@@ -3250,7 +3251,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_8seekable(CYTHON_UNUSED PyObjec
   return __pyx_r;
 }
 
-/* "bzip2.pyx":111
+/* "indexed_bzip2.pyx":111
  *         return True
  * 
  *     def readable( self ):             # <<<<<<<<<<<<<<
@@ -3259,25 +3260,25 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_8seekable(CYTHON_UNUSED PyObjec
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_11readable(PyObject *__pyx_self, PyObject *__pyx_v_self); /*proto*/
-static PyMethodDef __pyx_mdef_5bzip2_13SeekableBzip2_11readable = {"readable", (PyCFunction)__pyx_pw_5bzip2_13SeekableBzip2_11readable, METH_O, 0};
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_11readable(PyObject *__pyx_self, PyObject *__pyx_v_self) {
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_11readable(PyObject *__pyx_self, PyObject *__pyx_v_self); /*proto*/
+static PyMethodDef __pyx_mdef_13indexed_bzip2_16IndexedBzip2File_11readable = {"readable", (PyCFunction)__pyx_pw_13indexed_bzip2_16IndexedBzip2File_11readable, METH_O, 0};
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_11readable(PyObject *__pyx_self, PyObject *__pyx_v_self) {
   PyObject *__pyx_r = 0;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("readable (wrapper)", 0);
-  __pyx_r = __pyx_pf_5bzip2_13SeekableBzip2_10readable(__pyx_self, ((PyObject *)__pyx_v_self));
+  __pyx_r = __pyx_pf_13indexed_bzip2_16IndexedBzip2File_10readable(__pyx_self, ((PyObject *)__pyx_v_self));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_10readable(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self) {
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_10readable(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("readable", 0);
 
-  /* "bzip2.pyx":112
+  /* "indexed_bzip2.pyx":112
  * 
  *     def readable( self ):
  *         return True             # <<<<<<<<<<<<<<
@@ -3289,7 +3290,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_10readable(CYTHON_UNUSED PyObje
   __pyx_r = Py_True;
   goto __pyx_L0;
 
-  /* "bzip2.pyx":111
+  /* "indexed_bzip2.pyx":111
  *         return True
  * 
  *     def readable( self ):             # <<<<<<<<<<<<<<
@@ -3304,7 +3305,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_10readable(CYTHON_UNUSED PyObje
   return __pyx_r;
 }
 
-/* "bzip2.pyx":114
+/* "indexed_bzip2.pyx":114
  *         return True
  * 
  *     def writable( self ):             # <<<<<<<<<<<<<<
@@ -3313,25 +3314,25 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_10readable(CYTHON_UNUSED PyObje
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_13writable(PyObject *__pyx_self, PyObject *__pyx_v_self); /*proto*/
-static PyMethodDef __pyx_mdef_5bzip2_13SeekableBzip2_13writable = {"writable", (PyCFunction)__pyx_pw_5bzip2_13SeekableBzip2_13writable, METH_O, 0};
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_13writable(PyObject *__pyx_self, PyObject *__pyx_v_self) {
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_13writable(PyObject *__pyx_self, PyObject *__pyx_v_self); /*proto*/
+static PyMethodDef __pyx_mdef_13indexed_bzip2_16IndexedBzip2File_13writable = {"writable", (PyCFunction)__pyx_pw_13indexed_bzip2_16IndexedBzip2File_13writable, METH_O, 0};
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_13writable(PyObject *__pyx_self, PyObject *__pyx_v_self) {
   PyObject *__pyx_r = 0;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("writable (wrapper)", 0);
-  __pyx_r = __pyx_pf_5bzip2_13SeekableBzip2_12writable(__pyx_self, ((PyObject *)__pyx_v_self));
+  __pyx_r = __pyx_pf_13indexed_bzip2_16IndexedBzip2File_12writable(__pyx_self, ((PyObject *)__pyx_v_self));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_12writable(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self) {
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_12writable(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("writable", 0);
 
-  /* "bzip2.pyx":115
+  /* "indexed_bzip2.pyx":115
  * 
  *     def writable( self ):
  *         return False             # <<<<<<<<<<<<<<
@@ -3343,7 +3344,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_12writable(CYTHON_UNUSED PyObje
   __pyx_r = Py_False;
   goto __pyx_L0;
 
-  /* "bzip2.pyx":114
+  /* "indexed_bzip2.pyx":114
  *         return True
  * 
  *     def writable( self ):             # <<<<<<<<<<<<<<
@@ -3358,7 +3359,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_12writable(CYTHON_UNUSED PyObje
   return __pyx_r;
 }
 
-/* "bzip2.pyx":117
+/* "indexed_bzip2.pyx":117
  *         return False
  * 
  *     def read( self, size = -1 ):             # <<<<<<<<<<<<<<
@@ -3367,9 +3368,9 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_12writable(CYTHON_UNUSED PyObje
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_15read(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
-static PyMethodDef __pyx_mdef_5bzip2_13SeekableBzip2_15read = {"read", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_5bzip2_13SeekableBzip2_15read, METH_VARARGS|METH_KEYWORDS, 0};
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_15read(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_15read(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
+static PyMethodDef __pyx_mdef_13indexed_bzip2_16IndexedBzip2File_15read = {"read", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_13indexed_bzip2_16IndexedBzip2File_15read, METH_VARARGS|METH_KEYWORDS, 0};
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_15read(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
   PyObject *__pyx_v_self = 0;
   PyObject *__pyx_v_size = 0;
   PyObject *__pyx_r = 0;
@@ -3421,18 +3422,18 @@ static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_15read(PyObject *__pyx_self, Py
   __pyx_L5_argtuple_error:;
   __Pyx_RaiseArgtupleInvalid("read", 0, 1, 2, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 117, __pyx_L3_error)
   __pyx_L3_error:;
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.read", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.read", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_5bzip2_13SeekableBzip2_14read(__pyx_self, __pyx_v_self, __pyx_v_size);
+  __pyx_r = __pyx_pf_13indexed_bzip2_16IndexedBzip2File_14read(__pyx_self, __pyx_v_self, __pyx_v_size);
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_14read(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self, PyObject *__pyx_v_size) {
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_14read(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self, PyObject *__pyx_v_size) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
@@ -3440,7 +3441,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_14read(CYTHON_UNUSED PyObject *
   PyObject *__pyx_t_3 = NULL;
   __Pyx_RefNannySetupContext("read", 0);
 
-  /* "bzip2.pyx":118
+  /* "indexed_bzip2.pyx":118
  * 
  *     def read( self, size = -1 ):
  *         return self.bz2reader.read( size )             # <<<<<<<<<<<<<<
@@ -3472,7 +3473,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_14read(CYTHON_UNUSED PyObject *
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "bzip2.pyx":117
+  /* "indexed_bzip2.pyx":117
  *         return False
  * 
  *     def read( self, size = -1 ):             # <<<<<<<<<<<<<<
@@ -3485,7 +3486,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_14read(CYTHON_UNUSED PyObject *
   __Pyx_XDECREF(__pyx_t_1);
   __Pyx_XDECREF(__pyx_t_2);
   __Pyx_XDECREF(__pyx_t_3);
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.read", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.read", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
   __Pyx_XGIVEREF(__pyx_r);
@@ -3493,7 +3494,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_14read(CYTHON_UNUSED PyObject *
   return __pyx_r;
 }
 
-/* "bzip2.pyx":120
+/* "indexed_bzip2.pyx":120
  *         return self.bz2reader.read( size )
  * 
  *     def seek( self, offset, whence = io.SEEK_SET ):             # <<<<<<<<<<<<<<
@@ -3501,7 +3502,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_14read(CYTHON_UNUSED PyObject *
  * 
  */
 
-static PyObject *__pyx_pf_5bzip2___defaults__(CYTHON_UNUSED PyObject *__pyx_self) {
+static PyObject *__pyx_pf_13indexed_bzip2___defaults__(CYTHON_UNUSED PyObject *__pyx_self) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
@@ -3529,7 +3530,7 @@ static PyObject *__pyx_pf_5bzip2___defaults__(CYTHON_UNUSED PyObject *__pyx_self
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_1);
   __Pyx_XDECREF(__pyx_t_2);
-  __Pyx_AddTraceback("bzip2.__defaults__", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.__defaults__", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
   __Pyx_XGIVEREF(__pyx_r);
@@ -3538,9 +3539,9 @@ static PyObject *__pyx_pf_5bzip2___defaults__(CYTHON_UNUSED PyObject *__pyx_self
 }
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_17seek(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
-static PyMethodDef __pyx_mdef_5bzip2_13SeekableBzip2_17seek = {"seek", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_5bzip2_13SeekableBzip2_17seek, METH_VARARGS|METH_KEYWORDS, 0};
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_17seek(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_17seek(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
+static PyMethodDef __pyx_mdef_13indexed_bzip2_16IndexedBzip2File_17seek = {"seek", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_13indexed_bzip2_16IndexedBzip2File_17seek, METH_VARARGS|METH_KEYWORDS, 0};
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_17seek(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
   PyObject *__pyx_v_self = 0;
   PyObject *__pyx_v_offset = 0;
   PyObject *__pyx_v_whence = 0;
@@ -3604,18 +3605,18 @@ static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_17seek(PyObject *__pyx_self, Py
   __pyx_L5_argtuple_error:;
   __Pyx_RaiseArgtupleInvalid("seek", 0, 2, 3, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 120, __pyx_L3_error)
   __pyx_L3_error:;
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.seek", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.seek", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_5bzip2_13SeekableBzip2_16seek(__pyx_self, __pyx_v_self, __pyx_v_offset, __pyx_v_whence);
+  __pyx_r = __pyx_pf_13indexed_bzip2_16IndexedBzip2File_16seek(__pyx_self, __pyx_v_self, __pyx_v_offset, __pyx_v_whence);
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_16seek(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self, PyObject *__pyx_v_offset, PyObject *__pyx_v_whence) {
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_16seek(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self, PyObject *__pyx_v_offset, PyObject *__pyx_v_whence) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
@@ -3625,7 +3626,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_16seek(CYTHON_UNUSED PyObject *
   PyObject *__pyx_t_5 = NULL;
   __Pyx_RefNannySetupContext("seek", 0);
 
-  /* "bzip2.pyx":121
+  /* "indexed_bzip2.pyx":121
  * 
  *     def seek( self, offset, whence = io.SEEK_SET ):
  *         return self.bz2reader.seek( offset, whence )             # <<<<<<<<<<<<<<
@@ -3687,7 +3688,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_16seek(CYTHON_UNUSED PyObject *
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "bzip2.pyx":120
+  /* "indexed_bzip2.pyx":120
  *         return self.bz2reader.read( size )
  * 
  *     def seek( self, offset, whence = io.SEEK_SET ):             # <<<<<<<<<<<<<<
@@ -3701,7 +3702,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_16seek(CYTHON_UNUSED PyObject *
   __Pyx_XDECREF(__pyx_t_2);
   __Pyx_XDECREF(__pyx_t_3);
   __Pyx_XDECREF(__pyx_t_5);
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.seek", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.seek", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
   __Pyx_XGIVEREF(__pyx_r);
@@ -3709,7 +3710,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_16seek(CYTHON_UNUSED PyObject *
   return __pyx_r;
 }
 
-/* "bzip2.pyx":123
+/* "indexed_bzip2.pyx":123
  *         return self.bz2reader.seek( offset, whence )
  * 
  *     def tell( self ):             # <<<<<<<<<<<<<<
@@ -3718,20 +3719,20 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_16seek(CYTHON_UNUSED PyObject *
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_19tell(PyObject *__pyx_self, PyObject *__pyx_v_self); /*proto*/
-static PyMethodDef __pyx_mdef_5bzip2_13SeekableBzip2_19tell = {"tell", (PyCFunction)__pyx_pw_5bzip2_13SeekableBzip2_19tell, METH_O, 0};
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_19tell(PyObject *__pyx_self, PyObject *__pyx_v_self) {
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_19tell(PyObject *__pyx_self, PyObject *__pyx_v_self); /*proto*/
+static PyMethodDef __pyx_mdef_13indexed_bzip2_16IndexedBzip2File_19tell = {"tell", (PyCFunction)__pyx_pw_13indexed_bzip2_16IndexedBzip2File_19tell, METH_O, 0};
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_19tell(PyObject *__pyx_self, PyObject *__pyx_v_self) {
   PyObject *__pyx_r = 0;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("tell (wrapper)", 0);
-  __pyx_r = __pyx_pf_5bzip2_13SeekableBzip2_18tell(__pyx_self, ((PyObject *)__pyx_v_self));
+  __pyx_r = __pyx_pf_13indexed_bzip2_16IndexedBzip2File_18tell(__pyx_self, ((PyObject *)__pyx_v_self));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_18tell(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self) {
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_18tell(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
@@ -3739,7 +3740,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_18tell(CYTHON_UNUSED PyObject *
   PyObject *__pyx_t_3 = NULL;
   __Pyx_RefNannySetupContext("tell", 0);
 
-  /* "bzip2.pyx":124
+  /* "indexed_bzip2.pyx":124
  * 
  *     def tell( self ):
  *         return self.bz2reader.tell()             # <<<<<<<<<<<<<<
@@ -3771,7 +3772,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_18tell(CYTHON_UNUSED PyObject *
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "bzip2.pyx":123
+  /* "indexed_bzip2.pyx":123
  *         return self.bz2reader.seek( offset, whence )
  * 
  *     def tell( self ):             # <<<<<<<<<<<<<<
@@ -3784,7 +3785,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_18tell(CYTHON_UNUSED PyObject *
   __Pyx_XDECREF(__pyx_t_1);
   __Pyx_XDECREF(__pyx_t_2);
   __Pyx_XDECREF(__pyx_t_3);
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.tell", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.tell", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
   __Pyx_XGIVEREF(__pyx_r);
@@ -3792,7 +3793,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_18tell(CYTHON_UNUSED PyObject *
   return __pyx_r;
 }
 
-/* "bzip2.pyx":126
+/* "indexed_bzip2.pyx":126
  *         return self.bz2reader.tell()
  * 
  *     def peek( self, n = 0 ):             # <<<<<<<<<<<<<<
@@ -3801,9 +3802,9 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_18tell(CYTHON_UNUSED PyObject *
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_21peek(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
-static PyMethodDef __pyx_mdef_5bzip2_13SeekableBzip2_21peek = {"peek", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_5bzip2_13SeekableBzip2_21peek, METH_VARARGS|METH_KEYWORDS, 0};
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_21peek(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_21peek(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
+static PyMethodDef __pyx_mdef_13indexed_bzip2_16IndexedBzip2File_21peek = {"peek", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_13indexed_bzip2_16IndexedBzip2File_21peek, METH_VARARGS|METH_KEYWORDS, 0};
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_21peek(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
   CYTHON_UNUSED PyObject *__pyx_v_self = 0;
   CYTHON_UNUSED PyObject *__pyx_v_n = 0;
   PyObject *__pyx_r = 0;
@@ -3855,24 +3856,24 @@ static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_21peek(PyObject *__pyx_self, Py
   __pyx_L5_argtuple_error:;
   __Pyx_RaiseArgtupleInvalid("peek", 0, 1, 2, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 126, __pyx_L3_error)
   __pyx_L3_error:;
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.peek", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.peek", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_5bzip2_13SeekableBzip2_20peek(__pyx_self, __pyx_v_self, __pyx_v_n);
+  __pyx_r = __pyx_pf_13indexed_bzip2_16IndexedBzip2File_20peek(__pyx_self, __pyx_v_self, __pyx_v_n);
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_20peek(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_n) {
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_20peek(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_n) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
   __Pyx_RefNannySetupContext("peek", 0);
 
-  /* "bzip2.pyx":127
+  /* "indexed_bzip2.pyx":127
  * 
  *     def peek( self, n = 0 ):
  *         raise Exception( "not supported" )             # <<<<<<<<<<<<<<
@@ -3885,7 +3886,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_20peek(CYTHON_UNUSED PyObject *
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __PYX_ERR(0, 127, __pyx_L1_error)
 
-  /* "bzip2.pyx":126
+  /* "indexed_bzip2.pyx":126
  *         return self.bz2reader.tell()
  * 
  *     def peek( self, n = 0 ):             # <<<<<<<<<<<<<<
@@ -3896,14 +3897,14 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_20peek(CYTHON_UNUSED PyObject *
   /* function exit code */
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_1);
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.peek", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.peek", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __Pyx_XGIVEREF(__pyx_r);
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-/* "bzip2.pyx":129
+/* "indexed_bzip2.pyx":129
  *         raise Exception( "not supported" )
  * 
  *     def read1( self, size = -1 ):             # <<<<<<<<<<<<<<
@@ -3912,9 +3913,9 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_20peek(CYTHON_UNUSED PyObject *
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_23read1(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
-static PyMethodDef __pyx_mdef_5bzip2_13SeekableBzip2_23read1 = {"read1", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_5bzip2_13SeekableBzip2_23read1, METH_VARARGS|METH_KEYWORDS, 0};
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_23read1(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_23read1(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
+static PyMethodDef __pyx_mdef_13indexed_bzip2_16IndexedBzip2File_23read1 = {"read1", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_13indexed_bzip2_16IndexedBzip2File_23read1, METH_VARARGS|METH_KEYWORDS, 0};
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_23read1(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
   CYTHON_UNUSED PyObject *__pyx_v_self = 0;
   CYTHON_UNUSED PyObject *__pyx_v_size = 0;
   PyObject *__pyx_r = 0;
@@ -3966,24 +3967,24 @@ static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_23read1(PyObject *__pyx_self, P
   __pyx_L5_argtuple_error:;
   __Pyx_RaiseArgtupleInvalid("read1", 0, 1, 2, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 129, __pyx_L3_error)
   __pyx_L3_error:;
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.read1", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.read1", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_5bzip2_13SeekableBzip2_22read1(__pyx_self, __pyx_v_self, __pyx_v_size);
+  __pyx_r = __pyx_pf_13indexed_bzip2_16IndexedBzip2File_22read1(__pyx_self, __pyx_v_self, __pyx_v_size);
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_22read1(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_size) {
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_22read1(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_size) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
   __Pyx_RefNannySetupContext("read1", 0);
 
-  /* "bzip2.pyx":130
+  /* "indexed_bzip2.pyx":130
  * 
  *     def read1( self, size = -1 ):
  *         raise Exception( "not supported" )             # <<<<<<<<<<<<<<
@@ -3996,7 +3997,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_22read1(CYTHON_UNUSED PyObject 
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __PYX_ERR(0, 130, __pyx_L1_error)
 
-  /* "bzip2.pyx":129
+  /* "indexed_bzip2.pyx":129
  *         raise Exception( "not supported" )
  * 
  *     def read1( self, size = -1 ):             # <<<<<<<<<<<<<<
@@ -4007,14 +4008,14 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_22read1(CYTHON_UNUSED PyObject 
   /* function exit code */
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_1);
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.read1", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.read1", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __Pyx_XGIVEREF(__pyx_r);
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-/* "bzip2.pyx":132
+/* "indexed_bzip2.pyx":132
  *         raise Exception( "not supported" )
  * 
  *     def readinto( self, b ):             # <<<<<<<<<<<<<<
@@ -4023,9 +4024,9 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_22read1(CYTHON_UNUSED PyObject 
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_25readinto(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
-static PyMethodDef __pyx_mdef_5bzip2_13SeekableBzip2_25readinto = {"readinto", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_5bzip2_13SeekableBzip2_25readinto, METH_VARARGS|METH_KEYWORDS, 0};
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_25readinto(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_25readinto(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
+static PyMethodDef __pyx_mdef_13indexed_bzip2_16IndexedBzip2File_25readinto = {"readinto", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_13indexed_bzip2_16IndexedBzip2File_25readinto, METH_VARARGS|METH_KEYWORDS, 0};
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_25readinto(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
   CYTHON_UNUSED PyObject *__pyx_v_self = 0;
   CYTHON_UNUSED PyObject *__pyx_v_b = 0;
   PyObject *__pyx_r = 0;
@@ -4073,24 +4074,24 @@ static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_25readinto(PyObject *__pyx_self
   __pyx_L5_argtuple_error:;
   __Pyx_RaiseArgtupleInvalid("readinto", 1, 2, 2, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 132, __pyx_L3_error)
   __pyx_L3_error:;
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.readinto", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.readinto", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_5bzip2_13SeekableBzip2_24readinto(__pyx_self, __pyx_v_self, __pyx_v_b);
+  __pyx_r = __pyx_pf_13indexed_bzip2_16IndexedBzip2File_24readinto(__pyx_self, __pyx_v_self, __pyx_v_b);
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_24readinto(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_b) {
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_24readinto(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_b) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
   __Pyx_RefNannySetupContext("readinto", 0);
 
-  /* "bzip2.pyx":133
+  /* "indexed_bzip2.pyx":133
  * 
  *     def readinto( self, b ):
  *         raise Exception( "not supported" )             # <<<<<<<<<<<<<<
@@ -4103,7 +4104,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_24readinto(CYTHON_UNUSED PyObje
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __PYX_ERR(0, 133, __pyx_L1_error)
 
-  /* "bzip2.pyx":132
+  /* "indexed_bzip2.pyx":132
  *         raise Exception( "not supported" )
  * 
  *     def readinto( self, b ):             # <<<<<<<<<<<<<<
@@ -4114,14 +4115,14 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_24readinto(CYTHON_UNUSED PyObje
   /* function exit code */
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_1);
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.readinto", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.readinto", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __Pyx_XGIVEREF(__pyx_r);
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-/* "bzip2.pyx":135
+/* "indexed_bzip2.pyx":135
  *         raise Exception( "not supported" )
  * 
  *     def readline( self, size = -1 ):             # <<<<<<<<<<<<<<
@@ -4130,9 +4131,9 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_24readinto(CYTHON_UNUSED PyObje
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_27readline(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
-static PyMethodDef __pyx_mdef_5bzip2_13SeekableBzip2_27readline = {"readline", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_5bzip2_13SeekableBzip2_27readline, METH_VARARGS|METH_KEYWORDS, 0};
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_27readline(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_27readline(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
+static PyMethodDef __pyx_mdef_13indexed_bzip2_16IndexedBzip2File_27readline = {"readline", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_13indexed_bzip2_16IndexedBzip2File_27readline, METH_VARARGS|METH_KEYWORDS, 0};
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_27readline(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
   CYTHON_UNUSED PyObject *__pyx_v_self = 0;
   CYTHON_UNUSED PyObject *__pyx_v_size = 0;
   PyObject *__pyx_r = 0;
@@ -4184,24 +4185,24 @@ static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_27readline(PyObject *__pyx_self
   __pyx_L5_argtuple_error:;
   __Pyx_RaiseArgtupleInvalid("readline", 0, 1, 2, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 135, __pyx_L3_error)
   __pyx_L3_error:;
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.readline", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.readline", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_5bzip2_13SeekableBzip2_26readline(__pyx_self, __pyx_v_self, __pyx_v_size);
+  __pyx_r = __pyx_pf_13indexed_bzip2_16IndexedBzip2File_26readline(__pyx_self, __pyx_v_self, __pyx_v_size);
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_26readline(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_size) {
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_26readline(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_size) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
   __Pyx_RefNannySetupContext("readline", 0);
 
-  /* "bzip2.pyx":136
+  /* "indexed_bzip2.pyx":136
  * 
  *     def readline( self, size = -1 ):
  *         raise Exception( "not supported" )             # <<<<<<<<<<<<<<
@@ -4214,7 +4215,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_26readline(CYTHON_UNUSED PyObje
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __PYX_ERR(0, 136, __pyx_L1_error)
 
-  /* "bzip2.pyx":135
+  /* "indexed_bzip2.pyx":135
  *         raise Exception( "not supported" )
  * 
  *     def readline( self, size = -1 ):             # <<<<<<<<<<<<<<
@@ -4225,14 +4226,14 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_26readline(CYTHON_UNUSED PyObje
   /* function exit code */
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_1);
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.readline", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.readline", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __Pyx_XGIVEREF(__pyx_r);
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-/* "bzip2.pyx":138
+/* "indexed_bzip2.pyx":138
  *         raise Exception( "not supported" )
  * 
  *     def readlines( self, size = -1 ):             # <<<<<<<<<<<<<<
@@ -4241,9 +4242,9 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_26readline(CYTHON_UNUSED PyObje
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_29readlines(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
-static PyMethodDef __pyx_mdef_5bzip2_13SeekableBzip2_29readlines = {"readlines", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_5bzip2_13SeekableBzip2_29readlines, METH_VARARGS|METH_KEYWORDS, 0};
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_29readlines(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_29readlines(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
+static PyMethodDef __pyx_mdef_13indexed_bzip2_16IndexedBzip2File_29readlines = {"readlines", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_13indexed_bzip2_16IndexedBzip2File_29readlines, METH_VARARGS|METH_KEYWORDS, 0};
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_29readlines(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
   CYTHON_UNUSED PyObject *__pyx_v_self = 0;
   CYTHON_UNUSED PyObject *__pyx_v_size = 0;
   PyObject *__pyx_r = 0;
@@ -4295,24 +4296,24 @@ static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_29readlines(PyObject *__pyx_sel
   __pyx_L5_argtuple_error:;
   __Pyx_RaiseArgtupleInvalid("readlines", 0, 1, 2, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 138, __pyx_L3_error)
   __pyx_L3_error:;
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.readlines", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.readlines", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_5bzip2_13SeekableBzip2_28readlines(__pyx_self, __pyx_v_self, __pyx_v_size);
+  __pyx_r = __pyx_pf_13indexed_bzip2_16IndexedBzip2File_28readlines(__pyx_self, __pyx_v_self, __pyx_v_size);
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_28readlines(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_size) {
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_28readlines(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_size) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
   __Pyx_RefNannySetupContext("readlines", 0);
 
-  /* "bzip2.pyx":139
+  /* "indexed_bzip2.pyx":139
  * 
  *     def readlines( self, size = -1 ):
  *         raise Exception( "not supported" )             # <<<<<<<<<<<<<<
@@ -4325,7 +4326,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_28readlines(CYTHON_UNUSED PyObj
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __PYX_ERR(0, 139, __pyx_L1_error)
 
-  /* "bzip2.pyx":138
+  /* "indexed_bzip2.pyx":138
  *         raise Exception( "not supported" )
  * 
  *     def readlines( self, size = -1 ):             # <<<<<<<<<<<<<<
@@ -4336,14 +4337,14 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_28readlines(CYTHON_UNUSED PyObj
   /* function exit code */
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_1);
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.readlines", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.readlines", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __Pyx_XGIVEREF(__pyx_r);
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-/* "bzip2.pyx":141
+/* "indexed_bzip2.pyx":141
  *         raise Exception( "not supported" )
  * 
  *     def write( self, data ):             # <<<<<<<<<<<<<<
@@ -4352,9 +4353,9 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_28readlines(CYTHON_UNUSED PyObj
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_31write(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
-static PyMethodDef __pyx_mdef_5bzip2_13SeekableBzip2_31write = {"write", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_5bzip2_13SeekableBzip2_31write, METH_VARARGS|METH_KEYWORDS, 0};
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_31write(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_31write(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
+static PyMethodDef __pyx_mdef_13indexed_bzip2_16IndexedBzip2File_31write = {"write", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_13indexed_bzip2_16IndexedBzip2File_31write, METH_VARARGS|METH_KEYWORDS, 0};
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_31write(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
   CYTHON_UNUSED PyObject *__pyx_v_self = 0;
   CYTHON_UNUSED PyObject *__pyx_v_data = 0;
   PyObject *__pyx_r = 0;
@@ -4402,24 +4403,24 @@ static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_31write(PyObject *__pyx_self, P
   __pyx_L5_argtuple_error:;
   __Pyx_RaiseArgtupleInvalid("write", 1, 2, 2, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 141, __pyx_L3_error)
   __pyx_L3_error:;
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.write", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.write", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_5bzip2_13SeekableBzip2_30write(__pyx_self, __pyx_v_self, __pyx_v_data);
+  __pyx_r = __pyx_pf_13indexed_bzip2_16IndexedBzip2File_30write(__pyx_self, __pyx_v_self, __pyx_v_data);
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_30write(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_data) {
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_30write(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_data) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
   __Pyx_RefNannySetupContext("write", 0);
 
-  /* "bzip2.pyx":142
+  /* "indexed_bzip2.pyx":142
  * 
  *     def write( self, data ):
  *         raise Exception( "not supported" )             # <<<<<<<<<<<<<<
@@ -4432,7 +4433,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_30write(CYTHON_UNUSED PyObject 
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __PYX_ERR(0, 142, __pyx_L1_error)
 
-  /* "bzip2.pyx":141
+  /* "indexed_bzip2.pyx":141
  *         raise Exception( "not supported" )
  * 
  *     def write( self, data ):             # <<<<<<<<<<<<<<
@@ -4443,14 +4444,14 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_30write(CYTHON_UNUSED PyObject 
   /* function exit code */
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_1);
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.write", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.write", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __Pyx_XGIVEREF(__pyx_r);
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-/* "bzip2.pyx":144
+/* "indexed_bzip2.pyx":144
  *         raise Exception( "not supported" )
  * 
  *     def writelines( self, seq ):             # <<<<<<<<<<<<<<
@@ -4459,9 +4460,9 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_30write(CYTHON_UNUSED PyObject 
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_33writelines(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
-static PyMethodDef __pyx_mdef_5bzip2_13SeekableBzip2_33writelines = {"writelines", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_5bzip2_13SeekableBzip2_33writelines, METH_VARARGS|METH_KEYWORDS, 0};
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_33writelines(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_33writelines(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
+static PyMethodDef __pyx_mdef_13indexed_bzip2_16IndexedBzip2File_33writelines = {"writelines", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_13indexed_bzip2_16IndexedBzip2File_33writelines, METH_VARARGS|METH_KEYWORDS, 0};
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_33writelines(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
   CYTHON_UNUSED PyObject *__pyx_v_self = 0;
   CYTHON_UNUSED PyObject *__pyx_v_seq = 0;
   PyObject *__pyx_r = 0;
@@ -4509,24 +4510,24 @@ static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_33writelines(PyObject *__pyx_se
   __pyx_L5_argtuple_error:;
   __Pyx_RaiseArgtupleInvalid("writelines", 1, 2, 2, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 144, __pyx_L3_error)
   __pyx_L3_error:;
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.writelines", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.writelines", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_5bzip2_13SeekableBzip2_32writelines(__pyx_self, __pyx_v_self, __pyx_v_seq);
+  __pyx_r = __pyx_pf_13indexed_bzip2_16IndexedBzip2File_32writelines(__pyx_self, __pyx_v_self, __pyx_v_seq);
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_32writelines(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_seq) {
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_32writelines(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v_seq) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
   __Pyx_RefNannySetupContext("writelines", 0);
 
-  /* "bzip2.pyx":145
+  /* "indexed_bzip2.pyx":145
  * 
  *     def writelines( self, seq ):
  *         raise Exception( "not supported" )             # <<<<<<<<<<<<<<
@@ -4539,7 +4540,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_32writelines(CYTHON_UNUSED PyOb
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __PYX_ERR(0, 145, __pyx_L1_error)
 
-  /* "bzip2.pyx":144
+  /* "indexed_bzip2.pyx":144
  *         raise Exception( "not supported" )
  * 
  *     def writelines( self, seq ):             # <<<<<<<<<<<<<<
@@ -4550,14 +4551,14 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_32writelines(CYTHON_UNUSED PyOb
   /* function exit code */
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_1);
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.writelines", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.writelines", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __Pyx_XGIVEREF(__pyx_r);
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-/* "bzip2.pyx":147
+/* "indexed_bzip2.pyx":147
  *         raise Exception( "not supported" )
  * 
  *     def blockOffsets( self ):             # <<<<<<<<<<<<<<
@@ -4566,20 +4567,20 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_32writelines(CYTHON_UNUSED PyOb
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_35blockOffsets(PyObject *__pyx_self, PyObject *__pyx_v_self); /*proto*/
-static PyMethodDef __pyx_mdef_5bzip2_13SeekableBzip2_35blockOffsets = {"blockOffsets", (PyCFunction)__pyx_pw_5bzip2_13SeekableBzip2_35blockOffsets, METH_O, 0};
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_35blockOffsets(PyObject *__pyx_self, PyObject *__pyx_v_self) {
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_35blockOffsets(PyObject *__pyx_self, PyObject *__pyx_v_self); /*proto*/
+static PyMethodDef __pyx_mdef_13indexed_bzip2_16IndexedBzip2File_35blockOffsets = {"blockOffsets", (PyCFunction)__pyx_pw_13indexed_bzip2_16IndexedBzip2File_35blockOffsets, METH_O, 0};
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_35blockOffsets(PyObject *__pyx_self, PyObject *__pyx_v_self) {
   PyObject *__pyx_r = 0;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("blockOffsets (wrapper)", 0);
-  __pyx_r = __pyx_pf_5bzip2_13SeekableBzip2_34blockOffsets(__pyx_self, ((PyObject *)__pyx_v_self));
+  __pyx_r = __pyx_pf_13indexed_bzip2_16IndexedBzip2File_34blockOffsets(__pyx_self, ((PyObject *)__pyx_v_self));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_34blockOffsets(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self) {
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_34blockOffsets(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
@@ -4587,7 +4588,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_34blockOffsets(CYTHON_UNUSED Py
   PyObject *__pyx_t_3 = NULL;
   __Pyx_RefNannySetupContext("blockOffsets", 0);
 
-  /* "bzip2.pyx":148
+  /* "indexed_bzip2.pyx":148
  * 
  *     def blockOffsets( self ):
  *         return self.bz2reader.blockOffsets()             # <<<<<<<<<<<<<<
@@ -4619,7 +4620,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_34blockOffsets(CYTHON_UNUSED Py
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "bzip2.pyx":147
+  /* "indexed_bzip2.pyx":147
  *         raise Exception( "not supported" )
  * 
  *     def blockOffsets( self ):             # <<<<<<<<<<<<<<
@@ -4632,7 +4633,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_34blockOffsets(CYTHON_UNUSED Py
   __Pyx_XDECREF(__pyx_t_1);
   __Pyx_XDECREF(__pyx_t_2);
   __Pyx_XDECREF(__pyx_t_3);
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.blockOffsets", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.blockOffsets", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
   __Pyx_XGIVEREF(__pyx_r);
@@ -4640,7 +4641,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_34blockOffsets(CYTHON_UNUSED Py
   return __pyx_r;
 }
 
-/* "bzip2.pyx":150
+/* "indexed_bzip2.pyx":150
  *         return self.bz2reader.blockOffsets()
  * 
  *     def setBlockOffsets( self, offsets ):             # <<<<<<<<<<<<<<
@@ -4648,9 +4649,9 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_34blockOffsets(CYTHON_UNUSED Py
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_37setBlockOffsets(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
-static PyMethodDef __pyx_mdef_5bzip2_13SeekableBzip2_37setBlockOffsets = {"setBlockOffsets", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_5bzip2_13SeekableBzip2_37setBlockOffsets, METH_VARARGS|METH_KEYWORDS, 0};
-static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_37setBlockOffsets(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_37setBlockOffsets(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
+static PyMethodDef __pyx_mdef_13indexed_bzip2_16IndexedBzip2File_37setBlockOffsets = {"setBlockOffsets", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_13indexed_bzip2_16IndexedBzip2File_37setBlockOffsets, METH_VARARGS|METH_KEYWORDS, 0};
+static PyObject *__pyx_pw_13indexed_bzip2_16IndexedBzip2File_37setBlockOffsets(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
   PyObject *__pyx_v_self = 0;
   PyObject *__pyx_v_offsets = 0;
   PyObject *__pyx_r = 0;
@@ -4698,18 +4699,18 @@ static PyObject *__pyx_pw_5bzip2_13SeekableBzip2_37setBlockOffsets(PyObject *__p
   __pyx_L5_argtuple_error:;
   __Pyx_RaiseArgtupleInvalid("setBlockOffsets", 1, 2, 2, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 150, __pyx_L3_error)
   __pyx_L3_error:;
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.setBlockOffsets", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.setBlockOffsets", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_5bzip2_13SeekableBzip2_36setBlockOffsets(__pyx_self, __pyx_v_self, __pyx_v_offsets);
+  __pyx_r = __pyx_pf_13indexed_bzip2_16IndexedBzip2File_36setBlockOffsets(__pyx_self, __pyx_v_self, __pyx_v_offsets);
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_36setBlockOffsets(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self, PyObject *__pyx_v_offsets) {
+static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File_36setBlockOffsets(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_self, PyObject *__pyx_v_offsets) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
@@ -4717,7 +4718,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_36setBlockOffsets(CYTHON_UNUSED
   PyObject *__pyx_t_3 = NULL;
   __Pyx_RefNannySetupContext("setBlockOffsets", 0);
 
-  /* "bzip2.pyx":151
+  /* "indexed_bzip2.pyx":151
  * 
  *     def setBlockOffsets( self, offsets ):
  *         return self.bz2reader.setBlockOffsets( offsets )             # <<<<<<<<<<<<<<
@@ -4747,7 +4748,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_36setBlockOffsets(CYTHON_UNUSED
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "bzip2.pyx":150
+  /* "indexed_bzip2.pyx":150
  *         return self.bz2reader.blockOffsets()
  * 
  *     def setBlockOffsets( self, offsets ):             # <<<<<<<<<<<<<<
@@ -4759,7 +4760,7 @@ static PyObject *__pyx_pf_5bzip2_13SeekableBzip2_36setBlockOffsets(CYTHON_UNUSED
   __Pyx_XDECREF(__pyx_t_1);
   __Pyx_XDECREF(__pyx_t_2);
   __Pyx_XDECREF(__pyx_t_3);
-  __Pyx_AddTraceback("bzip2.SeekableBzip2.setBlockOffsets", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("indexed_bzip2.IndexedBzip2File.setBlockOffsets", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
   __Pyx_XGIVEREF(__pyx_r);
@@ -5051,7 +5052,7 @@ static std::map<size_t,size_t>  __pyx_convert_map_from_py_size_t__and_size_t(PyO
   return __pyx_r;
 }
 
-static PyObject *__pyx_tp_new_5bzip2_BZ2ReaderWrapper(PyTypeObject *t, CYTHON_UNUSED PyObject *a, CYTHON_UNUSED PyObject *k) {
+static PyObject *__pyx_tp_new_13indexed_bzip2__IndexedBzip2File(PyTypeObject *t, CYTHON_UNUSED PyObject *a, CYTHON_UNUSED PyObject *k) {
   PyObject *o;
   if (likely((t->tp_flags & Py_TPFLAGS_IS_ABSTRACT) == 0)) {
     o = (*t->tp_alloc)(t, 0);
@@ -5062,7 +5063,7 @@ static PyObject *__pyx_tp_new_5bzip2_BZ2ReaderWrapper(PyTypeObject *t, CYTHON_UN
   return o;
 }
 
-static void __pyx_tp_dealloc_5bzip2_BZ2ReaderWrapper(PyObject *o) {
+static void __pyx_tp_dealloc_13indexed_bzip2__IndexedBzip2File(PyObject *o) {
   #if CYTHON_USE_TP_FINALIZE
   if (unlikely(PyType_HasFeature(Py_TYPE(o), Py_TPFLAGS_HAVE_FINALIZE) && Py_TYPE(o)->tp_finalize) && (!PyType_IS_GC(Py_TYPE(o)) || !_PyGC_FINALIZED(o))) {
     if (PyObject_CallFinalizerFromDealloc(o)) return;
@@ -5071,26 +5072,26 @@ static void __pyx_tp_dealloc_5bzip2_BZ2ReaderWrapper(PyObject *o) {
   (*Py_TYPE(o)->tp_free)(o);
 }
 
-static PyMethodDef __pyx_methods_5bzip2_BZ2ReaderWrapper[] = {
-  {"close", (PyCFunction)__pyx_pw_5bzip2_16BZ2ReaderWrapper_3close, METH_NOARGS, 0},
-  {"closed", (PyCFunction)__pyx_pw_5bzip2_16BZ2ReaderWrapper_5closed, METH_NOARGS, 0},
-  {"fileno", (PyCFunction)__pyx_pw_5bzip2_16BZ2ReaderWrapper_7fileno, METH_NOARGS, 0},
-  {"read", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_5bzip2_16BZ2ReaderWrapper_9read, METH_VARARGS|METH_KEYWORDS, 0},
-  {"seek", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_5bzip2_16BZ2ReaderWrapper_11seek, METH_VARARGS|METH_KEYWORDS, 0},
-  {"tell", (PyCFunction)__pyx_pw_5bzip2_16BZ2ReaderWrapper_13tell, METH_NOARGS, 0},
-  {"blockOffsets", (PyCFunction)__pyx_pw_5bzip2_16BZ2ReaderWrapper_15blockOffsets, METH_NOARGS, 0},
-  {"setBlockOffsets", (PyCFunction)__pyx_pw_5bzip2_16BZ2ReaderWrapper_17setBlockOffsets, METH_O, 0},
-  {"__reduce_cython__", (PyCFunction)__pyx_pw_5bzip2_16BZ2ReaderWrapper_19__reduce_cython__, METH_NOARGS, 0},
-  {"__setstate_cython__", (PyCFunction)__pyx_pw_5bzip2_16BZ2ReaderWrapper_21__setstate_cython__, METH_O, 0},
+static PyMethodDef __pyx_methods_13indexed_bzip2__IndexedBzip2File[] = {
+  {"close", (PyCFunction)__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_3close, METH_NOARGS, 0},
+  {"closed", (PyCFunction)__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_5closed, METH_NOARGS, 0},
+  {"fileno", (PyCFunction)__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_7fileno, METH_NOARGS, 0},
+  {"read", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_9read, METH_VARARGS|METH_KEYWORDS, 0},
+  {"seek", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_11seek, METH_VARARGS|METH_KEYWORDS, 0},
+  {"tell", (PyCFunction)__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_13tell, METH_NOARGS, 0},
+  {"blockOffsets", (PyCFunction)__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_15blockOffsets, METH_NOARGS, 0},
+  {"setBlockOffsets", (PyCFunction)__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_17setBlockOffsets, METH_O, 0},
+  {"__reduce_cython__", (PyCFunction)__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_19__reduce_cython__, METH_NOARGS, 0},
+  {"__setstate_cython__", (PyCFunction)__pyx_pw_13indexed_bzip2_17_IndexedBzip2File_21__setstate_cython__, METH_O, 0},
   {0, 0, 0, 0}
 };
 
-static PyTypeObject __pyx_type_5bzip2_BZ2ReaderWrapper = {
+static PyTypeObject __pyx_type_13indexed_bzip2__IndexedBzip2File = {
   PyVarObject_HEAD_INIT(0, 0)
-  "bzip2.BZ2ReaderWrapper", /*tp_name*/
-  sizeof(struct __pyx_obj_5bzip2_BZ2ReaderWrapper), /*tp_basicsize*/
+  "indexed_bzip2._IndexedBzip2File", /*tp_name*/
+  sizeof(struct __pyx_obj_13indexed_bzip2__IndexedBzip2File), /*tp_basicsize*/
   0, /*tp_itemsize*/
-  __pyx_tp_dealloc_5bzip2_BZ2ReaderWrapper, /*tp_dealloc*/
+  __pyx_tp_dealloc_13indexed_bzip2__IndexedBzip2File, /*tp_dealloc*/
   0, /*tp_print*/
   0, /*tp_getattr*/
   0, /*tp_setattr*/
@@ -5118,7 +5119,7 @@ static PyTypeObject __pyx_type_5bzip2_BZ2ReaderWrapper = {
   0, /*tp_weaklistoffset*/
   0, /*tp_iter*/
   0, /*tp_iternext*/
-  __pyx_methods_5bzip2_BZ2ReaderWrapper, /*tp_methods*/
+  __pyx_methods_13indexed_bzip2__IndexedBzip2File, /*tp_methods*/
   0, /*tp_members*/
   0, /*tp_getset*/
   0, /*tp_base*/
@@ -5126,9 +5127,9 @@ static PyTypeObject __pyx_type_5bzip2_BZ2ReaderWrapper = {
   0, /*tp_descr_get*/
   0, /*tp_descr_set*/
   0, /*tp_dictoffset*/
-  __pyx_pw_5bzip2_16BZ2ReaderWrapper_1__init__, /*tp_init*/
+  __pyx_pw_13indexed_bzip2_17_IndexedBzip2File_1__init__, /*tp_init*/
   0, /*tp_alloc*/
-  __pyx_tp_new_5bzip2_BZ2ReaderWrapper, /*tp_new*/
+  __pyx_tp_new_13indexed_bzip2__IndexedBzip2File, /*tp_new*/
   0, /*tp_free*/
   0, /*tp_is_gc*/
   0, /*tp_bases*/
@@ -5150,17 +5151,17 @@ static PyMethodDef __pyx_methods[] = {
 #if PY_MAJOR_VERSION >= 3
 #if CYTHON_PEP489_MULTI_PHASE_INIT
 static PyObject* __pyx_pymod_create(PyObject *spec, PyModuleDef *def); /*proto*/
-static int __pyx_pymod_exec_bzip2(PyObject* module); /*proto*/
+static int __pyx_pymod_exec_indexed_bzip2(PyObject* module); /*proto*/
 static PyModuleDef_Slot __pyx_moduledef_slots[] = {
   {Py_mod_create, (void*)__pyx_pymod_create},
-  {Py_mod_exec, (void*)__pyx_pymod_exec_bzip2},
+  {Py_mod_exec, (void*)__pyx_pymod_exec_indexed_bzip2},
   {0, NULL}
 };
 #endif
 
 static struct PyModuleDef __pyx_moduledef = {
     PyModuleDef_HEAD_INIT,
-    "bzip2",
+    "indexed_bzip2",
     __pyx_k_Pyrex_C_extension_supporting_bx, /* m_doc */
   #if CYTHON_PEP489_MULTI_PHASE_INIT
     0, /* m_size */
@@ -5190,37 +5191,35 @@ static struct PyModuleDef __pyx_moduledef = {
 
 static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_kp_b_, __pyx_k_, sizeof(__pyx_k_), 0, 0, 0, 0},
-  {&__pyx_n_s_BZ2ReaderWrapper, __pyx_k_BZ2ReaderWrapper, sizeof(__pyx_k_BZ2ReaderWrapper), 0, 0, 1, 1},
   {&__pyx_n_s_BufferedIOBase, __pyx_k_BufferedIOBase, sizeof(__pyx_k_BufferedIOBase), 0, 0, 1, 1},
+  {&__pyx_n_s_IndexedBzip2File, __pyx_k_IndexedBzip2File, sizeof(__pyx_k_IndexedBzip2File), 0, 0, 1, 1},
+  {&__pyx_n_s_IndexedBzip2File_2, __pyx_k_IndexedBzip2File_2, sizeof(__pyx_k_IndexedBzip2File_2), 0, 0, 1, 1},
+  {&__pyx_n_s_IndexedBzip2File___init, __pyx_k_IndexedBzip2File___init, sizeof(__pyx_k_IndexedBzip2File___init), 0, 0, 1, 1},
+  {&__pyx_n_s_IndexedBzip2File_blockOffsets, __pyx_k_IndexedBzip2File_blockOffsets, sizeof(__pyx_k_IndexedBzip2File_blockOffsets), 0, 0, 1, 1},
+  {&__pyx_n_s_IndexedBzip2File_close, __pyx_k_IndexedBzip2File_close, sizeof(__pyx_k_IndexedBzip2File_close), 0, 0, 1, 1},
+  {&__pyx_n_s_IndexedBzip2File_closed, __pyx_k_IndexedBzip2File_closed, sizeof(__pyx_k_IndexedBzip2File_closed), 0, 0, 1, 1},
+  {&__pyx_n_s_IndexedBzip2File_fileno, __pyx_k_IndexedBzip2File_fileno, sizeof(__pyx_k_IndexedBzip2File_fileno), 0, 0, 1, 1},
+  {&__pyx_n_s_IndexedBzip2File_peek, __pyx_k_IndexedBzip2File_peek, sizeof(__pyx_k_IndexedBzip2File_peek), 0, 0, 1, 1},
+  {&__pyx_n_s_IndexedBzip2File_read, __pyx_k_IndexedBzip2File_read, sizeof(__pyx_k_IndexedBzip2File_read), 0, 0, 1, 1},
+  {&__pyx_n_s_IndexedBzip2File_read1, __pyx_k_IndexedBzip2File_read1, sizeof(__pyx_k_IndexedBzip2File_read1), 0, 0, 1, 1},
+  {&__pyx_n_s_IndexedBzip2File_readable, __pyx_k_IndexedBzip2File_readable, sizeof(__pyx_k_IndexedBzip2File_readable), 0, 0, 1, 1},
+  {&__pyx_n_s_IndexedBzip2File_readinto, __pyx_k_IndexedBzip2File_readinto, sizeof(__pyx_k_IndexedBzip2File_readinto), 0, 0, 1, 1},
+  {&__pyx_n_s_IndexedBzip2File_readline, __pyx_k_IndexedBzip2File_readline, sizeof(__pyx_k_IndexedBzip2File_readline), 0, 0, 1, 1},
+  {&__pyx_n_s_IndexedBzip2File_readlines, __pyx_k_IndexedBzip2File_readlines, sizeof(__pyx_k_IndexedBzip2File_readlines), 0, 0, 1, 1},
+  {&__pyx_n_s_IndexedBzip2File_seek, __pyx_k_IndexedBzip2File_seek, sizeof(__pyx_k_IndexedBzip2File_seek), 0, 0, 1, 1},
+  {&__pyx_n_s_IndexedBzip2File_seekable, __pyx_k_IndexedBzip2File_seekable, sizeof(__pyx_k_IndexedBzip2File_seekable), 0, 0, 1, 1},
+  {&__pyx_n_s_IndexedBzip2File_setBlockOffsets, __pyx_k_IndexedBzip2File_setBlockOffsets, sizeof(__pyx_k_IndexedBzip2File_setBlockOffsets), 0, 0, 1, 1},
+  {&__pyx_n_s_IndexedBzip2File_tell, __pyx_k_IndexedBzip2File_tell, sizeof(__pyx_k_IndexedBzip2File_tell), 0, 0, 1, 1},
+  {&__pyx_n_s_IndexedBzip2File_writable, __pyx_k_IndexedBzip2File_writable, sizeof(__pyx_k_IndexedBzip2File_writable), 0, 0, 1, 1},
+  {&__pyx_n_s_IndexedBzip2File_write, __pyx_k_IndexedBzip2File_write, sizeof(__pyx_k_IndexedBzip2File_write), 0, 0, 1, 1},
+  {&__pyx_n_s_IndexedBzip2File_writelines, __pyx_k_IndexedBzip2File_writelines, sizeof(__pyx_k_IndexedBzip2File_writelines), 0, 0, 1, 1},
   {&__pyx_kp_u_Invalid_size_argument, __pyx_k_Invalid_size_argument, sizeof(__pyx_k_Invalid_size_argument), 0, 1, 0, 0},
   {&__pyx_n_s_MemoryError, __pyx_k_MemoryError, sizeof(__pyx_k_MemoryError), 0, 0, 1, 1},
   {&__pyx_n_s_SEEK_SET, __pyx_k_SEEK_SET, sizeof(__pyx_k_SEEK_SET), 0, 0, 1, 1},
-  {&__pyx_n_s_SeekableBzip2, __pyx_k_SeekableBzip2, sizeof(__pyx_k_SeekableBzip2), 0, 0, 1, 1},
-  {&__pyx_n_s_SeekableBzip2___init, __pyx_k_SeekableBzip2___init, sizeof(__pyx_k_SeekableBzip2___init), 0, 0, 1, 1},
-  {&__pyx_n_s_SeekableBzip2_blockOffsets, __pyx_k_SeekableBzip2_blockOffsets, sizeof(__pyx_k_SeekableBzip2_blockOffsets), 0, 0, 1, 1},
-  {&__pyx_n_s_SeekableBzip2_close, __pyx_k_SeekableBzip2_close, sizeof(__pyx_k_SeekableBzip2_close), 0, 0, 1, 1},
-  {&__pyx_n_s_SeekableBzip2_closed, __pyx_k_SeekableBzip2_closed, sizeof(__pyx_k_SeekableBzip2_closed), 0, 0, 1, 1},
-  {&__pyx_n_s_SeekableBzip2_fileno, __pyx_k_SeekableBzip2_fileno, sizeof(__pyx_k_SeekableBzip2_fileno), 0, 0, 1, 1},
-  {&__pyx_n_s_SeekableBzip2_peek, __pyx_k_SeekableBzip2_peek, sizeof(__pyx_k_SeekableBzip2_peek), 0, 0, 1, 1},
-  {&__pyx_n_s_SeekableBzip2_read, __pyx_k_SeekableBzip2_read, sizeof(__pyx_k_SeekableBzip2_read), 0, 0, 1, 1},
-  {&__pyx_n_s_SeekableBzip2_read1, __pyx_k_SeekableBzip2_read1, sizeof(__pyx_k_SeekableBzip2_read1), 0, 0, 1, 1},
-  {&__pyx_n_s_SeekableBzip2_readable, __pyx_k_SeekableBzip2_readable, sizeof(__pyx_k_SeekableBzip2_readable), 0, 0, 1, 1},
-  {&__pyx_n_s_SeekableBzip2_readinto, __pyx_k_SeekableBzip2_readinto, sizeof(__pyx_k_SeekableBzip2_readinto), 0, 0, 1, 1},
-  {&__pyx_n_s_SeekableBzip2_readline, __pyx_k_SeekableBzip2_readline, sizeof(__pyx_k_SeekableBzip2_readline), 0, 0, 1, 1},
-  {&__pyx_n_s_SeekableBzip2_readlines, __pyx_k_SeekableBzip2_readlines, sizeof(__pyx_k_SeekableBzip2_readlines), 0, 0, 1, 1},
-  {&__pyx_n_s_SeekableBzip2_seek, __pyx_k_SeekableBzip2_seek, sizeof(__pyx_k_SeekableBzip2_seek), 0, 0, 1, 1},
-  {&__pyx_n_s_SeekableBzip2_seekable, __pyx_k_SeekableBzip2_seekable, sizeof(__pyx_k_SeekableBzip2_seekable), 0, 0, 1, 1},
-  {&__pyx_n_s_SeekableBzip2_setBlockOffsets, __pyx_k_SeekableBzip2_setBlockOffsets, sizeof(__pyx_k_SeekableBzip2_setBlockOffsets), 0, 0, 1, 1},
-  {&__pyx_n_s_SeekableBzip2_tell, __pyx_k_SeekableBzip2_tell, sizeof(__pyx_k_SeekableBzip2_tell), 0, 0, 1, 1},
-  {&__pyx_n_s_SeekableBzip2_writable, __pyx_k_SeekableBzip2_writable, sizeof(__pyx_k_SeekableBzip2_writable), 0, 0, 1, 1},
-  {&__pyx_n_s_SeekableBzip2_write, __pyx_k_SeekableBzip2_write, sizeof(__pyx_k_SeekableBzip2_write), 0, 0, 1, 1},
-  {&__pyx_n_s_SeekableBzip2_writelines, __pyx_k_SeekableBzip2_writelines, sizeof(__pyx_k_SeekableBzip2_writelines), 0, 0, 1, 1},
   {&__pyx_n_s_TypeError, __pyx_k_TypeError, sizeof(__pyx_k_TypeError), 0, 0, 1, 1},
   {&__pyx_n_s_b, __pyx_k_b, sizeof(__pyx_k_b), 0, 0, 1, 1},
   {&__pyx_n_s_blockOffsets, __pyx_k_blockOffsets, sizeof(__pyx_k_blockOffsets), 0, 0, 1, 1},
   {&__pyx_n_s_bz2reader, __pyx_k_bz2reader, sizeof(__pyx_k_bz2reader), 0, 0, 1, 1},
-  {&__pyx_n_s_bzip2, __pyx_k_bzip2, sizeof(__pyx_k_bzip2), 0, 0, 1, 1},
-  {&__pyx_kp_s_bzip2_pyx, __pyx_k_bzip2_pyx, sizeof(__pyx_k_bzip2_pyx), 0, 0, 1, 0},
   {&__pyx_n_s_cline_in_traceback, __pyx_k_cline_in_traceback, sizeof(__pyx_k_cline_in_traceback), 0, 0, 1, 1},
   {&__pyx_n_s_close, __pyx_k_close, sizeof(__pyx_k_close), 0, 0, 1, 1},
   {&__pyx_n_s_closed, __pyx_k_closed, sizeof(__pyx_k_closed), 0, 0, 1, 1},
@@ -5232,6 +5231,8 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_fileno, __pyx_k_fileno, sizeof(__pyx_k_fileno), 0, 0, 1, 1},
   {&__pyx_n_s_getstate, __pyx_k_getstate, sizeof(__pyx_k_getstate), 0, 0, 1, 1},
   {&__pyx_n_s_import, __pyx_k_import, sizeof(__pyx_k_import), 0, 0, 1, 1},
+  {&__pyx_n_s_indexed_bzip2, __pyx_k_indexed_bzip2, sizeof(__pyx_k_indexed_bzip2), 0, 0, 1, 1},
+  {&__pyx_kp_s_indexed_bzip2_indexed_bzip2_pyx, __pyx_k_indexed_bzip2_indexed_bzip2_pyx, sizeof(__pyx_k_indexed_bzip2_indexed_bzip2_pyx), 0, 0, 1, 0},
   {&__pyx_n_s_init, __pyx_k_init, sizeof(__pyx_k_init), 0, 0, 1, 1},
   {&__pyx_n_s_io, __pyx_k_io, sizeof(__pyx_k_io), 0, 0, 1, 1},
   {&__pyx_n_s_iteritems, __pyx_k_iteritems, sizeof(__pyx_k_iteritems), 0, 0, 1, 1},
@@ -5289,7 +5290,7 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("__Pyx_InitCachedConstants", 0);
 
-  /* "bzip2.pyx":77
+  /* "indexed_bzip2.pyx":77
  *         #    print( "Read {} bytes form bz2".format( size ), file = sys.stderr )
  * 
  *         raise Exception( "Invalid size argument" )             # <<<<<<<<<<<<<<
@@ -5319,7 +5320,7 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __Pyx_GOTREF(__pyx_tuple__4);
   __Pyx_GIVEREF(__pyx_tuple__4);
 
-  /* "bzip2.pyx":127
+  /* "indexed_bzip2.pyx":127
  * 
  *     def peek( self, n = 0 ):
  *         raise Exception( "not supported" )             # <<<<<<<<<<<<<<
@@ -5330,19 +5331,19 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __Pyx_GOTREF(__pyx_tuple__5);
   __Pyx_GIVEREF(__pyx_tuple__5);
 
-  /* "bzip2.pyx":94
+  /* "indexed_bzip2.pyx":94
  * # Extra class because cdefs are not visible from otuside but cdef class can't inherit from io.BufferedIOBase
- * class SeekableBzip2( io.BufferedIOBase ):
+ * class IndexedBzip2File( io.BufferedIOBase ):
  *     def __init__( self, filename ):             # <<<<<<<<<<<<<<
- *         self.bz2reader = BZ2ReaderWrapper( filename )
+ *         self.bz2reader = _IndexedBzip2File( filename )
  *         self.name = filename
  */
   __pyx_tuple__6 = PyTuple_Pack(2, __pyx_n_s_self, __pyx_n_s_filename); if (unlikely(!__pyx_tuple__6)) __PYX_ERR(0, 94, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__6);
   __Pyx_GIVEREF(__pyx_tuple__6);
-  __pyx_codeobj__7 = (PyObject*)__Pyx_PyCode_New(2, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__6, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_bzip2_pyx, __pyx_n_s_init, 94, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__7)) __PYX_ERR(0, 94, __pyx_L1_error)
+  __pyx_codeobj__7 = (PyObject*)__Pyx_PyCode_New(2, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__6, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_indexed_bzip2_indexed_bzip2_pyx, __pyx_n_s_init, 94, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__7)) __PYX_ERR(0, 94, __pyx_L1_error)
 
-  /* "bzip2.pyx":99
+  /* "indexed_bzip2.pyx":99
  *         self.mode = 'rb'
  * 
  *     def close( self ):             # <<<<<<<<<<<<<<
@@ -5352,9 +5353,9 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__8 = PyTuple_Pack(1, __pyx_n_s_self); if (unlikely(!__pyx_tuple__8)) __PYX_ERR(0, 99, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__8);
   __Pyx_GIVEREF(__pyx_tuple__8);
-  __pyx_codeobj__9 = (PyObject*)__Pyx_PyCode_New(1, 0, 1, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__8, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_bzip2_pyx, __pyx_n_s_close, 99, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__9)) __PYX_ERR(0, 99, __pyx_L1_error)
+  __pyx_codeobj__9 = (PyObject*)__Pyx_PyCode_New(1, 0, 1, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__8, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_indexed_bzip2_indexed_bzip2_pyx, __pyx_n_s_close, 99, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__9)) __PYX_ERR(0, 99, __pyx_L1_error)
 
-  /* "bzip2.pyx":102
+  /* "indexed_bzip2.pyx":102
  *         self.bz2reader.close()
  * 
  *     def closed( self ):             # <<<<<<<<<<<<<<
@@ -5364,9 +5365,9 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__10 = PyTuple_Pack(1, __pyx_n_s_self); if (unlikely(!__pyx_tuple__10)) __PYX_ERR(0, 102, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__10);
   __Pyx_GIVEREF(__pyx_tuple__10);
-  __pyx_codeobj__11 = (PyObject*)__Pyx_PyCode_New(1, 0, 1, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__10, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_bzip2_pyx, __pyx_n_s_closed, 102, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__11)) __PYX_ERR(0, 102, __pyx_L1_error)
+  __pyx_codeobj__11 = (PyObject*)__Pyx_PyCode_New(1, 0, 1, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__10, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_indexed_bzip2_indexed_bzip2_pyx, __pyx_n_s_closed, 102, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__11)) __PYX_ERR(0, 102, __pyx_L1_error)
 
-  /* "bzip2.pyx":105
+  /* "indexed_bzip2.pyx":105
  *         return self.bz2reader.closed()
  * 
  *     def fileno( self ):             # <<<<<<<<<<<<<<
@@ -5376,9 +5377,9 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__12 = PyTuple_Pack(1, __pyx_n_s_self); if (unlikely(!__pyx_tuple__12)) __PYX_ERR(0, 105, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__12);
   __Pyx_GIVEREF(__pyx_tuple__12);
-  __pyx_codeobj__13 = (PyObject*)__Pyx_PyCode_New(1, 0, 1, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__12, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_bzip2_pyx, __pyx_n_s_fileno, 105, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__13)) __PYX_ERR(0, 105, __pyx_L1_error)
+  __pyx_codeobj__13 = (PyObject*)__Pyx_PyCode_New(1, 0, 1, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__12, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_indexed_bzip2_indexed_bzip2_pyx, __pyx_n_s_fileno, 105, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__13)) __PYX_ERR(0, 105, __pyx_L1_error)
 
-  /* "bzip2.pyx":108
+  /* "indexed_bzip2.pyx":108
  *         return self.bz2reader.fileno()
  * 
  *     def seekable( self ):             # <<<<<<<<<<<<<<
@@ -5388,9 +5389,9 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__14 = PyTuple_Pack(1, __pyx_n_s_self); if (unlikely(!__pyx_tuple__14)) __PYX_ERR(0, 108, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__14);
   __Pyx_GIVEREF(__pyx_tuple__14);
-  __pyx_codeobj__15 = (PyObject*)__Pyx_PyCode_New(1, 0, 1, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__14, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_bzip2_pyx, __pyx_n_s_seekable, 108, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__15)) __PYX_ERR(0, 108, __pyx_L1_error)
+  __pyx_codeobj__15 = (PyObject*)__Pyx_PyCode_New(1, 0, 1, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__14, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_indexed_bzip2_indexed_bzip2_pyx, __pyx_n_s_seekable, 108, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__15)) __PYX_ERR(0, 108, __pyx_L1_error)
 
-  /* "bzip2.pyx":111
+  /* "indexed_bzip2.pyx":111
  *         return True
  * 
  *     def readable( self ):             # <<<<<<<<<<<<<<
@@ -5400,9 +5401,9 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__16 = PyTuple_Pack(1, __pyx_n_s_self); if (unlikely(!__pyx_tuple__16)) __PYX_ERR(0, 111, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__16);
   __Pyx_GIVEREF(__pyx_tuple__16);
-  __pyx_codeobj__17 = (PyObject*)__Pyx_PyCode_New(1, 0, 1, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__16, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_bzip2_pyx, __pyx_n_s_readable, 111, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__17)) __PYX_ERR(0, 111, __pyx_L1_error)
+  __pyx_codeobj__17 = (PyObject*)__Pyx_PyCode_New(1, 0, 1, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__16, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_indexed_bzip2_indexed_bzip2_pyx, __pyx_n_s_readable, 111, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__17)) __PYX_ERR(0, 111, __pyx_L1_error)
 
-  /* "bzip2.pyx":114
+  /* "indexed_bzip2.pyx":114
  *         return True
  * 
  *     def writable( self ):             # <<<<<<<<<<<<<<
@@ -5412,9 +5413,9 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__18 = PyTuple_Pack(1, __pyx_n_s_self); if (unlikely(!__pyx_tuple__18)) __PYX_ERR(0, 114, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__18);
   __Pyx_GIVEREF(__pyx_tuple__18);
-  __pyx_codeobj__19 = (PyObject*)__Pyx_PyCode_New(1, 0, 1, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__18, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_bzip2_pyx, __pyx_n_s_writable, 114, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__19)) __PYX_ERR(0, 114, __pyx_L1_error)
+  __pyx_codeobj__19 = (PyObject*)__Pyx_PyCode_New(1, 0, 1, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__18, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_indexed_bzip2_indexed_bzip2_pyx, __pyx_n_s_writable, 114, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__19)) __PYX_ERR(0, 114, __pyx_L1_error)
 
-  /* "bzip2.pyx":117
+  /* "indexed_bzip2.pyx":117
  *         return False
  * 
  *     def read( self, size = -1 ):             # <<<<<<<<<<<<<<
@@ -5424,12 +5425,12 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__20 = PyTuple_Pack(2, __pyx_n_s_self, __pyx_n_s_size); if (unlikely(!__pyx_tuple__20)) __PYX_ERR(0, 117, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__20);
   __Pyx_GIVEREF(__pyx_tuple__20);
-  __pyx_codeobj__21 = (PyObject*)__Pyx_PyCode_New(2, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__20, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_bzip2_pyx, __pyx_n_s_read, 117, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__21)) __PYX_ERR(0, 117, __pyx_L1_error)
+  __pyx_codeobj__21 = (PyObject*)__Pyx_PyCode_New(2, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__20, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_indexed_bzip2_indexed_bzip2_pyx, __pyx_n_s_read, 117, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__21)) __PYX_ERR(0, 117, __pyx_L1_error)
   __pyx_tuple__22 = PyTuple_Pack(1, ((PyObject *)__pyx_int_neg_1)); if (unlikely(!__pyx_tuple__22)) __PYX_ERR(0, 117, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__22);
   __Pyx_GIVEREF(__pyx_tuple__22);
 
-  /* "bzip2.pyx":120
+  /* "indexed_bzip2.pyx":120
  *         return self.bz2reader.read( size )
  * 
  *     def seek( self, offset, whence = io.SEEK_SET ):             # <<<<<<<<<<<<<<
@@ -5439,9 +5440,9 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__23 = PyTuple_Pack(3, __pyx_n_s_self, __pyx_n_s_offset, __pyx_n_s_whence); if (unlikely(!__pyx_tuple__23)) __PYX_ERR(0, 120, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__23);
   __Pyx_GIVEREF(__pyx_tuple__23);
-  __pyx_codeobj__24 = (PyObject*)__Pyx_PyCode_New(3, 0, 3, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__23, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_bzip2_pyx, __pyx_n_s_seek, 120, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__24)) __PYX_ERR(0, 120, __pyx_L1_error)
+  __pyx_codeobj__24 = (PyObject*)__Pyx_PyCode_New(3, 0, 3, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__23, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_indexed_bzip2_indexed_bzip2_pyx, __pyx_n_s_seek, 120, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__24)) __PYX_ERR(0, 120, __pyx_L1_error)
 
-  /* "bzip2.pyx":123
+  /* "indexed_bzip2.pyx":123
  *         return self.bz2reader.seek( offset, whence )
  * 
  *     def tell( self ):             # <<<<<<<<<<<<<<
@@ -5451,9 +5452,9 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__25 = PyTuple_Pack(1, __pyx_n_s_self); if (unlikely(!__pyx_tuple__25)) __PYX_ERR(0, 123, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__25);
   __Pyx_GIVEREF(__pyx_tuple__25);
-  __pyx_codeobj__26 = (PyObject*)__Pyx_PyCode_New(1, 0, 1, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__25, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_bzip2_pyx, __pyx_n_s_tell, 123, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__26)) __PYX_ERR(0, 123, __pyx_L1_error)
+  __pyx_codeobj__26 = (PyObject*)__Pyx_PyCode_New(1, 0, 1, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__25, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_indexed_bzip2_indexed_bzip2_pyx, __pyx_n_s_tell, 123, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__26)) __PYX_ERR(0, 123, __pyx_L1_error)
 
-  /* "bzip2.pyx":126
+  /* "indexed_bzip2.pyx":126
  *         return self.bz2reader.tell()
  * 
  *     def peek( self, n = 0 ):             # <<<<<<<<<<<<<<
@@ -5463,12 +5464,12 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__27 = PyTuple_Pack(2, __pyx_n_s_self, __pyx_n_s_n); if (unlikely(!__pyx_tuple__27)) __PYX_ERR(0, 126, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__27);
   __Pyx_GIVEREF(__pyx_tuple__27);
-  __pyx_codeobj__28 = (PyObject*)__Pyx_PyCode_New(2, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__27, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_bzip2_pyx, __pyx_n_s_peek, 126, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__28)) __PYX_ERR(0, 126, __pyx_L1_error)
+  __pyx_codeobj__28 = (PyObject*)__Pyx_PyCode_New(2, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__27, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_indexed_bzip2_indexed_bzip2_pyx, __pyx_n_s_peek, 126, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__28)) __PYX_ERR(0, 126, __pyx_L1_error)
   __pyx_tuple__29 = PyTuple_Pack(1, ((PyObject *)__pyx_int_0)); if (unlikely(!__pyx_tuple__29)) __PYX_ERR(0, 126, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__29);
   __Pyx_GIVEREF(__pyx_tuple__29);
 
-  /* "bzip2.pyx":129
+  /* "indexed_bzip2.pyx":129
  *         raise Exception( "not supported" )
  * 
  *     def read1( self, size = -1 ):             # <<<<<<<<<<<<<<
@@ -5478,12 +5479,12 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__30 = PyTuple_Pack(2, __pyx_n_s_self, __pyx_n_s_size); if (unlikely(!__pyx_tuple__30)) __PYX_ERR(0, 129, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__30);
   __Pyx_GIVEREF(__pyx_tuple__30);
-  __pyx_codeobj__31 = (PyObject*)__Pyx_PyCode_New(2, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__30, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_bzip2_pyx, __pyx_n_s_read1, 129, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__31)) __PYX_ERR(0, 129, __pyx_L1_error)
+  __pyx_codeobj__31 = (PyObject*)__Pyx_PyCode_New(2, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__30, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_indexed_bzip2_indexed_bzip2_pyx, __pyx_n_s_read1, 129, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__31)) __PYX_ERR(0, 129, __pyx_L1_error)
   __pyx_tuple__32 = PyTuple_Pack(1, ((PyObject *)__pyx_int_neg_1)); if (unlikely(!__pyx_tuple__32)) __PYX_ERR(0, 129, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__32);
   __Pyx_GIVEREF(__pyx_tuple__32);
 
-  /* "bzip2.pyx":132
+  /* "indexed_bzip2.pyx":132
  *         raise Exception( "not supported" )
  * 
  *     def readinto( self, b ):             # <<<<<<<<<<<<<<
@@ -5493,9 +5494,9 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__33 = PyTuple_Pack(2, __pyx_n_s_self, __pyx_n_s_b); if (unlikely(!__pyx_tuple__33)) __PYX_ERR(0, 132, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__33);
   __Pyx_GIVEREF(__pyx_tuple__33);
-  __pyx_codeobj__34 = (PyObject*)__Pyx_PyCode_New(2, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__33, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_bzip2_pyx, __pyx_n_s_readinto, 132, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__34)) __PYX_ERR(0, 132, __pyx_L1_error)
+  __pyx_codeobj__34 = (PyObject*)__Pyx_PyCode_New(2, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__33, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_indexed_bzip2_indexed_bzip2_pyx, __pyx_n_s_readinto, 132, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__34)) __PYX_ERR(0, 132, __pyx_L1_error)
 
-  /* "bzip2.pyx":135
+  /* "indexed_bzip2.pyx":135
  *         raise Exception( "not supported" )
  * 
  *     def readline( self, size = -1 ):             # <<<<<<<<<<<<<<
@@ -5505,12 +5506,12 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__35 = PyTuple_Pack(2, __pyx_n_s_self, __pyx_n_s_size); if (unlikely(!__pyx_tuple__35)) __PYX_ERR(0, 135, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__35);
   __Pyx_GIVEREF(__pyx_tuple__35);
-  __pyx_codeobj__36 = (PyObject*)__Pyx_PyCode_New(2, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__35, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_bzip2_pyx, __pyx_n_s_readline, 135, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__36)) __PYX_ERR(0, 135, __pyx_L1_error)
+  __pyx_codeobj__36 = (PyObject*)__Pyx_PyCode_New(2, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__35, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_indexed_bzip2_indexed_bzip2_pyx, __pyx_n_s_readline, 135, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__36)) __PYX_ERR(0, 135, __pyx_L1_error)
   __pyx_tuple__37 = PyTuple_Pack(1, ((PyObject *)__pyx_int_neg_1)); if (unlikely(!__pyx_tuple__37)) __PYX_ERR(0, 135, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__37);
   __Pyx_GIVEREF(__pyx_tuple__37);
 
-  /* "bzip2.pyx":138
+  /* "indexed_bzip2.pyx":138
  *         raise Exception( "not supported" )
  * 
  *     def readlines( self, size = -1 ):             # <<<<<<<<<<<<<<
@@ -5520,12 +5521,12 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__38 = PyTuple_Pack(2, __pyx_n_s_self, __pyx_n_s_size); if (unlikely(!__pyx_tuple__38)) __PYX_ERR(0, 138, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__38);
   __Pyx_GIVEREF(__pyx_tuple__38);
-  __pyx_codeobj__39 = (PyObject*)__Pyx_PyCode_New(2, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__38, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_bzip2_pyx, __pyx_n_s_readlines, 138, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__39)) __PYX_ERR(0, 138, __pyx_L1_error)
+  __pyx_codeobj__39 = (PyObject*)__Pyx_PyCode_New(2, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__38, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_indexed_bzip2_indexed_bzip2_pyx, __pyx_n_s_readlines, 138, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__39)) __PYX_ERR(0, 138, __pyx_L1_error)
   __pyx_tuple__40 = PyTuple_Pack(1, ((PyObject *)__pyx_int_neg_1)); if (unlikely(!__pyx_tuple__40)) __PYX_ERR(0, 138, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__40);
   __Pyx_GIVEREF(__pyx_tuple__40);
 
-  /* "bzip2.pyx":141
+  /* "indexed_bzip2.pyx":141
  *         raise Exception( "not supported" )
  * 
  *     def write( self, data ):             # <<<<<<<<<<<<<<
@@ -5535,9 +5536,9 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__41 = PyTuple_Pack(2, __pyx_n_s_self, __pyx_n_s_data); if (unlikely(!__pyx_tuple__41)) __PYX_ERR(0, 141, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__41);
   __Pyx_GIVEREF(__pyx_tuple__41);
-  __pyx_codeobj__42 = (PyObject*)__Pyx_PyCode_New(2, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__41, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_bzip2_pyx, __pyx_n_s_write, 141, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__42)) __PYX_ERR(0, 141, __pyx_L1_error)
+  __pyx_codeobj__42 = (PyObject*)__Pyx_PyCode_New(2, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__41, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_indexed_bzip2_indexed_bzip2_pyx, __pyx_n_s_write, 141, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__42)) __PYX_ERR(0, 141, __pyx_L1_error)
 
-  /* "bzip2.pyx":144
+  /* "indexed_bzip2.pyx":144
  *         raise Exception( "not supported" )
  * 
  *     def writelines( self, seq ):             # <<<<<<<<<<<<<<
@@ -5547,9 +5548,9 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__43 = PyTuple_Pack(2, __pyx_n_s_self, __pyx_n_s_seq); if (unlikely(!__pyx_tuple__43)) __PYX_ERR(0, 144, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__43);
   __Pyx_GIVEREF(__pyx_tuple__43);
-  __pyx_codeobj__44 = (PyObject*)__Pyx_PyCode_New(2, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__43, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_bzip2_pyx, __pyx_n_s_writelines, 144, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__44)) __PYX_ERR(0, 144, __pyx_L1_error)
+  __pyx_codeobj__44 = (PyObject*)__Pyx_PyCode_New(2, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__43, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_indexed_bzip2_indexed_bzip2_pyx, __pyx_n_s_writelines, 144, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__44)) __PYX_ERR(0, 144, __pyx_L1_error)
 
-  /* "bzip2.pyx":147
+  /* "indexed_bzip2.pyx":147
  *         raise Exception( "not supported" )
  * 
  *     def blockOffsets( self ):             # <<<<<<<<<<<<<<
@@ -5559,9 +5560,9 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__45 = PyTuple_Pack(1, __pyx_n_s_self); if (unlikely(!__pyx_tuple__45)) __PYX_ERR(0, 147, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__45);
   __Pyx_GIVEREF(__pyx_tuple__45);
-  __pyx_codeobj__46 = (PyObject*)__Pyx_PyCode_New(1, 0, 1, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__45, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_bzip2_pyx, __pyx_n_s_blockOffsets, 147, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__46)) __PYX_ERR(0, 147, __pyx_L1_error)
+  __pyx_codeobj__46 = (PyObject*)__Pyx_PyCode_New(1, 0, 1, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__45, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_indexed_bzip2_indexed_bzip2_pyx, __pyx_n_s_blockOffsets, 147, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__46)) __PYX_ERR(0, 147, __pyx_L1_error)
 
-  /* "bzip2.pyx":150
+  /* "indexed_bzip2.pyx":150
  *         return self.bz2reader.blockOffsets()
  * 
  *     def setBlockOffsets( self, offsets ):             # <<<<<<<<<<<<<<
@@ -5570,7 +5571,7 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__47 = PyTuple_Pack(2, __pyx_n_s_self, __pyx_n_s_offsets); if (unlikely(!__pyx_tuple__47)) __PYX_ERR(0, 150, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__47);
   __Pyx_GIVEREF(__pyx_tuple__47);
-  __pyx_codeobj__48 = (PyObject*)__Pyx_PyCode_New(2, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__47, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_bzip2_pyx, __pyx_n_s_setBlockOffsets, 150, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__48)) __PYX_ERR(0, 150, __pyx_L1_error)
+  __pyx_codeobj__48 = (PyObject*)__Pyx_PyCode_New(2, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__47, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_indexed_bzip2_indexed_bzip2_pyx, __pyx_n_s_setBlockOffsets, 150, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__48)) __PYX_ERR(0, 150, __pyx_L1_error)
   __Pyx_RefNannyFinishContext();
   return 0;
   __pyx_L1_error:;
@@ -5623,14 +5624,14 @@ static int __Pyx_modinit_type_init_code(void) {
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("__Pyx_modinit_type_init_code", 0);
   /*--- Type init code ---*/
-  if (PyType_Ready(&__pyx_type_5bzip2_BZ2ReaderWrapper) < 0) __PYX_ERR(0, 38, __pyx_L1_error)
-  __pyx_type_5bzip2_BZ2ReaderWrapper.tp_print = 0;
-  if ((CYTHON_USE_TYPE_SLOTS && CYTHON_USE_PYTYPE_LOOKUP) && likely(!__pyx_type_5bzip2_BZ2ReaderWrapper.tp_dictoffset && __pyx_type_5bzip2_BZ2ReaderWrapper.tp_getattro == PyObject_GenericGetAttr)) {
-    __pyx_type_5bzip2_BZ2ReaderWrapper.tp_getattro = __Pyx_PyObject_GenericGetAttr;
+  if (PyType_Ready(&__pyx_type_13indexed_bzip2__IndexedBzip2File) < 0) __PYX_ERR(0, 38, __pyx_L1_error)
+  __pyx_type_13indexed_bzip2__IndexedBzip2File.tp_print = 0;
+  if ((CYTHON_USE_TYPE_SLOTS && CYTHON_USE_PYTYPE_LOOKUP) && likely(!__pyx_type_13indexed_bzip2__IndexedBzip2File.tp_dictoffset && __pyx_type_13indexed_bzip2__IndexedBzip2File.tp_getattro == PyObject_GenericGetAttr)) {
+    __pyx_type_13indexed_bzip2__IndexedBzip2File.tp_getattro = __Pyx_PyObject_GenericGetAttr;
   }
-  if (PyObject_SetAttr(__pyx_m, __pyx_n_s_BZ2ReaderWrapper, (PyObject *)&__pyx_type_5bzip2_BZ2ReaderWrapper) < 0) __PYX_ERR(0, 38, __pyx_L1_error)
-  if (__Pyx_setup_reduce((PyObject*)&__pyx_type_5bzip2_BZ2ReaderWrapper) < 0) __PYX_ERR(0, 38, __pyx_L1_error)
-  __pyx_ptype_5bzip2_BZ2ReaderWrapper = &__pyx_type_5bzip2_BZ2ReaderWrapper;
+  if (PyObject_SetAttr(__pyx_m, __pyx_n_s_IndexedBzip2File, (PyObject *)&__pyx_type_13indexed_bzip2__IndexedBzip2File) < 0) __PYX_ERR(0, 38, __pyx_L1_error)
+  if (__Pyx_setup_reduce((PyObject*)&__pyx_type_13indexed_bzip2__IndexedBzip2File) < 0) __PYX_ERR(0, 38, __pyx_L1_error)
+  __pyx_ptype_13indexed_bzip2__IndexedBzip2File = &__pyx_type_13indexed_bzip2__IndexedBzip2File;
   __Pyx_RefNannyFinishContext();
   return 0;
   __pyx_L1_error:;
@@ -5679,11 +5680,11 @@ static int __Pyx_modinit_function_import_code(void) {
 
 
 #if PY_MAJOR_VERSION < 3
-__Pyx_PyMODINIT_FUNC initbzip2(void) CYTHON_SMALL_CODE; /*proto*/
-__Pyx_PyMODINIT_FUNC initbzip2(void)
+__Pyx_PyMODINIT_FUNC initindexed_bzip2(void) CYTHON_SMALL_CODE; /*proto*/
+__Pyx_PyMODINIT_FUNC initindexed_bzip2(void)
 #else
-__Pyx_PyMODINIT_FUNC PyInit_bzip2(void) CYTHON_SMALL_CODE; /*proto*/
-__Pyx_PyMODINIT_FUNC PyInit_bzip2(void)
+__Pyx_PyMODINIT_FUNC PyInit_indexed_bzip2(void) CYTHON_SMALL_CODE; /*proto*/
+__Pyx_PyMODINIT_FUNC PyInit_indexed_bzip2(void)
 #if CYTHON_PEP489_MULTI_PHASE_INIT
 {
   return PyModuleDef_Init(&__pyx_moduledef);
@@ -5750,7 +5751,7 @@ bad:
 }
 
 
-static CYTHON_SMALL_CODE int __pyx_pymod_exec_bzip2(PyObject *__pyx_pyinit_module)
+static CYTHON_SMALL_CODE int __pyx_pymod_exec_indexed_bzip2(PyObject *__pyx_pyinit_module)
 #endif
 #endif
 {
@@ -5764,7 +5765,7 @@ static CYTHON_SMALL_CODE int __pyx_pymod_exec_bzip2(PyObject *__pyx_pyinit_modul
   #if CYTHON_PEP489_MULTI_PHASE_INIT
   if (__pyx_m) {
     if (__pyx_m == __pyx_pyinit_module) return 0;
-    PyErr_SetString(PyExc_RuntimeError, "Module 'bzip2' has already been imported. Re-initialisation is not supported.");
+    PyErr_SetString(PyExc_RuntimeError, "Module 'indexed_bzip2' has already been imported. Re-initialisation is not supported.");
     return -1;
   }
   #elif PY_MAJOR_VERSION >= 3
@@ -5779,7 +5780,7 @@ if (!__Pyx_RefNanny) {
       Py_FatalError("failed to import 'refnanny' module");
 }
 #endif
-  __Pyx_RefNannySetupContext("__Pyx_PyMODINIT_FUNC PyInit_bzip2(void)", 0);
+  __Pyx_RefNannySetupContext("__Pyx_PyMODINIT_FUNC PyInit_indexed_bzip2(void)", 0);
   if (__Pyx_check_binary_version() < 0) __PYX_ERR(0, 1, __pyx_L1_error)
   #ifdef __Pxy_PyFrame_Initialize_Offsets
   __Pxy_PyFrame_Initialize_Offsets();
@@ -5818,7 +5819,7 @@ if (!__Pyx_RefNanny) {
   Py_INCREF(__pyx_m);
   #else
   #if PY_MAJOR_VERSION < 3
-  __pyx_m = Py_InitModule4("bzip2", __pyx_methods, __pyx_k_Pyrex_C_extension_supporting_bx, 0, PYTHON_API_VERSION); Py_XINCREF(__pyx_m);
+  __pyx_m = Py_InitModule4("indexed_bzip2", __pyx_methods, __pyx_k_Pyrex_C_extension_supporting_bx, 0, PYTHON_API_VERSION); Py_XINCREF(__pyx_m);
   #else
   __pyx_m = PyModule_Create(&__pyx_moduledef);
   #endif
@@ -5837,14 +5838,14 @@ if (!__Pyx_RefNanny) {
   #if PY_MAJOR_VERSION < 3 && (__PYX_DEFAULT_STRING_ENCODING_IS_ASCII || __PYX_DEFAULT_STRING_ENCODING_IS_DEFAULT)
   if (__Pyx_init_sys_getdefaultencoding_params() < 0) __PYX_ERR(0, 1, __pyx_L1_error)
   #endif
-  if (__pyx_module_is_main_bzip2) {
+  if (__pyx_module_is_main_indexed_bzip2) {
     if (PyObject_SetAttr(__pyx_m, __pyx_n_s_name_2, __pyx_n_s_main) < 0) __PYX_ERR(0, 1, __pyx_L1_error)
   }
   #if PY_MAJOR_VERSION >= 3
   {
     PyObject *modules = PyImport_GetModuleDict(); if (unlikely(!modules)) __PYX_ERR(0, 1, __pyx_L1_error)
-    if (!PyDict_GetItemString(modules, "bzip2")) {
-      if (unlikely(PyDict_SetItemString(modules, "bzip2", __pyx_m) < 0)) __PYX_ERR(0, 1, __pyx_L1_error)
+    if (!PyDict_GetItemString(modules, "indexed_bzip2")) {
+      if (unlikely(PyDict_SetItemString(modules, "indexed_bzip2", __pyx_m) < 0)) __PYX_ERR(0, 1, __pyx_L1_error)
     }
   }
   #endif
@@ -5865,7 +5866,7 @@ if (!__Pyx_RefNanny) {
   if (__Pyx_patch_abc() < 0) __PYX_ERR(0, 1, __pyx_L1_error)
   #endif
 
-  /* "bzip2.pyx":12
+  /* "indexed_bzip2.pyx":12
  * from libcpp cimport bool
  * 
  * import io             # <<<<<<<<<<<<<<
@@ -5877,7 +5878,7 @@ if (!__Pyx_RefNanny) {
   if (PyDict_SetItem(__pyx_d, __pyx_n_s_io, __pyx_t_1) < 0) __PYX_ERR(0, 12, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "bzip2.pyx":13
+  /* "indexed_bzip2.pyx":13
  * 
  * import io
  * import os             # <<<<<<<<<<<<<<
@@ -5889,7 +5890,7 @@ if (!__Pyx_RefNanny) {
   if (PyDict_SetItem(__pyx_d, __pyx_n_s_os, __pyx_t_1) < 0) __PYX_ERR(0, 13, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "bzip2.pyx":14
+  /* "indexed_bzip2.pyx":14
  * import io
  * import os
  * import sys             # <<<<<<<<<<<<<<
@@ -5901,12 +5902,12 @@ if (!__Pyx_RefNanny) {
   if (PyDict_SetItem(__pyx_d, __pyx_n_s_sys, __pyx_t_1) < 0) __PYX_ERR(0, 14, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "bzip2.pyx":93
+  /* "indexed_bzip2.pyx":93
  * 
  * # Extra class because cdefs are not visible from otuside but cdef class can't inherit from io.BufferedIOBase
- * class SeekableBzip2( io.BufferedIOBase ):             # <<<<<<<<<<<<<<
+ * class IndexedBzip2File( io.BufferedIOBase ):             # <<<<<<<<<<<<<<
  *     def __init__( self, filename ):
- *         self.bz2reader = BZ2ReaderWrapper( filename )
+ *         self.bz2reader = _IndexedBzip2File( filename )
  */
   __Pyx_GetModuleGlobalName(__pyx_t_1, __pyx_n_s_io); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 93, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
@@ -5920,114 +5921,114 @@ if (!__Pyx_RefNanny) {
   __pyx_t_2 = 0;
   __pyx_t_2 = __Pyx_CalculateMetaclass(NULL, __pyx_t_1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 93, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_3 = __Pyx_Py3MetaclassPrepare(__pyx_t_2, __pyx_t_1, __pyx_n_s_SeekableBzip2, __pyx_n_s_SeekableBzip2, (PyObject *) NULL, __pyx_n_s_bzip2, (PyObject *) NULL); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 93, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_Py3MetaclassPrepare(__pyx_t_2, __pyx_t_1, __pyx_n_s_IndexedBzip2File_2, __pyx_n_s_IndexedBzip2File_2, (PyObject *) NULL, __pyx_n_s_indexed_bzip2, (PyObject *) NULL); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 93, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
 
-  /* "bzip2.pyx":94
+  /* "indexed_bzip2.pyx":94
  * # Extra class because cdefs are not visible from otuside but cdef class can't inherit from io.BufferedIOBase
- * class SeekableBzip2( io.BufferedIOBase ):
+ * class IndexedBzip2File( io.BufferedIOBase ):
  *     def __init__( self, filename ):             # <<<<<<<<<<<<<<
- *         self.bz2reader = BZ2ReaderWrapper( filename )
+ *         self.bz2reader = _IndexedBzip2File( filename )
  *         self.name = filename
  */
-  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_5bzip2_13SeekableBzip2_1__init__, 0, __pyx_n_s_SeekableBzip2___init, NULL, __pyx_n_s_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__7)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 94, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_13indexed_bzip2_16IndexedBzip2File_1__init__, 0, __pyx_n_s_IndexedBzip2File___init, NULL, __pyx_n_s_indexed_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__7)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 94, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   if (__Pyx_SetNameInClass(__pyx_t_3, __pyx_n_s_init, __pyx_t_4) < 0) __PYX_ERR(0, 94, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "bzip2.pyx":99
+  /* "indexed_bzip2.pyx":99
  *         self.mode = 'rb'
  * 
  *     def close( self ):             # <<<<<<<<<<<<<<
  *         self.bz2reader.close()
  * 
  */
-  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_5bzip2_13SeekableBzip2_3close, 0, __pyx_n_s_SeekableBzip2_close, NULL, __pyx_n_s_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__9)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 99, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_13indexed_bzip2_16IndexedBzip2File_3close, 0, __pyx_n_s_IndexedBzip2File_close, NULL, __pyx_n_s_indexed_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__9)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 99, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   if (__Pyx_SetNameInClass(__pyx_t_3, __pyx_n_s_close, __pyx_t_4) < 0) __PYX_ERR(0, 99, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "bzip2.pyx":102
+  /* "indexed_bzip2.pyx":102
  *         self.bz2reader.close()
  * 
  *     def closed( self ):             # <<<<<<<<<<<<<<
  *         return self.bz2reader.closed()
  * 
  */
-  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_5bzip2_13SeekableBzip2_5closed, 0, __pyx_n_s_SeekableBzip2_closed, NULL, __pyx_n_s_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__11)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 102, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_13indexed_bzip2_16IndexedBzip2File_5closed, 0, __pyx_n_s_IndexedBzip2File_closed, NULL, __pyx_n_s_indexed_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__11)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 102, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   if (__Pyx_SetNameInClass(__pyx_t_3, __pyx_n_s_closed, __pyx_t_4) < 0) __PYX_ERR(0, 102, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "bzip2.pyx":105
+  /* "indexed_bzip2.pyx":105
  *         return self.bz2reader.closed()
  * 
  *     def fileno( self ):             # <<<<<<<<<<<<<<
  *         return self.bz2reader.fileno()
  * 
  */
-  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_5bzip2_13SeekableBzip2_7fileno, 0, __pyx_n_s_SeekableBzip2_fileno, NULL, __pyx_n_s_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__13)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 105, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_13indexed_bzip2_16IndexedBzip2File_7fileno, 0, __pyx_n_s_IndexedBzip2File_fileno, NULL, __pyx_n_s_indexed_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__13)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 105, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   if (__Pyx_SetNameInClass(__pyx_t_3, __pyx_n_s_fileno, __pyx_t_4) < 0) __PYX_ERR(0, 105, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "bzip2.pyx":108
+  /* "indexed_bzip2.pyx":108
  *         return self.bz2reader.fileno()
  * 
  *     def seekable( self ):             # <<<<<<<<<<<<<<
  *         return True
  * 
  */
-  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_5bzip2_13SeekableBzip2_9seekable, 0, __pyx_n_s_SeekableBzip2_seekable, NULL, __pyx_n_s_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__15)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 108, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_13indexed_bzip2_16IndexedBzip2File_9seekable, 0, __pyx_n_s_IndexedBzip2File_seekable, NULL, __pyx_n_s_indexed_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__15)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 108, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   if (__Pyx_SetNameInClass(__pyx_t_3, __pyx_n_s_seekable, __pyx_t_4) < 0) __PYX_ERR(0, 108, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "bzip2.pyx":111
+  /* "indexed_bzip2.pyx":111
  *         return True
  * 
  *     def readable( self ):             # <<<<<<<<<<<<<<
  *         return True
  * 
  */
-  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_5bzip2_13SeekableBzip2_11readable, 0, __pyx_n_s_SeekableBzip2_readable, NULL, __pyx_n_s_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__17)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 111, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_13indexed_bzip2_16IndexedBzip2File_11readable, 0, __pyx_n_s_IndexedBzip2File_readable, NULL, __pyx_n_s_indexed_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__17)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 111, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   if (__Pyx_SetNameInClass(__pyx_t_3, __pyx_n_s_readable, __pyx_t_4) < 0) __PYX_ERR(0, 111, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "bzip2.pyx":114
+  /* "indexed_bzip2.pyx":114
  *         return True
  * 
  *     def writable( self ):             # <<<<<<<<<<<<<<
  *         return False
  * 
  */
-  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_5bzip2_13SeekableBzip2_13writable, 0, __pyx_n_s_SeekableBzip2_writable, NULL, __pyx_n_s_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__19)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 114, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_13indexed_bzip2_16IndexedBzip2File_13writable, 0, __pyx_n_s_IndexedBzip2File_writable, NULL, __pyx_n_s_indexed_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__19)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 114, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   if (__Pyx_SetNameInClass(__pyx_t_3, __pyx_n_s_writable, __pyx_t_4) < 0) __PYX_ERR(0, 114, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "bzip2.pyx":117
+  /* "indexed_bzip2.pyx":117
  *         return False
  * 
  *     def read( self, size = -1 ):             # <<<<<<<<<<<<<<
  *         return self.bz2reader.read( size )
  * 
  */
-  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_5bzip2_13SeekableBzip2_15read, 0, __pyx_n_s_SeekableBzip2_read, NULL, __pyx_n_s_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__21)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 117, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_13indexed_bzip2_16IndexedBzip2File_15read, 0, __pyx_n_s_IndexedBzip2File_read, NULL, __pyx_n_s_indexed_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__21)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 117, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_CyFunction_SetDefaultsTuple(__pyx_t_4, __pyx_tuple__22);
   if (__Pyx_SetNameInClass(__pyx_t_3, __pyx_n_s_read, __pyx_t_4) < 0) __PYX_ERR(0, 117, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "bzip2.pyx":120
+  /* "indexed_bzip2.pyx":120
  *         return self.bz2reader.read( size )
  * 
  *     def seek( self, offset, whence = io.SEEK_SET ):             # <<<<<<<<<<<<<<
  *         return self.bz2reader.seek( offset, whence )
  * 
  */
-  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_5bzip2_13SeekableBzip2_17seek, 0, __pyx_n_s_SeekableBzip2_seek, NULL, __pyx_n_s_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__24)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 120, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_13indexed_bzip2_16IndexedBzip2File_17seek, 0, __pyx_n_s_IndexedBzip2File_seek, NULL, __pyx_n_s_indexed_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__24)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 120, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   if (!__Pyx_CyFunction_InitDefaults(__pyx_t_4, sizeof(__pyx_defaults), 1)) __PYX_ERR(0, 120, __pyx_L1_error)
   __Pyx_GetModuleGlobalName(__pyx_t_5, __pyx_n_s_io); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 120, __pyx_L1_error)
@@ -6038,149 +6039,149 @@ if (!__Pyx_RefNanny) {
   __Pyx_CyFunction_Defaults(__pyx_defaults, __pyx_t_4)->__pyx_arg_whence = __pyx_t_6;
   __Pyx_GIVEREF(__pyx_t_6);
   __pyx_t_6 = 0;
-  __Pyx_CyFunction_SetDefaultsGetter(__pyx_t_4, __pyx_pf_5bzip2___defaults__);
+  __Pyx_CyFunction_SetDefaultsGetter(__pyx_t_4, __pyx_pf_13indexed_bzip2___defaults__);
   if (__Pyx_SetNameInClass(__pyx_t_3, __pyx_n_s_seek, __pyx_t_4) < 0) __PYX_ERR(0, 120, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "bzip2.pyx":123
+  /* "indexed_bzip2.pyx":123
  *         return self.bz2reader.seek( offset, whence )
  * 
  *     def tell( self ):             # <<<<<<<<<<<<<<
  *         return self.bz2reader.tell()
  * 
  */
-  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_5bzip2_13SeekableBzip2_19tell, 0, __pyx_n_s_SeekableBzip2_tell, NULL, __pyx_n_s_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__26)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 123, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_13indexed_bzip2_16IndexedBzip2File_19tell, 0, __pyx_n_s_IndexedBzip2File_tell, NULL, __pyx_n_s_indexed_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__26)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 123, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   if (__Pyx_SetNameInClass(__pyx_t_3, __pyx_n_s_tell, __pyx_t_4) < 0) __PYX_ERR(0, 123, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "bzip2.pyx":126
+  /* "indexed_bzip2.pyx":126
  *         return self.bz2reader.tell()
  * 
  *     def peek( self, n = 0 ):             # <<<<<<<<<<<<<<
  *         raise Exception( "not supported" )
  * 
  */
-  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_5bzip2_13SeekableBzip2_21peek, 0, __pyx_n_s_SeekableBzip2_peek, NULL, __pyx_n_s_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__28)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 126, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_13indexed_bzip2_16IndexedBzip2File_21peek, 0, __pyx_n_s_IndexedBzip2File_peek, NULL, __pyx_n_s_indexed_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__28)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 126, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_CyFunction_SetDefaultsTuple(__pyx_t_4, __pyx_tuple__29);
   if (__Pyx_SetNameInClass(__pyx_t_3, __pyx_n_s_peek, __pyx_t_4) < 0) __PYX_ERR(0, 126, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "bzip2.pyx":129
+  /* "indexed_bzip2.pyx":129
  *         raise Exception( "not supported" )
  * 
  *     def read1( self, size = -1 ):             # <<<<<<<<<<<<<<
  *         raise Exception( "not supported" )
  * 
  */
-  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_5bzip2_13SeekableBzip2_23read1, 0, __pyx_n_s_SeekableBzip2_read1, NULL, __pyx_n_s_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__31)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 129, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_13indexed_bzip2_16IndexedBzip2File_23read1, 0, __pyx_n_s_IndexedBzip2File_read1, NULL, __pyx_n_s_indexed_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__31)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 129, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_CyFunction_SetDefaultsTuple(__pyx_t_4, __pyx_tuple__32);
   if (__Pyx_SetNameInClass(__pyx_t_3, __pyx_n_s_read1, __pyx_t_4) < 0) __PYX_ERR(0, 129, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "bzip2.pyx":132
+  /* "indexed_bzip2.pyx":132
  *         raise Exception( "not supported" )
  * 
  *     def readinto( self, b ):             # <<<<<<<<<<<<<<
  *         raise Exception( "not supported" )
  * 
  */
-  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_5bzip2_13SeekableBzip2_25readinto, 0, __pyx_n_s_SeekableBzip2_readinto, NULL, __pyx_n_s_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__34)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 132, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_13indexed_bzip2_16IndexedBzip2File_25readinto, 0, __pyx_n_s_IndexedBzip2File_readinto, NULL, __pyx_n_s_indexed_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__34)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 132, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   if (__Pyx_SetNameInClass(__pyx_t_3, __pyx_n_s_readinto, __pyx_t_4) < 0) __PYX_ERR(0, 132, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "bzip2.pyx":135
+  /* "indexed_bzip2.pyx":135
  *         raise Exception( "not supported" )
  * 
  *     def readline( self, size = -1 ):             # <<<<<<<<<<<<<<
  *         raise Exception( "not supported" )
  * 
  */
-  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_5bzip2_13SeekableBzip2_27readline, 0, __pyx_n_s_SeekableBzip2_readline, NULL, __pyx_n_s_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__36)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 135, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_13indexed_bzip2_16IndexedBzip2File_27readline, 0, __pyx_n_s_IndexedBzip2File_readline, NULL, __pyx_n_s_indexed_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__36)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 135, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_CyFunction_SetDefaultsTuple(__pyx_t_4, __pyx_tuple__37);
   if (__Pyx_SetNameInClass(__pyx_t_3, __pyx_n_s_readline, __pyx_t_4) < 0) __PYX_ERR(0, 135, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "bzip2.pyx":138
+  /* "indexed_bzip2.pyx":138
  *         raise Exception( "not supported" )
  * 
  *     def readlines( self, size = -1 ):             # <<<<<<<<<<<<<<
  *         raise Exception( "not supported" )
  * 
  */
-  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_5bzip2_13SeekableBzip2_29readlines, 0, __pyx_n_s_SeekableBzip2_readlines, NULL, __pyx_n_s_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__39)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 138, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_13indexed_bzip2_16IndexedBzip2File_29readlines, 0, __pyx_n_s_IndexedBzip2File_readlines, NULL, __pyx_n_s_indexed_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__39)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 138, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_CyFunction_SetDefaultsTuple(__pyx_t_4, __pyx_tuple__40);
   if (__Pyx_SetNameInClass(__pyx_t_3, __pyx_n_s_readlines, __pyx_t_4) < 0) __PYX_ERR(0, 138, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "bzip2.pyx":141
+  /* "indexed_bzip2.pyx":141
  *         raise Exception( "not supported" )
  * 
  *     def write( self, data ):             # <<<<<<<<<<<<<<
  *         raise Exception( "not supported" )
  * 
  */
-  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_5bzip2_13SeekableBzip2_31write, 0, __pyx_n_s_SeekableBzip2_write, NULL, __pyx_n_s_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__42)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 141, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_13indexed_bzip2_16IndexedBzip2File_31write, 0, __pyx_n_s_IndexedBzip2File_write, NULL, __pyx_n_s_indexed_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__42)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 141, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   if (__Pyx_SetNameInClass(__pyx_t_3, __pyx_n_s_write, __pyx_t_4) < 0) __PYX_ERR(0, 141, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "bzip2.pyx":144
+  /* "indexed_bzip2.pyx":144
  *         raise Exception( "not supported" )
  * 
  *     def writelines( self, seq ):             # <<<<<<<<<<<<<<
  *         raise Exception( "not supported" )
  * 
  */
-  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_5bzip2_13SeekableBzip2_33writelines, 0, __pyx_n_s_SeekableBzip2_writelines, NULL, __pyx_n_s_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__44)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 144, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_13indexed_bzip2_16IndexedBzip2File_33writelines, 0, __pyx_n_s_IndexedBzip2File_writelines, NULL, __pyx_n_s_indexed_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__44)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 144, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   if (__Pyx_SetNameInClass(__pyx_t_3, __pyx_n_s_writelines, __pyx_t_4) < 0) __PYX_ERR(0, 144, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "bzip2.pyx":147
+  /* "indexed_bzip2.pyx":147
  *         raise Exception( "not supported" )
  * 
  *     def blockOffsets( self ):             # <<<<<<<<<<<<<<
  *         return self.bz2reader.blockOffsets()
  * 
  */
-  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_5bzip2_13SeekableBzip2_35blockOffsets, 0, __pyx_n_s_SeekableBzip2_blockOffsets, NULL, __pyx_n_s_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__46)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 147, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_13indexed_bzip2_16IndexedBzip2File_35blockOffsets, 0, __pyx_n_s_IndexedBzip2File_blockOffsets, NULL, __pyx_n_s_indexed_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__46)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 147, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   if (__Pyx_SetNameInClass(__pyx_t_3, __pyx_n_s_blockOffsets, __pyx_t_4) < 0) __PYX_ERR(0, 147, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "bzip2.pyx":150
+  /* "indexed_bzip2.pyx":150
  *         return self.bz2reader.blockOffsets()
  * 
  *     def setBlockOffsets( self, offsets ):             # <<<<<<<<<<<<<<
  *         return self.bz2reader.setBlockOffsets( offsets )
  */
-  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_5bzip2_13SeekableBzip2_37setBlockOffsets, 0, __pyx_n_s_SeekableBzip2_setBlockOffsets, NULL, __pyx_n_s_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__48)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 150, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_13indexed_bzip2_16IndexedBzip2File_37setBlockOffsets, 0, __pyx_n_s_IndexedBzip2File_setBlockOffsets, NULL, __pyx_n_s_indexed_bzip2, __pyx_d, ((PyObject *)__pyx_codeobj__48)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 150, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   if (__Pyx_SetNameInClass(__pyx_t_3, __pyx_n_s_setBlockOffsets, __pyx_t_4) < 0) __PYX_ERR(0, 150, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "bzip2.pyx":93
+  /* "indexed_bzip2.pyx":93
  * 
  * # Extra class because cdefs are not visible from otuside but cdef class can't inherit from io.BufferedIOBase
- * class SeekableBzip2( io.BufferedIOBase ):             # <<<<<<<<<<<<<<
+ * class IndexedBzip2File( io.BufferedIOBase ):             # <<<<<<<<<<<<<<
  *     def __init__( self, filename ):
- *         self.bz2reader = BZ2ReaderWrapper( filename )
+ *         self.bz2reader = _IndexedBzip2File( filename )
  */
-  __pyx_t_4 = __Pyx_Py3ClassCreate(__pyx_t_2, __pyx_n_s_SeekableBzip2, __pyx_t_1, __pyx_t_3, NULL, 0, 0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 93, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_Py3ClassCreate(__pyx_t_2, __pyx_n_s_IndexedBzip2File_2, __pyx_t_1, __pyx_t_3, NULL, 0, 0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 93, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  if (PyDict_SetItem(__pyx_d, __pyx_n_s_SeekableBzip2, __pyx_t_4) < 0) __PYX_ERR(0, 93, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_d, __pyx_n_s_IndexedBzip2File_2, __pyx_t_4) < 0) __PYX_ERR(0, 93, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "bzip2.pyx":1
+  /* "indexed_bzip2.pyx":1
  * """             # <<<<<<<<<<<<<<
  * Pyrex/C extension supporting `bx.misc.seekbzip2` (wrapping the low level
  * functions in `micro-bunzip.c`).
@@ -6210,11 +6211,11 @@ if (!__Pyx_RefNanny) {
   __Pyx_XDECREF(__pyx_t_6);
   if (__pyx_m) {
     if (__pyx_d) {
-      __Pyx_AddTraceback("init bzip2", __pyx_clineno, __pyx_lineno, __pyx_filename);
+      __Pyx_AddTraceback("init indexed_bzip2", __pyx_clineno, __pyx_lineno, __pyx_filename);
     }
     Py_CLEAR(__pyx_m);
   } else if (!PyErr_Occurred()) {
-    PyErr_SetString(PyExc_ImportError, "init bzip2");
+    PyErr_SetString(PyExc_ImportError, "init indexed_bzip2");
   }
   __pyx_L0:;
   __Pyx_RefNannyFinishContext();

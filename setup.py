@@ -9,8 +9,9 @@ buildCython = '--cython' in sys.argv
 
 extensions = [
     Extension(
-        'bzip2',
-        [ 'bzip2.pyx' if buildCython else 'bzip2.cpp' ],
+        name               = 'indexed_bzip2',
+        sources            = [ 'indexed_bzip2/indexed_bzip2.pyx' if buildCython
+                               else 'indexed_bzip2/indexed_bzip2.cpp' ],
         include_dirs       = [ '.' ],
         language           = 'c++',
         extra_compile_args = [ '-std=c++11', '-O3', '-DNDEBUG' ],
@@ -23,11 +24,11 @@ if buildCython:
     del sys.argv[sys.argv.index( '--cython' )]
 
 setup(
-    name             = 'ratarmount',
-    version          = '0.3.1',
+    name             = 'indexed_bzip2',
+    version          = '0.0.1',
 
-    description      = 'Random Access Read-Only Tar Mount',
-    url              = 'https://github.com/mxmlnkn',
+    description      = 'Fast random access to bzip2 files',
+    url              = 'https://github.com/mxmlnkn/indexed_bzip2',
     author           = 'Maximilian Knespel',
     author_email     = 'mxmlnkn@github.de',
     license          = 'MIT',
@@ -38,15 +39,6 @@ setup(
                          'Programming Language :: Python :: 3',
                          'Topic :: System :: Archiving' ],
 
-    py_modules       = [ 'ratarmount' ],
-    ext_modules      = extensions,
-    install_requires = [ 'fusepy',
-                         'lz4',
-                         'msgpack',
-                         'simplejson',
-                         'pyyaml',
-                         'ujson',
-                         'cbor',
-                         'python-rapidjson' ],
-    entry_points = { 'console_scripts': [ 'ratarmount=ratarmount:cli' ] }
+    py_modules       = [ 'indexed_bzip2' ],
+    ext_modules      = extensions
 )
