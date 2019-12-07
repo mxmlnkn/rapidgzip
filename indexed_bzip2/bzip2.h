@@ -63,7 +63,7 @@ public:
     void
     close()
     {
-        fclose( m_file );
+        fclose( fp() );
         m_file = nullptr;
         m_inbuf.clear();
     }
@@ -80,12 +80,15 @@ public:
     size_t
     tell() const
     {
-        return ( ftell( m_file ) - m_inbuf.size() + m_inbufPos ) * 8ULL - m_inbufBitCount;
+        return ( ftell( fp() ) - m_inbuf.size() + m_inbufPos ) * 8ULL - m_inbufBitCount;
     }
 
     FILE*
     fp() const
     {
+        if ( m_file == nullptr ) {
+            throw std::invalid_argument( "The file is not open!" );
+        }
         return m_file;
     }
 
@@ -102,9 +105,9 @@ private:
     void
     init()
     {
-        fseek( m_file, 0, SEEK_END );
-        m_fileSizeBytes = ftell( m_file );
-        fseek( m_file, 0, SEEK_SET ); /* good to have even when not getting the size! */
+        fseek( fp(), 0, SEEK_END );
+        m_fileSizeBytes = ftell( fp() );
+        fseek( fp(), 0, SEEK_SET ); /* good to have even when not getting the size! */
     }
 
 private:
