@@ -1,4 +1,6 @@
 include LICENSE
 include README.md
-include indexed_bzip2/indexed_bzip2.cpp
-include indexed_bzip2/bzip2.h
+recursive-include indexed_bzip2 *.py
+recursive-include indexed_bzip2 *.pyx
+recursive-include indexed_bzip2 *.cpp
+recursive-include indexed_bzip2 *.h

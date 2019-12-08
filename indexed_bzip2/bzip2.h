@@ -409,6 +409,17 @@ public:
         return m_decodedBytesCount; /* @todo only works for first go through! */
     }
 
+    /**
+     * @return number of processed bits of compressed bzip2 input file stream
+     * @note Bzip2 is block based and blocks are currently read fully, meaning that the granularity
+     *       of the returned position is ~100-900kB. It's only useful for a rough estimate.
+     */
+    size_t
+    tellCompressed() const
+    {
+        return m_bitReader.tell();
+    }
+
     size_t
     size() const
     {

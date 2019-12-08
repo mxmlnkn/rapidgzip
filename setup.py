@@ -30,7 +30,7 @@ with open( os.path.join( scriptPath, 'README.md' ), encoding = 'utf-8' ) as file
 
 setup(
     name             = 'indexed_bzip2',
-    version          = '1.0.0',
+    version          = '1.1.0',
 
     description      = 'Fast random access to bzip2 files',
     url              = 'https://github.com/mxmlnkn/indexed_bzip2',
