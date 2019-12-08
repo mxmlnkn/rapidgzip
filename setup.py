@@ -25,12 +25,12 @@ if buildCython:
     del sys.argv[sys.argv.index( '--cython' )]
 
 scriptPath = os.path.abspath( os.path.dirname( __file__ ) )
-with open( os.path.join( scriptPath, 'README.md' ), encoding = 'utf-8' ) as f:
-    readmeContents = f.read()
+with open( os.path.join( scriptPath, 'README.md' ), encoding = 'utf-8' ) as file:
+    readmeContents = file.read()
 
 setup(
     name             = 'indexed_bzip2',
-    version          = '0.0.1',
+    version          = '1.0.0',
 
     description      = 'Fast random access to bzip2 files',
     url              = 'https://github.com/mxmlnkn/indexed_bzip2',

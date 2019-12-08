@@ -118,7 +118,8 @@ Bzip2TestParameters = collections.namedtuple( "Bzip2TestParameters",
                                               "size encoder compressionlevel pattern patternsize buffersizes" )
 
 def testBz2( parameters ):
-    print( "Testing", parameters )
+    if parameters.compressionlevel == 9: # reduce output
+        print( "Testing", parameters )
 
     if parameters.pattern == 'random':
         rawFile, bz2File = createRandomBz2( parameters.size, parameters.compressionlevel, parameters.encoder )

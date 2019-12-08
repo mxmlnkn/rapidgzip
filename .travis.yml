@@ -1,7 +1,10 @@
 language: python
 
-os:
-  - linux
+os: linux
+
+git:
+  depth: 3
+  quiet: true
 
 python:
   - 3.5
@@ -10,13 +13,59 @@ python:
 
 before_install:
   - sudo apt-get update
-  - sudo apt-get -y install bzip2 pbzip2
+  - sudo apt-get -y install bzip2 pbzip2 # necessary for tests
 
 install:
-  - pip install --upgrade cython
+  - pip install --upgrade cython twine
   - python3 setup.py build_ext --inplace --cython
-  - python3 setup.py sdist bdist_wheel
-  - pip install dist/*.tar.gz
 
 script:
+  # test whether installation from tarball works
+  - python3 setup.py sdist
+  - twine check dist/*
+  - pip install dist/*.tar.gz
+  # test bzip2 decoder
   - python3 testBz2.py
+
+env:
+  global:
+    # travis encrypt --com PYPI_SECRET=...
+    - secure: "ptXgNzM9qcwu47IOgjrMz4L3N1LStAbbOhBtozftpQoQ1nBucGxXYNYFNwWmgsi6mmfsBexdp0MyRZ56RmrGn2jNVY1JlDiUXEudInJTgcl4lxutWWOCDlcl2DwEGcL4D+521MOrwVKDqok7NTnWc1NGzDd/NkuyIsgmc3fpYMIF2ppwxmDa+teKuOiwHNu6hJ6GKVgZCDVKhRhPM/BsYBbmgcXil7UKB85p/+6OhpyspTDeb3+kf1jopXmnBdfXK5/frHhG3My4SsQIntoy4FSCDK+uMFH0L/f2IKRqEDjMiXqyX55v3xEBXGmno9SLriHYpxGski6QEJAYgURYboGjdC5Wr21KV2S8mEavwfCglxxRgFT6KCvpiuMNoGa6S/LUHHyDVfCyBGmMlgyqZp+Z6HUK+oQNbhEZlqoBLYQtMdGaW62I2+gH0KSp8CxQbtXWhE7vb6h85WwsMwl6WP35SZTuk76Z1t9G5KEJ2sEjZQQP97ymYSIqrynjflXX1pJPC4efX5Ui7aUjGmHJ7xijmFyv2SSYoxEzC1iF/NQSIVJg8gYyf+E+HCTpDHy0GWtEva/RRgDr0aUXPDULHlrUEUdpyNF/tT81mSOWEUib7Ei1bxQri3DyQHbakhJ4ZeLDOreiSC7MXfX8I/mAh9wisfrnIVlv8gZcfIEZElM="
+
+jobs:
+  include:
+    - name: build-tarball
+      stage: deploy
+      script:
+        - python3 setup.py sdist
+        - twine check dist/*
+        - twine upload --skip-existing -u __token__ dist/*
+    - name: build manylinux1_x86_64
+      stage: deploy
+      services:
+        - docker
+      script:
+        - docker run --rm -v "$( pwd ):/project" quay.io/pypa/manylinux1_x86_64 bash /project/manylinux/build-wheels.sh manylinux1_x86_64
+        - twine check dist/*
+        - twine upload --skip-existing -u __token__ dist/*
+    - name: build-manylinux1_i686
+      stage: deploy
+      services:
+        - docker
+      script:
+        - docker run --rm -v "$( pwd ):/project" quay.io/pypa/manylinux1_i686 linux32 bash /project/manylinux/build-wheels.sh manylinux1_i686
+        - twine check dist/*
+        - twine upload --skip-existing -u __token__ dist/*
+    - name: build-manylinux2010_x86_64
+      stage: deploy
+      services:
+        - docker
+      script:
+        - docker run --rm -v "$( pwd ):/project" quay.io/pypa/manylinux2010_x86_64 bash /project/manylinux/build-wheels.sh manylinux2010_x86_64
+        - twine check dist/*
+        - twine upload --skip-existing -u __token__ dist/*
+
+stages:
+  - name: test
+  - name: deploy
+    if: tag =~ /^v/
