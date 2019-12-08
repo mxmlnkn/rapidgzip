@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import os
 import sys
 from setuptools import setup
 from setuptools.extension import Extension
@@ -23,6 +24,10 @@ if buildCython:
     extensions = cythonize( extensions, compiler_directives = { 'language_level' : '3' } )
     del sys.argv[sys.argv.index( '--cython' )]
 
+scriptPath = os.path.abspath( os.path.dirname( __file__ ) )
+with open( os.path.join( scriptPath, 'README.md' ), encoding = 'utf-8' ) as f:
+    readmeContents = f.read()
+
 setup(
     name             = 'indexed_bzip2',
     version          = '0.0.1',
@@ -38,6 +43,9 @@ setup(
                          'Operating System :: Unix',
                          'Programming Language :: Python :: 3',
                          'Topic :: System :: Archiving' ],
+
+    long_description = readmeContents,
+    long_description_content_type = 'text/markdown',
 
     py_modules       = [ 'indexed_bzip2' ],
     ext_modules      = extensions
