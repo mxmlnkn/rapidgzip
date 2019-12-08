@@ -29,7 +29,7 @@ script:
 
 env:
   global:
-    # travis encrypt --com PYPI_SECRET=...
+    # travis encrypt --com TWINE_PASSWORD=...
     - secure: "ptXgNzM9qcwu47IOgjrMz4L3N1LStAbbOhBtozftpQoQ1nBucGxXYNYFNwWmgsi6mmfsBexdp0MyRZ56RmrGn2jNVY1JlDiUXEudInJTgcl4lxutWWOCDlcl2DwEGcL4D+521MOrwVKDqok7NTnWc1NGzDd/NkuyIsgmc3fpYMIF2ppwxmDa+teKuOiwHNu6hJ6GKVgZCDVKhRhPM/BsYBbmgcXil7UKB85p/+6OhpyspTDeb3+kf1jopXmnBdfXK5/frHhG3My4SsQIntoy4FSCDK+uMFH0L/f2IKRqEDjMiXqyX55v3xEBXGmno9SLriHYpxGski6QEJAYgURYboGjdC5Wr21KV2S8mEavwfCglxxRgFT6KCvpiuMNoGa6S/LUHHyDVfCyBGmMlgyqZp+Z6HUK+oQNbhEZlqoBLYQtMdGaW62I2+gH0KSp8CxQbtXWhE7vb6h85WwsMwl6WP35SZTuk76Z1t9G5KEJ2sEjZQQP97ymYSIqrynjflXX1pJPC4efX5Ui7aUjGmHJ7xijmFyv2SSYoxEzC1iF/NQSIVJg8gYyf+E+HCTpDHy0GWtEva/RRgDr0aUXPDULHlrUEUdpyNF/tT81mSOWEUib7Ei1bxQri3DyQHbakhJ4ZeLDOreiSC7MXfX8I/mAh9wisfrnIVlv8gZcfIEZElM="
 
 jobs:
