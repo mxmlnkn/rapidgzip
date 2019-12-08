@@ -14,7 +14,7 @@ Seeking inside a block is only emulated, so IndexedBzip2File will only speed up 
 
 You can simply install it from PyPI:
 ```
-pip install indexed_bzip3
+pip install indexed_bzip2
 ```
 
 # Usage
