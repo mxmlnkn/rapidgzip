@@ -52,3 +52,47 @@ file2.seek( 123 )
 data = file2.read( 100 )
 file2.close()
 ```
+
+
+# Tracing the decoder
+
+Performance profiling and tracing is done with [Score-P](https://www.vi-hps.org/projects/score-p/) for instrumentation and [Vampir](https://vampir.eu/) for visualization.
+This is one way, you could install Score-P with most of the functionalities on Debian 10.
+
+```bash
+# Install PAPI
+wget http://icl.utk.edu/projects/papi/downloads/papi-5.7.0.tar.gz
+tar -xf papi-5.7.0.tar.gz
+cd papi-5.7.0/src
+./configure
+make -j
+sudo make install
+
+# Install Dependencies
+sudo apt-get install libopenmpi-dev openmpi gcc-8-plugin-dev llvm-dev libclang-dev libunwind-dev libopen-trace-format-dev otf-trace
+
+# Install Score-P (to /opt/scorep)
+wget https://www.vi-hps.org/cms/upload/packages/scorep/scorep-6.0.tar.gz
+tar -xf scorep-6.0.tar.gz
+cd scorep-6.0
+./configure --with-mpi=openmpi --enable-shared
+make -j
+make install
+
+# Add /opt/scorep to your path variables on shell start
+cat <<EOF >> ~/.bashrc
+if test -d /opt/scorep; then
+    export SCOREP_ROOT=/opt/scorep
+    export PATH=$SCOREP_ROOT/bin:$PATH
+    export LD_LIBRARY_PATH=$SCOREP_ROOT/lib:$LD_LIBRARY_PATH
+fi
+EOF
+
+# Check whether it works
+scorep --version
+scorep-info config-summary
+
+# Actually do the tracing
+cd tools
+bash trace.sh
+```

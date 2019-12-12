@@ -105,3 +105,4 @@ venv.bak/
 
 *.o
 *.bz2
+tools/bzcat
