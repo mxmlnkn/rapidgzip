@@ -230,7 +230,7 @@ public:
     static constexpr int SYMBOL_RUNA = 0;
     static constexpr int SYMBOL_RUNB = 1;
 
-    static constexpr int IOBUF_SIZE = 4096;
+    static constexpr size_t IOBUF_SIZE = 4096;
     static constexpr int THREADS = 1;
     static constexpr int CRC32_LOOKUP_TABLE_SIZE = 256;
     /* a small lookup table: raw data -> CRC32 value to speed up CRC calculation */
@@ -531,7 +531,7 @@ private:
     BlockHeader m_lastHeader;
 
     /* this buffer is needed for decoding */
-    std::array<char, IOBUF_SIZE> m_decodedBuffer;
+    std::vector<char> m_decodedBuffer = std::vector<char>( IOBUF_SIZE );
     /* it's strictly increasing during decoding and no previous data in m_decodedBuffer is acced,
      * so we can almost at any position clear m_decodedBuffer and set m_decodedBufferPos to 0, which is done for flushing! */
     size_t m_decodedBufferPos = 0;
