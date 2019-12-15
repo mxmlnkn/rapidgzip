@@ -903,7 +903,7 @@ BZ2Reader::decodeStream( const size_t nMaxBytesToDecode )
             // If somebody (like tar) wants a certain number of bytes of
             // data from memory instead of written to a file, humor them.
             if ( nBytesDecoded + m_decodedBufferPos >= nMaxBytesToDecode ) {
-                goto dataus_interruptus;
+                break;
             }
             count--;
 
@@ -936,16 +936,17 @@ BZ2Reader::decodeStream( const size_t nMaxBytesToDecode )
             }
         }
 
-        // decompression of this block completed successfully
-        bw->dataCRC = ~( bw->dataCRC );
-        m_calculatedStreamCRC = ( ( m_calculatedStreamCRC << 1 ) | ( m_calculatedStreamCRC >> 31 ) ) ^ bw->dataCRC;
-        if ( bw->dataCRC != bw->headerCRC ) {
-            std::stringstream msg;
-            msg << "Calculated CRC " << std::hex << bw->dataCRC << " for block mismatches " << bw->headerCRC;
-            throw std::runtime_error( msg.str() );
+        /* decompression of this block completed successfully */
+        if ( count == 0 ) {
+            bw->dataCRC = ~( bw->dataCRC );
+            m_calculatedStreamCRC = ( ( m_calculatedStreamCRC << 1 ) | ( m_calculatedStreamCRC >> 31 ) ) ^ bw->dataCRC;
+            if ( bw->dataCRC != bw->headerCRC ) {
+                std::stringstream msg;
+                msg << "Calculated CRC " << std::hex << bw->dataCRC << " for block mismatches " << bw->headerCRC;
+                throw std::runtime_error( msg.str() );
+            }
         }
 
-dataus_interruptus:
         bw->writeCount = count;
         /* required for correct data offsets in readBlockHeader */
         nBytesDecoded += flushOutputBuffer( nMaxBytesToDecode - nBytesDecoded );
