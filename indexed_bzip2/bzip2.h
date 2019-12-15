@@ -14,7 +14,9 @@
 #include <cassert>
 #include <cstring>
 #include <iostream>
+#include <limits>
 #include <map>
+#include <numeric>
 #include <sstream>
 #include <stdexcept>
 #include <utility>
@@ -77,6 +79,9 @@ public:
     uint32_t
     read( uint8_t );
 
+    /**
+     * @return current position / number of bits already read.
+     */
     size_t
     tell() const
     {
@@ -181,6 +186,10 @@ BitReader::read( const uint8_t bits_wanted )
 inline void
 BitReader::seek( const size_t offsetBits )
 {
+    if ( offsetBits == tell() ) {
+        return;
+    }
+
     const auto bytesToSeek = offsetBits >> 3;
     const auto subBitsToSeek = offsetBits & 7;
 
@@ -832,7 +841,7 @@ BZ2Reader::readBlockHeader()
             base[i + 1] = pp - ( hh += temp[i] );
         }
         limit[hufGroup->maxLen] = pp + temp[hufGroup->maxLen] - 1;
-        limit[hufGroup->maxLen + 1] = INT_MAX;
+        limit[hufGroup->maxLen + 1] = std::numeric_limits<int>::max();
         base[hufGroup->minLen] = 0;
     }
 
@@ -849,11 +858,8 @@ BZ2Reader::readBlockData( BlockHeader* const header )
     // block's huffman coded symbols from the file and undo the huffman coding
     // and run length encoding, saving the result into dbuf[dbufCount++] = uc
 
-    // Initialize symbol occurrence counters and symbol mtf table
     header->bwdata.byteCount.fill( 0 );
-    for ( size_t i = 0; i < header->mtfSymbol.size(); i++ ) {
-        header->mtfSymbol[i] = i;
-    }
+    std::iota( header->mtfSymbol.begin(), header->mtfSymbol.end(), 0 );
 
     // Loop through compressed symbols.  This is the first "tight inner loop"
     // that needs to be micro-optimized for speed.  (This one fills out dbuf[]
@@ -1031,6 +1037,8 @@ BZ2Reader::prepareBurrowsWheeler( BurrowsWheelerTransformData* bw )
 
     // Use occurrence counts to quickly figure out what order dbuf would be in
     // if we sorted it.
+    // Using i as position, j as previous character, hh as current character,
+    // and uc as run count.
     for ( int i = 0; i < bw->writeCount; i++ ) {
         const auto uc = static_cast<uint8_t>( bw->dbuf[i] );
         bw->dbuf[bw->byteCount[uc]] |= ( i << 8 );
@@ -1099,7 +1107,7 @@ BZ2Reader::decodeStream( const size_t nMaxBytesToDecode )
         pos = bw->writePos;
         current = bw->writeCurrent;
         run = bw->writeRun;
-        while ( count ) {
+        while ( count > 0 ) {
             // If somebody (like tar) wants a certain number of bytes of
             // data from memory instead of written to a file, humor them.
             if ( nBytesDecoded + m_decodedBufferPos >= nMaxBytesToDecode ) {
@@ -1113,8 +1121,7 @@ BZ2Reader::decodeStream( const size_t nMaxBytesToDecode )
             current = pos & 0xff;
             pos >>= 8;
 
-            // Whenever we see 3 consecutive copies of the same byte,
-            // the 4th is a repeat count
+            /* Whenever we see 3 consecutive copies of the same byte, the 4th is a repeat count */
             if ( run++ == 3 ) {
                 copies = current;
                 outbyte = previous;

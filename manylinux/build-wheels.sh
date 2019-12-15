@@ -16,7 +16,7 @@ for PYBIN in /opt/python/*3*/bin; do
     git worktree add "$buildFolder"
     cd -- "$buildFolder"
 
-    "${PYBIN}/pip" wheel .
+    "${PYBIN}/pip" wheel .  # Compile C++ source code and make wheels
     for wheel in *.whl; do
         # Bundle external shared libraries into the wheels
         auditwheel repair "$wheel" --plat $PLATFORM -w /project/dist/
