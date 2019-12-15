@@ -234,10 +234,6 @@ public:
     seek( long long int offset,
           int           origin = SEEK_SET );
 
-    /* Decompress a block of text to intermediate buffer */
-    size_t
-    readNextBlock();
-
     /**
      * Undo burrows-wheeler transform on intermediate buffer @ref dbuf to @ref outBuf
      *
@@ -402,7 +398,10 @@ BZ2Reader::seek( long long int offset,
     const auto nBytesSeekInBlock = offset - blockOffset->second;
 
     m_bitReader.seek( blockOffset->first );
-    readNextBlock(); /* also resets checkpoint data */
+
+    m_lastHeader = readBlockHeader();
+    readBlockData( &m_lastHeader );
+    prepareBurrowsWheeler( &m_lastHeader.bwdata );
     /* no decodeBzip2 necessary because we only seek inside one block! */
     const auto nBytesDecoded = decodeStream( nBytesSeekInBlock );
 
@@ -837,38 +836,18 @@ BZ2Reader::prepareBurrowsWheeler( BurrowsWheelerTransformData* bw )
         bw->byteCount[uc]++;
     }
 
-    // blockrandomized support would go here.
-
-    // Using i as position, j as previous character, hh as current character,
-    // and uc as run count.
     bw->dataCRC = 0xffffffffL;
 
     /* Decode first byte by hand to initialize "previous" byte. Note that it
      * doesn't get output, and if the first three characters are identical
      * it doesn't qualify as a run (hence uc=255, which will either wrap
      * to 1 or get reset). */
-    if ( bw->writeCount ) {
+    if ( bw->writeCount > 0 ) {
         bw->writePos = bw->dbuf[bw->origPtr];
         bw->writeCurrent = (unsigned char)bw->writePos;
         bw->writePos >>= 8;
         bw->writeRun = -1;
     }
-}
-
-
-inline size_t
-BZ2Reader::readNextBlock()
-{
-    m_lastHeader = readBlockHeader();
-    if ( eos() ) {
-        return 0;
-    }
-    const auto dataBlockSize = readBlockData( &m_lastHeader );
-
-    // First thing that can be done by a background thread.
-    prepareBurrowsWheeler( &m_lastHeader.bwdata );
-
-    return dataBlockSize;
 }
 
 
@@ -887,11 +866,13 @@ BZ2Reader::decodeStream( const size_t nMaxBytesToDecode )
     while ( nBytesDecoded < nMaxBytesToDecode ) {
         // If we need to refill dbuf, do it. Only won't be required for resuming interrupted decodations
         if ( bw->writeCount == 0 ) {
-            const auto dataBlockCount = readNextBlock();
+            m_lastHeader = readBlockHeader();
             if ( eos() ) {
-                bw->writeCount = dataBlockCount;
+                bw->writeCount = 0;
                 return nBytesDecoded;
             }
+            readBlockData( &m_lastHeader );
+            prepareBurrowsWheeler( &m_lastHeader.bwdata );
         }
 
         // loop generating output
