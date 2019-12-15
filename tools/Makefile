@@ -1,5 +1,5 @@
 CPP=g++
-CFLAGS=-I ../indexed_bzip2 -std=c++11 -Wall -Wextra -Wshadow
+CFLAGS=-I ../indexed_bzip2 -std=c++11 -Wall -Wextra -Wshadow -O3
 
 bzcat: bzcat.o
 	$(CPP) $^ -o $@
