@@ -1,4 +1,11 @@
 
+# Version 1.1.3 built on 2020-10-xx
+
+ - Provide readline, readlines, peek methods by inheriting from BufferedReader.
+ - Add available_block_offsets, block_offsets_complete, and size method.
+ - Make IndexedBzip2File work with non-seekable inputs like STDIN.
+ - Do not build index when seeking to current position.
+
 # Version 1.1.2 built on 2020-07-04
 
  - Fix tell() method

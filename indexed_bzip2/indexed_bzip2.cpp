@@ -1447,7 +1447,7 @@ static const char __pyx_k_seek[] = "seek";
 static const char __pyx_k_self[] = "self";
 static const char __pyx_k_tell[] = "tell";
 static const char __pyx_k_test[] = "__test__";
-static const char __pyx_k_1_1_2[] = "1.1.2";
+static const char __pyx_k_1_1_3[] = "1.1.3";
 static const char __pyx_k_close[] = "close";
 static const char __pyx_k_super[] = "super";
 static const char __pyx_k_closed[] = "closed";
@@ -1494,7 +1494,7 @@ static const char __pyx_k_IndexedBzip2FileRaw_readable[] = "IndexedBzip2FileRaw.
 static const char __pyx_k_Pyrex_C_extension_supporting_bx[] = "\nPyrex/C extension supporting `bx.misc.seekbzip2` (wrapping the low level\nfunctions in `micro-bunzip.c`).\n";
 static const char __pyx_k_indexed_bzip2_indexed_bzip2_pyx[] = "indexed_bzip2/indexed_bzip2.pyx";
 static const char __pyx_k_no_default___reduce___due_to_non[] = "no default __reduce__ due to non-trivial __cinit__";
-static PyObject *__pyx_kp_u_1_1_2;
+static PyObject *__pyx_kp_u_1_1_3;
 static PyObject *__pyx_n_s_BufferedReader;
 static PyObject *__pyx_n_s_IndexedBzip2File;
 static PyObject *__pyx_n_s_IndexedBzip2FileRaw;
@@ -3301,7 +3301,7 @@ static PyObject *__pyx_pf_13indexed_bzip2_16IndexedBzip2File___init__(CYTHON_UNU
  *         # by BufferedReader or more specifically _BufferedIOMixin
  *         super().__init__(fobj, buffer_size=1024**2)             # <<<<<<<<<<<<<<
  * 
- * __version__ = '1.1.2'
+ * __version__ = '1.1.3'
  */
   __pyx_t_2 = __Pyx_CyFunction_GetClassObj(__pyx_self);
   if (!__pyx_t_2) { PyErr_SetString(PyExc_SystemError, "super(): empty __class__ cell"); __PYX_ERR(1, 129, __pyx_L1_error) }
@@ -3816,7 +3816,7 @@ static struct PyModuleDef __pyx_moduledef = {
 #endif
 
 static __Pyx_StringTabEntry __pyx_string_tab[] = {
-  {&__pyx_kp_u_1_1_2, __pyx_k_1_1_2, sizeof(__pyx_k_1_1_2), 0, 1, 0, 0},
+  {&__pyx_kp_u_1_1_3, __pyx_k_1_1_3, sizeof(__pyx_k_1_1_3), 0, 1, 0, 0},
   {&__pyx_n_s_BufferedReader, __pyx_k_BufferedReader, sizeof(__pyx_k_BufferedReader), 0, 0, 1, 1},
   {&__pyx_n_s_IndexedBzip2File, __pyx_k_IndexedBzip2File, sizeof(__pyx_k_IndexedBzip2File), 0, 0, 1, 1},
   {&__pyx_n_s_IndexedBzip2FileRaw, __pyx_k_IndexedBzip2FileRaw, sizeof(__pyx_k_IndexedBzip2FileRaw), 0, 0, 1, 1},
@@ -4425,9 +4425,9 @@ if (!__Pyx_RefNanny) {
   /* "indexed_bzip2.pyx":131
  *         super().__init__(fobj, buffer_size=1024**2)
  * 
- * __version__ = '1.1.2'             # <<<<<<<<<<<<<<
+ * __version__ = '1.1.3'             # <<<<<<<<<<<<<<
  */
-  if (PyDict_SetItem(__pyx_d, __pyx_n_s_version, __pyx_kp_u_1_1_2) < 0) __PYX_ERR(1, 131, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_d, __pyx_n_s_version, __pyx_kp_u_1_1_3) < 0) __PYX_ERR(1, 131, __pyx_L1_error)
 
   /* "indexed_bzip2.pyx":1
  * """             # <<<<<<<<<<<<<<
