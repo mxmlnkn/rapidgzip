@@ -67,5 +67,8 @@ jobs:
 
 stages:
   - name: test
+    # test with: travis-conditions eval "..." --data '{ "commit_message": "test string" }'
+    # after installing: gem install --user-install travis-conditions
+    if: NOT ( commit_message =~ /(^|[^A-Za-z])[Ww][Ii][Pp]([^A-Za-z]|$)/ )
   - name: deploy
     if: tag =~ /^v/
