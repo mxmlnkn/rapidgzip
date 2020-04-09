@@ -43,11 +43,11 @@ To avoid this setup when opening a bzip2 file, the block offset list can be expo
 from indexed_bzip2 import IndexedBzip2File
 
 file = IndexedBzip2File( "example.bz2" )
-blockOffsets = file.blockOffsets() # can take a while
+blockOffsets = file.block_offsets() # can take a while
 file.close()
 
 file2 = IndexedBzip2File( "example.bz2" )
-blockOffsets = file2.setBlockOffsets( blockOffsets ) # should be fast
+blockOffsets = file2.set_block_offsets( blockOffsets ) # should be fast
 file2.seek( 123 )
 data = file2.read( 100 )
 file2.close()
