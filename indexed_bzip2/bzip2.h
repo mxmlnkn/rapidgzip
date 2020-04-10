@@ -64,15 +64,19 @@ private:
         int writeCount = 0;
         int writeCurrent = 0;
 
-        uint32_t dataCRC = 0; /* CRC of block as calculated by us */
+        uint32_t dataCRC = 0xFFFFFFFFL; /* CRC of block as calculated by us */
         uint32_t headerCRC = 0; /* what the block data CRC should be */
-        std::vector<uint32_t> dbuf;
+
+        /* simply allocate the maximum of 900kB for the internal block size so we won't run into problem when
+         * block sizes changes (e.g. in pbzip2 file). 900kB is nothing in today's age anyways. */
+        std::vector<uint32_t> dbuf = std::vector<uint32_t>( 900000, 0 );
     };
 
     struct BlockHeader
     {
+    public:
         uint64_t magicBytes;
-        bool isRandomized;
+        bool isRandomized = false;
 
         /* First pass decompression data (Huffman and MTF decoding) */
 
@@ -477,9 +481,6 @@ BZ2Reader::readBlockHeader()
         throw std::domain_error( msg.str() );
     }
 
-    /* simply allocate the maximum of 900kB for the internal block size so we won't run into problem when
-     * block sizes changes (e.g. in pbzip2 file). 900kB is nothing in today's age anyways. */
-    header.bwdata.dbuf.resize( 900000, 0 );
     header.isRandomized = getBits( 1 );
     if ( header.isRandomized ) {
         throw std::domain_error( "[BZip2 block header] deprecated isRandomized bit is not supported" );
