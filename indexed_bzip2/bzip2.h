@@ -308,35 +308,6 @@ public:
           int           origin = SEEK_SET );
 
     /**
-     * Undo burrows-wheeler transform on intermediate buffer @ref dbuf to @ref outBuf
-     *
-     * Burrows-wheeler transform is described at:
-     * @see http://dogma.net/markn/articles/bwt/bwt.htm
-     * @see http://marknelson.us/1996/09/01/bwt/
-     *
-     * @return number of actually decoded bytes
-     */
-    size_t
-    decodeStream( size_t nMaxBytesToDecode = std::numeric_limits<size_t>::max() );
-
-    /**
-     * The input may be a concatenation of multiple BZip2 files (like produed by pbzip2).
-     * This function iterates over those mutliple files and decodes them to the specified output.
-     */
-    size_t
-    decodeBzip2( size_t nMaxBytesToDecode = std::numeric_limits<size_t>::max() )
-    {
-        size_t nBytesDecoded = 0;
-        while ( ( nBytesDecoded < nMaxBytesToDecode ) && !m_bitReader.eof() ) {
-            if ( ( m_bitReader.tell() == 0 ) || m_lastHeader.eos() ) {
-                readBzip2Header();
-            }
-            nBytesDecoded += decodeStream( nMaxBytesToDecode - nBytesDecoded );
-        }
-        return nBytesDecoded;
-    }
-
-    /**
      * @param[out] outputBuffer should at least be large enough to hold @p nBytesToRead bytes
      * @return number of bytes written
      */
@@ -365,6 +336,35 @@ public:
     }
 
 private:
+    /**
+     * Undo burrows-wheeler transform on intermediate buffer @ref dbuf to @ref outBuf
+     *
+     * Burrows-wheeler transform is described at:
+     * @see http://dogma.net/markn/articles/bwt/bwt.htm
+     * @see http://marknelson.us/1996/09/01/bwt/
+     *
+     * @return number of actually decoded bytes
+     */
+    size_t
+    decodeStream( size_t nMaxBytesToDecode = std::numeric_limits<size_t>::max() );
+
+    /**
+     * The input may be a concatenation of multiple BZip2 files (like produed by pbzip2).
+     * This function iterates over those mutliple files and decodes them to the specified output.
+     */
+    size_t
+    decodeBzip2( size_t nMaxBytesToDecode = std::numeric_limits<size_t>::max() )
+    {
+        size_t nBytesDecoded = 0;
+        while ( ( nBytesDecoded < nMaxBytesToDecode ) && !m_bitReader.eof() ) {
+            if ( ( m_bitReader.tell() == 0 ) || m_lastHeader.eos() ) {
+                readBzip2Header();
+            }
+            nBytesDecoded += decodeStream( nMaxBytesToDecode - nBytesDecoded );
+        }
+        return nBytesDecoded;
+    }
+
     uint32_t
     getBits( uint8_t nBits )
     {
