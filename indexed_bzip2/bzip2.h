@@ -18,9 +18,11 @@
 
 
 #include "BitReader.hpp"
+#include "FileReader.hpp"
 
 
-class BZ2Reader
+class BZ2Reader :
+    public FileReader
 {
 public:
     /* Constants for huffman coding */
@@ -62,6 +64,7 @@ private:
 
         BlockHeader& operator=( BlockHeader&& ) = default;
 
+        explicit
         BlockHeader( BitReader& bitReader ) :
             mp_bitReader( &bitReader )
         {
@@ -210,10 +213,12 @@ private:
     };
 
 public:
+    explicit
     BZ2Reader( std::string filePath ) :
         m_bitReader( filePath )
     {}
 
+    explicit
     BZ2Reader( int fileDescriptor ) :
         m_bitReader( fileDescriptor )
     {}
@@ -224,19 +229,19 @@ public:
     {}
 
     int
-    fileno() const
+    fileno() const override
     {
         return ::fileno( m_bitReader.fp() );
     }
 
     void
-    close()
+    close() override
     {
         m_bitReader.close();
     }
 
     bool
-    closed() const
+    closed() const override
     {
         return m_bitReader.closed();
     }
@@ -248,7 +253,7 @@ public:
     }
 
     bool
-    eof() const
+    eof() const override
     {
         return m_atEndOfFile;
     }
@@ -261,7 +266,7 @@ public:
     blockOffsets()
     {
         if ( !m_blockToDataOffsetsComplete ) {
-            decodeBzip2();
+            read();
         }
 
         return m_blockToDataOffsets;
@@ -278,8 +283,11 @@ public:
     }
 
     size_t
-    tell() const
+    tell() const override
     {
+        if ( m_atEndOfFile ) {
+            return size();
+        }
         return m_decodedBytesCount; /* @todo only works for first go through! */
     }
 
@@ -295,7 +303,7 @@ public:
     }
 
     size_t
-    size() const
+    size() const override
     {
         if ( !m_blockToDataOffsetsComplete ) {
             throw std::invalid_argument( "Can't get stream size in BZ2 when not finished reading at least once!" );
@@ -305,14 +313,14 @@ public:
 
     size_t
     seek( long long int offset,
-          int           origin = SEEK_SET );
+          int           origin = SEEK_SET ) override;
 
     /**
      * @param[out] outputBuffer should at least be large enough to hold @p nBytesToRead bytes
      * @return number of bytes written
      */
     int
-    read( const int    outputFileDescriptor,
+    read( const int    outputFileDescriptor = -1,
           char* const  outputBuffer = nullptr,
           const size_t nBytesToRead = std::numeric_limits<size_t>::max() )
     {
@@ -442,8 +450,8 @@ BZ2Reader::seek( long long int offset,
     flushOutputBuffer(); // ensure that no old data is left over
 
     m_atEndOfFile = static_cast<size_t>( offset ) >= size();
-    if ( eof() ) {
-        return offset;
+    if ( m_atEndOfFile ) {
+        return size();
     }
 
     /* find offset from map (key and values are sorted, so we can bisect!) */

@@ -12,20 +12,25 @@
 
 #include <unistd.h>
 
+#include "FileReader.hpp"
 
-class BitReader
+
+class BitReader :
+    public FileReader
 {
 public:
     static constexpr size_t IOBUF_SIZE = 4096;
     static constexpr int NO_FILE = -1;
 
 public:
+    explicit
     BitReader( std::string filePath ) :
         m_file( fopen( filePath.c_str(), "rb" ) )
     {
         init();
     }
 
+    explicit
     BitReader( int fileDescriptor ) :
         m_file( fdopen( dup( fileDescriptor ), "rb" ) )
     {
@@ -34,10 +39,27 @@ public:
 
     BitReader( const uint8_t* buffer,
                size_t         size ) :
+        m_fileSizeBytes( size ),
         m_inbuf( buffer, buffer + size )
-    {
-        init();
-    }
+    {}
+
+    BitReader( BitReader&& ) = default;
+
+    /**
+     * Copy constructor opens a new independent file descriptor and pointer.
+     */
+    BitReader( const BitReader& other ) :
+        m_file( other.m_file == nullptr ? nullptr : fdopen( dup( ::fileno( other.m_file ) ), "rb" ) )
+    {}
+
+    /**
+     * Reassignment would have to close the old file and open a new.
+     * Reusing the same file reader for a different file seems error prone.
+     * If you really want that, just create a new object.
+     */
+    BitReader& operator=( const BitReader& ) = delete;
+
+    BitReader& operator=( BitReader&& ) = delete;
 
     ~BitReader()
     {
@@ -47,13 +69,13 @@ public:
     }
 
     bool
-    eof()
+    eof() const override
     {
         return tell() >= size();
     }
 
     void
-    close()
+    close() override
     {
         fclose( fp() );
         m_file = nullptr;
@@ -61,7 +83,7 @@ public:
     }
 
     bool
-    closed() const
+    closed() const override
     {
         return ( m_file == nullptr ) && m_inbuf.empty();
     }
@@ -73,7 +95,7 @@ public:
      * @return current position / number of bits already read.
      */
     size_t
-    tell() const
+    tell() const override
     {
         return ( ftell( fp() ) - m_inbuf.size() + m_inbufPos ) * 8ULL - m_inbufBitCount;
     }
@@ -81,17 +103,24 @@ public:
     FILE*
     fp() const
     {
-        if ( m_file == nullptr ) {
-            throw std::invalid_argument( "The file is not open!" );
-        }
         return m_file;
     }
 
-    void
-    seek( size_t offsetBits );
+    int
+    fileno() const override
+    {
+        if ( m_file == nullptr ) {
+            throw std::invalid_argument( "The file is not open!" );
+        }
+        return ::fileno( m_file );
+    }
 
     size_t
-    size() const
+    seek( long long int offsetBits,
+          int           origin = SEEK_SET ) override;
+
+    size_t
+    size() const override
     {
         return m_fileSizeBytes * 8;
     }
@@ -173,15 +202,36 @@ BitReader::read( const uint8_t bits_wanted )
 }
 
 
-inline void
-BitReader::seek( const size_t offsetBits )
+inline size_t
+BitReader::seek( long long int offsetBits,
+                 int           origin )
 {
-    if ( offsetBits == tell() ) {
-        return;
+    switch ( origin )
+    {
+    case SEEK_CUR:
+        offsetBits = tell() + offsetBits;
+        break;
+    case SEEK_SET:
+        break;
+    case SEEK_END:
+        offsetBits = size() + offsetBits;
+        break;
     }
 
-    const auto bytesToSeek = offsetBits >> 3;
-    const auto subBitsToSeek = offsetBits & 7;
+    if ( offsetBits < 0 ) {
+        throw std::invalid_argument( "Effective offset is before file start!" );
+    }
+
+    if ( static_cast<size_t>( offsetBits ) >= size() ) {
+        throw std::invalid_argument( "Effective offset is after file end!" );
+    }
+
+    if ( static_cast<size_t>( offsetBits ) == tell() ) {
+        return offsetBits;
+    }
+
+    const size_t bytesToSeek = offsetBits >> 3;
+    const size_t subBitsToSeek = offsetBits & 7;
 
     m_inbuf.clear();
     m_inbufPos = 0;
@@ -215,4 +265,6 @@ BitReader::seek( const size_t offsetBits )
             throw std::invalid_argument( msg.str() );
         }
     }
+
+    return offsetBits;
 }
