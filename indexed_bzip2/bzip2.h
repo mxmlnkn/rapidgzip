@@ -182,7 +182,7 @@ inline void
 BitReader::seek( const size_t offsetBits )
 {
     const auto bytesToSeek = offsetBits >> 3;
-    const auto subbitsToSeek = offsetBits & 7;
+    const auto subBitsToSeek = offsetBits & 7;
 
     m_inbuf.clear();
     m_inbufPos = 0;
@@ -197,21 +197,21 @@ BitReader::seek( const size_t offsetBits )
         }
 
         m_inbufPos = bytesToSeek;
-        if ( subbitsToSeek > 0 ) {
-            m_inbufBitCount = 8 - subbitsToSeek;
+        if ( subBitsToSeek > 0 ) {
+            m_inbufBitCount = 8 - subBitsToSeek;
             m_inbufBits = m_inbuf[m_inbufPos++];
         }
     } else {
         const auto returnCodeSeek = fseek( m_file, bytesToSeek, SEEK_SET );
-        if ( subbitsToSeek > 0 ) {
-            m_inbufBitCount = 8 - subbitsToSeek;
+        if ( subBitsToSeek > 0 ) {
+            m_inbufBitCount = 8 - subBitsToSeek;
             m_inbufBits = fgetc( m_file );
         }
 
         if ( ( returnCodeSeek != 0 ) || feof( m_file ) || ferror( m_file ) ) {
             std::stringstream msg;
             msg << "[BitReader] Could not seek to specified byte " << bytesToSeek
-            << " subbit " << subbitsToSeek << ", feof: " << feof( m_file ) << ", ferror: " << ferror( m_file )
+            << " subbit " << subBitsToSeek << ", feof: " << feof( m_file ) << ", ferror: " << ferror( m_file )
             << ", returnCodeSeek: " << returnCodeSeek;
             throw std::invalid_argument( msg.str() );
         }
