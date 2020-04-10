@@ -50,6 +50,11 @@ private:
 
     struct BurrowsWheelerTransformData
     {
+    public:
+        void
+        prepare();
+
+    public:
         uint32_t origPtr = 0;
         std::array<int, 256> byteCount;
 
@@ -301,9 +306,6 @@ private:
     size_t
     flushOutputBuffer( size_t maxBytesToFlush = std::numeric_limits<size_t>::max() );
 
-    static void
-    prepareBurrowsWheeler( BurrowsWheelerTransformData* bw );
-
     BlockHeader
     readBlockHeader();
 
@@ -401,7 +403,7 @@ BZ2Reader::seek( long long int offset,
 
     m_lastHeader = readBlockHeader();
     readBlockData( &m_lastHeader );
-    prepareBurrowsWheeler( &m_lastHeader.bwdata );
+    m_lastHeader.bwdata.prepare();
     /* no decodeBzip2 necessary because we only seek inside one block! */
     const auto nBytesDecoded = decodeStream( nBytesSeekInBlock );
 
@@ -817,12 +819,12 @@ BZ2Reader::flushOutputBuffer( size_t maxBytesToFlush )
 
 
 inline void
-BZ2Reader::prepareBurrowsWheeler( BurrowsWheelerTransformData* bw )
+BZ2Reader::BurrowsWheelerTransformData::prepare()
 {
     // Turn byteCount into cumulative occurrence counts of 0 to n-1.
-    for ( size_t i = 0, j = 0; i < bw->byteCount.size(); i++ ) {
-        const auto kk = j + bw->byteCount[i];
-        bw->byteCount[i] = j;
+    for ( size_t i = 0, j = 0; i < byteCount.size(); ++i ) {
+        const auto kk = j + byteCount[i];
+        byteCount[i] = j;
         j = kk;
     }
 
@@ -830,23 +832,23 @@ BZ2Reader::prepareBurrowsWheeler( BurrowsWheelerTransformData* bw )
     // if we sorted it.
     // Using i as position, j as previous character, hh as current character,
     // and uc as run count.
-    for ( int i = 0; i < bw->writeCount; i++ ) {
-        const auto uc = static_cast<uint8_t>( bw->dbuf[i] );
-        bw->dbuf[bw->byteCount[uc]] |= ( i << 8 );
-        bw->byteCount[uc]++;
+    for ( int i = 0; i < writeCount; i++ ) {
+        const auto uc = static_cast<uint8_t>( dbuf[i] );
+        dbuf[byteCount[uc]] |= ( i << 8 );
+        byteCount[uc]++;
     }
 
-    bw->dataCRC = 0xffffffffL;
+    dataCRC = 0xFFFFFFFFL;
 
     /* Decode first byte by hand to initialize "previous" byte. Note that it
      * doesn't get output, and if the first three characters are identical
      * it doesn't qualify as a run (hence uc=255, which will either wrap
      * to 1 or get reset). */
-    if ( bw->writeCount > 0 ) {
-        bw->writePos = bw->dbuf[bw->origPtr];
-        bw->writeCurrent = (unsigned char)bw->writePos;
-        bw->writePos >>= 8;
-        bw->writeRun = -1;
+    if ( writeCount > 0 ) {
+        writePos = dbuf[origPtr];
+        writeCurrent = (unsigned char)writePos;
+        writePos >>= 8;
+        writeRun = -1;
     }
 }
 
@@ -872,7 +874,7 @@ BZ2Reader::decodeStream( const size_t nMaxBytesToDecode )
                 return nBytesDecoded;
             }
             readBlockData( &m_lastHeader );
-            prepareBurrowsWheeler( &m_lastHeader.bwdata );
+            m_lastHeader.bwdata.prepare();
         }
 
         // loop generating output
