@@ -316,7 +316,7 @@ private:
      * and move to front encoding.  We have to undo all those to know when we've
      * read enough input.
      */
-    int
+    void
     readBlockData( BlockHeader* header );
 
     static std::array<uint32_t, CRC32_LOOKUP_TABLE_SIZE>
@@ -642,7 +642,7 @@ BZ2Reader::readBlockHeader()
 }
 
 
-inline int
+inline void
 BZ2Reader::readBlockData( BlockHeader* const header )
 {
     const GroupData* hufGroup = nullptr;
@@ -783,8 +783,6 @@ BZ2Reader::readBlockData( BlockHeader* const header )
         msg << "[BZip2 block data] origPtr error " << header->bwdata.origPtr;
         throw std::domain_error( msg.str() );
     }
-
-    return 0;
 }
 
 
