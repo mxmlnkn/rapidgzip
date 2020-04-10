@@ -48,32 +48,33 @@ private:
         uint8_t maxLen;
     };
 
-    struct BurrowsWheelerTransformData
-    {
-    public:
-        void
-        prepare();
-
-    public:
-        uint32_t origPtr = 0;
-        std::array<int, 256> byteCount;
-
-        /* These variables are saved when interrupting decode and are required for resuming */
-        int writePos = 0;
-        int writeRun = 0;
-        int writeCount = 0;
-        int writeCurrent = 0;
-
-        uint32_t dataCRC = 0xFFFFFFFFL; /* CRC of block as calculated by us */
-        uint32_t headerCRC = 0; /* what the block data CRC should be */
-
-        /* simply allocate the maximum of 900kB for the internal block size so we won't run into problem when
-         * block sizes changes (e.g. in pbzip2 file). 900kB is nothing in today's age anyways. */
-        std::vector<uint32_t> dbuf = std::vector<uint32_t>( 900000, 0 );
-    };
-
     struct BlockHeader
     {
+    public:
+        struct BurrowsWheelerTransformData
+        {
+        public:
+            void
+            prepare();
+
+        public:
+            uint32_t origPtr = 0;
+            std::array<int, 256> byteCount;
+
+            /* These variables are saved when interrupting decode and are required for resuming */
+            int writePos = 0;
+            int writeRun = 0;
+            int writeCount = 0;
+            int writeCurrent = 0;
+
+            uint32_t dataCRC = 0xFFFFFFFFL; /* CRC of block as calculated by us */
+            uint32_t headerCRC = 0; /* what the block data CRC should be */
+
+            /* simply allocate the maximum of 900kB for the internal block size so we won't run into problem when
+             * block sizes changes (e.g. in pbzip2 file). 900kB is nothing in today's age anyways. */
+            std::vector<uint32_t> dbuf = std::vector<uint32_t>( 900000, 0 );
+        };
+
     public:
         uint64_t magicBytes;
         bool isRandomized = false;
@@ -818,7 +819,7 @@ BZ2Reader::flushOutputBuffer( size_t maxBytesToFlush )
 
 
 inline void
-BZ2Reader::BurrowsWheelerTransformData::prepare()
+BZ2Reader::BlockHeader::BurrowsWheelerTransformData::prepare()
 {
     // Turn byteCount into cumulative occurrence counts of 0 to n-1.
     for ( size_t i = 0, j = 0; i < byteCount.size(); ++i ) {
