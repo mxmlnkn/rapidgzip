@@ -731,32 +731,26 @@ BZ2Reader::BlockHeader::readBlockData()
                 throw std::domain_error( msg.str() );
             }
             hufGroup = &groups[selectors[selector++]];
-            base = hufGroup->base.data() - 1;
+            base  = hufGroup->base .data() - 1;
             limit = hufGroup->limit.data() - 1;
         }
 
         // Read next huffman-coded symbol (into jj).
         ii = hufGroup->minLen;
         jj = getBits( ii );
-        while ( jj > limit[ii] ) {
-            // if (ii > hufGroup->maxLen) return RETVAL_DATA_ERROR;
+        while ( ( jj > limit[ii] ) && ( ii <= hufGroup->maxLen ) ) {
             ii++;
-
-            // Unroll getBits() to avoid a function call when the data's in
-            // the buffer already.
-            const auto kk =
-                bitReader().m_inbufBitCount ? ( bitReader().m_inbufBits >> --( bitReader().m_inbufBitCount ) ) &
-                1 : getBits( 1 );
-            jj = ( jj << 1 ) | kk;
+            jj = ( jj << 1 ) | getBits( 1 );
         }
-        // Huffman decode jj into nextSym (with bounds checking)
-        jj -= base[ii];
 
         if ( ii > hufGroup->maxLen ) {
             std::stringstream msg;
             msg << "[BZip2 block data] " << ii << " bigger than max length " << hufGroup->maxLen;
             throw std::domain_error( msg.str() );
         }
+
+        // Huffman decode jj into nextSym (with bounds checking)
+        jj -= base[ii];
 
         if ( (unsigned)jj >= MAX_SYMBOLS ) {
             std::stringstream msg;
