@@ -324,23 +324,27 @@ public:
           char* const  outputBuffer = nullptr,
           const size_t nBytesToRead = std::numeric_limits<size_t>::max() )
     {
-        if ( eof() ) {
-            return 0;
-        }
-
         m_outputFileDescriptor = outputFileDescriptor;
         m_outputBuffer = outputBuffer;
         m_outputBufferSize = nBytesToRead;
         m_outputBufferWritten = 0;
 
-        const auto nBytes = decodeBzip2( nBytesToRead );
+        size_t nBytesDecoded = 0;
+        while ( ( nBytesDecoded < nBytesToRead ) && !m_bitReader.eof() && !eof() ) {
+            /* The input may be a concatenation of multiple BZip2 files (like produced by pbzip2).
+             * Therefore, iterate over those mutliple files and decode them to the specified output. */
+            if ( ( m_bitReader.tell() == 0 ) || m_lastHeader.eos() ) {
+                readBzip2Header();
+            }
+            nBytesDecoded += decodeStream( nBytesToRead - nBytesDecoded );
+        }
 
         m_outputFileDescriptor = -1;
         m_outputBuffer = nullptr;
         m_outputBufferSize = 0;
         m_outputBufferWritten = 0;
 
-        return nBytes;
+        return nBytesDecoded;
     }
 
 private:
@@ -355,23 +359,6 @@ private:
      */
     size_t
     decodeStream( size_t nMaxBytesToDecode = std::numeric_limits<size_t>::max() );
-
-    /**
-     * The input may be a concatenation of multiple BZip2 files (like produed by pbzip2).
-     * This function iterates over those mutliple files and decodes them to the specified output.
-     */
-    size_t
-    decodeBzip2( size_t nMaxBytesToDecode = std::numeric_limits<size_t>::max() )
-    {
-        size_t nBytesDecoded = 0;
-        while ( ( nBytesDecoded < nMaxBytesToDecode ) && !m_bitReader.eof() ) {
-            if ( ( m_bitReader.tell() == 0 ) || m_lastHeader.eos() ) {
-                readBzip2Header();
-            }
-            nBytesDecoded += decodeStream( nMaxBytesToDecode - nBytesDecoded );
-        }
-        return nBytesDecoded;
-    }
 
     uint32_t
     getBits( uint8_t nBits )
@@ -426,7 +413,7 @@ BZ2Reader::seek( long long int offset,
                  int           origin )
 {
     if ( !m_blockToDataOffsetsComplete ) {
-        decodeBzip2();
+        read();
     }
 
     switch ( origin )
