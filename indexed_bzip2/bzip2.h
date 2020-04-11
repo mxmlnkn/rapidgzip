@@ -381,7 +381,9 @@ private:
     BitReader m_bitReader;
     BlockHeader m_lastHeader;
 
-    /* this buffer is needed for decoding */
+    /* This buffer is needed for decoding because decoding of runtime length encoded strings might lead to more
+     * output data for the copies of a character than we can write out. In order to not save the outstanding copies
+     * and the character to copy, this buffer acts as a kind of generalized "current decoder state". */
     std::vector<char> m_decodedBuffer = std::vector<char>( IOBUF_SIZE );
     /* it's strictly increasing during decoding and no previous data in m_decodedBuffer is acced,
      * so we can almost at any position clear m_decodedBuffer and set m_decodedBufferPos to 0, which is done for flushing! */
@@ -914,8 +916,15 @@ BZ2Reader::decodeStream( int    const outputFileDescriptor,
             m_lastHeader.bwdata.prepare();
         }
 
-        /* should either be cleared by flush after or by flush before while! */
-        assert( m_decodedBufferPos == 0 );
+        /* m_decodedBufferPos should either be cleared by flush after or by flush before while!
+         * It might happen that this is not the case when, e.g., the output file descriptor can't be written to.
+         * However, if this happens, nBytesDecoded is very likely to not grow anymore and thereby we have to
+         * throw to exit the infinite loop. */
+        if ( m_decodedBufferPos > 0 ) {
+            throw std::runtime_error( "[BZ2Reader::decodeStream] Could not write any of the decoded bytes to the "
+                                      "file descriptor or buffer!" );
+        }
+
         /* the max bytes to decode does not account for copies caused by RLE!
          * There can be at maximum 255 copies! */
         assert( m_decodedBuffer.size() >= 255 );
