@@ -477,7 +477,7 @@ BZ2Reader::readBlockHeader( size_t offsetBits )
         /* EOS block contains CRC for whole stream */
         m_streamCRC = header.bwdata.headerCRC;
 
-        if ( m_streamCRC != m_calculatedStreamCRC ) {
+        if ( !m_blockToDataOffsetsComplete && ( m_streamCRC != m_calculatedStreamCRC ) ) {
             std::stringstream msg;
             msg << "[BZip2 block header] Stream CRC 0x" << std::hex << m_streamCRC
             << " does not match calculated CRC 0x" << m_calculatedStreamCRC;
@@ -931,7 +931,7 @@ BZ2Reader::decodeStream( int    const outputFileDescriptor,
         const auto nBytesToDecode = std::min( m_decodedBuffer.size() - 255, nMaxBytesToDecode - nBytesDecoded );
         m_decodedBufferPos = m_lastHeader.bwdata.decodeBlock( nBytesToDecode, m_decodedBuffer.data() );
 
-        if ( m_lastHeader.bwdata.writeCount == 0 ) {
+        if ( ( m_lastHeader.bwdata.writeCount == 0 ) && !m_blockToDataOffsetsComplete ) {
             m_calculatedStreamCRC = ( ( m_calculatedStreamCRC << 1 ) | ( m_calculatedStreamCRC >> 31 ) )
                                     ^ m_lastHeader.bwdata.dataCRC;
         }
