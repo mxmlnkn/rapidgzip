@@ -40,7 +40,7 @@ def checkDecompressionBytewise( rawFile, bz2File, bufferSize ):
             print( "Data at pos {} ({}) mismatches! After read at pos {} ({}).\nData:\n  {}\n  {}"
                    .format( oldPos1, oldPos2, rawFile.tell(), decFile.tell(), data1.hex(), data2.hex() ) )
             print( "Block offsets:" )
-            pprint.pprint( decFile.blockOffsets() )
+            pprint.pprint( decFile.block_offsets() )
 
             bz2File.seek( 0 )
             file = open( "bugged-random.bz2", 'wb' )
@@ -64,11 +64,13 @@ def checkDecompression( rawFile, bz2File, bufferSize ):
         assert False, "SHA1 mismatch"
 
 def checkSeek( rawFile, bz2File, seekPos ):
+    # Try to read some bytes and compare them. We can without problem specify than 1 bytes even if we are at the end
+    # of the file because then it is counted as the maximum bytes to read and the result will be shorter.
     bz2File.seek( seekPos )
-    c1 = bz2File.read( 1 )
+    c1 = bz2File.read( 256 )
 
     rawFile.seek( seekPos )
-    c2 = rawFile.read( 1 )
+    c2 = rawFile.read( 256 )
 
     if c1 != c2:
         print( "Char at pos", seekPos, "from sbzip2:", c1.hex(), "=?=", c2.hex(), "from raw file" )
@@ -140,7 +142,7 @@ def testBz2( parameters ):
             checkDecompression( rawFile, bz2File, bufferSize )
         except Exception as e:
             print( "Test for", parameters, "and buffer size", bufferSize, "failed" )
-            storeFiles( rawFile, bz2File )
+            storeFiles( rawFile, bz2File, str( parameters ) )
             raise e
 
     if parameters.size > 0:
@@ -150,11 +152,28 @@ def testBz2( parameters ):
                 checkSeek( rawFile, sbzip2, seekPos )
             except Exception as e:
                 print( "Test for", parameters, "failed when seeking to", seekPos )
-                sb = IndexedBzip2File( bz2File )
+                sb = IndexedBzip2File( bz2File.fileno() )
                 sb.read( seekPos )
                 print( "Char when doing naive seek:", sb.read( 1 ).hex() )
 
-                storeFiles( rawFile, bz2File )
+                storeFiles( rawFile, bz2File, str( parameters ) )
+                raise e
+
+        offsets = sbzip2.block_offsets()
+
+        # Check seeking after loading offsets
+        for seekPos in np.append( np.random.randint( 0, parameters.size ), [ 0, parameters.size - 1 ] ):
+            try:
+                sbzip2 = IndexedBzip2File( bz2File.fileno() )
+                sbzip2.set_block_offsets( offsets )
+                checkSeek( rawFile, sbzip2, seekPos )
+            except Exception as e:
+                print( "Test for", parameters, "failed when seeking to", seekPos )
+                sb = IndexedBzip2File( bz2File.fileno() )
+                sb.read( seekPos )
+                print( "Char when doing naive seek:", sb.read( 1 ).hex() )
+
+                storeFiles( rawFile, bz2File, str( parameters ) )
                 raise e
 
     return True
