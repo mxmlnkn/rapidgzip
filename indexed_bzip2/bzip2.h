@@ -114,6 +114,14 @@ private:
             void
             prepare();
 
+            /**
+             * Currently, the logic is limited and might write up to nMaxBytesToDecode + 255 characters
+             * to the output buffer! Currently, the caller has to ensure that the output buffer is large enough.
+             */
+            uint32_t
+            decodeBlock( const uint32_t nMaxBytesToDecode,
+                         char*          outputBuffer );
+
         public:
             uint32_t origPtr = 0;
             std::array<int, 256> byteCount;
@@ -911,87 +919,86 @@ BZ2Reader::decodeStream( const size_t nMaxBytesToDecode )
         return 0;
     }
 
-    int count, pos, current, run, copies, outbyte, previous;
-    const auto bw = &m_lastHeader.bwdata;
-    // try to flush remnants in output buffer from interrupted last call
+    /* try to flush remnants in output buffer from interrupted last call */
     size_t nBytesDecoded = flushOutputBuffer( nMaxBytesToDecode );
 
     while ( nBytesDecoded < nMaxBytesToDecode ) {
-        // If we need to refill dbuf, do it. Only won't be required for resuming interrupted decodations
-        if ( bw->writeCount == 0 ) {
+        /* If we need to refill dbuf, do it. Only won't be required for resuming interrupted decodations. */
+        if ( m_lastHeader.bwdata.writeCount == 0 ) {
             m_lastHeader = readBlockHeader( m_bitReader.tell() );
             if ( m_lastHeader.eos() ) {
-                bw->writeCount = 0;
                 return nBytesDecoded;
             }
             m_lastHeader.readBlockData();
             m_lastHeader.bwdata.prepare();
         }
 
-        // loop generating output
-        count = bw->writeCount;
-        pos = bw->writePos;
-        current = bw->writeCurrent;
-        run = bw->writeRun;
-        while ( count > 0 ) {
-            // If somebody (like tar) wants a certain number of bytes of
-            // data from memory instead of written to a file, humor them.
-            if ( nBytesDecoded + m_decodedBufferPos >= nMaxBytesToDecode ) {
-                break;
-            }
-            count--;
+        /* should either be cleared by flush after or by flush before while! */
+        assert( m_decodedBufferPos == 0 );
+        /* the max bytes to decode does not account for copies caused by RLE!
+         * There can be at maximum 255 copies! */
+        assert( m_decodedBuffer.size() >= 255 );
+        const auto nBytesToDecode = std::min( m_decodedBuffer.size() - 255, nMaxBytesToDecode - nBytesDecoded );
+        m_decodedBufferPos = m_lastHeader.bwdata.decodeBlock( nBytesToDecode, m_decodedBuffer.data() );
 
-            // Follow sequence vector to undo Burrows-Wheeler transform.
-            previous = current;
-            pos = bw->dbuf[pos];
-            current = pos & 0xff;
-            pos >>= 8;
-
-            /* Whenever we see 3 consecutive copies of the same byte, the 4th is a repeat count */
-            if ( run++ == 3 ) {
-                copies = current;
-                outbyte = previous;
-                current = -1;
-            } else {
-                copies = 1;
-                outbyte = current;
-            }
-
-            // Output bytes to buffer, flushing to file if necessary
-            while ( copies-- ) {
-                if ( m_decodedBufferPos == IOBUF_SIZE ) {
-                    nBytesDecoded += flushOutputBuffer( nMaxBytesToDecode - nBytesDecoded );
-                }
-                m_decodedBuffer[m_decodedBufferPos++] = outbyte;
-                bw->dataCRC = ( bw->dataCRC << 8 ) ^ CRC32_TABLE[( bw->dataCRC >> 24 ) ^ outbyte];
-            }
-            if ( current != previous ) {
-                run = 0;
-            }
+        if ( m_lastHeader.bwdata.writeCount == 0 ) {
+            m_calculatedStreamCRC = ( ( m_calculatedStreamCRC << 1 ) | ( m_calculatedStreamCRC >> 31 ) )
+                                    ^ m_lastHeader.bwdata.dataCRC;
         }
 
-        /* decompression of this block completed successfully */
-        if ( count == 0 ) {
-            bw->dataCRC = ~( bw->dataCRC );
-            m_calculatedStreamCRC = ( ( m_calculatedStreamCRC << 1 ) | ( m_calculatedStreamCRC >> 31 ) ) ^ bw->dataCRC;
-            if ( bw->dataCRC != bw->headerCRC ) {
-                std::stringstream msg;
-                msg << "Calculated CRC " << std::hex << bw->dataCRC << " for block mismatches " << bw->headerCRC;
-                throw std::runtime_error( msg.str() );
-            }
-        }
-
-        bw->writeCount = count;
-        /* required for correct data offsets in readBlockHeader */
+        /* required for correct data offsets in readBlockHeader and for while condition of course */
         nBytesDecoded += flushOutputBuffer( nMaxBytesToDecode - nBytesDecoded );
+    }
 
-        /* if we got enough data, save loop state and return */
-        if ( nBytesDecoded >= nMaxBytesToDecode ) {
-            bw->writePos = pos;
-            bw->writeCurrent = current;
-            bw->writeRun = run;
+    return nBytesDecoded;
+}
 
-            return nBytesDecoded;
+
+inline uint32_t
+BZ2Reader::BlockHeader::BurrowsWheelerTransformData::decodeBlock( const uint32_t nMaxBytesToDecode,
+                                                                  char*          outputBuffer )
+{
+    assert( outputBuffer != nullptr );
+
+    int previous;
+    uint32_t nBytesDecoded = 0;
+
+    while ( ( writeCount > 0 ) && ( nBytesDecoded < nMaxBytesToDecode ) ) {
+        writeCount--;
+
+        // Follow sequence vector to undo Burrows-Wheeler transform.
+        previous = writeCurrent;
+        writePos = dbuf[writePos];
+        writeCurrent = writePos & 0xff;
+        writePos >>= 8;
+
+        /* Whenever we see 3 consecutive copies of the same byte, the 4th is a repeat count */
+        if ( writeRun < 3 ) {
+            outputBuffer[nBytesDecoded++] = writeCurrent;
+            dataCRC = ( dataCRC << 8 ) ^ CRC32_TABLE[( dataCRC >> 24 ) ^ writeCurrent];
+            if ( writeCurrent != previous ) {
+                writeRun = 0;
+            } else {
+                ++writeRun;
+            }
+        } else {
+            int copies = writeCurrent;
+            while ( copies-- ) {
+                outputBuffer[nBytesDecoded++] = previous;
+                dataCRC = ( dataCRC << 8 ) ^ CRC32_TABLE[( dataCRC >> 24 ) ^ previous];
+            }
+            writeCurrent = -1;
+            writeRun = 0;
+        }
+    }
+
+    /* decompression of this block completed successfully */
+    if ( writeCount == 0 ) {
+        dataCRC = ~dataCRC;
+        if ( dataCRC != headerCRC ) {
+            std::stringstream msg;
+            msg << "Calculated CRC " << std::hex << dataCRC << " for block mismatches " << headerCRC;
+            throw std::runtime_error( msg.str() );
         }
     }
 
