@@ -161,4 +161,4 @@ class IndexedBzip2File(io.BufferedIOBase):
     def set_block_offsets(self, offsets):
         return self.bz2reader.set_block_offsets(offsets)
 
-__version__ = '1.1.0'
+__version__ = '1.1.1'

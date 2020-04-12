@@ -1,8 +1,12 @@
-#include "bzip2.h"
-
+#include <cassert>
 #include <cstdlib>
 #include <iostream>
+#include <map>
 #include <string>
+#include <vector>
+
+#include <bzip2.h>
+#include <BitReader.hpp>
 
 
 template<typename T1, typename T2>

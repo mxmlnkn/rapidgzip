@@ -1,7 +1,7 @@
 # indexed_bzip2
 
-[![PyPI version](https://badge.fury.io/py/indexed_bzip2.svg)](https://badge.fury.io/py/indexed_bzip2)
-[![Downloads](https://pepy.tech/badge/indexed_bzip2/month)](https://pepy.tech/project/indexed_bzip2/month)
+[![PyPI version](https://badge.fury.io/py/indexed-bzip2.svg)](https://badge.fury.io/py/indexed-bzip2)
+[![Downloads](https://pepy.tech/badge/indexed-bzip2/month)](https://pepy.tech/project/indexed-bzip2/month)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](http://opensource.org/licenses/MIT)
 [![Build Status](https://travis-ci.org/mxmlnkn/indexed_bzip2.svg?branch=master)](https://travis-ci.com/mxmlnkn/indexed_bzip2)
 
@@ -43,12 +43,56 @@ To avoid this setup when opening a bzip2 file, the block offset list can be expo
 from indexed_bzip2 import IndexedBzip2File
 
 file = IndexedBzip2File( "example.bz2" )
-blockOffsets = file.blockOffsets() # can take a while
+blockOffsets = file.block_offsets() # can take a while
 file.close()
 
 file2 = IndexedBzip2File( "example.bz2" )
-blockOffsets = file2.setBlockOffsets( blockOffsets ) # should be fast
+blockOffsets = file2.set_block_offsets( blockOffsets ) # should be fast
 file2.seek( 123 )
 data = file2.read( 100 )
 file2.close()
+```
+
+
+# Tracing the decoder
+
+Performance profiling and tracing is done with [Score-P](https://www.vi-hps.org/projects/score-p/) for instrumentation and [Vampir](https://vampir.eu/) for visualization.
+This is one way, you could install Score-P with most of the functionalities on Debian 10.
+
+```bash
+# Install PAPI
+wget http://icl.utk.edu/projects/papi/downloads/papi-5.7.0.tar.gz
+tar -xf papi-5.7.0.tar.gz
+cd papi-5.7.0/src
+./configure
+make -j
+sudo make install
+
+# Install Dependencies
+sudo apt-get install libopenmpi-dev openmpi gcc-8-plugin-dev llvm-dev libclang-dev libunwind-dev libopen-trace-format-dev otf-trace
+
+# Install Score-P (to /opt/scorep)
+wget https://www.vi-hps.org/cms/upload/packages/scorep/scorep-6.0.tar.gz
+tar -xf scorep-6.0.tar.gz
+cd scorep-6.0
+./configure --with-mpi=openmpi --enable-shared
+make -j
+make install
+
+# Add /opt/scorep to your path variables on shell start
+cat <<EOF >> ~/.bashrc
+if test -d /opt/scorep; then
+    export SCOREP_ROOT=/opt/scorep
+    export PATH=$SCOREP_ROOT/bin:$PATH
+    export LD_LIBRARY_PATH=$SCOREP_ROOT/lib:$LD_LIBRARY_PATH
+fi
+EOF
+
+# Check whether it works
+scorep --version
+scorep-info config-summary
+
+# Actually do the tracing
+cd tools
+bash trace.sh
 ```
