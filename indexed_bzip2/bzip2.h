@@ -661,7 +661,7 @@ BZ2Reader::readBlockData( BlockHeader* const header )
     // linearly, staying in cache more, so isn't as limited by DRAM access.)
     const int* base = nullptr;
     const int* limit = nullptr;
-    int dbufCount = 0;
+    uint32_t dbufCount = 0;
     for ( int ii, jj, hh = 0, runPos = 0, symCount = 0, selector = 0; ; ) {
         // Have we reached the end of this huffman group?
         if ( !( symCount-- ) ) {
@@ -734,7 +734,7 @@ BZ2Reader::readBlockData( BlockHeader* const header )
          * literal used is the one at the head of the mtfSymbol array.) */
         if ( runPos ) {
             runPos = 0;
-            if ( dbufCount + hh > (int)header->bwdata.dbuf.size() ) {
+            if ( dbufCount + hh > header->bwdata.dbuf.size() ) {
                 std::stringstream msg;
                 msg << "[BZip2 block data] dbufCount + hh " << dbufCount + hh
                 << " > " << header->bwdata.dbuf.size() << " dbufSize";
@@ -759,7 +759,7 @@ BZ2Reader::readBlockData( BlockHeader* const header )
          * result can't be -1 or 0, because 0 and 1 are RUNA and RUNB.
          * Another instance of the first symbol in the mtf array, position 0,
          * would have been handled as part of a run.) */
-        if ( dbufCount >= (int)header->bwdata.dbuf.size() ) {
+        if ( dbufCount >= header->bwdata.dbuf.size() ) {
             std::stringstream msg;
             msg << "[BZip2 block data] dbufCount " << dbufCount << " > " << header->bwdata.dbuf.size() << " dbufSize";
             throw std::domain_error( msg.str() );
@@ -780,7 +780,8 @@ BZ2Reader::readBlockData( BlockHeader* const header )
     }
 
     // Now we know what dbufCount is, do a better sanity check on origPtr.
-    if ( header->bwdata.origPtr >= (unsigned int)( header->bwdata.writeCount = dbufCount ) ) {
+    header->bwdata.writeCount = dbufCount;
+    if ( header->bwdata.origPtr >= dbufCount ) {
         std::stringstream msg;
         msg << "[BZip2 block data] origPtr error " << header->bwdata.origPtr;
         throw std::domain_error( msg.str() );
