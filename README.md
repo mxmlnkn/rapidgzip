@@ -6,7 +6,7 @@
 [![Build Status](https://travis-ci.org/mxmlnkn/indexed_bzip2.svg?branch=master)](https://travis-ci.com/mxmlnkn/indexed_bzip2)
 
 This module provides an IndexedBzip2File class, which can be used to seek inside bzip2 files without having to decompress them first.
-It's based on an improved version of the bzip2 decoder [bzcat](https://github.com/landley/toybox/blob/c77b66455762f42bb824c1aa8cc60e7f4d44bdab/toys/other/bzcat.c) from [toybox](https://landley.net/code/toybox/), which was refactored and extended to be able to export an import bzip2 block offsets and seek to them.
+It's based on an improved version of the bzip2 decoder [bzcat](https://github.com/landley/toybox/blob/c77b66455762f42bb824c1aa8cc60e7f4d44bdab/toys/other/bzcat.c) from [toybox](https://landley.net/code/toybox/), which was refactored and extended to be able to export and import bzip2 block offsets and seek to them.
 Seeking inside a block is only emulated, so IndexedBzip2File will only speed up seeking when there are more than one blocks, which should almost always be the cause for archives larger than 1 MB.
 
 
