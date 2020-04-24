@@ -427,7 +427,7 @@ BZ2Reader::seek( long long int offset,
         return offset;
     }
 
-    offset = std::max( 0LL, offset );
+    offset = std::max<decltype( offset )>( 0, offset );
 
     flushOutputBuffer(); // ensure that no old data is left over
 
@@ -841,7 +841,7 @@ BZ2Reader::flushOutputBuffer( int    const outputFileDescriptor,
 
     if ( outputFileDescriptor >= 0 ) {
         const auto nBytesWritten = write( outputFileDescriptor, m_decodedBuffer.data(), nBytesToFlush );
-        nBytesFlushed = std::max( 0L, nBytesWritten );
+        nBytesFlushed = std::max<decltype( nBytesWritten )>( 0, nBytesWritten );
     }
 
     if ( outputBuffer != nullptr ) {
