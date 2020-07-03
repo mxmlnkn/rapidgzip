@@ -288,7 +288,7 @@ public:
         if ( m_atEndOfFile ) {
             return size();
         }
-        return m_decodedBytesCount; /* @todo only works for first go through! */
+        return m_currentPosition;
     }
 
     /**
@@ -333,6 +333,7 @@ public:
             }
             nBytesDecoded += decodeStream( outputFileDescriptor, outputBuffer, nBytesToRead - nBytesDecoded );
         }
+        m_currentPosition += nBytesDecoded;
         return nBytesDecoded;
     }
 
@@ -394,6 +395,7 @@ private:
     uint32_t m_calculatedStreamCRC = 0;
     bool m_blockToDataOffsetsComplete = false;
     size_t m_decodedBytesCount = 0; /** the sum over all decodeBuffer calls */
+    size_t m_currentPosition = 0; /** the current position as can only be modified with read or seek calls. */
     bool m_atEndOfFile = false;
 
     std::map<size_t, size_t> m_blockToDataOffsets;
@@ -428,6 +430,7 @@ BZ2Reader::seek( long long int offset,
     }
 
     offset = std::max<decltype( offset )>( 0, offset );
+    m_currentPosition = offset;
 
     flushOutputBuffer(); // ensure that no old data is left over
 

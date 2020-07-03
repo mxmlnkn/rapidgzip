@@ -5,6 +5,7 @@ import bz2
 import collections
 import concurrent.futures
 import hashlib
+import io
 import os
 import pprint
 import subprocess
@@ -22,10 +23,17 @@ def sha1_160( fileObject, bufferSize = 1024 * 1024 ):
         hasher.update( data )
     return hasher.digest()
 
+def checkedSeek( fileobj, offset, whence = io.SEEK_SET ):
+    new_offset = fileobj.seek( offset )
+    if whence == io.SEEK_SET:
+        assert new_offset == offset, "Returned offset is something different than the given offset!"
+        assert fileobj.tell() == offset, "Offset returned by tell is different from the one given to seek!"
+
+
 def checkDecompressionBytewise( rawFile, bz2File, bufferSize ):
     # Very slow for some reason! Only use this check if the checksum check fails
-    rawFile.seek( 0 )
-    bz2File.seek( 0 )
+    checkedSeek( rawFile, 0 )
+    checkedSeek( bz2File, 0 )
 
     decFile = IndexedBzip2File( bz2File.fileno() )
 
@@ -36,13 +44,16 @@ def checkDecompressionBytewise( rawFile, bz2File, bufferSize ):
         data1 = rawFile.read( bufferSize )
         data2 = decFile.read( bufferSize )
 
+        assert rawFile.tell() >= oldPos1 and rawFile.tell() <= oldPos1 + bufferSize, "Read should move the file position!"
+        assert decFile.tell() >= oldPos2 and decFile.tell() <= oldPos2 + bufferSize, "Read should move the file position!"
+
         if data1 != data2:
             print( "Data at pos {} ({}) mismatches! After read at pos {} ({}).\nData:\n  {}\n  {}"
                    .format( oldPos1, oldPos2, rawFile.tell(), decFile.tell(), data1.hex(), data2.hex() ) )
             print( "Block offsets:" )
             pprint.pprint( decFile.block_offsets() )
 
-            bz2File.seek( 0 )
+            checkedSeek( bz2File, 0 )
             file = open( "bugged-random.bz2", 'wb' )
             file.write( bz2File.read() )
             file.close()
@@ -50,8 +61,8 @@ def checkDecompressionBytewise( rawFile, bz2File, bufferSize ):
             raise Exception( "Data mismatches!" )
 
 def checkDecompression( rawFile, bz2File, bufferSize ):
-    rawFile.seek( 0 )
-    bz2File.seek( 0 )
+    checkedSeek( rawFile, 0 )
+    checkedSeek( bz2File, 0 )
 
     file = IndexedBzip2File( bz2File.fileno() )
     sha1 = sha1_160( file, bufferSize )
@@ -66,11 +77,13 @@ def checkDecompression( rawFile, bz2File, bufferSize ):
 def checkSeek( rawFile, bz2File, seekPos ):
     # Try to read some bytes and compare them. We can without problem specify than 1 bytes even if we are at the end
     # of the file because then it is counted as the maximum bytes to read and the result will be shorter.
-    bz2File.seek( seekPos )
+    checkedSeek( bz2File,  seekPos )
     c1 = bz2File.read( 256 )
+    assert bz2File.tell() >= seekPos and bz2File.tell() <= seekPos + 256, "Read should move the file position!"
 
-    rawFile.seek( seekPos )
+    checkedSeek( rawFile,  seekPos )
     c2 = rawFile.read( 256 )
+    assert rawFile.tell() >= seekPos and rawFile.tell() <= seekPos + 256, "Read should move the file position!"
 
     if c1 != c2:
         print( "Char at pos", seekPos, "from sbzip2:", c1.hex(), "=?=", c2.hex(), "from raw file" )
@@ -80,14 +93,14 @@ def checkSeek( rawFile, bz2File, seekPos ):
 def writeBz2File( data, compresslevel = 9, encoder = 'pybz2' ):
     rawFile = tempfile.TemporaryFile()
     rawFile.write( data )
-    rawFile.seek( 0 );
+    checkedSeek( rawFile, 0 );
 
     bz2File = tempfile.TemporaryFile()
     if encoder == 'pybz2':
         bz2File.write( bz2.compress( data, compresslevel ) )
     else:
         bz2File.write( subprocess.check_output( [ encoder, '-{}'.format( compresslevel ) ], input = data ) )
-    bz2File.seek( 0 )
+    checkedSeek( bz2File, 0 )
 
     return rawFile, bz2File
 
@@ -105,12 +118,12 @@ def createStripedBz2( sizeInBytes, compresslevel = 9, encoder = 'pybz2', sequenc
 def storeFiles( rawFile, bz2File, name ):
     if rawFile:
         with open( name, 'wb' ) as file:
-            rawFile.seek( 0 )
+            checkedSeek( rawFile, 0 )
             file.write( rawFile.read() )
 
     if bz2File:
         with open( name + ".bz2", 'wb' ) as file:
-            bz2File.seek( 0 )
+            checkedSeek( bz2File, 0 )
             file.write( bz2File.read() )
 
     print( "Created files {} and {}.bz2 with the failed test".format( name, name ) )
