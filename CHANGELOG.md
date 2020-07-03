@@ -1,3 +1,8 @@
+
+# Version 1.1.2 built on 2020-07-04
+
+ - Fix tell() method
+
 # Version 1.1.1 built on 2020-04-12
 
  - Refactor code
