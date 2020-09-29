@@ -7,7 +7,7 @@
 
 This module provides an IndexedBzip2File class, which can be used to seek inside bzip2 files without having to decompress them first.
 It's based on an improved version of the bzip2 decoder [bzcat](https://github.com/landley/toybox/blob/c77b66455762f42bb824c1aa8cc60e7f4d44bdab/toys/other/bzcat.c) from [toybox](https://landley.net/code/toybox/), which was refactored and extended to be able to export and import bzip2 block offsets and seek to them.
-Seeking inside a block is only emulated, so IndexedBzip2File will only speed up seeking when there are more than one blocks, which should almost always be the cause for archives larger than 1 MB.
+Seeking inside a block is only emulated, so IndexedBzip2File will only speed up seeking when there are more than one block, which should almost always be the cause for archives larger than 1 MB.
 
 
 # Installation
@@ -41,13 +41,23 @@ To avoid this setup when opening a bzip2 file, the block offset list can be expo
 
 ```python3
 from indexed_bzip2 import IndexedBzip2File
+import pickle
 
+# Calculate and save bzip2 block offsets
 file = IndexedBzip2File( "example.bz2" )
-blockOffsets = file.block_offsets() # can take a while
+block_offsets = file.block_offsets() # can take a while
+# block_offsets is a simple dictionary where the keys are the bzip2 block offsets in bits(!)
+# and the values are the corresponding offsets in the decoded data in bytes. E.g.:
+# block_offsets = {32: 0, 14920: 4796}
+with open( "offsets.dat", 'wb' ) as offsets_file:
+    pickle.dump( block_offsets, offsets_file )
 file.close()
 
+# Load bzip2 block offsets for fast seeking
+with open( "offsets.dat", 'rb' ) as offsets_file:
+    block_offsets = pickle.load( offsets_file )
 file2 = IndexedBzip2File( "example.bz2" )
-blockOffsets = file2.set_block_offsets( blockOffsets ) # should be fast
+file2.set_block_offsets( block_offsets ) # should be fast
 file2.seek( 123 )
 data = file2.read( 100 )
 file2.close()
