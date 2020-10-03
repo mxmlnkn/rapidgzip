@@ -415,10 +415,6 @@ size_t
 BZ2Reader::seek( long long int offset,
                  int           origin )
 {
-    if ( !m_blockToDataOffsetsComplete ) {
-        read();
-    }
-
     switch ( origin )
     {
     case SEEK_CUR:
@@ -427,12 +423,21 @@ BZ2Reader::seek( long long int offset,
     case SEEK_SET:
         break;
     case SEEK_END:
+        /* size() requires the block offsets to be available! */
+        if ( !m_blockToDataOffsetsComplete ) {
+            read();
+        }
         offset = size() + offset;
         break;
     }
 
     if ( static_cast<long long int>( tell() ) == offset ) {
         return offset;
+    }
+
+    /* size() and then seeking requires the block offsets to be available! */
+    if ( !m_blockToDataOffsetsComplete ) {
+        read();
     }
 
     offset = std::max<decltype( offset )>( 0, offset );
