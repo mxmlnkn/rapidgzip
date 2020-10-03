@@ -26,6 +26,9 @@ public:
     virtual int
     fileno() const = 0;
 
+    virtual bool
+    seekable() const = 0;
+
     virtual size_t
     seek( long long int offset,
           int           origin = SEEK_SET ) = 0;

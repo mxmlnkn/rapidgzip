@@ -11,6 +11,7 @@
 #include <vector>
 
 #include <unistd.h>
+#include <sys/stat.h>
 
 #include "FileReader.hpp"
 
@@ -71,7 +72,13 @@ public:
     bool
     eof() const override
     {
-        return tell() >= size();
+        return m_seekable ? tell() >= size() : !m_lastReadSuccessful;
+    }
+
+    bool
+    seekable() const override
+    {
+        return m_seekable;
     }
 
     void
@@ -97,7 +104,10 @@ public:
     size_t
     tell() const override
     {
-        return ( ftell( fp() ) - m_inbuf.size() + m_inbufPos ) * 8ULL - m_inbufBitCount;
+        if ( m_seekable ) {
+            return ( ftell( fp() ) - m_inbuf.size() + m_inbufPos ) * 8ULL - m_inbufBitCount;
+        }
+        return m_readBitsCount;
     }
 
     FILE*
@@ -129,16 +139,23 @@ private:
     void
     init()
     {
-        fseek( fp(), 0, SEEK_END );
-        m_fileSizeBytes = ftell( fp() );
-        fseek( fp(), 0, SEEK_SET ); /* good to have even when not getting the size! */
+        struct stat fileStats;
+        fstat( fileno(), &fileStats );
+        m_seekable = !S_ISFIFO( fileStats.st_mode );
+        m_fileSizeBytes = fileStats.st_size;
+        if ( m_seekable ) {
+            fseek( fp(), 0, SEEK_SET );
+        }
     }
 
 private:
     FILE* m_file = nullptr;
+    bool m_seekable = true;
     size_t m_fileSizeBytes = 0;
+
     std::vector<uint8_t> m_inbuf;
     uint32_t m_inbufPos = 0; /** stores current position of first valid byte in buffer */
+    bool m_lastReadSuccessful = true;
 
 public:
     /**
@@ -149,6 +166,8 @@ public:
      */
     uint32_t m_inbufBits = 0;
     uint8_t m_inbufBitCount = 0; // size of bitbuffer in bits
+
+    size_t m_readBitsCount = 0;
 };
 
 
@@ -157,6 +176,7 @@ BitReader::read( const uint8_t bits_wanted )
 {
     uint32_t bits = 0;
     assert( bits_wanted <= sizeof( bits ) * 8 );
+    m_readBitsCount += bits_wanted;
 
     // If we need to get more data from the byte buffer, do so.  (Loop getting
     // one byte at a time to enforce endianness and avoid unaligned access.)
@@ -166,6 +186,9 @@ BitReader::read( const uint8_t bits_wanted )
         if ( m_inbufPos == m_inbuf.size() ) {
             m_inbuf.resize( IOBUF_SIZE );
             const auto nBytesRead = fread( m_inbuf.data(), 1, m_inbuf.size(), m_file );
+            if ( nBytesRead < m_inbuf.size() ) {
+                m_lastReadSuccessful = false;
+            }
             if ( nBytesRead <= 0 ) {
                 // this will also happen for invalid file descriptor -1
                 std::stringstream msg;
@@ -218,6 +241,10 @@ BitReader::seek( long long int offsetBits,
         break;
     }
 
+    if ( static_cast<size_t>( offsetBits ) == tell() ) {
+        return offsetBits;
+    }
+
     if ( offsetBits < 0 ) {
         throw std::invalid_argument( "Effective offset is before file start!" );
     }
@@ -226,8 +253,8 @@ BitReader::seek( long long int offsetBits,
         throw std::invalid_argument( "Effective offset is after file end!" );
     }
 
-    if ( static_cast<size_t>( offsetBits ) == tell() ) {
-        return offsetBits;
+    if ( !m_seekable ) {
+        throw std::invalid_argument( "File is not seekable!" );
     }
 
     const size_t bytesToSeek = offsetBits >> 3;

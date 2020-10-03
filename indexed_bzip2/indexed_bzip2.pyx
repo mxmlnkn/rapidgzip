@@ -27,6 +27,7 @@ cdef extern from "bzip2.h":
         BZ2Reader(int) except +
         bool eof() except +
         int fileno() except +
+        bool seekable() except +
         void close() except +
         bool closed() except +
         size_t seek(lli, int) except +
@@ -56,6 +57,9 @@ cdef class _IndexedBzip2File():
 
     def fileno(self):
         return self.bz2reader.fileno()
+
+    def seekable(self):
+        return self.bz2reader.seekable()
 
     def read(self, size=-1):
         if size == 0 or self.bz2reader.eof():
@@ -108,7 +112,7 @@ class IndexedBzip2File(io.BufferedIOBase):
         return self.bz2reader.fileno()
 
     def seekable(self):
-        return True
+        return self.bz2reader.seekable()
 
     def readable(self):
         return True

@@ -234,6 +234,12 @@ public:
         return ::fileno( m_bitReader.fp() );
     }
 
+    bool
+    seekable() const override
+    {
+        return m_bitReader.seekable();
+    }
+
     void
     close() override
     {
@@ -629,6 +635,7 @@ BZ2Reader::BlockHeader::readBlockHeader()
                     hh += 1 - ( ( kk & 1 ) << 1 );
                 } else {
                     bitReader().m_inbufBitCount++;
+                    bitReader().m_readBitsCount--;
                     break;
                 }
             }
