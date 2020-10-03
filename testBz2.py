@@ -191,7 +191,44 @@ def testBz2( parameters ):
 
     return True
 
+def testPythonInterface():
+    contents = b"Hello\nWorld!\n"
+    rawFile, bz2File = writeBz2File( contents )
+    file = IndexedBzip2File( bz2File.name )
+
+    # Based on the Python spec, peek might return more or less bytes than requested
+    # but I think in this case it definitely should not return less!
+    assert file.peek( 1 )[0] == contents[0]
+    assert file.peek( 1 )[0] == contents[0], "The previous peek should not change the internal position"
+
+    assert file.tell() == 0
+    assert file.read( 2 ) == contents[:2]
+    assert file.tell() == 2
+
+    assert file.seek( 0 ) == 0
+    assert file.tell() == 0
+
+    assert not file.closed
+    assert not file.writable()
+    assert file.readable()
+    assert file.seekable()
+
+    b = bytearray( 5 )
+    file.readinto(  b )
+    assert b == contents[:len(b)]
+
+    assert file.seek( 1 ) == 1
+    assert file.readline() == b"ello\n"
+
+    assert file.seek( 0 ) == 0
+    assert file.readlines() == [ x + b'\n' for x in contents.split( b'\n' ) if x ]
+
+    file.close()
+    assert file.closed
+
 if __name__ == '__main__':
+    testPythonInterface()
+
     buffersizes = [ -1, 128, 333, 500, 1024, 1024*1024, 64*1024*1024 ]
     parameters = [
         Bzip2TestParameters( size, encoder, compressionlevel, pattern, patternsize, buffersizes )

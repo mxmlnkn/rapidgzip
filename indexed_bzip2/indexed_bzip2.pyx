@@ -8,6 +8,7 @@ from libc.stdio cimport SEEK_SET
 from libcpp.string cimport string
 from libcpp.map cimport map
 from libcpp cimport bool
+from cpython.buffer cimport PyObject_GetBuffer, PyBuffer_Release, PyBUF_ANY_CONTIGUOUS, PyBUF_SIMPLE
 
 import io
 import os
@@ -61,23 +62,17 @@ cdef class _IndexedBzip2File():
     def seekable(self):
         return self.bz2reader.seekable()
 
-    def read(self, size=-1):
-        if size == 0 or self.bz2reader.eof():
-            return b''
+    def readinto(self, bytes_like):
+        bytes_count = 0
 
-        cdef char* buffer
-        if size > 0:
-            buffer = <char*>malloc(size * sizeof(char))
-            if not buffer:
-                raise MemoryError()
-            size = self.bz2reader.read(-1, buffer, size)
-            try:
-                result = <bytes> buffer[:size]
-            finally:
-                free(buffer)
-            return result
+        cdef Py_buffer buffer
+        PyObject_GetBuffer(bytes_like, &buffer, PyBUF_SIMPLE | PyBUF_ANY_CONTIGUOUS)
+        try:
+            bytes_count = self.bz2reader.read(-1, <char*>buffer.buf, len(bytes_like))
+        finally:
+            PyBuffer_Release(&buffer)
 
-        raise Exception("Invalid size argument")
+        return bytes_count
 
     def seek(self, offset, whence):
         return self.bz2reader.seek(offset, whence)
@@ -95,74 +90,42 @@ cdef class _IndexedBzip2File():
         return self.bz2reader.setBlockOffsets(offsets)
 
 
-# Extra class because cdefs are not visible from otuside but cdef class can't inherit from io.BufferedIOBase
-class IndexedBzip2File(io.BufferedIOBase):
+# Extra class because cdefs are not visible from outside but cdef class can't inherit from io.BufferedIOBase
+
+class IndexedBzip2FileRaw(io.RawIOBase):
     def __init__(self, filename):
         self.bz2reader = _IndexedBzip2File(filename)
         self.name = filename
         self.mode = 'rb'
 
+        self.readinto = self.bz2reader.readinto
+        self.seek     = self.bz2reader.seek
+        self.tell     = self.bz2reader.tell
+        self.fileno   = self.bz2reader.fileno
+        self.seekable = self.bz2reader.seekable
+
+        # IOBase provides sane default implementations for read, readline, readlines, readall, ...
+
     def close(self):
+        if self.closed:
+            return
+        super().close()
         self.bz2reader.close()
-
-    def closed(self):
-        return self.bz2reader.closed()
-
-    def fileno(self):
-        return self.bz2reader.fileno()
-
-    def seekable(self):
-        return self.bz2reader.seekable()
 
     def readable(self):
         return True
 
-    def writable(self):
-        return False
+class IndexedBzip2File(io.BufferedReader):
+    def __init__(self, filename):
+        fobj = IndexedBzip2FileRaw(filename)
+        self.bz2reader = fobj.bz2reader
 
-    def read(self, size=-1):
-        if size == -1:
-            result = b''
-            fixedBufferSize = 1*1024*1024 # 1 MiB
-            for data in iter(lambda: self.read(fixedBufferSize), b''):
-                result += data
-            return result
-        return self.bz2reader.read(size)
+        self.tell_compressed   = self.bz2reader.tell_compressed
+        self.block_offsets     = self.bz2reader.block_offsets
+        self.set_block_offsets = self.bz2reader.set_block_offsets
 
-    def seek(self, offset, whence=io.SEEK_SET):
-        return self.bz2reader.seek(offset, whence)
-
-    def tell(self):
-        return self.bz2reader.tell()
-
-    def tell_compressed(self):
-        return self.bz2reader.tell_compressed()
-
-    def peek(self, n=0):
-        raise Exception("not supported")
-
-    def read1(self, size=-1):
-        raise Exception("not supported")
-
-    def readinto(self, b):
-        raise Exception("not supported")
-
-    def readline(self, size=-1):
-        raise Exception("not supported")
-
-    def readlines(self, size=-1):
-        raise Exception("not supported")
-
-    def write(self, data):
-        raise Exception("not supported")
-
-    def writelines(self, seq):
-        raise Exception("not supported")
-
-    def block_offsets(self):
-        return self.bz2reader.block_offsets()
-
-    def set_block_offsets(self, offsets):
-        return self.bz2reader.set_block_offsets(offsets)
+        # Most of the calls like close, seekable, name, mode ... are forwarded to the given raw object
+        # by BufferedReader or more specifically _BufferedIOMixin
+        super().__init__(fobj, buffer_size=1024**2)
 
 __version__ = '1.1.2'
