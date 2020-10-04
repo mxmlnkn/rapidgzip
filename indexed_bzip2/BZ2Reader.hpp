@@ -20,7 +20,7 @@ class BZ2Reader :
     public FileReader
 {
 public:
-    using BlockHeader = bzip2::BlockHeader;
+    using BlockHeader = bzip2::Block;
 
 public:
     static constexpr size_t IOBUF_SIZE = 4096;

@@ -64,22 +64,23 @@ struct GroupData
     uint8_t maxLen;
 };
 
-struct BlockHeader
+
+struct Block
 {
 public:
-    BlockHeader() = default;
+    Block() = default;
 
     /** Better don't allow copies because the bitreader would be shared, which might be problematic */
-    BlockHeader( const BlockHeader& ) = delete;
+    Block( const Block& ) = delete;
 
-    BlockHeader& operator=( const BlockHeader& ) = delete;
+    Block& operator=( const Block& ) = delete;
 
-    BlockHeader( BlockHeader&& ) = default;
+    Block( Block&& ) = default;
 
-    BlockHeader& operator=( BlockHeader&& ) = default;
+    Block& operator=( Block&& ) = default;
 
     explicit
-    BlockHeader( BitReader& bitReader ) :
+    Block( BitReader& bitReader ) :
         mp_bitReader( &bitReader )
     {
         readBlockHeader();
@@ -243,7 +244,7 @@ public:
  * variable: hufGroup[groupCount] (MTF encoded huffman table data.)
  */
 inline void
-BlockHeader::readBlockHeader()
+Block::readBlockHeader()
 {
     magicBytes = ( (uint64_t)getBits( 24 ) << 24 ) | (uint64_t)getBits( 24 );
     bwdata.headerCRC = getBits( 32 );
@@ -428,7 +429,7 @@ BlockHeader::readBlockHeader()
 
 
 inline void
-BlockHeader::readBlockData()
+Block::readBlockData()
 {
     const GroupData* hufGroup = nullptr;
 
@@ -567,7 +568,7 @@ BlockHeader::readBlockData()
 
 
 inline void
-BlockHeader::BurrowsWheelerTransformData::prepare()
+Block::BurrowsWheelerTransformData::prepare()
 {
     // Turn byteCount into cumulative occurrence counts of 0 to n-1.
     for ( size_t i = 0, j = 0; i < byteCount.size(); ++i ) {
@@ -602,7 +603,7 @@ BlockHeader::BurrowsWheelerTransformData::prepare()
 
 
 inline uint32_t
-BlockHeader::BurrowsWheelerTransformData::decodeBlock( const uint32_t nMaxBytesToDecode,
+Block::BurrowsWheelerTransformData::decodeBlock( const uint32_t nMaxBytesToDecode,
                                                                   char*          outputBuffer )
 {
     assert( outputBuffer != nullptr );
