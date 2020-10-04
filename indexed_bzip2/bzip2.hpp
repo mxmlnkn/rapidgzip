@@ -569,6 +569,8 @@ Block::readBlockData()
         msg << "[BZip2 block data] origPtr error " << bwdata.origPtr;
         throw std::domain_error( msg.str() );
     }
+
+    bwdata.prepare();
 }
 
 

@@ -287,7 +287,6 @@ BZ2Reader::seek( long long int offset,
 
     m_lastHeader = readBlockHeader( blockOffset->first );
     m_lastHeader.readBlockData();
-    m_lastHeader.bwdata.prepare();
     /* no decodeBzip2 necessary because we only seek inside one block! */
     const auto nBytesDecoded = decodeStream( -1, nullptr, nBytesSeekInBlock );
 
@@ -300,6 +299,7 @@ BZ2Reader::seek( long long int offset,
 
     return offset;
 }
+
 
 inline BZ2Reader::BlockHeader
 BZ2Reader::readBlockHeader( size_t offsetBits )
@@ -380,7 +380,6 @@ BZ2Reader::decodeStream( int    const outputFileDescriptor,
                 return nBytesDecoded;
             }
             m_lastHeader.readBlockData();
-            m_lastHeader.bwdata.prepare();
         }
 
         /* m_decodedBufferPos should either be cleared by flush after or by flush before while!
