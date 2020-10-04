@@ -22,7 +22,7 @@ cdef extern from "Python.h":
     char * PyString_AsString(object)
     object PyString_FromStringAndSize(char*, int)
 
-cdef extern from "bzip2.h":
+cdef extern from "bzip2.hpp":
     cppclass BZ2Reader:
         BZ2Reader(string) except +
         BZ2Reader(int) except +

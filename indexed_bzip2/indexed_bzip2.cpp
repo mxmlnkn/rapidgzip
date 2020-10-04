@@ -4,7 +4,7 @@
 {
     "distutils": {
         "depends": [
-            "indexed_bzip2/bzip2.h"
+            "indexed_bzip2/bzip2.hpp"
         ],
         "extra_compile_args": [
             "-std=c++11",
@@ -642,7 +642,7 @@ static CYTHON_INLINE float __PYX_NAN() {
 #include <string>
 #include <utility>
 #include <map>
-#include "bzip2.h"
+#include "bzip2.hpp"
 #ifdef _OPENMP
 #include <omp.h>
 #endif /* _OPENMP */
