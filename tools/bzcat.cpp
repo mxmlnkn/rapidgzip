@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-#include <bzip2.hpp>
+#include <BZ2Reader.hpp>
 #include <BitReader.hpp>
 
 
