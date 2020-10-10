@@ -34,8 +34,11 @@ cdef extern from "BZ2Reader.hpp":
         size_t seek(lli, int) except +
         size_t tell() except +
         size_t tellCompressed() except +
+        size_t size() except +
         int read(int, char*, size_t) except +
+        bool blockOffsetsComplete() except +
         map[size_t, size_t] blockOffsets() except +
+        map[size_t, size_t] availableBlockOffsets() except +
         void setBlockOffsets(map[size_t, size_t]) except +
 
 cdef class _IndexedBzip2File():
@@ -80,11 +83,20 @@ cdef class _IndexedBzip2File():
     def tell(self):
         return self.bz2reader.tell()
 
+    def size(self):
+        return self.bz2reader.size()
+
     def tell_compressed(self):
         return self.bz2reader.tellCompressed()
 
+    def block_offsets_complete(self):
+        return self.bz2reader.blockOffsetsComplete()
+
     def block_offsets(self):
         return <dict>self.bz2reader.blockOffsets()
+
+    def available_block_offsets(self):
+        return <dict>self.bz2reader.availableBlockOffsets()
 
     def set_block_offsets(self, offsets):
         return self.bz2reader.setBlockOffsets(offsets)
@@ -120,9 +132,12 @@ class IndexedBzip2File(io.BufferedReader):
         fobj = IndexedBzip2FileRaw(filename)
         self.bz2reader = fobj.bz2reader
 
-        self.tell_compressed   = self.bz2reader.tell_compressed
-        self.block_offsets     = self.bz2reader.block_offsets
-        self.set_block_offsets = self.bz2reader.set_block_offsets
+        self.tell_compressed         = self.bz2reader.tell_compressed
+        self.block_offsets           = self.bz2reader.block_offsets
+        self.set_block_offsets       = self.bz2reader.set_block_offsets
+        self.block_offsets_complete  = self.bz2reader.block_offsets_complete
+        self.available_block_offsets = self.bz2reader.available_block_offsets
+        self.size                    = self.bz2reader.size
 
         # Most of the calls like close, seekable, name, mode ... are forwarded to the given raw object
         # by BufferedReader or more specifically _BufferedIOMixin
