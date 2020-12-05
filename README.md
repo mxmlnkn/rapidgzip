@@ -1,7 +1,7 @@
 # indexed_bzip2
 
 [![PyPI version](https://badge.fury.io/py/indexed-bzip2.svg)](https://badge.fury.io/py/indexed-bzip2)
-[![Downloads](https://pepy.tech/badge/indexed-bzip2/month)](https://pepy.tech/project/indexed-bzip2/month)
+[![Downloads](https://pepy.tech/badge/indexed-bzip2/month)](https://pepy.tech/project/indexed-bzip2)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](http://opensource.org/licenses/MIT)
 [![Build Status](https://travis-ci.org/mxmlnkn/indexed_bzip2.svg?branch=master)](https://travis-ci.com/mxmlnkn/indexed_bzip2)
 
