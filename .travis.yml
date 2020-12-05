@@ -20,7 +20,7 @@ before_install:
 install:
   - test indexed_bzip2/indexed_bzip2.cpp -nt indexed_bzip2/indexed_bzip2.pyx ||
     echo -e '\e[31mPlease trigger a rebuild of indexed_bzip2.pyx using "python3 setup.py build_ext --inplace --cython" and commit the new file\e[0m'
-  - pip install --upgrade cython twine
+  - pip install --upgrade-strategy eager --upgrade cython twine
   - python3 setup.py build_ext --inplace --cython
 
 script:
