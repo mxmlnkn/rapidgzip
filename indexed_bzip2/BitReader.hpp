@@ -131,6 +131,20 @@ public:
     uint32_t
     read( uint8_t );
 
+
+    template<uint8_t bitsWanted>
+    uint32_t
+    read()
+    {
+        static_assert( bitsWanted < sizeof( m_inbufBits ) * CHAR_BIT, "Requested bits must fit in buffer!" );
+        if ( bitsWanted <= m_inbufBitCount ) {
+            m_readBitsCount += bitsWanted;
+            m_inbufBitCount -= bitsWanted;
+            return ( m_inbufBits >> m_inbufBitCount ) & ( ( decltype( m_inbufBits )( 1 ) << bitsWanted ) - 1U );
+        }
+        return readSafe( bitsWanted );
+    }
+
     size_t
     read( char*  outputBuffer,
           size_t nBytesToRead )
@@ -210,6 +224,32 @@ private:
         }
     }
 
+    uint32_t
+    readSafe( uint8_t );
+
+    void
+    refillBuffer()
+    {
+        m_inbuf.resize( IOBUF_SIZE );
+        const auto nBytesRead = fread( m_inbuf.data(), 1, m_inbuf.size(), m_file );
+        if ( nBytesRead < m_inbuf.size() ) {
+            m_lastReadSuccessful = false;
+        }
+        if ( nBytesRead <= 0 ) {
+            // this will also happen for invalid file descriptor -1
+            std::stringstream msg;
+            msg
+            << "[BitReader] Not enough data to read!\n"
+            << "  File pointer: " << (void*)m_file << "\n"
+            << "  File position: " << ftell( m_file ) << "\n"
+            << "  Input buffer size: " << m_inbuf.size() << "\n"
+            << "\n";
+            throw std::domain_error( msg.str() );
+        }
+        m_inbuf.resize( nBytesRead );
+        m_inbufPos = 0;
+    }
+
 private:
     FILE*         m_file = nullptr;
     bool    const m_seekable = true;
@@ -235,55 +275,51 @@ public:
 
 
 inline uint32_t
-BitReader::read( const uint8_t bits_wanted )
+BitReader::read( const uint8_t bitsWanted )
+{
+    if ( bitsWanted <= m_inbufBitCount ) {
+        m_readBitsCount += bitsWanted;
+        m_inbufBitCount -= bitsWanted;
+        return ( m_inbufBits >> m_inbufBitCount ) & ( ( decltype( m_inbufBits )( 1 ) << bitsWanted ) - 1U );
+    }
+    return readSafe( bitsWanted );
+}
+
+
+inline uint32_t
+BitReader::readSafe( const uint8_t bitsWanted )
 {
     uint32_t bits = 0;
-    assert( bits_wanted <= sizeof( bits ) * 8 );
-    m_readBitsCount += bits_wanted;
+    assert( bitsWanted <= sizeof( bits ) * CHAR_BIT );
+    // Commenting this single line improves speed by 2%! This shows how performance critical this function is.
+    m_readBitsCount += bitsWanted;
 
     // If we need to get more data from the byte buffer, do so.  (Loop getting
     // one byte at a time to enforce endianness and avoid unaligned access.)
-    auto bitsNeeded = bits_wanted;
+    auto bitsNeeded = bitsWanted;
     while ( m_inbufBitCount < bitsNeeded ) {
         // If we need to read more data from file into byte buffer, do so
-        if ( m_inbufPos == m_inbuf.size() ) {
-            m_inbuf.resize( IOBUF_SIZE );
-            const auto nBytesRead = fread( m_inbuf.data(), 1, m_inbuf.size(), m_file );
-            if ( nBytesRead < m_inbuf.size() ) {
-                m_lastReadSuccessful = false;
-            }
-            if ( nBytesRead <= 0 ) {
-                // this will also happen for invalid file descriptor -1
-                std::stringstream msg;
-                msg
-                << "[BitReader] Not enough data to read!\n"
-                << "  File pointer: " << (void*)m_file << "\n"
-                << "  File position: " << ftell( m_file ) << "\n"
-                << "  Input buffer size: " << m_inbuf.size() << "\n"
-                << "\n";
-                throw std::domain_error( msg.str() );
-            }
-            m_inbuf.resize( nBytesRead );
-            m_inbufPos = 0;
+        if ( m_inbufPos >= m_inbuf.size() ) {
+            refillBuffer();
         }
 
         // Avoid 32-bit overflow (dump bit buffer to top of output)
-        if ( m_inbufBitCount >= 24 ) {
-            bits = m_inbufBits & ( ( 1 << m_inbufBitCount ) - 1 );
+        if ( m_inbufBitCount >= sizeof( m_inbufBits ) * CHAR_BIT - CHAR_BIT ) {
+            bits = m_inbufBits & ( ( decltype( m_inbufBits )( 1 ) << m_inbufBitCount ) - 1U );
             bitsNeeded -= m_inbufBitCount;
             bits <<= bitsNeeded;
             m_inbufBitCount = 0;
         }
 
         // Grab next 8 bits of input from buffer.
-        m_inbufBits = ( m_inbufBits << 8 ) | m_inbuf[m_inbufPos++];
-        m_inbufBitCount += 8;
+        m_inbufBits = ( m_inbufBits << CHAR_BIT ) | m_inbuf[m_inbufPos++];
+        m_inbufBitCount += CHAR_BIT;
     }
 
     // Calculate result
     m_inbufBitCount -= bitsNeeded;
-    bits |= ( m_inbufBits >> m_inbufBitCount ) & ( ( 1 << bitsNeeded ) - 1 );
-    assert( bits == ( bits & ( ~0L >> ( 32 - bits_wanted ) ) ) );
+    bits |= ( m_inbufBits >> m_inbufBitCount ) & ( ( decltype( m_inbufBits )( 1 ) << bitsNeeded ) - 1U );
+    assert( bits == ( bits & ( ~0L >> ( sizeof( m_inbufBits ) * CHAR_BIT - bitsWanted ) ) ) );
     return bits;
 }
 
