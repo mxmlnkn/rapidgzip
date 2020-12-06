@@ -264,6 +264,12 @@ BZ2Reader::seek( long long int offset,
         return offset;
     }
 
+    /* When block offsets are not complete yet, emulate forward seeking with a read. */
+    if ( !m_blockToDataOffsetsComplete && ( offset > static_cast<long long int>( tell() ) ) ) {
+        read( -1, nullptr, offset - tell() );
+        return tell();
+    }
+
     /* size() and then seeking requires the block offsets to be available! */
     if ( !m_blockToDataOffsetsComplete ) {
         read();
