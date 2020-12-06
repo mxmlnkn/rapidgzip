@@ -156,7 +156,7 @@ public:
      * @param[out] outputBuffer should at least be large enough to hold @p nBytesToRead bytes
      * @return number of bytes written
      */
-    int
+    size_t
     read( const int    outputFileDescriptor = -1,
           char* const  outputBuffer = nullptr,
           const size_t nBytesToRead = std::numeric_limits<size_t>::max() )
@@ -175,6 +175,17 @@ public:
     }
 
 private:
+    /**
+     * @param  outputBuffer A char* to which the data is written.
+     *                      You should ensure that at least @p maxBytesToFlush bytes can fit there!
+     * @return The number of actually flushed bytes, which might be hindered,
+     *         e.g., if the output file descriptor can't be written to!
+     */
+    size_t
+    flushOutputBuffer( int    outputFileDescriptor = -1,
+                       char*  outputBuffer         = nullptr,
+                       size_t maxBytesToFlush      = std::numeric_limits<size_t>::max() );
+
     /**
      * Undo burrows-wheeler transform on intermediate buffer @ref dbuf to @ref outBuf
      *
@@ -195,25 +206,25 @@ private:
         return m_bitReader.read( nBits );
     }
 
-    /**
-     * @param  outputBuffer A char* to which the data is written.
-     *                      You should ensure that at least @p maxBytesToFlush bytes can fit there!
-     * @return The number of actually flushed bytes, which might be hindered,
-     *         e.g., if the output file descriptor can't be written to!
-     */
-    size_t
-    flushOutputBuffer( int    outputFileDescriptor = -1,
-                       char*  outputBuffer         = nullptr,
-                       size_t maxBytesToFlush      = std::numeric_limits<size_t>::max() );
-
     BlockHeader
     readBlockHeader( size_t bitsOffset );
 
     void
     readBzip2Header();
 
-private:
+protected:
     BitReader m_bitReader;
+
+    uint8_t m_blockSize100k = 0;
+    uint32_t m_streamCRC = 0; /** CRC of stream as last block says */
+    uint32_t m_calculatedStreamCRC = 0;
+    bool m_blockToDataOffsetsComplete = false;
+    size_t m_currentPosition = 0; /** the current position as can only be modified with read or seek calls. */
+    bool m_atEndOfFile = false;
+
+    std::map<size_t, size_t> m_blockToDataOffsets;
+
+private:
     BlockHeader m_lastHeader;
 
     /* This buffer is needed for decoding because decoding of runtime length encoded strings might lead to more
@@ -224,15 +235,8 @@ private:
      * so we can almost at any position clear m_decodedBuffer and set m_decodedBufferPos to 0, which is done for flushing! */
     size_t m_decodedBufferPos = 0;
 
-    uint8_t m_blockSize100k = 0;
-    uint32_t m_streamCRC = 0; /** CRC of stream as last block says */
-    uint32_t m_calculatedStreamCRC = 0;
-    bool m_blockToDataOffsetsComplete = false;
-    size_t m_decodedBytesCount = 0; /** the sum over all decodeBuffer calls */
-    size_t m_currentPosition = 0; /** the current position as can only be modified with read or seek calls. */
-    bool m_atEndOfFile = false;
-
-    std::map<size_t, size_t> m_blockToDataOffsets;
+    /** The sum over all decodeBuffer calls. This is used to create the block offset map */
+    size_t m_decodedBytesCount = 0;
 };
 
 
@@ -278,7 +282,7 @@ BZ2Reader::seek( long long int offset,
     /* find offset from map (key and values are sorted, so we can bisect!) */
     const auto blockOffset = std::lower_bound(
         m_blockToDataOffsets.rbegin(), m_blockToDataOffsets.rend(), std::make_pair( 0, offset ),
-        [offset] ( std::pair<size_t, size_t> a, std::pair<size_t, size_t> b ) { return a.second > b.second; } );
+        [] ( std::pair<size_t, size_t> a, std::pair<size_t, size_t> b ) { return a.second > b.second; } );
 
     if ( ( blockOffset == m_blockToDataOffsets.rend() ) || ( static_cast<size_t>( offset ) < blockOffset->second ) ) {
         throw std::runtime_error( "Could not find block to seek to for given offset" );
