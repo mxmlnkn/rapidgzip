@@ -37,14 +37,18 @@ public:
 public:
     explicit
     BitReader( std::string filePath ) :
-        m_file( fopen( filePath.c_str(), "rb" ) )
+        m_file( fopen( filePath.c_str(), "rb" ) ),
+        m_seekable( determineSeekable( fileno() ) ),
+        m_fileSizeBytes( determineFileSize( fileno() ) )
     {
         init();
     }
 
     explicit
     BitReader( int fileDescriptor ) :
-        m_file( fopen( fdFilePath( fileDescriptor ).c_str(), "rb" ) )
+        m_file( fopen( fdFilePath( fileDescriptor ).c_str(), "rb" ) ),
+        m_seekable( determineSeekable( fileno() ) ),
+        m_fileSizeBytes( determineFileSize( fileno() ) )
     {
         init();
     }
@@ -53,8 +57,8 @@ public:
                size_t         size,
                uint8_t        offsetBits = 0 ) :
         m_fileSizeBytes( size ),
-        m_inbuf( buffer, buffer + size ),
-        m_offsetBits( offsetBits )
+        m_offsetBits( offsetBits ),
+        m_inbuf( buffer, buffer + size )
     {
         seek( 0, SEEK_SET ); /* seeks to m_offsetBits under the hood */
     }
@@ -62,8 +66,8 @@ public:
     BitReader( std::vector<uint8_t>&& buffer,
                uint8_t                offsetBits = 0 ) :
         m_fileSizeBytes( buffer.size() ),
-        m_inbuf( std::move( buffer ) ),
-        m_offsetBits( offsetBits )
+        m_offsetBits( offsetBits ),
+        m_inbuf( std::move( buffer ) )
     {
         seek( 0, SEEK_SET ); /* seeks to m_offsetBits under the hood */
     }
@@ -74,7 +78,10 @@ public:
      * Copy constructor opens a new independent file descriptor and pointer.
      */
     BitReader( const BitReader& other ) :
-        m_file( other.m_file == nullptr ? nullptr : fopen( fdFilePath( ::fileno( other.m_file ) ).c_str(), "rb" ) )
+        m_file( other.m_file == nullptr ? nullptr : fopen( fdFilePath( ::fileno( other.m_file ) ).c_str(), "rb" ) ),
+        m_seekable( other.m_seekable ),
+        m_fileSizeBytes( other.m_fileSizeBytes ),
+        m_offsetBits( other.m_offsetBits )
     {
         init();
     }
@@ -179,25 +186,37 @@ public:
     }
 
 private:
+    static size_t
+    determineFileSize( int fileNumber )
+    {
+        struct stat fileStats;
+        fstat( fileNumber, &fileStats );
+        return fileStats.st_size;
+    }
+
+    static size_t
+    determineSeekable( int fileNumber )
+    {
+        struct stat fileStats;
+        fstat( fileNumber, &fileStats );
+        return !S_ISFIFO( fileStats.st_mode );
+    }
+
     void
     init()
     {
-        struct stat fileStats;
-        fstat( fileno(), &fileStats );
-        m_seekable = !S_ISFIFO( fileStats.st_mode );
-        m_fileSizeBytes = fileStats.st_size;
         if ( m_seekable ) {
             fseek( fp(), 0, SEEK_SET );
         }
     }
 
 private:
-    FILE* m_file = nullptr;
-    bool m_seekable = true;
-    size_t m_fileSizeBytes = 0;
+    FILE*         m_file = nullptr;
+    bool    const m_seekable = true;
+    size_t  const m_fileSizeBytes;
+    uint8_t const m_offsetBits = 0; /** ignore the first m_offsetBits in m_inbuf. Only used when initialized with a buffer. */
 
     std::vector<uint8_t> m_inbuf;
-    uint8_t m_offsetBits = 0; /** ignore the first m_offsetBits in m_inbuf. Only used when initialized with a buffer. */
     uint32_t m_inbufPos = 0; /** stores current position of first valid byte in buffer */
     bool m_lastReadSuccessful = true;
 
