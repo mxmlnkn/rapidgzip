@@ -121,6 +121,13 @@ public:
     }
 
 private:
+    template<uint8_t nBits>
+    uint32_t
+    getBits()
+    {
+        return bitReader().read<nBits>();
+    }
+
     uint32_t
     getBits( uint8_t nBits )
     {
@@ -251,7 +258,7 @@ public:
 inline void
 Block::readBlockHeader()
 {
-    magicBytes = ( (uint64_t)getBits( 24 ) << 24 ) | (uint64_t)getBits( 24 );
+    magicBytes = ( (uint64_t)getBits<24>() << 24 ) | (uint64_t)getBits<24>();
     bwdata.headerCRC = getBits( 32 );
     m_atEndOfStream = magicBytes == MAGIC_BITS_EOS;
     if ( m_atEndOfStream ) {
@@ -272,12 +279,12 @@ Block::readBlockHeader()
         throw std::domain_error( msg.str() );
     }
 
-    isRandomized = getBits( 1 );
+    isRandomized = getBits<1>();
     if ( isRandomized ) {
         throw std::domain_error( "[BZip2 block header] deprecated isRandomized bit is not supported" );
     }
 
-    if ( ( bwdata.origPtr = getBits( 24 ) ) > bwdata.dbuf.size() ) {
+    if ( ( bwdata.origPtr = getBits<24>() ) > bwdata.dbuf.size() ) {
         std::stringstream msg;
         msg << "[BZip2 block header] origPtr " << bwdata.origPtr << " is larger than buffer size: " <<
         bwdata.dbuf.size();
@@ -289,11 +296,11 @@ Block::readBlockHeader()
     // symbols to deal with, and writes a sparse bitfield indicating which
     // values were present.  We make a translation table to convert the symbols
     // back to the corresponding bytes.
-    huffman_groups = getBits( 16 );
+    huffman_groups = getBits<16>();
     symbolCount = 0;
     for ( int i = 0; i < 16; i++ ) {
         if ( huffman_groups & ( 1 << ( 15 - i ) ) ) {
-            const auto bitmap = getBits( 16 );
+            const auto bitmap = getBits<16>();
             for ( int j = 0; j < 16; j++ ) {
                 if ( bitmap & ( 1 << ( 15 - j ) ) ) {
                     symbolToByte[symbolCount++] = ( 16 * i ) + j;
@@ -303,7 +310,7 @@ Block::readBlockHeader()
     }
 
     // How many different huffman coding groups does this block use?
-    groupCount = getBits( 3 );
+    groupCount = getBits<3>();
     if ( ( groupCount < 2 ) || ( groupCount > MAX_GROUPS ) ) {
         std::stringstream msg;
         msg << "[BZip2 block header] Invalid Huffman coding group count " << groupCount;
@@ -317,7 +324,7 @@ Block::readBlockHeader()
     // Read in the group selector array, which is stored as MTF encoded
     // bit runs.  (MTF = Move To Front.  Every time a symbol occurs it's moved
     // to the front of the table, so it has a shorter encoding next time.)
-    if ( !( selectors_used = getBits( 15 ) ) ) {
+    if ( !( selectors_used = getBits<15>() ) ) {
         std::stringstream msg;
         msg << "[BZip2 block header] selectors_used " << selectors_used << " is invalid";
         throw std::logic_error( msg.str() );
@@ -327,7 +334,7 @@ Block::readBlockHeader()
     }
     for ( int i = 0; i < selectors_used; i++ ) {
         int j = 0;
-        for ( ; getBits( 1 ); j++ ) {
+        for ( ; getBits<1>(); j++ ) {
             if ( j >= groupCount ) {
                 std::stringstream msg;
                 msg << "[BZip2 block header] Could not find zero termination after " << groupCount << " bits";
@@ -348,7 +355,7 @@ Block::readBlockHeader()
     for ( int j = 0; j < groupCount; j++ ) {
         // Read lengths
         std::array<uint8_t, MAX_SYMBOLS> length;
-        hh = getBits( 5 );
+        hh = getBits<5>();
         for ( unsigned int i = 0; i < symCount; i++ ) {
             while ( true ) {
                 // !hh || hh > MAX_HUFCODE_BITS in one test.
@@ -361,7 +368,7 @@ Block::readBlockHeader()
                 // Grab 2 bits instead of 1 (slightly smaller/faster).  Stop if
                 // first bit is 0, otherwise second bit says whether to
                 // increment or decrement.
-                const auto kk = getBits( 2 );
+                const auto kk = getBits<2>();
                 if ( kk & 2 ) {
                     hh += 1 - ( ( kk & 1 ) << 1 );
                 } else {
@@ -471,7 +478,7 @@ Block::readBlockData()
         jj = getBits( ii );
         while ( ( jj > limit[ii] ) && ( ii <= hufGroup->maxLen ) ) {
             ii++;
-            jj = ( jj << 1 ) | getBits( 1 );
+            jj = ( jj << 1 ) | getBits<1>();
         }
 
         if ( ii > hufGroup->maxLen ) {
