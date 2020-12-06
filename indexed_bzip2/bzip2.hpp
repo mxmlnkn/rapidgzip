@@ -54,6 +54,11 @@ static constexpr int SYMBOL_RUNA = 0;
 static constexpr int SYMBOL_RUNB = 1;
 
 
+constexpr auto MAGIC_BITS_BLOCK = 0x314159265359ULL; /* bcd(pi) */
+constexpr auto MAGIC_BITS_EOS = 0x177245385090ULL; /* bcd(sqrt(pi)) */
+constexpr auto MAGIC_BITS_SIZE = 48;
+
+
 // This is what we know about each huffman coding group
 struct GroupData
 {
@@ -248,7 +253,7 @@ Block::readBlockHeader()
 {
     magicBytes = ( (uint64_t)getBits( 24 ) << 24 ) | (uint64_t)getBits( 24 );
     bwdata.headerCRC = getBits( 32 );
-    m_atEndOfStream = magicBytes == 0x177245385090 /* bcd(sqrt(pi)) */;
+    m_atEndOfStream = magicBytes == MAGIC_BITS_EOS;
     if ( m_atEndOfStream ) {
         /* read byte padding bits */
         const auto nBitsInByte = bitReader().tell() & 7LLU;
@@ -261,7 +266,7 @@ Block::readBlockHeader()
         return;
     }
 
-    if ( magicBytes != 0x314159265359 /* bcd(pi) */ ) {
+    if ( magicBytes != MAGIC_BITS_BLOCK ) {
         std::stringstream msg;
         msg << "[BZip2 block header] invalid compressed magic 0x" << std::hex << magicBytes;
         throw std::domain_error( msg.str() );
