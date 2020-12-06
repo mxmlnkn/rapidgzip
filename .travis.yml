@@ -1,16 +1,18 @@
 language: python
 
 os: linux
+arch:
+  - amd64
+  - ppc64le
+  - arm64
 
 git:
   depth: 3
   quiet: true
 
 python:
+  # Only test oldest supported and newest to reduce CI times
   - 3.5
-  - 3.6
-  - 3.7
-  - 3.8
   - 3.9
 
 before_install:
@@ -38,7 +40,7 @@ env:
 
 jobs:
   include:
-    - name: build-tarball
+    - name: build tarball
       stage: deploy
       script:
         - python3 setup.py sdist
@@ -47,29 +49,52 @@ jobs:
 
     - name: build manylinux1_x86_64
       stage: deploy
-      services:
-        - docker
-      script:
-        - docker run --rm -v "$( pwd ):/project" quay.io/pypa/manylinux1_x86_64 bash /project/manylinux/build-wheels.sh manylinux1_x86_64
-        - twine check dist/*
-        - twine upload --skip-existing -u __token__ dist/*
+      services: docker
+      arch: amd64
+      script: manylinux/deploy-manylinux.sh
 
-    - name: build-manylinux1_i686
+    - name: build manylinux1_i686
       stage: deploy
-      services:
-        - docker
-      script:
-        - docker run --rm -v "$( pwd ):/project" quay.io/pypa/manylinux1_i686 linux32 bash /project/manylinux/build-wheels.sh manylinux1_i686
-        - twine check dist/*
-        - twine upload --skip-existing -u __token__ dist/*
-    - name: build-manylinux2010_x86_64
+      services: docker
+      arch: amd64
+      script: manylinux/deploy-manylinux.sh
+
+    - name: build manylinux2010_x86_64
       stage: deploy
-      services:
-        - docker
-      script:
-        - docker run --rm -v "$( pwd ):/project" quay.io/pypa/manylinux2010_x86_64 bash /project/manylinux/build-wheels.sh manylinux2010_x86_64
-        - twine check dist/*
-        - twine upload --skip-existing -u __token__ dist/*
+      services: docker
+      arch: amd64
+      script: manylinux/deploy-manylinux.sh
+
+    - name: build manylinux2010_i686
+      stage: deploy
+      services: docker
+      arch: amd64
+      script: manylinux/deploy-manylinux.sh
+
+    - name: build manylinux2014_x86_64
+      stage: deploy
+      services: docker
+      arch: amd64
+      script: manylinux/deploy-manylinux.sh
+
+    - name: build manylinux2014_i686
+      stage: deploy
+      services: docker
+      arch: amd64
+      script: manylinux/deploy-manylinux.sh
+
+    - name: build manylinux2014_ppc64le
+      stage: deploy
+      services: docker
+      arch: ppc64le
+      script: manylinux/deploy-manylinux.sh
+
+    - name: build manylinux2014_aarch64
+      stage: deploy
+      services: docker
+      arch: arm64
+      script: manylinux/deploy-manylinux.sh
+
 
 stages:
   - name: test

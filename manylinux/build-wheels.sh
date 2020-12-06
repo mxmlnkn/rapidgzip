@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
+# This script is to be run inside the manylinux containers
+
 set -e -x
 
-PLATFORM=$1
+PLATFORM=$1 # E.g., manylinux2010_x86_64, manylinux1_x86_64, ...
 
 # Compile wheels
 for PYBIN in /opt/python/*3*/bin; do
