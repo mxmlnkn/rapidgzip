@@ -24,6 +24,16 @@ public:
     static constexpr int NO_FILE = -1;
 
 public:
+    /** dup is not strong enough to be able to independently seek in the old and the dup'ed fd! */
+    static std::string
+    fdFilePath( int fileDescriptor )
+    {
+        std::stringstream filename;
+        filename << "/proc/self/fd/" << fileDescriptor;
+        return filename.str();
+    }
+
+public:
     explicit
     BitReader( std::string filePath ) :
         m_file( fopen( filePath.c_str(), "rb" ) )
@@ -33,7 +43,7 @@ public:
 
     explicit
     BitReader( int fileDescriptor ) :
-        m_file( fdopen( dup( fileDescriptor ), "rb" ) )
+        m_file( fopen( fdFilePath( fileDescriptor ).c_str(), "rb" ) )
     {
         init();
     }
@@ -50,8 +60,10 @@ public:
      * Copy constructor opens a new independent file descriptor and pointer.
      */
     BitReader( const BitReader& other ) :
-        m_file( other.m_file == nullptr ? nullptr : fdopen( dup( ::fileno( other.m_file ) ), "rb" ) )
-    {}
+        m_file( other.m_file == nullptr ? nullptr : fopen( fdFilePath( ::fileno( other.m_file ) ).c_str(), "rb" ) )
+    {
+        init();
+    }
 
     /**
      * Reassignment would have to close the old file and open a new.
