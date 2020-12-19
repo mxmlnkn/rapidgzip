@@ -1,6 +1,9 @@
+#CPP=g++
+#CFLAGS=-I ../indexed_bzip2 -I ../external/cxxopts/include -std=c++17 -Wall -Wextra -Wshadow -Wsuggest-override -g
+#CFLAGS=-I ../indexed_bzip2 -I ../external/cxxopts/include -std=c++17 -Wall -Wextra -Wshadow -Wsuggest-override -O3 -DNDEBUGCPP=clang++
 CPP=clang++
-CFLAGS=-I ../indexed_bzip2 -std=c++17 -Wall -Wextra -Wshadow -Wsuggest-override -g
-CFLAGS=-I ../indexed_bzip2 -std=c++17 -Wall -Wextra -Wshadow -Wsuggest-override -O3 -DNDEBUG
+CFLAGS=-I ../indexed_bzip2 -I ../external/cxxopts/include -std=c++17 -Wall -Wextra -Wshadow -g
+CFLAGS=-I ../indexed_bzip2 -I ../external/cxxopts/include -std=c++17 -Wall -Wextra -Wshadow -O3 -DNDEBUG
 LFLAGS=-pthread
 
 all: bzcat blockfinder bitpatternstats
@@ -31,5 +34,9 @@ blockfinder.o: blockfinder.cpp \
 bitpatternstats: bitpatternstats.o
 	$(CPP) $(LFLAGS) $^ -o $@
 
-bitpatternstats.o: bitpatternstats.cpp ../indexed_bzip2/BitReader.hpp ../indexed_bzip2/common.hpp Makefile
+bitpatternstats.o: bitpatternstats.cpp \
+				   ../indexed_bzip2/BitReader.hpp \
+				   ../indexed_bzip2/common.hpp \
+				   ../external/cxxopts/include/cxxopts.hpp \
+				   Makefile
 	$(CPP) $(CFLAGS) -c $< -o $@

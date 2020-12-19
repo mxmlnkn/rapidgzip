@@ -1,0 +1,62 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-16.04
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Build manylinux1_x86_64
+      uses: docker://quay.io/pypa/manylinux1_x86_64
+      with:
+        entrypoint: bash
+        args: manylinux/build-wheels.sh manylinux1_x86_64
+    - name: Build manylinux2010_x86_64
+      uses: docker://quay.io/pypa/manylinux2010_x86_64
+      with:
+        entrypoint: bash
+        args: manylinux/build-wheels.sh manylinux2010_x86_64
+    - name: Build manylinux2014_x86_64
+      uses: docker://quay.io/pypa/manylinux2014_x86_64
+      with:
+        entrypoint: bash
+        args: manylinux/build-wheels.sh manylinux2014_x86_64
+    - name: Build manylinux1_i686
+      uses: docker://quay.io/pypa/manylinux1_i686
+      with:
+        entrypoint: bash
+        args: manylinux/build-wheels.sh manylinux1_i686
+    - name: Build manylinux2010_i686
+      uses: docker://quay.io/pypa/manylinux2010_i686
+      with:
+        entrypoint: bash
+        args: manylinux/build-wheels.sh manylinux2010_i686
+    - name: Build manylinux2014_i686
+      uses: docker://quay.io/pypa/manylinux2014_i686
+      with:
+        entrypoint: bash
+        args: manylinux/build-wheels.sh manylinux2014_i686
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.9
+    - name: Install Dependencies
+      run: |
+        python3 -m pip install --upgrade pip
+        python3 -m pip install --upgrade-strategy eager --upgrade setuptools twine
+
+    - name: Build Tarball
+      run: python setup.py sdist
+
+    - name: Check Wheels
+      run: twine check dist/*
+
+    - name: Publish to PyPI
+      env:
+        TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+      run: twine upload --skip-existing -u __token__ dist/*

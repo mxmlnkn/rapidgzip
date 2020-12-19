@@ -1,0 +1,60 @@
+name: tests
+
+on: [push, pull_request]
+
+jobs:
+
+  build:
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        # Oldest and newest versions should be enough. Python versions are supported 5 years from release date.
+        # 3.5 was released 2015-09-13 and end-of-life was 2020-09-13
+        # 3.6 was released 2016-12-23 and end-of-life will be 2021-12-23
+        # 3.7 was released 2018-06-27 and end-of-life will be 2023-06-27
+        # 3.8 was released 2019-10-14 and end-of-life will be 2024-10-14
+        # 3.9 was released 2020-10-05 and end-of-life will be 2025-10-25
+        # 3.10 is to be released 2021-10-25
+        python-version: ['3.6', '3.9']
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install Dependencies
+      run: |
+        sudo apt-get -y install bzip2 pbzip2 lbzip2 cppcheck # necessary for tests
+        python3 -m pip install --upgrade pip
+        python3 -m pip install --upgrade-strategy eager --upgrade cython twine numpy
+    - name: Check committed Cython source
+      run: |
+        test indexed_bzip2/indexed_bzip2.cpp -nt indexed_bzip2/indexed_bzip2.pyx ||
+        echo -e '\e[31mPlease trigger a rebuild of indexed_bzip2.pyx using "python3 setup.py build_ext --inplace --cython" and commit the new file\e[0m'
+        python3 setup.py build_ext --inplace --cython
+    - name: Test Installation From Tarball
+      run: |
+        python3 setup.py sdist
+        twine check dist/*
+        python3 -m pip install dist/*.tar.gz
+    - name: Run cppcheck
+      run: |
+        set -o pipefail
+        cppcheck --enable=all --std=c++17 --suppress=unusedFunction --suppress=useStlAlgorithm -I indexed_bzip2 tests/ indexed_bzip2/*hpp 2>&1 | tee cppcheck.log
+        if grep -E -i '(style:|warning:|error:) .* \[[^]]*\]$' *.log; then
+            echo -e '\e[31mThere were errors while running cppcheck!\e[0m'
+            exit 1
+        fi
+    - name: Run Unit Tests
+      run: |
+        cd tests
+        make 2>&1 | tee run-tests.log
+        if grep -e -i '(warn|err|fail)' *.log; then
+            echo -e '\e[31mThere were errors while running the tests!\e[0m'
+            exit 1
+        fi
+    - name: Test BZip2 Decoder
+      run: python3 testBz2.py

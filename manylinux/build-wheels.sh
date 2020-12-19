@@ -14,14 +14,14 @@ for PYBIN in /opt/python/*3*/bin; do
     #             to "manylinux1_x86_64" ABI because of the presence of too-recent versioned symbols.
     #             You'll need to compile the wheel on an older toolchain.
     buildFolder=$( mktemp -d )
-    cd /project
     git worktree add "$buildFolder"
+    projectFolder=$( pwd )
     cd -- "$buildFolder"
 
     "${PYBIN}/pip" wheel .  # Compile C++ source code and make wheels
     for wheel in *.whl; do
         # Bundle external shared libraries into the wheels
-        auditwheel repair "$wheel" --plat $PLATFORM -w /project/dist/
+        auditwheel -v repair "$wheel" --plat $PLATFORM -w "$projectFolder/dist/"
     done
 
     cd -
