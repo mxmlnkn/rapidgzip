@@ -47,10 +47,10 @@ int main( int argc, char** argv )
     std::cerr << "Calculated CRC : 0x" << std::hex << reader.crc() << std::dec << "\n";
     std::cerr << "Stream size    : " << nBytesWrittenTotal << " B\n";
     std::cerr << "Block offsets  :\n";
-    for ( auto it = offsets.begin(); it != offsets.end(); ++it ) {
-        bitreader.seek( it->first );
+    for ( auto it : offsets ) {
+        bitreader.seek( static_cast<ssize_t>( it.first ) );
         std::cerr
-        << it->first / 8 << " B " << it->first % 8 << " b : "  << it->second / 8 << " B " << " -> magic bytes: 0x"
+        << it.first / 8 << " B " << it.first % 8 << " b : "  << it.second / 8 << " B " << " -> magic bytes: 0x"
         << std::hex << bitreader.read( 32 ) << std::dec << "\n";
     }
 

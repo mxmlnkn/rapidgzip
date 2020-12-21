@@ -273,7 +273,8 @@ countBitPatterns( const std::string& filePath,
     size_t mask = 0;
     if ( patternLength > sizeof( mask ) * CHAR_BIT ) {
         throw std::invalid_argument( "Pattern to search for longer than buffer data type!" );
-    } else if ( patternLength == sizeof( mask ) * CHAR_BIT ) {
+    }
+    if ( patternLength == sizeof( mask ) * CHAR_BIT ) {
         mask = std::numeric_limits<size_t>::max();
     } else {
         mask = ( 1ULL << patternLength ) - 1ULL;

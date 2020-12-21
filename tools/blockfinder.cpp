@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -98,8 +99,8 @@ createdShiftedBitStringLUTArray( uint64_t bitString )
     uint64_t shiftedBitMask = std::numeric_limits<uint64_t>::max() >> nWildcardBits;
     for ( size_t i = 0; i < nWildcardBits; ++i ) {
         shiftedBitStrings[i] = std::make_pair( shiftedBitString, shiftedBitMask );
-        shiftedBitString <<= 1;
-        shiftedBitMask   <<= 1;
+        shiftedBitString <<= 1U;
+        shiftedBitMask   <<= 1U;
     }
 
     return shiftedBitStrings;
@@ -111,7 +112,7 @@ createdShiftedBitStringLUT( uint64_t bitString,
                             uint8_t  bitStringSize,
                             bool     includeLastFullyShifted = false )
 {
-    const auto nWildcardBits = sizeof( uint64_t ) * CHAR_BIT - bitStringSize + includeLastFullyShifted;
+    const auto nWildcardBits = sizeof( uint64_t ) * CHAR_BIT - bitStringSize + ( includeLastFullyShifted ? 1 : 0 );
     using ShiftedLUTTable = std::vector<std::pair</* shifted value to compare to */ uint64_t, /* mask */ uint64_t> >;
     ShiftedLUTTable shiftedBitStrings( nWildcardBits );
 
@@ -119,8 +120,8 @@ createdShiftedBitStringLUT( uint64_t bitString,
     uint64_t shiftedBitMask = std::numeric_limits<uint64_t>::max() >> nWildcardBits;
     for ( size_t i = 0; i < shiftedBitStrings.size(); ++i ) {
         shiftedBitStrings[shiftedBitStrings.size() - 1 - i] = std::make_pair( shiftedBitString, shiftedBitMask );
-        shiftedBitString <<= 1;
-        shiftedBitMask   <<= 1;
+        shiftedBitString <<= 1U;
+        shiftedBitMask   <<= 1U;
         assert( ( shiftedBitString & shiftedBitMask ) == shiftedBitString );
     }
 
@@ -188,7 +189,7 @@ findBitString( const uint8_t* buffer,
     uint64_t window = 0;
     size_t i = 0;
     for ( ; i < std::min( sizeof( uint64_t ), bufferSize ); ++i ) {
-        window = ( window << CHAR_BIT ) | buffer[i];
+        window = ( window << static_cast<uint8_t>( CHAR_BIT ) ) | buffer[i];
     }
 
     {
@@ -196,7 +197,7 @@ findBitString( const uint8_t* buffer,
         for ( const auto& [shifted, mask] : shiftedBitStrings ) {
             if ( ( window & mask ) == shifted ) {
                 const auto foundBitOffset = i * CHAR_BIT - bitStringSize - ( shiftedBitStrings.size() - 1 - k );
-                if ( ( foundBitOffset >= firstBitsToIgnore ) && ( foundBitOffset < bufferSize * 8 ) ) {
+                if ( ( foundBitOffset >= firstBitsToIgnore ) && ( foundBitOffset < bufferSize * CHAR_BIT ) ) {
                     return foundBitOffset - firstBitsToIgnore;
                 }
             }
@@ -206,52 +207,52 @@ findBitString( const uint8_t* buffer,
 
     for ( ; i < bufferSize; ) {
         for ( size_t j = 0; ( j < nBytesToLoadPerIteration ) && ( i < bufferSize ); ++j, ++i ) {
-            window = ( window << CHAR_BIT ) | buffer[i];
+            window = ( window << static_cast<uint8_t>( CHAR_BIT ) ) | buffer[i];
         }
 
         /* use pre-shifted search bit string values and masks to test for the search string in the larger window */
-        #define LOOP_METHOD 0
-        #if LOOP_METHOD == 0
-        /* AMD Ryzen 9 3900X clang++ 10.0.0-4ubuntu1       -O3 -DNDEBUG               : 1.7s */
-        /* AMD Ryzen 9 3900X clang++ 10.0.0-4ubuntu1       -O3 -DNDEBUG -march=native : 1.8s */
-        /* AMD Ryzen 9 3900X g++     10.2.0-5ubuntu1~20.04 -O3 -DNDEBUG               : 2.8s */
-        /* AMD Ryzen 9 3900X g++     10.2.0-5ubuntu1~20.04 -O3 -DNDEBUG -march=native : 3.0s */
-        size_t k = 0;
-        for ( const auto& [shifted, mask] : shiftedBitStrings ) {
-            if ( ( window & mask ) == shifted ) {
-                return i * CHAR_BIT - bitStringSize - ( shiftedBitStrings.size() - 1 - k );
+        static constexpr int LOOP_METHOD = 0;
+        if constexpr ( LOOP_METHOD == 0 ) {
+            /* AMD Ryzen 9 3900X clang++ 10.0.0-4ubuntu1       -O3 -DNDEBUG               : 1.7s */
+            /* AMD Ryzen 9 3900X clang++ 10.0.0-4ubuntu1       -O3 -DNDEBUG -march=native : 1.8s */
+            /* AMD Ryzen 9 3900X g++     10.2.0-5ubuntu1~20.04 -O3 -DNDEBUG               : 2.8s */
+            /* AMD Ryzen 9 3900X g++     10.2.0-5ubuntu1~20.04 -O3 -DNDEBUG -march=native : 3.0s */
+            size_t k = 0;
+            for ( const auto& [shifted, mask] : shiftedBitStrings ) {
+                if ( ( window & mask ) == shifted ) {
+                    return i * CHAR_BIT - bitStringSize - ( shiftedBitStrings.size() - 1 - k );
+                }
+                ++k;
             }
-            ++k;
-        }
-        #elif LOOP_METHOD == 1
-        /* AMD Ryzen 9 3900X clang++ 10.0.0-4ubuntu1       -O3 -DNDEBUG: 2.0s */
-        /* AMD Ryzen 9 3900X g++     10.2.0-5ubuntu1~20.04 -O3 -DNDEBUG: 3.3s */
-        for ( size_t k = 0; k < shiftedBitStrings.size(); ++k ) {
-            const auto& [shifted, mask] = shiftedBitStrings[k];
-            if ( ( window & mask ) == shifted ) {
-                return ( i + j ) * CHAR_BIT - bitStringSize - k;
+        } else if constexpr ( LOOP_METHOD == 1 ) {
+            /* AMD Ryzen 9 3900X clang++ 10.0.0-4ubuntu1       -O3 -DNDEBUG: 2.0s */
+            /* AMD Ryzen 9 3900X g++     10.2.0-5ubuntu1~20.04 -O3 -DNDEBUG: 3.3s */
+            for ( size_t k = 0; k < shiftedBitStrings.size(); ++k ) {
+                const auto& [shifted, mask] = shiftedBitStrings[k];
+                if ( ( window & mask ) == shifted ) {
+                    return i * CHAR_BIT - bitStringSize - k;
+                }
+            }
+        } else if constexpr ( LOOP_METHOD == 2 ) {
+            /* AMD Ryzen 9 3900X clang++ 10.0.0-4ubuntu1       -O3 -DNDEBUG               : 2.0s */
+            /* AMD Ryzen 9 3900X clang++ 10.0.0-4ubuntu1       -O3 -DNDEBUG -march=native : 2.1s */
+            /* AMD Ryzen 9 3900X g++     10.2.0-5ubuntu1~20.04 -O3 -DNDEBUG               : 3.3s */
+            /* AMD Ryzen 9 3900X g++     10.2.0-5ubuntu1~20.04 -O3 -DNDEBUG -march=native : 3.6s */
+            for ( size_t k = 0; k < shiftedBitStrings.size(); ++k ) {
+                if ( ( window & shiftedBitStrings[k].second ) == shiftedBitStrings[k].first ) {
+                    return i * CHAR_BIT - bitStringSize - k;
+                }
+            }
+        } else if constexpr ( LOOP_METHOD == 3 ) {
+            /* AMD Ryzen 9 3900X clang++ 10.0.0-4ubuntu1 -O3 -DNDEBUG : 2.0s */
+            const auto match = std::find_if(
+                shiftedBitStrings.begin(), shiftedBitStrings.end(),
+                [window] ( const auto& pair ) { return ( window & pair.second ) == pair.first; }
+            );
+            if ( match != shiftedBitStrings.end() ) {
+                return i * CHAR_BIT - bitStringSize - ( match - shiftedBitStrings.begin() );
             }
         }
-        #elif LOOP_METHOD == 2
-        /* AMD Ryzen 9 3900X clang++ 10.0.0-4ubuntu1       -O3 -DNDEBUG               : 2.0s */
-        /* AMD Ryzen 9 3900X clang++ 10.0.0-4ubuntu1       -O3 -DNDEBUG -march=native : 2.1s */
-        /* AMD Ryzen 9 3900X g++     10.2.0-5ubuntu1~20.04 -O3 -DNDEBUG               : 3.3s */
-        /* AMD Ryzen 9 3900X g++     10.2.0-5ubuntu1~20.04 -O3 -DNDEBUG -march=native : 3.6s */
-        for ( size_t k = 0; k < shiftedBitStrings.size(); ++k ) {
-            if ( ( window & shiftedBitStrings[k].second ) == shiftedBitStrings[k].first ) {
-                return ( i + j ) * CHAR_BIT - bitStringSize - k;
-            }
-        }
-        #elif LOOP_METHOD == 3
-        /* AMD Ryzen 9 3900X clang++ 10.0.0-4ubuntu1 -O3 -DNDEBUG : 2.0s */
-        const auto match = std::find_if(
-            shiftedBitStrings.begin(), shiftedBitStrings.end(),
-            [window] ( const auto& pair ) { return ( window & pair.second ) == pair.first; }
-        );
-        if ( match != shiftedBitStrings.end() ) {
-            return ( i + j ) * CHAR_BIT - bitStringSize - ( match - shiftedBitStrings.begin() );
-        }
-        #endif
     }
 
     return std::numeric_limits<size_t>::max();
@@ -279,7 +280,7 @@ findBitStringNonTemplated( const uint8_t* buffer,
     uint64_t window = 0;
     size_t i = 0;
     for ( ; i < std::min( sizeof( uint64_t ), bufferSize ); ++i ) {
-        window = ( window << CHAR_BIT ) | buffer[i];
+        window = ( window << static_cast<uint8_t>( CHAR_BIT ) ) | buffer[i];
     }
 
     {
@@ -297,7 +298,7 @@ findBitStringNonTemplated( const uint8_t* buffer,
 
     for ( ; i < bufferSize; ) {
         for ( size_t j = 0; ( j < nBytesToLoadPerIteration ) && ( i < bufferSize ); ++j, ++i ) {
-            window = ( window << CHAR_BIT ) | buffer[i];
+            window = ( window << static_cast<uint8_t>( CHAR_BIT ) ) | buffer[i];
         }
 
         size_t k = 0;
@@ -327,8 +328,8 @@ createdShiftedBitStringLUTArrayTemplated()
     uint64_t shiftedBitMask = std::numeric_limits<uint64_t>::max() >> nWildcardBits;
     for ( size_t i = 0; i < nWildcardBits; ++i ) {
         shiftedBitStrings[i] = std::make_pair( shiftedBitString, shiftedBitMask );
-        shiftedBitString <<= 1;
-        shiftedBitMask   <<= 1;
+        shiftedBitString <<= 1U;
+        shiftedBitMask   <<= 1U;
     }
 
     return shiftedBitStrings;
@@ -379,7 +380,7 @@ findBitStringBitStringTemplated( const uint8_t* buffer,
     uint64_t window = 0;
     size_t i = 0;
     for ( ; i < std::min( sizeof( uint64_t ), bufferSize ); ++i ) {
-        window = ( window << CHAR_BIT ) | buffer[i];
+        window = ( window << static_cast<uint8_t>( CHAR_BIT ) ) | buffer[i];
     }
 
     {
@@ -397,7 +398,7 @@ findBitStringBitStringTemplated( const uint8_t* buffer,
 
     for ( ; i < bufferSize; ) {
         for ( size_t j = 0; ( j < nBytesToLoadPerIteration ) && ( i < bufferSize ); ++j, ++i ) {
-            window = ( window << CHAR_BIT ) | buffer[i];
+            window = ( window << static_cast<uint8_t>( CHAR_BIT ) ) | buffer[i];
         }
 
         size_t k = 0;
@@ -413,13 +414,23 @@ findBitStringBitStringTemplated( const uint8_t* buffer,
 }
 
 
+using unique_file_ptr = std::unique_ptr<FILE, std::function<void( FILE* )> >;
+
+[[nodiscard]] unique_file_ptr
+make_unique_file_ptr( char const* const filePath,
+                      char const* const mode )
+{
+    return unique_file_ptr( fopen( filePath, mode ), []( FILE* file ){ fclose( file ); } ); // NOLINT
+}
+
 /** I think this version isn't even correct because magic bytes across buffer boundaries will be overlooked! */
 std::vector<size_t>
 findBitStrings( const std::string& filename )
 {
     std::vector<size_t> blockOffsets;
 
-    FILE* file = fopen( filename.c_str(), "rb" );
+    auto ufile = make_unique_file_ptr( filename.c_str(), "rb" );
+    auto* const file = ufile.get();
     const auto movingBytesToKeep = ceilDiv( bitStringToFindSize, CHAR_BIT ); // 6
     std::vector<char> buffer( 2 * 1024 * 1024 + movingBytesToKeep ); // for performance testing
     //std::vector<char> buffer( 53 ); // for bug testing with bit strings accross buffer boundaries
@@ -441,40 +452,39 @@ findBitStrings( const std::string& filename )
         for ( size_t bitpos = 0; bitpos < nBytesRead * CHAR_BIT; ) {
             const auto byteOffset = bitpos / CHAR_BIT; // round down because we can't give bit precision
 
-            #define FIND_BITSTRING_VERSION 3
-            #if FIND_BITSTRING_VERSION == 0
-
-            /* 1.85s */
-            const auto relpos = findBitString<bitStringToFindSize>( reinterpret_cast<const uint8_t*>( buffer.data() )
-                                                                    + byteOffset,
-                                                                    buffer.size() - byteOffset,
-                                                                    bitStringToFind );
-
-            #elif FIND_BITSTRING_VERSION == 1
-
-            /* 2.05s */
-            const auto relpos = findBitStringBitStringTemplated<bitStringToFind, bitStringToFindSize>(
-                reinterpret_cast<const uint8_t*>( buffer.data() ) + byteOffset,
-                buffer.size() - byteOffset
-            );
-
-            #elif FIND_BITSTRING_VERSION == 2
-
-            /* 3.45s */
-            const auto relpos = findBitStringNonTemplated( reinterpret_cast<const uint8_t*>( buffer.data() )
-                                                           + byteOffset,
-                                                           buffer.size() - byteOffset,
-                                                           bitStringToFind,
-                                                           bitStringToFindSize );
-            #elif FIND_BITSTRING_VERSION == 3
-
-            /* Should normally be one of the above implementations! */
-            const auto relpos = BitStringFinder<bitStringToFindSize>::findBitString(
-                reinterpret_cast<const uint8_t*>( buffer.data() ) + byteOffset,
-                buffer.size() - byteOffset,
-                bitStringToFind );
-
-            #endif
+            size_t relpos = 0;
+            static constexpr int FIND_BITSTRING_VERSION = 3;
+            if constexpr ( FIND_BITSTRING_VERSION == 0 ) {
+                /* 1.85s */
+                relpos = findBitString<bitStringToFindSize>(
+                    reinterpret_cast<const uint8_t*>( buffer.data() )
+                    + byteOffset,
+                    buffer.size() - byteOffset,
+                    bitStringToFind
+                );
+            } else if constexpr ( FIND_BITSTRING_VERSION == 1 ) {
+                /* 2.05s */
+                relpos = findBitStringBitStringTemplated<bitStringToFind, bitStringToFindSize>(
+                    reinterpret_cast<const uint8_t*>( buffer.data() ) + byteOffset,
+                    buffer.size() - byteOffset
+                );
+            } else if constexpr ( FIND_BITSTRING_VERSION == 2 ) {
+                /* 3.45s */
+                relpos = findBitStringNonTemplated(
+                    reinterpret_cast<const uint8_t*>( buffer.data() )
+                    + byteOffset,
+                    buffer.size() - byteOffset,
+                    bitStringToFind,
+                    bitStringToFindSize
+                );
+            } else if constexpr ( FIND_BITSTRING_VERSION == 3 ) {
+                /* Should normally be one of the above implementations! */
+                relpos = BitStringFinder<bitStringToFindSize>::findBitString(
+                    reinterpret_cast<const uint8_t*>( buffer.data() ) + byteOffset,
+                    buffer.size() - byteOffset,
+                    bitStringToFind
+                );
+            }
 
             if ( relpos == std::numeric_limits<size_t>::max() ) {
                 break;
@@ -504,7 +514,7 @@ findBitStrings2( const std::string& filename )
 
     uint64_t bytes = bitReader.read( bitStringToFindSize - 1 );
     while ( true ) {
-        bytes = ( ( bytes << 1 ) | bitReader.read( 1 ) ) & 0xFFFFFFFFFFFF;
+        bytes = ( ( bytes << 1U ) | bitReader.read( 1 ) ) & 0xFFFF'FFFF'FFFFULL;
         if ( bitReader.eof() ) {
             break;
         }
@@ -523,7 +533,8 @@ findBitStrings3( const std::string& filename )
 {
     std::vector<size_t> blockOffsets;
 
-    FILE* file = fopen( filename.c_str(), "rb" );
+    auto ufile = make_unique_file_ptr( filename.c_str(), "rb" );
+    auto* const file = ufile.get();
     std::vector<char> buffer( 2 * 1024 * 1024 );
     size_t nTotalBytesRead = 0;
     uint64_t window = 0;
@@ -536,8 +547,11 @@ findBitStrings3( const std::string& filename )
         for ( size_t i = 0; i < nBytesRead; ++i ) {
             const auto byte = static_cast<uint8_t>( buffer[i] );
             for ( int j = 0; j < CHAR_BIT; ++j ) {
-                const auto bit = ( byte >> ( CHAR_BIT - 1 - j ) ) & 1U;
-                window <<= 1;
+                const auto nthBitMask = static_cast<uint8_t>( CHAR_BIT - 1 - j );
+                /* Beware! Shift operator casts uint8_t input to int.
+                 * @see https://en.cppreference.com/w/cpp/language/operator_arithmetic#Conversions */
+                const auto bit = static_cast<uint8_t>( byte >> nthBitMask ) & 1U;
+                window <<= 1U;
                 window |= bit;
                 if ( ( nTotalBytesRead + i ) * CHAR_BIT + j < bitStringToFindSize ) {
                     continue;
@@ -671,7 +685,8 @@ int main( int argc, char** argv )
                 const auto bitsToRead = bitStringToFindSize - bitsRead < maxReadSize
                                         ? bitStringToFindSize - bitsRead
                                         : maxReadSize;
-                magicBytes <<= bitsToRead;
+                assert( bitsToRead >= 0 );
+                magicBytes <<= static_cast<uint8_t>( bitsToRead );
                 magicBytes |= static_cast<uint64_t>( bitReader.read( bitsToRead ) );
             }
 

@@ -3,6 +3,7 @@
 #include <iostream>
 #include <vector>
 
+#include <common.hpp>
 #include <ThreadPool.hpp>
 
 
@@ -20,12 +21,12 @@ testThreadPool( unsigned int nThreads,
     const auto t0 = std::chrono::high_resolution_clock::now();
 
     const auto secondsToWait = 0.01;
-    std::vector<std::future<int> > checksums;
+    std::vector<std::future<unsigned int> > checksums;
     for ( unsigned int i = 0; i < nTasks; ++i ) {
         checksums.emplace_back( threadPool.submitTask(
             [i, secondsToWait] () {
                 std::this_thread::sleep_for( std::chrono::milliseconds( int( secondsToWait * 1000 ) ) );
-                return 1 << i;
+                return 1U << i;
             }
         ) );
     }
@@ -34,15 +35,16 @@ testThreadPool( unsigned int nThreads,
         std::cout << "Checksum: " << checksum.get() << "\n";
     }
     const auto t1 = std::chrono::high_resolution_clock::now();
-    const auto duration = std::chrono::duration<double>( t1 - t0 ).count();
-    const auto durationPredicted = secondsToWait * ( ( nTasks + nThreads - 1 ) / nThreads );
+    const auto durationMeasured = std::chrono::duration<double>( t1 - t0 ).count();
+    const auto durationPredicted = secondsToWait * ceilDiv( nTasks, nThreads );
 
-    std::cerr << "Checksums with thread pool took " << duration << "s (predicted: " << durationPredicted << "s)\n";
-    assert( ( duration - durationPredicted ) / durationPredicted < 0.1 );
+    std::cerr << "Checksums with thread pool took " << durationMeasured << "s "
+              << "(predicted: " << durationPredicted << "s)\n";
+    assert( ( durationMeasured - durationPredicted ) / durationPredicted < 0.1 );
 }
 
 
-int main( void )
+int main()
 {
     testThreadPool( 1, 1 );
     testThreadPool( 1, 2 );

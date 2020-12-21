@@ -6,9 +6,11 @@
 
 #include <cassert>
 #include <cstddef>
+#include <limits>
 #include <stdexcept>
 #include <sstream>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include <unistd.h>
@@ -38,8 +40,8 @@ public:
     explicit
     BitReader( const std::string& filePath ) :
         m_file( fopen( filePath.c_str(), "rb" ) ),
-        m_seekable( determineSeekable( fileno() ) ),
-        m_fileSizeBytes( determineFileSize( fileno() ) )
+        m_seekable( determineSeekable( ::fileno( m_file ) ) ),
+        m_fileSizeBytes( determineFileSize( ::fileno( m_file ) ) )
     {
         init();
     }
@@ -47,8 +49,8 @@ public:
     explicit
     BitReader( int fileDescriptor ) :
         m_file( fopen( fdFilePath( fileDescriptor ).c_str(), "rb" ) ),
-        m_seekable( determineSeekable( fileno() ) ),
-        m_fileSizeBytes( determineFileSize( fileno() ) )
+        m_seekable( determineSeekable( ::fileno( m_file ) ) ),
+        m_fileSizeBytes( determineFileSize( ::fileno( m_file ) ) )
     {
         init();
     }
@@ -143,7 +145,7 @@ public:
         if ( bitsWanted <= m_inbufBitCount ) {
             m_readBitsCount += bitsWanted;
             m_inbufBitCount -= bitsWanted;
-            return ( m_inbufBits >> m_inbufBitCount ) & ( ( decltype( m_inbufBits )( 1 ) << bitsWanted ) - 1U );
+            return ( m_inbufBits >> m_inbufBitCount ) & nLowestBitsSet<decltype( m_inbufBits )>( bitsWanted );
         }
         return readSafe( bitsWanted );
     }
@@ -253,6 +255,24 @@ private:
         m_inbufPos = 0;
     }
 
+    template<typename T>
+    static T
+    nLowestBitsSet( uint8_t nBitsSet )
+    {
+        static_assert( std::is_unsigned<T>::value, "Type must be signed!" );
+        const auto nZeroBits = std::max( 0, std::numeric_limits<T>::digits - nBitsSet );
+        return ~T(0) >> nZeroBits;
+    }
+
+    template<typename T, uint8_t nBitsSet>
+    static T
+    nLowestBitsSet()
+    {
+        static_assert( std::is_unsigned<T>::value, "Type must be signed!" );
+        const auto nZeroBits = std::max( 0, std::numeric_limits<T>::digits - nBitsSet );
+        return ~T(0) >> nZeroBits;
+    }
+
 private:
     FILE*         m_file = nullptr;
     bool    const m_seekable;
@@ -283,7 +303,7 @@ BitReader::read( const uint8_t bitsWanted )
     if ( bitsWanted <= m_inbufBitCount ) {
         m_readBitsCount += bitsWanted;
         m_inbufBitCount -= bitsWanted;
-        return ( m_inbufBits >> m_inbufBitCount ) & ( ( decltype( m_inbufBits )( 1 ) << bitsWanted ) - 1U );
+        return ( m_inbufBits >> m_inbufBitCount ) & nLowestBitsSet<decltype( m_inbufBits )>( bitsWanted );
     }
     return readSafe( bitsWanted );
 }
@@ -308,7 +328,7 @@ BitReader::readSafe( const uint8_t bitsWanted )
 
         // Avoid 32-bit overflow (dump bit buffer to top of output)
         if ( m_inbufBitCount >= sizeof( m_inbufBits ) * CHAR_BIT - CHAR_BIT ) {
-            bits = m_inbufBits & ( ( decltype( m_inbufBits )( 1 ) << m_inbufBitCount ) - 1U );
+            bits = m_inbufBits & nLowestBitsSet<decltype( m_inbufBits )>( m_inbufBitCount );
             bitsNeeded -= m_inbufBitCount;
             bits <<= bitsNeeded;
             m_inbufBitCount = 0;
@@ -321,7 +341,7 @@ BitReader::readSafe( const uint8_t bitsWanted )
 
     // Calculate result
     m_inbufBitCount -= bitsNeeded;
-    bits |= ( m_inbufBits >> m_inbufBitCount ) & ( ( decltype( m_inbufBits )( 1 ) << bitsNeeded ) - 1U );
+    bits |= ( m_inbufBits >> m_inbufBitCount ) & nLowestBitsSet<decltype( m_inbufBits )>( bitsNeeded );
     assert( bits == ( bits & ( ~decltype( m_inbufBits )( 0 ) >> ( sizeof( m_inbufBits ) * CHAR_BIT - bitsWanted ) ) ) );
     return bits;
 }
