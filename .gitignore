@@ -94,3 +94,4 @@ venv.bak/
 *.log
 *.diff
 *.txt
+!CMakeLists.txt

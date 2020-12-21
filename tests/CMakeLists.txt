@@ -1,0 +1,11 @@
+add_executable(testBitStringFinder)
+target_sources(testBitStringFinder PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testBitStringFinder.cpp)
+target_link_libraries(testBitStringFinder PRIVATE indexed_bzip2_parallel)
+add_test(NAME "Test Bit String Finder" COMMAND testBitStringFinder)
+add_dependencies(check testBitStringFinder)
+
+add_executable(testThreadPool)
+target_sources(testThreadPool PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testThreadPool.cpp)
+target_link_libraries(testThreadPool PRIVATE indexed_bzip2_parallel)
+add_test(NAME "Test Thread Pool" COMMAND testThreadPool)
+add_dependencies(check testThreadPool)
