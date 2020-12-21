@@ -143,4 +143,4 @@ class IndexedBzip2File(io.BufferedReader):
         # by BufferedReader or more specifically _BufferedIOMixin
         super().__init__(fobj, buffer_size=1024**2)
 
-__version__ = '1.1.3'
+__version__ = '1.2.0'

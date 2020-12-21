@@ -1,5 +1,5 @@
 
-# Version 1.1.3 built on 2020-10-xx
+# Version 1.2.0 built on 2020-12-xx
 
  - Provide readline, readlines, peek methods by inheriting from BufferedReader.
  - Add available_block_offsets, block_offsets_complete, and size method.
