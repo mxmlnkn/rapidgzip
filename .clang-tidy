@@ -1,0 +1,25 @@
+Checks: |
+    bugprone-*,
+    -bugprone-exception-escape,
+
+    clang-analyzer-*,
+    clang-diagnostic-*,
+
+    cppcoreguidelines-*,
+    -cppcoreguidelines-avoid-magic-numbers,
+    -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+    -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+    -cppcoreguidelines-pro-type-reinterpret-cast,
+
+    hicpp-*,
+    -hicpp-no-array-decay,
+
+    misc-*,
+
+    modernize-*,
+    -modernize-use-trailing-return-type,
+
+    performance-*,
+    readability-*,
+    -readability-redundant-access-specifiers,
+    -readability-magic-numbers
