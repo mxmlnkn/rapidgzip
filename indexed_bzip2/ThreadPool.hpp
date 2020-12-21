@@ -64,6 +64,7 @@ private:
 
     public:
         template<class T_Functor>
+        explicit
         PackagedTaskWrapper( T_Functor&& functor ) :
             m_impl( std::make_unique<SpecializedFunctor<T_Functor> >( std::move( functor ) ) )
         {}

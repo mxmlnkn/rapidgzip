@@ -33,7 +33,7 @@ createCRC32LookupTable( bool littleEndian = false )
             if ( littleEndian ) {
                 c = ( c & 1 ) ? ( c >> 1 ) ^ 0xEDB88320 : c >> 1;
             } else {
-                c = c & 0x80000000 ? ( c << 1 ) ^ 0x04c11db7 : ( c << 1 );
+                c = ( c & 0x80000000 ) ? ( c << 1 ) ^ 0x04c11db7 : ( c << 1 );
             }
         }
         table[i] = c;
@@ -177,36 +177,6 @@ public:
     /* First pass decompression data (Huffman and MTF decoding) */
 
     /**
-     * The Mapping table itself is compressed in two parts:
-     * huffman_used_map: each bit indicates whether the corresponding range [0...15], [16...31] is present.
-     * huffman_used_bitmaps: 0-16 16-bit bitmaps
-     * The Huffman map gives 0, 10, 11, 100, 101, ... (8-bit) symbols
-     * Instead of storing 2 * 256 bytes ( 0b : A, 10b : B, .. ) for the table, the first part is left out.
-     * And for short maps, only the first n-th are actually stored.
-     * The second half is also assumed to be ordered, so that we only need to store which symbols are actually
-     * present.
-     * This however means that the Huffmann table can't be frequency sorted, therefore this is done in a
-     * second step / table, the mtfSymbol (move to front) map.
-     * This would need 256 bits to store the table in huffman_used_bitmaps.
-     * These bits are split in groups of 16 and the presence of each group is encoded in huffman_used_map
-     * to save even more bytes.
-     * @verbatim
-     *  10001000 00000000     # huffman_used_map (bit map)
-     *  ^   ^
-     *  |   [64,95]
-     *  [0...15]
-     *  00000000 00100000     # huffman_used_bitmaps[0]
-     *  ^          ^    ^
-     *  0          10   15
-     *          (newline)
-     *  00000100 10001001     # huffman_used_bitmaps[1]
-     *  ^    ^   ^   ^  ^
-     *  64   69  72  76 95
-     *       E   H   L  O
-     * @endverbatim
-     */
-    uint16_t huffman_used_map;
-    /**
      * mapping table: if some byte values are never used (encoding things
      * like ascii text), the compression code removes the gaps to have fewer
      * symbols to deal with, and writes a sparse bitfield indicating which
@@ -216,7 +186,6 @@ public:
     std::array<uint8_t, 256> symbolToByte;
     std::array<uint8_t, 256> mtfSymbol;
     unsigned int symbolCount;
-    uint16_t huffman_groups; // only actually 15 bit
     /**
      * Every GROUP_SIZE many symbols we switch huffman coding tables.
      * Each group has a selector, which is an index into the huffman coding table arrays.
@@ -291,19 +260,50 @@ Block::readBlockHeader()
         throw std::logic_error( msg.str() );
     }
 
+    /**
+     * The Mapping table itself is compressed in two parts:
+     * huffmanUsedMap: each bit indicates whether the corresponding range [0...15], [16...31] is present.
+     * huffman_used_bitmaps: 0-16 16-bit bitmaps
+     * The Huffman map gives 0, 10, 11, 100, 101, ... (8-bit) symbols
+     * Instead of storing 2 * 256 bytes ( 0b : A, 10b : B, .. ) for the table, the first part is left out.
+     * And for short maps, only the first n-th are actually stored.
+     * The second half is also assumed to be ordered, so that we only need to store which symbols are actually
+     * present.
+     * This however means that the Huffmann table can't be frequency sorted, therefore this is done in a
+     * second step / table, the mtfSymbol (move to front) map.
+     * This would need 256 bits to store the table in huffman_used_bitmaps.
+     * These bits are split in groups of 16 and the presence of each group is encoded in huffmanUsedMap
+     * to save even more bytes.
+     * @verbatim
+     *  10001000 00000000     # huffmanUsedMap (bit map)
+     *  ^   ^
+     *  |   [64,95]
+     *  [0...15]
+     *  00000000 00100000     # huffman_used_bitmaps[0]
+     *  ^          ^    ^
+     *  0          10   15
+     *          (newline)
+     *  00000100 10001001     # huffman_used_bitmaps[1]
+     *  ^    ^   ^   ^  ^
+     *  64   69  72  76 95
+     *       E   H   L  O
+     * @endverbatim
+     */
     // mapping table: if some byte values are never used (encoding things
     // like ascii text), the compression code removes the gaps to have fewer
     // symbols to deal with, and writes a sparse bitfield indicating which
     // values were present.  We make a translation table to convert the symbols
     // back to the corresponding bytes.
-    huffman_groups = getBits<16>();
-    symbolCount = 0;
-    for ( int i = 0; i < 16; i++ ) {
-        if ( huffman_groups & ( 1 << ( 15 - i ) ) ) {
-            const auto bitmap = getBits<16>();
-            for ( int j = 0; j < 16; j++ ) {
-                if ( bitmap & ( 1 << ( 15 - j ) ) ) {
-                    symbolToByte[symbolCount++] = ( 16 * i ) + j;
+    {
+        const uint16_t huffmanUsedMap = getBits<16>();
+        symbolCount = 0;
+        for ( int i = 0; i < 16; i++ ) {
+            if ( huffmanUsedMap & ( 1 << ( 15 - i ) ) ) {
+                const auto bitmap = getBits<16>();
+                for ( int j = 0; j < 16; j++ ) {
+                    if ( bitmap & ( 1 << ( 15 - j ) ) ) {
+                        symbolToByte[symbolCount++] = ( 16 * i ) + j;
+                    }
                 }
             }
         }
@@ -351,11 +351,10 @@ Block::readBlockHeader()
     // Read the huffman coding tables for each group, which code for symTotal
     // literal symbols, plus two run symbols (RUNA, RUNB)
     const auto symCount = symbolCount + 2;
-    auto& hh = huffman_groups;
     for ( int j = 0; j < groupCount; j++ ) {
         // Read lengths
         std::array<uint8_t, MAX_SYMBOLS> length;
-        hh = getBits<5>();
+        uint16_t hh = getBits<5>();
         for ( unsigned int i = 0; i < symCount; i++ ) {
             while ( true ) {
                 // !hh || hh > MAX_HUFCODE_BITS in one test.
@@ -476,7 +475,7 @@ Block::readBlockData()
         // Read next huffman-coded symbol (into jj).
         ii = hufGroup->minLen;
         jj = getBits( ii );
-        while ( ( jj > limit[ii] ) && ( ii <= hufGroup->maxLen ) ) {
+        while ( ( ii <= hufGroup->maxLen ) && ( jj > limit[ii] ) ) {
             ii++;
             jj = ( jj << 1 ) | getBits<1>();
         }
@@ -621,15 +620,13 @@ Block::BurrowsWheelerTransformData::decodeBlock( const uint32_t nMaxBytesToDecod
                                                                   char*          outputBuffer )
 {
     assert( outputBuffer != nullptr );
-
-    int previous;
     uint32_t nBytesDecoded = 0;
 
     while ( ( writeCount > 0 ) && ( nBytesDecoded < nMaxBytesToDecode ) ) {
         writeCount--;
 
         // Follow sequence vector to undo Burrows-Wheeler transform.
-        previous = writeCurrent;
+        const auto previous = writeCurrent;
         writePos = dbuf[writePos];
         writeCurrent = writePos & 0xff;
         writePos >>= 8;

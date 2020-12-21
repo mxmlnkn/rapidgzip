@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include <sys/stat.h>
 #include <unistd.h>         // dup, fileno
 
 #include <common.hpp>
@@ -101,6 +102,7 @@ public:
     find();
 
 protected:
+    explicit
     BitStringFinder( uint64_t    bitStringToFind,
                      size_t      fileBufferSizeBytes = 1*1024*1024 ) :
         m_bitStringToFind  ( bitStringToFind & mask<uint64_t>( bitStringSize ) ),

@@ -68,8 +68,7 @@ public:
 
     ParallelBitStringFinder( const char* buffer,
                              size_t      size,
-                             uint64_t    bitStringToFind,
-                             size_t      requestedBytes = 0 ) :
+                             uint64_t    bitStringToFind ) :
         BaseType( bitStringToFind )
     {
         this->m_buffer.assign( buffer, buffer + size );

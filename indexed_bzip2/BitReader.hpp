@@ -36,7 +36,7 @@ public:
 
 public:
     explicit
-    BitReader( std::string filePath ) :
+    BitReader( const std::string& filePath ) :
         m_file( fopen( filePath.c_str(), "rb" ) ),
         m_seekable( determineSeekable( fileno() ) ),
         m_fileSizeBytes( determineFileSize( fileno() ) )
@@ -56,6 +56,7 @@ public:
     BitReader( const uint8_t* buffer,
                size_t         size,
                uint8_t        offsetBits = 0 ) :
+        m_seekable( true ),
         m_fileSizeBytes( size ),
         m_offsetBits( offsetBits ),
         m_inbuf( buffer, buffer + size )
@@ -63,8 +64,10 @@ public:
         seek( 0, SEEK_SET ); /* seeks to m_offsetBits under the hood */
     }
 
+    explicit
     BitReader( std::vector<uint8_t>&& buffer,
                uint8_t                offsetBits = 0 ) :
+        m_seekable( true ),
         m_fileSizeBytes( buffer.size() ),
         m_offsetBits( offsetBits ),
         m_inbuf( std::move( buffer ) )
@@ -231,11 +234,11 @@ private:
     refillBuffer()
     {
         m_inbuf.resize( IOBUF_SIZE );
-        const auto nBytesRead = fread( m_inbuf.data(), 1, m_inbuf.size(), m_file );
+        const size_t nBytesRead = fread( m_inbuf.data(), 1, m_inbuf.size(), m_file );
         if ( nBytesRead < m_inbuf.size() ) {
             m_lastReadSuccessful = false;
         }
-        if ( nBytesRead <= 0 ) {
+        if ( nBytesRead == 0 ) {
             // this will also happen for invalid file descriptor -1
             std::stringstream msg;
             msg
@@ -252,7 +255,7 @@ private:
 
 private:
     FILE*         m_file = nullptr;
-    bool    const m_seekable = true;
+    bool    const m_seekable;
     size_t  const m_fileSizeBytes;
     uint8_t const m_offsetBits = 0; /** ignore the first m_offsetBits in m_inbuf. Only used when initialized with a buffer. */
 
@@ -319,7 +322,7 @@ BitReader::readSafe( const uint8_t bitsWanted )
     // Calculate result
     m_inbufBitCount -= bitsNeeded;
     bits |= ( m_inbufBits >> m_inbufBitCount ) & ( ( decltype( m_inbufBits )( 1 ) << bitsNeeded ) - 1U );
-    assert( bits == ( bits & ( ~0L >> ( sizeof( m_inbufBits ) * CHAR_BIT - bitsWanted ) ) ) );
+    assert( bits == ( bits & ( ~decltype( m_inbufBits )( 0 ) >> ( sizeof( m_inbufBits ) * CHAR_BIT - bitsWanted ) ) ) );
     return bits;
 }
 

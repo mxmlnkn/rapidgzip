@@ -27,7 +27,7 @@ public:
 
 public:
     explicit
-    BZ2Reader( std::string filePath ) :
+    BZ2Reader( const std::string& filePath ) :
         m_bitReader( filePath )
     {}
 
