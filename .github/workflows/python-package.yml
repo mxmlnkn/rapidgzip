@@ -32,9 +32,12 @@ jobs:
         python3 -m pip install --upgrade-strategy eager --upgrade cython twine numpy
     - name: Check committed Cython source
       run: |
-        test indexed_bzip2/indexed_bzip2.cpp -nt indexed_bzip2/indexed_bzip2.pyx ||
-        echo -e '\e[31mPlease trigger a rebuild of indexed_bzip2.pyx using "python3 setup.py build_ext --inplace --cython" and commit the new file\e[0m'
+        # Note that modification times can't be compared because they are changed by the git checkout
         python3 setup.py build_ext --inplace --cython
+        ! git diff --quiet indexed_bzip2/indexed_bzip2.cpp || {
+          echo -e '\e[31mPlease trigger a rebuild of indexed_bzip2.pyx using "python3 setup.py build_ext --inplace --cython" and commit the new file\e[0m'
+          exit 1
+        }
     - name: Test Installation From Tarball
       run: |
         python3 setup.py sdist
@@ -44,7 +47,7 @@ jobs:
       run: |
         set -o pipefail
         cppcheck --enable=all --std=c++17 --suppress=unusedFunction --suppress=useStlAlgorithm -I indexed_bzip2 tests/ indexed_bzip2/*hpp 2>&1 | tee cppcheck.log
-        if grep -E -i '(style:|warning:|error:) .* \[[^]]*\]$' *.log; then
+        if grep -E -i '(style:|warning:|error:) .* \[[^]]*\]$' cppcheck.log; then
             echo -e '\e[31mThere were errors while running cppcheck!\e[0m'
             exit 1
         fi
@@ -52,7 +55,7 @@ jobs:
       run: |
         cd tests
         make 2>&1 | tee run-tests.log
-        if grep -e -i '(warn|err|fail)' *.log; then
+        if grep -e -i '(warn|err|fail)' run-tests.log; then
             echo -e '\e[31mThere were errors while running the tests!\e[0m'
             exit 1
         fi
