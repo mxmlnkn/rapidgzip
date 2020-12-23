@@ -1,10 +1,11 @@
 #include <cassert>
 #include <cstdio>
 #include <iostream>
+#include <thread>
 
 #include <unistd.h>
 
-#include "BitStringFinder.hpp"
+#include "ParallelBitStringFinder.hpp"
 
 
 namespace {
@@ -46,19 +47,24 @@ testBitStringFinder( uint64_t                          bitStringToFind,
                      const std::vector<unsigned char>& buffer,
                      const std::vector<size_t>&        stringPositions )
 {
+    std::cerr << "Test finding bit string 0x" << std::hex << bitStringToFind << std::dec
+              << " of size " << static_cast<int>( bitStringSize ) << " in buffer of size " << buffer.size() << " B\n";
+
     auto const * const rawBuffer = reinterpret_cast<const char*>( buffer.data() );
 
+    for ( size_t parallelization = 1; parallelization <= std::thread::hardware_concurrency(); parallelization *= 2 )
     {
         /* test the version working on an input buffer */
-        BitStringFinder<bitStringSize> bitStringFinder( rawBuffer, buffer.size(), bitStringToFind );
+        ParallelBitStringFinder<bitStringSize> bitStringFinder( rawBuffer, buffer.size(), bitStringToFind );
         if ( !testBitStringFinder( std::move( bitStringFinder ), stringPositions ) ) {
             std::cerr << "Version working on input buffer failed!\n";
         }
     }
 
+    for ( size_t parallelization = 1; parallelization <= std::thread::hardware_concurrency(); parallelization *= 2 )
     {
         /* test the version working on an input file by writing the buffer to a temporary file */
-        auto const file = make_unique_file_ptr( std::tmpfile() ); // NOLINT
+        auto const file = make_unique_file_ptr( std::tmpfile() );  // NOLINT
         std::fwrite( buffer.data(), sizeof( buffer[0] ), buffer.size(), file.get() );
         /**
          * Flush the file so that BitReader sees the written data when accessing the file through the file descriptor.
@@ -70,7 +76,9 @@ testBitStringFinder( uint64_t                          bitStringToFind,
          * recognizing bit strings accross file buffer borders works correctly.
          */
         std::fflush( file.get() );
-        BitStringFinder<bitStringSize> bitStringFinder( fileno( file.get() ), bitStringToFind, sizeof( uint64_t ) );
+        ParallelBitStringFinder<bitStringSize> bitStringFinder(
+            fileno( file.get() ), bitStringToFind, sizeof( uint64_t )
+        );
         if ( !testBitStringFinder( std::move( bitStringFinder ), stringPositions ) ) {
             std::cerr << "Version working on input file failed!\n";
         }
@@ -119,13 +127,22 @@ main()
     {
         const std::vector<unsigned char> buffer = { 0, 0, 0, 0, 0x31, 0x41, 0x59, 0x26, 0x53, 0x59, 0, 0 };
         const std::vector<size_t> expectedResults = { 32 };
-        for ( const auto offset : { 1, 100, 123, 1024, 2000 } ) {
+
+        const std::vector<char> secondMatchingString = { 0x31, 0x41, 0x59, 0x26, 0x53, 0x59 };
+        auto const minSubChunkSize = 4096;
+        /** at this offset the second sub chunk begins and it will actually become multi-threadad */
+        auto const specialOffset = minSubChunkSize - buffer.size() - secondMatchingString.size();
+
+        const std::vector<size_t> offsetsToTest = { 1, 100, 123, 1024, 28*1024, 32*1024*1024,
+                                                    specialOffset - 1, specialOffset, specialOffset + 1 };
+
+        for ( const auto offset : offsetsToTest ) {
             auto tmpResults = expectedResults;
             tmpResults.push_back( ( buffer.size() + offset ) * CHAR_BIT );
 
             auto tmpBuf = buffer;
             tmpBuf.resize( tmpBuf.size() + offset, 0 );
-            for ( auto c : { 0x31, 0x41, 0x59, 0x26, 0x53, 0x59 } ) {
+            for ( auto c : secondMatchingString ) {
                 tmpBuf.push_back( c );
             }
 

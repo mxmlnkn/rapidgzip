@@ -18,7 +18,7 @@ public:
 
     JoiningThread( JoiningThread&& ) = default;
     JoiningThread( const JoiningThread& ) = delete;
-    JoiningThread& operator=( JoiningThread&& ) = default;
+    JoiningThread& operator=( JoiningThread&& ) = delete;
     JoiningThread& operator=( const JoiningThread& ) = delete;
 
     ~JoiningThread()
@@ -32,6 +32,12 @@ public:
     get_id() const noexcept
     {
         return m_thread.get_id();
+    }
+
+    [[nodiscard]] bool
+    joinable() const
+    {
+        return m_thread.joinable();
     }
 
     void

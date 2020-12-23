@@ -37,32 +37,35 @@ class ParallelBitStringFinder :
 public:
     using BaseType = BitStringFinder<bitStringSize>;
 
+    static_assert( bitStringSize > 0, "Bit string to find must have positive length!" );
+
 public:
-    ParallelBitStringFinder( std::string filePath,
-                             uint64_t    bitStringToFind,
-                             size_t      parallelisation = std::max( 1U, std::thread::hardware_concurrency() / 8U ),
-                             size_t      requestedBytes = 0,
-                             size_t      fileBufferSizeBytes = 1*1024*1024 ) :
-        BaseType( bitStringToFind, chunkSize( fileBufferSizeBytes, requestedBytes, parallelisation ) ),
-        m_threadPool( parallelisation )
+    ParallelBitStringFinder( std::string const& filePath,
+                             uint64_t           bitStringToFind,
+                             size_t             parallelization = std::max( 1U,
+                                                                            std::thread::hardware_concurrency() / 8U ),
+                             size_t             requestedBytes = 0,
+                             size_t             fileBufferSizeBytes = 1*1024*1024 ) :
+        BaseType( bitStringToFind, chunkSize( fileBufferSizeBytes, requestedBytes, parallelization ), filePath ),
+        m_threadPool( parallelization )
     {
-        this->m_file = std::fopen( filePath.c_str(), "rb" );
         if ( BaseType::seekable() ) {
-            fseek( this->m_file, 0, SEEK_SET );
+            fseek( this->m_file.get(), 0, SEEK_SET );
         }
     }
 
     ParallelBitStringFinder( int      fileDescriptor,
                              uint64_t bitStringToFind,
-                             size_t   parallelisation = std::max( 1U, std::thread::hardware_concurrency() / 8U ),
+                             size_t   parallelization = std::max( 1U, std::thread::hardware_concurrency() / 8U ),
                              size_t   requestedBytes = 0,
                              size_t   fileBufferSizeBytes = 1*1024*1024 ) :
-        BaseType( bitStringToFind, chunkSize( fileBufferSizeBytes, requestedBytes, parallelisation ) ),
-        m_threadPool( parallelisation )
+        BaseType( bitStringToFind,
+                  chunkSize( fileBufferSizeBytes, requestedBytes, parallelization ),
+                  BaseType::fdFilePath( fileDescriptor ) ),
+        m_threadPool( parallelization )
     {
-        this->m_file = fdopen( dup( fileDescriptor ), "rb" );
         if ( BaseType::seekable() ) {
-            fseek( this->m_file, 0, SEEK_SET );
+            fseek( this->m_file.get(), 0, SEEK_SET );
         }
     }
 
@@ -73,6 +76,8 @@ public:
     {
         this->m_buffer.assign( buffer, buffer + size );
     }
+
+    virtual ~ParallelBitStringFinder() = default;
 
     /**
      * @return the next match and the requested bytes or nullopt if at end of file.
@@ -100,12 +105,12 @@ private:
     [[nodiscard]] static constexpr size_t
     chunkSize( size_t const fileBufferSizeBytes,
                size_t const requestedBytes,
-               size_t const parallelisation )
+               size_t const parallelization )
     {
         /* This implementation has the limitation that it might at worst try to read as many as bitStringSize
          * bits from the buffered chunk. It makes no sense to remove this limitation. It might slow things down. */
         const auto result = std::max( fileBufferSizeBytes,
-                                      static_cast<size_t>( ceilDiv( bitStringSize, 8 ) ) * parallelisation );
+                                      static_cast<size_t>( ceilDiv( bitStringSize, 8 ) ) * parallelization );
         /* With the current implementation it is impossible to have a chunk size smaller than the requested bytes
          * and have it work for non-seekable inputs. In the worst case, the bit string is at the end, so we have to
          * read almost everything of the next chunk. */
@@ -126,19 +131,19 @@ private:
      *                       bit offsets of interest.
      */
     static void
-    workerMain( const char*    const buffer,
-                size_t         const size,
+    workerMain( char   const * const buffer,
+                size_t         const bufferSizeInBytes,
                 uint8_t        const firstBitsToIgnore,
                 uint64_t       const bitStringToFind,
                 size_t         const bitOffsetToAdd,
                 ThreadResults* const result )
     {
-        for ( size_t bufferBitsRead = firstBitsToIgnore; bufferBitsRead < size * CHAR_BIT; ) {
+        for ( size_t bufferBitsRead = firstBitsToIgnore; bufferBitsRead < bufferSizeInBytes * CHAR_BIT; ) {
             const auto byteOffset = bufferBitsRead / CHAR_BIT;
             const auto bitOffset  = bufferBitsRead % CHAR_BIT;
 
             const auto relpos = BaseType::findBitString( reinterpret_cast<const uint8_t*>( buffer ) + byteOffset,
-                                                         size - byteOffset, bitStringToFind, bitOffset );
+                                                         bufferSizeInBytes - byteOffset, bitStringToFind, bitOffset );
             if ( relpos == std::numeric_limits<size_t>::max() ) {
                 break;
             }
@@ -162,9 +167,9 @@ private:
     /** Return at least this amount of bytes after and including the found bit strings. */
     const size_t m_requestedBytes = 0;
 
-    ThreadPool m_threadPool;
-
     std::list<ThreadResults> m_threadResults;
+
+    ThreadPool m_threadPool;
 };
 
 
@@ -187,18 +192,17 @@ template<uint8_t bitStringSize>
 size_t
 ParallelBitStringFinder<bitStringSize>::find()
 {
-    if ( bitStringSize == 0 ) {
-        return std::numeric_limits<size_t>::max();
-    }
-
-    while ( !BaseType::eof() )
+    while ( !BaseType::eof() || !m_threadResults.empty() )
     {
         /* Check whether there are results available and return those. Take care to return results in order! */
-        for ( auto& result : m_threadResults ) {
+        while ( !m_threadResults.empty() ) {
+            auto& result = m_threadResults.front();
+            using namespace std::chrono;
+
             /* Check if some results are already calculated. No locking necessary between the queue empty check
              * and the future valid check because only we can make it invalid when calling get on it. */
             std::unique_lock<std::mutex> lock( result.mutex );
-            while( !result.foundOffsets.empty() || result.future.valid() ) {
+            while ( !result.foundOffsets.empty() || result.future.valid() ) {
                 /* In the easiest case we have something to return already. */
                 if ( !result.foundOffsets.empty() ) {
                     if ( result.foundOffsets.front() == std::numeric_limits<size_t>::max() ) {
@@ -218,59 +222,65 @@ ParallelBitStringFinder<bitStringSize>::find()
                  * wakeups but those are not guaranteed. */
                 result.changed.wait( lock, [&result] () {
                     return !result.foundOffsets.empty() ||
-                           ( result.future.wait_for( std::chrono::seconds( 0 ) ) == std::future_status::ready );
+                           ( result.future.wait_for( 0s ) == std::future_status::ready );
                 } );
 
-                if ( result.future.wait_for( std::chrono::seconds( 0 ) ) == std::future_status::ready ) {
+                if ( result.future.wait_for( 0s ) == std::future_status::ready ) {
                     result.future.get();
                 }
             }
+            lock = {};  /* release result.mutex before popping result! */
+
+            if ( result.future.valid() || !result.foundOffsets.empty() ) {
+                throw std::logic_error( "Should have gotten future and emptied offsets!" );
+            }
+            m_threadResults.pop_front();
         }
 
-        /* At this point all previous worker threads working on m_threadResults are finished! */
-        if ( std::any_of( m_threadResults.begin(), m_threadResults.end(),
-                          [] ( const auto& x ) { return x.future.valid() || !x.foundOffsets.empty(); } ) ) {
-            throw std::logic_error( "All worker threads should have finished and no results should be left over!" );
-        }
-        m_threadResults.clear();
-
-        /* Check whether we have read everything in the current buffer. */
+        /* Constructor might fill buffer already making a buffer refill unnecessary the first time! */
         if ( this->m_bufferBitsRead >= this->m_buffer.size() * CHAR_BIT ) {
-            //std::cerr << "refill buffer\n";
             const auto nBytesRead = BaseType::refillBuffer();
             if ( nBytesRead == 0 ) {
                 return std::numeric_limits<size_t>::max();
             }
         }
 
+        /* For very sub chunk sizes, it is more sensible to not parallelize them using threads! */
+        const auto minSubChunkSizeInBytes = std::max<size_t>( 8 * bitStringSize, 4096 );
+        const auto subChunkStrideInBytes =
+            std::max<size_t>( minSubChunkSizeInBytes, ceilDiv( this->m_buffer.size(), m_threadPool.size() ) );
+
         /* Start worker threads using the thread pool and the current buffer. */
-        //std::cerr << "Start new workers\n";
-        const auto nSubdivisions = m_threadPool.size();
-        const auto subdivisionSize = ceilDiv( this->m_buffer.size(), nSubdivisions ) + this->m_movingBytesToKeep;
-        assert( subdivisionSize > this->m_movingBytesToKeep );
-        for ( size_t i = 0; i < nSubdivisions; ++i ) {
+        for ( ; this->m_bufferBitsRead < this->m_buffer.size() * CHAR_BIT;
+              this->m_bufferBitsRead += subChunkStrideInBytes * CHAR_BIT ) {
+            /* Try to seek m_movingBitsToKeep back in order to find bit strings going over the previous border. */
+            auto const bufferOffsetInBits = this->m_bufferBitsRead > this->m_movingBitsToKeep
+                                            ? this->m_bufferBitsRead - this->m_movingBitsToKeep
+                                            : 0;
+            auto const bufferOffsetInBytes  = bufferOffsetInBits / CHAR_BIT;
+            auto const subChunkOffsetInBits = bufferOffsetInBits % CHAR_BIT;
+
+            auto const subChunkSizeInBits = this->m_bufferBitsRead - bufferOffsetInBits
+                                            + subChunkStrideInBytes * CHAR_BIT;
+            auto const subChunkSizeInBytes = std::min( ceilDiv( subChunkSizeInBits, CHAR_BIT ),
+                                                       this->m_buffer.size() - bufferOffsetInBytes );
+
+            //std::cerr << "  Find from offset " << bufferOffsetInBytes << "B " << subChunkOffsetInBits << "b "
+            //          << "sub chunk size " << subChunkSizeInBytes << " B, "
+            //          << "sub chunk stride: " << subChunkStrideInBytes << "B, "
+            //          << "buffer size: " << this->m_buffer.size() << " B\n";
+
             auto& result = m_threadResults.emplace_back();
-
-            const auto byteOffset        = this->m_bufferBitsRead / CHAR_BIT;
-            const auto firstBitsToIgnore = this->m_bufferBitsRead % CHAR_BIT;
-
-            const auto* buffer = this->m_buffer.data() + byteOffset;
-            assert( byteOffset < this->m_buffer.size() );
-            const auto size = std::min( subdivisionSize, this->m_buffer.size() - byteOffset );
-
-            //std::cerr << " Find from offset " << byteOffset << "B " << firstBitsToIgnore << "b size " << size << "\n";
             result.future = m_threadPool.submitTask( [=, &result] () {
                 workerMain(
-                    buffer,
-                    size,
-                    firstBitsToIgnore,
+                    /* sub chunk buffer */ this->m_buffer.data() + bufferOffsetInBytes,
+                    subChunkSizeInBytes,
+                    subChunkOffsetInBits,
                     this->m_bitStringToFind,
-                    ( this->m_nTotalBytesRead + byteOffset ) * CHAR_BIT,
+                    ( this->m_nTotalBytesRead + bufferOffsetInBytes ) * CHAR_BIT,
                     &result
                 );
             } );
-
-            this->m_bufferBitsRead += subdivisionSize * CHAR_BIT - this->m_movingBitsToKeep;
         }
     }
 

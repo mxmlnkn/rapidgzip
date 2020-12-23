@@ -13,11 +13,12 @@
 
 #include "bzip2.hpp"
 #include "BitReader.hpp"
+#include "BZ2ReaderInterface.hpp"
 #include "FileReader.hpp"
 
 
 class BZ2Reader :
-    public FileReader
+    public BZ2ReaderInterface
 {
 public:
     using BlockHeader = bzip2::Block;
@@ -26,6 +27,8 @@ public:
     static constexpr size_t IOBUF_SIZE = 4096;
 
 public:
+    /* Constructors */
+
     explicit
     BZ2Reader( const std::string& filePath ) :
         m_bitReader( filePath )
@@ -40,6 +43,9 @@ public:
                const size_t size ) :
         m_bitReader( reinterpret_cast<const uint8_t*>( bz2Data ), size )
     {}
+
+
+    /* FileReader overrides */
 
     int
     fileno() const override
@@ -65,58 +71,10 @@ public:
         return m_bitReader.closed();
     }
 
-    uint32_t
-    crc() const
-    {
-        return m_calculatedStreamCRC;
-    }
-
     bool
     eof() const override
     {
         return m_atEndOfFile;
-    }
-
-    bool
-    blockOffsetsComplete() const
-    {
-        return m_blockToDataOffsetsComplete;
-    }
-
-    /**
-     * @return vectors of block data: offset in file, offset in decoded data
-     *         (cumulative size of all prior decoded blocks).
-     */
-    std::map<size_t, size_t>
-    blockOffsets()
-    {
-        if ( !m_blockToDataOffsetsComplete ) {
-            read();
-        }
-
-        return m_blockToDataOffsets;
-    }
-
-    /**
-     * Same as @ref blockOffsets but it won't force calculation of all blocks and simply returns
-     * what is availabe at call time.
-     * @return vectors of block data: offset in file, offset in decoded data
-     *         (cumulative size of all prior decoded blocks).
-     */
-    std::map<size_t, size_t>
-    availableBlockOffsets()
-    {
-        return m_blockToDataOffsets;
-    }
-
-    void
-    setBlockOffsets( std::map<size_t, size_t> offsets )
-    {
-        if ( offsets.size() < 2 ) {
-            throw std::invalid_argument( "Block offset map must contain at least one valid block and one EOS block!" );
-        }
-        m_blockToDataOffsetsComplete = true;
-        m_blockToDataOffsets = std::move( offsets );
     }
 
     size_t
@@ -126,17 +84,6 @@ public:
             return size();
         }
         return m_currentPosition;
-    }
-
-    /**
-     * @return number of processed bits of compressed bzip2 input file stream
-     * @note Bzip2 is block based and blocks are currently read fully, meaning that the granularity
-     *       of the returned position is ~100-900kB. It's only useful for a rough estimate.
-     */
-    size_t
-    tellCompressed() const
-    {
-        return m_bitReader.tell();
     }
 
     size_t
@@ -152,6 +99,68 @@ public:
     seek( long long int offset,
           int           origin = SEEK_SET ) override;
 
+
+    /* BZip2 specific methods */
+
+    uint32_t
+    crc() const
+    {
+        return m_calculatedStreamCRC;
+    }
+
+    bool
+    blockOffsetsComplete() const override
+    {
+        return m_blockToDataOffsetsComplete;
+    }
+
+    /**
+     * @return vectors of block data: offset in file, offset in decoded data
+     *         (cumulative size of all prior decoded blocks).
+     */
+    std::map<size_t, size_t>
+    blockOffsets() override
+    {
+        if ( !m_blockToDataOffsetsComplete ) {
+            read();
+        }
+
+        return m_blockToDataOffsets;
+    }
+
+    /**
+     * Same as @ref blockOffsets but it won't force calculation of all blocks and simply returns
+     * what is availabe at call time.
+     * @return vectors of block data: offset in file, offset in decoded data
+     *         (cumulative size of all prior decoded blocks).
+     */
+    std::map<size_t, size_t>
+    availableBlockOffsets() const override
+    {
+        return m_blockToDataOffsets;
+    }
+
+    void
+    setBlockOffsets( std::map<size_t, size_t> offsets ) override
+    {
+        if ( offsets.size() < 2 ) {
+            throw std::invalid_argument( "Block offset map must contain at least one valid block and one EOS block!" );
+        }
+        m_blockToDataOffsetsComplete = true;
+        m_blockToDataOffsets = std::move( offsets );
+    }
+
+    /**
+     * @return number of processed bits of compressed bzip2 input file stream
+     * @note Bzip2 is block based and blocks are currently read fully, meaning that the granularity
+     *       of the returned position is ~100-900kB. It's only useful for a rough estimate.
+     */
+    size_t
+    tellCompressed() const override
+    {
+        return m_bitReader.tell();
+    }
+
     /**
      * @param[out] outputBuffer should at least be large enough to hold @p nBytesToRead bytes
      * @return number of bytes written
@@ -159,7 +168,7 @@ public:
     size_t
     read( const int    outputFileDescriptor = -1,
           char* const  outputBuffer = nullptr,
-          const size_t nBytesToRead = std::numeric_limits<size_t>::max() )
+          const size_t nBytesToRead = std::numeric_limits<size_t>::max() ) override
     {
         size_t nBytesDecoded = 0;
         while ( ( nBytesDecoded < nBytesToRead ) && !m_bitReader.eof() && !eof() ) {
@@ -200,17 +209,16 @@ private:
                   char*  outputBuffer         = nullptr,
                   size_t nMaxBytesToDecode    = std::numeric_limits<size_t>::max() );
 
-    uint32_t
-    getBits( uint8_t nBits )
-    {
-        return m_bitReader.read( nBits );
-    }
-
     BlockHeader
     readBlockHeader( size_t bitsOffset );
 
+protected:
     void
-    readBzip2Header();
+    readBzip2Header()
+    {
+        m_blockSize100k = bzip2::readBzip2Header( m_bitReader );
+        m_calculatedStreamCRC = 0;
+    }
 
 protected:
     BitReader m_bitReader;
@@ -419,33 +427,4 @@ BZ2Reader::decodeStream( int    const outputFileDescriptor,
     }
 
     return nBytesDecoded;
-}
-
-
-inline void
-BZ2Reader::readBzip2Header()
-{
-    // Ensure that file starts with "BZh".
-    for ( auto i = 0; i < 3; i++ ) {
-        const char c = getBits( 8 );
-        if ( c != "BZh"[i] ) {
-            std::stringstream msg;
-            msg << "[BZip2 Header] Input header is not BZip2 magic 'BZh'. Mismatch at bit position "
-            << m_bitReader.tell() - 8 << " with " << c << " (0x" << std::hex << (int)c << ")";
-            throw std::domain_error( msg.str() );
-        }
-    }
-
-    // Next byte ascii '1'-'9', indicates block size in units of 100k of
-    // uncompressed data. Allocate intermediate buffer for block.
-    const auto i = getBits( 8 );
-    if ( ( i < '1' ) || ( i > '9' ) ) {
-        std::stringstream msg;
-        msg << "[BZip2 Header] Blocksize must be one of '0' (" << std::hex << (int)'0' << ") ... '9' (" << (int)'9'
-        << ") but is " << i << " (" << (int)i << ")" << std::dec;
-        throw std::domain_error( msg.str() );
-    }
-    m_blockSize100k = i - '0';
-
-    m_calculatedStreamCRC = 0;
 }

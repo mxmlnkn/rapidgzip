@@ -13,9 +13,24 @@ extensions = [
         name               = 'indexed_bzip2',
         sources            = [ 'indexed_bzip2/indexed_bzip2.pyx' if buildCython
                                else 'indexed_bzip2/indexed_bzip2.cpp' ],
+        depends            = [] if buildCython else \
+                             [ 'indexed_bzip2/BitReader.hpp',
+                               'indexed_bzip2/BitStringFinder.hpp',
+                               'indexed_bzip2/BZ2Reader.hpp',
+                               'indexed_bzip2/BZ2ReaderInterface.hpp',
+                               'indexed_bzip2/bzip2.hpp',
+                               'indexed_bzip2/Cache.hpp',
+                               'indexed_bzip2/common.hpp',
+                               'indexed_bzip2/FileReader.hpp',
+                               'indexed_bzip2/JoiningThread.hpp',
+                               'indexed_bzip2/ParallelBitStringFinder.hpp',
+                               'indexed_bzip2/ParallelBZ2Reader.hpp',
+                               'indexed_bzip2/Prefetcher.hpp',
+                               'indexed_bzip2/ThreadPool.hpp'
+                             ],
         include_dirs       = [ '.' ],
         language           = 'c++',
-        extra_compile_args = [ '-std=c++11', '-O3', '-DNDEBUG' ],
+        extra_compile_args = [ '-std=c++17', '-O3', '-DNDEBUG' ],
     ),
 ]
 

@@ -10,9 +10,11 @@
 #include <cassert>
 #include <cstring>
 #include <limits>
+#include <memory>
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -57,6 +59,38 @@ static constexpr int SYMBOL_RUNB = 1;
 constexpr auto MAGIC_BITS_BLOCK = 0x314159265359ULL; /* bcd(pi) */
 constexpr auto MAGIC_BITS_EOS = 0x177245385090ULL; /* bcd(sqrt(pi)) */
 constexpr auto MAGIC_BITS_SIZE = 48;
+constexpr std::string_view MAGIC_BYTES_BZ2 = "BZh";
+
+
+/**
+ * @return 1..9 representing the bzip2 block size of 100k to 900k
+ */
+inline uint8_t
+readBzip2Header( BitReader& bitReader )
+{
+    for ( const auto magicByte : MAGIC_BYTES_BZ2 ) {
+        const char readByte = bitReader.read<8>();
+        if ( readByte != magicByte ) {
+            std::stringstream msg;
+            msg << "Input header is not BZip2 magic string 'BZh'. Mismatch at bit position "
+                << bitReader.tell() - 8 << " with " << readByte << " (0x" << std::hex << static_cast<int>( readByte )
+                << ") should be " << magicByte;
+            throw std::domain_error( msg.str() );
+        }
+    }
+
+    // Next byte ASCII '1'-'9', indicates block size in units of 100k of
+    // uncompressed data. Allocate intermediate buffer for block.
+    const auto i = bitReader.read<8>();
+    if ( ( i < '1' ) || ( i > '9' ) ) {
+        std::stringstream msg;
+        msg << "Blocksize must be one of '0' (" << std::hex << static_cast<int>( '0' ) << ") ... '9' ("
+            << static_cast<int>( '9' ) << ") but is " << i << " (" << static_cast<int>( i ) << ")";
+        throw std::domain_error( msg.str() );
+    }
+
+    return i - '0';
+}
 
 
 // This is what we know about each huffman coding group
@@ -86,7 +120,7 @@ public:
 
     explicit
     Block( BitReader& bitReader ) :
-        mp_bitReader( &bitReader )
+        m_bitReader( &bitReader )
     {
         readBlockHeader();
     }
@@ -116,8 +150,10 @@ public:
     BitReader&
     bitReader()
     {
-        assert( mp_bitReader != nullptr );
-        return *mp_bitReader;
+        if ( m_bitReader != nullptr ) {
+            return *m_bitReader;
+        }
+        throw std::invalid_argument( "Block has not been initialized yet!" );
     }
 
 private:
@@ -203,7 +239,11 @@ public:
     /* Second pass decompression data (burrows-wheeler transform) */
     BurrowsWheelerTransformData bwdata;
 
-    BitReader* mp_bitReader = nullptr;
+    size_t encodedOffsetInBits = 0;
+    size_t encodedSizeInBits = 0;
+
+private:
+    BitReader* m_bitReader = nullptr;
     bool m_atEndOfStream = false;
     bool m_atEndOfFile = false;
 };
@@ -227,6 +267,9 @@ public:
 inline void
 Block::readBlockHeader()
 {
+    encodedOffsetInBits = bitReader().tell();
+    encodedSizeInBits = 0;
+
     magicBytes = ( (uint64_t)getBits<24>() << 24 ) | (uint64_t)getBits<24>();
     bwdata.headerCRC = getBits( 32 );
     m_atEndOfStream = magicBytes == MAGIC_BITS_EOS;
@@ -237,8 +280,8 @@ Block::readBlockHeader()
             bitReader().read( 8 - nBitsInByte );
         }
 
+        encodedSizeInBits = bitReader().tell() - encodedOffsetInBits;
         m_atEndOfFile = bitReader().eof();
-
         return;
     }
 
@@ -577,6 +620,8 @@ Block::readBlockData()
     }
 
     bwdata.prepare();
+
+    encodedSizeInBits = bitReader().tell() - encodedOffsetInBits;
 }
 
 
@@ -617,7 +662,7 @@ Block::BurrowsWheelerTransformData::prepare()
 
 inline uint32_t
 Block::BurrowsWheelerTransformData::decodeBlock( const uint32_t nMaxBytesToDecode,
-                                                                  char*          outputBuffer )
+                                                 char*          outputBuffer )
 {
     assert( outputBuffer != nullptr );
     uint32_t nBytesDecoded = 0;

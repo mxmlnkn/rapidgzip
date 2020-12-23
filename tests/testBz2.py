@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 import time
 
+import indexed_bzip2
 from indexed_bzip2 import IndexedBzip2File
 
 import numpy as np
@@ -129,8 +130,10 @@ def storeFiles( rawFile, bz2File, name ):
     print( "Created files {} and {}.bz2 with the failed test".format( name, name ) )
 
 
-Bzip2TestParameters = collections.namedtuple( "Bzip2TestParameters",
-                                              "size encoder compressionlevel pattern patternsize buffersizes" )
+Bzip2TestParameters = collections.namedtuple(
+    "Bzip2TestParameters",
+    "size encoder compressionlevel pattern patternsize buffersizes parallelization"
+)
 
 def testBz2( parameters ):
     if parameters.compressionlevel == 9: # reduce output
@@ -159,7 +162,7 @@ def testBz2( parameters ):
             raise e
 
     if parameters.size > 0:
-        sbzip2 = IndexedBzip2File( bz2File.fileno() )
+        sbzip2 = IndexedBzip2File( bz2File.fileno(), parameters.parallelization )
         for seekPos in np.append( np.random.randint( 0, parameters.size ), [ 0, parameters.size - 1 ] ):
             try:
                 checkSeek( rawFile, sbzip2, seekPos )
@@ -177,11 +180,11 @@ def testBz2( parameters ):
         # Check seeking after loading offsets
         for seekPos in np.append( np.random.randint( 0, parameters.size ), [ 0, parameters.size - 1 ] ):
             try:
-                sbzip2 = IndexedBzip2File( bz2File.fileno() )
+                sbzip2 = IndexedBzip2File( bz2File.fileno(), parallelization = parameters.parallelization )
                 sbzip2.set_block_offsets( offsets )
                 checkSeek( rawFile, sbzip2, seekPos )
             except Exception as e:
-                print( "Test for", parameters, "failed when seeking to", seekPos )
+                print( "Test for", parameters, "failed when seeking to", seekPos, "after loading block offsets" )
                 sb = IndexedBzip2File( bz2File.fileno() )
                 sb.read( seekPos )
                 print( "Char when doing naive seek:", sb.read( 1 ).hex() )
@@ -191,7 +194,9 @@ def testBz2( parameters ):
 
     return True
 
-def testPythonInterface():
+def testPythonInterface(parallelization):
+    print("Test Python Interface of IndexedBzip2File for parallelization = ", parallelization)
+
     contents = b"Hello\nWorld!\n"
     rawFile, bz2File = writeBz2File( contents )
     file = IndexedBzip2File( bz2File.name )
@@ -227,11 +232,17 @@ def testPythonInterface():
     assert file.closed
 
 if __name__ == '__main__':
-    testPythonInterface()
+    print( "indexed_bzip2 version:", indexed_bzip2.__version__ )
 
+    testPythonInterface(1)
+    testPythonInterface(2)
+    testPythonInterface(3)
+    testPythonInterface(8)
+
+    # TODO Add parallelization parameter for tests! But take care wih the ProcessPoolExecutor to not overload the system
     buffersizes = [ -1, 128, 333, 500, 1024, 1024*1024, 64*1024*1024 ]
     parameters = [
-        Bzip2TestParameters( size, encoder, compressionlevel, pattern, patternsize, buffersizes )
+        Bzip2TestParameters( size, encoder, compressionlevel, pattern, patternsize, buffersizes, 1 )
         for size in [ 1, 2, 3, 4, 5, 10, 20, 30, 100, 1000, 10000, 100000, 200000, 0 ]
         for encoder in [ 'pbzip2', 'bzip2', 'pybz2' ]
         for compressionlevel in range( 1, 9 + 1 )
@@ -239,7 +250,11 @@ if __name__ == '__main__':
         for patternsize in ( [ None ] if pattern == 'random' else [ 1, 2, 8, 123, 257, 2048, 100000 ] )
     ]
 
-    print( "Will test with", len( parameters ), "different bzip2 files" )
-    with concurrent.futures.ProcessPoolExecutor() as executor:
-        for input, output in zip( parameters, executor.map( testBz2, parameters ) ):
-            assert output == True
+    for parallelization in [ 1, 2, 3, 8 ]:
+        print( f"Will test { parallelization }-parallelization with { len( parameters ) } different bzip2 files" )
+        parameters = [ x._replace( parallelization = parallelization ) for x in parameters ]
+
+        max_workers = max( 1, ( os.cpu_count() - 2 ) // parallelization )
+        with concurrent.futures.ProcessPoolExecutor( max_workers = max_workers ) as executor:
+            for input, output in zip( parameters, executor.map( testBz2, parameters ) ):
+                assert output == True

@@ -6,8 +6,13 @@
 [![Build Status](https://travis-ci.org/mxmlnkn/indexed_bzip2.svg?branch=master)](https://travis-ci.com/mxmlnkn/indexed_bzip2)
 
 This module provides an IndexedBzip2File class, which can be used to seek inside bzip2 files without having to decompress them first.
-It's based on an improved version of the bzip2 decoder [bzcat](https://github.com/landley/toybox/blob/c77b66455762f42bb824c1aa8cc60e7f4d44bdab/toys/other/bzcat.c) from [toybox](https://landley.net/code/toybox/), which was refactored and extended to be able to export and import bzip2 block offsets and seek to them.
+It's based on an improved version of the bzip2 decoder [bzcat](https://github.com/landley/toybox/blob/c77b66455762f42bb824c1aa8cc60e7f4d44bdab/toys/other/bzcat.c) from [toybox](https://landley.net/code/toybox/), which was refactored and extended to be able to export and import bzip2 block offsets and seek to them and to add support for threaded parallel decoding of blocks.
+
 Seeking inside a block is only emulated, so IndexedBzip2File will only speed up seeking when there are more than one block, which should almost always be the cause for archives larger than 1 MB.
+
+Since version 1.2.0, parallel decoding of blocks is supported!
+Per default, the older serial implementation is used.
+To use the parallel implementation you need to specify a `parallelization` other than 1 argument to `IndexedBzip2File`.
 
 
 # Installation
@@ -24,7 +29,7 @@ pip install indexed_bzip2
 ```python3
 from indexed_bzip2 import IndexedBzip2File
 
-file = IndexedBzip2File( "example.bz2" )
+file = IndexedBzip2File( "example.bz2", parallelization = os.cpu_count() )
 
 # You can now use it like a normal file
 file.seek( 123 )
@@ -44,7 +49,7 @@ from indexed_bzip2 import IndexedBzip2File
 import pickle
 
 # Calculate and save bzip2 block offsets
-file = IndexedBzip2File( "example.bz2" )
+file = IndexedBzip2File( "example.bz2", parallelization = os.cpu_count() )
 block_offsets = file.block_offsets() # can take a while
 # block_offsets is a simple dictionary where the keys are the bzip2 block offsets in bits(!)
 # and the values are the corresponding offsets in the decoded data in bytes. E.g.:
@@ -56,7 +61,7 @@ file.close()
 # Load bzip2 block offsets for fast seeking
 with open( "offsets.dat", 'rb' ) as offsets_file:
     block_offsets = pickle.load( offsets_file )
-file2 = IndexedBzip2File( "example.bz2" )
+file2 = IndexedBzip2File( "example.bz2", parallelization = os.cpu_count() )
 file2.set_block_offsets( block_offsets ) # should be fast
 file2.seek( 123 )
 data = file2.read( 100 )

@@ -1,9 +1,10 @@
 
-# Version 1.2.0 built on 2020-12-xx
+# Version 1.2.0 built on 2021-06-27
 
+ - Add C++17 threaded parallel bzip2 block decoder which is used when constructing
+   'IndexedBzip2File' with argument 'parallelization' != 1.
  - Provide readline, readlines, peek methods by inheriting from BufferedReader.
  - Add available_block_offsets, block_offsets_complete, and size method.
- - Make IndexedBzip2File work with non-seekable inputs like STDIN.
  - Do not build index when seeking to current position.
 
 # Version 1.1.2 built on 2020-07-04
