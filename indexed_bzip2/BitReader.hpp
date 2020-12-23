@@ -134,8 +134,33 @@ public:
     }
 
     uint32_t
-    read( uint8_t );
+    read( uint8_t bitsWanted );
 
+    uint64_t
+    read64( uint8_t bitsWanted )
+    {
+        if ( bitsWanted <= 32 ) {
+            return read( bitsWanted );
+        }
+
+        if ( bitsWanted > 64 ) {
+            throw std::invalid_argument( "Can't return this many bits in a 64-bit integer!" );
+        }
+
+
+        uint64_t result = 0;
+        constexpr uint8_t maxReadSize = 32;
+        for ( auto bitsRead = 0; bitsRead < bitsWanted; bitsRead += maxReadSize ) {
+            const auto bitsToRead = bitsWanted - bitsRead < maxReadSize
+                                    ? bitsWanted - bitsRead
+                                    : maxReadSize;
+            assert( bitsToRead >= 0 );
+            result <<= static_cast<uint8_t>( bitsToRead );
+            result |= static_cast<uint64_t>( read( bitsToRead ) );
+        }
+
+        return result;
+    }
 
     template<uint8_t bitsWanted>
     uint32_t

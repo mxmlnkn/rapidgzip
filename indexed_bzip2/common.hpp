@@ -1,7 +1,11 @@
 #pragma once
 
+#include <algorithm>
+#include <cctype>
 #include <chrono>
+#include <fstream>
 #include <future>
+#include <memory>
 #include <ostream>
 #include <thread>
 #include <type_traits>
@@ -44,6 +48,61 @@ operator<<( std::ostream&  out,
     }
     out << " }";
     return out;
+}
+
+
+template <typename S, typename T>
+inline bool
+startsWith( const S& fullString,
+            const T& prefix,
+            bool     caseSensitive )
+{
+    if ( fullString.size() < prefix.size() ) {
+        return false;
+    }
+
+    if ( caseSensitive ) {
+        return std::equal( prefix.begin(), prefix.end(), fullString.begin() );
+    }
+
+    return std::equal( prefix.begin(), prefix.end(), fullString.begin(),
+                       [] ( auto a, auto b ) { return std::tolower( a ) == std::tolower( b ); } );
+}
+
+
+template <typename S, typename T>
+inline bool
+endsWith( const S& fullString,
+          const T& suffix,
+          bool     caseSensitive )
+{
+    if ( fullString.size() < suffix.size() ) {
+        return false;
+    }
+
+    if ( caseSensitive ) {
+        return std::equal( suffix.rbegin(), suffix.rend(), fullString.rbegin() );
+    }
+
+    return std::equal( suffix.rbegin(), suffix.rend(), fullString.rbegin(),
+                       [] ( auto a, auto b ) { return std::tolower( a ) == std::tolower( b ); } );
+}
+
+
+inline bool
+fileExists( const char* filePath )
+{
+    return std::ifstream( filePath ).good();
+}
+
+
+using unique_file_ptr = std::unique_ptr<FILE, std::function<void( FILE* )> >;
+
+inline unique_file_ptr
+make_unique_file_ptr( char const* const filePath,
+                      char const* const mode )
+{
+    return unique_file_ptr( fopen( filePath, mode ), []( FILE* file ){ fclose( file ); } ); // NOLINT
 }
 
 

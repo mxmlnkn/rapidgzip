@@ -414,15 +414,6 @@ findBitStringBitStringTemplated( const uint8_t* buffer,
 }
 
 
-using unique_file_ptr = std::unique_ptr<FILE, std::function<void( FILE* )> >;
-
-[[nodiscard]] unique_file_ptr
-make_unique_file_ptr( char const* const filePath,
-                      char const* const mode )
-{
-    return unique_file_ptr( fopen( filePath, mode ), []( FILE* file ){ fclose( file ); } ); // NOLINT
-}
-
 /** I think this version isn't even correct because magic bytes across buffer boundaries will be overlooked! */
 std::vector<size_t>
 findBitStrings( const std::string& filename )
@@ -676,20 +667,9 @@ int main( int argc, char** argv )
     std::cerr << "Block offsets  :\n";
     for ( const auto offset : blockOffsets ) {
         std::cerr << offset / 8 << " B " << offset % 8 << " b";
-        if ( ( offset >= 0 ) && ( offset < bitReader.size() ) ) {
+        if ( offset < bitReader.size() ) {
             bitReader.seek( offset );
-
-            uint64_t magicBytes = 0;
-            constexpr uint8_t maxReadSize = 32;
-            for ( auto bitsRead = 0; bitsRead < bitStringToFindSize; bitsRead += maxReadSize ) {
-                const auto bitsToRead = bitStringToFindSize - bitsRead < maxReadSize
-                                        ? bitStringToFindSize - bitsRead
-                                        : maxReadSize;
-                assert( bitsToRead >= 0 );
-                magicBytes <<= static_cast<uint8_t>( bitsToRead );
-                magicBytes |= static_cast<uint64_t>( bitReader.read( bitsToRead ) );
-            }
-
+            const auto magicBytes = bitReader.read64( bitStringToFindSize );
             std::cerr << " -> magic bytes: 0x" << std::hex << magicBytes << std::dec;
             if ( magicBytes != bitStringToFind ) {
                 throw std::logic_error( "Magic Bytes do not match!" );

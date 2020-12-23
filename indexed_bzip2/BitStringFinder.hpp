@@ -98,7 +98,7 @@ public:
     /**
      * @return the next match or std::numeric_limits<size_t>::max() if the end was reached.
      */
-    size_t
+    [[nodiscard]] virtual size_t
     find();
 
 protected:

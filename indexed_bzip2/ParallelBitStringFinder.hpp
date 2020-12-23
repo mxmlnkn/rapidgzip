@@ -78,8 +78,8 @@ public:
      * @return the next match and the requested bytes or nullopt if at end of file.
      */
     //std::optional<std::pair<size_t, BitReader> >
-    size_t
-    find();
+    [[nodiscard]] size_t
+    find() override;
 
 private:
     /**
