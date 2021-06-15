@@ -7,6 +7,9 @@ tools/*
 tests/*
 !tests/*.*
 
+# Temporary files created by testBz2.py
+Bzip2TestParameters(*
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
