@@ -72,5 +72,6 @@ jobs:
             echo -e '\e[31mThere were errors while running the tests!\e[0m'
             exit 1
         fi
+        cd ..
     - name: Test BZip2 Decoder
-      run: python3 testBz2.py
+      run: python3 tests/testBz2.py

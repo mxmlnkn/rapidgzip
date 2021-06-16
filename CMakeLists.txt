@@ -17,3 +17,4 @@ target_sources(cxxopts INTERFACE ${CMAKE_SOURCE_DIR}/external/cxxopts/include/cx
 
 add_subdirectory(indexed_bzip2)
 add_subdirectory(tools)
+add_subdirectory(tests)
