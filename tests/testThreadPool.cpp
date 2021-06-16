@@ -40,7 +40,7 @@ testThreadPool( unsigned int nThreads,
 
     std::cerr << "Checksums with thread pool took " << durationMeasured << "s "
               << "(predicted: " << durationPredicted << "s)\n";
-    assert( ( durationMeasured - durationPredicted ) / durationPredicted < 0.1 );
+    assert( ( durationMeasured - durationPredicted ) / durationPredicted < 1.0 );
 }
 
 

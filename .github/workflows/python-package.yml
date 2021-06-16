@@ -27,7 +27,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install Dependencies
       run: |
-        sudo apt-get -y install bzip2 pbzip2 lbzip2 cppcheck clang-tidy # necessary for tests
+        sudo apt-get -y install bzip2 pbzip2 lbzip2 cppcheck clang clang-tidy ninja-build # necessary for tests
         python3 -m pip install --upgrade pip
         python3 -m pip install --upgrade-strategy eager --upgrade cython twine numpy
     - name: Check committed Cython source
@@ -47,7 +47,7 @@ jobs:
       run: |
         set -o pipefail
         cppcheck --enable=all --std=c++17 --suppress=unusedFunction --suppress=useStlAlgorithm -I indexed_bzip2 tests/ indexed_bzip2/*hpp 2>&1 | tee cppcheck.log
-        if grep -E -i '(style:|warning:|error:) .* \[[^]]*\]$' cppcheck.log; then
+        if grep -E -i 'error: .* \[[^]]*\]$' cppcheck.log; then
             echo -e '\e[31mThere were errors while running cppcheck!\e[0m'
             exit 1
         fi
@@ -60,10 +60,26 @@ jobs:
         cd ..
         set -o pipefail
         run-clang-tidy -j $( nproc ) -p build | tee clang-tidy.log
-        if grep -E -i '(style:|warning:|error:) .* \[[^]]*\]$' *.log; then
+        if grep -E -i '(warning:|error:) .* \[[^]]*\]$' clang-tidy.log; then
             echo -e '\e[31mThere were errors while running clang-tidy!\e[0m'
             exit 1
         fi
+    - name: Run pure C++ tests with sanitizers
+      run: |
+        nproc
+        head -c $(( 2*1024*1024 )) /dev/urandom > decoded-sample
+        lbzip2 -1 -k -c decoded-sample > encoded-sample.bz2
+        for sanitized in address thread undefined safe-stack; do
+        (
+            mkdir -p "sanitized/$sanitized" &&
+            cd -- "$_" &&
+            CXX=clang++ CC=clang cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=$sanitized" ../..
+            # ctest needs the sample files in 'test' subfolder!
+            ln -s ../../../decoded-sample tests/decoded-sample &>/dev/null
+            ln -s ../../../encoded-sample.bz2 tests/encoded-sample.bz2 &>/dev/null
+            ninja check
+        )
+        done
     - name: Run Unit Tests
       run: |
         cd tests
