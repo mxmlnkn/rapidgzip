@@ -90,6 +90,7 @@ public:
 
     ~ThreadPool()
     {
+        std::lock_guard lock( m_mutex );
         m_threadPoolRunning = false;
         m_pingWorkers.notify_all();
     }
@@ -102,13 +103,17 @@ public:
     std::future<decltype( std::declval<T_Functor>()() )>
     submitTask( T_Functor task )
     {
+        std::lock_guard lock( m_mutex );
+
         /* Use a packaged task, which abstracts handling the return type and makes the task return void. */
         using ReturnType = decltype( std::declval<T_Functor>()() );
         std::packaged_task<ReturnType()> packagedTask{ task };
-        auto result = packagedTask.get_future();
+        auto resultFuture = packagedTask.get_future();
         m_tasks.emplace_back( std::move( packagedTask ) );
+
         m_pingWorkers.notify_one();
-        return result;
+
+        return resultFuture;
     }
 
     size_t
@@ -120,7 +125,7 @@ public:
     size_t
     unprocessedTasksCount() const
     {
-        std::lock_guard lock( m_tasksMutex );
+        std::lock_guard lock( m_mutex );
         return m_tasks.size();
     }
 
@@ -130,7 +135,7 @@ private:
     {
         while ( m_threadPoolRunning )
         {
-            std::unique_lock<std::mutex> tasksLock( m_tasksMutex );
+            std::unique_lock<std::mutex> tasksLock( m_mutex );
             m_pingWorkers.wait( tasksLock, [this](){ return !m_tasks.empty() || !m_threadPoolRunning; } );
 
             if ( !m_threadPoolRunning ) {
@@ -147,9 +152,10 @@ private:
     }
 
 private:
-    bool m_threadPoolRunning = true;
+    std::atomic<bool> m_threadPoolRunning = true;
     std::deque<PackagedTaskWrapper> m_tasks;
-    mutable std::mutex m_tasksMutex;
+    /** necessary for m_tasks AND m_pingWorkers or else the notify_all might go unnoticed! */
+    mutable std::mutex m_mutex;
     std::condition_variable m_pingWorkers;
 
     /**
