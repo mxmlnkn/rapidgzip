@@ -3,8 +3,11 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <ctime>
 #include <fstream>
 #include <future>
+#include <iomanip>
+#include <iostream>
 #include <memory>
 #include <ostream>
 #include <thread>
@@ -42,11 +45,17 @@ std::ostream&
 operator<<( std::ostream&  out,
             std::vector<T> vector )
 {
-    out << "{ ";
-    for ( const auto value : vector ) {
-        out << value << ", ";
+    if ( vector.empty() ) {
+        out << "{}";
+        return out;
+    }
+
+    out << "{ " << vector.front();
+    for ( auto value = std::next( vector.begin() ); value != vector.end(); ++value ) {
+        out << ", " << *value;
     }
     out << " }";
+
     return out;
 }
 
@@ -96,13 +105,36 @@ fileExists( const char* filePath )
 }
 
 
-using unique_file_ptr = std::unique_ptr<FILE, std::function<void( FILE* )> >;
+using unique_file_ptr = std::unique_ptr<std::FILE, std::function<void( std::FILE* )> >;
+
+inline unique_file_ptr
+make_unique_file_ptr( std::FILE* file )
+{
+    return unique_file_ptr( file, []( auto* ownedFile ){
+        if ( ownedFile != nullptr ) {
+            std::fclose( ownedFile );
+        } } );
+}
 
 inline unique_file_ptr
 make_unique_file_ptr( char const* const filePath,
                       char const* const mode )
 {
-    return unique_file_ptr( fopen( filePath, mode ), []( FILE* file ){ fclose( file ); } ); // NOLINT
+    return make_unique_file_ptr( std::fopen( filePath, mode ) ); // NOLINE
+}
+
+
+inline unique_file_ptr
+throwingOpen( const std::string& filePath,
+              const char*        mode )
+{
+    auto file = make_unique_file_ptr( filePath.c_str(), mode );
+    if ( file == nullptr ) {
+        std::stringstream msg;
+        msg << "Opening file '" << filePath << " failed!";
+        throw std::invalid_argument( msg.str() );
+    }
+    return file;
 }
 
 
@@ -133,7 +165,12 @@ class ThreadSafeOutput
 public:
     ThreadSafeOutput()
     {
-        m_out << "[" << std::this_thread::get_id() << "]";
+        using namespace std::chrono;
+        const auto time = system_clock::now();
+        const auto timePoint = system_clock::to_time_t( time );
+        const auto subseconds = duration_cast<milliseconds>( time.time_since_epoch() ).count() % 1000;
+        m_out << "[" << std::put_time( std::localtime( &timePoint ), "%H:%M:%S" ) << "." << subseconds << "]"
+              << "[" << std::this_thread::get_id() << "]";
     }
 
     template<typename T>
