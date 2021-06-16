@@ -6,35 +6,28 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-16.04
+    runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v2
 
-    - name: Build manylinux1_x86_64
-      uses: docker://quay.io/pypa/manylinux1_x86_64
-      with:
-        entrypoint: bash
-        args: manylinux/build-wheels.sh manylinux1_x86_64
     - name: Build manylinux2010_x86_64
       uses: docker://quay.io/pypa/manylinux2010_x86_64
       with:
         entrypoint: bash
         args: manylinux/build-wheels.sh manylinux2010_x86_64
-    - name: Build manylinux2014_x86_64
-      uses: docker://quay.io/pypa/manylinux2014_x86_64
-      with:
-        entrypoint: bash
-        args: manylinux/build-wheels.sh manylinux2014_x86_64
-    - name: Build manylinux1_i686
-      uses: docker://quay.io/pypa/manylinux1_i686
-      with:
-        entrypoint: bash
-        args: manylinux/build-wheels.sh manylinux1_i686
+
     - name: Build manylinux2010_i686
       uses: docker://quay.io/pypa/manylinux2010_i686
       with:
         entrypoint: bash
         args: manylinux/build-wheels.sh manylinux2010_i686
+
+    - name: Build manylinux2014_x86_64
+      uses: docker://quay.io/pypa/manylinux2014_x86_64
+      with:
+        entrypoint: bash
+        args: manylinux/build-wheels.sh manylinux2014_x86_64
+
     - name: Build manylinux2014_i686
       uses: docker://quay.io/pypa/manylinux2014_i686
       with:
@@ -45,6 +38,7 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: 3.9
+
     - name: Install Dependencies
       run: |
         python3 -m pip install --upgrade pip
