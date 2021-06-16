@@ -10,6 +10,21 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.9
+
+    - name: Install Dependencies
+      run: |
+        python3 -m pip install --upgrade pip
+        python3 -m pip install --upgrade-strategy eager --upgrade setuptools twine
+
+    # This should come before the docker calls or else docker will create a root-owned
+    # dist folder without write permissions for non-root users and this call will fail!
+    - name: Build Tarball
+      run: python setup.py sdist
+
     - name: Build manylinux2010_x86_64
       uses: docker://quay.io/pypa/manylinux2010_x86_64
       with:
@@ -33,19 +48,6 @@ jobs:
       with:
         entrypoint: bash
         args: manylinux/build-wheels.sh manylinux2014_i686
-
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: 3.9
-
-    - name: Install Dependencies
-      run: |
-        python3 -m pip install --upgrade pip
-        python3 -m pip install --upgrade-strategy eager --upgrade setuptools twine
-
-    - name: Build Tarball
-      run: python setup.py sdist
 
     - name: Check Wheels
       run: twine check dist/*
