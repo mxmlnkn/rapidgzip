@@ -419,6 +419,9 @@ public:
         /* If successive value or empty, then simply append */
         if ( decodedOffset ) {
             m_blockToDataOffsets.emplace_back( encodedBlockOffset, *decodedOffset );
+            if ( decodedSize == 0 ) {
+                m_eosBlocks.emplace_back( encodedBlockOffset );
+            }
             m_lastBlockDecodedSize = decodedSize;
             m_lastBlockEncodedSize = encodedSize;
             return;
@@ -435,7 +438,7 @@ public:
         }
 
         if ( std::next( match ) == m_blockToDataOffsets.end() ) {
-            throw std::logic_error( "This case should already be handled with the first if clause!" );
+            throw std::logic_error( "In this case, the new block should already have been appended above!" );
         }
 
         const auto impliedDecodedSize = std::next( match )->second - match->second;
@@ -489,11 +492,15 @@ public:
         return result;
     }
 
+    /**
+     * Returns number of non-EOS blocks. This is necessary to have a number in sync with BlockFinder,
+     * which does not find EOS blocks!
+     */
     [[nodiscard]] size_t
-    blockCount() const
+    dataBlockCount() const
     {
         std::scoped_lock lock( m_mutex );
-        return m_blockToDataOffsets.size();
+        return m_blockToDataOffsets.size() - m_eosBlocks.size();
     }
 
     void
@@ -514,9 +521,24 @@ public:
     setBlockOffsets( std::map<size_t, size_t> const& blockOffsets )
     {
         std::scoped_lock lock( m_mutex );
+
         m_blockToDataOffsets.assign( blockOffsets.begin(), blockOffsets.end() );
         m_lastBlockEncodedSize = 0;
         m_lastBlockDecodedSize = 0;
+
+        /* Find EOS blocks in map. */
+        m_eosBlocks.clear();
+        for ( auto it = m_blockToDataOffsets.begin(), nit = std::next( m_blockToDataOffsets.begin() );
+              nit != m_blockToDataOffsets.end(); ++it, ++nit )
+        {
+            /* Only push blocks with no data, i.e., EOS blocks. */
+            if ( it->second == nit->second ) {
+                m_eosBlocks.push_back( it->first );
+            }
+        }
+        /* Last block is assumed to be EOS. */
+        m_eosBlocks.push_back( m_blockToDataOffsets.back().first );
+
         m_finalized = true;
     }
 
@@ -544,6 +566,7 @@ private:
 
     /** If complete, the last block will be of size 0 and indicate the end of stream! */
     std::vector< std::pair<size_t, size_t> > m_blockToDataOffsets;
+    std::vector<size_t> m_eosBlocks;
     bool m_finalized{ false };
 
     size_t m_lastBlockEncodedSize{ 0 }; /**< Encoded block size of m_blockToDataOffsets.rbegin() */
@@ -620,7 +643,7 @@ public:
      */
     [[nodiscard]] std::shared_ptr<BlockData>
     get( size_t                blockOffset,
-         std::optional<size_t> blockIndex = {} )
+         std::optional<size_t> dataBlockIndex = {} )
     {
 
         /* Check whether the desired offset is prefetched. */
@@ -669,10 +692,10 @@ public:
         /* Get blocks to prefetch. In order to avoid oscillating caches, the fetching strategy should ony return
          * less than the cache size number of blocks. It is fine if that means no work is being done in the background
          * for some calls to 'get'! */
-        if ( !blockIndex ) {
-            blockIndex = m_blockFinder->find( blockOffset );
+        if ( !dataBlockIndex ) {
+            dataBlockIndex = m_blockFinder->find( blockOffset );
         }
-        m_fetchingStrategy.fetch( *blockIndex );
+        m_fetchingStrategy.fetch( *dataBlockIndex );
         auto blocksToPrefetch = m_fetchingStrategy.prefetch();
 
         for ( auto blockIndexToPrefetch : blocksToPrefetch ) {
@@ -680,7 +703,7 @@ public:
                 break;
             }
 
-            if ( blockIndexToPrefetch == *blockIndex ) {
+            if ( blockIndexToPrefetch == *dataBlockIndex ) {
                 throw std::logic_error( "The fetching strategy should not return the "
                                         "last fetched block for prefetching!" );
             }
@@ -976,15 +999,15 @@ public:
             auto blockInfo = m_blockMap->findDataOffset( m_currentPosition );
             if ( !blockInfo.contains( m_currentPosition ) ) {
                 /* Fetch new block for the first time and add information to block map. */
-                const auto blockIndex = m_blockMap->blockCount();
-                const auto encodedOffsetInBits = blockFinder().get( blockIndex );
+                const auto dataBlockIndex = m_blockMap->dataBlockCount();
+                const auto encodedOffsetInBits = blockFinder().get( dataBlockIndex );
                 if ( !encodedOffsetInBits ) {
                     m_blockMap->finalize();
                     m_atEndOfFile = true;
                     break;
                 }
 
-                blockData = blockFetcher().get( *encodedOffsetInBits, blockIndex );
+                blockData = blockFetcher().get( *encodedOffsetInBits, dataBlockIndex );
                 m_blockMap->push( blockData->encodedOffsetInBits,
                                   blockData->encodedSizeInBits,
                                   blockData->data.size() );
