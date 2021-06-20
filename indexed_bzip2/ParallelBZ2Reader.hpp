@@ -580,7 +580,7 @@ private:
  * Requested blocks are cached and accesses may trigger prefetches,
  * which will be fetched in parallel using a thread pool.
  */
-template<typename FetchingStrategy = FetchingStrategy::FetchNext>
+template<typename FetchingStrategy = FetchingStrategy::FetchNextSmart>
 class BlockFetcher
 {
 public:
@@ -696,7 +696,7 @@ public:
             dataBlockIndex = m_blockFinder->find( blockOffset );
         }
         m_fetchingStrategy.fetch( *dataBlockIndex );
-        auto blocksToPrefetch = m_fetchingStrategy.prefetch();
+        auto blocksToPrefetch = m_fetchingStrategy.prefetch( m_parallelization );
 
         for ( auto blockIndexToPrefetch : blocksToPrefetch ) {
             if ( m_prefetching.size() + /* thread with the requested block */ 1 >= m_parallelization ) {
@@ -885,7 +885,7 @@ class ParallelBZ2Reader :
     public BZ2ReaderInterface
 {
 public:
-    using BlockFetcher = ::BlockFetcher<FetchingStrategy::FetchNext>;
+    using BlockFetcher = ::BlockFetcher<FetchingStrategy::FetchNextSmart>;
 
 public:
     /* Constructors */

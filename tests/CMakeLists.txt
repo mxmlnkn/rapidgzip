@@ -21,3 +21,9 @@ target_sources(testParallelBZ2Reader PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testParal
 target_link_libraries(testParallelBZ2Reader PRIVATE indexed_bzip2_parallel)
 add_test(NAME Test-Parallel-BZ2-Reader COMMAND testParallelBZ2Reader)
 add_dependencies(check testParallelBZ2Reader)
+
+add_executable(testPrefetcher)
+target_sources(testPrefetcher PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testPrefetcher.cpp)
+target_link_libraries(testPrefetcher PRIVATE indexed_bzip2_parallel)
+add_test(NAME Test-Prefetcher COMMAND testPrefetcher)
+add_dependencies(check testPrefetcher)
