@@ -174,10 +174,25 @@ public:
         while ( ( nBytesDecoded < nBytesToRead ) && !m_bitReader.eof() && !eof() ) {
             /* The input may be a concatenation of multiple BZip2 files (like produced by pbzip2).
              * Therefore, iterate over those mutliple files and decode them to the specified output. */
-            if ( ( m_bitReader.tell() == 0 ) || m_lastHeader.eos() ) {
+            if ( m_bitReader.tell() == 0 ) {
                 readBzip2Header();
+            } else if ( m_lastHeader.eos() ) {
+                try
+                {
+                    readBzip2Header();
+                }
+                catch ( const std::domain_error& exception )
+                {
+                    std::cerr << "[Warning] Trailing garbage after EOF ignored!\n";
+                    m_atEndOfFile = true;
+                    m_blockToDataOffsetsComplete = true;
+                    break;
+                }
             }
-            nBytesDecoded += decodeStream( outputFileDescriptor, outputBuffer, nBytesToRead - nBytesDecoded );
+
+            nBytesDecoded += decodeStream( outputFileDescriptor,
+                                           outputBuffer + nBytesDecoded,
+                                           nBytesToRead - nBytesDecoded );
         }
         m_currentPosition += nBytesDecoded;
         return nBytesDecoded;

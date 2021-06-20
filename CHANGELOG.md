@@ -1,6 +1,7 @@
 
 # Version 1.2.0 built on 2021-06-27
 
+ - Fix corrupted data for concatenated bzip2 streams in one bzip2 file in serial BZ2Reader.
  - Add C++17 threaded parallel bzip2 block decoder which is used when constructing
    'IndexedBzip2File' with argument 'parallelization' != 1.
  - Provide readline, readlines, peek methods by inheriting from BufferedReader.
