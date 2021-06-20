@@ -10,6 +10,7 @@
 #include <iostream>
 #include <memory>
 #include <ostream>
+#include <string>
 #include <thread>
 #include <type_traits>
 #include <utility>
@@ -234,3 +235,37 @@ public:
 private:
     std::condition_variable& m_toNotify;
 };
+
+
+
+int gnTests = 0;  // NOLINT
+int gnTestErrors = 0;  // NOLINT
+
+
+template<typename T>
+void
+requireEqual( const T& a, const T& b, int line )
+{
+    ++gnTests;
+    if ( a != b ) {
+        ++gnTestErrors;
+        std::cerr << "[FAIL on line " << line << "] " << a << " != " << b << "\n";
+    }
+}
+
+
+void
+require( bool               condition,
+         std::string const& conditionString,
+         int                line )
+{
+    ++gnTests;
+    if ( !condition ) {
+        ++gnTestErrors;
+        std::cerr << "[FAIL on line " << line << "] " << conditionString << "\n";
+    }
+}
+
+
+#define REQUIRE_EQUAL( a, b ) requireEqual( a, b, __LINE__ ) // NOLINT
+#define REQUIRE( condition ) require( condition, #condition, __LINE__ ) // NOLINT

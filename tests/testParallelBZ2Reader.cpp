@@ -11,40 +11,12 @@
 
 namespace
 {
-int gnTests = 0;  // NOLINT
-int gnTestErrors = 0;  // NOLINT
-
 /**
  * head -c $(( 64*1024*1024 )) /dev/urandom > decoded-sample
  * lbzip2 -k -c decoded-sample > encoded-sample.bz2
  */
 const std::string encodedTestFilePath = "encoded-sample.bz2";
 const std::string decodedTestFilePath = "decoded-sample";
-
-
-template<typename T>
-void
-requireEqual( const T& a, const T& b, int line )
-{
-    ++gnTests;
-    if ( a != b ) {
-        ++gnTestErrors;
-        std::cerr << "[FAIL on line " << line << "] " << a << " != " << b << "\n";
-    }
-}
-
-
-void
-require( bool               condition,
-         std::string const& conditionString,
-         int                line )
-{
-    ++gnTests;
-    if ( !condition ) {
-        ++gnTestErrors;
-        std::cerr << "[FAIL on line " << line << "] " << conditionString << "\n";
-    }
-}
 
 
 std::ios_base::seekdir
@@ -61,10 +33,6 @@ toSeekdir( int origin )
     throw std::invalid_argument( "Unknown origin" );
 }
 }
-
-
-#define REQUIRE_EQUAL( a, b ) requireEqual( a, b, __LINE__ ) // NOLINT
-#define REQUIRE( condition ) require( condition, #condition, __LINE__ ) // NOLINT
 
 
 void

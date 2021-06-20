@@ -5,12 +5,7 @@
 #include <unistd.h>
 
 #include "BitStringFinder.hpp"
-
-
-namespace {
-int gnTests = 0;  // NOLINT
-int gnTestErrors = 0;  // NOLINT
-}
+#include "common.hpp"
 
 
 template<class TemplatedBitStringFinder>
