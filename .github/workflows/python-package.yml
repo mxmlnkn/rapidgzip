@@ -79,8 +79,30 @@ jobs:
         for sanitized in address thread undefined safe-stack; do
         (
             mkdir -p "sanitized/$sanitized" &&
-            cd -- "$_" &&
-            CXX=clang++ CC=clang cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=$sanitized" ../..
+            cd -- "$_"
+            #
+            # TSAN in clang 10 and 11 shows false positives in condition variables:
+            # https://github.com/google/sanitizers/issues/1259
+            # Similar false positives appear with GCC 10.
+            # NO warnings appear with: GCC 8, 9 and clang 12,
+            # so I'm pretty sure that these are the referenced false positives.
+            clangMajorVersion=$( clang++ --version | sed -n -E 's|.* ([0-9]+)[.][0-9]+[.][0-9]+.*|\1|p' | head -1 )
+            if [[ ( "$sanitized" == thread ) && ( "$clangMajorVersion" -le 11 ) ]]; then
+                g++ --version
+                gccMajorVersion=$( g++ --version | sed -n -E 's|.* ([0-9]+)[.][0-9]+[.][0-9]+.*|\1|p' | head -1 )
+                if [[ "$gccMajorVersion" -ge 10 ]]; then
+                    echo "Could not find a compiler version without known false positives. Skipping TSAN."
+                    continue
+                fi
+                CXX=g++
+                CC=gcc
+            else
+                CXX=clang++
+                CC=clang
+            fi
+            export CC CXX
+            #
+            cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=$sanitized" ../..
             # ctest needs the sample files in 'test' subfolder!
             ln -s ../../../decoded-sample tests/decoded-sample &>/dev/null
             ln -s ../../../encoded-sample.bz2 tests/encoded-sample.bz2 &>/dev/null
