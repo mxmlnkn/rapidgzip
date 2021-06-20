@@ -119,9 +119,18 @@ public:
     }
 
     void
-    finalize()
+    finalize( std::optional<size_t> resultsCount = {} )
     {
         std::scoped_lock lock( m_mutex );
+
+        if ( resultsCount ) {
+            if ( *resultsCount > m_results.size() ) {
+                throw std::invalid_argument( "You may not finalize to a size larger than the current results buffer!" );
+            }
+
+            m_results.resize( *resultsCount );
+        }
+
         m_finalized = true;
         m_changed.notify_all();
     }
@@ -203,8 +212,26 @@ public:
     void
     startThreads()
     {
+        if ( !m_bitStringFinder ) {
+            throw std::invalid_argument( "You may not start the block finder without a valid bit string finder!" );
+        }
+
         if ( !m_blockFinder ) {
             m_blockFinder = std::make_unique<JoiningThread>( &BlockFinder::blockFinderMain, this );
+        }
+    }
+
+    void
+    stopThreads()
+    {
+        {
+            std::scoped_lock lock( m_mutex );
+            m_cancelThread = true;
+            m_changed.notify_all();
+        }
+
+        if ( m_blockFinder && m_blockFinder->joinable() ) {
+            m_blockFinder->join();
         }
     }
 
@@ -212,6 +239,15 @@ public:
     size() const
     {
         return m_blockOffsets.size();
+    }
+
+    /** Finalizes and will only keep the first @param blockCount blocks. */
+    void
+    finalize( std::optional<size_t> blockCount = {} )
+    {
+        stopThreads();
+        m_bitStringFinder = {};
+        m_blockOffsets.finalize( blockCount );
     }
 
     [[nodiscard]] bool
@@ -229,7 +265,9 @@ public:
     get( size_t blockNumber,
          double timeoutInSeconds = std::numeric_limits<double>::infinity() )
     {
-        startThreads();
+        if ( !m_blockOffsets.finalized() ) {
+            startThreads();
+        }
 
         {
             std::scoped_lock lock( m_mutex );
@@ -263,15 +301,7 @@ public:
     setBlockOffsets( BlockOffsets blockOffsets )
     {
         /* First we need to cancel the asynchronous block finder thread. */
-        {
-            std::scoped_lock lock( m_mutex );
-            m_cancelThread = true;
-            m_changed.notify_all();
-        }
-
-        if ( m_blockFinder && m_blockFinder->joinable() ) {
-            m_blockFinder->join();
-        }
+        stopThreads();
         m_bitStringFinder = {};
 
         /* Setting the results also finalizes them. No locking necessary because all threads have shut down. */
@@ -845,7 +875,11 @@ public:
                                   ? std::max<size_t>( 1U, std::thread::hardware_concurrency() )
                                   : parallelization ),
         m_startBlockFinder( [=](){ return std::make_shared<BlockFinder>( fileDescriptor, m_finderParallelization ); } )
-    {}
+    {
+        if ( !m_bitReader.seekable() ) {
+            throw std::invalid_argument( "Parallel BZ2 Reader will not work on non-seekable input like stdin (yet)!" );
+        }
+    }
 
     ParallelBZ2Reader( const char*  bz2Data,
                        const size_t size,
@@ -965,6 +999,29 @@ public:
                         m_blockMap->push( nextBlockHeaderData.encodedOffsetInBits,
                                           nextBlockHeaderData.encodedSizeInBits,
                                           0 );
+
+                        const auto nextStreamOffsetInBits = nextBlockHeaderData.encodedOffsetInBits +
+                                                            nextBlockHeaderData.encodedSizeInBits;
+                        if ( nextStreamOffsetInBits < m_bitReader.size() ) {
+                            try
+                            {
+                                BitReader nextBzip2StreamBitReader( m_bitReader );
+                                nextBzip2StreamBitReader.seek( nextStreamOffsetInBits );
+                                bzip2::readBzip2Header( nextBzip2StreamBitReader );
+                            }
+                            catch ( const std::domain_error& exception )
+                            {
+                                std::cerr << "[Warning] Trailing garbage after EOF ignored!\n";
+                                /**
+                                 * Stop reading the file here! 'bzip2-tests' comes with a test in which there actually
+                                 * comes further valid bzip2 data after a gap. But that data, which the block finder will
+                                 * find without problems, should not be read anymore!
+                                 * The block finder already might have prefetched further values, so we need to truncate it!
+                                 * @todo Maybe add an --ignore-invalid option like with tarfile's --ignore-zeros.
+                                 */
+                                m_blockFinder->finalize( m_blockMap->dataBlockCount() );
+                            }
+                        }
                     }
                 }
 
