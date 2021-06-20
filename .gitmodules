@@ -1,3 +1,6 @@
 [submodule "external/cxxopts"]
 	path = external/cxxopts
 	url = https://github.com/jarro2783/cxxopts.git
+[submodule "external/bzip2-tests"]
+	path = external/bzip2-tests
+	url = https://sourceware.org/git/bzip2-tests.git

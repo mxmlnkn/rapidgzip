@@ -21,15 +21,18 @@ jobs:
     - uses: actions/checkout@v2
       with:
         submodules: true
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
+
     - name: Install Dependencies
       run: |
         sudo apt-get -y install bzip2 pbzip2 lbzip2 cppcheck clang clang-tidy ninja-build # necessary for tests
         python3 -m pip install --upgrade pip
         python3 -m pip install --upgrade-strategy eager --upgrade cython twine numpy
+
     - name: Check committed Cython source
       run: |
         # Note that modification times can't be compared because they are changed by the git checkout
@@ -38,11 +41,13 @@ jobs:
           echo -e '\e[31mPlease trigger a rebuild of indexed_bzip2.pyx using "python3 setup.py build_ext --inplace --cython" and commit the new file\e[0m'
           exit 1
         }
+
     - name: Test Installation From Tarball
       run: |
         python3 setup.py sdist
         twine check dist/*
         python3 -m pip install dist/*.tar.gz
+
     - name: Run cppcheck
       run: |
         set -o pipefail
@@ -51,6 +56,7 @@ jobs:
             echo -e '\e[31mThere were errors while running cppcheck!\e[0m'
             exit 1
         fi
+
     - name: Run clang-tidy
       run: |
         mkdir -p build
@@ -64,6 +70,7 @@ jobs:
             echo -e '\e[31mThere were errors while running clang-tidy!\e[0m'
             exit 1
         fi
+
     - name: Run pure C++ tests with sanitizers
       run: |
         nproc
@@ -80,14 +87,18 @@ jobs:
             ninja check
         )
         done
-    - name: Run Unit Tests
+
+    - name: Run Standard Tests
+      # At this step this should already exist and be built and indexed_bzip2 should be installed
       run: |
-        cd tests
-        make 2>&1 | tee run-tests.log
-        if grep -e -i '(warn|err|fail)' run-tests.log; then
+        cd build
+        bash ../tests/testIbzip2.sh | tee run-standard-tests.log
+        if grep -i 'failed' run-standard-tests.log; then
             echo -e '\e[31mThere were errors while running the tests!\e[0m'
             exit 1
         fi
         cd ..
+
     - name: Test BZip2 Decoder
+      # indexed_bzip2 should be installed for this step!
       run: python3 tests/testBz2.py
