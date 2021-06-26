@@ -3,8 +3,11 @@
 
 import os
 import sys
+
 from setuptools import setup
 from setuptools.extension import Extension
+from setuptools.command.build_ext import build_ext
+
 
 buildCython = '--cython' in sys.argv
 
@@ -34,14 +37,35 @@ extensions = [
     ),
 ]
 
+
+link_args = [
+    '-static-libgcc',
+    '-static-libstdc++',
+    '-Wl,-Bstatic,--whole-archive',
+    '-lwinpthread',
+    '-Wl,--no-whole-archive'
+]
+
+
+# https://github.com/cython/cython/blob/master/docs/src/tutorial/appendix.rst#python-38
+class Build(build_ext):
+    def build_extensions(self):
+        if self.compiler.compiler_type == 'mingw32':
+            for e in self.extensions:
+                e.extra_link_args = link_args
+        super(Build, self).build_extensions()
+
+
 if buildCython:
     from Cython.Build import cythonize
     extensions = cythonize( extensions, compiler_directives = { 'language_level' : '3' } )
     del sys.argv[sys.argv.index( '--cython' )]
 
+
 scriptPath = os.path.abspath( os.path.dirname( __file__ ) )
 with open( os.path.join( scriptPath, 'README.md' ), encoding = 'utf-8' ) as file:
     readmeContents = file.read()
+
 
 setup(
     name             = 'indexed_bzip2',
@@ -63,5 +87,6 @@ setup(
     long_description_content_type = 'text/markdown',
 
     py_modules       = [ 'indexed_bzip2' ],
-    ext_modules      = extensions
+    ext_modules      = extensions,
+    cmdclass         = { 'build_ext': Build },
 )
