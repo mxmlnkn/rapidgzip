@@ -40,7 +40,8 @@ testThreadPool( unsigned int nThreads,
 
     std::cerr << "Checksums with thread pool took " << durationMeasured << "s "
               << "(predicted: " << durationPredicted << "s)\n";
-    assert( ( durationMeasured - durationPredicted ) / durationPredicted < 1.0 );
+    /* This timing test is too unstable as it fails when running with TSAN or valgrind, which slow down execution! */
+    //assert( ( durationMeasured - durationPredicted ) / durationPredicted < 1.0 );
 }
 
 

@@ -29,9 +29,28 @@ jobs:
 
     - name: Install Dependencies
       run: |
-        sudo apt-get -y install bzip2 pbzip2 lbzip2 cppcheck clang clang-tidy ninja-build # necessary for tests
+        sudo apt-get -y install bzip2 pbzip2 lbzip2 cppcheck clang clang-tidy g++ lcov ninja-build valgrind wget
         python3 -m pip install --upgrade pip
         python3 -m pip install --upgrade-strategy eager --upgrade cython twine numpy
+        #
+        # Install infer
+        VERSION=1.1.0
+        wget -q -O- "https://github.com/facebook/infer/releases/download/v$VERSION/infer-linux64-v$VERSION.tar.xz" | tar -xJ
+        echo "$PWD/infer-linux64-v$VERSION/bin" >> $GITHUB_PATH
+        #
+        # Install newer CMake
+        VERSION=3.20.5
+        wget -q -O- "https://github.com/Kitware/CMake/releases/download/v$VERSION/cmake-$VERSION-linux-x86_64.tar.gz" | tar -xz
+        echo "$PWD/cmake-$VERSION-linux-x86_64/bin" >> $GITHUB_PATH
+
+    - name: System Information
+      run: |
+        nproc
+        cmake --version
+        infer --version
+        g++ --version
+        clang++ --version
+        cppcheck --version
 
     - name: Check committed Cython source
       run: |
@@ -48,6 +67,20 @@ jobs:
         twine check dist/*
         python3 -m pip install dist/*.tar.gz
 
+    - name: Create Test Sample Data
+      run: |
+        head -c $(( 1*1024*1024 )) /dev/urandom > decoded-sample
+        lbzip2 -1 -k -c decoded-sample > encoded-sample.bz2
+
+    - name: Code Coverage
+      run: |
+        mkdir -p build-codeov && cd -- "$_"
+        CXX=g++ CC=gcc cmake -DCMAKE_BUILD_TYPE=Debug -DCODE_COVERAGE=ON ..
+        cmake --build . -- check
+        lcov --capture --directory . --base-directory "$( cd ../indexed_bzip2 && pwd  )" --no-external --output-file coverage.info
+        lcov --list coverage.info
+        bash <( wget -O- -q https://codecov.io/bash ) -f coverage.info
+
     - name: Run cppcheck
       run: |
         set -o pipefail
@@ -59,68 +92,81 @@ jobs:
 
     - name: Run clang-tidy
       run: |
-        mkdir -p build
-        cd build
+        mkdir -p build-compile-commands && cd -- "$_"
         cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-        make
         cd ..
         set -o pipefail
-        run-clang-tidy -j $( nproc ) -p build | tee clang-tidy.log
+        run-clang-tidy -j $( nproc ) -p build-compile-commands | tee clang-tidy.log
         if grep -E -i '(warning:|error:) .* \[[^]]*\]$' clang-tidy.log; then
             echo -e '\e[31mThere were errors while running clang-tidy!\e[0m'
             exit 1
         fi
 
-    - name: Run pure C++ tests with sanitizers
+    - name: Run Tests With Sanitizers
       run: |
-        nproc
-        head -c $(( 2*1024*1024 )) /dev/urandom > decoded-sample
-        lbzip2 -1 -k -c decoded-sample > encoded-sample.bz2
-        for sanitized in address thread undefined safe-stack; do
+        for sanitized in address undefined safe-stack; do
         (
-            mkdir -p "sanitized/$sanitized" &&
-            cd -- "$_"
-            #
-            # TSAN in clang 10 and 11 shows false positives in condition variables:
-            # https://github.com/google/sanitizers/issues/1259
-            # Similar false positives appear with GCC 10.
-            # NO warnings appear with: GCC 8, 9 and clang 12,
-            # so I'm pretty sure that these are the referenced false positives.
-            clangMajorVersion=$( clang++ --version | sed -n -E 's|.* ([0-9]+)[.][0-9]+[.][0-9]+.*|\1|p' | head -1 )
-            if [[ ( "$sanitized" == thread ) && ( "$clangMajorVersion" -le 11 ) ]]; then
-                g++ --version
-                gccMajorVersion=$( g++ --version | sed -n -E 's|.* ([0-9]+)[.][0-9]+[.][0-9]+.*|\1|p' | head -1 )
-                if [[ "$gccMajorVersion" -ge 10 ]]; then
-                    echo "Could not find a compiler version without known false positives. Skipping TSAN."
-                    continue
-                fi
-                CXX=g++
-                CC=gcc
-            else
-                CXX=clang++
-                CC=clang
-            fi
-            export CC CXX
-            #
-            cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=$sanitized" ../..
-            # ctest needs the sample files in 'test' subfolder!
-            ln -s ../../../decoded-sample tests/decoded-sample &>/dev/null
-            ln -s ../../../encoded-sample.bz2 tests/encoded-sample.bz2 &>/dev/null
-            ninja check
+            mkdir -p "build-sanitized-$sanitized" && cd -- "$_"
+            CXX=clang++ CC=clang cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=$sanitized" ..
+            cmake --build . -- check
         )
         done
 
-    - name: Run Standard Tests
-      # At this step this should already exist and be built and indexed_bzip2 should be installed
+    - name: Run Tests With Thread Sanitizer
       run: |
-        cd build
+        sanitized=thread
+        mkdir -p "build-sanitized-$sanitized" && cd -- "$_"
+        #
+        # TSAN in clang 10 and 11 shows false positives in condition variables:
+        # https://github.com/google/sanitizers/issues/1259
+        # Similar false positives appear with GCC 10.
+        # NO warnings appear with: GCC 8, 9 and clang 12,
+        # so I'm pretty sure that these are the referenced false positives.
+        clangMajorVersion=$( clang++ --version | sed -n -E 's|.* ([0-9]+)[.][0-9]+[.][0-9]+.*|\1|p' | head -1 )
+        if [[ ( "$sanitized" == thread ) && ( "$clangMajorVersion" -le 11 ) ]]; then
+            g++ --version
+            gccMajorVersion=$( g++ --version | sed -n -E 's|.* ([0-9]+)[.][0-9]+[.][0-9]+.*|\1|p' | head -1 )
+            if [[ "$gccMajorVersion" -ge 10 ]]; then
+                echo "Could not find a compiler version without known false positives. Skipping TSAN."
+                continue
+            fi
+            CXX=g++
+            CC=gcc
+        else
+            CXX=clang++
+            CC=clang
+        fi
+        export CC CXX
+        #
+        cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=$sanitized" ..
+        cmake --build . -- check
+
+    - name: Run infer
+      run: |
+        mkdir -p build-compile-commands && cd -- "$_"
+        cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+        infer run --report-blacklist-path-regex '.*testParallelBitStringFinder.cpp' --compilation-database compile_commands.json
+
+    - name: Run Standard Tests
+      # At this step 'build' should already exist and be built and indexed_bzip2 should be installed
+      run: |
+        mkdir -p build-ibzip2 && cd -- "$_"
+        cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug ..
+        cmake --build . -- ibzip2
+        set -o pipefail
         bash ../tests/testIbzip2.sh | tee run-standard-tests.log
         if grep -i 'failed' run-standard-tests.log; then
             echo -e '\e[31mThere were errors while running the tests!\e[0m'
             exit 1
         fi
-        cd ..
 
-    - name: Test BZip2 Decoder
+    - name: Test BZip2 Decoder Python Package
       # indexed_bzip2 should be installed for this step!
       run: python3 tests/testBz2.py
+
+    # Valgrind takes up over half the time of the whole pipeline! Therefore, do it last.
+    - name: Run valgrind
+      run: |
+        mkdir -p build-valgrind && cd -- "$_"
+        cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Debug
+        cmake --build . -- check-memcheck

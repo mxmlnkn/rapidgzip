@@ -1,0 +1,6 @@
+coverage:
+  status:
+    # pull-requests only
+    project:
+      default:
+        threshold: 10.0%

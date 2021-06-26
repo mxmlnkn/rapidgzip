@@ -28,7 +28,10 @@ function checkBz2Md5()
     printf .
 
     for tool in bzip2 lbzip2 pbzip2 "tools/ibzip2 -P 1" "tools/ibzip2 -P 2" "tools/ibzip2 -P 8"; do
-        if ! commandExists "$tool" && [[ ! -x "${tool%% *}" ]]; then continue; fi
+        if ! commandExists "$tool" && [[ ! -x "${tool%% *}" ]]; then
+            echoerr "[Warning] Could not find '$tool', so will skip tests for it."
+            continue
+        fi
 
         if ! $tool --decompress --stdout "$bz2File" | md5sum --quiet --check "$md5File"; then
             echoerr -e "\n\e[31mTest with $tool on $bz2File failed.\e[0m\n"

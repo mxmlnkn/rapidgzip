@@ -128,7 +128,7 @@ main()
         /** at this offset the second sub chunk begins and it will actually become multi-threadad */
         auto const specialOffset = minSubChunkSize - buffer.size() - secondMatchingString.size();
 
-        const std::vector<size_t> offsetsToTest = { 1, 100, 123, 1024, 28*1024, 32*1024*1024,
+        const std::vector<size_t> offsetsToTest = { 1, 100, 123, 1024, 28*1024, 4*1024*1024,
                                                     specialOffset - 1, specialOffset, specialOffset + 1 };
 
         for ( const auto offset : offsetsToTest ) {

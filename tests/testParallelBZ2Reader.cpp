@@ -11,14 +11,6 @@
 
 namespace
 {
-/**
- * head -c $(( 64*1024*1024 )) /dev/urandom > decoded-sample
- * lbzip2 -k -c decoded-sample > encoded-sample.bz2
- */
-const std::string encodedTestFilePath = "encoded-sample.bz2";
-const std::string decodedTestFilePath = "decoded-sample";
-
-
 std::ios_base::seekdir
 toSeekdir( int origin )
 {
@@ -36,11 +28,11 @@ toSeekdir( int origin )
 
 
 void
-testSimpleOpenAndClose()
+testSimpleOpenAndClose( const std::string& bz2File )
 {
     const auto t0 = std::chrono::high_resolution_clock::now();
     {
-        ParallelBZ2Reader encodedFile( encodedTestFilePath );  // NOLINT
+        ParallelBZ2Reader encodedFile( bz2File );  // NOLINT
         const auto t1 = std::chrono::high_resolution_clock::now();
         const auto dt = std::chrono::duration_cast<std::chrono::duration<double> >( t1 - t0 ).count();
         REQUIRE( dt < 1 );
@@ -56,7 +48,8 @@ testSimpleOpenAndClose()
  * Then all read results can be checked against each other. Same for the result of tell.
  */
 void
-testDecodingBz2ForFirstTime()
+testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
+                             const std::string& encodedTestFilePath )
 {
     size_t decodedFileSize = 0;
     {
@@ -271,8 +264,42 @@ testDecodingBz2ForFirstTime()
 
 
 int
-main()
+main( int    argc,
+      char** argv )
 {
+    if ( argc == 0 ) {
+        std::cerr << "Expected at least the launch command as the first argument!\n";
+        return 1;
+    }
+
+    const std::string binaryFilePath( argv[0] );
+    std::string binaryFolder = ".";
+    if ( const auto lastSlash = binaryFilePath.find_last_of( '/' ); lastSlash != std::string::npos ) {
+        binaryFolder = std::string( binaryFilePath.begin(), binaryFilePath.begin() + lastSlash );
+    }
+
+    /* Look for decoded-sample in any of the parent folders. */
+    while ( !binaryFolder.empty() )
+    {
+        auto filePath = binaryFolder + "/decoded-sample";
+        if ( fileExists( filePath.c_str() ) ) {
+            break;
+        }
+
+        if ( const auto lastSlash = binaryFolder.find_last_of( '/' ); lastSlash != std::string::npos ) {
+            binaryFolder = std::string( binaryFolder.begin(), binaryFolder.begin() + lastSlash );
+        } else {
+            break;
+        }
+    }
+
+    /**
+     * head -c $(( 64*1024*1024 )) /dev/urandom > decoded-sample
+     * lbzip2 -k -c decoded-sample > encoded-sample.bz2
+     */
+    const auto decodedTestFilePath = binaryFolder + "/decoded-sample";
+    const auto encodedTestFilePath = binaryFolder + "/encoded-sample.bz2";
+
     bool fileNotFound = false;
 
     if ( !fileExists( encodedTestFilePath.c_str() ) ) {
@@ -289,9 +316,9 @@ main()
         return 1;
     }
 
-    testSimpleOpenAndClose();
+    testSimpleOpenAndClose( encodedTestFilePath );
 
-    testDecodingBz2ForFirstTime();
+    testDecodingBz2ForFirstTime( decodedTestFilePath, encodedTestFilePath );
 
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
 
