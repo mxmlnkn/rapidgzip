@@ -70,8 +70,10 @@ cdef class _IndexedBzip2File():
     def __cinit__(self, fileNameOrDescriptor):
         if isinstance(fileNameOrDescriptor, basestring):
             self.bz2reader = new BZ2Reader(<string>fileNameOrDescriptor.encode())
-        else:
+        elif isinstance(fileNameOrDescriptor, int):
             self.bz2reader = new BZ2Reader(<int>fileNameOrDescriptor)
+        else:
+            raise Exception("Expected file name string or file descriptor integer!")
 
     def __dealloc__(self):
         del self.bz2reader
@@ -131,8 +133,11 @@ cdef class _IndexedBzip2FileParallel():
     def __cinit__(self, fileNameOrDescriptor, parallelization):
         if isinstance(fileNameOrDescriptor, basestring):
             self.bz2reader = new ParallelBZ2Reader(<string>fileNameOrDescriptor.encode(), <int>parallelization)
-        else:
+        elif isinstance(fileNameOrDescriptor, int):
             self.bz2reader = new ParallelBZ2Reader(<int>fileNameOrDescriptor, <int>parallelization)
+        else:
+            raise Exception("Expected file name string or file descriptor integer!")
+
 
     def __init__(self, *args, **kwargs):
         pass
