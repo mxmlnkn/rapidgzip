@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import platform
 import sys
 
 from setuptools import setup
@@ -10,6 +11,7 @@ from setuptools.command.build_ext import build_ext
 
 
 buildCython = '--cython' in sys.argv
+
 
 extensions = [
     Extension(
@@ -33,26 +35,35 @@ extensions = [
                              ],
         include_dirs       = [ '.' ],
         language           = 'c++',
-        extra_compile_args = [ '-std=c++17', '-O3', '-DNDEBUG' ],
     ),
-]
-
-
-link_args = [
-    '-static-libgcc',
-    '-static-libstdc++',
-    '-Wl,-Bstatic,--whole-archive',
-    '-lwinpthread',
-    '-Wl,--no-whole-archive'
 ]
 
 
 # https://github.com/cython/cython/blob/master/docs/src/tutorial/appendix.rst#python-38
 class Build(build_ext):
     def build_extensions(self):
-        if self.compiler.compiler_type == 'mingw32':
-            for e in self.extensions:
-                e.extra_link_args = link_args
+        for ext in self.extensions:
+            ext.extra_compile_args = [ '-std=c++17', '-O3', '-DNDEBUG' ]
+
+            # https://github.com/cython/cython/issues/2670#issuecomment-432212671
+            # https://github.com/cython/cython/issues/3405#issuecomment-596975159
+            # https://bugs.python.org/issue35037
+            # https://bugs.python.org/issue4709
+            if platform.system() == 'Windows' and platform.machine().endswith( '64' ):
+                ext.extra_compile_args += [ '-DMS_WIN64' ]
+
+            if self.compiler.compiler_type == 'mingw32':
+                ext.extra_link_args = [
+                    '-static-libgcc',
+                    '-static-libstdc++',
+                    '-Wl,-Bstatic,--whole-archive',
+                    '-lwinpthread',
+                    '-Wl,--no-whole-archive'
+                ]
+
+            elif self.compiler.compiler_type == 'msvc':
+                ext.extra_compile_args = [ '/std:c++17', '/O2', '/DNDEBUG' ]
+
         super(Build, self).build_extensions()
 
 
