@@ -275,9 +275,9 @@ Block::readBlockHeader()
     m_atEndOfStream = magicBytes == MAGIC_BITS_EOS;
     if ( m_atEndOfStream ) {
         /* read byte padding bits */
-        const auto nBitsInByte = bitReader().tell() & 7LLU;
+        const auto nBitsInByte = static_cast<uint8_t>( bitReader().tell() & 7LLU );
         if ( nBitsInByte > 0 ) {
-            bitReader().read( 8 - nBitsInByte );
+            bitReader().read( uint8_t( 8 ) - nBitsInByte );
         }
 
         encodedSizeInBits = bitReader().tell() - encodedOffsetInBits;

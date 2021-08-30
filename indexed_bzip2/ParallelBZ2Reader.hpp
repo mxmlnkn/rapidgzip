@@ -1113,34 +1113,34 @@ public:
             break;
         }
 
-        offset = std::max<decltype( offset )>( 0, offset );
+        const auto positiveOffset = static_cast<size_t>( std::max<decltype( offset )>( 0, offset ) );
 
-        if ( static_cast<size_t>( offset ) == tell() ) {
-            return offset;
+        if ( positiveOffset == tell() ) {
+            return positiveOffset;
         }
 
         /* Backward seeking is no problem at all! 'tell' may only return <= size()
          * as value meaning we are now < size() and therefore EOF can be cleared! */
-        if ( static_cast<size_t>( offset ) < tell() ) {
+        if ( positiveOffset < tell() ) {
             m_atEndOfFile = false;
-            m_currentPosition = offset;
-            return offset;
+            m_currentPosition = positiveOffset;
+            return positiveOffset;
         }
 
         /* m_blockMap is only accessed by read and seek, which are not to be called from different threads,
          * so we do not have to lock it. */
-        const auto blockInfo = m_blockMap->findDataOffset( offset );
-        if ( static_cast<size_t>( offset ) < blockInfo.decodedOffsetInBytes ) {
+        const auto blockInfo = m_blockMap->findDataOffset( positiveOffset );
+        if ( positiveOffset < blockInfo.decodedOffsetInBytes ) {
             throw std::logic_error( "Block map returned unwanted block!" );
         }
 
-        if ( blockInfo.contains( offset ) ) {
+        if ( blockInfo.contains( positiveOffset ) ) {
             m_atEndOfFile = false;
-            m_currentPosition = offset;
+            m_currentPosition = positiveOffset;
             return tell();
         }
 
-        assert( static_cast<size_t>( offset ) - blockInfo.decodedOffsetInBytes > blockInfo.decodedSizeInBytes );
+        assert( positiveOffset - blockInfo.decodedOffsetInBytes > blockInfo.decodedSizeInBytes );
         if ( m_blockMap->finalized() ) {
             m_atEndOfFile = true;
             m_currentPosition = size();
@@ -1152,7 +1152,7 @@ public:
          * can even seek to after the file end with no fail bits being set in my tests! */
         m_atEndOfFile = false;
         m_currentPosition = blockInfo.decodedOffsetInBytes + blockInfo.decodedSizeInBytes;
-        read( -1, nullptr, offset - tell() );
+        read( -1, nullptr, positiveOffset - tell() );
         return tell();
     }
 

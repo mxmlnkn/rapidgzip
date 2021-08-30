@@ -283,13 +283,13 @@ BZ2Reader::seek( long long int offset,
         break;
     }
 
-    if ( static_cast<long long int>( tell() ) == offset ) {
-        return offset;
+    if ( ( offset > 0 ) && ( static_cast<size_t>( offset ) == tell() ) ) {
+        return static_cast<size_t>( offset );
     }
 
     /* When block offsets are not complete yet, emulate forward seeking with a read. */
     if ( !m_blockToDataOffsetsComplete && ( offset > static_cast<long long int>( tell() ) ) ) {
-        read( -1, nullptr, offset - tell() );
+        read( -1, nullptr, static_cast<size_t>( offset - tell() ) );
         return tell();
     }
 
@@ -299,7 +299,7 @@ BZ2Reader::seek( long long int offset,
     }
 
     offset = std::max<decltype( offset )>( 0, offset );
-    m_currentPosition = offset;
+    m_currentPosition = static_cast<size_t>( offset );
 
     flushOutputBuffer(); // ensure that no old data is left over
 
@@ -316,7 +316,7 @@ BZ2Reader::seek( long long int offset,
     if ( ( blockOffset == m_blockToDataOffsets.rend() ) || ( static_cast<size_t>( offset ) < blockOffset->second ) ) {
         throw std::runtime_error( "Could not find block to seek to for given offset" );
     }
-    const auto nBytesSeekInBlock = offset - blockOffset->second;
+    const auto nBytesSeekInBlock = static_cast<size_t>( offset - blockOffset->second );
 
     m_lastHeader = readBlockHeader( blockOffset->first );
     m_lastHeader.readBlockData();

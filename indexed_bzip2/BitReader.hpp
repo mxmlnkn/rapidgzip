@@ -425,7 +425,7 @@ BitReader::seekInternal( long long int offsetBits,
     offsetBits += m_offsetBits;
 
     if ( static_cast<size_t>( offsetBits ) == tell() ) {
-        return offsetBits;
+        return static_cast<size_t>( offsetBits );
     }
 
     if ( offsetBits < 0 ) {
@@ -440,8 +440,8 @@ BitReader::seekInternal( long long int offsetBits,
         throw std::invalid_argument( "File is not seekable!" );
     }
 
-    const size_t bytesToSeek = offsetBits >> 3;
-    const size_t subBitsToSeek = offsetBits & 7;
+    const auto bytesToSeek = static_cast<size_t>( offsetBits ) >> 3U;
+    const auto subBitsToSeek = static_cast<uint8_t>( static_cast<size_t>( offsetBits ) & 7U );
 
     m_inbuf.clear();
     m_inbufPos = 0;
@@ -457,7 +457,7 @@ BitReader::seekInternal( long long int offsetBits,
 
         m_inbufPos = bytesToSeek;
         if ( subBitsToSeek > 0 ) {
-            m_inbufBitCount = 8 - subBitsToSeek;
+            m_inbufBitCount = uint8_t( 8 ) - subBitsToSeek;
             m_inbufBits = m_inbuf[m_inbufPos++];
         }
     } else {
@@ -489,7 +489,7 @@ BitReader::seekInternal( long long int offsetBits,
         }
 
         if ( subBitsToSeek > 0 ) {
-            m_inbufBitCount = 8 - subBitsToSeek;
+            m_inbufBitCount = uint8_t( 8 ) - subBitsToSeek;
             m_inbufBits = fgetc( m_file.get() );
         }
     }
