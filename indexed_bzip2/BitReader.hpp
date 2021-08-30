@@ -273,7 +273,7 @@ private:
         return fileStats.st_size;
     }
 
-    static size_t
+    static bool
     determineSeekable( int fileNumber )
     {
         struct stat fileStats;
@@ -300,7 +300,7 @@ private:
         }
 
         m_inbuf.resize( IOBUF_SIZE );
-        const size_t nBytesRead = std::fread( m_inbuf.data(), 1, m_inbuf.size(), m_file.get() );
+        const auto nBytesRead = std::fread( m_inbuf.data(), 1, m_inbuf.size(), m_file.get() );
         if ( nBytesRead < m_inbuf.size() ) {
             m_lastReadSuccessful = false;
         }
