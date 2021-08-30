@@ -1347,6 +1347,6 @@ private:
 
     /** Necessary for prefetching decoded blocks in parallel. */
     std::shared_ptr<BlockFinder>    m_blockFinder;
-    std::shared_ptr<BlockMap> const m_blockMap{ std::make_unique<BlockMap>() };
+    std::unique_ptr<BlockMap> const m_blockMap{ std::make_unique<BlockMap>() };
     std::unique_ptr<BlockFetcher>   m_blockFetcher;
 };
