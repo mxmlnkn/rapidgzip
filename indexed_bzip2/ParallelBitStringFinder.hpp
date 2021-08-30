@@ -16,8 +16,6 @@
 #include <utility>
 #include <vector>
 
-#include <unistd.h>         // dup, fileno
-
 #include "BitReader.hpp"
 #include "BitStringFinder.hpp"
 #include "common.hpp"

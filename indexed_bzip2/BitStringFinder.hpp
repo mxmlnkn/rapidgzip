@@ -17,7 +17,6 @@
 #include <vector>
 
 #include <sys/stat.h>
-#include <unistd.h>         // dup, fileno
 
 #include "common.hpp"
 

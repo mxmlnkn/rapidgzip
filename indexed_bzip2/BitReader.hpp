@@ -13,7 +13,6 @@
 #include <type_traits>
 #include <vector>
 
-#include <unistd.h>
 #include <sys/stat.h>
 
 #include "common.hpp"

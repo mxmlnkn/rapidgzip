@@ -269,3 +269,31 @@ require( bool               condition,
 
 #define REQUIRE_EQUAL( a, b ) requireEqual( a, b, __LINE__ ) // NOLINT
 #define REQUIRE( condition ) require( condition, #condition, __LINE__ ) // NOLINT
+
+
+/* Platform dependent stuff */
+
+#ifdef _MSC_VER
+    #include <io.h>
+
+    #define fileno _fileno
+    #define dup _dup
+
+    #include <sys/stat.h>
+
+    #define S_IFIFO _S_IFIFO
+    #define S_IFMT _S_IFMT
+
+    template<typename FileMode, typename FileType>
+    bool
+    testFileType( FileMode fileMode,
+                  FileType fileType )
+    {
+        return ( fileMode & S_IFMT ) == fileType;
+    }
+
+    #define S_ISFIFO(m) testFileType( m, S_IFIFO )
+
+#else
+    #include <unistd.h>
+#endif
