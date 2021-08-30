@@ -726,14 +726,14 @@ public:
 
             /* Do not prefetch already cached/prefetched blocks or block indexes which are not yet in the block map. */
             if ( !prefetchBlockOffset.has_value()
-                 || ( m_prefetching.find( prefetchBlockOffset.value() ) != m_prefetching.end() )
-                 || m_cache.test( prefetchBlockOffset.value() ) )
+                 || ( m_prefetching.find( *prefetchBlockOffset ) != m_prefetching.end() )
+                 || m_cache.test( *prefetchBlockOffset ) )
             {
                 continue;
             }
 
             ++m_prefetchCount;
-            auto decodeTask = [this, offset = prefetchBlockOffset.value()](){ return decodeBlock( offset ); };
+            auto decodeTask = [this, offset = *prefetchBlockOffset](){ return decodeBlock( offset ); };
             auto prefetchedFuture = m_threadPool.submitTask( std::move( decodeTask ) );
             const auto [_, wasInserted] = m_prefetching.emplace( *prefetchBlockOffset, std::move( prefetchedFuture ) );
             if ( !wasInserted ) {
