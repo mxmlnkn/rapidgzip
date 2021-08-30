@@ -6,8 +6,56 @@ on:
       - 'v*.*.*'
 
 jobs:
-  deploy:
-    runs-on: ubuntu-20.04
+  Deploy-Wheels:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+        # manylinux1 is not supported anymore because it won't compile C++17 code
+        manylinux-image: [manylinux2010, manylinux2014]
+        exclude:
+          - os: macos-latest
+            manylinux-image: manylinux2010
+          - os: windows-latest
+            manylinux-image: manylinux2010
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.9
+
+    - name: Install Dependencies
+      run: |
+        python3 -m pip install --upgrade pip
+        python3 -m pip install --upgrade-strategy eager --upgrade cython twine cibuildwheel
+
+    - name: Build Tarball
+      if: matrix.manylinux-image == 'manylinux_2014' && matrix.os == 'ubuntu-latest'
+      run: python3 setup.py sdist
+
+    - name: Build Wheels
+      env:
+        CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux-image }}
+        CIBW_MANYLINUX_I686_IMAGE: ${{ matrix.manylinux-image }}
+      run: python -m cibuildwheel --output-dir dist
+
+    - name: Check Wheels
+      run: twine check dist/*
+
+    - name: Publish to PyPI
+      env:
+        TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+      run: twine upload --skip-existing -u __token__ dist/*
+
+
+  Deploy-Tarball:
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
 
@@ -21,34 +69,8 @@ jobs:
         python3 -m pip install --upgrade pip
         python3 -m pip install --upgrade-strategy eager --upgrade setuptools twine
 
-    # This should come before the docker calls or else docker will create a root-owned
-    # dist folder without write permissions for non-root users and this call will fail!
-    - name: Build Tarball
-      run: python setup.py sdist
-
-    - name: Build manylinux2010_x86_64
-      uses: docker://quay.io/pypa/manylinux2010_x86_64
-      with:
-        entrypoint: bash
-        args: manylinux/build-wheels.sh manylinux2010_x86_64
-
-    - name: Build manylinux2010_i686
-      uses: docker://quay.io/pypa/manylinux2010_i686
-      with:
-        entrypoint: bash
-        args: manylinux/build-wheels.sh manylinux2010_i686
-
-    - name: Build manylinux2014_x86_64
-      uses: docker://quay.io/pypa/manylinux2014_x86_64
-      with:
-        entrypoint: bash
-        args: manylinux/build-wheels.sh manylinux2014_x86_64
-
-    - name: Build manylinux2014_i686
-      uses: docker://quay.io/pypa/manylinux2014_i686
-      with:
-        entrypoint: bash
-        args: manylinux/build-wheels.sh manylinux2014_i686
+    - name: Create Tarball
+      run: python3 setup.py sdist
 
     - name: Check Wheels
       run: twine check dist/*

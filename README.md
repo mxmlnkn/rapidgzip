@@ -27,8 +27,10 @@ To use the parallel implementation you need to specify a `parallelization` argum
 # Installation
 
 You can simply install it from PyPI:
+
 ```
-pip install indexed_bzip2
+python3 -m pip install --upgrade pip  # Recommended for newer manylinux wheels
+python3 -m pip install indexed_bzip2
 ```
 
 # Usage
