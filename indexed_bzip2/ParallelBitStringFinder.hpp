@@ -59,7 +59,7 @@ public:
                              size_t   fileBufferSizeBytes = 1*1024*1024 ) :
         BaseType( bitStringToFind,
                   chunkSize( fileBufferSizeBytes, requestedBytes, parallelization ),
-                  BaseType::fdFilePath( fileDescriptor ) ),
+                  fdFilePath( fileDescriptor ) ),
         m_threadPool( parallelization )
     {
         if ( BaseType::seekable() ) {

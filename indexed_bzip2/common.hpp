@@ -139,6 +139,16 @@ throwingOpen( const std::string& filePath,
 }
 
 
+/** dup is not strong enough to be able to independently seek in the old and the dup'ed fd! */
+std::string
+fdFilePath( int fileDescriptor )
+{
+    std::stringstream filename;
+    filename << "/dev/fd/" << fileDescriptor;
+    return filename.str();
+}
+
+
 inline std::chrono::time_point<std::chrono::high_resolution_clock>
 now()
 {

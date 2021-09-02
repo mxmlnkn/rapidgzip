@@ -40,16 +40,6 @@ public:
     static constexpr int NO_FILE = -1;
 
 public:
-    /** dup is not strong enough to be able to independently seek in the old and the dup'ed fd! */
-    static std::string
-    fdFilePath( int fileDescriptor )
-    {
-        std::stringstream filename;
-        filename << "/proc/self/fd/" << fileDescriptor;
-        return filename.str();
-    }
-
-public:
     explicit
     BitReader( std::string filePath ) :
         m_filePath( std::move( filePath ) ),
