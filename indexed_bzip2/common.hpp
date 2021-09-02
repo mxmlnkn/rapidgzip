@@ -129,12 +129,17 @@ inline unique_file_ptr
 throwingOpen( const std::string& filePath,
               const char*        mode )
 {
+    if ( mode == nullptr ) {
+        throw std::invalid_argument( "Mode must be a C-String and not null!" );
+    }
+
     auto file = make_unique_file_ptr( filePath.c_str(), mode );
     if ( file == nullptr ) {
         std::stringstream msg;
-        msg << "Opening file '" << filePath << " failed!";
+        msg << "Opening file '" << filePath << "' with mode '" << mode << "' failed!";
         throw std::invalid_argument( msg.str() );
     }
+
     return file;
 }
 
