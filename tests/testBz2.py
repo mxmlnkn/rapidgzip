@@ -8,6 +8,7 @@ import hashlib
 import io
 import os
 import pprint
+import shutil
 import subprocess
 import tempfile
 import time
@@ -34,9 +35,8 @@ def checkedSeek( fileobj, offset, whence = io.SEEK_SET ):
 def checkDecompressionBytewise( rawFile, bz2File, bufferSize ):
     # Very slow for some reason! Only use this check if the checksum check fails
     checkedSeek( rawFile, 0 )
-    checkedSeek( bz2File, 0 )
 
-    decFile = IndexedBzip2File( bz2File.fileno() )
+    decFile = IndexedBzip2File( bz2File.name )
 
     while True:
         oldPos1 = rawFile.tell()
@@ -54,18 +54,14 @@ def checkDecompressionBytewise( rawFile, bz2File, bufferSize ):
             print( "Block offsets:" )
             pprint.pprint( decFile.block_offsets() )
 
-            checkedSeek( bz2File, 0 )
-            file = open( "bugged-random.bz2", 'wb' )
-            file.write( bz2File.read() )
-            file.close()
+            shutil.copyfile( bz2file.name, "bugged-random.bz2" )
 
             raise Exception( "Data mismatches!" )
 
 def checkDecompression( rawFile, bz2File, bufferSize ):
     checkedSeek( rawFile, 0 )
-    checkedSeek( bz2File, 0 )
 
-    file = IndexedBzip2File( bz2File.fileno() )
+    file = IndexedBzip2File( bz2File.name )
     sha1 = sha1_160( file, bufferSize )
     sha2 = sha1_160( rawFile )
 
@@ -92,16 +88,25 @@ def checkSeek( rawFile, bz2File, seekPos ):
     assert c1 == c2
 
 def writeBz2File( data, compresslevel = 9, encoder = 'pybz2' ):
-    rawFile = tempfile.TemporaryFile()
+    rawFile = tempfile.NamedTemporaryFile()
     rawFile.write( data )
     checkedSeek( rawFile, 0 );
 
-    bz2File = tempfile.TemporaryFile()
+    # https://docs.python.org/3/library/tempfile.html#tempfile.NamedTemporaryFile
+    # > Whether the name can be used to open the file a second time,
+    # > while the named temporary file is still open, varies across platforms
+    # > (it can be so used on Unix; it cannot on Windows NT or later).
+    # The error on Windows will be:
+    # > PermissionError: [WinError 32] The process cannot access the file because it is being used by another process
+
+    bz2File = tempfile.NamedTemporaryFile( delete = False )
     if encoder == 'pybz2':
         bz2File.write( bz2.compress( data, compresslevel ) )
     else:
         bz2File.write( subprocess.check_output( [ encoder, '-{}'.format( compresslevel ) ], input = data ) )
     checkedSeek( bz2File, 0 )
+
+    bz2File.close()
 
     return rawFile, bz2File
 
@@ -118,14 +123,10 @@ def createStripedBz2( sizeInBytes, compresslevel = 9, encoder = 'pybz2', sequenc
 
 def storeFiles( rawFile, bz2File, name ):
     if rawFile:
-        with open( name, 'wb' ) as file:
-            checkedSeek( rawFile, 0 )
-            file.write( rawFile.read() )
+        shutil.copyfile( rawFile.name, name )
 
     if bz2File:
-        with open( name + ".bz2", 'wb' ) as file:
-            checkedSeek( bz2File, 0 )
-            file.write( bz2File.read() )
+        shutil.copyfile( bz2File.name, name + ".bz2" )
 
     print( "Created files {} and {}.bz2 with the failed test".format( name, name ) )
 
@@ -162,13 +163,13 @@ def testBz2( parameters ):
             raise e
 
     if parameters.size > 0:
-        sbzip2 = IndexedBzip2File( bz2File.fileno(), parameters.parallelization )
+        sbzip2 = IndexedBzip2File( bz2File.name, parameters.parallelization )
         for seekPos in np.append( np.random.randint( 0, parameters.size ), [ 0, parameters.size - 1 ] ):
             try:
                 checkSeek( rawFile, sbzip2, seekPos )
             except Exception as e:
                 print( "Test for", parameters, "failed when seeking to", seekPos )
-                sb = IndexedBzip2File( bz2File.fileno() )
+                sb = IndexedBzip2File( bz2File.name )
                 sb.read( seekPos )
                 print( "Char when doing naive seek:", sb.read( 1 ).hex() )
 
@@ -180,17 +181,22 @@ def testBz2( parameters ):
         # Check seeking after loading offsets
         for seekPos in np.append( np.random.randint( 0, parameters.size ), [ 0, parameters.size - 1 ] ):
             try:
-                sbzip2 = IndexedBzip2File( bz2File.fileno(), parallelization = parameters.parallelization )
+                sbzip2 = IndexedBzip2File( bz2File.name, parallelization = parameters.parallelization )
                 sbzip2.set_block_offsets( offsets )
                 checkSeek( rawFile, sbzip2, seekPos )
             except Exception as e:
                 print( "Test for", parameters, "failed when seeking to", seekPos, "after loading block offsets" )
-                sb = IndexedBzip2File( bz2File.fileno() )
+                sb = IndexedBzip2File( bz2File.name )
                 sb.read( seekPos )
                 print( "Char when doing naive seek:", sb.read( 1 ).hex() )
 
                 storeFiles( rawFile, bz2File, str( parameters ) )
                 raise e
+
+        sbzip2.close()
+        assert sbzip2.closed
+
+    os.remove( bz2File.name )
 
     return True
 
@@ -231,10 +237,12 @@ def testPythonInterface(parallelization):
     file.close()
     assert file.closed
 
+    os.remove( bz2File.name )
+
 
 def commandExists( name ):
     try:
-        subprocess.call( [name, "-h"] )
+        subprocess.call( [name, "-h"], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL )
     except FileNotFoundError:
         return False
 
