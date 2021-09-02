@@ -231,6 +231,16 @@ def testPythonInterface(parallelization):
     file.close()
     assert file.closed
 
+
+def commandExists( name ):
+    try:
+        subprocess.call( [name, "-h"] )
+    except FileNotFoundError:
+        return False
+
+    return True
+
+
 if __name__ == '__main__':
     print( "indexed_bzip2 version:", indexed_bzip2.__version__ )
 
@@ -239,12 +249,18 @@ if __name__ == '__main__':
     testPythonInterface(3)
     testPythonInterface(8)
 
+    encoders = [ 'pybz2' ]
+    if commandExists( 'bzip2' ):
+        encoders += [ 'bzip2' ]
+    if commandExists( 'pbzip2' ):
+        encoders += [ 'pbzip2' ]
+
     # TODO Add parallelization parameter for tests! But take care wih the ProcessPoolExecutor to not overload the system
     buffersizes = [ -1, 128, 333, 500, 1024, 1024*1024, 64*1024*1024 ]
     parameters = [
         Bzip2TestParameters( size, encoder, compressionlevel, pattern, patternsize, buffersizes, 1 )
         for size in [ 1, 2, 3, 4, 5, 10, 20, 30, 100, 1000, 10000, 100000, 200000, 0 ]
-        for encoder in [ 'pbzip2', 'bzip2', 'pybz2' ]
+        for encoder in encoders
         for compressionlevel in range( 1, 9 + 1 )
         for pattern in [ 'random', 'sequences' ]
         for patternsize in ( [ None ] if pattern == 'random' else [ 1, 2, 8, 123, 257, 2048, 100000 ] )
