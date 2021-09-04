@@ -1,0 +1,29 @@
+{% set data = load_setup_py_data() %}
+
+package:
+  name: indexed_bzip2
+  version: {{ data.get('version') }}
+
+source:
+  git_url: ../
+
+build:
+  number: 0
+
+requirements:
+  build:
+    - setuptools
+    - {{ compiler('cxx') }}
+  host:
+    - python {{ python }}
+
+about:
+  home: {{ data.get('url') }}
+  license: {{ data.get('license') }}
+  license_family: MIT
+  license_file: LICENSE
+  summary: {{ data.get('description') }}
+
+extra:
+  recipe-maintainers:
+    - mxmlnkn
