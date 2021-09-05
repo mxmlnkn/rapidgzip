@@ -36,9 +36,9 @@ python3 -m pip install --upgrade pip  # Recommended for newer manylinux wheels
 python3 -m pip install indexed_bzip2
 ```
 
-# Usage
+# Usage Examples
 
-## Example 1
+## Simple open, seek, read, and close
 
 ```python3
 from indexed_bzip2 import IndexedBzip2File
@@ -48,22 +48,36 @@ file = IndexedBzip2File( "example.bz2", parallelization = os.cpu_count() )
 # You can now use it like a normal file
 file.seek( 123 )
 data = file.read( 100 )
+file.close()
 ```
 
 The first call to seek will ensure that the block offset list is complete and therefore might create them first.
 Because of this the first call to seek might take a while.
 
-## Example 2: Storing and loading the block offset map
+
+## Use with context manager
+
+```python3
+import os
+import indexed_bzip2 as ibz2
+
+with ibz2.open( "example.bz2", parallelization = os.cpu_count() ) as file:
+    file.seek( 123 )
+    data = file.read( 100 )
+```
+
+
+## Storing and loading the block offset map
 
 The creation of the list of bzip2 blocks can take a while because it has to decode the bzip2 file completely.
 To avoid this setup when opening a bzip2 file, the block offset list can be exported and imported.
 
 ```python3
-from indexed_bzip2 import IndexedBzip2File
+import indexed_bzip2 as ibz2
 import pickle
 
 # Calculate and save bzip2 block offsets
-file = IndexedBzip2File( "example.bz2", parallelization = os.cpu_count() )
+file = ibz2.open( "example.bz2", parallelization = os.cpu_count() )
 block_offsets = file.block_offsets() # can take a while
 # block_offsets is a simple dictionary where the keys are the bzip2 block offsets in bits(!)
 # and the values are the corresponding offsets in the decoded data in bytes. E.g.:
@@ -75,7 +89,7 @@ file.close()
 # Load bzip2 block offsets for fast seeking
 with open( "offsets.dat", 'rb' ) as offsets_file:
     block_offsets = pickle.load( offsets_file )
-file2 = IndexedBzip2File( "example.bz2", parallelization = os.cpu_count() )
+file2 = ibz2.open( "example.bz2", parallelization = os.cpu_count() )
 file2.set_block_offsets( block_offsets ) # should be fast
 file2.seek( 123 )
 data = file2.read( 100 )
@@ -83,7 +97,7 @@ file2.close()
 ```
 
 
-## Example 3: Comparison with bz2 module
+## Comparison with bz2 module
 
 These are simple timing tests for reading all the contents of a bzip2 file sequentially.
 

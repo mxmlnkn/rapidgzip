@@ -245,4 +245,9 @@ class IndexedBzip2File(io.BufferedReader):
         # by BufferedReader or more specifically _BufferedIOMixin
         super().__init__(fobj, buffer_size=1024**2)
 
+
+def open(filename, parallelization = 1):
+    return IndexedBzip2File(filename, parallelization)
+
+
 __version__ = '1.3.0'

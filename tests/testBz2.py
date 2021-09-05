@@ -205,7 +205,7 @@ def testPythonInterface(parallelization):
 
     contents = b"Hello\nWorld!\n"
     rawFile, bz2File = writeBz2File( contents )
-    file = IndexedBzip2File( bz2File.name )
+    file = IndexedBzip2File( bz2File.name, parallelization = parallelization )
 
     # Based on the Python spec, peek might return more or less bytes than requested
     # but I think in this case it definitely should not return less!
@@ -233,6 +233,18 @@ def testPythonInterface(parallelization):
 
     assert file.seek( 0 ) == 0
     assert file.readlines() == [ x + b'\n' for x in contents.split( b'\n' ) if x ]
+
+    file.close()
+    assert file.closed
+
+    # Test the new open method interface
+
+    file = indexed_bzip2.open( bz2File.name, parallelization = parallelization )
+
+    # Based on the Python spec, peek might return more or less bytes than requested
+    # but I think in this case it definitely should not return less!
+    assert file.peek( 1 )[0] == contents[0]
+    assert file.peek( 1 )[0] == contents[0], "The previous peek should not change the internal position"
 
     file.close()
     assert file.closed
