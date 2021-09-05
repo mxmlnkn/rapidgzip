@@ -1,4 +1,10 @@
 
+# Version 1.3.0 built on 2021-09-xx
+
+ - Add support and wheels for macOS and Windows additionally to Linux.
+ - Build and upload Conda packages for Linux, Windows, and macOS.
+ - Add 'open' method for compatibility to bzip2, gzip, and other similar modules.
+
 # Version 1.2.0 built on 2021-06-27
 
  - Fix corrupted data for concatenated bzip2 streams in one bzip2 file in serial BZ2Reader.
