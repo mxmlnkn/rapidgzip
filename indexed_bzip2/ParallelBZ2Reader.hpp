@@ -929,13 +929,13 @@ public:
 
     /* FileReader overrides */
 
-    int
+    [[nodiscard]] int
     fileno() const override
     {
         return ::fileno( m_bitReader.fp() );
     }
 
-    bool
+    [[nodiscard]] bool
     seekable() const override
     {
         return m_bitReader.seekable();
@@ -949,19 +949,19 @@ public:
         m_bitReader.close();
     }
 
-    bool
+    [[nodiscard]] bool
     closed() const override
     {
         return m_bitReader.closed();
     }
 
-    bool
+    [[nodiscard]] bool
     eof() const override
     {
         return m_atEndOfFile;
     }
 
-    size_t
+    [[nodiscard]] size_t
     tell() const override
     {
         if ( m_atEndOfFile ) {
@@ -970,7 +970,7 @@ public:
         return m_currentPosition;
     }
 
-    size_t
+    [[nodiscard]] size_t
     size() const override
     {
         if ( !m_blockMap->finalized() ) {
@@ -981,7 +981,7 @@ public:
 
     /* BZ2ReaderInterface overrides */
 
-    size_t
+    [[nodiscard]] size_t
     read( const int    outputFileDescriptor = -1,
           char* const  outputBuffer = nullptr,
           const size_t nBytesToRead = std::numeric_limits<size_t>::max() ) override
@@ -1160,7 +1160,7 @@ public:
 
     /* BZip2 specific methods */
 
-    bool
+    [[nodiscard]] bool
     blockOffsetsComplete() const override
     {
         return m_blockMap->finalized();
@@ -1170,7 +1170,7 @@ public:
      * @return vectors of block data: offset in file, offset in decoded data
      *         (cumulative size of all prior decoded blocks).
      */
-    std::map<size_t, size_t>
+    [[nodiscard]] std::map<size_t, size_t>
     blockOffsets() override
     {
         if ( !m_blockMap->finalized() ) {
@@ -1189,7 +1189,7 @@ public:
      * @return vectors of block data: offset in file, offset in decoded data
      *         (cumulative size of all prior decoded blocks).
      */
-    std::map<size_t, size_t>
+    [[nodiscard]] std::map<size_t, size_t>
     availableBlockOffsets() const override
     {
         return m_blockMap->blockOffsets();
@@ -1215,7 +1215,7 @@ public:
      * @note Bzip2 is block based and blocks are currently read fully, meaning that the granularity
      *       of the returned position is ~100-900kB. It's only useful for a rough estimate.
      */
-    size_t
+    [[nodiscard]] size_t
     tellCompressed() const override
     {
 

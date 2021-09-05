@@ -28,7 +28,7 @@ public:
         }
     }
 
-    std::thread::id
+    [[nodiscard]] std::thread::id
     get_id() const noexcept
     {
         return m_thread.get_id();

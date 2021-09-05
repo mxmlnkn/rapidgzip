@@ -116,13 +116,13 @@ public:
         return resultFuture;
     }
 
-    size_t
+    [[nodiscard]] size_t
     size() const
     {
         return m_threads.size();
     }
 
-    size_t
+    [[nodiscard]] size_t
     unprocessedTasksCount() const
     {
         std::lock_guard lock( m_mutex );

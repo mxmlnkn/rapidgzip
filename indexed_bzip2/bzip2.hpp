@@ -135,19 +135,19 @@ public:
     void
     readBlockData();
 
-    bool
+    [[nodiscard]] bool
     eos() const
     {
         return m_atEndOfStream;
     }
 
-    bool
+    [[nodiscard]] bool
     eof() const
     {
         return m_atEndOfFile;
     }
 
-    BitReader&
+    [[nodiscard]] BitReader&
     bitReader()
     {
         if ( m_bitReader != nullptr ) {
@@ -184,7 +184,7 @@ public:
          * Currently, the logic is limited and might write up to nMaxBytesToDecode + 255 characters
          * to the output buffer! Currently, the caller has to ensure that the output buffer is large enough.
          */
-        size_t
+        [[nodiscard]] size_t
         decodeBlock( const size_t nMaxBytesToDecode,
                      char*        outputBuffer );
 

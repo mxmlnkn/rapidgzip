@@ -126,13 +126,13 @@ public:
 
     ~BitReader() = default;
 
-    bool
+    [[nodiscard]] bool
     eof() const override final
     {
         return m_seekable ? tell() >= size() : !m_lastReadSuccessful;
     }
 
-    bool
+    [[nodiscard]] bool
     seekable() const override final
     {
         return m_seekable;
@@ -145,7 +145,7 @@ public:
         m_inbuf.clear();
     }
 
-    bool
+    [[nodiscard]] bool
     closed() const override final
     {
         return !m_file && m_inbuf.empty();
@@ -193,7 +193,7 @@ public:
         return readSafe( bitsWanted );
     }
 
-    size_t
+    [[nodiscard]] size_t
     read( char*  outputBuffer,
           size_t nBytesToRead )
     {
@@ -207,7 +207,7 @@ public:
     /**
      * @return current position / number of bits already read.
      */
-    size_t
+    [[nodiscard]] size_t
     tell() const override final
     {
         if ( m_seekable ) {
@@ -216,13 +216,13 @@ public:
         return m_readBitsCount;
     }
 
-    FILE*
+    [[nodiscard]] FILE*
     fp() const
     {
         return m_file.get();
     }
 
-    int
+    [[nodiscard]] int
     fileno() const override final
     {
         if ( m_file ) {
@@ -238,13 +238,13 @@ public:
         return seekInternal( offsetBits, origin );
     }
 
-    size_t
+    [[nodiscard]] size_t
     size() const override final
     {
         return m_fileSizeBytes * 8 - m_offsetBits;
     }
 
-    const std::vector<std::uint8_t>&
+    [[nodiscard]] const std::vector<std::uint8_t>&
     buffer() const
     {
         return m_inbuf;

@@ -17,26 +17,26 @@ public:
     virtual void
     close() = 0;
 
-    virtual bool
+    [[nodiscard]] virtual bool
     closed() const = 0;
 
-    virtual bool
+    [[nodiscard]] virtual bool
     eof() const = 0;
 
-    virtual int
+    [[nodiscard]] virtual int
     fileno() const = 0;
 
-    virtual bool
+    [[nodiscard]] virtual bool
     seekable() const = 0;
 
     virtual size_t
     seek( long long int offset,
           int           origin = SEEK_SET ) = 0;
 
-    virtual size_t
+    [[nodiscard]] virtual size_t
     size() const = 0;
 
-    virtual size_t
+    [[nodiscard]] virtual size_t
     tell() const = 0;
 
     /** @todo Some kind of read function. Unfortunately, they are not yet sufficiently uniform. */
