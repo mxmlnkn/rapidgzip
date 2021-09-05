@@ -316,7 +316,7 @@ BitStringFinder<bitStringSize>::find()
 
         for ( ; m_bufferBitsRead < m_buffer.size() * CHAR_BIT; ) {
             const auto byteOffset = m_bufferBitsRead / CHAR_BIT;
-            const auto firstBitsToIgnore = m_bufferBitsRead % CHAR_BIT;
+            const auto firstBitsToIgnore = static_cast<uint8_t>( m_bufferBitsRead % CHAR_BIT );
 
             const auto relpos = findBitString(
                 reinterpret_cast<const uint8_t*>( m_buffer.data() ) + byteOffset,

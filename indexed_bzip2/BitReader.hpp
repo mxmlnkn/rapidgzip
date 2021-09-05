@@ -339,7 +339,7 @@ private:
     uint8_t m_offsetBits = 0; /** ignore the first m_offsetBits in m_inbuf. Only used when initialized with a buffer. */
 
     std::vector<uint8_t> m_inbuf;
-    uint32_t m_inbufPos = 0; /** stores current position of first valid byte in buffer */
+    size_t m_inbufPos = 0; /** stores current position of first valid byte in buffer */
     bool m_lastReadSuccessful = true;
 
 public:
@@ -462,7 +462,7 @@ BitReader::seekInternal( long long int offsetBits,
         }
     } else {
         if ( m_seekable ) {
-            const auto returnCodeSeek = fseek( m_file.get(), bytesToSeek, SEEK_SET );
+            const auto returnCodeSeek = fseek( m_file.get(), static_cast<long>( bytesToSeek ), SEEK_SET );
             if ( ( returnCodeSeek != 0 ) || feof( m_file.get() ) || ferror( m_file.get() ) ) {
                 std::stringstream msg;
                 msg << "[BitReader] Could not seek to specified byte " << bytesToSeek

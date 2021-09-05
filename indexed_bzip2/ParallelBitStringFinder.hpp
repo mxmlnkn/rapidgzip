@@ -138,7 +138,7 @@ private:
     {
         for ( size_t bufferBitsRead = firstBitsToIgnore; bufferBitsRead < bufferSizeInBytes * CHAR_BIT; ) {
             const auto byteOffset = bufferBitsRead / CHAR_BIT;
-            const auto bitOffset  = bufferBitsRead % CHAR_BIT;
+            const auto bitOffset  = static_cast<uint8_t>( bufferBitsRead % CHAR_BIT );
 
             const auto relpos = BaseType::findBitString( reinterpret_cast<const uint8_t*>( buffer ) + byteOffset,
                                                          bufferSizeInBytes - byteOffset, bitStringToFind, bitOffset );
@@ -256,7 +256,7 @@ ParallelBitStringFinder<bitStringSize>::find()
                                             ? this->m_bufferBitsRead - this->m_movingBitsToKeep
                                             : 0;
             auto const bufferOffsetInBytes  = bufferOffsetInBits / CHAR_BIT;
-            auto const subChunkOffsetInBits = bufferOffsetInBits % CHAR_BIT;
+            auto const subChunkOffsetInBits = static_cast<uint8_t>( bufferOffsetInBits % CHAR_BIT );
 
             auto const subChunkSizeInBits = this->m_bufferBitsRead - bufferOffsetInBits
                                             + subChunkStrideInBytes * CHAR_BIT;

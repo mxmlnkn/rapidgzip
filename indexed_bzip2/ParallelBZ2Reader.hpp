@@ -831,8 +831,10 @@ private:
                 result.data.resize( result.data.size() * 2 );
             }
 
-            decodedDataSize += block.bwdata.decodeBlock( result.data.size() - 255 - decodedDataSize,
-                                                         reinterpret_cast<char*>( result.data.data() ) + decodedDataSize );
+            decodedDataSize += block.bwdata.decodeBlock(
+                result.data.size() - 255U - decodedDataSize,
+                reinterpret_cast<char*>( result.data.data() ) + decodedDataSize
+            );
         }
         while ( block.bwdata.writeCount > 0 );
 
@@ -1032,7 +1034,7 @@ public:
                                 nextBzip2StreamBitReader.seek( nextStreamOffsetInBits );
                                 bzip2::readBzip2Header( nextBzip2StreamBitReader );
                             }
-                            catch ( const std::domain_error& exception )
+                            catch ( const std::domain_error& )
                             {
                                 std::cerr << "[Warning] Trailing garbage after EOF ignored!\n";
                                 /**

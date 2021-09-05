@@ -29,7 +29,7 @@ inline std::array<uint32_t, CRC32_LOOKUP_TABLE_SIZE>
 createCRC32LookupTable( bool littleEndian = false )
 {
     std::array<uint32_t, CRC32_LOOKUP_TABLE_SIZE> table;
-    for ( size_t i = 0; i < table.size(); ++i ) {
+    for ( uint32_t i = 0; i < table.size(); ++i ) {
         uint32_t c = littleEndian ? i : i << 24;
         for ( int j = 0; j < 8; ++j ) {
             if ( littleEndian ) {
@@ -184,9 +184,9 @@ public:
          * Currently, the logic is limited and might write up to nMaxBytesToDecode + 255 characters
          * to the output buffer! Currently, the caller has to ensure that the output buffer is large enough.
          */
-        uint32_t
-        decodeBlock( const uint32_t nMaxBytesToDecode,
-                     char*          outputBuffer );
+        size_t
+        decodeBlock( const size_t nMaxBytesToDecode,
+                     char*        outputBuffer );
 
     public:
         uint32_t origPtr = 0;
@@ -419,7 +419,12 @@ Block::readBlockHeader()
                     break;
                 }
             }
-            length[i] = hh;
+            if ( hh > std::numeric_limits<uint8_t>::max() ) {
+                std::stringstream msg;
+                msg << "[BZip2 block header] The read length is unexpectedly large: " << hh;
+                throw std::logic_error( msg.str() );
+            }
+            length[i] = static_cast<uint8_t>( hh );
         }
 
         /* Calculate permute[], base[], and limit[] tables from length[].
@@ -660,12 +665,12 @@ Block::BurrowsWheelerTransformData::prepare()
 }
 
 
-inline uint32_t
-Block::BurrowsWheelerTransformData::decodeBlock( const uint32_t nMaxBytesToDecode,
-                                                 char*          outputBuffer )
+inline size_t
+Block::BurrowsWheelerTransformData::decodeBlock( const size_t nMaxBytesToDecode,
+                                                 char*        outputBuffer )
 {
     assert( outputBuffer != nullptr );
-    uint32_t nBytesDecoded = 0;
+    size_t nBytesDecoded = 0;
 
     while ( ( writeCount > 0 ) && ( nBytesDecoded < nMaxBytesToDecode ) ) {
         writeCount--;

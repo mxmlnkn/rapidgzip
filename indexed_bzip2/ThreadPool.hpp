@@ -81,9 +81,9 @@ private:
 
 public:
     explicit
-    ThreadPool( unsigned int nThreads = std::thread::hardware_concurrency() )
+    ThreadPool( size_t nThreads = std::thread::hardware_concurrency() )
     {
-        for ( unsigned int i = 0; i < nThreads; ++i ) {
+        for ( size_t i = 0; i < nThreads; ++i ) {
             m_threads.emplace_back( JoiningThread( &ThreadPool::workerMain, this ) );
         }
     }

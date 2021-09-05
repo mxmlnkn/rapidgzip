@@ -181,7 +181,7 @@ public:
                 {
                     readBzip2Header();
                 }
-                catch ( const std::domain_error& exception )
+                catch ( const std::domain_error& )
                 {
                     std::cerr << "[Warning] Trailing garbage after EOF ignored!\n";
                     m_atEndOfFile = true;
