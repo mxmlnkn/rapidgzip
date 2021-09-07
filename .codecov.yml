@@ -3,4 +3,4 @@ coverage:
     # pull-requests only
     project:
       default:
-        threshold: 10.0%
+        target: 50.0%
