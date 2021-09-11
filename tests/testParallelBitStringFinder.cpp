@@ -72,7 +72,7 @@ testBitStringFinder( uint64_t                          bitStringToFind,
          */
         std::fflush( file.get() );
         ParallelBitStringFinder<bitStringSize> bitStringFinder(
-            fileno( file.get() ), bitStringToFind, sizeof( uint64_t )
+            std::make_unique<StandardFileReader>( fileno( file.get() ) ), bitStringToFind, sizeof( uint64_t )
         );
         if ( !testBitStringFinder( std::move( bitStringFinder ), stringPositions ) ) {
             std::cerr << "Version working on input file failed!\n";

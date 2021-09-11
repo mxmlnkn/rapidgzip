@@ -72,6 +72,12 @@ public:
         seek( other.tell() );
     }
 
+    [[nodiscard]] std::unique_ptr<FileReader>
+    cloneSharedFileReader() const
+    {
+        return std::unique_ptr<FileReader>( m_file->clone() );
+    }
+
     [[nodiscard]] FileReader*
     clone() const override final
     {

@@ -10,15 +10,16 @@
 #include <cstdint>
 #include <cstdio>
 #include <limits>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
-#include <sys/stat.h>
-
 #include "common.hpp"
+#include "FileReader.hpp"
+#include "StandardFileReader.hpp"
 
 
 /**
@@ -42,30 +43,43 @@ public:
 
     BitStringFinder& operator=( BitStringFinder&& ) = delete;
 
+    BitStringFinder( std::unique_ptr<FileReader> fileReader,
+                     uint64_t                    bitStringToFind,
+                     size_t                      fileBufferSizeBytes = 1*1024*1024 ) :
+        m_bitStringToFind( bitStringToFind & mask<uint64_t>( bitStringSize ) ),
+        m_movingBitsToKeep( bitStringSize > 0 ? bitStringSize - 1U : 0U ),
+        m_movingBytesToKeep( ceilDiv( m_movingBitsToKeep, CHAR_BIT ) ),
+        m_fileReader( std::move( fileReader ) ),
+        m_fileChunksInBytes( std::max( fileBufferSizeBytes,
+                                       static_cast<size_t>( ceilDiv( bitStringSize, CHAR_BIT ) ) ) )
+    {
+        if ( m_movingBytesToKeep >= m_fileChunksInBytes ) {
+            std::stringstream msg;
+            msg << "The file buffer size of " << m_fileChunksInBytes << "B is too small to look for strings with "
+                << bitStringSize << " bits!";
+            throw std::invalid_argument( msg.str() );
+        }
+    }
+
+    /** @note Legacy constructor. Preferably, use the FileReader constructor. */
     BitStringFinder( std::string const& filePath,
                      uint64_t           bitStringToFind,
                      size_t             fileBufferSizeBytes = 1*1024*1024 ) :
-        BitStringFinder( bitStringToFind, fileBufferSizeBytes, filePath )
-    {
-        if ( seekable() ) {
-            fseek( m_file.get(), 0, SEEK_SET );
-        }
-    }
+        BitStringFinder( std::make_unique<StandardFileReader>( filePath ), bitStringToFind, fileBufferSizeBytes )
+    {}
 
+    /** @note Legacy constructor. Preferably, use the FileReader constructor. */
     BitStringFinder( int      fileDescriptor,
                      uint64_t bitStringToFind,
                      size_t   fileBufferSizeBytes = 1*1024*1024 ) :
-        BitStringFinder( bitStringToFind, fileBufferSizeBytes, fdFilePath( fileDescriptor ) )
-    {
-        if ( seekable() ) {
-            fseek( m_file.get(), 0, SEEK_SET );
-        }
-    }
+        BitStringFinder( std::make_unique<StandardFileReader>( fileDescriptor ), bitStringToFind, fileBufferSizeBytes )
+    {}
 
+    /** @note This overload is used for the tests but can also be useful for other things. */
     BitStringFinder( const char* buffer,
                      size_t      size,
                      uint64_t    bitStringToFind ) :
-        BitStringFinder( bitStringToFind )
+        BitStringFinder( std::unique_ptr<FileReader>(), bitStringToFind )
     {
         m_buffer.assign( buffer, buffer + size );
     }
@@ -75,20 +89,15 @@ public:
     [[nodiscard]] bool
     seekable() const
     {
-        if ( !m_file ) {
-            return true;
-        }
-
-        struct stat fileStats;
-        fstat( ::fileno( m_file.get() ), &fileStats );
-        return !S_ISFIFO( fileStats.st_mode );
+        /* If m_fileReader is not set, then we are working on an in-memory buffer, which can be seeked. */
+        return !m_fileReader || m_fileReader->seekable();
     }
 
     [[nodiscard]] bool
     eof() const
     {
-        if ( m_file ) {
-            return ( m_bufferBitsRead >= m_buffer.size() * CHAR_BIT ) && std::feof( m_file.get() );
+        if ( m_fileReader ) {
+            return bufferEof() && m_fileReader->eof();
         }
         return m_buffer.empty();
     }
@@ -100,23 +109,10 @@ public:
     find();
 
 protected:
-    explicit
-    BitStringFinder( uint64_t           bitStringToFind,
-                     size_t             fileBufferSizeBytes = 1*1024*1024,
-                     std::string const& filePath = {} ) :
-        m_bitStringToFind  ( bitStringToFind & mask<uint64_t>( bitStringSize ) ),
-        m_movingBitsToKeep ( bitStringSize > 0 ? bitStringSize - 1u : 0u ),
-        m_movingBytesToKeep( ceilDiv( m_movingBitsToKeep, CHAR_BIT ) ),
-        m_file( filePath.empty() ? unique_file_ptr() : throwingOpen( filePath.c_str(), "rb" ) ),
-        m_fileChunksInBytes( std::max( fileBufferSizeBytes,
-                                       static_cast<size_t>( ceilDiv( bitStringSize, CHAR_BIT ) ) ) )
+    [[nodiscard]] bool
+    bufferEof() const
     {
-        if ( m_movingBytesToKeep >= m_fileChunksInBytes ) {
-            std::stringstream msg;
-            msg << "The file buffer size of " << m_fileChunksInBytes << "B is too small to look for strings with "
-                << bitStringSize << " bits!";
-            throw std::invalid_argument( msg.str() );
-        }
+        return m_bufferBitsRead >= m_buffer.size() * CHAR_BIT;
     }
 
     size_t
@@ -174,7 +170,7 @@ protected:
     const uint8_t m_movingBitsToKeep;
     const uint8_t m_movingBytesToKeep;
 
-    const unique_file_ptr m_file;
+    std::unique_ptr<FileReader> m_fileReader;
 
     /** This is not the current size of @ref m_buffer but the number of bytes to read from @ref m_file if it is empty */
     const size_t m_fileChunksInBytes;
@@ -304,7 +300,7 @@ BitStringFinder<bitStringSize>::find()
 
     while ( !eof() )
     {
-        if ( m_bufferBitsRead >= m_buffer.size() * CHAR_BIT ) {
+        if ( bufferEof() ) {
             const auto nBytesRead = refillBuffer();
             if ( nBytesRead == 0 ) {
                 return std::numeric_limits<size_t>::max();
@@ -376,10 +372,10 @@ template<uint8_t bitStringSize>
 size_t
 BitStringFinder<bitStringSize>::refillBuffer()
 {
-    if ( !m_file ) {
+    if ( !m_fileReader || m_fileReader->eof() ) {
         m_nTotalBytesRead += m_buffer.size();
         m_buffer.clear();
-        return std::numeric_limits<size_t>::max();
+        return 0;
     }
 
     /* Read chunk of data from file into buffer. */
@@ -389,7 +385,7 @@ BitStringFinder<bitStringSize>::refillBuffer()
         assert( m_bufferBitsRead == 0 );
 
         m_buffer.resize( m_fileChunksInBytes );
-        nBytesRead = std::fread( m_buffer.data(), 1, m_buffer.size(), m_file.get() );
+        nBytesRead = m_fileReader->read( m_buffer.data(), m_buffer.size() );
         m_buffer.resize( nBytesRead );
     } else {
         m_nTotalBytesRead += m_buffer.size() - m_movingBytesToKeep;
@@ -399,8 +395,7 @@ BitStringFinder<bitStringSize>::refillBuffer()
         std::memmove( m_buffer.data(), m_buffer.data() + m_buffer.size() - m_movingBytesToKeep, m_movingBytesToKeep );
 
         const auto nBytesToRead = m_buffer.size() - m_movingBytesToKeep;
-        nBytesRead = std::fread( m_buffer.data() + m_movingBytesToKeep,
-                                 /* element size */ 1, nBytesToRead, m_file.get() );
+        nBytesRead = m_fileReader->read( m_buffer.data() + m_movingBytesToKeep, nBytesToRead );
         m_buffer.resize( m_movingBytesToKeep + nBytesRead );
     }
 

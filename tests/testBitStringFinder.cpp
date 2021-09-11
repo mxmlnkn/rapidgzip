@@ -65,7 +65,11 @@ testBitStringFinder( uint64_t                          bitStringToFind,
          * recognizing bit strings accross file buffer borders works correctly.
          */
         std::fflush( file.get() );
-        BitStringFinder<bitStringSize> bitStringFinder( fileno( file.get() ), bitStringToFind, sizeof( uint64_t ) );
+        BitStringFinder<bitStringSize> bitStringFinder(
+            std::make_unique<StandardFileReader>( fileno( file.get() ) ),
+            bitStringToFind,
+            sizeof( uint64_t )
+        );
         if ( !testBitStringFinder( std::move( bitStringFinder ), stringPositions ) ) {
             std::cerr << "Version working on input file failed!\n";
         }

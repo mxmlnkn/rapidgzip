@@ -38,39 +38,45 @@ public:
     static_assert( bitStringSize > 0, "Bit string to find must have positive length!" );
 
 public:
+    ParallelBitStringFinder( std::unique_ptr<FileReader> fileReader,
+                             uint64_t bitStringToFind,
+                             size_t   parallelization = std::max( 1U, std::thread::hardware_concurrency() / 8U ),
+                             size_t   requestedBytes = 0,
+                             size_t   fileBufferSizeBytes = 1*1024*1024 ) :
+        BaseType( std::move( fileReader ),
+                  bitStringToFind,
+                  chunkSize( fileBufferSizeBytes, requestedBytes, parallelization ) ),
+        m_threadPool( parallelization )
+    {}
+
     ParallelBitStringFinder( std::string const& filePath,
                              uint64_t           bitStringToFind,
                              size_t             parallelization = std::max( 1U,
                                                                             std::thread::hardware_concurrency() / 8U ),
                              size_t             requestedBytes = 0,
                              size_t             fileBufferSizeBytes = 1*1024*1024 ) :
-        BaseType( bitStringToFind, chunkSize( fileBufferSizeBytes, requestedBytes, parallelization ), filePath ),
+        BaseType( std::make_unique<StandardFileReader>( filePath ),
+                  bitStringToFind,
+                  chunkSize( fileBufferSizeBytes, requestedBytes, parallelization ) ),
         m_threadPool( parallelization )
-    {
-        if ( BaseType::seekable() ) {
-            fseek( this->m_file.get(), 0, SEEK_SET );
-        }
-    }
+    {}
 
     ParallelBitStringFinder( int      fileDescriptor,
                              uint64_t bitStringToFind,
                              size_t   parallelization = std::max( 1U, std::thread::hardware_concurrency() / 8U ),
                              size_t   requestedBytes = 0,
                              size_t   fileBufferSizeBytes = 1*1024*1024 ) :
-        BaseType( bitStringToFind,
-                  chunkSize( fileBufferSizeBytes, requestedBytes, parallelization ),
-                  fdFilePath( fileDescriptor ) ),
+        BaseType( std::make_unique<StandardFileReader>( fileDescriptor ),
+                  bitStringToFind,
+                  chunkSize( fileBufferSizeBytes, requestedBytes, parallelization ) ),
         m_threadPool( parallelization )
-    {
-        if ( BaseType::seekable() ) {
-            fseek( this->m_file.get(), 0, SEEK_SET );
-        }
-    }
+    {}
 
+    /** @note This overload is used for the tests but can also be useful for other things. */
     ParallelBitStringFinder( const char* buffer,
                              size_t      size,
                              uint64_t    bitStringToFind ) :
-        BaseType( bitStringToFind )
+        BaseType( std::unique_ptr<FileReader>(), bitStringToFind )
     {
         this->m_buffer.assign( buffer, buffer + size );
     }
@@ -236,7 +242,7 @@ ParallelBitStringFinder<bitStringSize>::find()
         }
 
         /* Constructor might fill buffer already making a buffer refill unnecessary the first time! */
-        if ( this->m_bufferBitsRead >= this->m_buffer.size() * CHAR_BIT ) {
+        if ( this->bufferEof() ) {
             const auto nBytesRead = BaseType::refillBuffer();
             if ( nBytesRead == 0 ) {
                 return std::numeric_limits<size_t>::max();
@@ -249,8 +255,7 @@ ParallelBitStringFinder<bitStringSize>::find()
             std::max<size_t>( minSubChunkSizeInBytes, ceilDiv( this->m_buffer.size(), m_threadPool.size() ) );
 
         /* Start worker threads using the thread pool and the current buffer. */
-        for ( ; this->m_bufferBitsRead < this->m_buffer.size() * CHAR_BIT;
-              this->m_bufferBitsRead += subChunkStrideInBytes * CHAR_BIT ) {
+        for ( ; !this->bufferEof(); this->m_bufferBitsRead += subChunkStrideInBytes * CHAR_BIT ) {
             /* Try to seek m_movingBitsToKeep back in order to find bit strings going over the previous border. */
             auto const bufferOffsetInBits = this->m_bufferBitsRead > this->m_movingBitsToKeep
                                             ? this->m_bufferBitsRead - this->m_movingBitsToKeep
