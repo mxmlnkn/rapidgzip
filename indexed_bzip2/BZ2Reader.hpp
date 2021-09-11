@@ -31,26 +31,26 @@ public:
 
     explicit
     BZ2Reader( const std::string& filePath ) :
-        m_bitReader( filePath )
+        m_bitReader( new StandardFileReader( filePath ) )
     {}
 
     explicit
     BZ2Reader( int fileDescriptor ) :
-        m_bitReader( fileDescriptor )
+        m_bitReader( new StandardFileReader( fileDescriptor ) )
     {}
-
-    BZ2Reader( const char*  bz2Data,
-               const size_t size ) :
-        m_bitReader( reinterpret_cast<const uint8_t*>( bz2Data ), size )
-    {}
-
 
     /* FileReader overrides */
+
+    [[nodiscard]] FileReader*
+    clone() const override
+    {
+        throw std::logic_error( "Not implemented!" );
+    }
 
     [[nodiscard]] int
     fileno() const override
     {
-        return ::fileno( m_bitReader.fp() );
+        return m_bitReader.fileno();
     }
 
     [[nodiscard]] bool
@@ -77,6 +77,12 @@ public:
         return m_atEndOfFile;
     }
 
+    [[nodiscard]] bool
+    fail() const override
+    {
+        throw std::logic_error( "Not implemented!" );
+    }
+
     [[nodiscard]] size_t
     tell() const override
     {
@@ -98,6 +104,14 @@ public:
     size_t
     seek( long long int offset,
           int           origin = SEEK_SET ) override;
+
+    void
+    clearerr() override
+    {
+        m_bitReader.clearerr();
+        m_atEndOfFile = false;
+        throw std::invalid_argument( "Not fully tested!" );
+    }
 
 
     /* BZip2 specific methods */

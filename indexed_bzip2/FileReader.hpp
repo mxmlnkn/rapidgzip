@@ -12,7 +12,20 @@
 class FileReader
 {
 public:
+    FileReader() = default;
+
     virtual ~FileReader() = default;
+
+    /* Delete copy constructors and assignments to avoid slicing. */
+
+    FileReader( const FileReader& ) = delete;
+    FileReader( FileReader&& ) = delete;
+
+    FileReader& operator=( const FileReader& ) = delete;
+    FileReader& operator=( FileReader&& ) = delete;
+
+    [[nodiscard]] virtual FileReader*
+    clone() const = 0;
 
     virtual void
     close() = 0;
@@ -23,11 +36,18 @@ public:
     [[nodiscard]] virtual bool
     eof() const = 0;
 
+    [[nodiscard]] virtual bool
+    fail() const = 0;
+
     [[nodiscard]] virtual int
     fileno() const = 0;
 
     [[nodiscard]] virtual bool
     seekable() const = 0;
+
+    [[nodiscard]] virtual size_t
+    read( char*  buffer,
+          size_t nMaxBytesToRead ) = 0;
 
     virtual size_t
     seek( long long int offset,
@@ -39,5 +59,6 @@ public:
     [[nodiscard]] virtual size_t
     tell() const = 0;
 
-    /** @todo Some kind of read function. Unfortunately, they are not yet sufficiently uniform. */
+    virtual void
+    clearerr() = 0;
 };

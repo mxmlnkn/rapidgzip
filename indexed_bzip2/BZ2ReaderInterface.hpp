@@ -15,6 +15,13 @@ class BZ2ReaderInterface :
 public:
     virtual ~BZ2ReaderInterface() = default;
 
+    [[nodiscard]] size_t
+    read( char* outputBuffer,
+          size_t nBytesToRead ) final
+    {
+        return read( -1,  outputBuffer, nBytesToRead );
+    }
+
     /**
      * @param[out] outputBuffer should at least be large enough to hold @p nBytesToRead bytes
      * @return number of bytes written

@@ -883,7 +883,7 @@ private:
 /**
  * @note Calls to this class are not thread-safe! Even though they use threads to evaluate them in parallel.
  */
-class ParallelBZ2Reader :
+class ParallelBZ2Reader final :
     public BZ2ReaderInterface
 {
 public:
@@ -895,7 +895,7 @@ public:
     explicit
     ParallelBZ2Reader( int    fileDescriptor,
                        size_t parallelization = 0 ) :
-        m_bitReader( fileDescriptor ),
+        m_bitReader( new StandardFileReader( fileDescriptor ) ),
         m_fetcherParallelization( parallelization == 0
                                   ? std::max<size_t>( 1U, std::thread::hardware_concurrency() )
                                   : parallelization ),
@@ -906,20 +906,10 @@ public:
         }
     }
 
-    ParallelBZ2Reader( const char*  bz2Data,
-                       const size_t size,
-                       size_t       parallelization = 0 ) :
-        m_bitReader( reinterpret_cast<const uint8_t*>( bz2Data ), size ),
-        m_fetcherParallelization( parallelization == 0
-                                  ? std::max<size_t>( 1U, std::thread::hardware_concurrency() )
-                                  : parallelization ),
-        m_startBlockFinder( [=](){ return std::make_shared<BlockFinder>( bz2Data, size, m_finderParallelization ); } )
-    {}
-
     explicit
     ParallelBZ2Reader( const std::string& filePath,
                        size_t             parallelization = 0 ) :
-        m_bitReader( filePath ),
+        m_bitReader( new StandardFileReader( filePath ) ),
         m_fetcherParallelization( parallelization == 0
                                   ? std::max<size_t>( 1U, std::thread::hardware_concurrency() )
                                   : parallelization ),
@@ -929,10 +919,16 @@ public:
 
     /* FileReader overrides */
 
+    [[nodiscard]] FileReader*
+    clone() const override
+    {
+        throw std::logic_error( "Not implemented!" );
+    }
+
     [[nodiscard]] int
     fileno() const override
     {
-        return ::fileno( m_bitReader.fp() );
+        return m_bitReader.fileno();
     }
 
     [[nodiscard]] bool
@@ -961,6 +957,12 @@ public:
         return m_atEndOfFile;
     }
 
+    [[nodiscard]] bool
+    fail() const override
+    {
+        throw std::logic_error( "Not implemented!" );
+    }
+
     [[nodiscard]] size_t
     tell() const override
     {
@@ -977,6 +979,14 @@ public:
             throw std::invalid_argument( "Can't get stream size in BZ2 when not finished reading at least once!" );
         }
         return m_blockMap->back().second;
+    }
+
+    void
+    clearerr() override
+    {
+        m_bitReader.clearerr();
+        m_atEndOfFile = false;
+        throw std::invalid_argument( "Not fully tested!" );
     }
 
     /* BZ2ReaderInterface overrides */

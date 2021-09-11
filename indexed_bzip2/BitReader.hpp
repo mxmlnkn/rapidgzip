@@ -17,6 +17,8 @@
 
 #include "common.hpp"
 #include "FileReader.hpp"
+#include "StandardFileReader.hpp"
+#include "SharedFileReader.hpp"
 
 
 /**
@@ -42,106 +44,65 @@ public:
 public:
     explicit
     BitReader( std::string filePath ) :
-        m_filePath( std::move( filePath ) ),
-        m_file( throwingOpen( m_filePath, "rb" ) ),
-        m_seekable( determineSeekable( ::fileno( m_file.get() ) ) ),
-        m_fileSizeBytes( determineFileSize( ::fileno( m_file.get() ) ) )
-    {
-        init();
-    }
+        m_file( std::make_unique<SharedFileReader>( new StandardFileReader( filePath ) ) )
+    {}
 
+    /**
+     * @param fileReader ownership is taken.
+     */
     explicit
-    BitReader( int fileDescriptor ) :
-        m_fileDescriptor( fileDescriptor ),
-        m_file( throwingOpen( fdFilePath( fileDescriptor ), "rb" ) ),
-        m_seekable( determineSeekable( ::fileno( m_file.get() ) ) ),
-        m_fileSizeBytes( determineFileSize( ::fileno( m_file.get() ) ) )
-    {
-        init();
-    }
-
-    BitReader( const uint8_t* buffer,
-               size_t         size,
-               uint8_t        offsetBits = 0 ) :
-        m_seekable( true ),
-        m_fileSizeBytes( size ),
-        m_offsetBits( offsetBits ),
-        m_inbuf( buffer, buffer + size )
-    {
-        seek( 0, SEEK_SET ); /* seeks to m_offsetBits under the hood */
-    }
-
-    explicit
-    BitReader( std::vector<uint8_t>&& buffer,
-               uint8_t                offsetBits = 0 ) :
-        m_seekable( true ),
-        m_fileSizeBytes( buffer.size() ),
-        m_offsetBits( offsetBits ),
-        m_inbuf( std::move( buffer ) )
-    {
-        seek( 0, SEEK_SET ); /* seeks to m_offsetBits under the hood */
-    }
+    BitReader( FileReader* fileReader ) :
+        m_file( std::make_unique<SharedFileReader>( fileReader ) )
+    {}
 
     BitReader( BitReader&& other ) = default;
 
     BitReader& operator=( BitReader&& other ) = delete;
     BitReader& operator=( const BitReader& other ) = delete;
 
-    /**
-     * Copy constructor. As far as I know, there is no stable way to open a completely new independent
-     * file descriptor / pointer to the same file. Calling fopen twice on the same file path may (and did for me)
-     * result in the same file pointer being returned, which of course means that the file position is shared!
-     * @see https://github.com/bovigo/vfsStream/issues/129
-     * @see https://stackoverflow.com/a/50114472/2191065
-     * @todo To ensure 100% safety for the file access, copy everything and manage our own file position,
-     * apply it for each read, and ensure that  accesses to the same file are thread-safe by using the
-     * same mutex for each copy.
-     */
     BitReader( const BitReader& other ) :
-        m_filePath( other.m_filePath ),
-        m_fileDescriptor( other.m_fileDescriptor ),
-        m_seekable( other.m_seekable ),
-        m_fileSizeBytes( other.m_fileSizeBytes ),
+        m_file( other.m_file ? other.m_file->clone() : nullptr ),
         m_offsetBits( other.m_offsetBits ),
         m_inbuf( other.m_inbuf )
     {
-        if ( !m_seekable ) {
+        assert( static_cast<bool>( m_file ) == static_cast<bool>( other.m_file ) );
+        if ( m_file && !m_file->seekable() ) {
             throw std::invalid_argument( "Copying BitReader to unseekable file not supported yet!" );
         }
-
-        if ( other.m_file ) {
-            if ( !other.m_filePath.empty() ) {
-                m_file = throwingOpen( other.m_filePath, "rb" );
-            } else if ( other.m_fileDescriptor != -1 ) {
-                m_file = throwingOpen( fdFilePath( other.m_fileDescriptor ), "rb" );
-            } else {
-                m_file = throwingOpen( fdFilePath( ::fileno( other.m_file.get() ) ), "rb" );
-            }
-        }
-
-        init();
-
-        seekInternal( other.tell() );
+        seek( other.tell() );
     }
 
-    ~BitReader() = default;
+    [[nodiscard]] FileReader*
+    clone() const override final
+    {
+        return new BitReader( *this );
+    }
+
+    [[nodiscard]] bool
+    fail() const override final
+    {
+        throw std::logic_error( "Not implemented" );
+    }
 
     [[nodiscard]] bool
     eof() const override final
     {
-        return m_seekable ? tell() >= size() : !m_lastReadSuccessful;
+        if ( seekable() ) {
+            return tell() >= size();
+        }
+        return ( m_inbufPos >= m_inbuf.size() ) && ( !m_file || m_file->eof() );
     }
 
     [[nodiscard]] bool
     seekable() const override final
     {
-        return m_seekable;
+        return !m_file || m_file->seekable();
     }
 
     void
     close() override final
     {
-        m_file = {};
+        m_file.reset();
         m_inbuf.clear();
     }
 
@@ -186,7 +147,6 @@ public:
     {
         static_assert( bitsWanted < sizeof( m_inbufBits ) * CHAR_BIT, "Requested bits must fit in buffer!" );
         if ( bitsWanted <= m_inbufBitCount ) {
-            m_readBitsCount += bitsWanted;
             m_inbufBitCount -= bitsWanted;
             return ( m_inbufBits >> m_inbufBitCount ) & nLowestBitsSet<decltype( m_inbufBits )>( bitsWanted );
         }
@@ -195,7 +155,7 @@ public:
 
     [[nodiscard]] size_t
     read( char*  outputBuffer,
-          size_t nBytesToRead )
+          size_t nBytesToRead ) override
     {
         const auto oldTell = tell();
         for ( size_t i = 0; i < nBytesToRead; ++i ) {
@@ -210,38 +170,39 @@ public:
     [[nodiscard]] size_t
     tell() const override final
     {
-        if ( m_seekable ) {
-            return ( ftell( fp() ) - m_inbuf.size() + m_inbufPos ) * 8ULL - m_inbufBitCount - m_offsetBits;
+        size_t position = m_inbufPos;
+        if ( m_file ) {
+            position += m_file->tell() - m_inbuf.size();
         }
-        return m_readBitsCount;
+        return position * 8U - m_inbufBitCount - m_offsetBits;
     }
 
-    [[nodiscard]] FILE*
-    fp() const
+    void
+    clearerr() override
     {
-        return m_file.get();
+        if ( m_file ) {
+            m_file->clearerr();
+        }
     }
 
+public:
     [[nodiscard]] int
     fileno() const override final
     {
         if ( m_file ) {
-            return ::fileno( m_file.get() );
+            return m_file->fileno();
         }
         throw std::invalid_argument( "The file is not open!" );
     }
 
     size_t
     seek( long long int offsetBits,
-          int           origin = SEEK_SET ) override final
-    {
-        return seekInternal( offsetBits, origin );
-    }
+          int           origin = SEEK_SET ) override final;
 
     [[nodiscard]] size_t
     size() const override final
     {
-        return m_fileSizeBytes * 8 - m_offsetBits;
+        return ( m_file ? m_file->size() : m_inbuf.size() ) * 8U - m_offsetBits;
     }
 
     [[nodiscard]] const std::vector<std::uint8_t>&
@@ -251,34 +212,6 @@ public:
     }
 
 private:
-    size_t
-    seekInternal( long long int offsetBits,
-                  int           origin = SEEK_SET );
-
-    static size_t
-    determineFileSize( int fileNumber )
-    {
-        struct stat fileStats;
-        fstat( fileNumber, &fileStats );
-        return fileStats.st_size;
-    }
-
-    static bool
-    determineSeekable( int fileNumber )
-    {
-        struct stat fileStats;
-        fstat( fileNumber, &fileStats );
-        return !S_ISFIFO( fileStats.st_mode );
-    }
-
-    void
-    init()
-    {
-        if ( m_seekable && ( fp() != nullptr ) ) {
-            fseek( fp(), 0, SEEK_SET );
-        }
-    }
-
     uint32_t
     readSafe( uint8_t );
 
@@ -290,21 +223,22 @@ private:
         }
 
         m_inbuf.resize( IOBUF_SIZE );
-        const auto nBytesRead = std::fread( m_inbuf.data(), 1, m_inbuf.size(), m_file.get() );
-        if ( nBytesRead < m_inbuf.size() ) {
-            m_lastReadSuccessful = false;
-        }
+        const auto nBytesRead = m_file->read( reinterpret_cast<char*>( m_inbuf.data() ), m_inbuf.size() );
+
         if ( nBytesRead == 0 ) {
             // this will also happen for invalid file descriptor -1
             std::stringstream msg;
             msg
             << "[BitReader] Not enough data to read!\n"
-            << "  File pointer: " << (void*)m_file.get() << "\n"
-            << "  File position: " << ftell( m_file.get() ) << "B\n"
+            << "  File position: " << m_file->tell() << "\n"
+            << "  File size: " << m_file->size() << "B\n"
             << "  Input buffer size: " << m_inbuf.size() << "B\n"
+            << "  EOF: " << m_file->eof() << "\n"
+            << "  Error: " << m_file->fail() << "\n"
             << "\n";
             throw std::domain_error( msg.str() );
         }
+
         m_inbuf.resize( nBytesRead );
         m_inbufPos = 0;
     }
@@ -328,19 +262,16 @@ private:
     }
 
 private:
-    std::string m_filePath;  /**< only used for copy constructor */
-    int m_fileDescriptor = -1;  /**< only used for copy constructor */
+    std::unique_ptr<FileReader> m_file;
 
-    unique_file_ptr m_file;
-
-    /** These three members are basically const and should only be changed by assignment or move operator. */
-    bool    m_seekable{ false };
-    size_t  m_fileSizeBytes{ 0 };
-    uint8_t m_offsetBits = 0; /** ignore the first m_offsetBits in m_inbuf. Only used when initialized with a buffer. */
+    /**
+     * Ignore the first m_offsetBits in m_inbuf. Only used when initialized with a buffer.
+     * Should only be changed by assignment or move operator.
+     */
+    uint8_t m_offsetBits = 0;
 
     std::vector<uint8_t> m_inbuf;
     size_t m_inbufPos = 0; /** stores current position of first valid byte in buffer */
-    bool m_lastReadSuccessful = true;
 
 public:
     /**
@@ -351,8 +282,6 @@ public:
      */
     uint32_t m_inbufBits = 0;
     uint8_t m_inbufBitCount = 0; // size of bitbuffer in bits
-
-    size_t m_readBitsCount = 0;
 };
 
 
@@ -360,7 +289,6 @@ inline uint32_t
 BitReader::read( const uint8_t bitsWanted )
 {
     if ( bitsWanted <= m_inbufBitCount ) {
-        m_readBitsCount += bitsWanted;
         m_inbufBitCount -= bitsWanted;
         return ( m_inbufBits >> m_inbufBitCount ) & nLowestBitsSet<decltype( m_inbufBits )>( bitsWanted );
     }
@@ -373,8 +301,6 @@ BitReader::readSafe( const uint8_t bitsWanted )
 {
     uint32_t bits = 0;
     assert( bitsWanted <= sizeof( bits ) * CHAR_BIT );
-    // Commenting this single line improves speed by 2%! This shows how performance critical this function is.
-    m_readBitsCount += bitsWanted;
 
     // If we need to get more data from the byte buffer, do so.  (Loop getting
     // one byte at a time to enforce endianness and avoid unaligned access.)
@@ -407,8 +333,8 @@ BitReader::readSafe( const uint8_t bitsWanted )
 
 
 inline size_t
-BitReader::seekInternal( long long int offsetBits,
-                         int           origin )
+BitReader::seek( long long int offsetBits,
+                 int           origin )
 {
     switch ( origin )
     {
@@ -436,23 +362,20 @@ BitReader::seekInternal( long long int offsetBits,
         throw std::invalid_argument( "Effective offset is after file end!" );
     }
 
-    if ( !m_seekable && ( static_cast<size_t>( offsetBits ) < tell() ) ) {
+    if ( !seekable() && ( static_cast<size_t>( offsetBits ) < tell() ) ) {
         throw std::invalid_argument( "File is not seekable!" );
     }
 
     const auto bytesToSeek = static_cast<size_t>( offsetBits ) >> 3U;
     const auto subBitsToSeek = static_cast<uint8_t>( static_cast<size_t>( offsetBits ) & 7U );
 
-    m_inbuf.clear();
-    m_inbufPos = 0;
     m_inbufBits = 0;
     m_inbufBitCount = 0;
 
     if ( !m_file ) {
+        /* Handle seeking in buffer only as it cannot be refilled. */
         if ( bytesToSeek >= m_inbuf.size() ) {
-            std::stringstream msg;
-            msg << "[BitReader] Could not seek to specified byte " << bytesToSeek;
-            std::invalid_argument( msg.str() );
+            std::logic_error( "Trying to seek after the end should have been checked earlier!" );
         }
 
         m_inbufPos = bytesToSeek;
@@ -461,36 +384,57 @@ BitReader::seekInternal( long long int offsetBits,
             m_inbufBits = m_inbuf[m_inbufPos++];
         }
     } else {
-        if ( m_seekable ) {
-            const auto returnCodeSeek = fseek( m_file.get(), static_cast<long>( bytesToSeek ), SEEK_SET );
-            if ( ( returnCodeSeek != 0 ) || feof( m_file.get() ) || ferror( m_file.get() ) ) {
+        m_inbuf.clear();
+        m_inbufPos = 0;
+
+        if ( seekable() ) {
+            const auto newPosition = m_file->seek( static_cast<long long int>( bytesToSeek ), SEEK_SET );
+            if ( m_file->eof() || m_file->fail() ) {
                 std::stringstream msg;
                 msg << "[BitReader] Could not seek to specified byte " << bytesToSeek
-                << " subbit " << subBitsToSeek << ", feof: " << feof( m_file.get() )
-                << ", ferror: " << ferror( m_file.get() )
-                << ", returnCodeSeek: " << returnCodeSeek;
+                << " subbit " << subBitsToSeek
+                << ", size: " << m_file->size()
+                << ", feof: " << m_file->eof()
+                << ", ferror: " << m_file->fail()
+                << ", newPosition: " << newPosition;
                 throw std::invalid_argument( msg.str() );
             }
         } else if ( static_cast<size_t>( offsetBits ) < tell() ) {
             throw std::logic_error( "Can not emulate backward seeking on non-seekable file!" );
         } else {
+            /* Emulate forward seeking on non-seekable file by reading. */
+            throw std::logic_error( "Seeking forward on non-seekable input is an unfinished feature!" );
+#if 0
+            if ( !m_file ) {
+                throw std::logic_error( "The case without a file should be handled by the seekable case "
+                                        "because it is a simple memory buffer!" );
+            }
+
+            /** @todo This is so flawed! It does not take into account m_inbufPos,
+             * it did try to seek 8 times as many bytes and so on ... */
             std::vector<char> buffer( IOBUF_SIZE );
-            auto nBytesToRead = static_cast<size_t>( offsetBits ) - tell();
+            auto nBytesToRead = bytesToSeek - ( tell() >> 3U );
             for ( size_t nBytesRead = 0; nBytesRead < nBytesToRead; nBytesRead += buffer.size() ) {
                 const auto nChunkBytesToRead = std::min( nBytesToRead - nBytesRead, IOBUF_SIZE );
-                const auto nChunkBytesRead = std::fread( buffer.data(), 1, nBytesToRead, m_file.get() );
+                const auto nChunkBytesRead = m_file->read( buffer.data(), nBytesToRead );
 
-                m_readBitsCount += 8 * nChunkBytesRead;
-
+                bytesRead += currentPosition * 8U;
                 if ( nChunkBytesRead < nChunkBytesToRead ) {
-                    return m_readBitsCount;
+                    m_inbufBitCount
+                    return nBytesToRead;
                 }
             }
+#endif
         }
 
         if ( subBitsToSeek > 0 ) {
+            /* Here we skipped all the bytes possible, now we must read the next byte,
+             * skip some bits and write the remaining bits to the buffer. */
             m_inbufBitCount = uint8_t( 8 ) - subBitsToSeek;
-            m_inbufBits = fgetc( m_file.get() );
+
+            char c = 0;
+            m_file->read( &c, 1 );
+            m_inbufBits = static_cast<uint32_t>( c );
         }
     }
 

@@ -7,6 +7,8 @@ target_sources(indexed_bzip2 INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/bzip2.hpp
     ${CMAKE_CURRENT_LIST_DIR}/common.hpp
     ${CMAKE_CURRENT_LIST_DIR}/FileReader.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/SharedFileReader.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/StandardFileReader.hpp
 )
 target_compile_features(indexed_bzip2 INTERFACE cxx_std_11)
 
@@ -28,6 +30,8 @@ target_sources(indexed_bzip2_parallel INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/ParallelBitStringFinder.hpp
     ${CMAKE_CURRENT_LIST_DIR}/ParallelBZ2Reader.hpp
     ${CMAKE_CURRENT_LIST_DIR}/Prefetcher.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/SharedFileReader.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/StandardFileReader.hpp
     ${CMAKE_CURRENT_LIST_DIR}/ThreadPool.hpp
 )
 target_link_libraries(indexed_bzip2_parallel INTERFACE indexed_bzip2 Threads::Threads)

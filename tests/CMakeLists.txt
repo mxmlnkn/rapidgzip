@@ -1,5 +1,11 @@
 add_library(all_tests INTERFACE)
 
+add_executable(testFileReader)
+target_sources(testFileReader PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testFileReader.cpp)
+target_link_libraries(testFileReader PRIVATE indexed_bzip2_parallel)
+add_test(NAME Test-File-Reader COMMAND testFileReader)
+add_dependencies(all_tests testFileReader)
+
 add_executable(testBitStringFinder)
 target_sources(testBitStringFinder PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testBitStringFinder.cpp)
 target_link_libraries(testBitStringFinder PRIVATE indexed_bzip2_parallel)

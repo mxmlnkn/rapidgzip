@@ -10,11 +10,41 @@
 #include <iostream>
 #include <memory>
 #include <ostream>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+
+/* Platform dependent stuff */
+
+#ifdef _MSC_VER
+    #include <io.h>
+
+    #define fileno _fileno
+    #define dup _dup
+    #define fdopen _fdopen
+
+    #include <sys/stat.h>
+
+    #define S_IFIFO _S_IFIFO
+    #define S_IFMT _S_IFMT
+
+    template<typename FileMode, typename FileType>
+    bool
+    testFileType( FileMode fileMode,
+                  FileType fileType )
+    {
+        return ( fileMode & S_IFMT ) == fileType;
+    }
+
+    #define S_ISFIFO(m) testFileType( m, S_IFIFO )
+
+#else
+    #include <unistd.h>
+#endif
 
 
 template<typename I1,
@@ -121,8 +151,16 @@ inline unique_file_ptr
 make_unique_file_ptr( char const* const filePath,
                       char const* const mode )
 {
-    return make_unique_file_ptr( std::fopen( filePath, mode ) ); // NOLINE
+    return make_unique_file_ptr( std::fopen( filePath, mode ) );
 }
+
+inline unique_file_ptr
+make_unique_file_ptr( int         fileDescriptor,
+                      char const* mode )
+{
+    return make_unique_file_ptr( fdopen( fileDescriptor, mode ) );
+}
+
 
 
 inline unique_file_ptr
@@ -137,6 +175,25 @@ throwingOpen( const std::string& filePath,
     if ( file == nullptr ) {
         std::stringstream msg;
         msg << "Opening file '" << filePath << "' with mode '" << mode << "' failed!";
+        throw std::invalid_argument( msg.str() );
+    }
+
+    return file;
+}
+
+
+inline unique_file_ptr
+throwingOpen( int         fileDescriptor,
+              const char* mode )
+{
+    if ( mode == nullptr ) {
+        throw std::invalid_argument( "Mode must be a C-String and not null!" );
+    }
+
+    auto file = make_unique_file_ptr( fileDescriptor, mode );
+    if ( file == nullptr ) {
+        std::stringstream msg;
+        msg << "Opening file descriptor " << fileDescriptor << " with mode '" << mode << "' failed!";
         throw std::invalid_argument( msg.str() );
     }
 
@@ -284,31 +341,3 @@ require( bool               condition,
 
 #define REQUIRE_EQUAL( a, b ) requireEqual( a, b, __LINE__ ) // NOLINT
 #define REQUIRE( condition ) require( condition, #condition, __LINE__ ) // NOLINT
-
-
-/* Platform dependent stuff */
-
-#ifdef _MSC_VER
-    #include <io.h>
-
-    #define fileno _fileno
-    #define dup _dup
-
-    #include <sys/stat.h>
-
-    #define S_IFIFO _S_IFIFO
-    #define S_IFMT _S_IFMT
-
-    template<typename FileMode, typename FileType>
-    bool
-    testFileType( FileMode fileMode,
-                  FileType fileType )
-    {
-        return ( fileMode & S_IFMT ) == fileType;
-    }
-
-    #define S_ISFIFO(m) testFileType( m, S_IFIFO )
-
-#else
-    #include <unistd.h>
-#endif
