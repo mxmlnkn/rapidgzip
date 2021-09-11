@@ -18,6 +18,11 @@
 #include <vector>
 
 
+#ifdef WITH_PYTHON_SUPPORT
+    #include <Python.h>
+#endif
+
+
 /* Platform dependent stuff */
 
 #ifdef _MSC_VER

@@ -7,6 +7,7 @@ target_sources(indexed_bzip2 INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/bzip2.hpp
     ${CMAKE_CURRENT_LIST_DIR}/common.hpp
     ${CMAKE_CURRENT_LIST_DIR}/FileReader.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/PythonFileReader.hpp
     ${CMAKE_CURRENT_LIST_DIR}/SharedFileReader.hpp
     ${CMAKE_CURRENT_LIST_DIR}/StandardFileReader.hpp
 )
@@ -30,6 +31,7 @@ target_sources(indexed_bzip2_parallel INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/ParallelBitStringFinder.hpp
     ${CMAKE_CURRENT_LIST_DIR}/ParallelBZ2Reader.hpp
     ${CMAKE_CURRENT_LIST_DIR}/Prefetcher.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/PythonFileReader.hpp
     ${CMAKE_CURRENT_LIST_DIR}/SharedFileReader.hpp
     ${CMAKE_CURRENT_LIST_DIR}/StandardFileReader.hpp
     ${CMAKE_CURRENT_LIST_DIR}/ThreadPool.hpp

@@ -97,6 +97,22 @@ file2.close()
 ```
 
 
+## Open a pure Python file-like object for indexed reading
+
+```python3
+import io
+import os
+import indexed_bzip2 as ibz2
+
+with open( "example.bz2", 'rb' ) as file:
+    in_memory_file = io.BytesIO( file.read() )
+
+with ibz2.open( in_memory_file, parallelization = os.cpu_count() ) as file:
+    file.seek( 123 )
+    data = file.read( 100 )
+```
+
+
 ## Comparison with bz2 module
 
 These are simple timing tests for reading all the contents of a bzip2 file sequentially.

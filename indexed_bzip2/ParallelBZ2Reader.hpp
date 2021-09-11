@@ -30,6 +30,10 @@
 #include "Prefetcher.hpp"
 #include "ThreadPool.hpp"
 
+#ifdef WITH_PYTHON_SUPPORT
+    #include "PythonFileReader.hpp"
+#endif
+
 
 /**
  * Stores results in the order they are pushed and also stores a flag signaling that nothing will be pushed anymore.
@@ -903,6 +907,19 @@ public:
                                                                          m_finderParallelization ); } )
     {}
 
+
+#ifdef WITH_PYTHON_SUPPORT
+    explicit
+    ParallelBZ2Reader( PyObject* pythonObject,
+                       size_t    parallelization = 0 ) :
+        m_bitReader( new PythonFileReader( pythonObject ) ),
+        m_fetcherParallelization( parallelization == 0
+                                  ? std::max<size_t>( 1U, std::thread::hardware_concurrency() )
+                                  : parallelization ),
+        m_startBlockFinder( [&](){ return std::make_shared<BlockFinder>( m_bitReader.cloneSharedFileReader(),
+                                                                         m_finderParallelization ); } )
+    {}
+#endif
 
     /* FileReader overrides */
 

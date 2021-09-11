@@ -10,8 +10,12 @@ import os
 import pprint
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
+
+if __name__ == '__main__' and __package__ is None:
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import indexed_bzip2
 from indexed_bzip2 import IndexedBzip2File
@@ -200,12 +204,10 @@ def testBz2( parameters ):
 
     return True
 
-def testPythonInterface(parallelization):
-    print("Test Python Interface of IndexedBzip2File for parallelization = ", parallelization)
-
+def testPythonInterface( openIndexedFileFromName, closeUnderlyingFile = None ):
     contents = b"Hello\nWorld!\n"
     rawFile, bz2File = writeBz2File( contents )
-    file = IndexedBzip2File( bz2File.name, parallelization = parallelization )
+    file = openIndexedFileFromName( bz2File.name )
 
     # Based on the Python spec, peek might return more or less bytes than requested
     # but I think in this case it definitely should not return less!
@@ -237,17 +239,9 @@ def testPythonInterface(parallelization):
     file.close()
     assert file.closed
 
-    # Test the new open method interface
-
-    file = indexed_bzip2.open( bz2File.name, parallelization = parallelization )
-
-    # Based on the Python spec, peek might return more or less bytes than requested
-    # but I think in this case it definitely should not return less!
-    assert file.peek( 1 )[0] == contents[0]
-    assert file.peek( 1 )[0] == contents[0], "The previous peek should not change the internal position"
-
-    file.close()
-    assert file.closed
+    # Dirty hack to make os.remove work on Windows as everything must be closed correctly!
+    if closeUnderlyingFile:
+        closeUnderlyingFile()
 
     os.remove( bz2File.name )
 
@@ -261,13 +255,36 @@ def commandExists( name ):
     return True
 
 
+def openFileAsBytesIO( name ):
+    with open( name, 'rb' ) as file:
+        return io.BytesIO( file.read() )
+
+
+openedFileForInterfaceTest = None
+def openThroughGlobalFile( name ):
+    global openedFileForInterfaceTest
+    openedFileForInterfaceTest = open( name, 'rb' )
+    return indexed_bzip2.open( openedFileForInterfaceTest, parallelization = parallelization )
+
+
 if __name__ == '__main__':
     print( "indexed_bzip2 version:", indexed_bzip2.__version__ )
 
-    testPythonInterface(1)
-    testPythonInterface(2)
-    testPythonInterface(3)
-    testPythonInterface(8)
+    for parallelization in [1,2,3,8]:
+        print("Test Python Interface of IndexedBzip2File for parallelization = ", parallelization)
+
+        print("  Test opening with IndexedBzip2File")
+        testPythonInterface( lambda name : IndexedBzip2File( name, parallelization = parallelization ) )
+
+        print("  Test opening with indexed_bzip2.open")
+        testPythonInterface( lambda name : indexed_bzip2.open( name, parallelization = parallelization ) )
+
+        print("  Test opening with indexed_bzip2.open and file object with fileno")
+        testPythonInterface( openThroughGlobalFile, lambda: openedFileForInterfaceTest.close() )
+
+        print("  Test opening with indexed_bzip2.open and file object without fileno")
+        testPythonInterface( lambda name : indexed_bzip2.open( openFileAsBytesIO( name ),
+                                                               parallelization = parallelization ) )
 
     encoders = [ 'pybz2' ]
     if commandExists( 'bzip2' ):

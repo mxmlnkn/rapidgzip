@@ -14,7 +14,12 @@
 #include "bzip2.hpp"
 #include "BitReader.hpp"
 #include "BZ2ReaderInterface.hpp"
+#include "common.hpp"
 #include "FileReader.hpp"
+
+#ifdef WITH_PYTHON_SUPPORT
+    #include "PythonFileReader.hpp"
+#endif
 
 
 class BZ2Reader :
@@ -38,6 +43,13 @@ public:
     BZ2Reader( int fileDescriptor ) :
         m_bitReader( new StandardFileReader( fileDescriptor ) )
     {}
+
+#ifdef WITH_PYTHON_SUPPORT
+    explicit
+    BZ2Reader( PyObject* pythonObject ) :
+        m_bitReader( new PythonFileReader( pythonObject ) )
+    {}
+#endif
 
     /* FileReader overrides */
 
@@ -179,7 +191,7 @@ public:
      * @param[out] outputBuffer should at least be large enough to hold @p nBytesToRead bytes
      * @return number of bytes written
      */
-    [[nodiscard]] size_t
+    size_t
     read( const int    outputFileDescriptor = -1,
           char* const  outputBuffer = nullptr,
           const size_t nBytesToRead = std::numeric_limits<size_t>::max() ) override

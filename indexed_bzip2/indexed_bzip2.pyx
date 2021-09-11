@@ -8,6 +8,7 @@ from libcpp.string cimport string
 from libcpp.map cimport map
 from libcpp cimport bool
 from cpython.buffer cimport PyObject_GetBuffer, PyBuffer_Release, PyBUF_ANY_CONTIGUOUS, PyBUF_SIMPLE
+from cpython.ref cimport PyObject
 
 import io
 import os
@@ -17,14 +18,11 @@ ctypedef (unsigned long long int) size_t
 ctypedef (long long int) lli
 
 
-cdef extern from "Python.h":
-    char * PyString_AsString(object)
-    object PyString_FromStringAndSize(char*, int)
-
 cdef extern from "BZ2Reader.hpp":
     cppclass BZ2Reader:
         BZ2Reader(string) except +
         BZ2Reader(int) except +
+        BZ2Reader(PyObject*) except +
 
         bool eof() except +
         int fileno() except +
@@ -46,6 +44,7 @@ cdef extern from "ParallelBZ2Reader.hpp":
     cppclass ParallelBZ2Reader:
         ParallelBZ2Reader(string, size_t) except +
         ParallelBZ2Reader(int, size_t) except +
+        ParallelBZ2Reader(PyObject*, size_t) except +
 
         bool eof() except +
         int fileno() except +
@@ -64,22 +63,56 @@ cdef extern from "ParallelBZ2Reader.hpp":
         void setBlockOffsets(map[size_t, size_t]) except +
         void joinThreads() except +
 
+def _isFileObject(file):
+    return (
+        hasattr(file, 'read') and callable(getattr(file, 'read'))
+        and hasattr(file, 'seek') and callable(getattr(file, 'seek'))
+        and hasattr(file, 'tell') and callable(getattr(file, 'tell'))
+        and hasattr(file, 'seekable') and callable(getattr(file, 'seekable'))
+    )
+
+def _hasValidFileno(file):
+    if not hasattr(file, 'fileno'):
+        return False
+
+    try:
+        fileno = file.fileno()
+        return isinstance(fileno, int) and fileno >= 0
+    except Exception:
+        return False
+
 cdef class _IndexedBzip2File():
     cdef BZ2Reader* bz2reader
+    _fileobj : object  # references counted object kept until the BZ2Reader with the pointer to this is destructed
 
-    def __cinit__(self, fileNameOrDescriptor):
-        if isinstance(fileNameOrDescriptor, basestring):
-            self.bz2reader = new BZ2Reader(<string>fileNameOrDescriptor.encode())
-        elif isinstance(fileNameOrDescriptor, int):
-            self.bz2reader = new BZ2Reader(<int>fileNameOrDescriptor)
+    def __cinit__(self, file):
+        """
+        file : can be a file path, a file descriptor, or a file object
+               with suitable read, seekable, seek, tell methods.
+        """
+
+        if isinstance(file, int):
+            self.bz2reader = new BZ2Reader(<int>file)
+        elif _hasValidFileno(file):
+            self.bz2reader = new BZ2Reader(<int>file.fileno())
+        elif _isFileObject(file):
+            self._fileobj = file  # store to avoid it being garbage collected
+            self.bz2reader = new BZ2Reader(<PyObject*>self._fileobj)
+        elif isinstance(file, basestring) and hasattr(file, 'encode'):
+            # Note that BytesIO also is an instance of basestring but fortunately has no encode method!
+            self.bz2reader = new BZ2Reader(<string>file.encode())
         else:
-            raise Exception("Expected file name string or file descriptor integer!")
+            raise Exception("Expected file name string, file descriptor integer, or file-like object for BZ2Reader!")
 
     def __dealloc__(self):
+        self.close()
         del self.bz2reader
 
     def close(self):
-        self.bz2reader.close()
+        if not self.bz2reader.closed():
+            self.bz2reader.close()
+        if self._fileobj:
+            self._fileobj.close()
 
     def closed(self):
         return self.bz2reader.closed()
@@ -129,24 +162,41 @@ cdef class _IndexedBzip2File():
 
 cdef class _IndexedBzip2FileParallel():
     cdef ParallelBZ2Reader* bz2reader
+    _fileobj : object  # references counted object kept until the BZ2Reader with the pointer to this is destructed
 
-    def __cinit__(self, fileNameOrDescriptor, parallelization):
-        if isinstance(fileNameOrDescriptor, basestring):
-            self.bz2reader = new ParallelBZ2Reader(<string>fileNameOrDescriptor.encode(), <int>parallelization)
-        elif isinstance(fileNameOrDescriptor, int):
-            self.bz2reader = new ParallelBZ2Reader(<int>fileNameOrDescriptor, <int>parallelization)
+    def __cinit__(self, file, parallelization):
+        """
+        file : can be a file path, a file descriptor, or a file object
+               with suitable read, seekable, seek, tell methods.
+        """
+
+        if isinstance(file, int):
+            self.bz2reader = new ParallelBZ2Reader(<int>file, <int>parallelization)
+        elif _hasValidFileno(file):
+            self.bz2reader = new ParallelBZ2Reader(<int>file.fileno(), <int>parallelization)
+        elif _isFileObject(file):
+            self._fileobj = file  # store to avoid it being garbage collected
+            self.bz2reader = new ParallelBZ2Reader(<PyObject*>self._fileobj, <int>parallelization)
+        elif isinstance(file, basestring) and hasattr(file, 'encode'):
+            # Note that BytesIO also is an instance of basestring but fortunately has no encode method!
+            self.bz2reader = new ParallelBZ2Reader(<string>file.encode(), <int>parallelization)
         else:
-            raise Exception("Expected file name string or file descriptor integer!")
+            raise Exception("Expected file name string, file descriptor integer, "
+                            "or file-like object for ParallelBZ2Reader!")
 
 
     def __init__(self, *args, **kwargs):
         pass
 
     def __dealloc__(self):
+        self.close()
         del self.bz2reader
 
     def close(self):
-        self.bz2reader.close()
+        if not self.bz2reader.closed():
+            self.bz2reader.close()
+        if self._fileobj:
+            self._fileobj.close()
 
     def closed(self):
         return self.bz2reader.closed()
@@ -247,6 +297,10 @@ class IndexedBzip2File(io.BufferedReader):
 
 
 def open(filename, parallelization = 1):
+    """
+    filename: can be a file path, a file descriptor, or a file object
+              with suitable read, seekable, seek, and tell methods.
+    """
     return IndexedBzip2File(filename, parallelization)
 
 

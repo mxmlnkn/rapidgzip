@@ -4,6 +4,7 @@
  - Add support and wheels for macOS and Windows additionally to Linux.
  - Build and upload Conda packages for Linux, Windows, and macOS.
  - Add 'open' method for compatibility to bzip2, gzip, and other similar modules.
+ - Add support for pure Python file-like objects without a fileno like BytesIO.
 
 # Version 1.2.0 built on 2021-06-27
 

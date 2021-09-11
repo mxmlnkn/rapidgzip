@@ -43,7 +43,7 @@ extensions = [
 class Build(build_ext):
     def build_extensions(self):
         for ext in self.extensions:
-            ext.extra_compile_args = [ '-std=c++17', '-O3', '-DNDEBUG' ]
+            ext.extra_compile_args = [ '-std=c++17', '-O3', '-DNDEBUG', '-DWITH_PYTHON_SUPPORT' ]
 
             # https://github.com/cython/cython/issues/2670#issuecomment-432212671
             # https://github.com/cython/cython/issues/3405#issuecomment-596975159
@@ -62,7 +62,7 @@ class Build(build_ext):
                 ]
 
             elif self.compiler.compiler_type == 'msvc':
-                ext.extra_compile_args = [ '/std:c++17', '/O2', '/DNDEBUG' ]
+                ext.extra_compile_args = [ '/std:c++17', '/O2', '/DNDEBUG', '/DWITH_PYTHON_SUPPORT' ]
 
         super(Build, self).build_extensions()
 
