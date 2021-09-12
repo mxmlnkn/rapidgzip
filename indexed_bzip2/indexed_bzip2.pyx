@@ -104,8 +104,11 @@ cdef class _IndexedBzip2File():
         else:
             raise Exception("Expected file name string, file descriptor integer, or file-like object for BZ2Reader!")
 
+    def __del__(self):
+        if not self.closed():
+            self.close()
+
     def __dealloc__(self):
-        self.close()
         del self.bz2reader
 
     def close(self):
