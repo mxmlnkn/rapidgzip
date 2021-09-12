@@ -7,9 +7,13 @@ tools/*
 tests/*
 !tests/*.*
 
+external/
+worktrees/
+*mimi*
+
 # Temporary files created by testBz2.py
 Bzip2TestParameters(*
-
+*.index.sqlite
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

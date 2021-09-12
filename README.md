@@ -160,6 +160,15 @@ Results for an AMD Ryzen 3900X 12-core (24 virtual cores) processor and with `bz
 The speedup between the `bz2` module and `indexed_bzip2` with `parallelization = 0` is 414/69 = **6**.
 When using only one core, `indexed_bzip2` is slower by (566-414)/414 = 37%.
 
+# Internal Architecture
+
+The parallelization of the bzip2 decoder and adding support to read from Python file-like objects required a lot of work to design an architecture which works and can be reasoned about.
+An earlier architecture was discarded because it became to monolithic.
+That discarded one was able to even work with piped non-seekable input, with which the current parallel architecture does not work with yet.
+The serial `BZ2Reader` still exists but is not shown in the class diagram because it is deprecated and will be removed some time in the future after the `ParallelBZ2Reader` has proven itself.
+Click [here](results/design/ParallelBZ2Reader.png) or the image to get a larger image and [here](results/design/ParallelBZ2Reader.svg) to see an SVG version.
+
+[![Class Diagram for ParallelBZ2Reader](results/design/ParallelBZ2Reader.png)](results/design/ParallelBZ2Reader.png)
 
 # Tracing the decoder
 
