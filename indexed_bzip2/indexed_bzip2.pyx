@@ -261,13 +261,18 @@ class IndexedBzip2FileRaw(io.RawIOBase):
         self.readinto = self.bz2reader.readinto
         self.seek     = self.bz2reader.seek
         self.tell     = self.bz2reader.tell
-        self.fileno   = self.bz2reader.fileno
         self.seekable = self.bz2reader.seekable
 
         if hasattr(self.bz2reader, 'join_threads'):
             self.join_threads = self.bz2reader.join_threads
 
         # IOBase provides sane default implementations for read, readline, readlines, readall, ...
+
+    def fileno(self):
+        try:
+            return self.bz2reader.fileno()
+        except Exception as exception:
+            raise io.UnsupportedOperation() from exception
 
     def close(self):
         if self.closed:

@@ -171,7 +171,7 @@ public:
     [[nodiscard]] int
     fileno() const override
     {
-        throw std::invalid_argument( "This Python file-like object has not valid fileno!" );
+        throw std::invalid_argument( "This Python file-like object has no valid fileno!" );
     }
 
     [[nodiscard]] bool
