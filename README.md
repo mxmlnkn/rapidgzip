@@ -14,7 +14,7 @@
 This module provides an IndexedBzip2File class, which can be used to seek inside bzip2 files without having to decompress them first.
 Alternatively, you can use this simply as a **parallelized** bzip2 decoder as a replacement for Python's builtin `bz2` module in order to fully utilize all your cores.
 
-On a 12-core processor, this can lead to a speedup of **6** over Python's `bz2` module, see [this](#example-3-comparison-with-bz2-module) example.
+On a 12-core processor, this can lead to a speedup of **6** over Python's `bz2` module, see [this](#comparison-with-bz2-module) example.
 Note that without parallelization, `indexed_bzip2` is unfortunately slower than Python's `bz2` module.
 Therefore, it is not recommended when neither seeking nor parallelization is used!
 
@@ -24,7 +24,7 @@ Seeking inside a block is only emulated, so IndexedBzip2File will only speed up 
 
 Since version 1.2.0, parallel decoding of blocks is supported!
 However, per default, the older serial implementation is used.
-To use the parallel implementation you need to specify a `parallelization` argument other than 1 to `IndexedBzip2File`, see e.g. [this example](#example-3-comparison-with-bz2-module).
+To use the parallel implementation you need to specify a `parallelization` argument other than 1 to `IndexedBzip2File`, see e.g. [this example](#comparison-with-bz2-module).
 
 
 # Installation
