@@ -114,8 +114,6 @@ cdef class _IndexedBzip2File():
     def close(self):
         if not self.bz2reader.closed():
             self.bz2reader.close()
-        if self._fileobj:
-            self._fileobj.close()
 
     def closed(self):
         return self.bz2reader.closed()
