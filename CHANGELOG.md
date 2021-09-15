@@ -1,5 +1,5 @@
 
-# Version 1.3.0 built on 2021-09-xx
+# Version 1.3.0 built on 2021-09-15
 
  - Add support and wheels for macOS and Windows additionally to Linux.
  - Build and upload Conda packages for Linux, Windows, and macOS.
