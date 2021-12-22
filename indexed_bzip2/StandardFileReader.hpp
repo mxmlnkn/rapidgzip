@@ -161,7 +161,7 @@ public:
             throw std::invalid_argument( "Invalid or file can't be seeked!" );
         }
 
-        const auto returnCode = std::fseek( m_file.get(), offset, SEEK_SET );
+        const auto returnCode = std::fseek( m_file.get(), offset, origin );
         if ( returnCode != 0 ) {
             throw std::runtime_error( "Seeking failed!" );
         }
@@ -176,7 +176,7 @@ public:
         return m_currentPosition;
     }
 
-    [[nodiscard]] virtual size_t
+    [[nodiscard]] size_t
     size() const override
     {
         return m_fileSizeBytes;
