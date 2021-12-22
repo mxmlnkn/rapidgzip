@@ -75,8 +75,10 @@ public:
     /** @note This overload is used for the tests but can also be useful for other things. */
     ParallelBitStringFinder( const char* buffer,
                              size_t      size,
-                             uint64_t    bitStringToFind ) :
-        BaseType( std::unique_ptr<FileReader>(), bitStringToFind )
+                             uint64_t    bitStringToFind,
+                             size_t      parallelization ) :
+        BaseType( std::unique_ptr<FileReader>(), bitStringToFind ),
+        m_threadPool( parallelization )
     {
         this->m_buffer.assign( buffer, buffer + size );
     }

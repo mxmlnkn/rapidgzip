@@ -50,7 +50,10 @@ testBitStringFinder( uint64_t                          bitStringToFind,
     for ( size_t parallelization = 1; parallelization <= std::thread::hardware_concurrency(); parallelization *= 2 )
     {
         /* test the version working on an input buffer */
-        ParallelBitStringFinder<bitStringSize> bitStringFinder( rawBuffer, buffer.size(), bitStringToFind );
+        ParallelBitStringFinder<bitStringSize> bitStringFinder( rawBuffer,
+                                                                buffer.size(),
+                                                                bitStringToFind,
+                                                                parallelization );
         if ( !testBitStringFinder( std::move( bitStringFinder ), stringPositions ) ) {
             std::cerr << "Version working on input buffer failed!\n";
         }
@@ -72,7 +75,7 @@ testBitStringFinder( uint64_t                          bitStringToFind,
          */
         std::fflush( file.get() );
         ParallelBitStringFinder<bitStringSize> bitStringFinder(
-            std::make_unique<StandardFileReader>( fileno( file.get() ) ), bitStringToFind, sizeof( uint64_t )
+            std::make_unique<StandardFileReader>( fileno( file.get() ) ), bitStringToFind, parallelization
         );
         if ( !testBitStringFinder( std::move( bitStringFinder ), stringPositions ) ) {
             std::cerr << "Version working on input file failed!\n";
