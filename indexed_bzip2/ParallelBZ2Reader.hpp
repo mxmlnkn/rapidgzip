@@ -359,7 +359,7 @@ private:
  * Should get block offsets and decoded sizes and will do conversions between decoded and encoded offsets!
  * The idea is that at first any forward seeking should be done using read calls and the read call will
  * push all block information to the BlockMapBuilder. And because ParallelBZ2Reader should not be called from
- * differen threads, there should never be a case that lookups to this function should have to wait for
+ * different threads, there should never be a case in which lookups to this function should have to wait for
  * other threads to push data into us!
  * This is used by the worker threads, so it must be thread-safe!
  */
