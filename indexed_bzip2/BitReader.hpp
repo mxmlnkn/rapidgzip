@@ -55,8 +55,7 @@ public:
         m_file( std::make_unique<SharedFileReader>( fileReader ) )
     {}
 
-    BitReader( BitReader&& other ) = default;
-
+    BitReader( BitReader&& other ) = delete;
     BitReader& operator=( BitReader&& other ) = delete;
     BitReader& operator=( const BitReader& other ) = delete;
 
