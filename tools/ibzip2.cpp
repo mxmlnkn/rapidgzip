@@ -318,7 +318,7 @@ cli( int argc, char** argv )
     std::string outputFilePath;
     if ( parsedArgs.count( "output" ) > 0 ) {
         outputFilePath = parsedArgs["output"].as<std::string>();
-    } else if ( parsedArgs.count( "stdout" ) == 0 && !inputFilePath.empty() ) {
+    } else if ( ( parsedArgs.count( "stdout" ) == 0 ) && !inputFilePath.empty() ) {
         const std::string& suffix = ".bz2";
         if ( endsWith( inputFilePath, suffix, /* case sensitive */ false ) ) {
             outputFilePath = std::string( inputFilePath.begin(), inputFilePath.end() - suffix.size() );
@@ -330,14 +330,18 @@ cli( int argc, char** argv )
         }
     }
 
-    if ( fileExists( outputFilePath.c_str() ) && !force ) {
+    if ( ( outputFilePath != "/dev/null" ) && fileExists( outputFilePath.c_str() ) && !force ) {
         std::cerr << "Output file '" << outputFilePath << "' already exists! Use --force to overwrite.\n";
         return 1;
     }
 
     /* Parse other arguments. */
 
-    const auto decompress = !stdoutIsDevNull() || ( parsedArgs.count( "list-compressed-offsets" ) > 0 ) || force;
+    const auto decompress = ( ( parsedArgs.count( "decompress" ) > 0 )
+                                && ( ( outputFilePath.empty() && !stdoutIsDevNull() )
+                                      || ( !outputFilePath.empty() && ( outputFilePath != "/dev/null" ) ) ) )
+                            || ( parsedArgs.count( "list-offsets" ) > 0 )
+                            || force;
 
     const auto bufferSize = parsedArgs["buffer-size"].as<unsigned int>();
 
