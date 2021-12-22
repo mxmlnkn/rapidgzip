@@ -163,7 +163,7 @@ testSingleByteAtFileBufferBoundary()
 int
 main()
 {
-#ifndef CODE_COVERAGE
+#ifndef SHORT_TESTS
     /* These tests take too long because the buffer is too large. */
     testSingleByteAtFileBufferBoundary();
     testSingleBitAtFileBufferBoundary();

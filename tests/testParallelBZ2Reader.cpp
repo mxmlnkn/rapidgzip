@@ -157,7 +157,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     read( 1024 );
 
     /* Try reading over the end of the file. */
-    read( 1024*1024*1024 );
+    read( 128*1024*1024 );
 
     /* Try out seeking. */
     seek( 0 );
@@ -214,7 +214,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     read( 100 ); /* Direct read after current position even after closing threads. */
     seek( 222 );
     read( 1024*1024 );
-    read( 1024*1024*1024 );
+    read( 128*1024*1024 );
 
     encodedFile->joinThreads();
     seek( 1 ); /* Direct read after current position even after closing threads. */
@@ -226,7 +226,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
 
     std::cerr << "Try reading 1B before the end of file\n";
     seek( static_cast<ssize_t>( decodedFileSize ) - 4 );
-    read( 1024*1024*1024 );
+    read( 128*1024*1024 );
 
     std::cerr << "Test block offset loading\n";
     decodedFile.clear();
@@ -248,7 +248,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
 
     std::cerr << "Try reading 1B before the end of file\n";
     seek( static_cast<ssize_t>( decodedFileSize ) - 4 );
-    read( 1024*1024*1024 );
+    read( 128*1024*1024 );
 
     std::cerr << "Test block offset loading after partial reading\n";
     decodedFile.clear();
@@ -259,7 +259,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
 
     std::cerr << "Try reading 1B before the end of file\n";
     seek( static_cast<ssize_t>( decodedFileSize ) - 4 );
-    read( 1024*1024*1024 );
+    read( 128*1024*1024 );
 }
 
 

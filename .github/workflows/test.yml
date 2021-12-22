@@ -151,7 +151,7 @@ jobs:
     - name: Run valgrind
       run: |
         mkdir -p build-valgrind && cd -- "$_"
-        cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Debug
+        cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-DSHORT_TESTS" ..
         cmake --build . -- check-memcheck
 
   Tests:

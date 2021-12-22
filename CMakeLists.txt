@@ -16,7 +16,7 @@ add_link_options(
 )
 
 if(CODE_COVERAGE)
-    add_definitions(-DCODE_COVERAGE>)
+    add_definitions(-DSHORT_TESTS)
 endif()
 
 
