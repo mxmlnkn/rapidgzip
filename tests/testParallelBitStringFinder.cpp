@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #include "ParallelBitStringFinder.hpp"
+#include "MemoryFileReader.hpp"
 #include "common.hpp"
 
 
@@ -17,7 +18,7 @@ testBitStringFinder( TemplatedBitStringFinder&& bitStringFinder,
     /* Gather all strings (time out at 1k strings because tests are written manually
      * and never will require that many matches, so somethings must have gone wrong */
     std::vector<size_t> matches;
-    for ( int i = 0; i < 16; ++i ) {
+    while ( true ) {
         matches.push_back( bitStringFinder.find() );
         if ( matches.back() == std::numeric_limits<size_t>::max() ) {
             matches.pop_back();
@@ -28,7 +29,11 @@ testBitStringFinder( TemplatedBitStringFinder&& bitStringFinder,
     ++gnTests;
     if ( matches != stringPositions ) {
         ++gnTestErrors;
-        std::cerr << "[FAIL] Matches: " << matches << " != " << stringPositions << "\n";
+        if ( matches.size() > 10 ) {
+            std::cerr << "[FAIL] Matches with " << matches.size() << " elements != " << stringPositions << "\n";
+        } else {
+            std::cerr << "[FAIL] Matches: " << matches << " != " << stringPositions << "\n";
+        }
         return false;
     }
 
@@ -84,9 +89,88 @@ testBitStringFinder( uint64_t                          bitStringToFind,
 }
 
 
+/* Tests with single bit at subbit positions and a lot further away and definitely over the loading chunk size. */
+void
+testSingleBitAtChunkBoundary()
+{
+    std::vector<size_t> bitPositions;
+    for ( size_t i = 0; i < 4; ++i ) {
+        bitPositions.push_back( i );
+        bitPositions.push_back( 4*1024 - 2 + i );
+        bitPositions.push_back( 4*1024*8 - 2 + i );
+        bitPositions.push_back( 8*1024*8 - 2 + i );
+    }
+
+    for ( const auto bitPosition : bitPositions ) {
+        /* This size and a parallelization > 4 should give chunks sized 4096, 4096, 4096, 3712
+         * because of the minimum chunk size. */
+        std::vector<char> buffer( 16000, '\0' );
+        buffer[bitPosition / 8] = 1U << ( 7 - ( bitPosition % 8 ) );
+        ParallelBitStringFinder<1> bitStringFinder( buffer.data(), buffer.size(), 0x01, 8 );
+        if ( !testBitStringFinder( std::move( bitStringFinder ), { bitPosition } ) ) {
+            std::cerr << "ParallelBitStringFinder failed for buffer sized " << buffer.size() << " with single bit "
+                      << "at offset " << bitPosition << " b!\n";
+        }
+    }
+}
+
+
+/* Tests with single bit at subbit positions and a lot further away and definitely over file buffer size. */
+void
+testSingleBitAtFileBufferBoundary()
+{
+    std::vector<size_t> bitPositions;
+    for ( size_t i = 0; i < 4; ++i ) {
+        bitPositions.push_back( i );
+        bitPositions.push_back( 1024*1024*CHAR_BIT - 2 + i );
+    }
+
+    for ( const auto bitPosition : bitPositions ) {
+        std::vector<char> buffer( 4'000'000, '\0' );
+        buffer[bitPosition / CHAR_BIT] = 1U << ( 7 - ( bitPosition % CHAR_BIT ) );
+        BitStringFinder<1> bitStringFinder( std::make_unique<MemoryFileReader>( buffer ), 0x01, 8 );
+        if ( !testBitStringFinder( std::move( bitStringFinder ), { bitPosition } ) ) {
+            std::cerr << "ParallelBitStringFinder failed for buffer sized " << buffer.size() << " with single bit "
+                      << "at offset " << bitPosition << " b!\n";
+        }
+    }
+}
+
+
+void
+testSingleByteAtFileBufferBoundary()
+{
+    std::vector<size_t> bytePositions;
+    for ( size_t i = 0; i < 4; ++i ) {
+        bytePositions.push_back( i );
+        bytePositions.push_back( 1024*1024 - 2 + i );
+        bytePositions.push_back( 2*1024*1024 - 2 + i );
+        bytePositions.push_back( 3*1024*1024 - 2 + i );
+    }
+
+    for ( const auto bytePosition : bytePositions ) {
+        std::vector<char> buffer( 4'000'000, '\0' );
+        buffer[bytePosition] = 0xFF;
+        ParallelBitStringFinder<CHAR_BIT> bitStringFinder( std::make_unique<MemoryFileReader>( buffer ), 0xFF, 8 );
+        if ( !testBitStringFinder( std::move( bitStringFinder ), { bytePosition * CHAR_BIT } ) ) {
+            std::cerr << "ParallelBitStringFinder failed for buffer sized " << buffer.size() << " with single bit "
+                      << "at offset " << bytePosition << " b!\n";
+        }
+    }
+}
+
+
 int
 main()
 {
+#ifndef CODE_COVERAGE
+    /* These tests take too long because the buffer is too large. */
+    testSingleByteAtFileBufferBoundary();
+    testSingleBitAtFileBufferBoundary();
+#endif
+
+    testSingleBitAtChunkBoundary();
+
     /* 0-size bit strings to find arguably makes no sense to test for. */
     //testBitStringFinder<0>( 0b0, {}, {} );
     //testBitStringFinder<0>( 0b0, { 0x00 }, {} );
@@ -128,10 +212,10 @@ main()
 
         const std::vector<char> secondMatchingString = { 0x31, 0x41, 0x59, 0x26, 0x53, 0x59 };
         auto const minSubChunkSize = 4096;
-        /** at this offset the second sub chunk begins and it will actually become multi-threadad */
+        /* At this offset the second sub chunk begins and it will actually become multi-threaded for small buffers. */
         auto const specialOffset = minSubChunkSize - buffer.size() - secondMatchingString.size();
 
-        const std::vector<size_t> offsetsToTest = { 1, 100, 123, 1024, 28*1024, 4*1024*1024,
+        const std::vector<size_t> offsetsToTest = { 1, 100, 123, 1024, 4*1024 - 1, 4*1024, 28*1024, 4*1024*1024,
                                                     specialOffset - 1, specialOffset, specialOffset + 1 };
 
         for ( const auto offset : offsetsToTest ) {

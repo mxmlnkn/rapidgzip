@@ -15,6 +15,10 @@ add_link_options(
     "$<$<AND:$<CXX_COMPILER_ID:Clang,GNU>,$<BOOL:${CODE_COVERAGE}>>:--coverage>"
 )
 
+if(CODE_COVERAGE)
+    add_definitions(-DCODE_COVERAGE>)
+endif()
+
 
 # This command should be in the source directory root because ctest expects
 # to find a test file in the build directory root.
