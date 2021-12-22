@@ -1,4 +1,8 @@
 
+# Version 1.3.1 built on 2021-12-23
+
+ - Fix logic_error exception for certain files when using the parallel decoder.
+
 # Version 1.3.0 built on 2021-09-15
 
  - Add support and wheels for macOS and Windows additionally to Linux.

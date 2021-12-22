@@ -1567,7 +1567,7 @@ static const char __pyx_k_self[] = "self";
 static const char __pyx_k_size[] = "size";
 static const char __pyx_k_tell[] = "tell";
 static const char __pyx_k_test[] = "__test__";
-static const char __pyx_k_1_3_0[] = "1.3.0";
+static const char __pyx_k_1_3_1[] = "1.3.1";
 static const char __pyx_k_close[] = "close";
 static const char __pyx_k_super[] = "super";
 static const char __pyx_k_closed[] = "closed";
@@ -1625,7 +1625,7 @@ static const char __pyx_k_indexed_bzip2_indexed_bzip2_pyx[] = "indexed_bzip2/ind
 static const char __pyx_k_Expected_file_name_string_file_d[] = "Expected file name string, file descriptor integer, or file-like object for BZ2Reader!";
 static const char __pyx_k_no_default___reduce___due_to_non[] = "no default __reduce__ due to non-trivial __cinit__";
 static const char __pyx_k_Expected_file_name_string_file_d_2[] = "Expected file name string, file descriptor integer, or file-like object for ParallelBZ2Reader!";
-static PyObject *__pyx_kp_u_1_3_0;
+static PyObject *__pyx_kp_u_1_3_1;
 static PyObject *__pyx_n_s_BufferedReader;
 static PyObject *__pyx_kp_u_Expected_file_name_string_file_d;
 static PyObject *__pyx_kp_u_Expected_file_name_string_file_d_2;
@@ -7704,7 +7704,7 @@ static struct PyModuleDef __pyx_moduledef = {
 #endif
 
 static __Pyx_StringTabEntry __pyx_string_tab[] = {
-  {&__pyx_kp_u_1_3_0, __pyx_k_1_3_0, sizeof(__pyx_k_1_3_0), 0, 1, 0, 0},
+  {&__pyx_kp_u_1_3_1, __pyx_k_1_3_1, sizeof(__pyx_k_1_3_1), 0, 1, 0, 0},
   {&__pyx_n_s_BufferedReader, __pyx_k_BufferedReader, sizeof(__pyx_k_BufferedReader), 0, 0, 1, 1},
   {&__pyx_kp_u_Expected_file_name_string_file_d, __pyx_k_Expected_file_name_string_file_d, sizeof(__pyx_k_Expected_file_name_string_file_d), 0, 1, 0, 0},
   {&__pyx_kp_u_Expected_file_name_string_file_d_2, __pyx_k_Expected_file_name_string_file_d_2, sizeof(__pyx_k_Expected_file_name_string_file_d_2), 0, 1, 0, 0},
@@ -8515,9 +8515,9 @@ if (!__Pyx_RefNanny) {
   /* "indexed_bzip2.pyx":313
  * 
  * 
- * __version__ = '1.3.0'             # <<<<<<<<<<<<<<
+ * __version__ = '1.3.1'             # <<<<<<<<<<<<<<
  */
-  if (PyDict_SetItem(__pyx_d, __pyx_n_s_version, __pyx_kp_u_1_3_0) < 0) __PYX_ERR(1, 313, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_d, __pyx_n_s_version, __pyx_kp_u_1_3_1) < 0) __PYX_ERR(1, 313, __pyx_L1_error)
 
   /* "indexed_bzip2.pyx":1
  * """             # <<<<<<<<<<<<<<

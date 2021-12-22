@@ -310,4 +310,4 @@ def open(filename, parallelization = 1):
     return IndexedBzip2File(filename, parallelization)
 
 
-__version__ = '1.3.0'
+__version__ = '1.3.1'
