@@ -258,10 +258,15 @@ ParallelBitStringFinder<bitStringSize>::find()
 
         /* Start worker threads using the thread pool and the current buffer. */
         for ( ; !this->bufferEof(); this->m_bufferBitsRead += subChunkStrideInBytes * CHAR_BIT ) {
-            /* Try to seek m_movingBitsToKeep back in order to find bit strings going over the previous border. */
+            /* Try to seek m_movingBitsToKeep back in order to find bit strings going over the previous border.
+             * On the very first iteration after refilling the buffer, the number of read bits might be non-zero
+             * but smaller than the bit string to find because BitReader prepends some bytes of the last buffer
+             * in order to find bit strings across buffer boundaries. In this case, i.e., in the first iteration,
+             * We do not need to seek back by m_movingBitsToKeep only after the first chunk is this necessary just
+             * like it is necessary for BitReader::refillBuffer. */
             auto const bufferOffsetInBits = this->m_bufferBitsRead > this->m_movingBitsToKeep
                                             ? this->m_bufferBitsRead - this->m_movingBitsToKeep
-                                            : 0;
+                                            : this->m_bufferBitsRead;
             auto const bufferOffsetInBytes  = bufferOffsetInBits / CHAR_BIT;
             auto const subChunkOffsetInBits = static_cast<uint8_t>( bufferOffsetInBits % CHAR_BIT );
 
