@@ -6,7 +6,7 @@
 
 #include <BitStringFinder.hpp>
 #include <common.hpp>
-#include <ParallelBZ2Reader.hpp>
+#include <BZ2Reader.hpp>
 
 
 namespace
@@ -32,7 +32,7 @@ testSimpleOpenAndClose( const std::string& bz2File )
 {
     const auto t0 = std::chrono::high_resolution_clock::now();
     {
-        ParallelBZ2Reader encodedFile( bz2File );  // NOLINT
+        BZ2Reader encodedFile( bz2File );  // NOLINT
         const auto t1 = std::chrono::high_resolution_clock::now();
         const auto dt = std::chrono::duration_cast<std::chrono::duration<double> >( t1 - t0 ).count();
         REQUIRE( dt < 1 );
@@ -44,7 +44,7 @@ testSimpleOpenAndClose( const std::string& bz2File )
 
 
 /**
- * Tests are in such a way that seeking and reading are mirrored on the ParallelBZ2Reader file and the decoded file.
+ * Tests are in such a way that seeking and reading are mirrored on the BZ2Reader file and the decoded file.
  * Then all read results can be checked against each other. Same for the result of tell.
  */
 void
@@ -60,7 +60,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     std::cerr << "Decoded file size: " << decodedFileSize << "\n";
 
     std::ifstream decodedFile( decodedTestFilePath );
-    auto encodedFile = std::make_unique<ParallelBZ2Reader>( encodedTestFilePath );
+    auto encodedFile = std::make_unique<BZ2Reader>( encodedTestFilePath );
 
     const auto seek =
         [&]( long long int offset,
@@ -157,7 +157,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     read( 1024 );
 
     /* Try reading over the end of the file. */
-    read( decodedFileSize + 1000 );
+    read( 128*1024*1024 );
 
     /* Try out seeking. */
     seek( 0 );
@@ -169,7 +169,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     seek( 3*1024*1024 );
 
     /* Seek after end of file */
-    seek( 1024*1024*1024 );
+    seek( decodedFileSize + 1000 );
 
     REQUIRE( encodedFile->blockOffsetsComplete() );
     REQUIRE_EQUAL( decodedFileSize, encodedFile->size() );
@@ -208,18 +208,6 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
         read( 1 );
     }
 
-    /* Test thread joining feature intended for FUSE */
-    seek( 333 );
-    encodedFile->joinThreads();
-    read( 100 ); /* Direct read after current position even after closing threads. */
-    seek( 222 );
-    read( 1024*1024 );
-    read( decodedFileSize + 1000 );
-
-    encodedFile->joinThreads();
-    seek( 1 ); /* Direct read after current position even after closing threads. */
-    read( 100 );
-
     std::cerr << "Test block offset loading\n";
     const auto blockOffsets = encodedFile->blockOffsets();
     encodedFile->setBlockOffsets( blockOffsets );
@@ -231,7 +219,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     std::cerr << "Test block offset loading\n";
     decodedFile.clear();
     decodedFile.seekg( 0 );
-    encodedFile = std::make_unique<ParallelBZ2Reader>( encodedTestFilePath );
+    encodedFile = std::make_unique<BZ2Reader>( encodedTestFilePath );
     encodedFile->setBlockOffsets( blockOffsets );
 
     std::cerr << "Try reading 1B before the end of file\n";
@@ -243,7 +231,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     std::cerr << "Test block offset loading\n";
     decodedFile.clear();
     decodedFile.seekg( 0 );
-    encodedFile = std::make_unique<ParallelBZ2Reader>( encodedTestFilePath );
+    encodedFile = std::make_unique<BZ2Reader>( encodedTestFilePath );
     encodedFile->setBlockOffsets( blockOffsets );
 
     std::cerr << "Try reading 1B before the end of file\n";
@@ -253,7 +241,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     std::cerr << "Test block offset loading after partial reading\n";
     decodedFile.clear();
     decodedFile.seekg( 0 );
-    encodedFile = std::make_unique<ParallelBZ2Reader>( encodedTestFilePath );
+    encodedFile = std::make_unique<BZ2Reader>( encodedTestFilePath );
     read( 4 );
     encodedFile->setBlockOffsets( blockOffsets );
 
@@ -282,6 +270,7 @@ main( int    argc,
     while ( !binaryFolder.empty() )
     {
         auto filePath = binaryFolder + "/decoded-sample";
+        std::cerr << "Look for:" << filePath << "\n";
         if ( fileExists( filePath.c_str() ) ) {
             break;
         }
