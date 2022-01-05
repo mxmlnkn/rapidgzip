@@ -217,7 +217,7 @@ public:
             }
 
             nBytesDecoded += decodeStream( outputFileDescriptor,
-                                           outputBuffer + nBytesDecoded,
+                                           outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded,
                                            nBytesToRead - nBytesDecoded );
         }
         m_currentPosition += nBytesDecoded;
