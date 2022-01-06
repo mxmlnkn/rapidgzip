@@ -179,7 +179,7 @@ public:
         if ( m_file ) {
             position += m_file->tell() - m_inbuf.size();
         }
-        return position * 8U - m_inbufBitCount - m_offsetBits;
+        return position * CHAR_BIT - m_inbufBitCount - m_offsetBits;
     }
 
     void
@@ -207,7 +207,7 @@ public:
     [[nodiscard]] size_t
     size() const override final
     {
-        return ( m_file ? m_file->size() : m_inbuf.size() ) * 8U - m_offsetBits;
+        return ( m_file ? m_file->size() : m_inbuf.size() ) * CHAR_BIT - m_offsetBits;
     }
 
     [[nodiscard]] const std::vector<std::uint8_t>&
@@ -290,6 +290,10 @@ public:
 };
 
 
+/**
+ * Note that splitting part of this method off into readSafe made the compiler actually
+ * inline this now small function and thereby sped up runtimes significantly!
+ */
 inline uint32_t
 BitReader::read( const uint8_t bitsWanted )
 {
@@ -304,7 +308,7 @@ BitReader::read( const uint8_t bitsWanted )
 inline uint32_t
 BitReader::readSafe( const uint8_t bitsWanted )
 {
-    uint32_t bits = 0;
+    decltype( m_inbufBits ) bits = 0;
     assert( bitsWanted <= sizeof( bits ) * CHAR_BIT );
 
     // If we need to get more data from the byte buffer, do so.  (Loop getting
@@ -316,7 +320,7 @@ BitReader::readSafe( const uint8_t bitsWanted )
             refillBuffer();
         }
 
-        // Avoid 32-bit overflow (dump bit buffer to top of output)
+        // Avoid overflow (dump bit buffer to top of output)
         if ( m_inbufBitCount >= sizeof( m_inbufBits ) * CHAR_BIT - CHAR_BIT ) {
             bits = m_inbufBits & nLowestBitsSet<decltype( m_inbufBits )>( m_inbufBitCount );
             bitsNeeded -= m_inbufBitCount;
@@ -423,7 +427,7 @@ BitReader::seek( long long int offsetBits,
                 const auto nChunkBytesToRead = std::min( nBytesToRead - nBytesRead, IOBUF_SIZE );
                 const auto nChunkBytesRead = m_file->read( buffer.data(), nBytesToRead );
 
-                bytesRead += currentPosition * 8U;
+                bytesRead += currentPosition * CHAR_BIT;
                 if ( nChunkBytesRead < nChunkBytesToRead ) {
                     m_inbufBitCount
                     return nBytesToRead;
@@ -439,7 +443,7 @@ BitReader::seek( long long int offsetBits,
 
             char c = 0;
             m_file->read( &c, 1 );
-            m_inbufBits = static_cast<uint32_t>( c );
+            m_inbufBits = static_cast<decltype( m_inbufBits )>( c );
         }
     }
 
