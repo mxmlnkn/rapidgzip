@@ -61,7 +61,6 @@ public:
 
     BitReader( const BitReader& other ) :
         m_file( other.m_file ? other.m_file->clone() : nullptr ),
-        m_offsetBits( other.m_offsetBits ),
         m_inbuf( other.m_inbuf )
     {
         assert( static_cast<bool>( m_file ) == static_cast<bool>( other.m_file ) );
@@ -179,7 +178,7 @@ public:
         if ( m_file ) {
             position += m_file->tell() - m_inbuf.size();
         }
-        return position * CHAR_BIT - m_inbufBitCount - m_offsetBits;
+        return position * CHAR_BIT - m_inbufBitCount;
     }
 
     void
@@ -207,7 +206,7 @@ public:
     [[nodiscard]] size_t
     size() const override final
     {
-        return ( m_file ? m_file->size() : m_inbuf.size() ) * CHAR_BIT - m_offsetBits;
+        return ( m_file ? m_file->size() : m_inbuf.size() ) * CHAR_BIT;
     }
 
     [[nodiscard]] const std::vector<std::uint8_t>&
@@ -268,12 +267,6 @@ private:
 
 private:
     std::unique_ptr<FileReader> m_file;
-
-    /**
-     * Ignore the first m_offsetBits in m_inbuf. Only used when initialized with a buffer.
-     * Should only be changed by assignment or move operator.
-     */
-    uint8_t m_offsetBits = 0;
 
     std::vector<uint8_t> m_inbuf;
     size_t m_inbufPos = 0; /** stores current position of first valid byte in buffer */
@@ -356,8 +349,6 @@ BitReader::seek( long long int offsetBits,
         offsetBits = size() + offsetBits;
         break;
     }
-
-    offsetBits += m_offsetBits;
 
     if ( static_cast<size_t>( offsetBits ) == tell() ) {
         return static_cast<size_t>( offsetBits );
