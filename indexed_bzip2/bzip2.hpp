@@ -72,8 +72,11 @@ readBzip2Header( BitReader& bitReader )
         const char readByte = bitReader.read<8>();
         if ( readByte != magicByte ) {
             std::stringstream msg;
-            msg << "Input header is not BZip2 magic string 'BZh'. Mismatch at bit position "
-                << bitReader.tell() - 8 << " with " << readByte << " (0x" << std::hex << static_cast<int>( readByte )
+            msg << "Input header is not BZip2 magic string 'BZh' (0x"
+                << std::hex << int('B') << int('Z') << int('h') << std::dec << "). Mismatch at bit position "
+                << bitReader.tell() - 8 << " with " << readByte << " (0x" << std::hex
+                /* first cast to unsigned of same length so that the hex representation makes sense. */
+                << static_cast<int>( static_cast<uint8_t>( readByte ) )
                 << ") should be " << magicByte;
             throw std::domain_error( msg.str() );
         }
@@ -407,14 +410,12 @@ Block::readBlockHeader()
                     << " is larger than " << MAX_HUFCODE_BITS << " or zero\n";
                     throw std::logic_error( msg.str() );
                 }
-                // Grab 2 bits instead of 1 (slightly smaller/faster).  Stop if
-                // first bit is 0, otherwise second bit says whether to
+
+                // Stop if first bit is 0, otherwise second bit says whether to
                 // increment or decrement.
-                const auto kk = getBits<2>();
-                if ( kk & 2 ) {
-                    hh += 1 - ( ( kk & 1 ) << 1 );
+                if ( getBits<1>() != 0 ) {
+                    hh += 1 - ( getBits<1>() << 1 );
                 } else {
-                    bitReader().m_inbufBitCount++;
                     break;
                 }
             }
