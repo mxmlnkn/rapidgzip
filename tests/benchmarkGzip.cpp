@@ -12,11 +12,12 @@
 #include <zlib.h>
 
 #include <BitReader.hpp>
+#include <common.hpp>
 #include <FileUtils.hpp>
 #include <MemoryFileReader.hpp>
-#include <StandardFileReader.hpp>
-#include <common.hpp>
 #include <pragzip.hpp>
+#include <StandardFileReader.hpp>
+#include <Statistics.hpp>
 
 
 class GzipWrapper
@@ -33,8 +34,18 @@ public:
 
 public:
     explicit
-    GzipWrapper( Format format = Format::AUTO )
+    GzipWrapper( Format format = Format::AUTO ) :
+        m_format( format )
     {
+        init( format );
+    }
+
+private:
+    void
+    init( Format format )
+    {
+        m_stream = {};
+
         m_stream.zalloc = Z_NULL;     /* used to allocate the internal state */
         m_stream.zfree = Z_NULL;      /* used to free the internal state */
         m_stream.opaque = Z_NULL;     /* private data object passed to zalloc and zfree */
@@ -69,29 +80,34 @@ public:
         }
     }
 
+public:
     ~GzipWrapper()
     {
         inflateEnd( &m_stream );
     }
 
-    std::optional<VectorView<unsigned char> >
+    [[nodiscard]] size_t
     inflate( unsigned char const** compressedData,
              size_t*               compressedSize )
     {
+        if ( *compressedSize == 0 ) {
+            return 0;
+        }
+
         m_stream.avail_in = *compressedSize;
-        /* const_cast should be safe because zlib presumably only uses this in a const manner.
-         * I'll probably have to roll out my own deflate decoder anyway so I might be able
-         * to change this bothersome interface. */
+        /* const_cast should be safe because zlib presumably only uses this in a const manner. */
         m_stream.next_in = const_cast<unsigned char*>( *compressedData );
 
         m_stream.avail_out = m_outputBuffer.size();
         m_stream.next_out = m_outputBuffer.data();
 
+        /* When using Z_FINISH, it seems that avail_in and next_in are not updated!
+         * Plus, the output buffer must be large enough to hold everything. Use Z_NO_FLUSH instead. */
         const auto errorCode = ::inflate( &m_stream, Z_NO_FLUSH );
         *compressedData = m_stream.next_in;
         *compressedSize = m_stream.avail_in;
         if ( ( errorCode != Z_OK ) && ( errorCode != Z_STREAM_END ) ) {
-            return {};
+            return 0;
         }
 
         if ( m_stream.avail_out > m_outputBuffer.size() ) {
@@ -99,14 +115,20 @@ public:
         }
 
         const auto nBytesDecoded = m_outputBuffer.size() - m_stream.avail_out;
-        if ( nBytesDecoded == 0 ) {
-            return {};
+
+        if ( errorCode == Z_STREAM_END ) {
+            /* Reinitialize internal data at end position to support multi-stream input. */
+            if ( *compressedSize > 0 ) {
+                inflateEnd( &m_stream );
+                init( m_format );
+            }
         }
 
-        return VectorView<unsigned char>( m_outputBuffer.data(), nBytesDecoded );
+        return nBytesDecoded;
     }
 
 private:
+    const Format m_format;
     z_stream m_stream{};
     std::vector<unsigned char> m_window = std::vector<unsigned char>( 32UL * 1024UL, '\0' );
     std::vector<unsigned char> m_outputBuffer = std::vector<unsigned char>( 64UL * 1024UL * 1024UL );
@@ -160,13 +182,13 @@ decompressWithZlib( const std::vector<uint8_t>& compressedData )
     auto compressedSize = compressedData.size();
     size_t totalDecodedBytes = 0;
 
-    while ( true )
+    while ( compressedSize > 0 )
     {
         const auto decodedBytes = gzip.inflate( &pCompressedData, &compressedSize );
-        if ( !decodedBytes || decodedBytes->empty() ) {
+        if ( decodedBytes == 0 ) {
             break;
         }
-        totalDecodedBytes += decodedBytes->size();
+        totalDecodedBytes += decodedBytes;
     }
 
     return totalDecodedBytes;
@@ -241,40 +263,106 @@ decompressWithPragzip( const std::string& fileName )
 }
 
 
+[[nodiscard]] size_t
+decompressWithPragzipParallel( const std::string& fileName )
+{
+    using namespace pragzip;
+
+    try
+    {
+        BgzfBlockFinder( std::make_unique<StandardFileReader>( fileName ) );
+    } catch ( const std::invalid_argument& ) {
+        /* Note a bgz file. */
+        return 0;
+    }
+
+    size_t totalDecodedBytes = 0;
+
+    ParallelGzipReader gzipReader( std::make_unique<StandardFileReader>( fileName ) );
+    std::vector<uint8_t> outputBuffer( 64UL * 1024UL * 1024UL );
+    while ( true ) {
+        const auto nBytesRead = gzipReader.read( -1,
+                                                 reinterpret_cast<char*>( outputBuffer.data() ),
+                                                 outputBuffer.size() );
+        if ( ( nBytesRead == 0 ) && gzipReader.eof() ) {
+            break;
+        }
+
+        totalDecodedBytes += nBytesRead;
+    }
+
+    return totalDecodedBytes;
+}
+
+
 void
 benchmarkDecompression( const std::string& fileName )
 {
     const auto fileContents = readFile( fileName );
 
-    [[maybe_unused]] const auto decompressedZlibSize = decompressWithZlib( fileContents );
-
-    const auto printDurations =
-        [nBytesEncoded = fileContents.size()]
-        ( const std::vector<double>& durations )
+    const auto printStats =
+        [] ( const std::vector<double>& values )
         {
-            const auto min = std::min_element( durations.begin(), durations.end() );
-            const auto max = std::max_element( durations.begin(), durations.end() );
-            std::cout << " min: " << *min << "s max: " << *max << " s, ";
-            std::cout << " min: " << ( static_cast<double>( nBytesEncoded ) / 1e6 / *max ) << " MB/s"
-                      << " max: " << ( static_cast<double>( nBytesEncoded ) / 1e6 / *min ) << " MB/s";
-            std::cout << "\n";
+            const Statistics<double> statisics( values );
+            std::stringstream result;
+            result << statisics.min << " <= " << statisics.average() << " +- "
+                   << statisics.standardDeviation() << " <= " << statisics.max;
+            return result.str();
         };
 
-    const auto [sizeZlib, durationsZlib] = benchmarkFunction( [&fileContents] () { return decompressWithZlib( fileContents ); } );
-    assert( sizeZlib == decompressedZlibSize );
-    std::cout << "Decompressed " << fileContents.size() << " B to " << sizeZlib << " B with zlib:";
-    printDurations( durationsZlib );
+    const auto printDurations =
+        [&printStats, nBytesEncoded = fileContents.size()]
+        ( const std::vector<double>& durations,
+          size_t                     nBytesDecoded )
+        {
+            std::cout << "    Runtime / s: " << printStats( durations ) << "\n";
+
+            std::vector<double> encodedBandwidths( durations.size() );
+            std::transform( durations.begin(), durations.end(), encodedBandwidths.begin(),
+                            [nBytesEncoded] ( auto duration ) {
+                                return static_cast<double>( nBytesEncoded ) / 1e6 / duration; } );
+            std::cout << "    Bandwidth on Encoded Data / (MB/s): " << printStats( encodedBandwidths ) << "\n";
+
+            std::vector<double> decodedBandwidths( durations.size() );
+            std::transform( durations.begin(), durations.end(), decodedBandwidths.begin(),
+                            [nBytesDecoded] ( auto duration ) {
+                                return static_cast<double>( nBytesDecoded ) / 1e6 / duration; } );
+            std::cout << "    Bandwidth on Decoded Data / (MB/s): " << printStats( decodedBandwidths ) << "\n";
+        };
 
     const auto [sizeLibArchive, durationsLibArchive] = benchmarkFunction(
         [&fileContents] () { return decompressWithLibArchive( fileContents ); } );
-    std::cout << "Decompressed " << fileContents.size() << " B to " << sizeLibArchive << " B with libarchive:";
-    printDurations( durationsLibArchive );
+    std::cout << "Decompressed " << fileContents.size() << " B to " << sizeLibArchive << " B with libarchive:\n";
+    printDurations( durationsLibArchive, sizeLibArchive );
+
+    const auto [sizeZlib, durationsZlib] = benchmarkFunction( [&fileContents] () {
+        return decompressWithZlib( fileContents ); } );
+    if ( sizeZlib == sizeLibArchive ) {
+        std::cout << "Decompressed " << fileContents.size() << " B to " << sizeZlib << " B with zlib:\n";
+        printDurations( durationsZlib, sizeZlib );
+    } else {
+        std::cerr << "Decompressing with zlib decoded a different amount than libarchive!\n";
+    }
 
     const auto [sizePragzip, durationsPragzip] = benchmarkFunction(
         [&fileName] () { return decompressWithPragzip( fileName ); } );
-    std::cout << "Decompressed " << fileContents.size() << " B to " << sizePragzip << " B "
-              << "with custom decoder (pragzip):";
-    printDurations( durationsPragzip );
+    if ( sizePragzip == sizeLibArchive ) {
+        std::cout << "Decompressed " << fileContents.size() << " B to " << sizePragzip << " B "
+                  << "with pragzip (serial):\n";
+        printDurations( durationsPragzip, sizePragzip );
+    } else {
+        std::cerr << "Decompressing with pragzip (serial) decoded a different amount than libarchive!\n";
+    }
+
+    const auto [sizePragzipParallel, durationsPragzipParallel] = benchmarkFunction(
+        [&fileName] () { return decompressWithPragzipParallel( fileName ); } );
+    if ( sizePragzipParallel == sizeLibArchive ) {
+        std::cout << "Decompressed " << fileContents.size() << " B to " << sizePragzipParallel << " B "
+                  << "with pragzip (parallel):\n";
+        printDurations( durationsPragzipParallel, sizePragzipParallel );
+    } else {
+        std::cerr << "Decompressing with pragzip (parallel) decoded a different amount than libarchive!\n";
+    }
 }
 
 
@@ -304,14 +392,91 @@ base64 /dev/urandom | head -c $(( 512*1024*1024 )) > small
 gzip -k small
 
 make benchmarkGzip && taskset 0x01 tests/benchmarkGzip small.gz
-    Decompressed 416689498 B to 536870912 B with zlib: min: 2.19021s max: 2.1974 s,  min: 189.628 MB/s max: 190.251 MB/s
-    Decompressed 416689498 B to 536870912 B with libarchive: min: 1.97245s max: 1.97384 s,  min: 211.106 MB/s max: 211.254 MB/s
-    Decompressed 416689498 B to 536870912 B with custom decoder (pragzip): min: 4.5473s max: 4.5918 s,  min: 90.7464 MB/s max: 91.6345 MB/s
-        ->  pragzip is more than twice as slow :/
+
+    Decompressed 416689498 B to 536870912 B with libarchive:
+        Runtime / s: 2.01913 <= 2.04098 +- 0.0218508 <= 2.06283
+        Bandwidth on Encoded Data / (MB/s): 201.999 <= 204.177 +- 2.18607 <= 206.371
+        Bandwidth on Decoded Data / (MB/s): 260.26 <= 263.065 +- 2.81657 <= 265.893
+    Decompressed 416689498 B to 536870912 B with zlib:
+        Runtime / s: 2.23081 <= 2.26465 +- 0.0408244 <= 2.30999
+        Bandwidth on Encoded Data / (MB/s): 180.386 <= 184.037 +- 3.29478 <= 186.788
+        Bandwidth on Decoded Data / (MB/s): 232.412 <= 237.117 +- 4.24505 <= 240.662
+    Decompressed 416689498 B to 536870912 B with pragzip (serial):
+        Runtime / s: 4.83257 <= 4.88146 +- 0.0543243 <= 4.93994
+        Bandwidth on Encoded Data / (MB/s): 84.3511 <= 85.3688 +- 0.947384 <= 86.2252
+        Bandwidth on Decoded Data / (MB/s): 108.68 <= 109.991 +- 1.22063 <= 111.094
+
+      ->  pragzip is more than twice as slow as zlib :/
 
 time gzip -d -k -c small.gz | wc -c
     real  0m3.542s
   -> pragzip is ~28% slower than gzip 1.10. Maybe slower than the above benchmarks because of I/O?
+
+bgzip -c small > small.bgz
+make benchmarkGzip && tests/benchmarkGzip small.bgz
+
+    Decompressed 415096389 B to 536870912 B with libarchive:
+        Runtime / s: 1.86041 <= 1.86558 +- 0.00716625 <= 1.87376
+        Bandwidth on Encoded Data / (MB/s): 221.532 <= 222.505 +- 0.853011 <= 223.121
+        Bandwidth on Decoded Data / (MB/s): 286.521 <= 287.78 +- 1.10325 <= 288.577
+    Decompressed 415096389 B to 536870912 B with zlib:
+        Runtime / s: 2.07877 <= 2.11722 +- 0.0342438 <= 2.14442
+        Bandwidth on Encoded Data / (MB/s): 193.571 <= 196.091 +- 3.19447 <= 199.684
+        Bandwidth on Decoded Data / (MB/s): 250.358 <= 253.618 +- 4.13162 <= 258.264
+    Decoded 8226 deflate blocks
+    Decoded 8226 deflate blocks
+    Decoded 8226 deflate blocks
+    Decompressed 415096389 B to 536870912 B with pragzip (serial):
+        Runtime / s: 4.29972 <= 4.31889 +- 0.0172939 <= 4.33332
+        Bandwidth on Encoded Data / (MB/s): 95.7918 <= 96.1128 +- 0.385448 <= 96.5403
+        Bandwidth on Decoded Data / (MB/s): 123.894 <= 124.309 +- 0.498525 <= 124.862
+    Decompressed 415096389 B to 536870912 B with pragzip (parallel):
+        Runtime / s: 0.503374 <= 0.535733 +- 0.0325509 <= 0.568472
+        Bandwidth on Encoded Data / (MB/s): 730.196 <= 776.731 +- 47.2307 <= 824.628
+        Bandwidth on Decoded Data / (MB/s): 944.41 <= 1004.6 +- 61.0866 <= 1066.54
+
+     -> ~1 GB/s for the decompressed bandwidth with the parallel bgz decoder is already quite nice!
+
+time gzip -d -k -c small.bgz | wc -c
+    real  0m3.248s
+  -> Interestingly, this is reproducibly faster than the .gz compressed one. Maybe different compression setting?
+
+time bgzip --threads $( nproc ) -d -c small.bgz | wc -c
+    real  0m0.208s
+  -> Twice as fast as parallel pragzip
+
+ls -la small.*gz
+    415096389 small.bgz
+    416689498 small.gz
+  -> The .bgz file is even smaller!
+
+
+base64 /dev/urandom | head -c $(( 4*1024*1024*1024 )) > large
+bgzip -c large > large.bgz
+make benchmarkGzip && tests/benchmarkGzip large.bgz
+    Decompressed 3320779389 B to 4294967296 B with libarchive:
+        Runtime / s: 14.6176 <= 14.7676 +- 0.154315 <= 14.9259
+        Bandwidth on Encoded Data / (MB/s): 222.485 <= 224.886 +- 2.34813 <= 227.177
+        Bandwidth on Decoded Data / (MB/s): 287.753 <= 290.859 +- 3.03698 <= 293.823
+    Decompressed 3320779389 B to 4294967296 B with zlib:
+        Runtime / s: 16.7697 <= 16.7799 +- 0.00927483 <= 16.7878
+        Bandwidth on Encoded Data / (MB/s): 197.809 <= 197.902 +- 0.109409 <= 198.023
+        Bandwidth on Decoded Data / (MB/s): 255.839 <= 255.959 +- 0.141505 <= 256.115
+    Decoded 65795 deflate blocks
+    Decoded 65795 deflate blocks
+    Decoded 65795 deflate blocks
+    Decompressed 3320779389 B to 4294967296 B with pragzip (serial):
+        Runtime / s: 34.4183 <= 34.4518 +- 0.0457913 <= 34.504
+        Bandwidth on Encoded Data / (MB/s): 96.2434 <= 96.3893 +- 0.128028 <= 96.483
+        Bandwidth on Decoded Data / (MB/s): 124.478 <= 124.666 +- 0.165587 <= 124.787
+    Decompressed 3320779389 B to 4294967296 B with pragzip (parallel):
+        Runtime / s: 4.19626 <= 4.31237 +- 0.186016 <= 4.52692
+        Bandwidth on Encoded Data / (MB/s): 733.563 <= 770.993 +- 32.4577 <= 791.366
+        Bandwidth on Decoded Data / (MB/s): 948.762 <= 997.172 +- 41.9795 <= 1023.52
+
+time bgzip --threads $( nproc ) -d -c large.bgz | wc -c
+    real  0m2.155s
+  -> Twice as fast as parallel pragzip
 */
 
 /**

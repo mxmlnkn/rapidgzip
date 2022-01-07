@@ -73,6 +73,12 @@ target_link_libraries(testGzip PRIVATE ZLIB::ZLIB libpragzip)
 add_test(NAME Test-Gzip COMMAND testGzip)
 add_dependencies(all_tests testGzip)
 
+add_executable(testParallelGzipReader)
+target_sources(testParallelGzipReader PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testParallelGzipReader.cpp)
+target_link_libraries(testParallelGzipReader PRIVATE libpragzip)
+add_test(NAME Test-Parallel-Gzip-Reader COMMAND testParallelGzipReader)
+add_dependencies(all_tests testParallelGzipReader)
+
 
 add_executable(benchmarkHuffmanCoding)
 target_sources(benchmarkHuffmanCoding PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkHuffmanCoding.cpp)

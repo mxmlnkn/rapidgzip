@@ -39,9 +39,9 @@ struct Statistics
     {
         /* Calculation makes use of expanded expression for the variance to avoid requiring there
          * average beforehand: Var(x) = < (x - <x>)^2 > = <x^2> - <x>^2
-         * Furthermore, it is the sample variance, therefore divide by one count less because that
-         * degree of freedom has been used up for the sample average calculation. */
-        return sum2 / ( count - 1 ) - average() * average();
+         * Furthermore, it is the sample variance, therefore divide by one count less for the outer average
+         * because that degree of freedom has been used up for the sample average calculation. */
+        return ( sum2 / count - average() * average() ) * count / ( count - 1 );
     }
 
     [[nodiscard]] double

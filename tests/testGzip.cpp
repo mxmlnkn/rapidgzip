@@ -11,6 +11,7 @@
 #include <vector>
 
 #include <BufferedFileReader.hpp>
+#include <ParallelGzipReader.hpp>
 #include <common.hpp>
 #include <pragzip.hpp>
 #include <StandardFileReader.hpp>

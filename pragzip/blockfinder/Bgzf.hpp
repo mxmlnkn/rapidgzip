@@ -119,7 +119,7 @@ public:
         }
 
         if ( footer != BGZF_FOOTER ) {
-            throw std::invalid_argument( "Given file does not start with a BGZF header!" );
+            throw std::invalid_argument( "Given file does not end with a BGZF footer!" );
         }
 
         m_fileReader->seek( 0 );
@@ -132,11 +132,11 @@ public:
                 && ( header[ 1] == 0x8B )
                 && ( header[ 2] == 0x08 )
                 && ( ( header[3] & ( 1U << 2 ) ) != 0 )
-                && ( header[10] == 0x06 )     // length of extra field is 6B
+                && ( header[10] == 0x06 )  // length of extra field is 6B
                 && ( header[11] == 0x00 )
-                && ( header[12] == 'B'  )        // subfield ID "BC"
+                && ( header[12] == 'B'  )  // subfield ID "BC"
                 && ( header[13] == 'C'  )
-                && ( header[14] == 0x02 )     // subfield length is 2B
+                && ( header[14] == 0x02 )  // subfield length is 2B
                 && ( header[15] == 0x00 );
     }
 
