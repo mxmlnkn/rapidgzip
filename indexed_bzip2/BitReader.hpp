@@ -247,24 +247,6 @@ private:
         m_inputBufferPosition = 0;
     }
 
-    template<typename T>
-    static T
-    nLowestBitsSet( uint8_t nBitsSet )
-    {
-        static_assert( std::is_unsigned<T>::value, "Type must be signed!" );
-        const auto nZeroBits = std::max( 0, std::numeric_limits<T>::digits - nBitsSet );
-        return ~T(0) >> nZeroBits;
-    }
-
-    template<typename T, uint8_t nBitsSet>
-    static T
-    nLowestBitsSet()
-    {
-        static_assert( std::is_unsigned<T>::value, "Type must be signed!" );
-        const auto nZeroBits = std::max( 0, std::numeric_limits<T>::digits - nBitsSet );
-        return ~T(0) >> nZeroBits;
-    }
-
 private:
     std::unique_ptr<FileReader> m_file;
 

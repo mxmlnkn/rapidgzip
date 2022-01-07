@@ -314,6 +314,38 @@ private:
 };
 
 
+template<typename T>
+constexpr T
+nLowestBitsSet( uint8_t nBitsSet )
+{
+    static_assert( std::is_unsigned<T>::value, "Type must be signed!" );
+    if ( nBitsSet == 0 ) {
+        return T(0);
+    }
+    if ( nBitsSet >= std::numeric_limits<T>::digits ) {
+        return ~T(0);
+    }
+    const auto nZeroBits = std::max( 0, std::numeric_limits<T>::digits - nBitsSet );
+    return ~T(0) >> nZeroBits;
+}
+
+template<typename T, uint8_t nBitsSet>
+constexpr T
+nLowestBitsSet()
+{
+    static_assert( std::is_unsigned<T>::value, "Type must be signed!" );
+    if constexpr ( nBitsSet == 0 ) {
+        return T(0);
+    } else if constexpr ( nBitsSet >= std::numeric_limits<T>::digits ) {
+        return ~T(0);
+    } else {
+        const auto nZeroBits = std::max( 0, std::numeric_limits<T>::digits - nBitsSet );
+        return ~T(0) >> nZeroBits;
+    }
+}
+
+
+/* Minimal Testing Helpers. */
 
 int gnTests = 0;  // NOLINT
 int gnTestErrors = 0;  // NOLINT
