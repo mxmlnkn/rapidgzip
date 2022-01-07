@@ -61,7 +61,7 @@ public:
 
     BitReader( const BitReader& other ) :
         m_file( other.m_file ? other.m_file->clone() : nullptr ),
-        m_inbuf( other.m_inbuf )
+        m_inputBuffer( other.m_inputBuffer )
     {
         assert( static_cast<bool>( m_file ) == static_cast<bool>( other.m_file ) );
         if ( m_file && !m_file->seekable() ) {
@@ -94,7 +94,7 @@ public:
         if ( seekable() ) {
             return tell() >= size();
         }
-        return ( m_inbufPos >= m_inbuf.size() ) && ( !m_file || m_file->eof() );
+        return ( m_inputBufferPosition >= m_inputBuffer.size() ) && ( !m_file || m_file->eof() );
     }
 
     [[nodiscard]] bool
@@ -107,13 +107,13 @@ public:
     close() override final
     {
         m_file.reset();
-        m_inbuf.clear();
+        m_inputBuffer.clear();
     }
 
     [[nodiscard]] bool
     closed() const override final
     {
-        return !m_file && m_inbuf.empty();
+        return !m_file && m_inputBuffer.empty();
     }
 
     uint32_t
@@ -149,10 +149,10 @@ public:
     uint32_t
     read()
     {
-        static_assert( bitsWanted < sizeof( m_inbufBits ) * CHAR_BIT, "Requested bits must fit in buffer!" );
-        if ( bitsWanted <= m_inbufBitCount ) {
-            m_inbufBitCount -= bitsWanted;
-            return ( m_inbufBits >> m_inbufBitCount ) & nLowestBitsSet<decltype( m_inbufBits )>( bitsWanted );
+        static_assert( bitsWanted < sizeof( m_bitBuffer ) * CHAR_BIT, "Requested bits must fit in buffer!" );
+        if ( bitsWanted <= m_bitBufferSize ) {
+            m_bitBufferSize -= bitsWanted;
+            return ( m_bitBuffer >> m_bitBufferSize ) & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
         }
         return readSafe( bitsWanted );
     }
@@ -174,11 +174,11 @@ public:
     [[nodiscard]] size_t
     tell() const override final
     {
-        size_t position = m_inbufPos;
+        size_t position = m_inputBufferPosition;
         if ( m_file ) {
-            position += m_file->tell() - m_inbuf.size();
+            position += m_file->tell() - m_inputBuffer.size();
         }
-        return position * CHAR_BIT - m_inbufBitCount;
+        return position * CHAR_BIT - m_bitBufferSize;
     }
 
     void
@@ -206,13 +206,13 @@ public:
     [[nodiscard]] size_t
     size() const override final
     {
-        return ( m_file ? m_file->size() : m_inbuf.size() ) * CHAR_BIT;
+        return ( m_file ? m_file->size() : m_inputBuffer.size() ) * CHAR_BIT;
     }
 
     [[nodiscard]] const std::vector<std::uint8_t>&
     buffer() const
     {
-        return m_inbuf;
+        return m_inputBuffer;
     }
 
 private:
@@ -226,8 +226,8 @@ private:
             throw std::logic_error( "Can not refill buffer with data from non-existing file!" );
         }
 
-        m_inbuf.resize( IOBUF_SIZE );
-        const auto nBytesRead = m_file->read( reinterpret_cast<char*>( m_inbuf.data() ), m_inbuf.size() );
+        m_inputBuffer.resize( IOBUF_SIZE );
+        const auto nBytesRead = m_file->read( reinterpret_cast<char*>( m_inputBuffer.data() ), m_inputBuffer.size() );
 
         if ( nBytesRead == 0 ) {
             // this will also happen for invalid file descriptor -1
@@ -236,15 +236,15 @@ private:
             << "[BitReader] Not enough data to read!\n"
             << "  File position: " << m_file->tell() << "\n"
             << "  File size: " << m_file->size() << "B\n"
-            << "  Input buffer size: " << m_inbuf.size() << "B\n"
+            << "  Input buffer size: " << m_inputBuffer.size() << "B\n"
             << "  EOF: " << m_file->eof() << "\n"
             << "  Error: " << m_file->fail() << "\n"
             << "\n";
             throw std::domain_error( msg.str() );
         }
 
-        m_inbuf.resize( nBytesRead );
-        m_inbufPos = 0;
+        m_inputBuffer.resize( nBytesRead );
+        m_inputBufferPosition = 0;
     }
 
     template<typename T>
@@ -268,18 +268,18 @@ private:
 private:
     std::unique_ptr<FileReader> m_file;
 
-    std::vector<uint8_t> m_inbuf;
-    size_t m_inbufPos = 0; /** stores current position of first valid byte in buffer */
+    std::vector<uint8_t> m_inputBuffer;
+    size_t m_inputBufferPosition = 0; /** stores current position of first valid byte in buffer */
 
 public:
     /**
-     * Bit buffer stores the last read bits from m_inbuf.
+     * Bit buffer stores the last read bits from m_inputBuffer.
      * The bits are to be read from left to right. This means that not the least significant n bits
      * are to be returned on read but the most significant.
      * E.g. return 3 bits of 1011 1001 should return 101 not 001
      */
-    uint32_t m_inbufBits = 0;
-    uint8_t m_inbufBitCount = 0; // size of bitbuffer in bits
+    uint32_t m_bitBuffer = 0;
+    uint8_t m_bitBufferSize = 0; // size of bitbuffer in bits
 };
 
 
@@ -290,9 +290,9 @@ public:
 inline uint32_t
 BitReader::read( const uint8_t bitsWanted )
 {
-    if ( bitsWanted <= m_inbufBitCount ) {
-        m_inbufBitCount -= bitsWanted;
-        return ( m_inbufBits >> m_inbufBitCount ) & nLowestBitsSet<decltype( m_inbufBits )>( bitsWanted );
+    if ( bitsWanted <= m_bitBufferSize ) {
+        m_bitBufferSize -= bitsWanted;
+        return ( m_bitBuffer >> m_bitBufferSize ) & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
     }
     return readSafe( bitsWanted );
 }
@@ -301,35 +301,35 @@ BitReader::read( const uint8_t bitsWanted )
 inline uint32_t
 BitReader::readSafe( const uint8_t bitsWanted )
 {
-    decltype( m_inbufBits ) bits = 0;
+    decltype( m_bitBuffer ) bits = 0;
     assert( bitsWanted <= sizeof( bits ) * CHAR_BIT );
 
     // If we need to get more data from the byte buffer, do so.  (Loop getting
     // one byte at a time to enforce endianness and avoid unaligned access.)
     auto bitsNeeded = bitsWanted;
-    while ( m_inbufBitCount < bitsNeeded ) {
+    while ( m_bitBufferSize < bitsNeeded ) {
         // If we need to read more data from file into byte buffer, do so
-        if ( m_inbufPos >= m_inbuf.size() ) {
+        if ( m_inputBufferPosition >= m_inputBuffer.size() ) {
             refillBuffer();
         }
 
         // Avoid overflow (dump bit buffer to top of output)
-        if ( m_inbufBitCount >= sizeof( m_inbufBits ) * CHAR_BIT - CHAR_BIT ) {
-            bits = m_inbufBits & nLowestBitsSet<decltype( m_inbufBits )>( m_inbufBitCount );
-            bitsNeeded -= m_inbufBitCount;
+        if ( m_bitBufferSize >= sizeof( m_bitBuffer ) * CHAR_BIT - CHAR_BIT ) {
+            bits = m_bitBuffer & nLowestBitsSet<decltype( m_bitBuffer )>( m_bitBufferSize );
+            bitsNeeded -= m_bitBufferSize;
             bits <<= bitsNeeded;
-            m_inbufBitCount = 0;
+            m_bitBufferSize = 0;
         }
 
         // Grab next 8 bits of input from buffer.
-        m_inbufBits = ( m_inbufBits << CHAR_BIT ) | m_inbuf[m_inbufPos++];
-        m_inbufBitCount += CHAR_BIT;
+        m_bitBuffer = ( m_bitBuffer << CHAR_BIT ) | m_inputBuffer[m_inputBufferPosition++];
+        m_bitBufferSize += CHAR_BIT;
     }
 
     // Calculate result
-    m_inbufBitCount -= bitsNeeded;
-    bits |= ( m_inbufBits >> m_inbufBitCount ) & nLowestBitsSet<decltype( m_inbufBits )>( bitsNeeded );
-    assert( bits == ( bits & ( ~decltype( m_inbufBits )( 0 ) >> ( sizeof( m_inbufBits ) * CHAR_BIT - bitsWanted ) ) ) );
+    m_bitBufferSize -= bitsNeeded;
+    bits |= ( m_bitBuffer >> m_bitBufferSize ) & nLowestBitsSet<decltype( m_bitBuffer )>( bitsNeeded );
+    assert( bits == ( bits & ( ~decltype( m_bitBuffer )( 0 ) >> ( sizeof( m_bitBuffer ) * CHAR_BIT - bitsWanted ) ) ) );
     return bits;
 }
 
@@ -369,23 +369,23 @@ BitReader::seek( long long int offsetBits,
     const auto bytesToSeek = static_cast<size_t>( offsetBits ) >> 3U;
     const auto subBitsToSeek = static_cast<uint8_t>( static_cast<size_t>( offsetBits ) & 7U );
 
-    m_inbufBits = 0;
-    m_inbufBitCount = 0;
+    m_bitBuffer = 0;
+    m_bitBufferSize = 0;
 
     if ( !m_file ) {
         /* Handle seeking in buffer only as it cannot be refilled. */
-        if ( bytesToSeek >= m_inbuf.size() ) {
+        if ( bytesToSeek >= m_inputBuffer.size() ) {
             std::logic_error( "Trying to seek after the end should have been checked earlier!" );
         }
 
-        m_inbufPos = bytesToSeek;
+        m_inputBufferPosition = bytesToSeek;
         if ( subBitsToSeek > 0 ) {
-            m_inbufBitCount = uint8_t( 8 ) - subBitsToSeek;
-            m_inbufBits = m_inbuf[m_inbufPos++];
+            m_bitBufferSize = uint8_t( 8 ) - subBitsToSeek;
+            m_bitBuffer = m_inputBuffer[m_inputBufferPosition++];
         }
     } else {
-        m_inbuf.clear();
-        m_inbufPos = 0;
+        m_inputBuffer.clear();
+        m_inputBufferPosition = 0;
 
         if ( seekable() ) {
             const auto newPosition = m_file->seek( static_cast<long long int>( bytesToSeek ), SEEK_SET );
@@ -410,7 +410,7 @@ BitReader::seek( long long int offsetBits,
                                         "because it is a simple memory buffer!" );
             }
 
-            /** @todo This is so flawed! It does not take into account m_inbufPos,
+            /** @todo This is so flawed! It does not take into account m_inputBufferPosition,
              * it did try to seek 8 times as many bytes and so on ... */
             std::vector<char> buffer( IOBUF_SIZE );
             auto nBytesToRead = bytesToSeek - ( tell() >> 3U );
@@ -420,7 +420,7 @@ BitReader::seek( long long int offsetBits,
 
                 bytesRead += currentPosition * CHAR_BIT;
                 if ( nChunkBytesRead < nChunkBytesToRead ) {
-                    m_inbufBitCount
+                    m_bitBufferSize
                     return nBytesToRead;
                 }
             }
@@ -430,11 +430,11 @@ BitReader::seek( long long int offsetBits,
         if ( subBitsToSeek > 0 ) {
             /* Here we skipped all the bytes possible, now we must read the next byte,
              * skip some bits and write the remaining bits to the buffer. */
-            m_inbufBitCount = uint8_t( 8 ) - subBitsToSeek;
+            m_bitBufferSize = uint8_t( 8 ) - subBitsToSeek;
 
             char c = 0;
             m_file->read( &c, 1 );
-            m_inbufBits = static_cast<decltype( m_inbufBits )>( c );
+            m_bitBuffer = static_cast<decltype( m_bitBuffer )>( c );
         }
     }
 
