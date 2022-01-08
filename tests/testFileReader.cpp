@@ -7,9 +7,10 @@
 #include <string>
 
 #include "common.hpp"
-#include "FileReader.hpp"
+#include "BufferedFileReader.hpp"
 #include "FileReader.hpp"
 #include "SharedFileReader.hpp"
+#include "StandardFileReader.hpp"
 
 
 std::string
@@ -27,32 +28,118 @@ fillFile( const std::string& fileName )
 }
 
 
-int main()
+void
+testUniqueFilePointer( const std::string& tmpFileName,
+                       const std::string& tmpFileContents  )
 {
-    const std::string tmpFileName = "testFileReader-test-file.tmp";
-    const auto writtenData = fillFile( tmpFileName );
-    std::cerr << "Written data: " << writtenData << "\n";
-    std::cerr << "Wrote " << writtenData.size() << " B\n";
-
     const auto file1 = throwingOpen( tmpFileName, "rb" );
-    std::string readData( 2 * writtenData.size(), '\0' );
+    std::string readData( 2 * tmpFileContents.size(), '\0' );
 
     /* Read everything */
     {
+        readData.assign( 2 * tmpFileContents.size(), '\0' );
         const auto nBytesRead = std::fread( readData.data(), 1 /* element size */, readData.size(), file1.get() );
-        assert( nBytesRead == writtenData.size() );
-        assert( std::equal( writtenData.begin(), writtenData.end(), readData.begin() ) );
-        assert( std::feof( file1.get() ) != 0 );
+        REQUIRE( nBytesRead == tmpFileContents.size() );
+        REQUIRE( std::equal( tmpFileContents.begin(), tmpFileContents.end(), readData.begin() ) );
+        REQUIRE( std::feof( file1.get() ) != 0 );
     }
 
     /* Read second time after seeking to start without clearing EOF */
     {
-        readData.assign( 2 * writtenData.size(), '\0' );
+        readData.assign( 2 * tmpFileContents.size(), '\0' );
         std::fseek( file1.get(), 0, SEEK_SET );
         const auto nBytesRead = std::fread( readData.data(), 1 /* element size */, readData.size(), file1.get() );
-        assert( nBytesRead == writtenData.size() );
-        assert( std::equal( writtenData.begin(), writtenData.end(), readData.begin() ) );
+        REQUIRE( nBytesRead == tmpFileContents.size() );
+        REQUIRE( std::equal( tmpFileContents.begin(), tmpFileContents.end(), readData.begin() ) );
     }
 
-    return 0;
+}
+
+
+void
+testFileReader( const std::string& tmpFileContents,
+                FileReader* const  fileReader )
+{
+    std::string readData( 2 * tmpFileContents.size(), '\0' );
+
+    /* Read everything */
+    {
+        readData.assign( 2 * tmpFileContents.size(), '\0' );
+        const auto nBytesRead = fileReader->read( readData.data(), readData.size() );
+        REQUIRE( nBytesRead == std::min( tmpFileContents.size(), readData.size() ) );
+        REQUIRE( std::equal( tmpFileContents.begin(), tmpFileContents.end(), readData.begin() ) );
+        REQUIRE( fileReader->eof() != 0 );
+        REQUIRE( fileReader->tell() == tmpFileContents.size() );
+    }
+
+    /* Read second time after seeking to start without clearing EOF */
+    {
+        readData.assign( 2 * tmpFileContents.size(), '\0' );
+
+        fileReader->seek( 0 );
+        REQUIRE( fileReader->tell() == 0 );
+
+        const auto nBytesRead = fileReader->read( readData.data(), readData.size() );
+        REQUIRE( nBytesRead == std::min( tmpFileContents.size(), readData.size() ) );
+        REQUIRE( std::equal( tmpFileContents.begin(), tmpFileContents.end(), readData.begin() ) );
+
+        REQUIRE( fileReader->tell() == tmpFileContents.size() );
+    }
+
+    /* Read from middle. */
+    {
+        readData.assign( 1, '\0' );
+        fileReader->seek( -10, SEEK_END );
+        REQUIRE( fileReader->tell() == tmpFileContents.size() - 10 );
+
+        const auto nBytesRead = fileReader->read( readData.data(), readData.size() );
+        REQUIRE( nBytesRead == std::min( tmpFileContents.size(), readData.size() ) );
+        REQUIRE( std::equal( tmpFileContents.end() - 10, tmpFileContents.end() - 10 + 1, readData.begin() ) );
+        REQUIRE( fileReader->tell() == tmpFileContents.size() - 9 );
+    }
+    {
+        readData.assign( 1, '\0' );
+        const auto nBytesRead = fileReader->read( readData.data(), readData.size() );
+        REQUIRE( nBytesRead == std::min( tmpFileContents.size(), readData.size() ) );
+        REQUIRE( std::equal( tmpFileContents.end() - 9, tmpFileContents.end() - 9 + 1, readData.begin() ) );
+        REQUIRE( fileReader->tell() == tmpFileContents.size() - 8 );
+    }
+
+    /* Read multiple from middle. */
+    {
+        REQUIRE( fileReader->tell() == tmpFileContents.size() - 8 );
+        fileReader->seek( -10, SEEK_CUR );
+        REQUIRE( fileReader->tell() == tmpFileContents.size() - 18 );
+
+        readData.assign( 5, '\0' );
+        const auto nBytesRead = fileReader->read( readData.data(), readData.size() );
+        REQUIRE( nBytesRead == std::min( tmpFileContents.size(), readData.size() ) );
+        REQUIRE( std::equal( tmpFileContents.end() - 18, tmpFileContents.end() - 18 + 5, readData.begin() ) );
+    }
+}
+
+
+int main()
+{
+    const std::string tmpFileName = "testFileReader-test-file.tmp";
+    const auto tmpFileContents = fillFile( tmpFileName );
+    std::cerr << "Written data: " << tmpFileContents << "\n";
+    std::cerr << "Wrote " << tmpFileContents.size() << " B\n";
+
+    testUniqueFilePointer( tmpFileName, tmpFileContents );
+
+    const auto standardFileReader = std::make_unique<StandardFileReader>( tmpFileName );
+    testFileReader( tmpFileContents, standardFileReader.get() );
+
+    const auto bufferedFileReader =
+        std::make_unique<BufferedFileReader>( std::make_unique<StandardFileReader>( tmpFileName ) );
+    testFileReader( tmpFileContents, bufferedFileReader.get() );
+
+    const auto memoryFileReader =
+        std::make_unique<BufferedFileReader>( std::vector<char>( tmpFileContents.begin(), tmpFileContents.end() ) );
+    testFileReader( tmpFileContents, memoryFileReader.get() );
+
+    std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
+
+    return gnTestErrors;
 }
