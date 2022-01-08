@@ -314,6 +314,34 @@ private:
 };
 
 
+inline uint64_t
+byteSwap( uint64_t value )
+{
+    value = ( ( value & uint64_t( 0x0000'0000'FFFF'FFFFULL ) ) << 32 ) |
+            ( ( value & uint64_t( 0xFFFF'FFFF'0000'0000ULL ) ) >> 32 );
+    value = ( ( value & uint64_t( 0x0000'FFFF'0000'FFFFULL ) ) << 16 ) |
+            ( ( value & uint64_t( 0xFFFF'0000'FFFF'0000ULL ) ) >> 16 );
+    value = ( ( value & uint64_t( 0x00FF'00FF'00FF'00FFULL ) ) << 8  ) |
+            ( ( value & uint64_t( 0xFF00'FF00'FF00'FF00ULL ) ) >> 8  );
+    return value;
+}
+
+inline uint32_t
+byteSwap( uint32_t value )
+{
+    value = ( ( value & uint32_t( 0x0000'FFFFUL ) ) << 16 ) | ( ( value & uint32_t( 0xFFFF'0000UL ) ) >> 16 );
+    value = ( ( value & uint32_t( 0x00FF'00FFUL ) ) << 8  ) | ( ( value & uint32_t( 0xFF00'FF00UL ) ) >> 8  );
+    return value;
+}
+
+inline uint16_t
+byteSwap( uint16_t value )
+{
+    value = ( ( value & uint16_t( 0x00FFU ) ) << 8  ) | ( ( value & uint16_t( 0xFF00U ) ) >> 8  );
+    return value;
+}
+
+
 template<typename T>
 constexpr T
 nLowestBitsSet( uint8_t nBitsSet )
