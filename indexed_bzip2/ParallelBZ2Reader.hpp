@@ -573,6 +573,8 @@ template<typename FetchingStrategy = FetchingStrategy::FetchNextSmart>
 class BlockFetcher
 {
 public:
+    using BitReader = bzip2::BitReader;
+
     struct BlockHeaderData
     {
         size_t encodedOffsetInBits{ std::numeric_limits<size_t>::max() };
@@ -877,6 +879,7 @@ class ParallelBZ2Reader final :
 {
 public:
     using BlockFetcher = ::BlockFetcher<FetchingStrategy::FetchNextSmart>;
+    using BitReader = bzip2::BitReader;
 
 public:
     /* Constructors */

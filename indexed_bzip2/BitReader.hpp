@@ -27,7 +27,13 @@
  *       Normally, the BZ2 reader should indeed read everything once, meaning nothing should "leak".
  *       That abstraction layer would also open the file only a single time and then hold a mutex locked shared_ptr
  *       to it.
+ * This bit reader, returns bits in the order appropriate for bzip2, i.e., it goes over all bytes in order
+ * and then returns the bits of each byte >starting from the most significant<. This is contrary to the usual
+ * bit numbering starting from the least-significant one and also contrary to to DEFLATE (RFC 1951)!
+ * @see https://github.com/dsnet/compress/blob/master/doc/bzip2-format.pdf
+ * @see https://tools.ietf.org/html/rfc1951
  */
+template<bool MOST_SIGNIFICANT_BITS_FIRST = true>
 class BitReader :
     public FileReader
 {
@@ -125,8 +131,12 @@ public:
 
     /* Bit Reading Methods */
 
+    /**
+     * Forcing to inline this function is superimportant because it depends even between gcc versions,
+     * whether it is actually inlined or not but inlining can save 30%!
+     */
     uint32_t
-    read( uint8_t bitsWanted );
+    forceinline read( uint8_t bitsWanted );
 
     uint64_t
     read64( uint8_t bitsWanted )
@@ -154,15 +164,33 @@ public:
         return result;
     }
 
+    /**
+     * Forcing to inline this function is superimportant because it depends even between gcc versions,
+     * whether it is actually inlined or not but inlining can save 30%!
+     */
     template<uint8_t bitsWanted>
-    uint32_t
+    forceinline uint32_t
     read()
     {
-        static_assert( bitsWanted < sizeof( m_bitBuffer ) * CHAR_BIT, "Requested bits must fit in buffer!" );
+        static constexpr auto MAX_WIDTH = std::numeric_limits<decltype( m_bitBuffer )>::digits;
+        static_assert( bitsWanted <= MAX_WIDTH, "Requested bits must fit in buffer!" );
+
         if ( bitsWanted <= m_bitBufferSize ) {
-            m_bitBufferSize -= bitsWanted;
-            return ( m_bitBuffer >> m_bitBufferSize ) & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
+            if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
+                m_bitBufferSize -= bitsWanted;
+                return ( m_bitBuffer >> m_bitBufferSize ) & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
+            } else {
+                const auto result = m_bitBuffer & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
+                m_bitBufferSize -= bitsWanted;
+                if constexpr ( bitsWanted < MAX_WIDTH ) {
+                    m_bitBuffer >>= bitsWanted;
+                } else {
+                    m_bitBuffer = 0;
+                }
+                return result;
+            }
         }
+
         return readSafe( bitsWanted );
     }
 
@@ -278,25 +306,42 @@ public:
  * Note that splitting part of this method off into readSafe made the compiler actually
  * inline this now small function and thereby sped up runtimes significantly!
  */
+template<bool MOST_SIGNIFICANT_BITS_FIRST>
 inline uint32_t
-BitReader::read( const uint8_t bitsWanted )
+BitReader<MOST_SIGNIFICANT_BITS_FIRST>::read( const uint8_t bitsWanted )
 {
     if ( bitsWanted <= m_bitBufferSize ) {
-        m_bitBufferSize -= bitsWanted;
-        return ( m_bitBuffer >> m_bitBufferSize ) & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
+        static constexpr auto MAX_WIDTH = std::numeric_limits<decltype( m_bitBuffer )>::digits;
+
+        if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
+            m_bitBufferSize -= bitsWanted;
+            return ( m_bitBuffer >> m_bitBufferSize ) & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
+        } else {
+            const auto result = m_bitBuffer & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
+            m_bitBufferSize -= bitsWanted;
+            if ( bitsWanted < MAX_WIDTH ) {
+                m_bitBuffer >>= bitsWanted;
+            } else {
+                m_bitBuffer = 0;
+            }
+            return result;
+        }
     }
+
     return readSafe( bitsWanted );
 }
 
 
+template<bool MOST_SIGNIFICANT_BITS_FIRST>
 inline uint32_t
-BitReader::readSafe( const uint8_t bitsWanted )
+BitReader<MOST_SIGNIFICANT_BITS_FIRST>::readSafe( const uint8_t bitsWanted )
 {
     decltype( m_bitBuffer ) bits = 0;
     assert( bitsWanted <= sizeof( bits ) * CHAR_BIT );
 
     // If we need to get more data from the byte buffer, do so.  (Loop getting
     // one byte at a time to enforce endianness and avoid unaligned access.)
+    uint8_t bitsInResult = 0;
     auto bitsNeeded = bitsWanted;
     while ( m_bitBufferSize < bitsNeeded ) {
         // If we need to read more data from file into byte buffer, do so
@@ -308,26 +353,41 @@ BitReader::readSafe( const uint8_t bitsWanted )
         if ( m_bitBufferSize >= sizeof( m_bitBuffer ) * CHAR_BIT - CHAR_BIT ) {
             bits = m_bitBuffer & nLowestBitsSet<decltype( m_bitBuffer )>( m_bitBufferSize );
             bitsNeeded -= m_bitBufferSize;
-            bits <<= bitsNeeded;
             m_bitBufferSize = 0;
+            bitsInResult = m_bitBufferSize;
         }
 
         // Grab next 8 bits of input from buffer.
-        m_bitBuffer = ( m_bitBuffer << CHAR_BIT ) | m_inputBuffer[m_inputBufferPosition++];
+        if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
+            m_bitBuffer <<= CHAR_BIT;
+            m_bitBuffer |= static_cast<uint32_t>( m_inputBuffer[m_inputBufferPosition++] );
+        } else {
+            m_bitBuffer |= ( static_cast<uint32_t>( m_inputBuffer[m_inputBufferPosition++] ) << m_bitBufferSize );
+        }
         m_bitBufferSize += CHAR_BIT;
     }
 
-    // Calculate result
-    m_bitBufferSize -= bitsNeeded;
-    bits |= ( m_bitBuffer >> m_bitBufferSize ) & nLowestBitsSet<decltype( m_bitBuffer )>( bitsNeeded );
-    assert( bits == ( bits & ( ~decltype( m_bitBuffer )( 0 ) >> ( sizeof( m_bitBuffer ) * CHAR_BIT - bitsWanted ) ) ) );
+    /* Append remaining requested bits. */
+    if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
+        bits <<= bitsNeeded;
+        m_bitBufferSize -= bitsNeeded;
+        bits |= ( m_bitBuffer >> m_bitBufferSize ) & nLowestBitsSet<decltype( m_bitBuffer )>( bitsNeeded );
+    } else {
+        bits |= ( m_bitBuffer & nLowestBitsSet<decltype( m_bitBuffer )>( bitsNeeded ) ) << bitsInResult;
+        m_bitBufferSize -= bitsNeeded;
+        m_bitBuffer >>= bitsNeeded;
+    }
+
+    /* Check that no bits after the bitsWanted-th lowest bit are set! I.e., that no junk is returned. */
+    assert( bits == ( bits & nLowestBitsSet<decltype( bits )>( bitsWanted ) ) );
     return bits;
 }
 
 
+template<bool MOST_SIGNIFICANT_BITS_FIRST>
 inline size_t
-BitReader::seek( long long int offsetBits,
-                 int           origin )
+BitReader<MOST_SIGNIFICANT_BITS_FIRST>::seek( long long int offsetBits,
+                                              int           origin )
 {
     switch ( origin )
     {
@@ -387,46 +447,10 @@ BitReader::seek( long long int offsetBits,
         } else {
             /* Emulate forward seeking on non-seekable file by reading. */
             throw std::logic_error( "Seeking forward on non-seekable input is an unfinished feature!" );
-#if 0
-            if ( !m_file ) {
-                throw std::logic_error( "The case without a file should be handled by the seekable case "
-                                        "because it is a simple memory buffer!" );
-            }
-
-            /** @todo This is so flawed! It does not take into account m_inputBufferPosition,
-             * it did try to seek 8 times as many bytes and so on ... */
-            std::vector<char> buffer( IOBUF_SIZE );
-            auto nBytesToRead = bytesToSeek - ( tell() >> 3U );
-            for ( size_t nBytesRead = 0; nBytesRead < nBytesToRead; nBytesRead += buffer.size() ) {
-                const auto nChunkBytesToRead = std::min( nBytesToRead - nBytesRead, IOBUF_SIZE );
-                const auto nChunkBytesRead = m_file->read( buffer.data(), nBytesToRead );
-
-                bytesRead += currentPosition * CHAR_BIT;
-                if ( nChunkBytesRead < nChunkBytesToRead ) {
-                    m_bitBufferSize
-                    return nBytesToRead;
-                }
-            }
-#endif
         }
 
         if ( subBitsToSeek > 0 ) {
-            /* Here we skipped all the bytes possible, now we must read the next byte,
-             * skip some bits and write the remaining bits to the buffer. */
-            m_bitBufferSize = uint8_t( 8 ) - subBitsToSeek;
-
-            char c = 0;
-            if ( m_file->read( &c, 1 ) != 1 ) {
-                std::stringstream msg;
-                msg << "[BitReader] Could not seek to "
-                << "specified bit " << subBitsToSeek
-                << " after seeking to byte " << bytesToSeek << " was successful "
-                << ", size: " << m_file->size()
-                << ", feof: " << m_file->eof()
-                << ", ferror: " << m_file->fail();
-                throw std::invalid_argument( msg.str() );
-            }
-            m_bitBuffer = static_cast<decltype( m_bitBuffer )>( c );
+            read( subBitsToSeek );
         }
     }
 
