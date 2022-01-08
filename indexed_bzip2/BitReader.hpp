@@ -359,16 +359,8 @@ BitReader::seek( long long int offsetBits,
     m_bitBufferSize = 0;
 
     if ( !m_file ) {
-        /* Handle seeking in buffer only as it cannot be refilled. */
-        if ( bytesToSeek >= m_inputBuffer.size() ) {
-            std::logic_error( "Trying to seek after the end should have been checked earlier!" );
-        }
-
-        m_inputBufferPosition = bytesToSeek;
-        if ( subBitsToSeek > 0 ) {
-            m_bitBufferSize = uint8_t( 8 ) - subBitsToSeek;
-            m_bitBuffer = m_inputBuffer[m_inputBufferPosition++];
-        }
+        /* Currently, buffer-only is not supported, use BufferedFileReader as a memory-only file reader! */
+        throw std::logic_error( "File has already been closed!" );
     } else {
         m_inputBuffer.clear();
         m_inputBufferPosition = 0;
