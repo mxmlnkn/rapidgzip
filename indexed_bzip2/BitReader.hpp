@@ -76,6 +76,8 @@ public:
         return std::unique_ptr<FileReader>( m_file->clone() );
     }
 
+    /* File Reader Interface Implementation */
+
     [[nodiscard]] FileReader*
     clone() const override final
     {
@@ -115,6 +117,8 @@ public:
     {
         return !m_file && m_inputBuffer.empty();
     }
+
+    /* Bit Reading Methods */
 
     uint32_t
     read( uint8_t bitsWanted );
@@ -415,7 +419,16 @@ BitReader::seek( long long int offsetBits,
             m_bitBufferSize = uint8_t( 8 ) - subBitsToSeek;
 
             char c = 0;
-            m_file->read( &c, 1 );
+            if ( m_file->read( &c, 1 ) != 1 ) {
+                std::stringstream msg;
+                msg << "[BitReader] Could not seek to "
+                << "specified bit " << subBitsToSeek
+                << " after seeking to byte " << bytesToSeek << " was successful "
+                << ", size: " << m_file->size()
+                << ", feof: " << m_file->eof()
+                << ", ferror: " << m_file->fail();
+                throw std::invalid_argument( msg.str() );
+            }
             m_bitBuffer = static_cast<decltype( m_bitBuffer )>( c );
         }
     }
