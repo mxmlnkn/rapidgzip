@@ -266,20 +266,6 @@ private:
         m_inputBuffer.resize( IOBUF_SIZE );
         const auto nBytesRead = m_file->read( reinterpret_cast<char*>( m_inputBuffer.data() ), m_inputBuffer.size() );
 
-        if ( nBytesRead == 0 ) {
-            // this will also happen for invalid file descriptor -1
-            std::stringstream msg;
-            msg
-            << "[BitReader] Not enough data to read!\n"
-            << "  File position: " << m_file->tell() << "\n"
-            << "  File size: " << m_file->size() << "B\n"
-            << "  Input buffer size: " << m_inputBuffer.size() << "B\n"
-            << "  EOF: " << m_file->eof() << "\n"
-            << "  Error: " << m_file->fail() << "\n"
-            << "\n";
-            throw std::domain_error( msg.str() );
-        }
-
         m_inputBuffer.resize( nBytesRead );
         m_inputBufferPosition = 0;
     }
@@ -336,41 +322,57 @@ template<bool MOST_SIGNIFICANT_BITS_FIRST>
 inline uint32_t
 BitReader<MOST_SIGNIFICANT_BITS_FIRST>::readSafe( const uint8_t bitsWanted )
 {
-    decltype( m_bitBuffer ) bits = 0;
-    assert( bitsWanted <= sizeof( bits ) * CHAR_BIT );
+    assert( bitsWanted > m_bitBufferSize );
 
-    // If we need to get more data from the byte buffer, do so.  (Loop getting
-    // one byte at a time to enforce endianness and avoid unaligned access.)
-    uint8_t bitsInResult = 0;
-    auto bitsNeeded = bitsWanted;
-    while ( m_bitBufferSize < bitsNeeded ) {
-        // If we need to read more data from file into byte buffer, do so
+    /* Clear out rest of old buffer into result.
+     * This is the same no matter MOST_SIGNIFICANT_BITS_FIRST ! */
+    auto bits = m_bitBuffer & nLowestBitsSet<decltype( m_bitBuffer )>( m_bitBufferSize );
+    const auto bitsInResult = m_bitBufferSize;
+    const auto bitsNeeded = bitsWanted - m_bitBufferSize;
+    assert( bitsWanted <= std::numeric_limits<decltype( bits )>::digits );
+
+    /* Refill buffer one byte at a time to enforce endianness and avoid unaligned access. */
+    m_bitBuffer = 0;
+    for ( m_bitBufferSize = 0;
+          m_bitBufferSize < std::numeric_limits<decltype( m_bitBuffer )>::digits;
+          m_bitBufferSize += CHAR_BIT )
+    {
         if ( m_inputBufferPosition >= m_inputBuffer.size() ) {
             refillBuffer();
+            if ( m_inputBuffer.empty() ) {
+                break;
+            }
         }
 
-        // Avoid overflow (dump bit buffer to top of output)
-        if ( m_bitBufferSize >= sizeof( m_bitBuffer ) * CHAR_BIT - CHAR_BIT ) {
-            bits = m_bitBuffer & nLowestBitsSet<decltype( m_bitBuffer )>( m_bitBufferSize );
-            bitsNeeded -= m_bitBufferSize;
-            m_bitBufferSize = 0;
-            bitsInResult = m_bitBufferSize;
-        }
-
-        // Grab next 8 bits of input from buffer.
         if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
             m_bitBuffer <<= CHAR_BIT;
             m_bitBuffer |= static_cast<uint32_t>( m_inputBuffer[m_inputBufferPosition++] );
         } else {
             m_bitBuffer |= ( static_cast<uint32_t>( m_inputBuffer[m_inputBufferPosition++] ) << m_bitBufferSize );
         }
-        m_bitBufferSize += CHAR_BIT;
+    }
+
+    if ( bitsNeeded > m_bitBufferSize ) {
+        // this will also happen for invalid file descriptor -1
+        std::stringstream msg;
+        msg
+        << "[BitReader] Not enough data for requested bits!\n"
+        << "  Bits requested    : " << (int)bitsWanted << "\n"
+        << "  Bits already read : " << (int)bitsInResult << "\n"
+        << "  Bits still needed : " << (int)bitsNeeded << "\n"
+        << "  File position     : " << m_file->tell() << "\n"
+        << "  File size         : " << m_file->size() << "B\n"
+        << "  Input buffer size : " << m_inputBuffer.size() << "B\n"
+        << "  EOF               : " << m_file->eof() << "\n"
+        << "  Error             : " << m_file->fail() << "\n"
+        << "\n";
+        throw std::domain_error( msg.str() );
     }
 
     /* Append remaining requested bits. */
     if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
-        bits <<= bitsNeeded;
         m_bitBufferSize -= bitsNeeded;
+        bits <<= bitsNeeded;
         bits |= ( m_bitBuffer >> m_bitBufferSize ) & nLowestBitsSet<decltype( m_bitBuffer )>( bitsNeeded );
     } else {
         bits |= ( m_bitBuffer & nLowestBitsSet<decltype( m_bitBuffer )>( bitsNeeded ) ) << bitsInResult;
