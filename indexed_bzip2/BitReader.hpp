@@ -55,6 +55,11 @@ public:
         m_file( std::make_unique<SharedFileReader>( fileReader ) )
     {}
 
+    explicit
+    BitReader( std::unique_ptr<FileReader> fileReader ) :
+        m_file( std::make_unique<SharedFileReader>( std::move( fileReader ) ) )
+    {}
+
     BitReader( BitReader&& other ) = delete;
     BitReader& operator=( BitReader&& other ) = delete;
     BitReader& operator=( const BitReader& other ) = delete;

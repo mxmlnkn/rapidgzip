@@ -48,6 +48,10 @@ public:
         m_currentPosition = m_sharedFile->tell();
     }
 
+    SharedFileReader( std::unique_ptr<FileReader> file ) :
+        SharedFileReader( file.release() )
+    {}
+
     [[nodiscard]] FileReader*
     clone() const override
     {
