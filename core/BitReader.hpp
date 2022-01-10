@@ -181,13 +181,9 @@ public:
                 m_bitBufferSize -= bitsWanted;
                 return ( m_bitBuffer >> m_bitBufferSize ) & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
             } else {
-                const auto result = m_bitBuffer & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
+                const auto result = ( m_bitBuffer >> ( MAX_WIDTH - m_bitBufferSize ) )
+                                    & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
                 m_bitBufferSize -= bitsWanted;
-                if constexpr ( bitsWanted < MAX_WIDTH ) {
-                    m_bitBuffer >>= bitsWanted;
-                } else {
-                    m_bitBuffer = 0;
-                }
                 return result;
             }
         }
@@ -293,7 +289,12 @@ private:
     void
     refillBitBuffer()
     {
+        if ( m_bitBufferSize != 0 ) {
+            throw std::invalid_argument( "Will only refill empty bit buffers!" );
+        }
+
         /* Refill buffer one byte at a time to enforce endianness and avoid unaligned access. */
+        m_bitBuffer = 0;
         for ( ; m_bitBufferSize + CHAR_BIT <= std::numeric_limits<decltype( m_bitBuffer )>::digits;
               m_bitBufferSize += CHAR_BIT )
         {
@@ -311,11 +312,23 @@ private:
                 m_bitBuffer |= ( static_cast<uint32_t>( m_inputBuffer[m_inputBufferPosition++] ) << m_bitBufferSize );
             }
         }
+
+        m_originalBitBufferSize = m_bitBufferSize;
+
+        /* Move LSB bits (which are filled left-to-right) to the left if so necessary
+         * so that the format is the same as for MSB bits! */
+        if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
+            const auto leftPadding = std::numeric_limits<decltype( m_bitBuffer )>::digits - m_bitBufferSize;
+            if ( leftPadding > 0 ) {
+                m_bitBuffer <<= leftPadding;
+            }
+        }
     }
 
     void
     clearBitBuffer()
     {
+        m_originalBitBufferSize = 0;
         m_bitBufferSize = 0;
         m_bitBuffer = 0;
     }
@@ -328,13 +341,53 @@ private:
 
 public:
     /**
-     * Bit buffer stores the last read bits from m_inputBuffer.
-     * The bits are to be read from left to right. This means that not the least significant n bits
-     * are to be returned on read but the most significant.
-     * E.g. return 3 bits of 1011 1001 should return 101 not 001
+     * For MOST_SIGNIFICANT_BITS_FIRST == true (bzip2):
+     *
+     * m_bitBuffer stores the last read bits from m_inputBuffer on the >right side< (if not fully filled).
+     * The bits are to be read from >left to right< up to a maximum of m_bitBufferSize.
+     * This means that not the least significant n bits are to be returned on read but the most significant.
+     * E.g., for the following example requesting 3 bits should return 011, i.e., start from m_bitBufferSize
+     * and return the requested amount of bits to the right of it. After that, decrement m_bitBufferSize.
+     *
+     * @verbatim
+     *        result = 0b011
+     *        bitsWanted = 3
+     *            <->
+     * +-------------------+
+     * |    | 101|0111|0011|
+     * +-------------------+
+     *        ^   ^  ^
+     *        |   |  m_bitBufferSize - bitsWanted = 5 = m_bitBufferSize after reading bitsWanted
+     *        |   m_bitBufferSize = 8
+     *        m_originalBitBufferSize = 11
+     * @endverbatim
+     *
+     * For MOST_SIGNIFICANT_BITS_FIRST == false (gzip):
+     *
+     * Bit buffer stores the last read bits from m_inputBuffer on the >left side< of m_bitBuffer (if not fully filled).
+     * Basically, this works in a mirrored way of MOST_SIGNIFICANT_BITS_FIRST == true in order to be able to only
+     * require one size and not an additional offset position for the bit buffer.
+     * Because the bits are to be read from >right to left<, the left-alignment makes the left-most bits always
+     * those valid the longest. I.e., we only have to decrement m_bitBufferSize.
+     *
+     * @verbatim
+     *   result = 0b111
+     *   bitsWanted = 3
+     *        <->
+     * +-------------------+
+     * |0101|0111|001 |    |
+     * +-------------------+
+     *       ^  ^   ^
+     *       |  |   m_originalBitBufferSize = 11
+     *       |  m_bitBufferSize = 8
+     *       m_bitBufferSize - bitsWanted = 5
+     * @endverbatim
+     *
+     * In both cases, the amount of bits wanted are extracted by shifting to the right and and'ing with a bit mask.
      */
     uint32_t m_bitBuffer = 0;
     uint8_t m_bitBufferSize = 0; // size of bitbuffer in bits
+    uint8_t m_originalBitBufferSize = 0; // size of valid bitbuffer bits including already read ones
 };
 
 
@@ -353,13 +406,9 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST>::read( const uint8_t bitsWanted )
             m_bitBufferSize -= bitsWanted;
             return ( m_bitBuffer >> m_bitBufferSize ) & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
         } else {
-            const auto result = m_bitBuffer & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
+            const auto result = ( m_bitBuffer >> ( MAX_WIDTH - m_bitBufferSize ) )
+                                & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
             m_bitBufferSize -= bitsWanted;
-            if ( bitsWanted < MAX_WIDTH ) {
-                m_bitBuffer >>= bitsWanted;
-            } else {
-                m_bitBuffer = 0;
-            }
             return result;
         }
     }
@@ -374,14 +423,11 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST>::readSafe( const uint8_t bitsWanted )
 {
     assert( bitsWanted > m_bitBufferSize );
 
-    /* Clear out rest of old buffer into result.
-     * This is the same no matter MOST_SIGNIFICANT_BITS_FIRST ! */
-    auto bits = m_bitBuffer & nLowestBitsSet<decltype( m_bitBuffer )>( m_bitBufferSize );
     const auto bitsInResult = m_bitBufferSize;
-    const auto bitsNeeded = bitsWanted - m_bitBufferSize;
+    auto bits = read( m_bitBufferSize );
+    const auto bitsNeeded = bitsWanted - bitsInResult;
     assert( bitsWanted <= std::numeric_limits<decltype( bits )>::digits );
 
-    clearBitBuffer();
     refillBitBuffer();
 
     if ( bitsNeeded > m_bitBufferSize ) {
@@ -403,13 +449,9 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST>::readSafe( const uint8_t bitsWanted )
 
     /* Append remaining requested bits. */
     if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
-        m_bitBufferSize -= bitsNeeded;
-        bits <<= bitsNeeded;
-        bits |= ( m_bitBuffer >> m_bitBufferSize ) & nLowestBitsSet<decltype( m_bitBuffer )>( bitsNeeded );
+        bits = ( bits << bitsNeeded ) | read( bitsNeeded );
     } else {
-        bits |= ( m_bitBuffer & nLowestBitsSet<decltype( m_bitBuffer )>( bitsNeeded ) ) << bitsInResult;
-        m_bitBufferSize -= bitsNeeded;
-        m_bitBuffer >>= bitsNeeded;
+        bits |= read( bitsNeeded ) << bitsInResult;
     }
 
     /* Check that no bits after the bitsWanted-th lowest bit are set! I.e., that no junk is returned. */
@@ -474,6 +516,11 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST>::seek( long long int offsetBits,
             return static_cast<size_t>( offsetBits );
         }
     } else {
+        if ( static_cast<size_t>( -relativeOffsets ) + m_bitBufferSize <= m_originalBitBufferSize ) {
+            m_bitBufferSize += -relativeOffsets;
+            return static_cast<size_t>( offsetBits );
+        }
+
         const auto seekBackWithBuffer = -relativeOffsets + m_bitBufferSize;
         const auto bytesToSeekBack = static_cast<size_t>( ceilDiv( seekBackWithBuffer, CHAR_BIT ) );
         if ( bytesToSeekBack <= m_inputBufferPosition ) {
