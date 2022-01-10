@@ -52,6 +52,13 @@
 #endif
 
 
+#if defined( _MSC_VER )
+    #define forceinline __forceinline
+#elif defined(__clang__) || defined(__GNUC__)
+    /* https://stackoverflow.com/questions/38499462/how-to-tell-clang-to-stop-pretending-to-be-other-compilers */
+    #define forceinline __attribute__((always_inline))
+#endif
+
 template<typename I1,
          typename I2,
          typename Enable = typename std::enable_if<
@@ -314,6 +321,14 @@ private:
 };
 
 
+constexpr bool
+isLittleEndian()
+{
+    constexpr uint16_t endianTestNumber = 1;
+    return *reinterpret_cast<const uint8_t*>( &endianTestNumber ) == 1;
+}
+
+
 inline uint64_t
 byteSwap( uint64_t value )
 {
@@ -406,3 +421,72 @@ require( bool               condition,
 
 #define REQUIRE_EQUAL( a, b ) requireEqual( a, b, __LINE__ ) // NOLINT
 #define REQUIRE( condition ) require( condition, #condition, __LINE__ ) // NOLINT
+
+
+template<typename T>
+class VectorView
+{
+public:
+    using value_type = T;
+
+public:
+    VectorView( const std::vector<T>& vector ) :
+        m_data( vector.data() ),
+        m_size( vector.size() )
+    {}
+
+    VectorView( const T* data,
+                size_t   size ) :
+        m_data( data ),
+        m_size( size )
+    {}
+
+    [[nodiscard]] T
+    front() const
+    {
+        return *m_data;
+    }
+
+    [[nodiscard]] const T*
+    begin() const
+    {
+        return m_data;
+    }
+
+    [[nodiscard]] const T*
+    end() const
+    {
+        return m_data + m_size;
+    }
+
+    [[nodiscard]] size_t
+    size() const
+    {
+        return m_size;
+    }
+
+    [[nodiscard]] bool
+    empty() const
+    {
+        return m_size == 0;
+    }
+
+    [[nodiscard]] T
+    operator[]( size_t i ) const
+    {
+        return m_data[i];
+    }
+
+    [[nodiscard]] T
+    at( size_t i ) const
+    {
+        if ( i >= m_size ) {
+            throw std::out_of_range( "VectorView index larger than size!" );
+        }
+        return m_data[i];
+    }
+
+private:
+    const T* const m_data;
+    const size_t   m_size;
+};
