@@ -289,6 +289,36 @@ private:
         m_inputBufferPosition = 0;
     }
 
+    void
+    refillBitBuffer()
+    {
+        /* Refill buffer one byte at a time to enforce endianness and avoid unaligned access. */
+        for ( ; m_bitBufferSize + CHAR_BIT <= std::numeric_limits<decltype( m_bitBuffer )>::digits;
+              m_bitBufferSize += CHAR_BIT )
+        {
+            if ( m_inputBufferPosition >= m_inputBuffer.size() ) {
+                refillBuffer();
+                if ( m_inputBufferPosition >= m_inputBuffer.size() ) {
+                    break;
+                }
+            }
+
+            if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
+                m_bitBuffer <<= CHAR_BIT;
+                m_bitBuffer |= static_cast<uint32_t>( m_inputBuffer[m_inputBufferPosition++] );
+            } else {
+                m_bitBuffer |= ( static_cast<uint32_t>( m_inputBuffer[m_inputBufferPosition++] ) << m_bitBufferSize );
+            }
+        }
+    }
+
+    void
+    clearBitBuffer()
+    {
+        m_bitBufferSize = 0;
+        m_bitBuffer = 0;
+    }
+
 private:
     std::unique_ptr<FileReader> m_file;
 
@@ -350,26 +380,8 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST>::readSafe( const uint8_t bitsWanted )
     const auto bitsNeeded = bitsWanted - m_bitBufferSize;
     assert( bitsWanted <= std::numeric_limits<decltype( bits )>::digits );
 
-    /* Refill buffer one byte at a time to enforce endianness and avoid unaligned access. */
-    m_bitBuffer = 0;
-    for ( m_bitBufferSize = 0;
-          m_bitBufferSize < std::numeric_limits<decltype( m_bitBuffer )>::digits;
-          m_bitBufferSize += CHAR_BIT )
-    {
-        if ( m_inputBufferPosition >= m_inputBuffer.size() ) {
-            refillBuffer();
-            if ( m_inputBufferPosition >= m_inputBuffer.size() ) {
-                break;
-            }
-        }
-
-        if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
-            m_bitBuffer <<= CHAR_BIT;
-            m_bitBuffer |= static_cast<uint32_t>( m_inputBuffer[m_inputBufferPosition++] );
-        } else {
-            m_bitBuffer |= ( static_cast<uint32_t>( m_inputBuffer[m_inputBufferPosition++] ) << m_bitBufferSize );
-        }
-    }
+    clearBitBuffer();
+    refillBitBuffer();
 
     if ( bitsNeeded > m_bitBufferSize ) {
         // this will also happen for invalid file descriptor -1
@@ -453,8 +465,7 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST>::seek( long long int offsetBits,
 
         if ( tellBuffer() + relativeOffsets <= m_inputBuffer.size() ) {
             auto stillToSeek = relativeOffsets - m_bitBufferSize;
-            m_bitBuffer = 0;
-            m_bitBufferSize = 0;
+            clearBitBuffer();
 
             m_inputBufferPosition += stillToSeek / CHAR_BIT;
             read( stillToSeek % CHAR_BIT );
@@ -466,8 +477,7 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST>::seek( long long int offsetBits,
         const auto bytesToSeekBack = static_cast<size_t>( ceilDiv( seekBackWithBuffer, CHAR_BIT ) );
         if ( bytesToSeekBack <= m_inputBufferPosition ) {
             m_inputBufferPosition -= bytesToSeekBack;
-            m_bitBuffer = 0;
-            m_bitBufferSize = 0;
+            clearBitBuffer();
 
             const auto bitsToSeekForward = bytesToSeekBack * CHAR_BIT - seekBackWithBuffer;
             if ( bitsToSeekForward > 0 ) {
@@ -483,8 +493,7 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST>::seek( long long int offsetBits,
     const auto bytesToSeek = static_cast<size_t>( offsetBits ) >> 3U;
     const auto subBitsToSeek = static_cast<uint8_t>( static_cast<size_t>( offsetBits ) & 7U );
 
-    m_bitBuffer = 0;
-    m_bitBufferSize = 0;
+    clearBitBuffer();
 
     m_inputBuffer.clear();
     m_inputBufferPosition = 0;
