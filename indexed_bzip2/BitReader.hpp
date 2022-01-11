@@ -211,11 +211,15 @@ public:
     [[nodiscard]] size_t
     tell() const override final
     {
-        size_t position = m_inputBufferPosition;
+        size_t position = tellBuffer();
         if ( m_file ) {
-            position += m_file->tell() - m_inputBuffer.size();
+            const auto filePosition = m_file->tell();
+            if ( static_cast<size_t>( filePosition ) < m_inputBuffer.size() ) {
+                throw std::logic_error( "The byte buffer should not contain more data than the file position!" );
+            }
+            position += ( filePosition - m_inputBuffer.size() ) * CHAR_BIT;
         }
-        return position * CHAR_BIT - m_bitBufferSize;
+        return position;
     }
 
     void
@@ -253,6 +257,16 @@ public:
     }
 
 private:
+    [[nodiscard]] size_t
+    tellBuffer() const
+    {
+        size_t position = m_inputBufferPosition * CHAR_BIT;
+        if ( position < m_bitBufferSize ) {
+            std::logic_error( "The bit buffer should not contain data if the byte buffer doesn't!" );
+        }
+        return position - m_bitBufferSize;
+    }
+
     uint32_t
     readSafe( uint8_t );
 
