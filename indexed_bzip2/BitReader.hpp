@@ -443,6 +443,43 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST>::seek( long long int offsetBits,
         throw std::logic_error( "File has already been closed!" );
     }
 
+    /* Performance optimizations for faster seeking inside the buffer to avoid expensive refillBuffer calls. */
+    const auto relativeOffsets = offsetBits - static_cast<long long int>( tell() );
+    if ( relativeOffsets >= 0 ) {
+        if ( relativeOffsets <= m_bitBufferSize ) {
+            m_bitBufferSize -= relativeOffsets;
+            return static_cast<size_t>( offsetBits );
+        }
+
+        if ( tellBuffer() + relativeOffsets <= m_inputBuffer.size() ) {
+            auto stillToSeek = relativeOffsets - m_bitBufferSize;
+            m_bitBuffer = 0;
+            m_bitBufferSize = 0;
+
+            m_inputBufferPosition += stillToSeek / CHAR_BIT;
+            read( stillToSeek % CHAR_BIT );
+
+            return static_cast<size_t>( offsetBits );
+        }
+    } else {
+        const auto seekBackWithBuffer = -relativeOffsets + m_bitBufferSize;
+        const auto bytesToSeekBack = static_cast<size_t>( ceilDiv( seekBackWithBuffer, CHAR_BIT ) );
+        if ( bytesToSeekBack <= m_inputBufferPosition ) {
+            m_inputBufferPosition -= bytesToSeekBack;
+            m_bitBuffer = 0;
+            m_bitBufferSize = 0;
+
+            const auto bitsToSeekForward = bytesToSeekBack * CHAR_BIT - seekBackWithBuffer;
+            if ( bitsToSeekForward > 0 ) {
+                const auto result = read( bitsToSeekForward );
+            }
+
+            return static_cast<size_t>( offsetBits );
+        }
+    }
+
+    /* Do a full-fledged seek. */
+
     const auto bytesToSeek = static_cast<size_t>( offsetBits ) >> 3U;
     const auto subBitsToSeek = static_cast<uint8_t>( static_cast<size_t>( offsetBits ) & 7U );
 
