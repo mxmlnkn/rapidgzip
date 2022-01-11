@@ -403,12 +403,12 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST>::seek( long long int offsetBits,
         break;
     }
 
-    if ( static_cast<size_t>( offsetBits ) == tell() ) {
-        return static_cast<size_t>( offsetBits );
-    }
-
     if ( offsetBits < 0 ) {
         throw std::invalid_argument( "Effective offset is before file start!" );
+    }
+
+    if ( static_cast<size_t>( offsetBits ) == tell() ) {
+        return static_cast<size_t>( offsetBits );
     }
 
     if ( static_cast<size_t>( offsetBits ) >= size() ) {
@@ -419,41 +419,41 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST>::seek( long long int offsetBits,
         throw std::invalid_argument( "File is not seekable!" );
     }
 
+    /* Currently, buffer-only is not supported, use BufferedFileReader as a memory-only file reader! */
+    if ( !m_file ) {
+        throw std::logic_error( "File has already been closed!" );
+    }
+
     const auto bytesToSeek = static_cast<size_t>( offsetBits ) >> 3U;
     const auto subBitsToSeek = static_cast<uint8_t>( static_cast<size_t>( offsetBits ) & 7U );
 
     m_bitBuffer = 0;
     m_bitBufferSize = 0;
 
-    if ( !m_file ) {
-        /* Currently, buffer-only is not supported, use BufferedFileReader as a memory-only file reader! */
-        throw std::logic_error( "File has already been closed!" );
+    m_inputBuffer.clear();
+    m_inputBufferPosition = 0;
+
+    if ( seekable() ) {
+        const auto newPosition = m_file->seek( static_cast<long long int>( bytesToSeek ), SEEK_SET );
+        if ( m_file->eof() || m_file->fail() ) {
+            std::stringstream msg;
+            msg << "[BitReader] Could not seek to specified byte " << bytesToSeek
+            << " subbit " << subBitsToSeek
+            << ", size: " << m_file->size()
+            << ", feof: " << m_file->eof()
+            << ", ferror: " << m_file->fail()
+            << ", newPosition: " << newPosition;
+            throw std::invalid_argument( msg.str() );
+        }
+    } else if ( static_cast<size_t>( offsetBits ) < tell() ) {
+        throw std::logic_error( "Can not emulate backward seeking on non-seekable file!" );
     } else {
-        m_inputBuffer.clear();
-        m_inputBufferPosition = 0;
+        /* Emulate forward seeking on non-seekable file by reading. */
+        throw std::logic_error( "Seeking forward on non-seekable input is an unfinished feature!" );
+    }
 
-        if ( seekable() ) {
-            const auto newPosition = m_file->seek( static_cast<long long int>( bytesToSeek ), SEEK_SET );
-            if ( m_file->eof() || m_file->fail() ) {
-                std::stringstream msg;
-                msg << "[BitReader] Could not seek to specified byte " << bytesToSeek
-                << " subbit " << subBitsToSeek
-                << ", size: " << m_file->size()
-                << ", feof: " << m_file->eof()
-                << ", ferror: " << m_file->fail()
-                << ", newPosition: " << newPosition;
-                throw std::invalid_argument( msg.str() );
-            }
-        } else if ( static_cast<size_t>( offsetBits ) < tell() ) {
-            throw std::logic_error( "Can not emulate backward seeking on non-seekable file!" );
-        } else {
-            /* Emulate forward seeking on non-seekable file by reading. */
-            throw std::logic_error( "Seeking forward on non-seekable input is an unfinished feature!" );
-        }
-
-        if ( subBitsToSeek > 0 ) {
-            read( subBitsToSeek );
-        }
+    if ( subBitsToSeek > 0 ) {
+        read( subBitsToSeek );
     }
 
     return offsetBits;
