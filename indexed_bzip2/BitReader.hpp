@@ -277,8 +277,13 @@ private:
             throw std::logic_error( "Can not refill buffer with data from non-existing file!" );
         }
 
+        const auto oldBufferSize = m_inputBuffer.size();
         m_inputBuffer.resize( IOBUF_SIZE );
         const auto nBytesRead = m_file->read( reinterpret_cast<char*>( m_inputBuffer.data() ), m_inputBuffer.size() );
+        if ( nBytesRead == 0 ) {
+            m_inputBuffer.resize( oldBufferSize );
+            return;
+        }
 
         m_inputBuffer.resize( nBytesRead );
         m_inputBufferPosition = 0;
@@ -353,7 +358,7 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST>::readSafe( const uint8_t bitsWanted )
     {
         if ( m_inputBufferPosition >= m_inputBuffer.size() ) {
             refillBuffer();
-            if ( m_inputBuffer.empty() ) {
+            if ( m_inputBufferPosition >= m_inputBuffer.size() ) {
                 break;
             }
         }
