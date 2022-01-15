@@ -169,7 +169,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     seek( 3*1024*1024 );
 
     /* Seek after end of file */
-    seek( decodedFileSize + 1000 );
+    seek( static_cast<ssize_t>( decodedFileSize ) + 1000 );
 
     REQUIRE( encodedFile->blockOffsetsComplete() );
     REQUIRE_EQUAL( decodedFileSize, encodedFile->size() );

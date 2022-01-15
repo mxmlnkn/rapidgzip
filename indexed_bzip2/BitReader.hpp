@@ -481,7 +481,7 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST>::seek( long long int offsetBits,
 
             const auto bitsToSeekForward = bytesToSeekBack * CHAR_BIT - seekBackWithBuffer;
             if ( bitsToSeekForward > 0 ) {
-                const auto result = read( bitsToSeekForward );
+                read( bitsToSeekForward );
             }
 
             return static_cast<size_t>( offsetBits );

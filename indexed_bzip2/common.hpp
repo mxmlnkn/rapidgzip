@@ -321,7 +321,7 @@ private:
 };
 
 
-constexpr bool
+inline bool
 isLittleEndian()
 {
     constexpr uint16_t endianTestNumber = 1;
