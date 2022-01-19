@@ -366,10 +366,10 @@ nLowestBitsSet( uint8_t nBitsSet )
         return T(0);
     }
     if ( nBitsSet >= std::numeric_limits<T>::digits ) {
-        return ~T(0);
+        return static_cast<T>( ~T(0) );
     }
     const auto nZeroBits = std::max( 0, std::numeric_limits<T>::digits - nBitsSet );
-    return ~T(0) >> nZeroBits;
+    return static_cast<T>( static_cast<T>( ~T(0) ) >> nZeroBits );
 }
 
 template<typename T, uint8_t nBitsSet>
@@ -380,10 +380,42 @@ nLowestBitsSet()
     if constexpr ( nBitsSet == 0 ) {
         return T(0);
     } else if constexpr ( nBitsSet >= std::numeric_limits<T>::digits ) {
-        return ~T(0);
+        return static_cast<T>( ~T(0) );
     } else {
         const auto nZeroBits = std::max( 0, std::numeric_limits<T>::digits - nBitsSet );
-        return ~T(0) >> nZeroBits;
+        return static_cast<T>( static_cast<T>( ~T(0) ) >> nZeroBits );
+    }
+}
+
+
+template<typename T>
+constexpr T
+nHighestBitsSet( uint8_t nBitsSet )
+{
+    static_assert( std::is_unsigned<T>::value, "Type must be signed!" );
+    if ( nBitsSet == 0 ) {
+        return T(0);
+    }
+    if ( nBitsSet >= std::numeric_limits<T>::digits ) {
+        return static_cast<T>( ~T(0) );
+    }
+    const auto nZeroBits = std::max( 0, std::numeric_limits<T>::digits - nBitsSet );
+    return static_cast<T>( static_cast<T>( ~T(0) ) << nZeroBits );
+}
+
+
+template<typename T, uint8_t nBitsSet>
+constexpr T
+nHighestBitsSet()
+{
+    static_assert( std::is_unsigned<T>::value, "Type must be signed!" );
+    if constexpr ( nBitsSet == 0 ) {
+        return T(0);
+    } else if constexpr ( nBitsSet >= std::numeric_limits<T>::digits ) {
+        return static_cast<T>( ~T(0) );
+    } else {
+        const auto nZeroBits = std::max( 0, std::numeric_limits<T>::digits - nBitsSet );
+        return static_cast<T>( static_cast<T>( ~T(0) ) << nZeroBits );
     }
 }
 
