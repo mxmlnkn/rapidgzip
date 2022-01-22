@@ -20,15 +20,16 @@
 #include <utility>
 #include <vector>
 
+#include <BitStringFinder.hpp>
+#include <Cache.hpp>
+#include <common.hpp>
+#include <FileReader.hpp>
+#include <ParallelBitStringFinder.hpp>
+#include <Prefetcher.hpp>
+#include <ThreadPool.hpp>
+
 #include "bzip2.hpp"
-#include "BitStringFinder.hpp"
 #include "BZ2ReaderInterface.hpp"
-#include "Cache.hpp"
-#include "common.hpp"
-#include "FileReader.hpp"
-#include "ParallelBitStringFinder.hpp"
-#include "Prefetcher.hpp"
-#include "ThreadPool.hpp"
 
 #ifdef WITH_PYTHON_SUPPORT
     #include "PythonFileReader.hpp"

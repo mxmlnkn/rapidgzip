@@ -15,6 +15,7 @@
 
 #include <sys/stat.h>
 
+#include "BitManipulation.hpp"
 #include "common.hpp"
 #include "FileReader.hpp"
 #include "StandardFileReader.hpp"

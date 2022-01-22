@@ -28,6 +28,11 @@ add_library(cxxopts INTERFACE)
 target_include_directories(cxxopts INTERFACE ${CMAKE_SOURCE_DIR}/external/cxxopts/include)
 target_sources(cxxopts INTERFACE ${CMAKE_SOURCE_DIR}/external/cxxopts/include/cxxopts.hpp)
 
+
+find_package(Threads REQUIRED)
+
+
+add_subdirectory(core)
 add_subdirectory(indexed_bzip2)
 add_subdirectory(tools)
 add_subdirectory(tests)

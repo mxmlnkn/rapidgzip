@@ -33,7 +33,7 @@ extensions = [
                                'indexed_bzip2/Prefetcher.hpp',
                                'indexed_bzip2/ThreadPool.hpp'
                              ],
-        include_dirs       = [ '.' ],
+        include_dirs       = [ '.', 'core' ],
         language           = 'c++',
     ),
 ]

@@ -18,7 +18,7 @@
 #include <utility>
 #include <vector>
 
-#include "BitReader.hpp"
+#include <BitReader.hpp>
 
 
 namespace bzip2
