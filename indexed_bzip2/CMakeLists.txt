@@ -12,7 +12,6 @@ target_compile_features(indexed_bzip2 INTERFACE cxx_std_17)
 add_library(indexed_bzip2_parallel INTERFACE)
 target_include_directories(indexed_bzip2_parallel INTERFACE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(indexed_bzip2_parallel INTERFACE
-    ${CMAKE_CURRENT_LIST_DIR}/BlockFinder.hpp
     ${CMAKE_CURRENT_LIST_DIR}/BlockFetcher.hpp
     ${CMAKE_CURRENT_LIST_DIR}/BZ2Reader.hpp
     ${CMAKE_CURRENT_LIST_DIR}/BZ2ReaderInterface.hpp

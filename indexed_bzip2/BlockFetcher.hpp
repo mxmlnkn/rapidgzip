@@ -17,11 +17,12 @@
 #include <utility>
 #include <vector>
 
+#include <BlockFinder.hpp>
 #include <Cache.hpp>
-#include <ThreadPool.hpp>
+#include <ParallelBitStringFinder.hpp>
 #include <Prefetcher.hpp>
+#include <ThreadPool.hpp>
 
-#include "BlockFinder.hpp"
 #include "bzip2.hpp"
 
 
@@ -34,6 +35,7 @@ template<typename FetchingStrategy = FetchingStrategy::FetchNextSmart>
 class BlockFetcher
 {
 public:
+    using BlockFinder = ::BlockFinder<ParallelBitStringFinder<bzip2::MAGIC_BITS_SIZE> >;
     using BitReader = bzip2::BitReader;
 
     struct BlockHeaderData

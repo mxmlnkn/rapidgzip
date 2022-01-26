@@ -13,12 +13,13 @@
 #include <thread>
 #include <utility>
 
+#include <BlockFinder.hpp>
 #include <BlockMap.hpp>
 #include <common.hpp>
 #include <FileReader.hpp>
+#include <ParallelBitStringFinder.hpp>
 
 #include "BlockFetcher.hpp"
-#include "BlockFinder.hpp"
 #include "bzip2.hpp"
 #include "BZ2ReaderInterface.hpp"
 
@@ -35,20 +36,29 @@ class ParallelBZ2Reader final :
 {
 public:
     using BlockFetcher = ::BlockFetcher<FetchingStrategy::FetchNextSmart>;
+    using BlockFinder = typename BlockFetcher::BlockFinder;
     using BitReader = bzip2::BitReader;
 
 public:
     /* Constructors */
 
     explicit
-    ParallelBZ2Reader( int    fileDescriptor,
-                       size_t parallelization = 0 ) :
-        m_bitReader( new StandardFileReader( fileDescriptor ) ),
-        m_fetcherParallelization( parallelization == 0
-                                  ? std::max<size_t>( 1U, std::thread::hardware_concurrency() )
-                                  : parallelization ),
-        m_startBlockFinder( [&](){ return std::make_shared<BlockFinder>( m_bitReader.cloneSharedFileReader(),
-                                                                         m_finderParallelization ); } )
+    ParallelBZ2Reader( std::unique_ptr<FileReader> fileReader,
+                       size_t                      parallelization = 0 ) :
+        m_bitReader( std::move( fileReader ) ),
+        m_fetcherParallelization(
+            parallelization == 0
+            ? std::max<size_t>( 1U, std::thread::hardware_concurrency() )
+            : parallelization ),
+        m_startBlockFinder( [&] ()
+            {
+                return std::make_shared<BlockFinder>(
+                    std::make_unique<ParallelBitStringFinder<bzip2::MAGIC_BITS_SIZE> >(
+                        m_bitReader.cloneSharedFileReader(),
+                        bzip2::MAGIC_BITS_BLOCK,
+                        m_finderParallelization
+                    ) );
+            } )
     {
         if ( !m_bitReader.seekable() ) {
             throw std::invalid_argument( "Parallel BZ2 Reader will not work on non-seekable input like stdin (yet)!" );
@@ -56,14 +66,15 @@ public:
     }
 
     explicit
+    ParallelBZ2Reader( int    fileDescriptor,
+                       size_t parallelization = 0 ) :
+        ParallelBZ2Reader( std::make_unique<StandardFileReader>( fileDescriptor ), parallelization )
+    {}
+
+    explicit
     ParallelBZ2Reader( const std::string& filePath,
                        size_t             parallelization = 0 ) :
-        m_bitReader( new StandardFileReader( filePath ) ),
-        m_fetcherParallelization( parallelization == 0
-                                  ? std::max<size_t>( 1U, std::thread::hardware_concurrency() )
-                                  : parallelization ),
-        m_startBlockFinder( [&](){ return std::make_shared<BlockFinder>( m_bitReader.cloneSharedFileReader(),
-                                                                         m_finderParallelization ); } )
+        ParallelBZ2Reader( std::make_unique<StandardFileReader>( filePath ), parallelization )
     {}
 
 
@@ -71,12 +82,7 @@ public:
     explicit
     ParallelBZ2Reader( PyObject* pythonObject,
                        size_t    parallelization = 0 ) :
-        m_bitReader( new PythonFileReader( pythonObject ) ),
-        m_fetcherParallelization( parallelization == 0
-                                  ? std::max<size_t>( 1U, std::thread::hardware_concurrency() )
-                                  : parallelization ),
-        m_startBlockFinder( [&](){ return std::make_shared<BlockFinder>( m_bitReader.cloneSharedFileReader(),
-                                                                         m_finderParallelization ); } )
+        ParallelBZ2Reader( std::make_unique<PythonFileReader>( pythonObject ), parallelization )
     {}
 #endif
 

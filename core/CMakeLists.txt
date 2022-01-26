@@ -4,6 +4,7 @@ target_sources(core INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/BitManipulation.hpp
     ${CMAKE_CURRENT_LIST_DIR}/BitReader.hpp
     ${CMAKE_CURRENT_LIST_DIR}/BitStringFinder.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/BlockFinder.hpp
     ${CMAKE_CURRENT_LIST_DIR}/BlockMap.hpp
     ${CMAKE_CURRENT_LIST_DIR}/Cache.hpp
     ${CMAKE_CURRENT_LIST_DIR}/common.hpp

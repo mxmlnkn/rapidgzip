@@ -15,28 +15,29 @@
 
 #include <FileReader.hpp>
 #include <JoiningThread.hpp>
-#include <ParallelBitStringFinder.hpp>
-
-#include "bzip2.hpp"
-#include "StreamedResults.hpp"
+#include <StreamedResults.hpp>
 
 
 /**
- * Will asynchronously find the next n block offsets after the last highest requested one.
- * It might find false positives and it won't find EOS blocks, so there is some post-processing necessary.
+ * This is a future-like wrapper around a given actual block finder, which is running asynchronously.
+ * The results are not only computed in parallel but also prefetched up to a certain distance to allow full
+ * utilization of parallelism for the asynchronous computation.
+ * This class also acts as a database (StreamedResults is the actual database) after all results have been computed
+ * and can be initialized with the results to avoid recomputing them.
+ *
+ * @tparam RawBlockFinder Must implement a `size_t find()` method which returns block offsets.
  */
+template<typename T_RawBlockFinder>
 class BlockFinder
 {
 public:
-    using BitStringFinder = ParallelBitStringFinder<bzip2::MAGIC_BITS_SIZE>;
+    using RawBlockFinder = T_RawBlockFinder;
     using BlockOffsets = StreamedResults<size_t>::Values;
 
 public:
     explicit
-    BlockFinder( std::unique_ptr<FileReader> fileReader,
-                 size_t                      parallelization ) :
-        m_bitStringFinder(
-            std::make_unique<BitStringFinder>( std::move( fileReader ), bzip2::MAGIC_BITS_BLOCK, parallelization ) )
+    BlockFinder( std::unique_ptr<RawBlockFinder> rawBlockFinder ) :
+        m_rawBlockFinder( std::move(rawBlockFinder ) )
     {}
 
     ~BlockFinder()
@@ -50,7 +51,7 @@ public:
     void
     startThreads()
     {
-        if ( !m_bitStringFinder ) {
+        if ( !m_rawBlockFinder ) {
             throw std::invalid_argument( "You may not start the block finder without a valid bit string finder!" );
         }
 
@@ -84,7 +85,7 @@ public:
     finalize( std::optional<size_t> blockCount = {} )
     {
         stopThreads();
-        m_bitStringFinder = {};
+        m_rawBlockFinder = {};
         m_blockOffsets.finalize( blockCount );
     }
 
@@ -140,7 +141,7 @@ public:
     {
         /* First we need to cancel the asynchronous block finder thread. */
         stopThreads();
-        m_bitStringFinder = {};
+        m_rawBlockFinder = {};
 
         /* Setting the results also finalizes them. No locking necessary because all threads have shut down. */
         m_blockOffsets.setResults( std::move( blockOffsets ) );
@@ -161,14 +162,13 @@ private:
             }
 
             /**
-             * Assuming a valid BZ2 file, the time for this find method should be bounded and
-             * responsive enough when reacting to cancelations.
+             * The time for this find method should be bounded and responsive enough for reacting to cancellations.
              * During this compute intensive task, the lock should be unlocked!
-             * Or else, the getter and other functions will never be able to acquire this loop
+             * Or else, the getter and other functions will never be able to acquire the lock
              * until this thread has finished reading the whole file!
              */
-            lock.unlock(); // Unlock for a little while so that others can acquire the lock!
-            const auto blockOffset = m_bitStringFinder->find();
+            lock.unlock();  // Unlock for a little while so that others can acquire the lock!
+            const auto blockOffset = m_rawBlockFinder->find();
             if ( blockOffset == std::numeric_limits<size_t>::max() ) {
                 break;
             }
@@ -197,7 +197,7 @@ private:
      */
     const size_t m_prefetchCount = 3 * std::thread::hardware_concurrency();
 
-    std::unique_ptr<BitStringFinder> m_bitStringFinder;
+    std::unique_ptr<RawBlockFinder> m_rawBlockFinder;
     std::atomic<bool> m_cancelThread{ false };
 
     std::unique_ptr<JoiningThread> m_blockFinder;
