@@ -25,7 +25,7 @@ endif()
 include(CTest)
 
 add_library(cxxopts INTERFACE)
-target_include_directories(cxxopts INTERFACE ${CMAKE_SOURCE_DIR}/external/cxxopts/include)
+target_include_directories(cxxopts SYSTEM INTERFACE ${CMAKE_SOURCE_DIR}/external/cxxopts/include)
 target_sources(cxxopts INTERFACE ${CMAKE_SOURCE_DIR}/external/cxxopts/include/cxxopts.hpp)
 
 
