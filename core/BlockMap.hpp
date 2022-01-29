@@ -158,6 +158,21 @@ public:
     finalize()
     {
         std::scoped_lock lock( m_mutex );
+
+        /* Add last empty block if it does not already exist in order to imply the size of the last real block. */
+        if ( m_blockToDataOffsets.empty() ) {
+            assert( m_lastBlockEncodedSize == 0 );
+            assert( m_lastBlockDecodedSize == 0 );
+            m_blockToDataOffsets.emplace_back( m_lastBlockEncodedSize, m_lastBlockDecodedSize );
+        } else if ( ( m_lastBlockEncodedSize != 0 ) || ( m_lastBlockDecodedSize != 0 ) ) {
+            const auto& [lastEncodedOffset, lastDecodedOffset] = m_blockToDataOffsets.back();
+            m_blockToDataOffsets.emplace_back( lastEncodedOffset + m_lastBlockEncodedSize,
+                                               lastDecodedOffset + m_lastBlockDecodedSize );
+        }
+
+        m_lastBlockEncodedSize = 0;
+        m_lastBlockDecodedSize = 0;
+
         m_finalized = true;
     }
 
