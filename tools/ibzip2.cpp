@@ -175,13 +175,13 @@ printHelp( const cxxopts::Options& options )
     << "  ibzip2 -d file.bz2\n"
     << "\n"
     << "Decompress a file in parallel:\n"
-    << "  ibzip2 -d -P file.bz2\n"
+    << "  ibzip2 -d -P 0 file.bz2\n"
     << "\n"
     << "Find and list the bzip2 block offsets to be used for another tool:\n"
     << "  ibzip2 -l blockoffsets.dat -- file.bz2\n"
     << "\n"
     << "List block offsets in both the compressed as well as the decompressed data during downloading:\n"
-    << "  wget -O- 'ftp://example.com/file.bzz2' | tee saved-file.bz2 | ibzip2 -L blockoffsets.dat > /dev/null\n"
+    << "  wget -O- 'ftp://example.com/file.bz2' | tee saved-file.bz2 | ibzip2 -L blockoffsets.dat > /dev/null\n"
     << std::endl;
 }
 
@@ -315,10 +315,8 @@ cli( int argc, char** argv )
         inputFilePath = parsedArgs["input"].as<std::string>();
     }
 
-    std::string outputFilePath;
-    if ( parsedArgs.count( "output" ) > 0 ) {
-        outputFilePath = parsedArgs["output"].as<std::string>();
-    } else if ( ( parsedArgs.count( "stdout" ) == 0 ) && !inputFilePath.empty() ) {
+    auto outputFilePath = getFilePath( parsedArgs, "output" );
+    if ( ( parsedArgs.count( "stdout" ) == 0 ) && !inputFilePath.empty() ) {
         const std::string& suffix = ".bz2";
         if ( endsWith( inputFilePath, suffix, /* case sensitive */ false ) ) {
             outputFilePath = std::string( inputFilePath.begin(), inputFilePath.end() - suffix.size() );
@@ -363,7 +361,7 @@ cli( int argc, char** argv )
 
     if ( decompress ) {
         if ( verbose ) {
-            std::cerr << "Decompress\n";
+            std::cerr << "Decompress with " << decoderParallelism << " threads\n";
         }
 
         std::unique_ptr<BZ2ReaderInterface> reader;
