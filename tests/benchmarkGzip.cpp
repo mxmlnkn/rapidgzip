@@ -152,6 +152,33 @@ benchmarkFunction( Functor functor )
 }
 
 
+template<typename Functor,
+         typename SetupFunctor>
+[[nodiscard]] std::pair<size_t, std::vector<double> >
+benchmarkFunction( SetupFunctor setup,
+                   Functor      functor )
+{
+    decltype(setup()) setupResult;
+    try {
+        setupResult = setup();
+    } catch ( const std::exception& e ) {
+        std::cerr << "Failed to run setup with exception: " << e.what() << "\n";
+        return {};
+    }
+
+    decltype(functor( setupResult )) result{};
+    std::vector<double> durations;
+    for ( size_t i = 0; i < 3; ++i ) {
+        const auto t0 = now();
+        result = functor( setupResult );
+        const auto t1 = now();
+        durations.push_back( duration( t0, t1 ) );
+    }
+
+    return { result, durations };
+}
+
+
 [[nodiscard]] std::vector<uint8_t>
 readFile( const std::string& fileName )
 {
@@ -272,13 +299,60 @@ decompressWithPragzipParallel( const std::string& fileName )
     {
         BgzfBlockFinder( std::make_unique<StandardFileReader>( fileName ) );
     } catch ( const std::invalid_argument& ) {
-        /* Note a bgz file. */
+        /* Not a bgz file. */
         return 0;
     }
 
     size_t totalDecodedBytes = 0;
 
     ParallelGzipReader gzipReader( std::make_unique<StandardFileReader>( fileName ) );
+    std::vector<uint8_t> outputBuffer( 64UL * 1024UL * 1024UL );
+    while ( true ) {
+        const auto nBytesRead = gzipReader.read( -1,
+                                                 reinterpret_cast<char*>( outputBuffer.data() ),
+                                                 outputBuffer.size() );
+        if ( ( nBytesRead == 0 ) && gzipReader.eof() ) {
+            break;
+        }
+
+        totalDecodedBytes += nBytesRead;
+    }
+
+    return totalDecodedBytes;
+}
+
+
+[[nodiscard]] std::pair<std::string, GzipIndex>
+createGzipIndex( const std::string& fileName )
+{
+    /* Create index using indexed_gzip */
+    const auto indexFile = fileName + ".index";
+    const auto command =
+        R"(python3 -c 'import indexed_gzip as ig; f = ig.IndexedGzipFile( ")"
+        + std::string( fileName )
+        + R"(" ); f.build_full_index(); f.export_index( ")"
+        + std::string( indexFile )
+        + R"(" );')";
+    const auto returnCode = std::system( command.c_str() );
+    REQUIRE( returnCode == 0 );
+    if ( returnCode != 0 ) {
+        throw std::runtime_error( "Failed to create index using indexed_gzip Python module" );
+    }
+
+    auto index = readGzipIndex( std::make_unique<StandardFileReader>( indexFile ) );
+    return { fileName, index };
+}
+
+
+[[nodiscard]] size_t
+decompressWithPragzipParallelIndex( const std::pair<std::string, GzipIndex>& files )
+{
+    const auto& [fileName, index] = files;
+
+    size_t totalDecodedBytes = 0;
+
+    ParallelGzipReader gzipReader( std::make_unique<StandardFileReader>( fileName ) );
+    gzipReader.setBlockOffsets( index );
     std::vector<uint8_t> outputBuffer( 64UL * 1024UL * 1024UL );
     while ( true ) {
         const auto nBytesRead = gzipReader.read( -1,
@@ -363,6 +437,16 @@ benchmarkDecompression( const std::string& fileName )
     } else {
         std::cerr << "Decompressing with pragzip (parallel) decoded a different amount than libarchive!\n";
     }
+
+    const auto [sizePragzipParallelIndex, durationsPragzipParallelIndex] = benchmarkFunction(
+        [&fileName] () { return createGzipIndex( fileName ); }, decompressWithPragzipParallelIndex );
+    if ( sizePragzipParallelIndex == sizeLibArchive ) {
+        std::cout << "Decompressed " << fileContents.size() << " B to " << sizePragzipParallelIndex << " B "
+                  << "with pragzip (parallel):\n";
+        printDurations( durationsPragzipParallelIndex, sizePragzipParallelIndex );
+    } else {
+        std::cerr << "Decompressing with pragzip (parallel + index) decoded a different amount than libarchive!\n";
+    }
 }
 
 
@@ -405,6 +489,10 @@ make benchmarkGzip && taskset 0x01 tests/benchmarkGzip small.gz
         Runtime / s: 4.83257 <= 4.88146 +- 0.0543243 <= 4.93994
         Bandwidth on Encoded Data / (MB/s): 84.3511 <= 85.3688 +- 0.947384 <= 86.2252
         Bandwidth on Decoded Data / (MB/s): 108.68 <= 109.991 +- 1.22063 <= 111.094
+    Decompressed 416689498 B to 536870912 B with pragzip (parallel + index):
+        Runtime / s: 0.428104 <= 0.440346 +- 0.0157462 <= 0.458109
+        Bandwidth on Encoded Data / (MB/s): 909.586 <= 947.073 +- 33.3243 <= 973.338
+        Bandwidth on Decoded Data / (MB/s): 1171.93 <= 1220.23 +- 42.9356 <= 1254.07
 
       ->  pragzip is more than twice as slow as zlib :/
 
@@ -434,8 +522,13 @@ make benchmarkGzip && tests/benchmarkGzip small.bgz
         Runtime / s: 0.503374 <= 0.535733 +- 0.0325509 <= 0.568472
         Bandwidth on Encoded Data / (MB/s): 730.196 <= 776.731 +- 47.2307 <= 824.628
         Bandwidth on Decoded Data / (MB/s): 944.41 <= 1004.6 +- 61.0866 <= 1066.54
+    Decompressed 415096389 B to 536870912 B with pragzip (parallel + index):
+        Runtime / s: 0.477427 <= 0.493329 +- 0.0150873 <= 0.507442
+        Bandwidth on Encoded Data / (MB/s): 818.018 <= 841.948 +- 25.8988 <= 869.445
+        Bandwidth on Decoded Data / (MB/s): 1057.99 <= 1088.95 +- 33.4966 <= 1124.51
 
-     -> ~1 GB/s for the decompressed bandwidth with the parallel bgz decoder is already quite nice!
+     -> ~1 GB/s for the decompressed bandwidth with the parallel bgz decoder and when decoding with an
+        existing index is already quite nice!
 
 time gzip -d -k -c small.bgz | wc -c
     real  0m3.248s
@@ -452,6 +545,7 @@ ls -la small.*gz
 
 
 base64 /dev/urandom | head -c $(( 4*1024*1024*1024 )) > large
+gzip -k large
 bgzip -c large > large.bgz
 make benchmarkGzip && tests/benchmarkGzip large.bgz
     Decompressed 3320779389 B to 4294967296 B with libarchive:
@@ -473,6 +567,10 @@ make benchmarkGzip && tests/benchmarkGzip large.bgz
         Runtime / s: 4.19626 <= 4.31237 +- 0.186016 <= 4.52692
         Bandwidth on Encoded Data / (MB/s): 733.563 <= 770.993 +- 32.4577 <= 791.366
         Bandwidth on Decoded Data / (MB/s): 948.762 <= 997.172 +- 41.9795 <= 1023.52
+    Decompressed 3320779389 B to 4294967296 B with pragzip (parallel + index):
+        Runtime / s: 3.9355 <= 4.00016 +- 0.0684622 <= 4.07188
+        Bandwidth on Encoded Data / (MB/s): 815.541 <= 830.324 +- 14.1757 <= 843.802
+        Bandwidth on Decoded Data / (MB/s): 1054.79 <= 1073.91 +- 18.3343 <= 1091.34
 
 time bgzip --threads $( nproc ) -d -c large.bgz | wc -c
     real  0m2.155s

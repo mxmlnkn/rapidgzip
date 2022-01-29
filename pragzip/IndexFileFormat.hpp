@@ -163,7 +163,6 @@ readGzipIndex( std::unique_ptr<FileReader> file )
             if ( checkpoint.compressedOffsetInBits == 0 ) {
                 throw std::invalid_argument( "Denormal bits for checkpoint. Effectively negative offset!" );
             }
-            std::cerr << "Read checkpoint with offset " << checkpoint.compressedOffsetInBits << " and bits: " << (int)bits << "\n";
             checkpoint.compressedOffsetInBits -= bits;
         }
 

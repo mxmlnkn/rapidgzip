@@ -17,6 +17,7 @@
 #include <BlockMap.hpp>
 #include <common.hpp>
 #include <FileReader.hpp>
+#include <IndexFileFormat.hpp>
 
 #include "GzipBlockFetcher.hpp"
 #include "gzip.hpp"
@@ -346,6 +347,7 @@ public:
         return m_blockMap->blockOffsets();
     }
 
+private:
     void
     setBlockOffsets( std::map<size_t, size_t> offsets )
     {
@@ -359,6 +361,45 @@ public:
             throw std::invalid_argument( "Block offset map must contain at least one valid block and one EOS block!" );
         }
         m_blockMap->setBlockOffsets( std::move( offsets ) );
+    }
+
+public:
+    void
+    setBlockOffsets( GzipIndex index )
+    {
+        /* Generate simple compressed to uncompressed offset map from index. */
+        std::map<size_t, size_t> blockOffsets;
+        for ( const auto& checkpoint : index.checkpoints ) {
+            blockOffsets.emplace( checkpoint.compressedOffsetInBits, checkpoint.uncompressedOffsetInBytes );
+        }
+
+        /* Input file-end offset if not included in checkpoints. */
+        if ( const auto fileEndOffset = blockOffsets.find( index.compressedSizeInBytes * 8 );
+             fileEndOffset == blockOffsets.end() )
+        {
+            blockOffsets.emplace( index.compressedSizeInBytes * 8, index.uncompressedSizeInBytes );
+        } else if ( fileEndOffset->second != index.uncompressedSizeInBytes ) {
+            throw std::invalid_argument( "Index has contradicting information for the file end information!" );
+        }
+
+        setBlockOffsets( std::move( blockOffsets ) );
+
+        /* Populate window buffers. */
+
+        /** @todo put windows into blockmap that always is ensured to exist. */
+        for ( const auto& checkpoint : index.checkpoints ) {
+            if ( checkpoint.window.empty() ) {
+                continue;
+            }
+
+            if ( checkpoint.window.size() < pragzip::deflate::MAX_WINDOW_SIZE ) {
+                throw std::invalid_argument( "Insufficient window size!" );
+            }
+
+            auto& window = blockFetcher().windows[checkpoint.compressedOffsetInBits];
+            std::memcpy( window.data(), checkpoint.window.data() + checkpoint.window.size() - window.size(),
+                         window.size() );
+        }
     }
 
     /**

@@ -302,9 +302,9 @@ protected:
     mutable double m_readBlockDataTotalTime{ 0 };
     mutable std::mutex m_analyticsMutex;
 
-private:
     const std::shared_ptr<BlockFinder> m_blockFinder;
 
+private:
     std::atomic<bool> m_cancelThreads{ false };
     std::condition_variable m_cancelThreadsCondition;
 

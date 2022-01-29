@@ -15,7 +15,7 @@ jobs:
       run: |
         sudo apt-get -y install bzip2 pbzip2 lbzip2 cppcheck clang clang-tidy g++ lcov ninja-build valgrind wget
         python3 -m pip install --upgrade pip
-        python3 -m pip install --upgrade-strategy eager --upgrade cython twine numpy
+        python3 -m pip install --upgrade-strategy eager --upgrade cython twine numpy indexed_gzip
         #
         # Install infer
         VERSION=1.1.0

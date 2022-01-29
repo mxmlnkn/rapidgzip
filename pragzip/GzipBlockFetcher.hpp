@@ -111,59 +111,144 @@ public:
      */
 
     [[nodiscard]] BlockData
-    decodeBlock( size_t /* blockIndex */,
+    decodeBlock( size_t blockIndex,
                  size_t blockOffset ) const override
+    {
+        std::optional<ArrayView<std::uint8_t, pragzip::deflate::MAX_WINDOW_SIZE> > window;
+        if ( const auto match = windows.find( blockOffset ); match != windows.end() ) {
+            window.emplace( match->second );
+        }
+        return decodeBlock( blockOffset, this->m_blockFinder->get( blockIndex + 1 ), window );
+    }
+
+    /**
+     * @param untilOffset Decode to excluding at least this compressed offset. It can be the offset of the next
+     *                    deflate block or next gzip stream but it can also be the starting guess for the block finder
+     *                    to find the next deflate block or gzip stream.
+     * @param initialWindow Required to resume decoding. Can be empty if, e.g., the blockOffset is at the gzip stream
+     *                      start.
+     * @todo Make it automatically decompress to replacement markers if no valid window was given but needed anyway.
+     */
+    [[nodiscard]] BlockData
+    decodeBlock( size_t                blockOffset,
+                 std::optional<size_t> untilOffset,
+                 std::optional<ArrayView<std::uint8_t, pragzip::deflate::MAX_WINDOW_SIZE> > initialWindow ) const
     {
         BitReader bitReader( m_bitReader );
         bitReader.seek( blockOffset );
-        pragzip::deflate::Block block;
-        block.setInitialWindow();  // Bgz blocks all start fully flushed and therefore do not need an initial window!
-
-        auto error = block.readHeader( bitReader );
-        if ( error != pragzip::Error::NONE ) {
-            std::cerr << "Erroneous block header at offset " << blockOffset << "b (after read: "
-                      << bitReader.tell() << " b): " << pragzip::toString( error ) << "\n";
-            return {};
-        }
 
         BlockData result;
         result.encodedOffsetInBits = blockOffset;
 
-        /* Actually, this should never happen with the current implementation because only blocks found by the
-         * block finder will be handled here and the block finder does not search for EOS magic bits. */
-        if ( block.eos() ) {
-            result.encodedSizeInBits = bitReader.tell() - blockOffset;
-            return result;
+        /* If true, then read the gzip header. We cannot simply check the gzipHeader optional because we might
+         * start reading in the middle of a gzip stream and will not meet the gzip header for a while or never. */
+        bool isAtStreamEnd = false;
+        size_t streamBytesRead = 0;
+        std::optional<pragzip::gzip::Header> gzipHeader;
+
+        pragzip::deflate::Block block;
+        if ( initialWindow ) {
+            block.setInitialWindow( *initialWindow );
+        } else {
+            block.setInitialWindow();
         }
 
-        size_t decodedDataSize = 0;
-
-        while ( !block.eob() )
+        /* Loop over possibly gzip streams and deflate blocks. We cannot use GzipReader even though it does
+         * something very similar because GzipReader only works with fully decodable streams but we
+         * might want to return buffer with placeholders in case we don't know the initial window, yet! */
+        while ( true )
         {
-            error = block.read( bitReader, std::numeric_limits<size_t>::max() ).second;
+            if ( untilOffset && ( bitReader.tell() >= untilOffset ) ) {
+                break;
+            }
+
+            if ( isAtStreamEnd ) {
+                const auto [header, error] = pragzip::gzip::readHeader( bitReader );
+                if ( error != pragzip::Error::NONE ) {
+                    std::cerr << "Encountered error while trying to read gzip header: "
+                              << pragzip::toString( error ) << "\n";
+                    break;
+                }
+
+                gzipHeader = std::move( header );
+                block.setInitialWindow();
+
+                if ( untilOffset && ( bitReader.tell() >= untilOffset ) ) {
+                    break;
+                }
+            }
+
+            auto error = block.readHeader( bitReader );
             if ( error != pragzip::Error::NONE ) {
-                std::cerr << "Erroneous block at offset " << blockOffset
-                          << ": " << pragzip::toString( error ) << "\n";
+                std::cerr << "Erroneous block header at offset " << blockOffset << " b (after read: "
+                          << bitReader.tell() << " b): " << pragzip::toString( error ) << "\n";
                 return {};
             }
 
-            for ( const auto& buffer : block.lastBuffers() ) {
-                if ( buffer.empty() ) {
-                    continue;
+            /* Loop until we have read the full contents of the current deflate block. */
+            while ( !block.eob() )
+            {
+                error = block.read( bitReader, std::numeric_limits<size_t>::max() ).second;
+                if ( error != pragzip::Error::NONE ) {
+                    std::cerr << "Erroneous block at offset " << blockOffset
+                              << " b: " << pragzip::toString( error ) << "\n";
+                    return {};
                 }
 
-                const auto oldSize = result.data.size();
-                result.data.resize( oldSize + buffer.size() );
-                std::memcpy( result.data.data() + oldSize, buffer.data(), buffer.size() );
-                decodedDataSize += buffer.size();
+                for ( const auto& buffer : block.lastBuffers() ) {
+                    if ( buffer.empty() ) {
+                        continue;
+                    }
+
+                    const auto oldSize = result.data.size();
+                    result.data.resize( oldSize + buffer.size() );
+                    std::memcpy( result.data.data() + oldSize, buffer.data(), buffer.size() );
+                    streamBytesRead += buffer.size();
+                }
+            }
+
+            if ( block.isLastBlock() ) {
+                const auto footer = pragzip::gzip::readFooter( bitReader );
+
+                /* We only check for the stream size and CRC32 if we have read the whole stream including the header! */
+                if ( gzipHeader ) {
+                    if ( streamBytesRead != footer.uncompressedSize ) {
+                        std::stringstream message;
+                        message << "Mismatching size (" << streamBytesRead << " <-> footer: " << footer.uncompressedSize << ") for gzip stream!";
+                        throw std::runtime_error( message.str() );
+                    }
+
+                    if ( ( block.crc32() != 0 ) && ( block.crc32() != footer.crc32 ) ) {
+                        std::stringstream message;
+                        message << "Mismatching CRC32 (0x" << std::hex << block.crc32() << " <-> stored: 0x"
+                                << footer.crc32 << ") for gzip stream!";
+                        throw std::runtime_error( message.str() );
+                    }
+
+                    if ( block.crc32() != 0 ) {
+                        std::stringstream message;
+                        message << "Validated CRC32 0x" << std::hex << block.crc32() << " for gzip stream!\n";
+                        std::cerr << message.str();
+                    }
+                }
+
+                isAtStreamEnd = true;
+                gzipHeader = {};
+                streamBytesRead = 0;
+
+                if ( bitReader.eof() ) {
+                    break;
+                }
             }
         }
 
-        result.data.resize( decodedDataSize );
         result.encodedSizeInBits = bitReader.tell() - blockOffset;
-
         return result;
     }
+
+public:
+    /** @todo put into BlockMap and use that here instead? */
+    std::unordered_map<size_t, std::array<std::uint8_t, pragzip::deflate::MAX_WINDOW_SIZE> > windows;
 
 private:
     /* Variables required by decodeBlock and which therefore should be either const or locked. */

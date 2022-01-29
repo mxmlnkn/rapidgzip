@@ -319,6 +319,7 @@ public:
     /**
      * Returns the last 32 KiB decoded bytes. This can be called after decoding a block has finished
      * and then can be used to store and load it with setInitialWindow to restart decoding with the next block.
+     * Because this is not supposed to be called very often, it returns a copy of the data instead of views.
      */
     [[nodiscard]] std::array<uint8_t, MAX_WINDOW_SIZE>
     lastWindow() const
@@ -417,7 +418,6 @@ public:
         }
 
         if ( ( m_decodedBytes == 0 ) && ( m_windowPosition == 0 ) && m_containsMarkerBytes ) {
-            std::cerr << "Copy window into internal buffer\n";
             std::memcpy( m_window.data(), initialWindow.data(), initialWindow.size() );
             m_windowPosition = initialWindow.size();
             m_decodedBytes = initialWindow.size();
