@@ -22,6 +22,9 @@
     #include <Python.h>
 #endif
 
+#include "FileUtils.hpp"
+#include "VectorView.hpp"
+
 
 /* Platform dependent stuff */
 
@@ -65,7 +68,7 @@ template<typename I1,
             std::is_integral<I1>::value &&
             std::is_integral<I2>::value
          >::type>
-I1
+constexpr I1
 ceilDiv( I1 dividend,
          I2 divisor )
 {
@@ -138,88 +141,6 @@ endsWith( const S& fullString,
 
     return std::equal( suffix.rbegin(), suffix.rend(), fullString.rbegin(),
                        [] ( auto a, auto b ) { return std::tolower( a ) == std::tolower( b ); } );
-}
-
-
-inline bool
-fileExists( const char* filePath )
-{
-    return std::ifstream( filePath ).good();
-}
-
-
-using unique_file_ptr = std::unique_ptr<std::FILE, std::function<void( std::FILE* )> >;
-
-inline unique_file_ptr
-make_unique_file_ptr( std::FILE* file )
-{
-    return unique_file_ptr( file, []( auto* ownedFile ){
-        if ( ownedFile != nullptr ) {
-            std::fclose( ownedFile );
-        } } );
-}
-
-inline unique_file_ptr
-make_unique_file_ptr( char const* const filePath,
-                      char const* const mode )
-{
-    return make_unique_file_ptr( std::fopen( filePath, mode ) );
-}
-
-inline unique_file_ptr
-make_unique_file_ptr( int         fileDescriptor,
-                      char const* mode )
-{
-    return make_unique_file_ptr( fdopen( fileDescriptor, mode ) );
-}
-
-
-
-inline unique_file_ptr
-throwingOpen( const std::string& filePath,
-              const char*        mode )
-{
-    if ( mode == nullptr ) {
-        throw std::invalid_argument( "Mode must be a C-String and not null!" );
-    }
-
-    auto file = make_unique_file_ptr( filePath.c_str(), mode );
-    if ( file == nullptr ) {
-        std::stringstream msg;
-        msg << "Opening file '" << filePath << "' with mode '" << mode << "' failed!";
-        throw std::invalid_argument( msg.str() );
-    }
-
-    return file;
-}
-
-
-inline unique_file_ptr
-throwingOpen( int         fileDescriptor,
-              const char* mode )
-{
-    if ( mode == nullptr ) {
-        throw std::invalid_argument( "Mode must be a C-String and not null!" );
-    }
-
-    auto file = make_unique_file_ptr( fileDescriptor, mode );
-    if ( file == nullptr ) {
-        std::stringstream msg;
-        msg << "Opening file descriptor " << fileDescriptor << " with mode '" << mode << "' failed!";
-        throw std::invalid_argument( msg.str() );
-    }
-
-    return file;
-}
-
-
-/** dup is not strong enough to be able to independently seek in the old and the dup'ed fd! */
-std::string
-fdFilePath( int fileDescriptor )
-{
-    std::stringstream filename;
-    filename << "/dev/fd/" << fileDescriptor;
-    return filename.str();
 }
 
 
@@ -354,75 +275,6 @@ require( bool               condition,
 
 #define REQUIRE_EQUAL( a, b ) requireEqual( a, b, __LINE__ ) // NOLINT
 #define REQUIRE( condition ) require( condition, #condition, __LINE__ ) // NOLINT
-
-
-template<typename T>
-class VectorView
-{
-public:
-    using value_type = T;
-
-public:
-    VectorView( const std::vector<T>& vector ) :
-        m_data( vector.data() ),
-        m_size( vector.size() )
-    {}
-
-    VectorView( const T* data,
-                size_t   size ) :
-        m_data( data ),
-        m_size( size )
-    {}
-
-    [[nodiscard]] T
-    front() const
-    {
-        return *m_data;
-    }
-
-    [[nodiscard]] const T*
-    begin() const
-    {
-        return m_data;
-    }
-
-    [[nodiscard]] const T*
-    end() const
-    {
-        return m_data + m_size;
-    }
-
-    [[nodiscard]] size_t
-    size() const
-    {
-        return m_size;
-    }
-
-    [[nodiscard]] bool
-    empty() const
-    {
-        return m_size == 0;
-    }
-
-    [[nodiscard]] T
-    operator[]( size_t i ) const
-    {
-        return m_data[i];
-    }
-
-    [[nodiscard]] T
-    at( size_t i ) const
-    {
-        if ( i >= m_size ) {
-            throw std::out_of_range( "VectorView index larger than size!" );
-        }
-        return m_data[i];
-    }
-
-private:
-    const T* const m_data;
-    const size_t   m_size;
-};
 
 
 template<typename T>

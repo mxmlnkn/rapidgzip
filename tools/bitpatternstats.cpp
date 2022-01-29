@@ -248,22 +248,6 @@ make && time ./blockfinder /dev/shm/large.bz2
 #include <common.hpp>
 
 
-bool
-fileExists( const std::string& filePath )
-{
-    return std::ifstream( filePath ).good();
-}
-
-
-size_t
-fileSize( const std::string& filePath )
-{
-    std::ifstream file( filePath );
-    file.seekg( 0, std::ios_base::end );
-    return file.tellg();
-}
-
-
 std::vector<size_t>
 countBitPatterns( const std::string& filePath,
                   unsigned int       patternLength,
