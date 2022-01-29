@@ -277,6 +277,7 @@ private:
         {
             /* Increase buffer for next batch. Unfortunately we can't find the perfect size beforehand because
              * we don't know the amount of decoded bytes in the block. */
+            /** @todo We do have that information after the block index has been built! */
             if ( result.data.empty() ) {
                 /* Just a guess to avoid reallocations at smaller sizes. Must be >= 255 though because the decodeBlock
                  * method might return up to 255 copies caused by the runtime length decoding! */
