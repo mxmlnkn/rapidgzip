@@ -669,7 +669,13 @@ int main( int argc, char** argv )
         std::cerr << offset / 8 << " B " << offset % 8 << " b";
         if ( offset < bitReader.size() ) {
             bitReader.seek( offset );
-            const auto magicBytes = bitReader.read64( bitStringToFindSize );
+
+            /* Because bitReader is limited to 32-bit. */
+            static_assert( bitStringToFindSize % 2 == 0, "Assuming magic bit string size to be an even number." );
+            constexpr uint8_t BITS_PER_READ = bitStringToFindSize / 2;
+            const auto magicBytes = ( static_cast<uint64_t>( bitReader.read( BITS_PER_READ ) ) << BITS_PER_READ )
+                                    | bitReader.read( BITS_PER_READ );
+
             std::cerr << " -> magic bytes: 0x" << std::hex << magicBytes << std::dec;
             if ( magicBytes != bitStringToFind ) {
                 throw std::logic_error( "Magic Bytes do not match!" );

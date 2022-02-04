@@ -60,7 +60,12 @@ checkOffsets( const std::string&         filePath,
     BitReader bitReader( filePath );
     for ( const auto offset : offsets ) {
         bitReader.seek( offset );
-        const auto magicBytes = bitReader.read64( bzip2::MAGIC_BITS_SIZE );
+        /* Because bitReader is limited to 32-bit. */
+        static_assert( bzip2::MAGIC_BITS_SIZE % 2 == 0, "Assuming magic bit string size to be an even number." );
+        constexpr uint8_t BITS_PER_READ = bzip2::MAGIC_BITS_SIZE / 2;
+        const auto magicBytes = ( static_cast<uint64_t>( bitReader.read( BITS_PER_READ ) ) << BITS_PER_READ )
+                                | bitReader.read( BITS_PER_READ );
+
         if ( bitStringsToFind.count( magicBytes ) == 0 ) {
             std::stringstream msg;
             msg << "Magic bytes " << std::hex << magicBytes << std::dec << " at offset "
