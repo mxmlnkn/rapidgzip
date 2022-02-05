@@ -76,12 +76,14 @@ public:
                                   / static_cast<double>( m_cache.hits() + m_cache.misses() + m_prefetchDirectHits );
         std::cerr << (
             ThreadSafeOutput() << "[BlockFetcher::~BlockFetcher]"
-            << "\n   Cache hits                 :" << m_cache.hits()
-            << "\n   misses                     :" << m_cache.misses()
-            << "\n   prefetched blocks          :" << m_prefetchCount
-            << "\n   direct prefetch queue hits :" << m_prefetchDirectHits
-            << "\n   hit rate                   :" << cacheHitRate
-            << "\n   time spent in:"
+            << "\n   Hits"
+            << "\n       Cache                         :" << m_cache.hits()
+            << "\n       Prefetch Queue                :" << m_prefetchDirectHits
+            << "\n   Misses                            :" << m_cache.misses()
+            << "\n   Hit Rate                          :" << cacheHitRate
+            << "\n   Prefetched Blocks                 :" << m_prefetchCount
+            << "\n   Prefetch Stall by BlockFinder     :" << m_waitOnBlockFinderCount
+            << "\n   Time spent in:"
             << "\n       bzip2::readBlockData          :" << m_readBlockDataTotalTime << "s"
             << "\n       time spent in decodeBlock     :" << m_decodeBlockTotalTime   << "s"
             << "\n       time spent waiting on futures :" << m_futureWaitTotalTime    << "s"
@@ -162,6 +164,10 @@ public:
                                         "last fetched block for prefetching!" );
             }
 
+            if ( m_blockFinder->finalized() && ( blockIndexToPrefetch >= m_blockFinder->size() ) ) {
+                continue;
+            }
+
             const auto requestedResultIsReady =
                 [&result, &resultFuture]()
                 {
@@ -177,6 +183,10 @@ public:
                 prefetchBlockOffset = m_blockFinder->get( blockIndexToPrefetch, requestedResultIsReady() ? 0 : 0.001 );
             }
             while ( !prefetchBlockOffset && !requestedResultIsReady() );
+
+            if ( !prefetchBlockOffset.has_value() ) {
+                m_waitOnBlockFinderCount++;
+            }
 
             /* Do not prefetch already cached/prefetched blocks or block indexes which are not yet in the block map. */
             if ( !prefetchBlockOffset.has_value()
@@ -311,6 +321,7 @@ private:
     /* Analytics */
     size_t m_prefetchCount{ 0 };
     size_t m_prefetchDirectHits{ 0 };
+    size_t m_waitOnBlockFinderCount{ 0 };
     mutable double m_readBlockDataTotalTime{ 0 };
     mutable double m_decodeBlockTotalTime{ 0 };
     mutable double m_futureWaitTotalTime{ 0 };
