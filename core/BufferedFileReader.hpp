@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "AlignedAllocator.hpp"
 #include "FileReader.hpp"
 
 
@@ -15,14 +16,23 @@ class BufferedFileReader :
     public FileReader
 {
 public:
+    using AlignedBuffer = AlignedVector<char>;
+
+public:
     BufferedFileReader( std::unique_ptr<FileReader> fileReader,
                         size_t                      bufferSize = 128 * 1024 ) :
         m_maxBufferSize( bufferSize ),
         m_file( std::move( fileReader ) )
     {}
 
-    BufferedFileReader( std::vector<char> inMemoryFileContents,
-                        size_t                      bufferSize = 128 * 1024 ) :
+    BufferedFileReader( const std::vector<char>& inMemoryFileContents,
+                        size_t                   bufferSize = 128 * 1024 ) :
+        m_maxBufferSize( bufferSize ),
+        m_buffer( inMemoryFileContents.begin(), inMemoryFileContents.end() )
+    {}
+
+    BufferedFileReader( AlignedBuffer inMemoryFileContents,
+                        size_t        bufferSize = 128 * 1024 ) :
         m_maxBufferSize( bufferSize ),
         m_buffer( std::move( inMemoryFileContents ) )
     {}
@@ -213,6 +223,6 @@ protected:
     std::unique_ptr<FileReader> m_file;
 
     size_t m_originalBufferOffset{ 0 };
-    std::vector<char> m_buffer;
+    AlignedBuffer m_buffer;
     size_t m_bufferPosition{ 0 };
 };
