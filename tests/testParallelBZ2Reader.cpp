@@ -282,7 +282,7 @@ main( int    argc,
     while ( !binaryFolder.empty() )
     {
         auto filePath = binaryFolder + "/decoded-sample";
-        if ( fileExists( filePath.c_str() ) ) {
+        if ( fileExists( filePath ) ) {
             break;
         }
 
@@ -302,12 +302,12 @@ main( int    argc,
 
     bool fileNotFound = false;
 
-    if ( !fileExists( encodedTestFilePath.c_str() ) ) {
+    if ( !fileExists( encodedTestFilePath ) ) {
         std::cerr << "Required compressed sample test file not found: " << encodedTestFilePath << "\n";
         fileNotFound = true;
     }
 
-    if ( !fileExists( decodedTestFilePath.c_str() ) ) {
+    if ( !fileExists( decodedTestFilePath ) ) {
         std::cerr << "Required uncompressed sample test file not found: " << decodedTestFilePath << "\n";
         fileNotFound = true;
     }

@@ -52,7 +52,7 @@ void
 checkOffsets( const std::string&         filePath,
               const std::vector<size_t>& offsets )
 {
-    if ( !fileExists( filePath.c_str() ) ) {
+    if ( !fileExists( filePath ) ) {
         return;
     }
 
@@ -328,7 +328,7 @@ cli( int argc, char** argv )
         }
     }
 
-    if ( ( outputFilePath != "/dev/null" ) && fileExists( outputFilePath.c_str() ) && !force ) {
+    if ( ( outputFilePath != "/dev/null" ) && fileExists( outputFilePath ) && !force ) {
         std::cerr << "Output file '" << outputFilePath << "' already exists! Use --force to overwrite.\n";
         return 1;
     }
@@ -344,14 +344,14 @@ cli( int argc, char** argv )
     const auto bufferSize = parsedArgs["buffer-size"].as<unsigned int>();
 
     const auto offsetsFilePath = getFilePath( parsedArgs, "list-offsets" );
-    if ( !offsetsFilePath.empty() && fileExists( offsetsFilePath.c_str() ) && !force ) {
+    if ( !offsetsFilePath.empty() && fileExists( offsetsFilePath ) && !force ) {
         std::cerr << "Output file for offsets'" << offsetsFilePath
                   << "' for offsets already exists! Use --force to overwrite.\n";
         return 1;
     }
 
     const auto compressedOffsetsFilePath = getFilePath( parsedArgs, "list-compressed-offsets" );
-    if ( !compressedOffsetsFilePath.empty() && fileExists( compressedOffsetsFilePath.c_str() ) && !force ) {
+    if ( !compressedOffsetsFilePath.empty() && fileExists( compressedOffsetsFilePath ) && !force ) {
         std::cerr << "Output file compressed offsets '" << compressedOffsetsFilePath
                   << "' for offsets already exists! Use --force to overwrite.\n";
         return 1;
