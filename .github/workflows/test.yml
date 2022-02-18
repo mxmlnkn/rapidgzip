@@ -90,7 +90,7 @@ jobs:
         set -o pipefail
         run-clang-tidy -j $( nproc ) -p build-compile-commands | tee clang-tidy.log
         if grep -E -i '(warning:|error:) .* \[[^]]*\]$' clang-tidy.log; then
-            echo -e '\e[31mThere were errors while running clang-tidy!\e[0m'
+            echo -e '\e[31mThere were warnings or errors while running clang-tidy!\e[0m'
             exit 1
         fi
 
