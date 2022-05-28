@@ -1,0 +1,50 @@
+name: Build Conda Packages
+
+on:
+  push:
+    branches: 'master'
+
+jobs:
+  Build-Conda:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - uses: conda-incubator/setup-miniconda@v2
+      with:
+        auto-update-conda: true
+
+    - name: Fix macOS CommandLineTools Bug
+      if: matrix.os == 'macos-latest'
+      shell: bash
+      run: |
+        # Fixes:
+        #   ld: unsupported tapi file type '!tapi-tbd' in YAML file '/Library/Developer/CommandLineTools/SDKs/MacOSX10.15.sdk/usr/lib/libSystem.tbd' for architecture x86_64
+        #   clang-10: error: linker command failed with exit code 1 (use -v to see invocation)
+        #   error: command '/usr/local/miniconda/conda-bld/indexed_bzip2_1630845496646/_build_env/bin/x86_64-apple-darwin13.4.0-clang++' failed with exit code 1
+        #   -> It seems like the conda build script uses the clang compiler installed into the conda environment but then tries to call the ld command from the system and their versions do clash!
+        #
+        # https://docs.ligo.org/lscsoft/conda/compiling/#installing-the-macos-sdk
+        # https://docs.conda.io/projects/conda-build/en/latest/resources/compiler-tools.html#macos-sdk
+        # https://github.com/ContinuumIO/anaconda-issues/issues/9096#issuecomment-378655747
+        # https://github.com/conda/conda-build/issues/2719#issuecomment-369484512
+        #
+        wget https://github.com/phracker/MacOSX-SDKs/releases/download/10.13/MacOSX10.9.sdk.tar.xz
+        tar -xf MacOSX10.9.sdk.tar.xz
+        cat <<EOF >> conda/conda_build_config.yaml
+        CONDA_BUILD_SYSROOT:
+          - $PWD/MacOSX10.9.sdk
+        EOF
+
+    - name: Build Conda Packages
+      run: |
+        # Circumvent bug introduced in https://github.com/conda/conda/pull/11364
+        conda install conda=4.12.0 conda-build anaconda-client conda-verify
+        conda config --set anaconda_upload no
+        cd conda
+        conda build .
