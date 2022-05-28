@@ -164,17 +164,17 @@ jobs:
         # 3.7 was released 2018-06-27 and end-of-life will be 2023-06-27
         # 3.8 was released 2019-10-14 and end-of-life will be 2024-10-14
         # 3.9 was released 2020-10-05 and end-of-life will be 2025-10-25
-        # 3.10 is to be released 2021-10-25
-        python-version: [3.6, 3.9]
+        # 3.10 iwas released 2021-10-04 and end-of-life will be 2026-10-04
+        python-version: ['3.7', '3.10']
         os: [macos-latest, ubuntu-latest, windows-latest]
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         submodules: true
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -207,20 +207,18 @@ jobs:
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
         # manylinux1 is not supported anymore because it won't compile C++17 code
-        manylinux-image: [manylinux2010, manylinux2014]
-        exclude:
-          - os: macos-latest
-            manylinux-image: manylinux2010
-          - os: windows-latest
-            manylinux-image: manylinux2010
+        # manylinux_2_24, which is newer than manylinux2014, is not supported because it comes with GCC 5.3,
+        # which cannot compile C++17 code. Just why?
+        # https://github.com/pypa/manylinux/issues/1012
+        manylinux-image: [manylinux2014]
 
     steps:
     - uses: actions/checkout@v2
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v3
       with:
-        python-version: 3.9
+        python-version: '3.10'
 
     - name: Install Dependencies
       run: |
@@ -279,7 +277,8 @@ jobs:
 
     - name: Build Conda Packages
       run: |
-        conda install conda-build anaconda-client conda-verify
+        # Circumvent bug introduced in https://github.com/conda/conda/pull/11364
+        conda install conda=4.12.0 conda-build anaconda-client conda-verify
         conda config --set anaconda_upload no
         cd conda
         conda build .
