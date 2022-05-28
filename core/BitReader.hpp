@@ -180,20 +180,7 @@ public:
     read()
     {
         static_assert( bitsWanted <= MAX_BIT_BUFFER_SIZE, "Requested bits must fit in buffer!" );
-
-        if ( bitsWanted <= m_bitBufferSize ) {
-            if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
-                m_bitBufferSize -= bitsWanted;
-                return ( m_bitBuffer >> m_bitBufferSize ) & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
-            } else {
-                const auto result = ( m_bitBuffer >> ( MAX_BIT_BUFFER_SIZE - m_bitBufferSize ) )
-                                    & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
-                m_bitBufferSize -= bitsWanted;
-                return result;
-            }
-        }
-
-        return readSafe( bitsWanted );
+        return read( bitsWanted );
     }
 
     [[nodiscard]] size_t
