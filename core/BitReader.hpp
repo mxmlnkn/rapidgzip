@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cstddef>
 #include <limits>
+#include <optional>
 #include <stdexcept>
 #include <sstream>
 #include <string>
@@ -194,6 +195,27 @@ public:
         return tell() - oldTell;
     }
 
+    template<uint8_t bitsWanted>
+    forceinline std::optional<BitBuffer>
+    peek()
+    {
+        static_assert( bitsWanted <= MAX_BIT_BUFFER_SIZE, "Requested bits must fit in buffer!" );
+        return peek( bitsWanted );
+    }
+
+    forceinline std::optional<BitBuffer>
+    peek( uint8_t bitsWanted )
+    {
+        if ( bitsWanted > m_bitBufferSize ) {
+            refillBitBuffer();
+            if ( bitsWanted > m_bitBufferSize ) {
+                return {};
+            }
+        }
+
+        return peekUnsafe( bitsWanted );
+    }
+
     /**
      * @return current position / number of bits already read.
      */
@@ -278,17 +300,52 @@ private:
         m_inputBufferPosition = 0;
     }
 
+    /**
+     * Decreases m_originalBitBufferSize by CHAR_BIT until it is as close to m_bitBufferSize as possible
+     * and clears all bits outside of m_originalBitBufferSize.
+     */
+    void
+    shrinkBitBuffer()
+    {
+        if ( m_originalBitBufferSize == m_bitBufferSize ) {
+            return;
+        }
+
+        assert( m_originalBitBufferSize % CHAR_BIT == 0 );
+        assert( m_originalBitBufferSize >= m_bitBufferSize );
+        assert( m_originalBitBufferSize >= ceilDiv( m_bitBufferSize, CHAR_BIT ) * CHAR_BIT );
+
+        m_originalBitBufferSize = ceilDiv( m_bitBufferSize, CHAR_BIT ) * CHAR_BIT;
+
+        if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
+            m_bitBuffer &= nLowestBitsSet<decltype( m_bitBuffer )>( m_originalBitBufferSize );
+        } else {
+            m_bitBuffer &= nHighestBitsSet<decltype( m_bitBuffer )>( m_originalBitBufferSize );
+        }
+    }
+
     void
     refillBitBuffer()
     {
-        if ( m_bitBufferSize != 0 ) {
-            throw std::invalid_argument( "Will only refill empty bit buffers!" );
+        /* Skip refill if it already is full (except for up to 7 empty bits) */
+        if ( m_bitBufferSize + CHAR_BIT > MAX_BIT_BUFFER_SIZE ) {
+            return;
+        }
+
+        if ( m_bitBufferSize == 0 ) {
+            m_bitBuffer = 0;
+            m_originalBitBufferSize = 0;
+        } else {
+            shrinkBitBuffer();
+
+            if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
+                m_bitBuffer >>= MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize;
+            }
         }
 
         /* Refill buffer one byte at a time to enforce endianness and avoid unaligned access. */
-        m_bitBuffer = 0;
-        for ( ; m_bitBufferSize + CHAR_BIT <= std::numeric_limits<decltype( m_bitBuffer )>::digits;
-              m_bitBufferSize += CHAR_BIT )
+        for ( ; m_originalBitBufferSize + CHAR_BIT <= MAX_BIT_BUFFER_SIZE;
+              m_bitBufferSize += CHAR_BIT, m_originalBitBufferSize += CHAR_BIT )
         {
             if ( m_inputBufferPosition >= m_inputBuffer.size() ) {
                 refillBuffer();
@@ -302,19 +359,31 @@ private:
                 m_bitBuffer |= static_cast<BitBuffer>( m_inputBuffer[m_inputBufferPosition++] );
             } else {
                 m_bitBuffer |= ( static_cast<BitBuffer>( m_inputBuffer[m_inputBufferPosition++] )
-                               << m_bitBufferSize );
+                               << m_originalBitBufferSize );
             }
         }
-
-        m_originalBitBufferSize = m_bitBufferSize;
 
         /* Move LSB bits (which are filled left-to-right) to the left if so necessary
          * so that the format is the same as for MSB bits! */
         if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
-            const auto leftPadding = MAX_BIT_BUFFER_SIZE - m_bitBufferSize;
+            const auto leftPadding = MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize;
             if ( leftPadding > 0 ) {
                 m_bitBuffer <<= leftPadding;
             }
+        }
+    }
+
+    [[nodiscard]] forceinline BitBuffer
+    peekUnsafe( uint8_t bitsWanted ) const
+    {
+        assert( bitsWanted <= m_bitBufferSize );
+
+        if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
+            return ( m_bitBuffer >> ( m_bitBufferSize - bitsWanted ) )
+                   & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
+        } else {
+            return ( m_bitBuffer >> ( MAX_BIT_BUFFER_SIZE - m_bitBufferSize ) )
+                   & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
         }
     }
 
@@ -392,19 +461,13 @@ template<bool MOST_SIGNIFICANT_BITS_FIRST, typename BitBuffer>
 inline BitBuffer
 BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::read( const uint8_t bitsWanted )
 {
-    if ( bitsWanted <= m_bitBufferSize ) {
-        if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
-            m_bitBufferSize -= bitsWanted;
-            return ( m_bitBuffer >> m_bitBufferSize ) & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
-        } else {
-            const auto result = ( m_bitBuffer >> ( MAX_BIT_BUFFER_SIZE - m_bitBufferSize ) )
-                                & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
-            m_bitBufferSize -= bitsWanted;
-            return result;
-        }
+    if ( bitsWanted > m_bitBufferSize ) {
+        return readSafe( bitsWanted );
     }
 
-    return readSafe( bitsWanted );
+    const auto result = peekUnsafe( bitsWanted );
+    m_bitBufferSize -= bitsWanted;
+    return result;
 }
 
 
