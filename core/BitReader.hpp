@@ -33,8 +33,13 @@
  * bit numbering starting from the least-significant one and also contrary to to DEFLATE (RFC 1951)!
  * @see https://github.com/dsnet/compress/blob/master/doc/bzip2-format.pdf
  * @see https://tools.ietf.org/html/rfc1951
+ *
+ * Slowdowns when using a 64-bit or 16-bit (they are both similarly slow) vs. 32-bit buffer:
+ *  - serial bzip2 decoding: 20%
+ *  - parallel (24x) bzip2 decoding: 40%
  */
-template<bool MOST_SIGNIFICANT_BITS_FIRST = true>
+template<bool MOST_SIGNIFICANT_BITS_FIRST = true,
+         typename BitBuffer = uint32_t>
 class BitReader :
     public FileReader
 {
@@ -47,6 +52,7 @@ public:
      */
     static constexpr size_t IOBUF_SIZE = 128*1024;
     static constexpr int NO_FILE = -1;
+    static constexpr auto MAX_BIT_BUFFER_SIZE = std::numeric_limits<BitBuffer>::digits;
 
 public:
     explicit
@@ -136,7 +142,7 @@ public:
      * Forcing to inline this function is superimportant because it depends even between gcc versions,
      * whether it is actually inlined or not but inlining can save 30%!
      */
-    uint32_t
+    BitBuffer
     forceinline read( uint8_t bitsWanted );
 
     uint64_t
@@ -170,18 +176,17 @@ public:
      * whether it is actually inlined or not but inlining can save 30%!
      */
     template<uint8_t bitsWanted>
-    forceinline uint32_t
+    forceinline BitBuffer
     read()
     {
-        static constexpr auto MAX_WIDTH = std::numeric_limits<decltype( m_bitBuffer )>::digits;
-        static_assert( bitsWanted <= MAX_WIDTH, "Requested bits must fit in buffer!" );
+        static_assert( bitsWanted <= MAX_BIT_BUFFER_SIZE, "Requested bits must fit in buffer!" );
 
         if ( bitsWanted <= m_bitBufferSize ) {
             if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
                 m_bitBufferSize -= bitsWanted;
                 return ( m_bitBuffer >> m_bitBufferSize ) & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
             } else {
-                const auto result = ( m_bitBuffer >> ( MAX_WIDTH - m_bitBufferSize ) )
+                const auto result = ( m_bitBuffer >> ( MAX_BIT_BUFFER_SIZE - m_bitBufferSize ) )
                                     & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
                 m_bitBufferSize -= bitsWanted;
                 return result;
@@ -264,7 +269,7 @@ private:
         return position - m_bitBufferSize;
     }
 
-    uint32_t
+    BitBuffer
     readSafe( uint8_t );
 
     void
@@ -307,9 +312,10 @@ private:
 
             if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
                 m_bitBuffer <<= CHAR_BIT;
-                m_bitBuffer |= static_cast<uint32_t>( m_inputBuffer[m_inputBufferPosition++] );
+                m_bitBuffer |= static_cast<BitBuffer>( m_inputBuffer[m_inputBufferPosition++] );
             } else {
-                m_bitBuffer |= ( static_cast<uint32_t>( m_inputBuffer[m_inputBufferPosition++] ) << m_bitBufferSize );
+                m_bitBuffer |= ( static_cast<BitBuffer>( m_inputBuffer[m_inputBufferPosition++] )
+                               << m_bitBufferSize );
             }
         }
 
@@ -318,7 +324,7 @@ private:
         /* Move LSB bits (which are filled left-to-right) to the left if so necessary
          * so that the format is the same as for MSB bits! */
         if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
-            const auto leftPadding = std::numeric_limits<decltype( m_bitBuffer )>::digits - m_bitBufferSize;
+            const auto leftPadding = MAX_BIT_BUFFER_SIZE - m_bitBufferSize;
             if ( leftPadding > 0 ) {
                 m_bitBuffer <<= leftPadding;
             }
@@ -385,7 +391,7 @@ public:
      *
      * In both cases, the amount of bits wanted are extracted by shifting to the right and and'ing with a bit mask.
      */
-    uint32_t m_bitBuffer = 0;
+    BitBuffer m_bitBuffer = 0;
     uint8_t m_bitBufferSize = 0; // size of bitbuffer in bits
     uint8_t m_originalBitBufferSize = 0; // size of valid bitbuffer bits including already read ones
 };
@@ -395,18 +401,16 @@ public:
  * Note that splitting part of this method off into readSafe made the compiler actually
  * inline this now small function and thereby sped up runtimes significantly!
  */
-template<bool MOST_SIGNIFICANT_BITS_FIRST>
-inline uint32_t
-BitReader<MOST_SIGNIFICANT_BITS_FIRST>::read( const uint8_t bitsWanted )
+template<bool MOST_SIGNIFICANT_BITS_FIRST, typename BitBuffer>
+inline BitBuffer
+BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::read( const uint8_t bitsWanted )
 {
     if ( bitsWanted <= m_bitBufferSize ) {
-        static constexpr auto MAX_WIDTH = std::numeric_limits<decltype( m_bitBuffer )>::digits;
-
         if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
             m_bitBufferSize -= bitsWanted;
             return ( m_bitBuffer >> m_bitBufferSize ) & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
         } else {
-            const auto result = ( m_bitBuffer >> ( MAX_WIDTH - m_bitBufferSize ) )
+            const auto result = ( m_bitBuffer >> ( MAX_BIT_BUFFER_SIZE - m_bitBufferSize ) )
                                 & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
             m_bitBufferSize -= bitsWanted;
             return result;
@@ -417,9 +421,9 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST>::read( const uint8_t bitsWanted )
 }
 
 
-template<bool MOST_SIGNIFICANT_BITS_FIRST>
-inline uint32_t
-BitReader<MOST_SIGNIFICANT_BITS_FIRST>::readSafe( const uint8_t bitsWanted )
+template<bool MOST_SIGNIFICANT_BITS_FIRST, typename BitBuffer>
+inline BitBuffer
+BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::readSafe( const uint8_t bitsWanted )
 {
     assert( bitsWanted > m_bitBufferSize );
 
@@ -460,10 +464,11 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST>::readSafe( const uint8_t bitsWanted )
 }
 
 
-template<bool MOST_SIGNIFICANT_BITS_FIRST>
+template<bool MOST_SIGNIFICANT_BITS_FIRST, typename BitBuffer>
 inline size_t
-BitReader<MOST_SIGNIFICANT_BITS_FIRST>::seek( long long int offsetBits,
-                                              int           origin )
+BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
+    long long int offsetBits,
+    int           origin )
 {
     switch ( origin )
     {
