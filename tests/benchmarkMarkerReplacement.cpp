@@ -76,6 +76,9 @@ replaceInPlaceTransformAlternativeFormat( std::vector<std::uint16_t>&      buffe
 }
 
 
+/* This version tries to profit from SIMD even though it is in-place by doing the replacement and
+ * compacting in two steps. This *does* lead to improved performance when SIMD is turned but it still
+ * is worse than a simple combined loop without SIMD. */
 void
 replaceInPlaceHalfWindowAlternativeFormat( std::vector<std::uint16_t>&      buffer,
                                            const std::vector<std::uint8_t>& window )
@@ -100,6 +103,8 @@ replaceInPlaceHalfWindowAlternativeFormat( std::vector<std::uint16_t>&      buff
 }
 
 
+/* Appending the identity bytes to the window probably not only is able to get rid of the branching
+ * inside the replacement loop, it also leads to the whole window being loaded into cache beforehand. */
 void
 replaceInPlaceExtendedWindowAlternativeFormat( std::vector<std::uint16_t>&      buffer,
                                                const std::vector<std::uint8_t>& window )
@@ -113,7 +118,7 @@ replaceInPlaceExtendedWindowAlternativeFormat( std::vector<std::uint16_t>&      
     }
     std::copy( window.begin(), window.end(), extendedWindow.begin() + 256 );
 
-    #pragma omp parallel for simd
+    //#pragma omp parallel for simd  // triggers segfault probably because it is in-place!
     for ( size_t i = 0; i < buffer.size(); ++i ) {
         if ( buffer[i] >= 32 * 1024 + 256 ) {
             throw std::domain_error( "Illegal marker byte!" );
@@ -302,10 +307,12 @@ main()
     measureByteComparison( buffer, window, replaceInPlace2 );
     std::cout << "[replaceInPlaceAlternativeFormat] ";
     measureByteComparison( bufferAlternativeFormat, window, replaceInPlaceAlternativeFormat );
-    std::cout << "[replaceInPlaceHalfWindowAlternativeFormat] ";
-    measureByteComparison( bufferAlternativeFormat, window, replaceInPlaceHalfWindowAlternativeFormat );
     std::cout << "[replaceInPlaceTransformAlternativeFormat] ";
     measureByteComparison( bufferAlternativeFormat, window, replaceInPlaceTransformAlternativeFormat );
+    std::cout << "[replaceInPlaceHalfWindowAlternativeFormat] ";
+    measureByteComparison( bufferAlternativeFormat, window, replaceInPlaceHalfWindowAlternativeFormat );
+    std::cout << "[replaceInPlaceExtendedWindowAlternativeFormat] ";
+    measureByteComparison( bufferAlternativeFormat, window, replaceInPlaceExtendedWindowAlternativeFormat );
 
     std::cout << "\n";
     std::cout << "[onlyCompactBufferInPlace] ";
@@ -324,12 +331,13 @@ main()
 
 
 /**
-[replaceInPlace                           ] Processed 268435456 B in 0.16079 s   -> 1669.48 MB/s and replaced 66106853 markers.
-[replaceInPlace2                          ] Processed 268435456 B in 0.128343 s  -> 2091.54 MB/s and replaced 66106853 markers.
-[replaceInPlaceAlternativeFormat          ] Processed 268435456 B in 0.129165 s  -> 2078.24 MB/s and replaced 66106882 markers.
-[replaceInPlaceHalfWindowAlternativeFormat] Processed 268435456 B in 0.221808 s  -> 1210.22 MB/s and replaced 66106882 markers.
-[replaceInPlaceTransformAlternativeFormat ] Processed 268435456 B in 0.117 s     -> 2294.33 MB/s and replaced 66106882 markers.
+[replaceInPlace                               ] Processed 268435456 B in 0.16079 s   -> 1669.48 MB/s and replaced 66106853 markers.
+[replaceInPlace2                              ] Processed 268435456 B in 0.128343 s  -> 2091.54 MB/s and replaced 66106853 markers.
+[replaceInPlaceAlternativeFormat              ] Processed 268435456 B in 0.129165 s  -> 2078.24 MB/s and replaced 66106882 markers.
+[replaceInPlaceTransformAlternativeFormat     ] Processed 268435456 B in 0.117 s     -> 2294.33 MB/s and replaced 66106882 markers.
     -> Nice! std::transform seems to be the fastest if only by a few percent.
+[replaceInPlaceHalfWindowAlternativeFormat    ] Processed 268435456 B in 0.221808 s  -> 1210.22 MB/s and replaced 66106882 markers.
+[replaceInPlaceExtendedWindowAlternativeFormat] Processed 268435456 B in 0.106715 s  -> 2515.45 MB/s and replaced 66106882 markers.
 
 [onlyCompactBufferInPlace                 ] Processed 268435456 B in 0.0724053 s -> 3707.4 MB/s and replaced 66106882 markers.
 [onlyCompactBufferWithIntermediary        ] Processed 268435456 B in 0.0732716 s -> 3663.57 MB/s and replaced 66106882 markers.
