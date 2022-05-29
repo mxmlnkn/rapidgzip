@@ -19,9 +19,9 @@
 #include <FileReader.hpp>
 #include <ParallelBitStringFinder.hpp>
 
-#include "BlockFetcher.hpp"
-#include "bzip2.hpp"
+#include "BZ2BlockFetcher.hpp"
 #include "BZ2ReaderInterface.hpp"
+#include "bzip2.hpp"
 
 #ifdef WITH_PYTHON_SUPPORT
     #include "PythonFileReader.hpp"
@@ -35,7 +35,7 @@ class ParallelBZ2Reader final :
     public BZ2ReaderInterface
 {
 public:
-    using BlockFetcher = ::BlockFetcher<FetchingStrategy::FetchNextSmart>;
+    using BlockFetcher = ::BZ2BlockFetcher<FetchingStrategy::FetchNextSmart>;
     using BlockFinder = typename BlockFetcher::BlockFinder;
     using BitReader = bzip2::BitReader;
 
