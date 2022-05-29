@@ -101,21 +101,7 @@ public:
     get( size_t                blockOffset,
          std::optional<size_t> dataBlockIndex = {} )
     {
-
-        /* Check whether the desired offset is prefetched. */
-        std::future<BlockData> resultFuture;
-        const auto match = std::find_if(
-            m_prefetching.begin(), m_prefetching.end(),
-            [blockOffset] ( auto const& kv ){ return kv.first == blockOffset; }
-        );
-
-        if ( match != m_prefetching.end() ) {
-            resultFuture = std::move( match->second );
-            m_prefetching.erase( match );
-            assert( resultFuture.valid() );
-
-            ++m_prefetchDirectHits;
-        }
+        auto resultFuture = takeFromPrefetchQueue( blockOffset );
 
         /* Access cache before data might get evicted!
          * Access cache after prefetch queue to avoid incrementing the cache misses counter.*/
@@ -130,85 +116,16 @@ public:
             assert( resultFuture.valid() );
         }
 
-        using namespace std::chrono_literals;
+        processReadyPrefetches();
 
-        /* Check for ready prefetches and move them to cache. */
-        for ( auto it = m_prefetching.begin(); it != m_prefetching.end(); ) {
-            auto& [prefetchedBlockOffset, prefetchedFuture] = *it;
-
-            if ( prefetchedFuture.valid() && ( prefetchedFuture.wait_for( 0s ) == std::future_status::ready ) ) {
-                m_cache.insert( prefetchedBlockOffset, std::make_shared<BlockData>( prefetchedFuture.get() ) );
-
-                it = m_prefetching.erase( it );
-            } else {
-                ++it;
+        prefetchNewBlocks(
+            dataBlockIndex ? *dataBlockIndex : m_blockFinder->find( blockOffset ),
+            [&]() {
+                using namespace std::chrono_literals;
+                return result.has_value() ||
+                       ( resultFuture.valid() && ( resultFuture.wait_for( 0s ) == std::future_status::ready ) );
             }
-        }
-
-        /* Get blocks to prefetch. In order to avoid oscillating caches, the fetching strategy should ony return
-         * less than the cache size number of blocks. It is fine if that means no work is being done in the background
-         * for some calls to 'get'! */
-        if ( !dataBlockIndex ) {
-            dataBlockIndex = m_blockFinder->find( blockOffset );
-        }
-        m_fetchingStrategy.fetch( *dataBlockIndex );
-        auto blocksToPrefetch = m_fetchingStrategy.prefetch( m_parallelization );
-
-        for ( auto blockIndexToPrefetch : blocksToPrefetch ) {
-            if ( m_prefetching.size() + /* thread with the requested block */ 1 >= m_parallelization ) {
-                break;
-            }
-
-            if ( blockIndexToPrefetch == *dataBlockIndex ) {
-                throw std::logic_error( "The fetching strategy should not return the "
-                                        "last fetched block for prefetching!" );
-            }
-
-            if ( m_blockFinder->finalized() && ( blockIndexToPrefetch >= m_blockFinder->size() ) ) {
-                continue;
-            }
-
-            const auto requestedResultIsReady =
-                [&result, &resultFuture]()
-                {
-                    return result.has_value() ||
-                        ( resultFuture.valid() && ( resultFuture.wait_for( 0s ) == std::future_status::ready ) );
-                };
-
-            /* If the block with the requested index has not been found yet and if we have to wait on the requested
-             * result future anyway, then wait a non-zero amount of time on the BlockFinder! */
-            std::optional<size_t> prefetchBlockOffset;
-            do
-            {
-                prefetchBlockOffset = m_blockFinder->get( blockIndexToPrefetch, requestedResultIsReady() ? 0 : 0.001 );
-            }
-            while ( !prefetchBlockOffset && !requestedResultIsReady() );
-
-            if ( !prefetchBlockOffset.has_value() ) {
-                m_waitOnBlockFinderCount++;
-            }
-
-            /* Do not prefetch already cached/prefetched blocks or block indexes which are not yet in the block map. */
-            if ( !prefetchBlockOffset.has_value()
-                 || ( m_prefetching.find( *prefetchBlockOffset ) != m_prefetching.end() )
-                 || m_cache.test( *prefetchBlockOffset ) )
-            {
-                continue;
-            }
-
-            ++m_prefetchCount;
-            auto decodeTask = [this, offset = *prefetchBlockOffset](){ return decodeBlock( offset ); };
-            auto prefetchedFuture = m_threadPool.submitTask( std::move( decodeTask ) );
-            const auto [_, wasInserted] = m_prefetching.emplace( *prefetchBlockOffset, std::move( prefetchedFuture ) );
-            if ( !wasInserted ) {
-                std::logic_error( "Submitted future could not be inserted to prefetch queue!" );
-            }
-        }
-
-        if ( m_threadPool.unprocessedTasksCount() > m_parallelization ) {
-            throw std::logic_error( "The thread pool should not have more tasks than there are prefetching futures!" );
-
-        }
+        );
 
         /* Return result */
         if ( result ) {
@@ -250,6 +167,119 @@ public:
     }
 
 private:
+    std::future<BlockData>
+    takeFromPrefetchQueue( size_t blockOffset )
+    {
+        /* Check whether the desired offset is prefetched. */
+        std::future<BlockData> resultFuture;
+        const auto match = std::find_if(
+            m_prefetching.begin(), m_prefetching.end(),
+            [blockOffset] ( auto const& kv ){ return kv.first == blockOffset; }
+        );
+
+        if ( match != m_prefetching.end() ) {
+            resultFuture = std::move( match->second );
+            m_prefetching.erase( match );
+            assert( resultFuture.valid() );
+
+            ++m_prefetchDirectHits;
+        }
+
+        return resultFuture;
+    }
+
+
+    /* Check for ready prefetches and move them to cache. */
+    void
+    processReadyPrefetches()
+    {
+        using namespace std::chrono_literals;
+
+        for ( auto it = m_prefetching.begin(); it != m_prefetching.end(); ) {
+            auto& [prefetchedBlockOffset, prefetchedFuture] = *it;
+
+            if ( prefetchedFuture.valid() && ( prefetchedFuture.wait_for( 0s ) == std::future_status::ready ) ) {
+                m_cache.insert( prefetchedBlockOffset, std::make_shared<BlockData>( prefetchedFuture.get() ) );
+
+                it = m_prefetching.erase( it );
+            } else {
+                ++it;
+            }
+        }
+    }
+
+
+    /**
+     * Fills m_prefetching up with a maximum of m_parallelization-1 new tasks predicted
+     * based on the given last accessed block index(es).
+     * @param dataBlockIndex The currently accessed block index as needed to query the prefetcher.
+     * @param stopPrefetching The prefetcher might wait a bit on the block finder but when stopPrefetching returns true
+     *                        it will stop that and return before having completely filled the prefetch queue.
+     */
+    void
+    prefetchNewBlocks( size_t                       dataBlockIndex,
+                       const std::function<bool()>& stopPrefetching )
+    {
+        /* Get blocks to prefetch. In order to avoid oscillating caches, the fetching strategy should ony return
+         * less than the cache size number of blocks. It is fine if that means no work is being done in the background
+         * for some calls to 'get'! */
+        m_fetchingStrategy.fetch( dataBlockIndex );
+        auto blocksToPrefetch = m_fetchingStrategy.prefetch( /* maxAmountToPrefetch */ m_parallelization );
+
+        for ( auto blockIndexToPrefetch : blocksToPrefetch ) {
+            if ( m_prefetching.size() + /* thread with the requested block */ 1 >= m_parallelization ) {
+                break;
+            }
+
+            if ( blockIndexToPrefetch == dataBlockIndex ) {
+                throw std::logic_error( "The fetching strategy should not return the "
+                                        "last fetched block for prefetching!" );
+            }
+
+            if ( m_blockFinder->finalized() && ( blockIndexToPrefetch >= m_blockFinder->size() ) ) {
+                continue;
+            }
+
+            /* If the block with the requested index has not been found yet and if we have to wait on the requested
+             * result future anyway, then wait a non-zero amount of time on the BlockFinder! */
+            std::optional<size_t> prefetchBlockOffset;
+            do
+            {
+                prefetchBlockOffset = m_blockFinder->get( blockIndexToPrefetch, stopPrefetching() ? 0 : 0.001 );
+            }
+            while ( !prefetchBlockOffset && !stopPrefetching() );
+
+            if ( !prefetchBlockOffset.has_value() ) {
+                m_waitOnBlockFinderCount++;
+            }
+
+            /* Do not prefetch already cached/prefetched blocks or block indexes which are not yet in the block map. */
+            if ( !prefetchBlockOffset.has_value()
+                 || ( m_prefetching.find( *prefetchBlockOffset ) != m_prefetching.end() )
+                 || m_cache.test( *prefetchBlockOffset ) )
+            {
+                continue;
+            }
+
+            ++m_prefetchCount;
+            auto decodeTask = [this, offset = *prefetchBlockOffset](){ return decodeBlock( offset ); };
+            auto prefetchedFuture = m_threadPool.submitTask( std::move( decodeTask ) );
+            const auto [_, wasInserted] = m_prefetching.emplace( *prefetchBlockOffset, std::move( prefetchedFuture ) );
+            if ( !wasInserted ) {
+                std::logic_error( "Submitted future could not be inserted to prefetch queue!" );
+            }
+        }
+
+        /* Note that only m_parallelization-1 blocks will be prefetched. Meaning that even with the unconditionally
+         * submitted requested block, the thread pool should never contain more than m_parallelization tasks!
+         * All tasks submitted to the thread pool, should either exist in m_prefetching or only temporary inside
+         * 'resultFuture' in the 'read' method. */
+        if ( m_threadPool.unprocessedTasksCount() > m_parallelization ) {
+            throw std::logic_error( "The thread pool should not have more tasks than there are prefetching futures!" );
+        }
+    }
+
+
     [[nodiscard]] BlockData
     decodeBlock( size_t blockOffset ) const
     {
