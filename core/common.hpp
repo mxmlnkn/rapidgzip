@@ -41,7 +41,7 @@
     #define S_IFMT _S_IFMT
 
     template<typename FileMode, typename FileType>
-    bool
+    [[nodiscard]] bool
     testFileType( FileMode fileMode,
                   FileType fileType )
     {
@@ -68,7 +68,7 @@ template<typename I1,
             std::is_integral<I1>::value &&
             std::is_integral<I2>::value
          >::type>
-constexpr I1
+[[nodiscard]] constexpr I1
 ceilDiv( I1 dividend,
          I2 divisor )
 {
@@ -107,7 +107,7 @@ operator<<( std::ostream&  out,
 
 
 template <typename S, typename T>
-inline bool
+[[nodiscard]] inline bool
 startsWith( const S& fullString,
             const T& prefix,
             bool     caseSensitive )
@@ -126,7 +126,7 @@ startsWith( const S& fullString,
 
 
 template <typename S, typename T>
-inline bool
+[[nodiscard]] inline bool
 endsWith( const S& fullString,
           const T& suffix,
           bool     caseSensitive )
@@ -144,7 +144,7 @@ endsWith( const S& fullString,
 }
 
 
-inline std::chrono::time_point<std::chrono::high_resolution_clock>
+[[nodiscard]] inline std::chrono::time_point<std::chrono::high_resolution_clock>
 now()
 {
     return std::chrono::high_resolution_clock::now();
@@ -155,9 +155,9 @@ now()
  * @return duration in seconds
  */
 template<typename T0, typename T1>
-double
+[[nodiscard]] double
 duration( const T0& t0,
-          const T1& t1 )
+          const T1& t1 = now() )
 {
     return std::chrono::duration<double>( t1 - t0 ).count();
 }
@@ -192,7 +192,7 @@ public:
         return m_out.str() + "\n";
     }
 
-    std::string
+    [[nodiscard]] std::string
     str() const
     {
         return m_out.str() + "\n";
@@ -203,7 +203,7 @@ private:
 };
 
 
-inline std::string
+[[nodiscard]] inline std::string
 toString( std::future_status status )
 {
     switch ( status )
@@ -278,7 +278,7 @@ require( bool               condition,
 
 
 template<typename T>
-static constexpr typename T::value_type
+[[nodiscard]] static constexpr typename T::value_type
 getMinPositive( const T& container )
 {
     if ( container.empty() ) {
@@ -298,8 +298,9 @@ getMinPositive( const T& container )
     return result;
 }
 
+
 template<typename T>
-static constexpr typename T::value_type
+[[nodiscard]] static constexpr typename T::value_type
 getMax( const T& container )
 {
     const auto match = std::max_element( container.begin(), container.end() );
@@ -307,4 +308,12 @@ getMax( const T& container )
         throw std::invalid_argument( "Container must not be empty!" );
     }
     return *match;
+}
+
+
+[[nodiscard]] inline bool
+testFlags( const uint64_t value,
+           const uint64_t flags )
+{
+    return ( value & flags ) != 0;
 }
