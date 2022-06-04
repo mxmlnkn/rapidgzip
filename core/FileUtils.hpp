@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -96,3 +97,27 @@ fdFilePath( int fileDescriptor )
     filename << "/dev/fd/" << fileDescriptor;
     return filename.str();
 }
+
+
+#ifndef __APPLE_CC__  // Missing std::filesytem::path support in wheels
+[[nodiscard]] std::string
+findParentFolderContaining( const std::string& folder,
+                            const std::string& relativeFilePath )
+{
+    auto parentFolder = std::filesystem::absolute( folder );
+    while ( !parentFolder.empty() )
+    {
+        const auto filePath = parentFolder / relativeFilePath;
+        if ( std::filesystem::exists( filePath ) ) {
+            return parentFolder.string();
+        }
+
+        if ( parentFolder.parent_path() == parentFolder ) {
+            break;
+        }
+        parentFolder = parentFolder.parent_path();
+    }
+
+    return {};
+}
+#endif

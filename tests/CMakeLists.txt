@@ -48,6 +48,13 @@ target_link_libraries(testPrefetcher PRIVATE indexed_bzip2_parallel)
 add_test(NAME Test-Prefetcher COMMAND testPrefetcher)
 add_dependencies(all_tests testPrefetcher)
 
+add_executable(testGzipIndexFormat)
+target_sources(testGzipIndexFormat PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testGzipIndexFormat.cpp)
+target_link_libraries(testGzipIndexFormat PRIVATE libpragzip)
+add_test(NAME Test-GzipIndexFormat COMMAND testGzipIndexFormat)
+add_dependencies(all_tests testGzipIndexFormat)
+
+
 add_executable(benchmarkBitStringFinder)
 target_sources(benchmarkBitStringFinder PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkBitStringFinder.cpp)
 target_link_libraries(benchmarkBitStringFinder PRIVATE indexed_bzip2_parallel)

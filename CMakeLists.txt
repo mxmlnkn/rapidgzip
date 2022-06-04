@@ -34,6 +34,7 @@ find_package(Threads REQUIRED)
 
 add_subdirectory(core)
 add_subdirectory(indexed_bzip2)
+add_subdirectory(pragzip)
 add_subdirectory(tools)
 add_subdirectory(tests)
 
