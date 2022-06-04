@@ -4,6 +4,7 @@
 #include <cctype>
 #include <chrono>
 #include <ctime>
+#include <filesystem>
 #include <fstream>
 #include <future>
 #include <iomanip>
@@ -163,6 +164,14 @@ duration( const T0& t0,
 }
 
 
+[[nodiscard]] uint64_t
+unixTime()
+{
+    const auto now = std::chrono::system_clock::now().time_since_epoch();
+    return static_cast<uint64_t>( std::chrono::duration_cast<std::chrono::seconds>( now ).count() );
+}
+
+
 /**
  * Use like this: std::cerr << ( ThreadSafeOutput() << "Hello" << i << "there" ).str();
  */
@@ -317,3 +326,48 @@ testFlags( const uint64_t value,
 {
     return ( value & flags ) != 0;
 }
+
+
+/* error: 'std::filesystem::path' is unavailable: introduced in macOS 10.15.
+ * Fortunately, this is only needed for the tests, so the incomplete std::filesystem support
+ * is not a problem for building the manylinux wheels on the pre 10.15 macos kernel. */
+#ifndef __APPLE_CC__
+void
+createRandomTextFile( std::filesystem::path path,
+                      size_t                size )
+{
+    std::ofstream textFile( path );
+    for ( size_t i = 0; i < size; ++i ) {
+        const auto c = i % 80 == 0 ? '\n' : 'A' + ( rand() % ( 'Z' - 'A' ) );
+        textFile << c;
+    }
+}
+
+
+class TemporaryDirectory
+{
+public:
+    TemporaryDirectory( std::filesystem::path path ) :
+        m_path( std::move( path ) )
+    {}
+
+    ~TemporaryDirectory()
+    {
+        std::filesystem::remove_all( m_path );
+    }
+
+    operator std::filesystem::path() const
+    {
+        return m_path;
+    }
+
+    const std::filesystem::path&
+    path() const
+    {
+        return m_path;
+    }
+
+private:
+    const std::filesystem::path m_path;
+};
+#endif

@@ -263,62 +263,42 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
 }
 
 
-int
-main( int    argc,
-      char** argv )
+[[nodiscard]] TemporaryDirectory
+createTemporaryDirectory()
 {
-    if ( argc == 0 ) {
-        std::cerr << "Expected at least the launch command as the first argument!\n";
+    const std::filesystem::path tmpFolderName = "indexed_bzip2.testParellelBZ2Reader." + std::to_string( unixTime() );
+    std::filesystem::create_directory( tmpFolderName );
+    return tmpFolderName;
+}
+
+
+int
+main()
+{
+    const auto tmpFolder = createTemporaryDirectory();
+
+    const auto decodedTestFilePath = tmpFolder.path() / "decoded";
+    createRandomTextFile( decodedTestFilePath, 2 * 1024 * 1024 );
+
+    const auto command = "bzip2 -k -- '" + std::string( decodedTestFilePath ) + "'";
+    const auto returnCode = std::system( command.c_str() );
+    if ( returnCode != 0 ) {
+        std::cerr << "Failed to compress sample file\n";
         return 1;
     }
+    const auto encodedTestFilePath = tmpFolder.path() / "encoded-sample.bz2";
+    std::filesystem::rename( tmpFolder.path() / "decoded.bz2", encodedTestFilePath );
 
-    const std::string binaryFilePath( argv[0] );
-    std::string binaryFolder = ".";
-    if ( const auto lastSlash = binaryFilePath.find_last_of( '/' ); lastSlash != std::string::npos ) {
-        binaryFolder = std::string( binaryFilePath.begin(), binaryFilePath.begin() + lastSlash );
-    }
-
-    /* Look for decoded-sample in any of the parent folders. */
-    while ( !binaryFolder.empty() )
+    try
     {
-        auto filePath = binaryFolder + "/decoded-sample";
-        if ( fileExists( filePath ) ) {
-            break;
-        }
-
-        if ( const auto lastSlash = binaryFolder.find_last_of( '/' ); lastSlash != std::string::npos ) {
-            binaryFolder = std::string( binaryFolder.begin(), binaryFolder.begin() + lastSlash );
-        } else {
-            break;
-        }
+        testSimpleOpenAndClose( encodedTestFilePath );
+        testDecodingBz2ForFirstTime( decodedTestFilePath, encodedTestFilePath );
+    } catch ( const std::exception& exception ) {
+        /* Note that the destructor for TemporaryDirectory might not be called for uncaught exceptions!
+         * @see https://stackoverflow.com/questions/222175/why-destructor-is-not-called-on-exception */
+        std::cerr << "Caught exception: " << exception.what() << "\n";
+        gnTestErrors += 1;
     }
-
-    /**
-     * head -c $(( 64*1024*1024 )) /dev/urandom > decoded-sample
-     * lbzip2 -k -c decoded-sample > encoded-sample.bz2
-     */
-    const auto decodedTestFilePath = binaryFolder + "/decoded-sample";
-    const auto encodedTestFilePath = binaryFolder + "/encoded-sample.bz2";
-
-    bool fileNotFound = false;
-
-    if ( !fileExists( encodedTestFilePath ) ) {
-        std::cerr << "Required compressed sample test file not found: " << encodedTestFilePath << "\n";
-        fileNotFound = true;
-    }
-
-    if ( !fileExists( decodedTestFilePath ) ) {
-        std::cerr << "Required uncompressed sample test file not found: " << decodedTestFilePath << "\n";
-        fileNotFound = true;
-    }
-
-    if ( fileNotFound ) {
-        return 1;
-    }
-
-    testSimpleOpenAndClose( encodedTestFilePath );
-
-    testDecodingBz2ForFirstTime( decodedTestFilePath, encodedTestFilePath );
 
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
 
