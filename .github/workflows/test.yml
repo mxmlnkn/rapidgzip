@@ -62,9 +62,14 @@ jobs:
     - name: Code Coverage
       run: |
         mkdir -p build-codeov && cd -- "$_"
+        # It should be compiled with the same g++ version as anylzed with gcov!
+        # If g++ --version and gcov --version print different versions, there might be problems when creating
+        # the coverage report, e.g., I had: "version 'A85*', prefer 'B12*'".
+        # It is possible to specify a different gcov version to lcov using, e.g., lcov --gcov-tool gcov-8.
+        # For me it compiled with g++-8 but used gcov-11 by default!
         CXX=g++ CC=gcc cmake -DCMAKE_BUILD_TYPE=Debug -DCODE_COVERAGE=ON ..
         cmake --build . -- check
-        lcov --capture --directory . --base-directory "$( cd ../indexed_bzip2 && pwd  )" --no-external --output-file coverage.info
+        lcov --capture --directory . --base-directory "$( cd .. && pwd  )" --no-external --output-file coverage.info
         lcov --list coverage.info
         bash <( wget -O- -q https://codecov.io/bash ) -f coverage.info
 
