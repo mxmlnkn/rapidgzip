@@ -114,6 +114,10 @@ testMSBBitReader()
     REQUIRE( bitReader.tell() == 5 );
     REQUIRE( bitReader.read<32>() == 0b010'1010'1010'0000'1111'0000'1111'0000'1UL );
     REQUIRE( bitReader.tell() == 37 );
+
+    REQUIRE( bitReader.seek( 0, SEEK_END ) == 40 );
+    REQUIRE( bitReader.tell() == 40 );
+    REQUIRE( bitReader.eof() );
 }
 
 
@@ -184,6 +188,10 @@ testLSBBitReader()
     REQUIRE( result == 0xF0F0'FAA5UL );
     REQUIRE( bitReader.read<2>() == 0b00UL );
     REQUIRE( bitReader.read<2>() == 0b00UL );
+    REQUIRE( bitReader.tell() == 40 );
+    REQUIRE( bitReader.eof() );
+
+    REQUIRE( bitReader.seek( 0, SEEK_END ) == 40 );
     REQUIRE( bitReader.tell() == 40 );
     REQUIRE( bitReader.eof() );
 }

@@ -67,13 +67,15 @@ public:
         const auto nBytesRead = m_currentPosition + nMaxBytesToRead > m_data.size()
                                 ? m_data.size() - m_currentPosition
                                 : nMaxBytesToRead;
-        //std::cerr << "Requested " << nMaxBytesToRead << " B to read but will read " << nBytesRead << "\n";
 
         if ( nBytesRead == 0 ) {
             return 0;
         }
 
-        std::memcpy( buffer, m_data.data() + m_currentPosition, nBytesRead );
+        if ( buffer != nullptr ) {
+            std::memcpy( buffer, m_data.data() + m_currentPosition, nBytesRead );
+        }
+
         m_currentPosition += nBytesRead;
 
         return nBytesRead;

@@ -113,7 +113,8 @@ public:
 
         /* Skip buffering step for very large reads. */
         if ( nMaxBytesToRead - nBytesRead >= m_maxBufferSize ) {
-            const auto nBytesReadFromFile = m_file->read( buffer + nBytesRead, nMaxBytesToRead - nBytesRead );
+            const auto nBytesReadFromFile = m_file->read( buffer == nullptr ? buffer : buffer + nBytesRead,
+                                                          nMaxBytesToRead - nBytesRead );
             m_originalBufferOffset += nBytesReadFromFile;
             return nBytesRead + nBytesReadFromFile;
         }

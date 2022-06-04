@@ -199,8 +199,10 @@ public:
         }
 
         const auto nBytesRead = PyBytes_Size( bytes );
-        std::memset( buffer, '\0', nBytesRead );
-        std::memcpy( buffer, PyBytes_AsString( bytes ), nBytesRead );
+        if ( buffer != nullptr ) {
+            std::memset( buffer, '\0', nBytesRead );
+            std::memcpy( buffer, PyBytes_AsString( bytes ), nBytesRead );
+        }
 
         if ( nBytesRead <= 0 ) {
             std::stringstream message;

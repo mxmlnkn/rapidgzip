@@ -115,7 +115,20 @@ public:
             return 0;
         }
 
-        const auto nBytesRead = std::fread( buffer, /* element size */ 1, nMaxBytesToRead, m_file.get() );
+        /**
+         * @see https://pubs.opengroup.org/onlinepubs/009696899/functions/fseek.html
+         * > The fseek() function shall allow the file-position indicator to be set beyond the end of existing
+         * > data in the file. If data is later written at this point, subsequent reads of data in the gap shall
+         * > return bytes with the value 0 until data is actually written into the gap.
+         * Because of this, it is not possible to simply use std::fseek. Because then, we would not be able to infer
+         * whether we read past the end nor how many bytes we would have been able to read if the buffer was valid!
+         */
+        const auto nBytesRead = buffer == nullptr
+                                ? std::min( nMaxBytesToRead, size() - tell() )
+                                : std::fread( buffer, /* element size */ 1, nMaxBytesToRead, m_file.get() );
+        if ( buffer == nullptr ) {
+            std::fseek( m_file.get(), nBytesRead, SEEK_CUR );
+        }
 
         if ( nBytesRead == 0 ) {
         #if 1

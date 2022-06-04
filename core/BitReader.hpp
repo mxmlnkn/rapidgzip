@@ -163,9 +163,15 @@ public:
           size_t nBytesToRead ) override
     {
         const auto oldTell = tell();
-        for ( size_t i = 0; i < nBytesToRead; ++i ) {
-            outputBuffer[i] = static_cast<char>( read( CHAR_BIT ) );
+
+        if ( outputBuffer == nullptr ) {
+            seek( nBytesToRead, SEEK_CUR );
+        } else {
+            for ( size_t i = 0; i < nBytesToRead; ++i ) {
+                outputBuffer[i] = static_cast<char>( read( CHAR_BIT ) );
+            }
         }
+
         return tell() - oldTell;
     }
 
@@ -506,16 +512,10 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
         break;
     }
 
-    if ( offsetBits < 0 ) {
-        throw std::invalid_argument( "Effective offset is before file start!" );
-    }
+    offsetBits = std::clamp( offsetBits, 0LL, static_cast<long long int>( size() ) );
 
     if ( static_cast<size_t>( offsetBits ) == tell() ) {
         return static_cast<size_t>( offsetBits );
-    }
-
-    if ( static_cast<size_t>( offsetBits ) >= size() ) {
-        throw std::invalid_argument( "Effective offset is after file end!" );
     }
 
     if ( !seekable() && ( static_cast<size_t>( offsetBits ) < tell() ) ) {
