@@ -6,8 +6,8 @@ project("Indexed BZip2 Decoder" CXX)
 option(CODE_COVERAGE "Enable coverage reporting" OFF)
 
 add_compile_options(
-    "$<$<CXX_COMPILER_ID:Clang>:-Wall;-Wextra;-Wshadow>"
-    "$<$<CXX_COMPILER_ID:GNU>:-Wall;-Wextra;-Wshadow;-Wunused;-Wsuggest-override>"
+    "$<$<CXX_COMPILER_ID:Clang>:-Wall;-Wextra;-Wshadow;-Werror=return-type>"
+    "$<$<CXX_COMPILER_ID:GNU>:-Wall;-Wextra;-Wshadow;-Wunused;-Wsuggest-override;-Werror=return-type>"
     "$<$<AND:$<CXX_COMPILER_ID:Clang,GNU>,$<BOOL:${CODE_COVERAGE}>>:-O0;-g;--coverage>"
 )
 
