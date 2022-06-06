@@ -48,6 +48,7 @@ target_link_libraries(testPrefetcher PRIVATE indexed_bzip2_parallel)
 add_test(NAME Test-Prefetcher COMMAND testPrefetcher)
 add_dependencies(all_tests testPrefetcher)
 
+
 add_executable(testGzipIndexFormat)
 target_sources(testGzipIndexFormat PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testGzipIndexFormat.cpp)
 target_link_libraries(testGzipIndexFormat PRIVATE libpragzip)
@@ -59,6 +60,18 @@ target_sources(testHuffmanCoding PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testHuffmanCo
 target_link_libraries(testHuffmanCoding PRIVATE libhuffman)
 add_test(NAME Test-HuffmanCoding COMMAND testHuffmanCoding)
 add_dependencies(all_tests testHuffmanCoding)
+
+add_executable(testDeflate)
+target_sources(testDeflate PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testDeflate.cpp)
+target_link_libraries(testDeflate PRIVATE ZLIB::ZLIB libpragzip)
+add_test(NAME Test-Deflate COMMAND testDeflate)
+add_dependencies(all_tests testDeflate)
+
+add_executable(testGzip)
+target_sources(testGzip PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testGzip.cpp)
+target_link_libraries(testGzip PRIVATE ZLIB::ZLIB libpragzip)
+add_test(NAME Test-Gzip COMMAND testGzip)
+add_dependencies(all_tests testGzip)
 
 
 add_executable(benchmarkHuffmanCoding)
@@ -73,3 +86,12 @@ target_link_libraries(benchmarkBitStringFinder PRIVATE indexed_bzip2_parallel)
 add_executable(benchmarkMarkerReplacement)
 target_sources(benchmarkMarkerReplacement PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkMarkerReplacement.cpp)
 target_link_libraries(benchmarkMarkerReplacement PRIVATE core)
+
+
+if(LibArchive_FOUND AND ZLIB_FOUND)
+
+add_executable(benchmarkGzip)
+target_sources(benchmarkGzip PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkGzip.cpp)
+target_link_libraries(benchmarkGzip PRIVATE ZLIB::ZLIB LibArchive::LibArchive libpragzip)
+
+endif()

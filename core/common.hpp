@@ -111,7 +111,7 @@ template <typename S, typename T>
 [[nodiscard]] inline bool
 startsWith( const S& fullString,
             const T& prefix,
-            bool     caseSensitive )
+            bool     caseSensitive = true )
 {
     if ( fullString.size() < prefix.size() ) {
         return false;
@@ -130,7 +130,7 @@ template <typename S, typename T>
 [[nodiscard]] inline bool
 endsWith( const S& fullString,
           const T& suffix,
-          bool     caseSensitive )
+          bool     caseSensitive = true )
 {
     if ( fullString.size() < suffix.size() ) {
         return false;
