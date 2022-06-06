@@ -54,6 +54,16 @@ target_link_libraries(testGzipIndexFormat PRIVATE libpragzip)
 add_test(NAME Test-GzipIndexFormat COMMAND testGzipIndexFormat)
 add_dependencies(all_tests testGzipIndexFormat)
 
+add_executable(testHuffmanCoding)
+target_sources(testHuffmanCoding PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testHuffmanCoding.cpp)
+target_link_libraries(testHuffmanCoding PRIVATE libhuffman)
+add_test(NAME Test-HuffmanCoding COMMAND testHuffmanCoding)
+add_dependencies(all_tests testHuffmanCoding)
+
+
+add_executable(benchmarkHuffmanCoding)
+target_sources(benchmarkHuffmanCoding PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkHuffmanCoding.cpp)
+target_link_libraries(benchmarkHuffmanCoding PRIVATE libhuffman core)
 
 add_executable(benchmarkBitStringFinder)
 target_sources(benchmarkBitStringFinder PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkBitStringFinder.cpp)

@@ -1,3 +1,6 @@
+add_subdirectory(huffman)
+
+
 add_library(libpragzip INTERFACE)
 target_include_directories(libpragzip INTERFACE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(libpragzip INTERFACE

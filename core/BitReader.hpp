@@ -109,6 +109,10 @@ public:
         throw std::logic_error( "Not implemented" );
     }
 
+    /**
+     * @note This function is not as cheap as one might thing because it dynamically tests for EOF using the
+     *       position and size instead of checking an internal (cached) flag!
+     */
     [[nodiscard]] bool
     eof() const override final
     {
@@ -145,6 +149,17 @@ public:
      */
     BitBuffer
     forceinline read( uint8_t bitsWanted );
+
+    /**
+     * This is a performant unchecked helper to seek forward the same amount that has already been peeked.
+     * Calling this function without calling peek beforehand with the same number of bits may corrupt the BitReader!
+     */
+    forceinline void
+    seekAfterPeek( uint8_t bitsWanted )
+    {
+        assert( bitsWanted <= m_bitBufferSize );
+        m_bitBufferSize -= bitsWanted;
+    }
 
     /**
      * Forcing to inline this function is superimportant because it depends even between gcc versions,
