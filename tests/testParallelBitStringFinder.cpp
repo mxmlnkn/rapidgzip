@@ -96,16 +96,16 @@ testSingleBitAtChunkBoundary()
     std::vector<size_t> bitPositions;
     for ( size_t i = 0; i < 4; ++i ) {
         bitPositions.push_back( i );
-        bitPositions.push_back( 4*1024 - 2 + i );
-        bitPositions.push_back( 4*1024*8 - 2 + i );
-        bitPositions.push_back( 8*1024*8 - 2 + i );
+        bitPositions.push_back( 4UL * 1024UL - 2 + i );
+        bitPositions.push_back( 4UL * 1024UL * 8UL - 2 + i );
+        bitPositions.push_back( 8UL * 1024UL * 8UL - 2 + i );
     }
 
     for ( const auto bitPosition : bitPositions ) {
         /* This size and a parallelization > 4 should give chunks sized 4096, 4096, 4096, 3712
          * because of the minimum chunk size. */
         std::vector<char> buffer( 16000, '\0' );
-        buffer[bitPosition / 8] = 1U << ( 7 - ( bitPosition % 8 ) );
+        reinterpret_cast<uint8_t&>( buffer[bitPosition / 8] ) = 1U << ( 7 - ( bitPosition % 8 ) );
         ParallelBitStringFinder<1> bitStringFinder( buffer.data(), buffer.size(), 0x01, 8 );
         if ( !testBitStringFinder( std::move( bitStringFinder ), { bitPosition } ) ) {
             std::cerr << "ParallelBitStringFinder failed for buffer sized " << buffer.size() << " with single bit "
@@ -122,12 +122,12 @@ testSingleBitAtFileBufferBoundary()
     std::vector<size_t> bitPositions;
     for ( size_t i = 0; i < 4; ++i ) {
         bitPositions.push_back( i );
-        bitPositions.push_back( 1024*1024*CHAR_BIT - 2 + i );
+        bitPositions.push_back( 1024UL * 1024UL * CHAR_BIT - 2 + i );
     }
 
     for ( const auto bitPosition : bitPositions ) {
         std::vector<char> buffer( 4'000'000, '\0' );
-        buffer[bitPosition / CHAR_BIT] = 1U << ( 7 - ( bitPosition % CHAR_BIT ) );
+        reinterpret_cast<uint8_t&>( buffer[bitPosition / CHAR_BIT] ) = 1U << ( 7 - ( bitPosition % CHAR_BIT ) );
         BitStringFinder<1> bitStringFinder( std::make_unique<MemoryFileReader>( buffer ), 0x01, 8 );
         if ( !testBitStringFinder( std::move( bitStringFinder ), { bitPosition } ) ) {
             std::cerr << "ParallelBitStringFinder failed for buffer sized " << buffer.size() << " with single bit "
@@ -143,14 +143,14 @@ testSingleByteAtFileBufferBoundary()
     std::vector<size_t> bytePositions;
     for ( size_t i = 0; i < 4; ++i ) {
         bytePositions.push_back( i );
-        bytePositions.push_back( 1024*1024 - 2 + i );
-        bytePositions.push_back( 2*1024*1024 - 2 + i );
-        bytePositions.push_back( 3*1024*1024 - 2 + i );
+        bytePositions.push_back( 1024UL * 1024UL - 2 + i );
+        bytePositions.push_back( 2UL * 1024UL * 1024UL - 2 + i );
+        bytePositions.push_back( 3UL * 1024UL * 1024UL - 2 + i );
     }
 
     for ( const auto bytePosition : bytePositions ) {
         std::vector<char> buffer( 4'000'000, '\0' );
-        buffer[bytePosition] = 0xFF;
+        reinterpret_cast<uint8_t&>( buffer[bytePosition] ) = 0xFFU;
         ParallelBitStringFinder<CHAR_BIT> bitStringFinder( std::make_unique<MemoryFileReader>( buffer ), 0xFF, 8 );
         if ( !testBitStringFinder( std::move( bitStringFinder ), { bytePosition * CHAR_BIT } ) ) {
             std::cerr << "ParallelBitStringFinder failed for buffer sized " << buffer.size() << " with single bit "
@@ -215,7 +215,8 @@ main()
         /* At this offset the second sub chunk begins and it will actually become multi-threaded for small buffers. */
         auto const specialOffset = minSubChunkSize - buffer.size() - secondMatchingString.size();
 
-        const std::vector<size_t> offsetsToTest = { 1, 100, 123, 1024, 4*1024 - 1, 4*1024, 28*1024, 4*1024*1024,
+        const std::vector<size_t> offsetsToTest = { 1, 100, 123, 1024, 4UL * 1024UL - 1, 4UL * 1024UL,
+                                                    28UL * 1024UL, 4UL * 1024UL * 1024UL,
                                                     specialOffset - 1, specialOffset, specialOffset + 1 };
 
         for ( const auto offset : offsetsToTest ) {

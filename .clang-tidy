@@ -1,6 +1,7 @@
 Checks: |
     bugprone-*,
     -bugprone-exception-escape,
+    -bugprone-easily-swappable-parameters,
 
     clang-analyzer-*,
     clang-diagnostic-*,
@@ -21,5 +22,6 @@ Checks: |
 
     performance-*,
     readability-*,
+    -readability-function-cognitive-complexity,
     -readability-redundant-access-specifiers,
     -readability-magic-numbers

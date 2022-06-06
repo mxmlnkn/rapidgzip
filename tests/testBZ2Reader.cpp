@@ -97,7 +97,7 @@ testRead( std::ifstream&                    decodedFile,
     }
 
     /* Why doesn't the ifstream has a similar return specifying the number of read bytes?! */
-    decodedFile.read( decodedBuffer.data(), nBytesToRead );
+    decodedFile.read( decodedBuffer.data(), static_cast<ssize_t>( nBytesToRead ) );
     const auto nBytesReadDecoded = decodedFile.gcount();
 
     const auto nBytesReadEncoded = encodedFile->read( -1, encodedBuffer.data(), nBytesToRead );
@@ -163,12 +163,12 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     read( 256 );
 
     /* Try some subsequent reads over bz2 block boundaries. */
-    read( 5*1024*1024 );
-    read( 7*1024*1024 );
+    read( 5UL * 1024UL * 1024UL );
+    read( 7UL * 1024UL * 1024UL );
     read( 1024 );
 
     /* Try reading over the end of the file. */
-    read( 128*1024*1024 );
+    read( 128UL * 1024UL * 1024UL );
 
     /* Try out seeking. */
     seek( 0 );
@@ -177,7 +177,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     seek( 2 );
     seek( 4 );
     seek( 256 );
-    seek( 3*1024*1024 );
+    seek( 3UL * 1024UL * 1024UL );
 
     /* Seek after end of file */
     seek( static_cast<ssize_t>( decodedFileSize ) + 1000 );
@@ -207,10 +207,10 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     seek( 256 );
     read( 1024 );
 
-    seek( 2*1024*1024 + 432 );
+    seek( 2UL * 1024UL * 1024UL + 432 );
     read( 12345 );
 
-    seek( 1*1024*1024 - 432 );
+    seek( 1UL * 1024UL * 1024UL - 432 );
     read( 432 );
 
     /* Try reading 1B before the end of file */
@@ -317,7 +317,7 @@ main()
     const auto tmpFolder = createTemporaryDirectory();
 
     const auto decodedTestFilePath = tmpFolder.path() / "decoded";
-    createRandomTextFile( decodedTestFilePath, 2 * 1024 * 1024 );
+    createRandomTextFile( decodedTestFilePath, 2UL * 1024UL * 1024UL );
 
     const auto command = "bzip2 -k -- '" + std::string( decodedTestFilePath ) + "'";
     const auto returnCode = std::system( command.c_str() );

@@ -43,7 +43,7 @@ public:
 
     ~StandardFileReader()
     {
-        close();
+        StandardFileReader::close();
     }
 
     [[nodiscard]] FileReader*
@@ -219,7 +219,7 @@ private:
         /* On macOS opening special files like /dev/fd/3 might result in the file position
          * not being 0 in the case it has been seeked or read from somewhere else! */
         if ( m_seekable ) {
-            seek( 0, SEEK_SET );
+            StandardFileReader::seek( 0, SEEK_SET );
         }
     }
 

@@ -526,7 +526,7 @@ findBitStrings3( const std::string& filename )
 
     auto ufile = make_unique_file_ptr( filename.c_str(), "rb" );
     auto* const file = ufile.get();
-    std::vector<char> buffer( 2 * 1024 * 1024 );
+    std::vector<char> buffer( 2UL * 1024UL * 1024UL );
     size_t nTotalBytesRead = 0;
     uint64_t window = 0;
     while ( true ) {
@@ -625,7 +625,7 @@ findBitStrings5( const std::string& filename )
 {
     std::vector<size_t> matches;
 
-    const auto parallelisation = 48; //std::thread::hardware_concurrency();
+    const auto parallelisation = 48UL; //std::thread::hardware_concurrency();
     ParallelBitStringFinder<bitStringToFindSize> bitStringFinder(
         filename, bitStringToFind, parallelisation, 0, parallelisation * 1*1024*1024
     );
@@ -668,7 +668,7 @@ int main( int argc, char** argv )
     for ( const auto offset : blockOffsets ) {
         std::cerr << offset / 8 << " B " << offset % 8 << " b";
         if ( offset < bitReader.size() ) {
-            bitReader.seek( offset );
+            bitReader.seek( static_cast<ssize_t>( offset ) );
 
             /* Because bitReader is limited to 32-bit. */
             static_assert( bitStringToFindSize % 2 == 0, "Assuming magic bit string size to be an even number." );

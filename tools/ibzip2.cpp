@@ -59,7 +59,7 @@ checkOffsets( const std::string&         filePath,
     const std::set<uint64_t> bitStringsToFind = { bzip2::MAGIC_BITS_BLOCK, bzip2::MAGIC_BITS_EOS };
     BitReader bitReader( filePath );
     for ( const auto offset : offsets ) {
-        bitReader.seek( offset );
+        bitReader.seek( static_cast<long long int>( offset ) );
         /* Because bitReader is limited to 32-bit. */
         static_assert( bzip2::MAGIC_BITS_SIZE % 2 == 0, "Assuming magic bit string size to be an even number." );
         constexpr uint8_t BITS_PER_READ = bzip2::MAGIC_BITS_SIZE / 2;
@@ -324,7 +324,8 @@ cli( int argc, char** argv )
     if ( ( parsedArgs.count( "stdout" ) == 0 ) && !inputFilePath.empty() ) {
         const std::string& suffix = ".bz2";
         if ( endsWith( inputFilePath, suffix, /* case sensitive */ false ) ) {
-            outputFilePath = std::string( inputFilePath.begin(), inputFilePath.end() - suffix.size() );
+            outputFilePath = std::string( inputFilePath.begin(),
+                                          inputFilePath.end() - static_cast<ssize_t>( suffix.size() ) );
         } else {
             outputFilePath = inputFilePath + ".out";
             if ( !quiet ) {

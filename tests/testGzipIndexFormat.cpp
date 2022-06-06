@@ -1,4 +1,8 @@
 #include <iostream>
+#include <filesystem>
+#include <memory>
+#include <stdexcept>
+#include <string>
 
 #include <common.hpp>
 #include <IndexFileFormat.hpp>
@@ -24,11 +28,10 @@ main( int    argc,
     }
 
     const std::string binaryFilePath( argv[0] );
-    std::string binaryFolder = ".";
-    if ( const auto lastSlash = binaryFilePath.find_last_of( '/' ); lastSlash != std::string::npos ) {
-        binaryFolder = std::string( binaryFilePath.begin(), binaryFilePath.begin() + lastSlash );
+    std::string binaryFolder = std::filesystem::path( binaryFilePath ).parent_path();
+    if ( binaryFolder.empty() ) {
+        binaryFolder = ".";
     }
-
     const auto rootFolder = findParentFolderContaining( binaryFolder, "tests/data/base64-256KiB.gz.index" );
 
     const auto index = readGzipIndex(

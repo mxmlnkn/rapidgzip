@@ -248,7 +248,7 @@ createRandomBuffer( std::size_t bufferSize )
         const size_t matchLength = 3 + ( rand() % ( 64 - 3 ) );
         const size_t offset = rand() % ( 32 * 1024 );
         for ( size_t j = 0; ( j < matchLength ) && ( i < buffer.size() ); ++i, ++j ) {
-            buffer[i] = 32 * 1024 + ( ( offset + j ) % ( 32 * 1024 ) );
+            buffer[i] = 32UL * 1024UL + ( ( offset + j ) % ( 32UL * 1024UL ) );
         }
         for ( size_t j = 0; ( j < matchLength ) && ( i < buffer.size() ); ++i, ++j ) {
             buffer[i] = rand() % 128;
@@ -267,7 +267,7 @@ createRandomBufferAlternativeFormat( std::size_t bufferSize )
         const size_t matchLength = 3 + ( rand() % ( 64 - 3 ) );
         const size_t offset = rand() % ( 32 * 1024 );
         for ( size_t j = 0; ( j < matchLength ) && ( i < buffer.size() ); ++i, ++j ) {
-            buffer[i] = 256 + ( ( offset + j ) % ( 32 * 1024 ) );
+            buffer[i] = 256 + ( ( offset + j ) % ( 32UL * 1024UL ) );
         }
         for ( size_t j = 0; ( j < matchLength ) && ( i < buffer.size() ); ++i, ++j ) {
             buffer[i] = rand() % 128;
@@ -292,9 +292,9 @@ createRandomWindow( std::size_t bufferSize )
 int
 main()
 {
-    const auto buffer = createRandomBuffer( 128 * 1024 * 1024 );
-    const auto bufferAlternativeFormat = createRandomBufferAlternativeFormat( 128 * 1024 * 1024 );
-    const auto window = createRandomWindow( 32 * 1024 );
+    const auto buffer = createRandomBuffer( 128UL * 1024UL * 1024UL );
+    const auto bufferAlternativeFormat = createRandomBufferAlternativeFormat( 128UL * 1024UL * 1024UL );
+    const auto window = createRandomWindow( 32UL * 1024UL );
 
     std::cout << "[replaceInPlace] ";
     measureByteComparison( buffer, window, replaceInPlace );
