@@ -94,4 +94,12 @@ add_executable(benchmarkGzip)
 target_sources(benchmarkGzip PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkGzip.cpp)
 target_link_libraries(benchmarkGzip PRIVATE ZLIB::ZLIB LibArchive::LibArchive libpragzip)
 
+add_executable(benchmarkPigzBlockFinder)
+target_sources(benchmarkPigzBlockFinder PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkPigzBlockFinder.cpp)
+target_link_libraries(benchmarkPigzBlockFinder PRIVATE libpragzip libblockfinder)
+
+add_executable(benchmarkGzipBlockFinder)
+target_sources(benchmarkGzipBlockFinder PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkGzipBlockFinder.cpp)
+target_link_libraries(benchmarkGzipBlockFinder PRIVATE cxxopts libpragzip libblockfinder ZLIB::ZLIB)
+
 endif()

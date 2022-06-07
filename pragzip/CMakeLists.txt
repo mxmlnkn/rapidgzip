@@ -1,4 +1,5 @@
 add_subdirectory(huffman)
+add_subdirectory(blockfinder)
 
 
 add_library(libpragzip INTERFACE)

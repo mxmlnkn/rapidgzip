@@ -351,9 +351,16 @@ public:
         m_path( std::move( path ) )
     {}
 
+    TemporaryDirectory( TemporaryDirectory&& ) = default;
+    TemporaryDirectory( const TemporaryDirectory& ) = delete;
+    TemporaryDirectory& operator=( TemporaryDirectory&& ) = default;
+    TemporaryDirectory& operator=( const TemporaryDirectory& ) = delete;
+
     ~TemporaryDirectory()
     {
-        std::filesystem::remove_all( m_path );
+        if ( !m_path.empty() ) {
+            std::filesystem::remove_all( m_path );
+        }
     }
 
     operator std::filesystem::path() const
@@ -368,6 +375,6 @@ public:
     }
 
 private:
-    const std::filesystem::path m_path;
+    std::filesystem::path m_path;
 };
 #endif
