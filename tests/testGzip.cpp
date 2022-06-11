@@ -1,4 +1,7 @@
+#include <chrono>
 #include <cstdint>
+#include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -43,13 +46,13 @@ duplicateNanoStream( size_t multiples )
     std::vector<char> encoded( NANO_SAMPLE_GZIP.size() * multiples );
     for ( size_t i = 0; i < multiples; ++i ) {
         std::copy( NANO_SAMPLE_GZIP.begin(), NANO_SAMPLE_GZIP.end(),
-                   encoded.begin() + i * NANO_SAMPLE_GZIP.size() );
+                   encoded.begin() + static_cast<ssize_t>( i * NANO_SAMPLE_GZIP.size() ) );
     }
 
     std::vector<char> decoded( NANO_SAMPLE_DECODED.size() * multiples );
     for ( size_t i = 0; i < multiples; ++i ) {
         std::copy( NANO_SAMPLE_DECODED.begin(), NANO_SAMPLE_DECODED.end(),
-                   decoded.begin() + i * NANO_SAMPLE_DECODED.size() );
+                   decoded.begin() + static_cast<ssize_t>( i * NANO_SAMPLE_DECODED.size() ) );
     }
 
     return { encoded, decoded };
@@ -181,7 +184,7 @@ testSerialDecoder( std::filesystem::path const& decodedFilePath,
 
         /* Compare with ground truth. */
         decodedBuffer.resize( buffer.size() );
-        decodedFile.read( decodedBuffer.data(), decodedBuffer.size() );
+        decodedFile.read( decodedBuffer.data(), static_cast<ssize_t>( decodedBuffer.size() ) );
         REQUIRE( !decodedFile.fail() );
         REQUIRE( static_cast<size_t>( decodedFile.gcount() ) == buffer.size() );
 
@@ -202,6 +205,116 @@ testSerialDecoder( std::filesystem::path const& decodedFilePath,
 
     REQUIRE( totalBytesDecoded == fileSize( decodedFilePath ) );
     std::cerr << "Decoded " << decodedFilePath.filename() << " with buffer size " << bufferSize << "\n";
+}
+
+
+void
+testTwoStagedDecoding( std::string_view decodedFilePath,
+                       std::string_view encodedFilePath )
+{
+    std::ifstream decodedFile( decodedFilePath.data() );
+
+    gzip::Header header;
+    auto error = Error::NONE;
+    size_t nBytesRead = 0;
+    size_t firstBlockSize = 0;
+
+    /* Read first deflate block so that we can try decoding from the second one. */
+    pragzip::BitReader bitReader{ std::make_unique<StandardFileReader>( encodedFilePath.data() ) };
+    std::tie( header, error ) = gzip::readHeader( bitReader );
+    REQUIRE( error == Error::NONE );
+    deflate::Block firstBlock;
+    firstBlock.setInitialWindow();
+
+    /* Read one full block */
+    error = firstBlock.readHeader( bitReader );
+    REQUIRE( error == Error::NONE );
+    std::tie( firstBlockSize, error ) = firstBlock.read( bitReader, std::numeric_limits<size_t>::max() );
+    REQUIRE( error == Error::NONE );
+
+    const auto secondBlockOffset = bitReader.tell();
+    const auto lastWindow = firstBlock.lastWindow();
+
+    /* Check that the last window matches the ground truth. */
+    std::vector<uint8_t> decodedBuffer( 1024ULL * 1024ULL );
+    REQUIRE( decodedBuffer.size() >= lastWindow.size() );
+
+    decodedFile.seekg( static_cast<ssize_t>( firstBlockSize - lastWindow.size() ) );
+    decodedFile.read( reinterpret_cast<char*>( decodedBuffer.data() ), lastWindow.size() );
+    REQUIRE( std::equal( lastWindow.begin(), lastWindow.end(), decodedBuffer.begin() ) );
+    if ( !std::equal( lastWindow.begin(), lastWindow.end(), decodedBuffer.begin() ) ) {
+        for ( size_t i = 0; i < lastWindow.size(); ++i ) {
+            const auto decoded = lastWindow.at( i );
+            const auto correct = decodedBuffer[i];
+            if ( decoded != correct ) {
+                std::cerr << "Decoded contents differ at position " << i << " B: "
+                          << decoded << " != " << correct << " ("
+                          << (int)decoded << " != " << (int)correct << ")\n";
+                break;
+            }
+        }
+    }
+
+    /* Try reading, starting from second block. */
+    bitReader.seek( static_cast<ssize_t>( secondBlockOffset ) );
+    deflate::Block block;
+    error = block.readHeader( bitReader );
+    REQUIRE( error == Error::NONE );
+    std::tie( nBytesRead, error ) = block.read( bitReader, std::numeric_limits<size_t>::max() );
+    REQUIRE( error == Error::NONE );
+    REQUIRE( block.containsMarkerBytes() );
+
+    /* Copy out results including unresolved marker words. */
+
+    std::vector<uint16_t> concatenated;
+    for ( const auto& buffer : block.lastBuffers16() ) {
+        concatenated.resize( concatenated.size() + buffer.size() );
+        std::memcpy( concatenated.data() + ( concatenated.size() - buffer.size() ),
+                     buffer.data(), buffer.size() * sizeof( buffer[0] ) );
+    }
+
+    REQUIRE( decodedBuffer.size() >= concatenated.size() );
+    decodedFile.seekg( static_cast<ssize_t>( firstBlockSize ) );
+    decodedFile.read( reinterpret_cast<char*>( decodedBuffer.data() ), static_cast<ssize_t>( concatenated.size() ) );
+
+    REQUIRE( !std::equal( concatenated.begin(), concatenated.end(), decodedBuffer.begin() )
+             && "No marker bytes in decoded data. Please use a test file without uncompressed blocks!" );
+
+    /* Replace marker bytes in custom buffer. */
+
+    deflate::Block::replaceMarkerBytes( { concatenated.data(), concatenated.size() }, lastWindow.data() );
+
+    REQUIRE( std::equal( concatenated.begin(), concatenated.end(), decodedBuffer.begin() ) );
+    if ( !std::equal( concatenated.begin(), concatenated.end(), decodedBuffer.begin() ) ) {
+        for ( size_t i = 0; i < concatenated.size(); ++i ) {
+            if ( concatenated[i] != decodedBuffer[i] ) {
+                std::cerr << "Decoded contents differ at position " << i << " B: "
+                          << concatenated[i] << " != " << decodedBuffer[i] << " ("
+                          << (int)concatenated[i] << " != " << (int)decodedBuffer[i] << ") (concatenated != file)\n";
+                break;
+            }
+        }
+    }
+
+    /* Replace marker bytes inside the block itself. */
+    block.setInitialWindow( lastWindow );
+    std::vector<uint8_t> result;
+    for ( const auto& buffer : block.lastBuffers() ) {
+        result.resize( result.size() + buffer.size() );
+        std::memcpy( result.data() + ( result.size() - buffer.size() ),
+                     buffer.data(), buffer.size() * sizeof( buffer[0] ) );
+    }
+    REQUIRE( std::equal( result.begin(), result.end(), decodedBuffer.begin() ) );
+    if ( !std::equal( result.begin(), result.end(), decodedBuffer.begin() ) ) {
+        for ( size_t i = 0; i < result.size(); ++i ) {
+            if ( result[i] != decodedBuffer[i] ) {
+                std::cerr << "Decoded contents differ at position " << i << " B: "
+                          << result[i] << " != " << decodedBuffer[i] << " ("
+                          << (int)result[i] << " != " << (int)decodedBuffer[i] << ") (result != file)\n";
+                break;
+            }
+        }
+    }
 }
 
 
@@ -226,7 +339,8 @@ main( int    argc,
     const std::string binaryFilePath( argv[0] );
     std::string binaryFolder = ".";
     if ( const auto lastSlash = binaryFilePath.find_last_of( '/' ); lastSlash != std::string::npos ) {
-        binaryFolder = std::string( binaryFilePath.begin(), binaryFilePath.begin() + lastSlash );
+        binaryFolder = std::string( binaryFilePath.begin(),
+                                    binaryFilePath.begin() + static_cast<ssize_t>( lastSlash ) );
     }
     const std::filesystem::path rootFolder = findParentFolderContaining( binaryFolder, "tests/data/base64-256KiB.gz" );
 
@@ -260,6 +374,10 @@ main( int    argc,
             gnTestErrors++;
         }
     }
+
+    std::cout << "Test two-staged decoding\n";
+    testTwoStagedDecoding( ( rootFolder / "tests/data/base64-256KiB" ).string(),
+                           ( rootFolder / "tests/data/base64-256KiB.gz" ).string() );
 
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
 
