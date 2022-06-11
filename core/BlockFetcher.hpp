@@ -205,7 +205,7 @@ private:
             std::optional<size_t> prefetchBlockOffset;
             do
             {
-                prefetchBlockOffset = m_blockFinder->get( blockIndexToPrefetch, stopPrefetching() ? 0 : 0.001 );
+                prefetchBlockOffset = m_blockFinder->get( blockIndexToPrefetch, stopPrefetching() ? 0 : 0.0001 );
             }
             while ( !prefetchBlockOffset && !stopPrefetching() );
 
