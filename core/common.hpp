@@ -348,7 +348,7 @@ createRandomTextFile( std::filesystem::path path,
     std::ofstream textFile( path );
     for ( size_t i = 0; i < size; ++i ) {
         const auto c = i % 80 == 0 ? '\n' : 'A' + ( rand() % ( 'Z' - 'A' ) );
-        textFile << c;
+        textFile << static_cast<char>( c );
     }
 }
 
