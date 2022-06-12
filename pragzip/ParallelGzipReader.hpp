@@ -38,8 +38,6 @@ public:
     using BitReader = pragzip::BitReader;
 
 public:
-    /* Constructors */
-
     explicit
     ParallelGzipReader( std::unique_ptr<FileReader> fileReader,
                         size_t                      parallelization = 0 ) :
@@ -61,6 +59,7 @@ public:
         }
     }
 
+#ifdef WITH_PYTHON_SUPPORT
     /* These constructor overloads are for easier construction in the Cython-interface.
      * For C++, the FileReader constructor would have been sufficient. */
 
@@ -76,7 +75,6 @@ public:
         ParallelGzipReader( std::make_unique<StandardFileReader>( filePath ), parallelization )
     {}
 
-#ifdef WITH_PYTHON_SUPPORT
     explicit
     ParallelGzipReader( PyObject* pythonObject,
                         size_t    parallelization = 0 ) :
