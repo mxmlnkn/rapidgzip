@@ -1,9 +1,10 @@
 function allgzip()
 {
     local file=$1
-    gzip -c -- "$file" > "${file}.gz"
-    pigz -c -- "$file" > "${file}.pgz"
-    bgzip -c -- "$file" > "${file}.bgz"
+    test -f "${file}.gz" || gzip -c -- "$file" > "${file}.gz"
+    test -f "${file}.igz" || igzip -c -- "$file" > "${file}.igz"
+    test -f "${file}.pgz" || pigz -c -- "$file" > "${file}.pgz"
+    test -f "${file}.bgz" || bgzip -c -- "$file" > "${file}.bgz"
 }
 
 touch empty && allgzip empty
@@ -24,3 +25,9 @@ python3 -c 'import sys; sys.stdout.buffer.write(bytes(range(256)))' | pigz > 0CL
 
 fname='base64-256KiB'; base64 /dev/urandom | head -c $(( 256*1024 )) > "$fname" && allgzip "$fname"
 python3 -c 'import sys; import indexed_gzip as igz; f = igz.IndexedGzipFile(sys.argv[1], spacing=64*1024); f.build_full_index(); f.export_index(sys.argv[1] + ".index")' "${fname}.gz"
+
+# For triggering a kind of internal buffer overflow bug leading to skipped decoded data, we need to
+# produce uncompressed blocks > 32KiB. gzip seems to limit them to 32 KiB, which avoids that bug!
+# pigz even limits it to 16 KiB! igzip finally produces blocks sized 64 KiB!
+fname='random-128KiB'; head -c $(( 128*1024 )) /dev/urandom > "$fname"; allgzip "$fname"
+
