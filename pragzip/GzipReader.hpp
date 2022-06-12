@@ -36,6 +36,7 @@ public:
         END_OF_STREAM        = 1 << 1,  // after gzip footer has been read
         END_OF_BLOCK_HEADER  = 1 << 2,
         END_OF_BLOCK         = 1 << 3,
+        ALL                  = 0xFFFF'FFFFU,
     };
 
 public:
@@ -166,6 +167,12 @@ public:
         return m_currentPoint;
     }
 
+    [[nodiscard]] const auto&
+    currentDeflateBlock() const
+    {
+        return m_currentDeflateBlock;
+    }
+
     /**
      * @param[out] outputBuffer should at least be large enough to hold @p nBytesToRead bytes
      * @return number of bytes written
@@ -227,6 +234,10 @@ public:
 
                 case StoppingPoint::END_OF_BLOCK_HEADER:
                     assert( false && "Should have been handled before the switch!" );
+                    break;
+
+                case StoppingPoint::ALL:
+                    assert( false && "Should only be specified by the user not appear internally!" );
                     break;
                 }
             }
@@ -504,6 +515,7 @@ toString( GzipReader::StoppingPoint stoppingPoint )
     case GzipReader::StoppingPoint::END_OF_STREAM        : return "End of Stream";
     case GzipReader::StoppingPoint::END_OF_BLOCK_HEADER  : return "End of Block Header";
     case GzipReader::StoppingPoint::END_OF_BLOCK         : return "End of Block";
+    case GzipReader::StoppingPoint::ALL                  : return "All";
     };
     return "Unknown";
 }

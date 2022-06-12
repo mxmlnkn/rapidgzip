@@ -195,7 +195,8 @@ testSerialDecoder( std::filesystem::path const& decodedFilePath,
                 if ( buffer[i] != decodedBuffer[i] ) {
                     std::cerr << "Decoded contents differ at position " << i << " B: "
                               << buffer[i] << " != " << decodedBuffer[i] << " ("
-                              << (int)buffer[i] << " != " << (int)decodedBuffer[i] << ")\n";
+                              << (int)buffer[i] << " != " << (int)decodedBuffer[i] << ") while decoding "
+                              << decodedFilePath << " with buffer size " << bufferSize << "\n";
                     break;
                 }
             }
@@ -210,53 +211,60 @@ testSerialDecoder( std::filesystem::path const& decodedFilePath,
 
 
 void
-testTwoStagedDecoding( std::string_view decodedFilePath,
-                       std::string_view encodedFilePath )
+testTwoStagedDecoding( std::string_view encodedFilePath,
+                       std::string_view decodedFilePath )
 {
-    std::ifstream decodedFile( decodedFilePath.data() );
-
-    gzip::Header header;
     auto error = Error::NONE;
     size_t nBytesRead = 0;
-    size_t firstBlockSize = 0;
 
     /* Read first deflate block so that we can try decoding from the second one. */
-    pragzip::BitReader bitReader{ std::make_unique<StandardFileReader>( encodedFilePath.data() ) };
-    std::tie( header, error ) = gzip::readHeader( bitReader );
-    REQUIRE( error == Error::NONE );
-    deflate::Block firstBlock;
-    firstBlock.setInitialWindow();
+    GzipReader gzipReader{ std::make_unique<StandardFileReader>( encodedFilePath.data() ) };
+    std::vector<char> decompressed( 1024ULL * 1024ULL );
+    const auto firstBlockSize = gzipReader.read( -1, decompressed.data(), decompressed.size(),
+                                                 GzipReader::StoppingPoint::END_OF_BLOCK );
+    decompressed.resize( firstBlockSize );
+    REQUIRE( gzipReader.currentPoint() == GzipReader::StoppingPoint::END_OF_BLOCK );
 
-    /* Read one full block */
-    error = firstBlock.readHeader( bitReader );
-    REQUIRE( error == Error::NONE );
-    std::tie( firstBlockSize, error ) = firstBlock.read( bitReader, std::numeric_limits<size_t>::max() );
-    REQUIRE( error == Error::NONE );
+    /* Save all information required for seeking directly to second block. */
+    const auto secondBlockOffset = gzipReader.tellCompressed();
+    REQUIRE( gzipReader.currentDeflateBlock().has_value() );
+    const auto lastWindow = gzipReader.currentDeflateBlock()->lastWindow();
 
-    const auto secondBlockOffset = bitReader.tell();
-    const auto lastWindow = firstBlock.lastWindow();
+    gzipReader.read( -1, nullptr, std::numeric_limits<size_t>::max(), GzipReader::StoppingPoint::ALL );
+    if ( gzipReader.currentPoint() != GzipReader::StoppingPoint::END_OF_BLOCK_HEADER ) {
+        /* Ignore files with only one block for this test. */
+        return;
+    }
 
-    /* Check that the last window matches the ground truth. */
-    std::vector<uint8_t> decodedBuffer( 1024ULL * 1024ULL );
-    REQUIRE( decodedBuffer.size() >= lastWindow.size() );
+    std::cout << "Test two-staged decoding for " << encodedFilePath << "\n";
 
-    decodedFile.seekg( static_cast<ssize_t>( firstBlockSize - lastWindow.size() ) );
-    decodedFile.read( reinterpret_cast<char*>( decodedBuffer.data() ), lastWindow.size() );
-    REQUIRE( std::equal( lastWindow.begin(), lastWindow.end(), decodedBuffer.begin() ) );
-    if ( !std::equal( lastWindow.begin(), lastWindow.end(), decodedBuffer.begin() ) ) {
-        for ( size_t i = 0; i < lastWindow.size(); ++i ) {
+    /* Check that decompressed data and the last window match the ground truth. */
+    std::ifstream decodedFile( decodedFilePath.data() );
+    std::vector<char> uncompressed( decompressed.size() );
+    decodedFile.read( uncompressed.data(), static_cast<ssize_t>( uncompressed.size() ) );
+    REQUIRE( std::equal( decompressed.begin(), decompressed.end(), uncompressed.begin() ) );
+
+    const auto validWindowSize = std::min( lastWindow.size(), firstBlockSize );
+    const auto validWindowMatches = std::equal(
+        lastWindow.end() - validWindowSize, lastWindow.end(),
+        uncompressed.end() - static_cast<ssize_t>( validWindowSize ),
+        [] ( auto a, auto b ) { return a == static_cast<decltype(a)>( b ); } );
+    REQUIRE( validWindowMatches );
+    if ( !validWindowMatches ) {
+        for ( size_t i = lastWindow.size() - validWindowSize; i < lastWindow.size(); ++i ) {
+            const auto correct = uncompressed[uncompressed.size() - validWindowSize + i];
             const auto decoded = lastWindow.at( i );
-            const auto correct = decodedBuffer[i];
-            if ( decoded != correct ) {
+            if ( static_cast<char>( decoded ) != correct ) {
                 std::cerr << "Decoded contents differ at position " << i << " B: "
                           << decoded << " != " << correct << " ("
-                          << (int)decoded << " != " << (int)correct << ")\n";
+                          << (int)decoded << " != " << (int)correct << ") (lastWindow != file)\n";
                 break;
             }
         }
     }
 
     /* Try reading, starting from second block. */
+    pragzip::BitReader bitReader{ std::make_unique<StandardFileReader>( encodedFilePath.data() ) };
     bitReader.seek( static_cast<ssize_t>( secondBlockOffset ) );
     deflate::Block block;
     error = block.readHeader( bitReader );
@@ -274,12 +282,10 @@ testTwoStagedDecoding( std::string_view decodedFilePath,
                      buffer.data(), buffer.size() * sizeof( buffer[0] ) );
     }
 
+    std::vector<uint8_t> decodedBuffer( 1024ULL * 1024ULL );
     REQUIRE( decodedBuffer.size() >= concatenated.size() );
     decodedFile.seekg( static_cast<ssize_t>( firstBlockSize ) );
     decodedFile.read( reinterpret_cast<char*>( decodedBuffer.data() ), static_cast<ssize_t>( concatenated.size() ) );
-
-    REQUIRE( !std::equal( concatenated.begin(), concatenated.end(), decodedBuffer.begin() )
-             && "No marker bytes in decoded data. Please use a test file without uncompressed blocks!" );
 
     /* Replace marker bytes in custom buffer. */
 
@@ -351,7 +357,7 @@ main( int    argc,
         }
 
         const auto extension = entry.path().extension();
-        const std::unordered_set<std::string> validExtensions = { ".gz", ".bgz", ".pgz" };
+        const std::unordered_set<std::string> validExtensions = { ".gz", ".bgz", ".igz", ".pgz" };
         if ( validExtensions.find( extension ) == validExtensions.end() ) {
             continue;
         }
@@ -363,22 +369,17 @@ main( int    argc,
             continue;
         }
 
-        try
-        {
-            for ( const auto bufferSize : { 1, 2, 12, 32, 1000, 1024, 128 * 1024, 1024 * 1024, 64 * 1024 * 1024 } ) {
+        for ( const auto bufferSize : { 1, 2, 12, 32, 1000, 1024, 128 * 1024, 1024 * 1024, 64 * 1024 * 1024 } ) {
+            try {
                 testSerialDecoder( decodedFilePath.string(), encodedFilePath.string(), bufferSize );
+            } catch ( const std::exception& e ) {
+                std::cerr << "Exception was thrown: " << e.what() << "\n";
+                REQUIRE( false );
             }
         }
-        catch ( const std::exception& e )
-        {
-            std::cerr << "Exception was thrown: " << e.what() << "\n";
-            REQUIRE( false );
-        }
-    }
 
-    std::cout << "Test two-staged decoding\n";
-    testTwoStagedDecoding( ( rootFolder / "tests/data/base64-256KiB" ).string(),
-                           ( rootFolder / "tests/data/base64-256KiB.gz" ).string() );
+        testTwoStagedDecoding( encodedFilePath.string(), decodedFilePath.string() );
+    }
 
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
 
