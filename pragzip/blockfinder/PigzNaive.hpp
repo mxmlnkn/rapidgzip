@@ -13,13 +13,16 @@
 #include <FileReader.hpp>
 #include <gzip.hpp>
 
+#include "OffsetFinderInterface.hpp"
+
 
 /**
  * @note Tops out at 1-1.5 GiB/s, which might bottleneck decompression with ~12 cores for
  *       my decoder (~90 MB/s) and ~6 cores for zlib decompression (~200 MB/s).
  * @deprecated Use PigzBlockFinderStringView instead because it achieves more than 8 GB/s!
  */
-class PigzBlockFinderNaive
+class PigzBlockFinderNaive :
+    public OffsetFinderInterface
 {
 public:
     /**
@@ -71,7 +74,7 @@ public:
      * @return offset of deflate block in bits (not the gzip stream offset!).
      */
     [[nodiscard]] size_t
-    find()
+    find() override
     {
         /* The flush markers will be AFTER deflate blocks, meaning the very first deflate block needs special
          * treatment to not be ignored. */

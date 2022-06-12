@@ -14,7 +14,7 @@
 #include <BlockFetcher.hpp>
 
 #include "BlockFinder.hpp"
-#include "blockfinder/Bgzf.hpp"
+#include "blockfinder/Combined.hpp"
 #include "deflate.hpp"
 #include "gzip.hpp"
 
@@ -31,10 +31,10 @@ struct BlockData
 
 template<typename FetchingStrategy = FetchingStrategy::FetchNextSmart>
 class GzipBlockFetcher :
-    public BlockFetcher<BlockFinder<BgzfBlockFinder>, BlockData, FetchingStrategy>
+    public BlockFetcher<BlockFinder<Combined>, BlockData, FetchingStrategy>
 {
 public:
-    using BaseType = BlockFetcher<::BlockFinder<BgzfBlockFinder>, BlockData, FetchingStrategy>;
+    using BaseType = BlockFetcher<::BlockFinder<Combined>, BlockData, FetchingStrategy>;
     using BitReader = pragzip::BitReader;
 
 public:

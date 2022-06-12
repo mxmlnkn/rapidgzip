@@ -10,6 +10,8 @@
 
 #include <FileReader.hpp>
 
+#include "OffsetFinderInterface.hpp"
+
 
 /**
  * @see https://www.ietf.org/rfc/rfc1952.txt
@@ -76,7 +78,8 @@
  * EOF is the end of the file as intended by the program that wrote it. Empty BGZF blocks are not otherwise
  * special; in particular, the presence of an EOF marker block does not by itself signal end of file.
  */
-class BgzfBlockFinder
+class BgzfBlockFinder :
+    public OffsetFinderInterface
 {
 public:
     using HeaderBytes = std::array<uint8_t, 18>;
@@ -126,6 +129,30 @@ public:
     }
 
     [[nodiscard]] static bool
+    isBgzfFile( const std::unique_ptr<FileReader>& file )
+    {
+        const auto oldPos = file->tell();
+
+        HeaderBytes header;
+        const auto nBytesRead = file->read( reinterpret_cast<char*>( header.data() ), header.size() );
+        if ( ( nBytesRead != header.size() ) || !isBgzfHeader( header ) ) {
+            file->seek( oldPos );
+            return false;
+        }
+
+        FooterBytes footer;
+        file->seek( -static_cast<int>( footer.size() ), SEEK_END );
+        const auto nBytesReadFooter = file->read( reinterpret_cast<char*>( footer.data() ), footer.size() );
+        if ( ( nBytesReadFooter != footer.size() ) || ( footer != BGZF_FOOTER ) ) {
+            file->seek( oldPos );
+            return false;
+        }
+
+        file->seek( oldPos );
+        return true;
+    }
+
+    [[nodiscard]] static bool
     isBgzfHeader( const HeaderBytes& header )
     {
         return     ( header[ 0] == 0x1F )
@@ -158,7 +185,7 @@ public:
      * @return offset of deflate block in bits (not the gzip stream offset!).
      */
     [[nodiscard]] size_t
-    find()
+    find() override
     {
         if ( m_currentBlockOffset == std::numeric_limits<size_t>::max() ) {
             return m_currentBlockOffset;

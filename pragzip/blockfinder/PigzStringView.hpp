@@ -14,8 +14,11 @@
 #include <FileReader.hpp>
 #include <gzip.hpp>
 
+#include "OffsetFinderInterface.hpp"
 
-class PigzBlockFinderStringView
+
+class PigzBlockFinderStringView :
+    public OffsetFinderInterface
 {
 public:
     /**
@@ -36,7 +39,7 @@ public:
      * @return offset of deflate block in bits (not the gzip stream offset!).
      */
     [[nodiscard]] size_t
-    find()
+    find() override
     {
         while ( m_blockOffsets.empty() && !m_fileReader->eof() && !m_fileReader->fail() && !m_fileReader->closed() ) {
             if ( foundFirstBlock ) {

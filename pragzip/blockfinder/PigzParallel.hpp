@@ -14,6 +14,7 @@
 #include <ThreadPool.hpp>
 
 #include "../pragzip.hpp"
+#include "OffsetFinderInterface.hpp"
 
 
 /**
@@ -80,7 +81,8 @@
  *      sys	0m0.627s                                               speed up a lot beause it is not the critical path!
  *
  */
-class ParallelPigzBlockFinder
+class ParallelPigzBlockFinder :
+    public OffsetFinderInterface
 {
 public:
     /**
@@ -153,7 +155,7 @@ public:
      * @return offset of deflate block in bits (not the gzip stream offset!).
      */
     [[nodiscard]] size_t
-    find()
+    find() override
     {
         /* The flush markers will be AFTER deflate blocks, meaning the very first deflate block needs special
          * treatment to not be ignored. */
