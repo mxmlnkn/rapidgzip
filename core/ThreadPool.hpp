@@ -90,9 +90,18 @@ public:
 
     ~ThreadPool()
     {
-        std::lock_guard lock( m_mutex );
-        m_threadPoolRunning = false;
-        m_pingWorkers.notify_all();
+        stop();
+    }
+
+    void
+    stop()
+    {
+        {
+            std::lock_guard lock( m_mutex );
+            m_threadPoolRunning = false;
+            m_pingWorkers.notify_all();
+        }
+        m_threads.clear();
     }
 
     /**

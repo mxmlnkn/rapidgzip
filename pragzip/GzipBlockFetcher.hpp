@@ -45,6 +45,10 @@ public:
         m_bitReader( bitReader )
     {}
 
+    ~GzipBlockFetcher()
+    {
+        this->stopThreadPool();
+    }
 
     /**
      * Notes about prefetchNewBlocks optimization.

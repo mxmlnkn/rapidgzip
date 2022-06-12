@@ -54,6 +54,11 @@ public:
         m_blockSize100k( bzip2::readBzip2Header( bitReader ) )
     {}
 
+    ~BZ2BlockFetcher()
+    {
+        this->stopThreadPool();
+    }
+
     [[nodiscard]] BlockHeaderData
     readBlockHeader( size_t blockOffset ) const
     {

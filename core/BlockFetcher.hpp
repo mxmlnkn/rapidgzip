@@ -246,6 +246,16 @@ protected:
     decodeBlock( size_t blockIndex,
                  size_t blockOffset ) const = 0;
 
+    /**
+     * This must be called before variables that are used by @ref decodeBlock are destructed, i.e.,
+     * it must be called in the inheriting class.
+     */
+    void
+    stopThreadPool()
+    {
+        m_threadPool.stop();
+    }
+
 private:
     [[nodiscard]] BlockData
     decodeAndMeasureBlock( size_t blockIndex,
