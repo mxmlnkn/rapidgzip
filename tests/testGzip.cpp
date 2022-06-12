@@ -372,7 +372,7 @@ main( int    argc,
         catch ( const std::exception& e )
         {
             std::cerr << "Exception was thrown: " << e.what() << "\n";
-            gnTestErrors++;
+            REQUIRE( false );
         }
     }
 

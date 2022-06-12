@@ -56,7 +56,7 @@ main( int    argc,
         /* Note that the destructor for TemporaryDirectory might not be called for uncaught exceptions!
          * @see https://stackoverflow.com/questions/222175/why-destructor-is-not-called-on-exception */
         std::cerr << "Caught exception: " << exception.what() << "\n";
-        gnTestErrors += 1;
+        REQUIRE( false );
     }
 
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
