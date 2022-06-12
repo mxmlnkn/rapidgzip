@@ -93,7 +93,7 @@ public:
         /* Start requested calculation if necessary. */
         if ( !result && !resultFuture.valid() ) {
             resultFuture = m_threadPool.submitTask( [this, blockOffset, validDataBlockIndex] () {
-                return decodeBlock( validDataBlockIndex, blockOffset );
+                return decodeAndMeasureBlock( validDataBlockIndex, blockOffset );
             } );
             assert( resultFuture.valid() );
         }
@@ -224,7 +224,7 @@ private:
             ++m_prefetchCount;
             auto prefetchedFuture = m_threadPool.submitTask(
                 [this, offset = *prefetchBlockOffset, blockIndexToPrefetch] () {
-                    return decodeBlock( blockIndexToPrefetch, offset );
+                    return decodeAndMeasureBlock( blockIndexToPrefetch, offset );
                 } );
             const auto [_, wasInserted] = m_prefetching.emplace( *prefetchBlockOffset, std::move( prefetchedFuture ) );
             if ( !wasInserted ) {
@@ -245,6 +245,22 @@ protected:
     [[nodiscard]] virtual BlockData
     decodeBlock( size_t blockIndex,
                  size_t blockOffset ) const = 0;
+
+private:
+    [[nodiscard]] BlockData
+    decodeAndMeasureBlock( size_t blockIndex,
+                           size_t blockOffset ) const
+    {
+        const auto t0 = std::chrono::high_resolution_clock::now();
+        auto blockData = decodeBlock( blockIndex, blockOffset );
+        const auto t1 = std::chrono::high_resolution_clock::now();
+        const auto dt = std::chrono::duration<double>( t1 - t0 ).count();
+        {
+            std::scoped_lock lock( this->m_analyticsMutex );
+            this->m_decodeBlockTotalTime += dt;
+        }
+        return blockData;
+    }
 
 protected:
     /* Analytics */

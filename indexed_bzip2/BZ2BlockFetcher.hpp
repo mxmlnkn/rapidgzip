@@ -79,8 +79,6 @@ private:
     decodeBlock( size_t /* blockIndex */,
                  size_t blockOffset ) const override
     {
-        const auto t0 = std::chrono::high_resolution_clock::now();
-
         BitReader bitReader( m_bitReader );
         bitReader.seek( blockOffset );
         bzip2::Block block( bitReader );
@@ -99,13 +97,13 @@ private:
         }
 
 
-        const auto t2 = std::chrono::high_resolution_clock::now();
+        const auto t0 = std::chrono::high_resolution_clock::now();
         block.readBlockData();
-        const auto t3 = std::chrono::high_resolution_clock::now();
-        const auto dt2 = std::chrono::duration<double>( t3 - t2 ).count();
+        const auto t1 = std::chrono::high_resolution_clock::now();
+        const auto dt = std::chrono::duration<double>( t1 - t0 ).count();
         {
             std::scoped_lock lock( this->m_analyticsMutex );
-            this->m_readBlockDataTotalTime += dt2;
+            this->m_readBlockDataTotalTime += dt;
         }
 
         size_t decodedDataSize = 0;
@@ -132,13 +130,6 @@ private:
         result.data.resize( decodedDataSize );
         result.encodedSizeInBits = block.encodedSizeInBits;
         result.calculatedCRC = block.bwdata.dataCRC;
-
-        const auto t1 = std::chrono::high_resolution_clock::now();
-        const auto dt = std::chrono::duration<double>( t1 - t0 ).count();
-        {
-            std::scoped_lock lock( this->m_analyticsMutex );
-            this->m_decodeBlockTotalTime += dt;
-        }
 
         return result;
     }

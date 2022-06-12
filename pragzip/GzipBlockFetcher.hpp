@@ -110,8 +110,6 @@ public:
     decodeBlock( size_t /* blockIndex */,
                  size_t blockOffset ) const override
     {
-        const auto t0 = std::chrono::high_resolution_clock::now();
-
         BitReader bitReader( m_bitReader );
         bitReader.seek( blockOffset );
         pragzip::deflate::Block block;
@@ -159,13 +157,6 @@ public:
 
         result.data.resize( decodedDataSize );
         result.encodedSizeInBits = bitReader.tell() - blockOffset;
-
-        const auto t1 = std::chrono::high_resolution_clock::now();
-        const auto dt = std::chrono::duration<double>( t1 - t0 ).count();
-        {
-            std::scoped_lock lock( this->m_analyticsMutex );
-            this->m_decodeBlockTotalTime += dt;
-        }
 
         return result;
     }
