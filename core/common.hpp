@@ -212,6 +212,15 @@ private:
 };
 
 
+std::ostream&
+operator<<( std::ostream&           out,
+            const ThreadSafeOutput& output )
+{
+    out << output.str();
+    return out;
+}
+
+
 [[nodiscard]] inline std::string
 toString( std::future_status status )
 {
