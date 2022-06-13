@@ -155,10 +155,10 @@ now()
 /**
  * @return duration in seconds
  */
-template<typename T0, typename T1>
+template<typename T>
 [[nodiscard]] double
-duration( const T0& t0,
-          const T1& t1 = now() )
+duration( const T& t0,
+          const T& t1 = now() )
 {
     return std::chrono::duration<double>( t1 - t0 ).count();
 }

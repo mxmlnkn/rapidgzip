@@ -17,6 +17,7 @@
 #include <utility>
 
 #include <Cache.hpp>
+#include <common.hpp>
 #include <Prefetcher.hpp>
 #include <ThreadPool.hpp>
 
@@ -35,6 +36,9 @@ public:
     using BlockFinder = T_BlockFinder;
     using BlockData = T_BlockData;
 
+private:
+    static constexpr bool SHOW_PROFILE{ false };
+
 protected:
     BlockFetcher( std::shared_ptr<BlockFinder> blockFinder,
                   size_t                       parallelization ) :
@@ -49,24 +53,26 @@ protected:
 public:
     ~BlockFetcher()
     {
-#if 0
-        const auto cacheHitRate = ( m_cache.hits() + m_prefetchDirectHits )
-                                  / static_cast<double>( m_cache.hits() + m_cache.misses() + m_prefetchDirectHits );
-        std::cerr << (
-            ThreadSafeOutput() << "[BlockFetcher::~BlockFetcher]"
-            << "\n   Hits"
-            << "\n       Cache                         :" << m_cache.hits()
-            << "\n       Prefetch Queue                :" << m_prefetchDirectHits
-            << "\n   Misses                            :" << m_cache.misses()
-            << "\n   Hit Rate                          :" << cacheHitRate
-            << "\n   Prefetched Blocks                 :" << m_prefetchCount
-            << "\n   Prefetch Stall by BlockFinder     :" << m_waitOnBlockFinderCount
-            << "\n   Time spent in:"
-            << "\n       bzip2::readBlockData          :" << m_readBlockDataTotalTime << "s"
-            << "\n       time spent in decodeBlock     :" << m_decodeBlockTotalTime   << "s"
-            << "\n       time spent waiting on futures :" << m_futureWaitTotalTime    << "s"
-        ).str();
-#endif
+        if constexpr ( SHOW_PROFILE ) {
+            const auto cacheHitRate = ( m_cache.hits() + m_prefetchDirectHits )
+                                      / static_cast<double>( m_cache.hits() + m_cache.misses() + m_prefetchDirectHits );
+            std::cerr << (
+                ThreadSafeOutput() << "[BlockFetcher::~BlockFetcher]"
+                << "\n   Parallelization                   :" << m_parallelization
+                << "\n   Hits"
+                << "\n       Cache                         :" << m_cache.hits()
+                << "\n       Prefetch Queue                :" << m_prefetchDirectHits
+                << "\n   Misses                            :" << m_cache.misses()
+                << "\n   Hit Rate                          :" << cacheHitRate
+                << "\n   Prefetched Blocks                 :" << m_prefetchCount
+                << "\n   Prefetch Stall by BlockFinder     :" << m_waitOnBlockFinderCount
+                << "\n   Time spent in:"
+                << "\n       bzip2::readBlockData          :" << m_readBlockDataTotalTime << "s"
+                << "\n       decodeBlock                   :" << m_decodeBlockTotalTime   << "s"
+                << "\n       std::future::get              :" << m_futureWaitTotalTime    << "s"
+                << "\n       get                           :" << m_getTotalTime           << "s"
+            );
+        }
 
         m_cancelThreads = true;
         m_cancelThreadsCondition.notify_all();
@@ -79,6 +85,7 @@ public:
     get( size_t                blockOffset,
          std::optional<size_t> dataBlockIndex = {} )
     {
+        [[maybe_unused]] const auto tGetStart = now();
         auto resultFuture = takeFromPrefetchQueue( blockOffset );
 
         /* Access cache before data might get evicted!
@@ -112,19 +119,27 @@ public:
         /* Return result */
         if ( result ) {
             assert( !resultFuture.valid() );
+
+            if constexpr ( SHOW_PROFILE ) {
+                std::scoped_lock lock( m_analyticsMutex );
+                m_getTotalTime += duration( tGetStart );
+            }
+
             return *result;
         }
 
-        const auto t0 = std::chrono::high_resolution_clock::now();
+        [[maybe_unused]] const auto tFutureGetStart = now();
         result = std::make_shared<BlockData>( resultFuture.get() );
-        const auto t1 = std::chrono::high_resolution_clock::now();
-        const auto dt = std::chrono::duration<double>( t1 - t0 ).count();
-        {
-            std::scoped_lock lock( m_analyticsMutex );
-            m_futureWaitTotalTime += dt;
-        }
+        [[maybe_unused]] const auto futureGetDuration = duration( tFutureGetStart );
 
         m_cache.insert( blockOffset, *result );
+
+        if constexpr ( SHOW_PROFILE ){
+            std::scoped_lock lock( m_analyticsMutex );
+            m_futureWaitTotalTime += futureGetDuration;
+            m_getTotalTime += duration( tGetStart );
+        }
+
         return *result;
     }
 
@@ -144,7 +159,9 @@ private:
             m_prefetching.erase( match );
             assert( resultFuture.valid() );
 
-            ++m_prefetchDirectHits;
+            if constexpr ( SHOW_PROFILE ) {
+                ++m_prefetchDirectHits;
+            }
         }
 
         return resultFuture;
@@ -209,8 +226,10 @@ private:
             }
             while ( !prefetchBlockOffset && !stopPrefetching() );
 
-            if ( !prefetchBlockOffset.has_value() ) {
-                m_waitOnBlockFinderCount++;
+            if constexpr ( SHOW_PROFILE ) {
+                if ( !prefetchBlockOffset.has_value() ) {
+                    m_waitOnBlockFinderCount++;
+                }
             }
 
             /* Do not prefetch already cached/prefetched blocks or block indexes which are not yet in the block map. */
@@ -261,25 +280,26 @@ private:
     decodeAndMeasureBlock( size_t blockIndex,
                            size_t blockOffset ) const
     {
-        const auto t0 = std::chrono::high_resolution_clock::now();
+        [[maybe_unused]] const auto tDecodeStart = now();
         auto blockData = decodeBlock( blockIndex, blockOffset );
-        const auto t1 = std::chrono::high_resolution_clock::now();
-        const auto dt = std::chrono::duration<double>( t1 - t0 ).count();
-        {
+        if constexpr ( SHOW_PROFILE ) {
             std::scoped_lock lock( this->m_analyticsMutex );
-            this->m_decodeBlockTotalTime += dt;
+            this->m_decodeBlockTotalTime += duration( tDecodeStart );
         }
         return blockData;
     }
 
-protected:
+private:
     /* Analytics */
     size_t m_prefetchCount{ 0 };
     size_t m_prefetchDirectHits{ 0 };
     size_t m_waitOnBlockFinderCount{ 0 };
-    mutable double m_readBlockDataTotalTime{ 0 };
     mutable double m_decodeBlockTotalTime{ 0 };
     mutable double m_futureWaitTotalTime{ 0 };
+    mutable double m_getTotalTime{ 0 };
+
+protected:
+    mutable double m_readBlockDataTotalTime{ 0 };
     mutable std::mutex m_analyticsMutex;
 
 private:
