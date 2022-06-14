@@ -1,10 +1,10 @@
 /**
  * @file
  *
- * - Note that this implementation avoid C++ exceptions because invalid data is assumed to be happen rather often,
- *   which is the case when searching for deflate blocks without knowing the exact offsets! Exceptions are much
- *   to slow for that!
- * - In the same manner as exceptions it turns at that using std::array with a maximum possible size instead of
+ * - Note that this implementation avoids C++ exceptions because invalid data is assumed happen rather often,
+ *   which is the case when searching for deflate blocks without knowing the exact offsets! Exceptions are too
+ *   slow for that!
+ * - In the same manner as exceptions, it turns out that using std::array with a maximum possible size instead of
  *   dynamically sized std::vectors improves speed for checking and decoding a lot by avoiding heap allocations.
  */
 
@@ -73,7 +73,7 @@ using FixedHuffmanCoding = LiteralOrLengthHuffmanCoding;
 //    HuffmanCodingReversedBitsCached<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_LITERAL_OR_LENGTH_SYMBOLS + 2>;
 
 
-FixedHuffmanCoding
+[[nodiscard]] FixedHuffmanCoding
 createFixedHC()
 {
     std::vector<uint8_t> encodedFixedHuffmanTree( MAX_LITERAL_OR_LENGTH_SYMBOLS + 2, 8 );
@@ -90,7 +90,7 @@ createFixedHC()
 }
 
 
-inline uint16_t
+[[nodiscard]] inline uint16_t
 calculateDistance( uint16_t distance,
                    uint8_t  extraBitsCount,
                    uint16_t extraBits )
@@ -100,7 +100,7 @@ calculateDistance( uint16_t distance,
 };
 
 
-inline uint16_t
+[[nodiscard]] inline uint16_t
 calculateDistance( uint16_t distance )
 {
     assert( distance >= 4 );
@@ -111,7 +111,7 @@ calculateDistance( uint16_t distance )
 
 using DistanceLUT = std::array<uint16_t, 30>;
 
-DistanceLUT
+[[nodiscard]] DistanceLUT
 createDistanceLUT()
 {
     DistanceLUT result;
@@ -129,7 +129,7 @@ alignas(8) static inline const DistanceLUT
 distanceLUT = createDistanceLUT();
 
 
-inline uint16_t
+[[nodiscard]] inline uint16_t
 calculateLength( uint16_t code )
 {
     assert( code < 285 - 261 );
@@ -140,7 +140,7 @@ calculateLength( uint16_t code )
 
 using LengthLUT = std::array<uint16_t, 285 - 261>;
 
-LengthLUT
+[[nodiscard]] LengthLUT
 createLengthLUT()
 {
     LengthLUT result;
@@ -224,10 +224,10 @@ public:
      *         Huffman codings, which saves almost 50% of time!
      */
     template<bool treatLastBlockAsError = false>
-    Error
+    [[nodiscard]] Error
     readHeader( BitReader& bitReader );
 
-    const auto&
+    [[nodiscard]] const auto&
     window() const
     {
         return m_window;
@@ -407,8 +407,11 @@ public:
      * There are two use cases for this function:
      *  - To set a window before decoding in order to resume decoding and for seeking in the gzip stream.
      *  - To replace marker bytes with real data in post.
-     *      -> The latter use case should maybe be moved into a Buffer class, which not only can hold both
-     *         kind of buffers (8-bit and 16-bit) but also contains functionality for applying the window.
+     * The only real use case for the latter would be huge deflate blocks. In practice, all gzip implementations
+     * I encountered produced deflate blocks not larger than 64 KiB. In that case, it would be simpler to create
+     * a new deflate::Block object on the next block and then set the initial window before decoding with the
+     * data from the last read calls whose markers will have to be replaced using @ref replaceMarkerBytes.
+     * This method does not much more but has to account for wrap-around, too.
      */
     void
     setInitialWindow( ArrayView<std::uint8_t, MAX_WINDOW_SIZE> const initialWindow )
@@ -431,7 +434,7 @@ public:
          * and simply filling it from left to right will result in wrapping not working because the right half
          * is empty. It would only work if there is no wrapping necessary because it is a contiguous block!
          * To achieve that, map i -> i' such that m_windowPosition is m_window.size() - 1.
-         * This way all back-references will not wrap arount on the left border. */
+         * This way all back-references will not wrap around on the left border. */
         std::array<uint8_t, decltype( m_window16 )().size()> conflatedBuffer{};
 
         for ( size_t i = 0; i < m_window16.size(); ++i ) {
@@ -495,7 +498,7 @@ private:
                    "Buffers should at least be able to fit one uncompressed block." );
 
 private:
-    Error
+    [[nodiscard]] Error
     readDynamicHuffmanCoding( BitReader& bitReader );
 
     void
@@ -886,6 +889,11 @@ deflate::Block::read16( BitReader& bitReader,
 {
     /* Actually begin decoding real data! */
     if ( m_compressionType == CompressionType::UNCOMPRESSED ) {
+        /**
+         * Because the non-compressed deflate block size is 16-bit, the uncompressed data is limited to 65535 B!
+         * The buffer can hold MAX_WINDOW_SIZE 16-bit values (for markers) or twice the amount of decoded bytes.
+         * Therefore, this routine is safe to call.
+         */
         for ( uint16_t i = 0; i < m_uncompressedSize; ++i ) {
             const auto literal = bitReader.read<BYTE_SIZE>();
             appendToWindow16( literal );

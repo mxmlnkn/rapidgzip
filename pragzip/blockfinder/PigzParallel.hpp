@@ -178,7 +178,11 @@ public:
             m_lastBlockOffsetReturned = bitReader.tell();
 
             pragzip::deflate::Block block;
-            block.readHeader( bitReader );
+            const auto error = block.readHeader( bitReader );
+            if ( error != pragzip::Error::NONE ) {
+                throw std::invalid_argument( "Corrupted deflate stream in gzip file!" );
+            }
+
             if ( ( block.compressionType() != pragzip::deflate::Block::CompressionType::UNCOMPRESSED )
                  || block.isLastBlock()
                  || ( block.uncompressedSize() > 0 ) )
