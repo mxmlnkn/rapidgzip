@@ -132,6 +132,10 @@ main( int    argc,
     test( "random-128KiB.igz", 2, { 313 }, {} );
     test( "random-128KiB.pgz", 2, {}, { 16395, 16397, 16389, 16387, 16393, 16335 } );
 
+    /**
+     * @todo Add more tests of combinations like random + base, base + random
+     */
+
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
 
     return gnTestErrors == 0 ? 0 : 1;

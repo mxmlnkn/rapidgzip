@@ -46,6 +46,7 @@ struct Checkpoint
 {
     uint64_t compressedOffsetInBits{ 0 };
     uint64_t uncompressedOffsetInBytes{ 0 };
+    /** @todo Use std::optional<std::array<uint8_t, MAX_WINDOW_SIZE> > instead? */
     std::vector<uint8_t> window;
 
     [[nodiscard]] constexpr bool

@@ -209,6 +209,15 @@ main( int    argc,
                          rootFolder / "tests/data/base64-256KiB",
                          rootFolder / "tests/data/base64-256KiB.gz.index" );
 
+    /**
+     * @todo add test with false pigz positive, e.g., pigz marker inside comment, extra, or file name field.
+     * @todo add test with valid empty pigz block. E.g., by concatenating empty.pgz. This might trip up
+     *       ParallelGzipReader making it impossible to advance. Maybe use the EOS handling in the BlockFinder to filter
+     *       these empty blocks? Maybe also skip empty deflate blocks inside PigzBlockFinder. BZ2 also never finds
+     *       (empty) EOS blocks.
+     * @todo Add test for bz2 with such an empty block! Will it lock up?!
+     */
+
     try
     {
         testParallelDecodingWithIndex();

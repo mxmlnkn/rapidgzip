@@ -378,6 +378,15 @@ public:
                                 std::move_iterator( downcastedVectors.rend() ) );
         }
 
+        /**
+         * @todo write window back if we somehow got fully-decoded?
+         * @todo Propagate that window through ready prefetched block results?
+         * @note The idea here is that the more windows we have, the less extra work (marker replacement) we have to do.
+         * @todo reduce buffer size because it is possible now with the automatic marker resolution, I think.
+         * @todo add empty pigz block in the middle somewhere, e.g., by concatenating empty.pgz!
+         *       This might trip up the ParallelGzipReader!
+         */
+
         result.encodedSizeInBits = bitReader.tell() - blockOffset;
         return result;
     }

@@ -926,6 +926,8 @@ deflate::Block<CALCULATE_CRC32>::readInternal( BitReader& bitReader,
          * Because the non-compressed deflate block size is 16-bit, the uncompressed data is limited to 65535 B!
          * The buffer can hold MAX_WINDOW_SIZE 16-bit values (for markers) or twice the amount of decoded bytes.
          * Therefore, this routine is safe to call.
+         * @todo This does not take into account nMaxToDecode nor the buffer size!
+         * @todo Use memcpy? Would have to do m_distanceToLastMarkerByte += m_uncompressedSize and calculate CRC32.
          */
         for ( uint16_t i = 0; i < m_uncompressedSize; ++i ) {
             const auto literal = bitReader.read<BYTE_SIZE>();

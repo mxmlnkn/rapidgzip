@@ -211,6 +211,8 @@ public:
                 }
                 catch ( const std::domain_error& )
                 {
+                    /* @TODO MIGHT THIS lead to a bug if the bzip2 file ends perfectly on a byte boundary
+                     * such that m_bitReader.eof() will be true before this code part has been reached?! */
                     std::cerr << "[Warning] Trailing garbage after EOF ignored!\n";
                     m_atEndOfFile = true;
                     m_blockToDataOffsetsComplete = true;
