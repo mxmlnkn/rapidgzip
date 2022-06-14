@@ -183,6 +183,30 @@ public:
         return "Unknown";
     }
 
+    /**
+     * Only one of the two will contain non-empty VectorViews depending on whether marker bytes might appear.
+     * @ref dataWithMarkers will be empty when @ref setInitialWindow has been called.
+     */
+    struct BufferViews
+    {
+    public:
+        [[nodiscard]] size_t
+        size() const
+        {
+            return dataWithMarkers[0].size() + dataWithMarkers[1].size() + data[0].size() + data[1].size();
+        }
+
+        [[nodiscard]] bool
+        containsMarkers() const
+        {
+            return !dataWithMarkers[0].empty() || !dataWithMarkers[1].empty();
+        }
+
+    public:
+        std::array<VectorView<uint16_t>, 2> dataWithMarkers;
+        std::array<VectorView<uint8_t>, 2> data;
+    };
+
 public:
     [[nodiscard]] bool
     eob() const
@@ -214,7 +238,13 @@ public:
         return m_compressionType;
     }
 
-    std::pair<size_t, Error>
+    /**
+     * @param nMaxToDecode Maximum bytes to decode. It might decode less even when there is enough data.
+     *                     It will only decode as much as fits into the internal buffer.
+     *                     It might decode more when it is an uncompressed block.
+     *                     Check for @ref eob to test for the end of the block instead of testing the read byte count.
+     */
+    [[nodiscard]] std::pair<BufferViews, Error>
     read( BitReader& bitReader,
           size_t     nMaxToDecode = std::numeric_limits<size_t>::max() );
 
@@ -472,6 +502,10 @@ public:
     }
 
 private:
+    [[nodiscard]] std::pair<size_t, Error>
+    read8( BitReader& bitReader,
+           size_t     nMaxToDecode );
+
     [[nodiscard]] std::pair<size_t, Error>
     read16( BitReader& bitReader,
             size_t     nMaxToDecode );
@@ -778,17 +812,13 @@ deflate::Block::getDistance( BitReader& bitReader ) const
 }
 
 
-std::pair<size_t, Error>
+std::pair<deflate::Block::BufferViews, Error>
 deflate::Block::read( BitReader& bitReader,
                       size_t     nMaxToDecode )
 {
+    BufferViews result;
     if ( eob() ) {
-        return { 0, Error::NONE };
-    }
-
-    const auto& coding = m_compressionType == CompressionType::FIXED_HUFFMAN ? m_fixedHC : m_literalHC;
-    if ( ( m_compressionType != CompressionType::UNCOMPRESSED ) && !coding.isValid() ) {
-        throw std::invalid_argument( "No Huffman coding loaded! Call readHeader first!" );
+        return { result, Error::NONE };
     }
 
     if ( m_compressionType == CompressionType::RESERVED ) {
@@ -796,11 +826,21 @@ deflate::Block::read( BitReader& bitReader,
     }
 
     if ( m_containsMarkerBytes ) {
-        return read16( bitReader, nMaxToDecode );
+        const auto [_, error] = read16( bitReader, nMaxToDecode );
+        result.dataWithMarkers = lastBuffers16();
+        return { result, error };
     }
 
-    nMaxToDecode = std::min( nMaxToDecode, m_window.size() - MAX_RUN_LENGTH );
+    const auto [_, error] = read8( bitReader, nMaxToDecode );
+    result.data = lastBuffers();
+    return { result, error };
+}
 
+
+std::pair<size_t, Error>
+deflate::Block::read8( BitReader& bitReader,
+                       size_t     nMaxToDecode )
+{
     /* Actually begin decoding real data! */
     if ( m_compressionType == CompressionType::UNCOMPRESSED ) {
         for ( uint16_t i = 0; i < m_uncompressedSize; ++i ) {
@@ -814,6 +854,13 @@ deflate::Block::read( BitReader& bitReader,
         m_decodedBytes += m_uncompressedSize;
         m_lastDecodedBytes = m_uncompressedSize;
         return { m_uncompressedSize, Error::NONE };
+    }
+
+    nMaxToDecode = std::min( nMaxToDecode, m_window.size() - MAX_RUN_LENGTH );
+
+    const auto& coding = m_compressionType == CompressionType::FIXED_HUFFMAN ? m_fixedHC : m_literalHC;
+    if ( ( m_compressionType != CompressionType::UNCOMPRESSED ) && !coding.isValid() ) {
+        throw std::invalid_argument( "No Huffman coding loaded! Call readHeader first!" );
     }
 
     for ( m_lastDecodedBytes = 0; m_lastDecodedBytes < nMaxToDecode; )
@@ -881,7 +928,7 @@ deflate::Block::read( BitReader& bitReader,
 
 
 /**
- * Same as read but appendToWindow -> appendToWindow16 and m_window -> m_window16.
+ * Same as read8 but appendToWindow -> appendToWindow16 and m_window -> m_window16.
  */
 std::pair<size_t, Error>
 deflate::Block::read16( BitReader& bitReader,

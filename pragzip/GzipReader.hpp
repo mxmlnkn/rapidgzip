@@ -333,6 +333,9 @@ private:
      * another concatenated gzip stream, it will be created anew.
      */
     std::optional<pragzip::deflate::Block> m_currentDeflateBlock;
+    /** Holds non-owning views to the data decoded in the last call to m_currentDeflateBlock.read. */
+    pragzip::deflate::Block::BufferViews m_lastBlockData;
+
     /**
      * If m_currentPoint has no value, then it means it is currently inside a deflate block.
      * Because a gzip file can contain multiple streams, the file beginning can generically be treated
@@ -363,7 +366,7 @@ GzipReader::flushOutputBuffer( int    const outputFileDescriptor,
 
     size_t totalBytesFlushed = 0;
     size_t bufferOffset = 0;
-    for ( const auto& buffer : m_currentDeflateBlock->lastBuffers() ) {
+    for ( const auto& buffer : m_lastBlockData.data ) {
         if ( ( *m_offsetInLastBuffers >= bufferOffset ) && ( *m_offsetInLastBuffers < bufferOffset + buffer.size() ) ) {
             const auto offsetInBuffer = *m_offsetInLastBuffers - bufferOffset;
             const auto nBytesToWrite = std::min( buffer.size() - offsetInBuffer, maxBytesToFlush - totalBytesFlushed );
@@ -393,7 +396,7 @@ GzipReader::flushOutputBuffer( int    const outputFileDescriptor,
 
     /* Reset optional offset if end has been reached. */
     size_t totalBufferSize = 0;
-    for ( const auto& buffer : m_currentDeflateBlock->lastBuffers() ) {
+    for ( const auto& buffer : m_lastBlockData.data ) {
         totalBufferSize += buffer.size();
     }
     if ( m_offsetInLastBuffers >= totalBufferSize ) {
@@ -430,16 +433,16 @@ GzipReader::readBlock( int    const outputFileDescriptor,
                 return nBytesDecoded;
             }
 
-
             /* Decode more data from current block. It can then be accessed via Block::lastBuffers. */
-            const auto [nBytesRead, error] =
+            auto error = Error::NONE;
+            std::tie( m_lastBlockData, error ) =
                 m_currentDeflateBlock->read( m_bitReader, std::numeric_limits<size_t>::max() );
             if ( error != pragzip::Error::NONE ) {
                 throw std::domain_error( "Encountered error: " + pragzip::toString( error )
                                          + " while decompressing deflate block." );
             }
 
-            if ( ( nBytesRead == 0 ) && !m_currentDeflateBlock->eob() ) {
+            if ( ( m_lastBlockData.size() == 0 ) && !m_currentDeflateBlock->eob() ) {
                 throw std::logic_error( "Could not read anything so it should be the end of the block!" );
             }
             m_offsetInLastBuffers = 0;

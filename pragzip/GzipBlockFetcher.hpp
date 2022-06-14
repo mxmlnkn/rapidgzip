@@ -189,14 +189,15 @@ public:
             /* Loop until we have read the full contents of the current deflate block. */
             while ( !block.eob() )
             {
-                error = block.read( bitReader, std::numeric_limits<size_t>::max() ).second;
+                pragzip::deflate::Block::BufferViews bufferViews;
+                std::tie( bufferViews, error ) = block.read( bitReader, std::numeric_limits<size_t>::max() );
                 if ( error != pragzip::Error::NONE ) {
                     std::cerr << "Erroneous block at offset " << blockOffset
                               << " b: " << pragzip::toString( error ) << "\n";
                     return {};
                 }
 
-                for ( const auto& buffer : block.lastBuffers() ) {
+                for ( const auto& buffer : bufferViews.data ) {
                     if ( buffer.empty() ) {
                         continue;
                     }

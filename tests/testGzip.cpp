@@ -215,7 +215,6 @@ testTwoStagedDecoding( std::string_view encodedFilePath,
                        std::string_view decodedFilePath )
 {
     auto error = Error::NONE;
-    size_t nBytesRead = 0;
 
     /* Read first deflate block so that we can try decoding from the second one. */
     GzipReader gzipReader{ std::make_unique<StandardFileReader>( encodedFilePath.data() ) };
@@ -269,14 +268,16 @@ testTwoStagedDecoding( std::string_view encodedFilePath,
     deflate::Block block;
     error = block.readHeader( bitReader );
     REQUIRE( error == Error::NONE );
-    std::tie( nBytesRead, error ) = block.read( bitReader, std::numeric_limits<size_t>::max() );
+
+    pragzip::deflate::Block::BufferViews bufferViews;
+    std::tie( bufferViews, error ) = block.read( bitReader, std::numeric_limits<size_t>::max() );
     REQUIRE( error == Error::NONE );
-    REQUIRE( block.containsMarkerBytes() );
+    REQUIRE( bufferViews.containsMarkers() );
 
     /* Copy out results including unresolved marker words. */
 
     std::vector<uint16_t> concatenated;
-    for ( const auto& buffer : block.lastBuffers16() ) {
+    for ( const auto& buffer : bufferViews.dataWithMarkers ) {
         concatenated.resize( concatenated.size() + buffer.size() );
         std::memcpy( concatenated.data() + ( concatenated.size() - buffer.size() ),
                      buffer.data(), buffer.size() * sizeof( buffer[0] ) );
