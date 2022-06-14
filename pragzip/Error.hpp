@@ -10,6 +10,7 @@ enum class Error
     NONE                        = 0x00,
 
     EOF_ZERO_STRING             = 0x10,
+    EOF_UNCOMPRESSED            = 0x11,
 
     EXCEEDED_CL_LIMIT           = 0x20,
     EXCEEDED_SYMBOL_RANGE       = 0x21,
@@ -41,6 +42,8 @@ toString( Error error )
     {
     case Error::EOF_ZERO_STRING :
         return "End of file encountered when trying to read zero-terminated string!";
+    case Error::EOF_UNCOMPRESSED :
+        return "End of file encountered when trying to copy uncompressed block from file!";
     case Error::EMPTY_ALPHABET:
         return "All code lengths are zero!";
     case Error::EXCEEDED_CL_LIMIT:

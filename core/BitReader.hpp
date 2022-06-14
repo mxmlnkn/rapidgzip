@@ -173,6 +173,9 @@ public:
         return read( bitsWanted );
     }
 
+    /**
+     * @return Number of bytes read.
+     */
     [[nodiscard]] size_t
     read( char*  outputBuffer,
           size_t nBytesToRead ) override
@@ -182,12 +185,20 @@ public:
         if ( outputBuffer == nullptr ) {
             seek( nBytesToRead, SEEK_CUR );
         } else {
+            /** @todo Optimize this for the case that we are on a byte-boundary and that more than the
+             *        bit buffer size is requested. In that case, first, copy the rest of the bit buffer
+             *        and then do a direct read on the underlying file object! This case is common for
+             *        uncompressed deflate blocks in a gzip stream! */
             for ( size_t i = 0; i < nBytesToRead; ++i ) {
                 outputBuffer[i] = static_cast<char>( read( CHAR_BIT ) );
             }
         }
 
-        return tell() - oldTell;
+        const auto nBitsRead = tell() - oldTell;
+        if ( nBitsRead % CHAR_BIT != 0 ) {
+            throw std::runtime_error( "Read not a multiple of CHAR_BIT, probably because EOF was encountered!" );
+        }
+        return nBitsRead / CHAR_BIT;
     }
 
     template<uint8_t bitsWanted>

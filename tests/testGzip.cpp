@@ -272,25 +272,29 @@ testTwoStagedDecoding( std::string_view encodedFilePath,
     pragzip::deflate::Block::BufferViews bufferViews;
     std::tie( bufferViews, error ) = block.read( bitReader, std::numeric_limits<size_t>::max() );
     REQUIRE( error == Error::NONE );
-    REQUIRE( bufferViews.containsMarkers() );
-
-    /* Copy out results including unresolved marker words. */
 
     std::vector<uint16_t> concatenated;
-    for ( const auto& buffer : bufferViews.dataWithMarkers ) {
-        concatenated.resize( concatenated.size() + buffer.size() );
-        std::memcpy( concatenated.data() + ( concatenated.size() - buffer.size() ),
-                     buffer.data(), buffer.size() * sizeof( buffer[0] ) );
+    if ( bufferViews.containsMarkers() ) {
+        /* Copy out results including unresolved marker words. */
+        for ( const auto& buffer : bufferViews.dataWithMarkers ) {
+            concatenated.resize( concatenated.size() + buffer.size() );
+            std::memcpy( concatenated.data() + ( concatenated.size() - buffer.size() ),
+                         buffer.data(), buffer.size() * sizeof( buffer[0] ) );
+        }
+
+        deflate::Block::replaceMarkerBytes( { concatenated.data(), concatenated.size() }, lastWindow.data() );
+    } else {
+        for ( const auto& buffer : bufferViews.data ) {
+            concatenated.resize( concatenated.size() + buffer.size() );
+            std::copy( buffer.begin(), buffer.end(), concatenated.data() + ( concatenated.size() - buffer.size() ) );
+        }
     }
 
+    /* Compare concatenated (and possibly marker bytes replaced) result. */
     std::vector<uint8_t> decodedBuffer( 1024ULL * 1024ULL );
     REQUIRE( decodedBuffer.size() >= concatenated.size() );
     decodedFile.seekg( static_cast<ssize_t>( firstBlockSize ) );
     decodedFile.read( reinterpret_cast<char*>( decodedBuffer.data() ), static_cast<ssize_t>( concatenated.size() ) );
-
-    /* Replace marker bytes in custom buffer. */
-
-    deflate::Block::replaceMarkerBytes( { concatenated.data(), concatenated.size() }, lastWindow.data() );
 
     REQUIRE( std::equal( concatenated.begin(), concatenated.end(), decodedBuffer.begin() ) );
     if ( !std::equal( concatenated.begin(), concatenated.end(), decodedBuffer.begin() ) ) {

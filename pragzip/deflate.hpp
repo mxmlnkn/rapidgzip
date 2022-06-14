@@ -769,6 +769,30 @@ deflate::Block::read( BitReader& bitReader,
 
     BufferViews result;
 
+    /**
+     * Special case for uncompressed blocks larger or equal than the window size.
+     * Because, in this case, we can simply copy the uncompressed block to the beginning of the window
+     * without worrying about wrap-around and also now we know that there are no markers remaining!
+     * @todo use memcpy / large read even when smaller than MAX_WINDOW_SIZE to improve speed
+     */
+    if ( ( m_compressionType == CompressionType::UNCOMPRESSED ) && ( m_uncompressedSize >= MAX_WINDOW_SIZE ) ) {
+        m_containsMarkerBytes = false;
+        m_windowPosition = m_uncompressedSize;
+        m_atEndOfBlock = true;
+        m_decodedBytes += m_uncompressedSize;
+
+        const auto nBytesRead = bitReader.read( reinterpret_cast<char*>( m_window.data() ), m_uncompressedSize );
+
+    #ifdef CALCULATE_CRC32
+        for ( size_t i = 0; i < nBytesRead; ++i ) {
+            m_crc32 = updateCRC32( m_crc32, m_window[i] );
+        }
+    #endif
+
+        result.data = lastBuffers( m_window, m_windowPosition, nBytesRead );
+        return { result, nBytesRead == m_uncompressedSize ? Error::NONE : Error::EOF_UNCOMPRESSED };
+    }
+
     if ( m_containsMarkerBytes ) {
         const auto [nBytesRead, error] = readInternal( bitReader, nMaxToDecode, m_window16 );
         result.dataWithMarkers = lastBuffers( m_window16, m_windowPosition, nBytesRead );
