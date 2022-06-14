@@ -276,28 +276,6 @@ public:
         return m_compressionType == CompressionType::UNCOMPRESSED ? m_uncompressedSize : 0;
     }
 
-    [[nodiscard]] bool
-    containsMarkerBytes() const
-    {
-        return m_containsMarkerBytes;
-    }
-
-    /**
-     * @return the areas last written in the circular window buffer. Because of the circularity, two VectorViews
-     *         are returned and both are non-empty in the case of the last written data wrapping around.
-     */
-    [[nodiscard]] std::array<VectorView<uint8_t>, 2>
-    lastBuffers() const
-    {
-        return lastBuffers( m_window, m_windowPosition, m_lastDecodedBytes );
-    }
-
-    [[nodiscard]] std::array<VectorView<uint16_t>, 2>
-    lastBuffers16() const
-    {
-        return lastBuffers( m_window16, m_windowPosition, m_lastDecodedBytes );
-    }
-
     /**
      * Returns the last 32 KiB decoded bytes. This can be called after decoding a block has finished
      * and then can be used to store and load it with setInitialWindow to restart decoding with the next block.
@@ -395,19 +373,20 @@ public:
      * data from the last read calls whose markers will have to be replaced using @ref replaceMarkerBytes.
      * This method does not much more but has to account for wrap-around, too.
      */
-    void
+    std::array<VectorView<uint8_t>, 2>
     setInitialWindow( ArrayView<std::uint8_t, MAX_WINDOW_SIZE> const initialWindow )
     {
         if ( !m_containsMarkerBytes ) {
-            return;
+            return lastBuffers( m_window, m_windowPosition, std::min( m_window.size(), m_decodedBytes ) );
         }
 
-        if ( ( m_decodedBytes == 0 ) && ( m_windowPosition == 0 ) && m_containsMarkerBytes ) {
+        /* Set an initial window before decoding has started. */
+        if ( ( m_decodedBytes == 0 ) && ( m_windowPosition == 0 ) ) {
             std::memcpy( m_window.data(), initialWindow.data(), initialWindow.size() );
             m_windowPosition = initialWindow.size();
             m_decodedBytes = initialWindow.size();
             m_containsMarkerBytes = false;
-            return;
+            return lastBuffers( m_window, m_windowPosition, std::min( m_window.size(), m_decodedBytes ) );
         }
 
         replaceMarkerBytes( { m_window16.data(), m_window16.size() }, initialWindow );
@@ -430,6 +409,7 @@ public:
         m_windowPosition = 0;
 
         m_containsMarkerBytes = false;
+        return lastBuffers( m_window, m_windowPosition, std::min( m_window16.size(), m_decodedBytes ) );
     }
 
     [[nodiscard]] bool
@@ -560,11 +540,6 @@ private:
      * the size of m_window (in the beginning as long as it does not wrap).
      */
     size_t m_windowPosition{ 0 };
-    /**
-     * The amount of data before m_windowPosition that has been read in the last "read" call.
-     * This is used to know how much decoded bytes to return when the buffer is requested.
-     */
-    size_t m_lastDecodedBytes{ 0 };
     /**
      * @todo Instead of this bool, keep track of the largest backreference and dynamically switch to 16-bit?
      */
@@ -797,13 +772,11 @@ deflate::Block::read( BitReader& bitReader,
     if ( m_containsMarkerBytes ) {
         const auto [nBytesRead, error] = readInternal( bitReader, nMaxToDecode, m_window16 );
         result.dataWithMarkers = lastBuffers( m_window16, m_windowPosition, nBytesRead );
-        m_lastDecodedBytes = nBytesRead;
         return { result, error };
     }
 
     const auto [nBytesRead, error] = readInternal( bitReader, nMaxToDecode, m_window );
     result.data = lastBuffers( m_window, m_windowPosition, nBytesRead );
-    m_lastDecodedBytes = nBytesRead;
     return { result, error };
 }
 

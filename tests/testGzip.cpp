@@ -305,9 +305,9 @@ testTwoStagedDecoding( std::string_view encodedFilePath,
     }
 
     /* Replace marker bytes inside the block itself. */
-    block.setInitialWindow( lastWindow );
+    const auto decodedBuffers = block.setInitialWindow( lastWindow );
     std::vector<uint8_t> result;
-    for ( const auto& buffer : block.lastBuffers() ) {
+    for ( const auto& buffer : decodedBuffers ) {
         result.resize( result.size() + buffer.size() );
         std::memcpy( result.data() + ( result.size() - buffer.size() ),
                      buffer.data(), buffer.size() * sizeof( buffer[0] ) );
