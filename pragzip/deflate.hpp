@@ -454,13 +454,11 @@ public:
     }
 
 private:
+    template<typename Window>
     [[nodiscard]] std::pair<size_t, Error>
-    read8( BitReader& bitReader,
-           size_t     nMaxToDecode );
-
-    [[nodiscard]] std::pair<size_t, Error>
-    read16( BitReader& bitReader,
-            size_t     nMaxToDecode );
+    readInternal( BitReader& bitReader,
+                  size_t     nMaxToDecode,
+                  Window&    window );
 
     [[nodiscard]] static uint16_t
     getLength( uint16_t   code,
@@ -520,22 +518,6 @@ private:
 private:
     [[nodiscard]] Error
     readDynamicHuffmanCoding( BitReader& bitReader );
-
-    void
-    appendToWindow( uint8_t decodedSymbol )
-    {
-        m_window[m_windowPosition] = decodedSymbol;
-        m_windowPosition++;
-        m_windowPosition %= m_window.size();
-    }
-
-    void
-    appendToWindow16( uint16_t decodedSymbol )
-    {
-        m_window16[m_windowPosition] = decodedSymbol;
-        m_windowPosition++;
-        m_windowPosition %= m_window16.size();
-    }
 
     /* Note that making this constexpr or an immediately evaluated lambda expression to initialize the buffer,
      * increases compile time from 14s to 64s with GCC 11! */
@@ -802,33 +784,50 @@ std::pair<deflate::Block::BufferViews, Error>
 deflate::Block::read( BitReader& bitReader,
                       size_t     nMaxToDecode )
 {
-    BufferViews result;
     if ( eob() ) {
-        return { result, Error::NONE };
+        return { {}, Error::NONE };
     }
 
     if ( m_compressionType == CompressionType::RESERVED ) {
         throw std::domain_error( "Invalid deflate compression type!" );
     }
 
+    BufferViews result;
+
     if ( m_containsMarkerBytes ) {
-        const auto [_, error] = read16( bitReader, nMaxToDecode );
-        result.dataWithMarkers = lastBuffers16();
+        const auto [nBytesRead, error] = readInternal( bitReader, nMaxToDecode, m_window16 );
+        result.dataWithMarkers = lastBuffers( m_window16, m_windowPosition, nBytesRead );
+        m_lastDecodedBytes = nBytesRead;
         return { result, error };
     }
 
-    const auto [_, error] = read8( bitReader, nMaxToDecode );
-    result.data = lastBuffers();
+    const auto [nBytesRead, error] = readInternal( bitReader, nMaxToDecode, m_window );
+    result.data = lastBuffers( m_window, m_windowPosition, nBytesRead );
+    m_lastDecodedBytes = nBytesRead;
     return { result, error };
 }
 
 
+template<typename Window>
 std::pair<size_t, Error>
-deflate::Block::read8( BitReader& bitReader,
-                       size_t     nMaxToDecode )
+deflate::Block::readInternal( BitReader& bitReader,
+                              size_t     nMaxToDecode,
+                              Window&    window )
 {
-    /* Actually begin decoding real data! */
+    const auto appendToWindow =
+        [this, &window] ( auto decodedSymbol )
+        {
+            window[m_windowPosition] = decodedSymbol;
+            m_windowPosition++;
+            m_windowPosition %= window.size();
+        };
+
     if ( m_compressionType == CompressionType::UNCOMPRESSED ) {
+        /**
+         * Because the non-compressed deflate block size is 16-bit, the uncompressed data is limited to 65535 B!
+         * The buffer can hold MAX_WINDOW_SIZE 16-bit values (for markers) or twice the amount of decoded bytes.
+         * Therefore, this routine is safe to call.
+         */
         for ( uint16_t i = 0; i < m_uncompressedSize; ++i ) {
             const auto literal = bitReader.read<BYTE_SIZE>();
             appendToWindow( literal );
@@ -838,22 +837,22 @@ deflate::Block::read8( BitReader& bitReader,
         }
         m_atEndOfBlock = true;
         m_decodedBytes += m_uncompressedSize;
-        m_lastDecodedBytes = m_uncompressedSize;
         return { m_uncompressedSize, Error::NONE };
     }
 
-    nMaxToDecode = std::min( nMaxToDecode, m_window.size() - MAX_RUN_LENGTH );
-
     const auto& coding = m_compressionType == CompressionType::FIXED_HUFFMAN ? m_fixedHC : m_literalHC;
-    if ( ( m_compressionType != CompressionType::UNCOMPRESSED ) && !coding.isValid() ) {
+    if ( !coding.isValid() ) {
         throw std::invalid_argument( "No Huffman coding loaded! Call readHeader first!" );
     }
 
-    for ( m_lastDecodedBytes = 0; m_lastDecodedBytes < nMaxToDecode; )
+    nMaxToDecode = std::min( nMaxToDecode, window.size() - MAX_RUN_LENGTH );
+
+    size_t nBytesRead{ 0 };
+    for ( nBytesRead = 0; nBytesRead < nMaxToDecode; )
     {
         const auto decoded = coding.decode( bitReader );
         if ( !decoded ) {
-            return { m_lastDecodedBytes, Error::INVALID_HUFFMAN_CODE };
+            return { nBytesRead, Error::INVALID_HUFFMAN_CODE };
         }
         auto code = *decoded;
 
@@ -862,7 +861,7 @@ deflate::Block::read8( BitReader& bitReader,
             m_crc32 = updateCRC32( m_crc32, code );
         #endif
             appendToWindow( code );
-             ++m_lastDecodedBytes;
+             ++nBytesRead;
             continue;
         }
 
@@ -872,23 +871,28 @@ deflate::Block::read8( BitReader& bitReader,
         }
 
         if ( code > 285 ) {
-            return { m_lastDecodedBytes, Error::INVALID_HUFFMAN_CODE };
+            return { nBytesRead, Error::INVALID_HUFFMAN_CODE };
         }
 
         const auto length = getLength( code, bitReader );
         if ( length != 0 ) {
             const auto [distance, error] = getDistance( bitReader );
             if ( error != Error::NONE ) {
-                return { m_lastDecodedBytes, error };
+                return { nBytesRead, error };
             }
 
-            if ( distance > m_decodedBytes + m_lastDecodedBytes ) {
-                return { m_lastDecodedBytes, Error::EXCEEDED_WINDOW_RANGE };
+            if constexpr ( std::is_same_v<std::decay_t<decltype( *window.data() ) >, uint8_t> ) {
+                if ( distance > m_decodedBytes + nBytesRead ) {
+                    return { nBytesRead, Error::EXCEEDED_WINDOW_RANGE };
+                }
             }
 
-            /** @todo use memcpy when it is not wrapping around!
-             * @todo There are two kinds of wrap around! the actual buffer and when length > distance! */
-            const auto offset = ( m_windowPosition + m_window.size() - distance ) % m_window.size();
+            /**
+             * @todo use memcpy when it is not wrapping around! Note that we might be able to use lastBuffers
+             *       and write to those views to determine where it wraps around!
+             * @todo There are two kinds of wrap around! the actual buffer and when length > distance!
+             */
+            const auto offset = ( m_windowPosition + window.size() - distance ) % window.size();
             const auto nToCopyPerRepeat = std::min( static_cast<uint16_t>( distance ), length );
             assert( nToCopyPerRepeat != 0 );
 
@@ -897,109 +901,18 @@ deflate::Block::read8( BitReader& bitReader,
                      ( position < offset + nToCopyPerRepeat ) && ( nCopied < length );
                      ++position, ++nCopied )
                 {
-                    const auto copiedSymbol = m_window[position % m_window.size()];
+                    const auto copiedSymbol = window[position % window.size()];
                 #ifdef CALCULATE_CRC32
                     m_crc32 = updateCRC32( m_crc32, copiedSymbol );
                 #endif
                     appendToWindow( copiedSymbol );
-                    m_lastDecodedBytes++;
+                    nBytesRead++;
                 }
             }
         }
     }
 
-    m_decodedBytes += m_lastDecodedBytes;
-    return { m_lastDecodedBytes, Error::NONE };
-}
-
-
-/**
- * Same as read8 but appendToWindow -> appendToWindow16 and m_window -> m_window16.
- */
-std::pair<size_t, Error>
-deflate::Block::read16( BitReader& bitReader,
-                        size_t     nMaxToDecode )
-{
-    /* Actually begin decoding real data! */
-    if ( m_compressionType == CompressionType::UNCOMPRESSED ) {
-        /**
-         * Because the non-compressed deflate block size is 16-bit, the uncompressed data is limited to 65535 B!
-         * The buffer can hold MAX_WINDOW_SIZE 16-bit values (for markers) or twice the amount of decoded bytes.
-         * Therefore, this routine is safe to call.
-         */
-        for ( uint16_t i = 0; i < m_uncompressedSize; ++i ) {
-            const auto literal = bitReader.read<BYTE_SIZE>();
-            appendToWindow16( literal );
-        #ifdef CALCULATE_CRC32
-            m_crc32 = updateCRC32( m_crc32, literal );
-        #endif
-        }
-        m_atEndOfBlock = true;
-        m_decodedBytes += m_uncompressedSize;
-        m_lastDecodedBytes = m_uncompressedSize;
-        return { m_uncompressedSize, Error::NONE };
-    }
-
-    nMaxToDecode = std::min( nMaxToDecode, m_window16.size() - MAX_RUN_LENGTH );
-
-    const auto& coding = m_compressionType == CompressionType::FIXED_HUFFMAN ? m_fixedHC : m_literalHC;
-
-    for ( m_lastDecodedBytes = 0; m_lastDecodedBytes < nMaxToDecode; )
-    {
-        const auto decoded = coding.decode( bitReader );
-        if ( !decoded ) {
-            return { m_lastDecodedBytes, Error::INVALID_HUFFMAN_CODE };
-        }
-        auto code = *decoded;
-
-        if ( code <= 255 ) {
-        #ifdef CALCULATE_CRC32
-            m_crc32 = updateCRC32( m_crc32, code );
-        #endif
-            appendToWindow16( code );
-             ++m_lastDecodedBytes;
-            continue;
-        }
-
-        if ( code == 256 ) {
-            m_atEndOfBlock = true;
-            break;
-        }
-
-        if ( code > 285 ) {
-            return { m_lastDecodedBytes, Error::INVALID_HUFFMAN_CODE };
-        }
-
-        const auto length = getLength( code, bitReader );
-        if ( length != 0 ) {
-            const auto [distance, error] = getDistance( bitReader );
-            if ( error != Error::NONE ) {
-                return { m_lastDecodedBytes, error };
-            }
-
-            /** @todo use memcpy when it is not wrapping around!
-             * @todo There are two kinds of wrap around! the actual buffer and when length > distance! */
-            const auto offset = ( m_windowPosition + m_window16.size() - distance ) % m_window16.size();
-            const auto nToCopyPerRepeat = std::min( static_cast<uint16_t>( distance ), length );
-            assert( nToCopyPerRepeat != 0 );
-
-            for ( size_t nCopied = 0; nCopied < length; ) {
-                for ( size_t position = offset;
-                     ( position < offset + nToCopyPerRepeat ) && ( nCopied < length );
-                     ++position, ++nCopied )
-                {
-                    const auto copiedSymbol = m_window16[position % m_window16.size()];
-                #ifdef CALCULATE_CRC32
-                    m_crc32 = updateCRC32( m_crc32, copiedSymbol );
-                #endif
-                    appendToWindow16( copiedSymbol );
-                    m_lastDecodedBytes++;
-                }
-            }
-        }
-    }
-
-    m_decodedBytes += m_lastDecodedBytes;
-    return { m_lastDecodedBytes, Error::NONE };
+    m_decodedBytes += nBytesRead;
+    return { nBytesRead, Error::NONE };
 }
 }  // namespace pragzip
