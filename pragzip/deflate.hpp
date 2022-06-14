@@ -289,61 +289,13 @@ public:
     [[nodiscard]] std::array<VectorView<uint8_t>, 2>
     lastBuffers() const
     {
-        if ( m_containsMarkerBytes ) {
-            throw std::invalid_argument( "The buffer is not fully decoded, use lastBuffers16 instead!" );
-        }
-
-        std::array<VectorView<uint8_t>, 2> result;
-        if ( m_lastDecodedBytes == 0 ) {
-            return result;
-        }
-
-        if ( m_lastDecodedBytes > m_window.size() ) {
-            throw std::invalid_argument( "Decoded more bytes than fit in the buffer. Data got lost!" );
-        }
-
-        const auto lastWindowPosition = static_cast<size_t>(
-            ( m_windowPosition + m_window.size() - ( m_lastDecodedBytes % m_window.size() ) ) % m_window.size() );
-        if ( lastWindowPosition < m_windowPosition ) {
-            result[0] = VectorView<uint8_t>( m_window.data() + lastWindowPosition,
-                                             m_windowPosition - lastWindowPosition );
-            return result;
-        }
-
-        result[0] = VectorView<uint8_t>( m_window.data() + lastWindowPosition,
-                                         m_window.size() - lastWindowPosition );
-        result[1] = VectorView<uint8_t>( m_window.data(), m_windowPosition );
-        return result;
+        return lastBuffers( m_window, m_windowPosition, m_lastDecodedBytes );
     }
 
     [[nodiscard]] std::array<VectorView<uint16_t>, 2>
     lastBuffers16() const
     {
-        if ( !m_containsMarkerBytes ) {
-            throw std::invalid_argument( "The buffer is fully decoded so can't return half-decoded data!" );
-        }
-
-        std::array<VectorView<uint16_t>, 2> result;
-        if ( m_lastDecodedBytes == 0 ) {
-            return result;
-        }
-
-        if ( m_lastDecodedBytes > m_window16.size() ) {
-            throw std::invalid_argument( "Decoded more bytes than fit in the buffer. Data got lost!" );
-        }
-
-        const auto lastWindowPosition = static_cast<size_t>(
-            ( m_windowPosition + m_window16.size() - ( m_lastDecodedBytes % m_window16.size() ) ) % m_window16.size() );
-        if ( lastWindowPosition < m_windowPosition ) {
-            result[0] = VectorView<uint16_t>( m_window16.data() + lastWindowPosition,
-                                             m_windowPosition - lastWindowPosition );
-            return result;
-        }
-
-        result[0] = VectorView<uint16_t>( m_window16.data() + lastWindowPosition,
-                                          m_window16.size() - lastWindowPosition );
-        result[1] = VectorView<uint16_t>( m_window16.data(), m_windowPosition );
-        return result;
+        return lastBuffers( m_window16, m_windowPosition, m_lastDecodedBytes );
     }
 
     /**
@@ -516,6 +468,40 @@ private:
 
     [[nodiscard]] std::pair<uint16_t, Error>
     getDistance( BitReader& bitReader ) const;
+
+    /**
+     * @param position The position in the window where the next byte would be appended. Similar to std::end();
+     * @param size How many of the bits before @ref position are requested. @ref position - @ref size is begin.
+     * @return the areas last written in the circular window buffer. Because of the circularity, two VectorViews
+     *         are returned and both are non-empty in the case of the last written data wrapping around.
+     */
+    template<typename Window,
+             typename Symbol = typename Window::value_type>
+    [[nodiscard]] static std::array<VectorView<Symbol>, 2>
+    lastBuffers( const Window& window,
+                 size_t        position,
+                 size_t        size )
+    {
+        if ( size > window.size() ) {
+            throw std::invalid_argument( "Requested more bytes than fit in the buffer. Data is missing!" );
+        }
+
+        std::array<VectorView<Symbol>, 2> result;
+        if ( size == 0 ) {
+            return result;
+        }
+
+        /* Calculate wrapped around begin without unsigned underflow during the difference. */
+        const auto begin = ( position + window.size() - ( size % window.size() ) ) % window.size();
+        if ( begin < position ) {
+            result[0] = VectorView<Symbol>( window.data() + begin, position - begin );
+            return result;
+        }
+
+        result[0] = VectorView<Symbol>( window.data() + begin, window.size() - begin );  // up to end of window
+        result[1] = VectorView<Symbol>( window.data(), position );  // wrapped around part at start of window
+        return result;
+    }
 
 private:
     /**
