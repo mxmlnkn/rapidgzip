@@ -31,3 +31,5 @@ python3 -c 'import sys; import indexed_gzip as igz; f = igz.IndexedGzipFile(sys.
 # pigz even limits it to 16 KiB! igzip finally produces blocks sized 64 KiB!
 fname='random-128KiB'; head -c $(( 128*1024 )) /dev/urandom > "$fname"; allgzip "$fname"
 
+# Test with exactly one deflate window size of data
+fname='base64-32KiB'; base64 /dev/urandom | head -c $(( 32*1024 )) > "$fname" && allgzip "$fname"
