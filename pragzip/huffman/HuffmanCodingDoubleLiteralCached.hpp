@@ -13,13 +13,6 @@
 
 namespace pragzip
 {
-/** @todo remove the friend declaration. Currently, only needed for the prototype createBitFieldCache */
-namespace deflate
-{
-    class Block;
-}
-
-
 template<typename HuffmanCode,
          uint8_t  MAX_CODE_LENGTH,
          typename Symbol,
@@ -39,8 +32,6 @@ public:
 
     static constexpr auto NONE_SYMBOL = std::numeric_limits<Symbol>::max();
     static_assert( MAX_SYMBOL_COUNT <= NONE_SYMBOL, "Not enough unused symbols for special none symbol!" );
-
-    friend deflate::Block;
 
 public:
     Error
