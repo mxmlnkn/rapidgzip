@@ -41,7 +41,7 @@ public:
         using other = AlignedAllocator<OtherElementType, ALIGNMENT_IN_BYTES>;
     };
 
-    [[nodiscard]] ElementType*
+    [[nodiscard]] constexpr ElementType*
     allocate( std::size_t nElementsToAllocate )
     {
         if ( nElementsToAllocate > std::numeric_limits<std::size_t>::max() / sizeof( ElementType ) ) {
@@ -52,7 +52,7 @@ public:
         return reinterpret_cast<ElementType*>( ::operator new[]( nBytesToAllocate, ALIGNMENT ) );
     }
 
-    void
+    constexpr void
     deallocate(                  ElementType* allocatedPointer,
                 [[maybe_unused]] std::size_t  nBytesAllocated )
     {

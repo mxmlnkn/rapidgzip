@@ -33,7 +33,7 @@ static constexpr int CRC32_LOOKUP_TABLE_SIZE = 256;
 /* a small lookup table: raw data -> CRC32 value to speed up CRC calculation */
 alignas(8) inline static const CRC32LookupTable CRC32_TABLE = createCRC32LookupTable();
 
-inline uint32_t
+constexpr uint32_t
 updateCRC32( uint32_t crc,
              uint8_t  data )
 {

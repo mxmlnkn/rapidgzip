@@ -108,7 +108,7 @@ operator<<( std::ostream&  out,
 
 
 template <typename S, typename T>
-[[nodiscard]] inline bool
+[[nodiscard]] constexpr bool
 startsWith( const S& fullString,
             const T& prefix,
             bool     caseSensitive = true )
@@ -127,7 +127,7 @@ startsWith( const S& fullString,
 
 
 template <typename S, typename T>
-[[nodiscard]] inline bool
+[[nodiscard]] constexpr bool
 endsWith( const S& fullString,
           const T& suffix,
           bool     caseSensitive = true )

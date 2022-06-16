@@ -20,6 +20,7 @@ struct Statistics
     }
 
     template<typename Iterator>
+    constexpr
     Statistics( const Iterator& begin,
                 const Iterator& end )
     {
@@ -95,7 +96,7 @@ public:
         }
     }
 
-    bool
+    constexpr bool
     merge( T value )
     {
         if ( !std::isfinite( value )

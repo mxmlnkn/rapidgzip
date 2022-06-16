@@ -82,7 +82,7 @@ createFixedHC()
 }
 
 
-[[nodiscard]] inline uint16_t
+[[nodiscard]] constexpr uint16_t
 calculateDistance( uint16_t distance,
                    uint8_t  extraBitsCount,
                    uint16_t extraBits )
@@ -143,7 +143,7 @@ createLengthLUT()
 }
 
 
-alignas(8) static inline const LengthLUT
+alignas(8) static constexpr LengthLUT
 lengthLUT = createLengthLUT();
 
 

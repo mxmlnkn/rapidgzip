@@ -20,11 +20,13 @@ public:
     VectorView& operator=( const VectorView& ) = default;
     VectorView& operator=( VectorView&& ) = default;
 
+    constexpr
     VectorView( const std::vector<T>& vector ) noexcept :
         m_data( vector.data() ),
         m_size( vector.size() )
     {}
 
+    constexpr
     VectorView( const T* data,
                 size_t   size ) noexcept :
         m_data( data ),
@@ -37,31 +39,31 @@ public:
         return *m_data;
     }
 
-    [[nodiscard]] const T*
+    [[nodiscard]] constexpr const T*
     begin() const noexcept
     {
         return m_data;
     }
 
-    [[nodiscard]] const T*
+    [[nodiscard]] constexpr const T*
     end() const noexcept
     {
         return m_data + m_size;
     }
 
-    [[nodiscard]] const T*
+    [[nodiscard]] constexpr const T*
     data() const noexcept
     {
         return m_data;
     }
 
-    [[nodiscard]] size_t
+    [[nodiscard]] constexpr size_t
     size() const noexcept
     {
         return m_size;
     }
 
-    [[nodiscard]] bool
+    [[nodiscard]] constexpr bool
     empty() const noexcept
     {
         return m_size == 0;
@@ -73,7 +75,7 @@ public:
         return m_data[i];
     }
 
-    [[nodiscard]] T
+    [[nodiscard]] constexpr T
     at( size_t i ) const
     {
         if ( i >= m_size ) {
@@ -105,11 +107,13 @@ public:
     WeakVector& operator=( const WeakVector& ) = default;
     WeakVector& operator=( WeakVector&& ) = default;
 
+    constexpr
     WeakVector( const std::vector<T>& vector ) noexcept :
         m_data( vector.data() ),
         m_size( vector.size() )
     {}
 
+    constexpr
     WeakVector( T*     data,
                 size_t size ) noexcept :
         m_data( data ),
@@ -122,49 +126,49 @@ public:
         return *m_data;
     }
 
-    [[nodiscard]] const T*
+    [[nodiscard]] constexpr const T*
     begin() const noexcept
     {
         return m_data;
     }
 
-    [[nodiscard]] T*
+    [[nodiscard]] constexpr T*
     begin() noexcept
     {
         return m_data;
     }
 
-    [[nodiscard]] const T*
+    [[nodiscard]] constexpr const T*
     end() const noexcept
     {
         return m_data + m_size;
     }
 
-    [[nodiscard]] T*
+    [[nodiscard]] constexpr T*
     end() noexcept
     {
         return m_data + m_size;
     }
 
-    [[nodiscard]] T*
+    [[nodiscard]] constexpr T*
     data() noexcept
     {
         return m_data;
     }
 
-    [[nodiscard]] const T*
+    [[nodiscard]] constexpr const T*
     data() const noexcept
     {
         return m_data;
     }
 
-    [[nodiscard]] size_t
+    [[nodiscard]] constexpr size_t
     size() const noexcept
     {
         return m_size;
     }
 
-    [[nodiscard]] bool
+    [[nodiscard]] constexpr bool
     empty() const noexcept
     {
         return m_size == 0;
@@ -182,7 +186,7 @@ public:
         return m_data[i];
     }
 
-    [[nodiscard]] T
+    [[nodiscard]] constexpr T
     at( size_t i ) const
     {
         if ( i >= m_size ) {
@@ -205,10 +209,12 @@ public:
     using value_type = T;
 
 public:
+    constexpr
     ArrayView( const std::array<T, T_size>& array ) noexcept :
         m_data( array.data() )
     {}
 
+    constexpr
     ArrayView( const T* data ) noexcept :
         m_data( data )
     {}
@@ -219,19 +225,19 @@ public:
         return *m_data;
     }
 
-    [[nodiscard]] const T*
+    [[nodiscard]] constexpr const T*
     begin() const noexcept
     {
         return m_data;
     }
 
-    [[nodiscard]] const T*
+    [[nodiscard]] constexpr const T*
     end() const noexcept
     {
         return m_data + m_size;
     }
 
-    [[nodiscard]] const T*
+    [[nodiscard]] constexpr const T*
     data() const noexcept
     {
         return m_data;
@@ -243,7 +249,7 @@ public:
         return m_size;
     }
 
-    [[nodiscard]] bool
+    [[nodiscard]] constexpr bool
     empty() const noexcept
     {
         return m_size == 0;
@@ -278,6 +284,7 @@ public:
     using value_type = T;
 
 public:
+    constexpr
     WeakArray( T* data ) noexcept :
         m_data( data )
     {}
@@ -288,25 +295,25 @@ public:
         return *m_data;
     }
 
-    [[nodiscard]] const T*
+    [[nodiscard]] constexpr const T*
     begin() const noexcept
     {
         return m_data;
     }
 
-    [[nodiscard]] const T*
+    [[nodiscard]] constexpr const T*
     end() const noexcept
     {
         return m_data + m_size;
     }
 
-    [[nodiscard]] const T*
+    [[nodiscard]] constexpr const T*
     data() const noexcept
     {
         return m_data;
     }
 
-    [[nodiscard]] T*
+    [[nodiscard]] constexpr T*
     data() noexcept
     {
         return m_data;
@@ -318,7 +325,7 @@ public:
         return m_size;
     }
 
-    [[nodiscard]] bool
+    [[nodiscard]] constexpr bool
     empty() const noexcept
     {
         return m_size == 0;
@@ -336,7 +343,7 @@ public:
         return m_data[i];
     }
 
-    [[nodiscard]] T
+    [[nodiscard]] constexpr T
     at( size_t i ) const
     {
         if ( i >= m_size ) {
