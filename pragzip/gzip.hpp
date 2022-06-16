@@ -30,7 +30,7 @@ constexpr auto MAX_ALLOWED_FIELD_SIZE = 1024*1024;
 
 
 [[nodiscard]] std::string
-getOperatingSystemName( uint8_t code )
+getOperatingSystemName( uint8_t code ) noexcept
 {
     switch ( code )
     {
@@ -55,7 +55,7 @@ getOperatingSystemName( uint8_t code )
 
 
 [[nodiscard]] std::string
-getExtraFlagsDescription( uint8_t code )
+getExtraFlagsDescription( uint8_t code ) noexcept
 {
     switch ( code )
     {

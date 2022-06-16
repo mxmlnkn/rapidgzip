@@ -14,11 +14,11 @@ public:
     using value_type = T;
 
 public:
-    VectorView() = default;
-    VectorView( const VectorView& ) = default;
-    VectorView( VectorView&& ) = default;
-    VectorView& operator=( const VectorView& ) = default;
-    VectorView& operator=( VectorView&& ) = default;
+    constexpr VectorView() noexcept = default;
+    constexpr VectorView( const VectorView& ) noexcept = default;
+    constexpr VectorView( VectorView&& ) noexcept = default;
+    constexpr VectorView& operator=( const VectorView& ) noexcept = default;
+    constexpr VectorView& operator=( VectorView&& ) noexcept = default;
 
     constexpr
     VectorView( const std::vector<T>& vector ) noexcept :
@@ -33,8 +33,8 @@ public:
         m_size( size )
     {}
 
-    [[nodiscard]] T
-    front() const
+    [[nodiscard]] constexpr T
+    front() const noexcept
     {
         return *m_data;
     }
@@ -69,8 +69,8 @@ public:
         return m_size == 0;
     }
 
-    [[nodiscard]] T
-    operator[]( size_t i ) const
+    [[nodiscard]] constexpr T
+    operator[]( size_t i ) const noexcept
     {
         return m_data[i];
     }
@@ -101,11 +101,11 @@ public:
     using value_type = T;
 
 public:
-    WeakVector() = default;
-    WeakVector( const WeakVector& ) = default;
-    WeakVector( WeakVector&& ) = default;
-    WeakVector& operator=( const WeakVector& ) = default;
-    WeakVector& operator=( WeakVector&& ) = default;
+    constexpr WeakVector() = default;
+    constexpr WeakVector( const WeakVector& ) = default;
+    constexpr WeakVector( WeakVector&& ) = default;
+    constexpr WeakVector& operator=( const WeakVector& ) = default;
+    constexpr WeakVector& operator=( WeakVector&& ) = default;
 
     constexpr
     WeakVector( const std::vector<T>& vector ) noexcept :
@@ -120,8 +120,8 @@ public:
         m_size( size )
     {}
 
-    [[nodiscard]] T
-    front() const
+    [[nodiscard]] constexpr T
+    front() const noexcept
     {
         return *m_data;
     }
@@ -174,14 +174,14 @@ public:
         return m_size == 0;
     }
 
-    [[nodiscard]] const T&
-    operator[]( size_t i ) const
+    [[nodiscard]] constexpr const T&
+    operator[]( size_t i ) const noexcept
     {
         return m_data[i];
     }
 
-    [[nodiscard]] T&
-    operator[]( size_t i )
+    [[nodiscard]] constexpr T&
+    operator[]( size_t i ) noexcept
     {
         return m_data[i];
     }
@@ -219,8 +219,8 @@ public:
         m_data( data )
     {}
 
-    [[nodiscard]] T
-    front() const
+    [[nodiscard]] constexpr T
+    front() const noexcept
     {
         return *m_data;
     }
@@ -255,8 +255,8 @@ public:
         return m_size == 0;
     }
 
-    [[nodiscard]] T
-    operator[]( size_t i ) const
+    [[nodiscard]] constexpr T
+    operator[]( size_t i ) const noexcept
     {
         return m_data[i];
     }
@@ -289,8 +289,8 @@ public:
         m_data( data )
     {}
 
-    [[nodiscard]] T
-    front() const
+    [[nodiscard]] constexpr T
+    front() const noexcept
     {
         return *m_data;
     }
@@ -331,14 +331,14 @@ public:
         return m_size == 0;
     }
 
-    [[nodiscard]] const T&
-    operator[]( size_t i ) const
+    [[nodiscard]] constexpr const T&
+    operator[]( size_t i ) const noexcept
     {
         return m_data[i];
     }
 
-    [[nodiscard]] T&
-    operator[]( size_t i )
+    [[nodiscard]] constexpr T&
+    operator[]( size_t i ) noexcept
     {
         return m_data[i];
     }

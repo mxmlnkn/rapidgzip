@@ -11,8 +11,8 @@ template<typename T>
 struct Statistics
 {
     template<typename Container>
-    explicit
-    Statistics( const Container& values )
+    explicit constexpr
+    Statistics( const Container& values ) noexcept
     {
         for ( const auto value : values ) {
             merge( static_cast<T>( value ) );
@@ -22,21 +22,21 @@ struct Statistics
     template<typename Iterator>
     constexpr
     Statistics( const Iterator& begin,
-                const Iterator& end )
+                const Iterator& end ) noexcept
     {
         for ( auto it = begin; it != end; ++it ) {
             merge( static_cast<T>( *it ) );
         }
     }
 
-    [[nodiscard]] double
-    average() const
+    [[nodiscard]] constexpr double
+    average() const noexcept
     {
         return sum / count;
     }
 
-    [[nodiscard]] double
-    variance() const
+    [[nodiscard]] constexpr double
+    variance() const noexcept
     {
         /* Calculation makes use of expanded expression for the variance to avoid requiring there
          * average beforehand: Var(x) = < (x - <x>)^2 > = <x^2> - <x>^2
@@ -45,14 +45,14 @@ struct Statistics
         return ( sum2 / count - average() * average() ) * count / ( count - 1 );
     }
 
-    [[nodiscard]] double
-    standardDeviation() const
+    [[nodiscard]] constexpr double
+    standardDeviation() const noexcept
     {
         return std::sqrt( variance() );
     }
 
-    void
-    merge( T value )
+    constexpr void
+    merge( T value ) noexcept
     {
         min = std::min( min, value );
         max = std::max( max, value );
@@ -118,32 +118,32 @@ public:
         return true;
     }
 
-    [[nodiscard]] const auto&
-    statistics() const
+    [[nodiscard]] constexpr const auto&
+    statistics() const noexcept
     {
         return m_statistics;
     }
 
-    [[nodiscard]] double
-    binStart( size_t binNumber ) const
+    [[nodiscard]] constexpr double
+    binStart( size_t binNumber ) const noexcept
     {
         return m_statistics.min + ( m_statistics.max - m_statistics.min ) / m_bins.size() * binNumber;
     }
 
-    [[nodiscard]] double
-    binCenter( size_t binNumber ) const
+    [[nodiscard]] constexpr double
+    binCenter( size_t binNumber ) const noexcept
     {
         return m_statistics.min + ( m_statistics.max - m_statistics.min ) / m_bins.size() * ( binNumber + 0.5 );
     }
 
-    [[nodiscard]] double
-    binEnd( size_t binNumber ) const
+    [[nodiscard]] constexpr double
+    binEnd( size_t binNumber ) const noexcept
     {
         return m_statistics.min + ( m_statistics.max - m_statistics.min ) / m_bins.size() * ( binNumber + 1 );
     }
 
-    [[nodiscard]] const auto&
-    bins() const
+    [[nodiscard]] constexpr const auto&
+    bins() const noexcept
     {
         return m_bins;
     }

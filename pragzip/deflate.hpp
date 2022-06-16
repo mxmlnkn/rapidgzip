@@ -85,15 +85,15 @@ createFixedHC()
 [[nodiscard]] constexpr uint16_t
 calculateDistance( uint16_t distance,
                    uint8_t  extraBitsCount,
-                   uint16_t extraBits )
+                   uint16_t extraBits ) noexcept
 {
     assert( distance >= 4 );
     return 1U + ( 1U << ( extraBitsCount + 1U ) ) + ( ( distance % 2U ) << extraBitsCount ) + extraBits;
 };
 
 
-[[nodiscard]] inline uint16_t
-calculateDistance( uint16_t distance )
+[[nodiscard]] constexpr uint16_t
+calculateDistance( uint16_t distance ) noexcept
 {
     assert( distance >= 4 );
     const auto extraBitsCount = ( distance - 2U ) / 2U;
@@ -104,7 +104,7 @@ calculateDistance( uint16_t distance )
 using DistanceLUT = std::array<uint16_t, 30>;
 
 [[nodiscard]] DistanceLUT
-createDistanceLUT()
+createDistanceLUT() noexcept
 {
     DistanceLUT result;
     for ( uint16_t i = 0; i < 4; ++i ) {
@@ -121,8 +121,8 @@ alignas(8) static inline const DistanceLUT
 distanceLUT = createDistanceLUT();
 
 
-[[nodiscard]] inline uint16_t
-calculateLength( uint16_t code )
+[[nodiscard]] constexpr uint16_t
+calculateLength( uint16_t code ) noexcept
 {
     assert( code < 285 - 261 );
     const auto extraBits = code / 4U;
@@ -132,10 +132,10 @@ calculateLength( uint16_t code )
 
 using LengthLUT = std::array<uint16_t, 285 - 261>;
 
-[[nodiscard]] LengthLUT
-createLengthLUT()
+[[nodiscard]] constexpr LengthLUT
+createLengthLUT() noexcept
 {
-    LengthLUT result;
+    LengthLUT result{};
     for ( uint16_t i = 0; i < result.size(); ++i ) {
         result[i] = calculateLength( i );
     }
@@ -167,7 +167,7 @@ public:
     };
 
     [[nodiscard]] static std::string
-    toString( CompressionType compressionType )
+    toString( CompressionType compressionType ) noexcept
     {
         switch ( compressionType )
         {
@@ -190,14 +190,14 @@ public:
     struct BufferViews
     {
     public:
-        [[nodiscard]] size_t
-        size() const
+        [[nodiscard]] constexpr size_t
+        size() const noexcept
         {
             return dataWithMarkers[0].size() + dataWithMarkers[1].size() + data[0].size() + data[1].size();
         }
 
-        [[nodiscard]] bool
-        containsMarkers() const
+        [[nodiscard]] constexpr bool
+        containsMarkers() const noexcept
         {
             return !dataWithMarkers[0].empty() || !dataWithMarkers[1].empty();
         }
@@ -209,31 +209,31 @@ public:
 
 public:
     [[nodiscard]] bool
-    eob() const
+    eob() const noexcept
     {
         return m_atEndOfBlock;
     }
 
-    [[nodiscard]] bool
-    eos() const
+    [[nodiscard]] constexpr bool
+    eos() const noexcept
     {
         return m_atEndOfBlock && m_isLastBlock;
     }
 
-    [[nodiscard]] bool
-    eof() const
+    [[nodiscard]] constexpr bool
+    eof() const noexcept
     {
         return m_atEndOfFile;
     }
 
-    [[nodiscard]] bool
-    isLastBlock() const
+    [[nodiscard]] constexpr bool
+    isLastBlock() const noexcept
     {
         return m_isLastBlock;
     }
 
-    [[nodiscard]] CompressionType
-    compressionType() const
+    [[nodiscard]] constexpr CompressionType
+    compressionType() const noexcept
     {
         return m_compressionType;
     }
@@ -257,21 +257,21 @@ public:
     [[nodiscard]] Error
     readHeader( BitReader& bitReader );
 
-    [[nodiscard]] const auto&
-    window() const
+    [[nodiscard]] constexpr const auto&
+    window() const noexcept
     {
         return m_window;
     }
 
-    [[nodiscard]] uint32_t
-    crc32() const
+    [[nodiscard]] constexpr uint32_t
+    crc32() const noexcept
     {
         return ~m_crc32;
     }
 
 
-    [[nodiscard]] size_t
-    uncompressedSize() const
+    [[nodiscard]] constexpr size_t
+    uncompressedSize() const noexcept
     {
         return m_compressionType == CompressionType::UNCOMPRESSED ? m_uncompressedSize : 0;
     }
@@ -412,8 +412,8 @@ public:
         return lastBuffers( m_window, m_windowPosition, std::min( m_window16.size(), m_decodedBytes ) );
     }
 
-    [[nodiscard]] bool
-    isValid() const
+    [[nodiscard]] constexpr bool
+    isValid() const noexcept
     {
         switch ( m_compressionType )
         {

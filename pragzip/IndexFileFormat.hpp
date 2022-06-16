@@ -48,8 +48,8 @@ struct Checkpoint
     uint64_t uncompressedOffsetInBytes{ 0 };
     std::vector<uint8_t> window;
 
-    [[nodiscard]] bool
-    operator==( const Checkpoint& other ) const
+    [[nodiscard]] constexpr bool
+    operator==( const Checkpoint& other ) const noexcept
     {
         return ( compressedOffsetInBits    == other.compressedOffsetInBits    ) &&
                ( uncompressedOffsetInBytes == other.uncompressedOffsetInBytes ) &&
@@ -66,8 +66,8 @@ struct GzipIndex
     uint32_t windowSizeInBytes{ 0 };
     std::vector<Checkpoint> checkpoints;
 
-    [[nodiscard]] bool
-    operator==( const GzipIndex& other ) const
+    [[nodiscard]] constexpr bool
+    operator==( const GzipIndex& other ) const noexcept
     {
         return ( compressedSizeInBytes   == other.compressedSizeInBytes   ) &&
                ( uncompressedSizeInBytes == other.uncompressedSizeInBytes ) &&

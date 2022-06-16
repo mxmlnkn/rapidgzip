@@ -71,7 +71,7 @@ template<typename I1,
          >::type>
 [[nodiscard]] constexpr I1
 ceilDiv( I1 dividend,
-         I2 divisor )
+         I2 divisor ) noexcept
 {
     return ( dividend + divisor - 1 ) / divisor;
 }
@@ -111,7 +111,7 @@ template <typename S, typename T>
 [[nodiscard]] constexpr bool
 startsWith( const S& fullString,
             const T& prefix,
-            bool     caseSensitive = true )
+            bool     caseSensitive = true ) noexcept
 {
     if ( fullString.size() < prefix.size() ) {
         return false;
@@ -130,7 +130,7 @@ template <typename S, typename T>
 [[nodiscard]] constexpr bool
 endsWith( const S& fullString,
           const T& suffix,
-          bool     caseSensitive = true )
+          bool     caseSensitive = true ) noexcept
 {
     if ( fullString.size() < suffix.size() ) {
         return false;
@@ -145,8 +145,8 @@ endsWith( const S& fullString,
 }
 
 
-[[nodiscard]] inline std::chrono::time_point<std::chrono::high_resolution_clock>
-now()
+[[nodiscard]] std::chrono::time_point<std::chrono::high_resolution_clock>
+now() noexcept
 {
     return std::chrono::high_resolution_clock::now();
 }
@@ -158,14 +158,14 @@ now()
 template<typename T>
 [[nodiscard]] double
 duration( const T& t0,
-          const T& t1 = now() )
+          const T& t1 = now() ) noexcept
 {
     return std::chrono::duration<double>( t1 - t0 ).count();
 }
 
 
 [[nodiscard]] uint64_t
-unixTime()
+unixTime() noexcept
 {
     const auto now = std::chrono::system_clock::now().time_since_epoch();
     return static_cast<uint64_t>( std::chrono::duration_cast<std::chrono::seconds>( now ).count() );
@@ -221,8 +221,8 @@ operator<<( std::ostream&           out,
 }
 
 
-[[nodiscard]] inline std::string
-toString( std::future_status status )
+[[nodiscard]] std::string
+toString( std::future_status status ) noexcept
 {
     switch ( status )
     {
