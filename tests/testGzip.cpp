@@ -64,7 +64,7 @@ void
 testSerialDecoderNanoSample()
 {
     const std::vector<char> signedData( NANO_SAMPLE_GZIP.begin(), NANO_SAMPLE_GZIP.end() );
-    GzipReader</* CRC32 */ false> gzipReader( std::make_unique<BufferedFileReader>( signedData ) );
+    GzipReader</* CRC32 */ true> gzipReader( std::make_unique<BufferedFileReader>( signedData ) );
 
     std::vector<char> result( NANO_SAMPLE_DECODED.size() + 10, 0 );
     const auto nBytesDecoded = gzipReader.read( -1, result.data(), result.size() );
@@ -79,7 +79,7 @@ testSerialDecoderNanoSample( size_t multiples,
 {
     const auto [encoded, decoded] = duplicateNanoStream( multiples );
 
-    GzipReader</* CRC32 */ false> gzipReader( std::make_unique<BufferedFileReader>( encoded ) );
+    GzipReader</* CRC32 */ true> gzipReader( std::make_unique<BufferedFileReader>( encoded ) );
 
     std::vector<char> result( bufferSize, 0 );
     size_t totalBytesDecoded = 0;
@@ -106,7 +106,7 @@ testSerialDecoderNanoSampleStoppingPoints()
             std::vector<size_t> offsets;
             std::vector<size_t> compressedOffsets;
 
-            GzipReader</* CRC32 */ false> gzipReader( std::make_unique<BufferedFileReader>( encoded ) );
+            GzipReader</* CRC32 */ true> gzipReader( std::make_unique<BufferedFileReader>( encoded ) );
 
             std::vector<char> result( decoded.size(), 0 );
             size_t totalBytesDecoded = 0;
@@ -172,7 +172,7 @@ testSerialDecoder( std::filesystem::path const& decodedFilePath,
     std::vector<char> buffer( bufferSize );
 
     std::ifstream decodedFile( decodedFilePath );
-    GzipReader</* CRC32 */ false> gzipReader( std::make_unique<StandardFileReader>( encodedFilePath.string().c_str() ) );
+    GzipReader</* CRC32 */ true> gzipReader( std::make_unique<StandardFileReader>( encodedFilePath.string().c_str() ) );
 
     size_t totalBytesDecoded{ 0 };
     while ( !gzipReader.eof() ) {

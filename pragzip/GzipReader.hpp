@@ -501,12 +501,6 @@ GzipReader<CALCULATE_CRC32>::readGzipFooter()
         throw std::domain_error( message.str() );
     }
 
-    if ( m_currentDeflateBlock->crc32() != 0 ) {
-        std::stringstream message;
-        message << "Validated CRC32 0x" << std::hex << m_currentDeflateBlock->crc32() << " for gzip stream!\n";
-        std::cerr << message.str();
-    }
-
     if ( m_bitReader.eof() ) {
         m_atEndOfFile = true;
     }
