@@ -179,8 +179,7 @@ public:
                 }
             }
 
-            auto error = block.readHeader( bitReader );
-            if ( error != pragzip::Error::NONE ) {
+            if ( auto error = block.readHeader( bitReader ); error != pragzip::Error::NONE ) {
                 std::cerr << "Erroneous block header at offset " << blockOffset << " b (after read: "
                           << bitReader.tell() << " b): " << pragzip::toString( error ) << "\n";
                 return {};
@@ -189,8 +188,7 @@ public:
             /* Loop until we have read the full contents of the current deflate block. */
             while ( !block.eob() )
             {
-                pragzip::deflate::Block::BufferViews bufferViews;
-                std::tie( bufferViews, error ) = block.read( bitReader, std::numeric_limits<size_t>::max() );
+                const auto [bufferViews, error] = block.read( bitReader, std::numeric_limits<size_t>::max() );
                 if ( error != pragzip::Error::NONE ) {
                     std::cerr << "Erroneous block at offset " << blockOffset
                               << " b: " << pragzip::toString( error ) << "\n";

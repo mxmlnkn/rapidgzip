@@ -576,6 +576,8 @@ findDeflateBlocksZlibOptimized( const std::string& fileName )
 [[nodiscard]] std::vector<size_t>
 findDeflateBlocksPragzip( const std::string& fileName )
 {
+    using DeflateBlock = pragzip::deflate::Block;
+
     constexpr auto nBytesToTest = 1024*1024;
     const auto file = throwingOpen( fileName.c_str(), "rb" );
     BufferedFileReader::AlignedBuffer buffer( nBytesToTest + 4096, 0 );
@@ -617,7 +619,7 @@ findDeflateBlocksPragzip( const std::string& fileName )
              * and simply can't encode dynamic Huffman blocks or we have a LOT of highly compressible data,
              * to be specific 10 GiB of uncompressed data because of the maximum compression ratio of 1032.
              * @see https://stackoverflow.com/questions/16792189/gzip-compression-ratio-for-zeros/16794960#16794960 */
-            if ( block.compressionType() == pragzip::deflate::Block::CompressionType::FIXED_HUFFMAN ) {
+            if ( block.compressionType() == DeflateBlock::CompressionType::FIXED_HUFFMAN ) {
                 continue;
             }
 

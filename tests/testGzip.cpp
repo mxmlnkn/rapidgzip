@@ -214,8 +214,6 @@ void
 testTwoStagedDecoding( std::string_view encodedFilePath,
                        std::string_view decodedFilePath )
 {
-    auto error = Error::NONE;
-
     /* Read first deflate block so that we can try decoding from the second one. */
     GzipReader gzipReader{ std::make_unique<StandardFileReader>( encodedFilePath.data() ) };
     std::vector<char> decompressed( 1024ULL * 1024ULL );
@@ -262,15 +260,19 @@ testTwoStagedDecoding( std::string_view encodedFilePath,
         }
     }
 
+    using DeflateBlock = pragzip::deflate::Block;
+
     /* Try reading, starting from second block. */
     pragzip::BitReader bitReader{ std::make_unique<StandardFileReader>( encodedFilePath.data() ) };
     bitReader.seek( static_cast<ssize_t>( secondBlockOffset ) );
-    deflate::Block block;
-    error = block.readHeader( bitReader );
-    REQUIRE( error == Error::NONE );
+    DeflateBlock block;
 
-    pragzip::deflate::Block::BufferViews bufferViews;
-    std::tie( bufferViews, error ) = block.read( bitReader, std::numeric_limits<size_t>::max() );
+    {
+        const auto error = block.readHeader( bitReader );
+        REQUIRE( error == Error::NONE );
+    }
+
+    const auto [bufferViews, error] = block.read( bitReader, std::numeric_limits<size_t>::max() );
     REQUIRE( error == Error::NONE );
 
     std::vector<uint16_t> concatenated;
@@ -282,7 +284,7 @@ testTwoStagedDecoding( std::string_view encodedFilePath,
                          buffer.data(), buffer.size() * sizeof( buffer[0] ) );
         }
 
-        deflate::Block::replaceMarkerBytes( { concatenated.data(), concatenated.size() }, lastWindow.data() );
+        DeflateBlock::replaceMarkerBytes( { concatenated.data(), concatenated.size() }, lastWindow.data() );
     } else {
         for ( const auto& buffer : bufferViews.data ) {
             concatenated.resize( concatenated.size() + buffer.size() );

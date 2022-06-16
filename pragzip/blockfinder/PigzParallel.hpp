@@ -85,6 +85,8 @@ class ParallelPigzBlockFinder :
     public OffsetFinderInterface
 {
 public:
+    using DeflateBlock = pragzip::deflate::Block;
+
     /**
      * Should probably be larger than the I/O block size of 4096 B and smaller than most L1 cache sizes.
      * Not fitting into L1 cache isn't as bad as thought but increasing the size past 16 kiB also does not improve
@@ -177,13 +179,13 @@ public:
             pragzip::gzip::checkHeader( bitReader );
             m_lastBlockOffsetReturned = bitReader.tell();
 
-            pragzip::deflate::Block block;
+            DeflateBlock block;
             const auto error = block.readHeader( bitReader );
             if ( error != pragzip::Error::NONE ) {
                 throw std::invalid_argument( "Corrupted deflate stream in gzip file!" );
             }
 
-            if ( ( block.compressionType() != pragzip::deflate::Block::CompressionType::UNCOMPRESSED )
+            if ( ( block.compressionType() != DeflateBlock::CompressionType::UNCOMPRESSED )
                  || block.isLastBlock()
                  || ( block.uncompressedSize() > 0 ) )
             {

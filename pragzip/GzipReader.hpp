@@ -40,6 +40,9 @@ class GzipReader :
     public FileReader
 {
 public:
+    using DeflateBlock = typename deflate::Block;
+
+public:
     explicit
     GzipReader( std::unique_ptr<FileReader> fileReader ) :
         m_bitReader( std::move( fileReader ) )
@@ -332,9 +335,9 @@ private:
      * of the previous block. But after the gzip stream end, this optional will be cleared and in case of
      * another concatenated gzip stream, it will be created anew.
      */
-    std::optional<pragzip::deflate::Block> m_currentDeflateBlock;
+    std::optional<DeflateBlock> m_currentDeflateBlock;
     /** Holds non-owning views to the data decoded in the last call to m_currentDeflateBlock.read. */
-    pragzip::deflate::Block::BufferViews m_lastBlockData;
+    typename DeflateBlock::BufferViews m_lastBlockData;
 
     /**
      * If m_currentPoint has no value, then it means it is currently inside a deflate block.
