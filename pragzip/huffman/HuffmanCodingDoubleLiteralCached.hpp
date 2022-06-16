@@ -59,7 +59,7 @@ public:
 
         const auto size = this->m_offsets[this->m_maxCodeLength - this->m_minCodeLength + 1];
         auto length = this->m_minCodeLength;
-        for ( size_t i = 0; i < size; ++i ) {
+        for ( size_t i = 0; i < size; ) {
             const auto reversedCode = this->m_codesPerLength[i];
             const auto symbol = this->m_symbolsPerLength[i];
 
@@ -77,7 +77,7 @@ public:
                 }
             } else {
                 auto length2 = this->m_minCodeLength;
-                for ( size_t i2 = 0; i2 < size; ++i2 ) {
+                for ( size_t i2 = 0; i2 < size; ) {
                     const auto reversedCode2 = this->m_codesPerLength[i2];
                     const auto symbol2 = this->m_symbolsPerLength[i2];
 
@@ -108,15 +108,25 @@ public:
                         }
                     }
 
+                    ++i2;
+                    if ( i2 >= size ) {
+                        break;
+                    }
+
                     /* Update the code length to reflect the next loop iteration. */
-                    while ( this->m_offsets[length2 - this->m_minCodeLength + 1] == i2 + 1 ) {
+                    while ( this->m_offsets[length2 - this->m_minCodeLength + 1] == i2 ) {
                         length2++;
                     }
                 }
             }
 
+            ++i;
+            if ( i >= size ) {
+                break;
+            }
+
             /* Update the code length to reflect the next loop iteration. */
-            while ( this->m_offsets[length - this->m_minCodeLength + 1] == i + 1 ) {
+            while ( this->m_offsets[length - this->m_minCodeLength + 1] == i ) {
                 length++;
             }
         }
