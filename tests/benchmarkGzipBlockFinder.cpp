@@ -576,7 +576,7 @@ findDeflateBlocksZlibOptimized( const std::string& fileName )
 [[nodiscard]] std::vector<size_t>
 findDeflateBlocksPragzip( const std::string& fileName )
 {
-    using DeflateBlock = pragzip::deflate::Block;
+    using DeflateBlock = pragzip::deflate::Block</* CRC32 */ false>;
 
     constexpr auto nBytesToTest = 1024*1024;
     const auto file = throwingOpen( fileName.c_str(), "rb" );

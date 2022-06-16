@@ -33,14 +33,6 @@
 #include "Error.hpp"
 #include "gzip.hpp"
 
-/**
- * @todo Silesia is ~70% slower when writing back and calculating CRC32.
- * When only only writing the result and not calculating CRC32, then it is ~60% slower.
- * Both, LZ77 back-references and CRC32 calculation can still be improved upon by a lot, I think.
- * Silesia contains a lot of 258 length back-references with distance 1, which could be replaced with memset
- * with the last byte. */
-//#define CALCULATE_CRC32
-
 
 namespace pragzip
 {
@@ -155,6 +147,14 @@ alignas(8) static inline const LengthLUT
 lengthLUT = createLengthLUT();
 
 
+/**
+ * @todo Silesia is ~70% slower when writing back and calculating CRC32.
+ * When only only writing the result and not calculating CRC32, then it is ~60% slower.
+ * Both, LZ77 back-references and CRC32 calculation can still be improved upon by a lot, I think.
+ * Silesia contains a lot of 258 length back-references with distance 1, which could be replaced with memset
+ * with the last byte.
+ */
+template<bool CALCULATE_CRC32 = false>
 class Block
 {
 public:
@@ -523,7 +523,7 @@ private:
     bool m_isLastBlock{ false };
     CompressionType m_compressionType{ CompressionType::RESERVED };
 
-    static const FixedHuffmanCoding m_fixedHC;
+    FixedHuffmanCoding m_fixedHC;
     LiteralOrLengthHuffmanCoding m_literalHC;
 
     /* HuffmanCodingReversedBitsCached is definitely faster for siles.tar.gz which has more back-references than
@@ -550,15 +550,13 @@ private:
      */
     size_t m_decodedBytes{ 0 };
 };
-
-
-const FixedHuffmanCoding Block::m_fixedHC = createFixedHC();
 } // namespace deflate
 
 
+template<bool CALCULATE_CRC32>
 template<bool treatLastBlockAsError>
 Error
-deflate::Block::readHeader( BitReader& bitReader )
+deflate::Block<CALCULATE_CRC32>::readHeader( BitReader& bitReader )
 {
     m_isLastBlock = bitReader.read<1>();
     if constexpr ( treatLastBlockAsError ) {
@@ -593,6 +591,9 @@ deflate::Block::readHeader( BitReader& bitReader )
     }
 
     case CompressionType::FIXED_HUFFMAN:
+        /* Initializing m_fixedHC statically leads to very weird problems when compiling with ASAN.
+         * The code might be too complex and run into the static initialization order fiasco. */
+        m_fixedHC = createFixedHC();
         break;
 
     case CompressionType::DYNAMIC_HUFFMAN:
@@ -609,8 +610,9 @@ deflate::Block::readHeader( BitReader& bitReader )
 }
 
 
+template<bool CALCULATE_CRC32>
 Error
-deflate::Block::readDynamicHuffmanCoding( BitReader& bitReader )
+deflate::Block<CALCULATE_CRC32>::readDynamicHuffmanCoding( BitReader& bitReader )
 {
     /**
      * Huffman codings map variable length (bit) codes to symbols.
@@ -706,9 +708,10 @@ deflate::Block::readDynamicHuffmanCoding( BitReader& bitReader )
 }
 
 
+template<bool CALCULATE_CRC32>
 uint16_t
-deflate::Block::getLength( uint16_t   code,
-                           BitReader& bitReader )
+deflate::Block<CALCULATE_CRC32>::getLength( uint16_t   code,
+                                            BitReader& bitReader )
 {
     if ( code <= 264 ) {
         return code - 257U + 3U;
@@ -724,8 +727,9 @@ deflate::Block::getLength( uint16_t   code,
 }
 
 
+template<bool CALCULATE_CRC32>
 std::pair<uint16_t, Error>
-deflate::Block::getDistance( BitReader& bitReader ) const
+deflate::Block<CALCULATE_CRC32>::getDistance( BitReader& bitReader ) const
 {
     uint16_t distance = 0;
     if ( m_compressionType == CompressionType::FIXED_HUFFMAN ) {
@@ -755,9 +759,10 @@ deflate::Block::getDistance( BitReader& bitReader ) const
 }
 
 
-std::pair<deflate::Block::BufferViews, Error>
-deflate::Block::read( BitReader& bitReader,
-                      size_t     nMaxToDecode )
+template<bool CALCULATE_CRC32>
+std::pair<typename deflate::Block<CALCULATE_CRC32>::BufferViews, Error>
+deflate::Block<CALCULATE_CRC32>::read( BitReader& bitReader,
+                                       size_t     nMaxToDecode )
 {
     if ( eob() ) {
         return { {}, Error::NONE };
@@ -783,11 +788,11 @@ deflate::Block::read( BitReader& bitReader,
 
         const auto nBytesRead = bitReader.read( reinterpret_cast<char*>( m_window.data() ), m_uncompressedSize );
 
-    #ifdef CALCULATE_CRC32
-        for ( size_t i = 0; i < nBytesRead; ++i ) {
-            m_crc32 = updateCRC32( m_crc32, m_window[i] );
+        if constexpr ( CALCULATE_CRC32 ) {
+            for ( size_t i = 0; i < nBytesRead; ++i ) {
+                m_crc32 = updateCRC32( m_crc32, m_window[i] );
+            }
         }
-    #endif
 
         result.data = lastBuffers( m_window, m_windowPosition, nBytesRead );
         return { result, nBytesRead == m_uncompressedSize ? Error::NONE : Error::EOF_UNCOMPRESSED };
@@ -805,19 +810,28 @@ deflate::Block::read( BitReader& bitReader,
 }
 
 
+template<bool CALCULATE_CRC32>
 template<typename Window>
 std::pair<size_t, Error>
-deflate::Block::readInternal( BitReader& bitReader,
-                              size_t     nMaxToDecode,
-                              Window&    window )
+deflate::Block<CALCULATE_CRC32>::readInternal( BitReader& bitReader,
+                                               size_t     nMaxToDecode,
+                                               Window&    window )
 {
     const auto appendToWindow =
         [this, &window] ( auto decodedSymbol )
         {
+            constexpr bool containsMarkerBytes = std::is_same_v<std::decay_t<decltype( *window.data() ) >, uint16_t>;
+
+            if constexpr ( CALCULATE_CRC32 && !containsMarkerBytes ) {
+                m_crc32 = updateCRC32( m_crc32, decodedSymbol );
+            }
+
             window[m_windowPosition] = decodedSymbol;
             m_windowPosition++;
             m_windowPosition %= window.size();
         };
+
+    constexpr bool containsMarkerBytes = std::is_same_v<std::decay_t<decltype( *window.data() ) >, uint16_t>;
 
     if ( m_compressionType == CompressionType::UNCOMPRESSED ) {
         /**
@@ -828,9 +842,6 @@ deflate::Block::readInternal( BitReader& bitReader,
         for ( uint16_t i = 0; i < m_uncompressedSize; ++i ) {
             const auto literal = bitReader.read<BYTE_SIZE>();
             appendToWindow( literal );
-        #ifdef CALCULATE_CRC32
-            m_crc32 = updateCRC32( m_crc32, literal );
-        #endif
         }
         m_atEndOfBlock = true;
         m_decodedBytes += m_uncompressedSize;
@@ -854,9 +865,6 @@ deflate::Block::readInternal( BitReader& bitReader,
         auto code = *decoded;
 
         if ( code <= 255 ) {
-        #ifdef CALCULATE_CRC32
-            m_crc32 = updateCRC32( m_crc32, code );
-        #endif
             appendToWindow( code );
              ++nBytesRead;
             continue;
@@ -878,7 +886,7 @@ deflate::Block::readInternal( BitReader& bitReader,
                 return { nBytesRead, error };
             }
 
-            if constexpr ( std::is_same_v<std::decay_t<decltype( *window.data() ) >, uint8_t> ) {
+            if constexpr ( !containsMarkerBytes ) {
                 if ( distance > m_decodedBytes + nBytesRead ) {
                     return { nBytesRead, Error::EXCEEDED_WINDOW_RANGE };
                 }
@@ -899,9 +907,6 @@ deflate::Block::readInternal( BitReader& bitReader,
                      ++position, ++nCopied )
                 {
                     const auto copiedSymbol = window[position % window.size()];
-                #ifdef CALCULATE_CRC32
-                    m_crc32 = updateCRC32( m_crc32, copiedSymbol );
-                #endif
                     appendToWindow( copiedSymbol );
                     nBytesRead++;
                 }

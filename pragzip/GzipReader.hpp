@@ -36,11 +36,12 @@ enum StoppingPoint : uint32_t
  * A strictly sequential gzip interface that can iterate over multiple gzip streams and of course deflate blocks.
  * It cannot seek back nor is it parallelized but it can be used to implement a parallelization scheme.
  */
+template<bool CALCULATE_CRC32 = false>
 class GzipReader :
     public FileReader
 {
 public:
-    using DeflateBlock = typename deflate::Block;
+    using DeflateBlock = typename deflate::Block<CALCULATE_CRC32>;
 
 public:
     explicit
@@ -356,10 +357,11 @@ private:
 };
 
 
+template<bool CALCULATE_CRC32>
 inline size_t
-GzipReader::flushOutputBuffer( int    const outputFileDescriptor,
-                               char*  const outputBuffer,
-                               size_t const maxBytesToFlush )
+GzipReader<CALCULATE_CRC32>::flushOutputBuffer( int    const outputFileDescriptor,
+                                                char*  const outputBuffer,
+                                                size_t const maxBytesToFlush )
 {
     if ( !m_offsetInLastBuffers.has_value()
          || !m_currentDeflateBlock.has_value()
@@ -410,10 +412,11 @@ GzipReader::flushOutputBuffer( int    const outputFileDescriptor,
 }
 
 
+template<bool CALCULATE_CRC32>
 inline size_t
-GzipReader::readBlock( int    const outputFileDescriptor,
-                       char*  const outputBuffer,
-                       size_t const nMaxBytesToDecode )
+GzipReader<CALCULATE_CRC32>::readBlock( int    const outputFileDescriptor,
+                                        char*  const outputBuffer,
+                                        size_t const nMaxBytesToDecode )
 {
     if ( eof() || ( nMaxBytesToDecode == 0 ) ) {
         return 0;
@@ -473,8 +476,9 @@ GzipReader::readBlock( int    const outputFileDescriptor,
 }
 
 
+template<bool CALCULATE_CRC32>
 inline void
-GzipReader::readGzipFooter()
+GzipReader<CALCULATE_CRC32>::readGzipFooter()
 {
     const auto footer = pragzip::gzip::readFooter( m_bitReader );
 
