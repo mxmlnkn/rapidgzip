@@ -82,6 +82,42 @@ testParallelDecoder( std::unique_ptr<FileReader> encoded,
     const auto nDecodedBytesRead = decoded->read( decodedBuffer.data(), decodedBuffer.size() );
     REQUIRE( nDecodedBytesRead == decodedBuffer.size() );
     REQUIRE( result == decodedBuffer );
+
+    if ( result != decodedBuffer ) {
+        for ( size_t i = 0; i < result.size(); ++i ) {
+            if ( result[i] != decodedBuffer[i] ) {
+                std::cerr << "Decoded contents differ at position " << i << " B out of " << decoded->size() << " B: "
+                          << "Decoded != Truth: "
+                          << result[i] << " != " << decodedBuffer[i] << " ("
+                          << (int)result[i] << " != " << (int)decodedBuffer[i] << ")\n";
+                break;
+            }
+        }
+    }
+}
+
+
+void
+testParallelDecoder( const std::filesystem::path& encoded,
+                     const std::filesystem::path& decoded = {},
+                     const std::filesystem::path& index = {} )
+{
+    auto encodedFile = std::make_unique<StandardFileReader>( encoded.string() );
+    std::cerr << "Testing " << encoded.filename() << ( index.empty() ? "" : " with indexed_gzip index" )
+              << " (" << encodedFile->size() << " B)\n";
+
+    auto decodedFilePath = decoded;
+    if ( decodedFilePath.empty() ) {
+        decodedFilePath = encoded;
+        decodedFilePath.replace_extension();
+    }
+
+    auto indexData = index.empty()
+                     ? std::nullopt
+                     : std::make_optional( readGzipIndex( std::make_unique<StandardFileReader>( index.string() ) ) );
+    testParallelDecoder( std::move( encodedFile ),
+                         std::make_unique<StandardFileReader>( decodedFilePath.string() ),
+                         std::move( indexData ) );
 }
 
 
@@ -165,16 +201,13 @@ main( int    argc,
 
     testParallelDecoderNano();
 
-    testParallelDecoder(
-        std::make_unique<StandardFileReader>( ( rootFolder / "tests/data/base64-256KiB.bgz" ).string() ),
-        std::make_unique<StandardFileReader>( ( rootFolder / "tests/data/base64-256KiB" ).string() ) );
+    testParallelDecoder( rootFolder / "tests/data/base64-256KiB.pgz" );
 
-    testParallelDecoder(
-        std::make_unique<StandardFileReader>( ( rootFolder / "tests/data/base64-256KiB.gz" ).string() ),
-        std::make_unique<StandardFileReader>( ( rootFolder / "tests/data/base64-256KiB" ).string() ),
-        readGzipIndex(
-            std::make_unique<StandardFileReader>( ( rootFolder / "tests/data/base64-256KiB.gz.index" ).string() ) )
-    );
+    testParallelDecoder( rootFolder / "tests/data/base64-256KiB.bgz" );
+
+    testParallelDecoder( rootFolder / "tests/data/base64-256KiB.gz",
+                         rootFolder / "tests/data/base64-256KiB",
+                         rootFolder / "tests/data/base64-256KiB.gz.index" );
 
     try
     {

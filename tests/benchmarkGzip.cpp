@@ -293,16 +293,6 @@ decompressWithPragzip( const std::string& fileName )
 [[nodiscard]] size_t
 decompressWithPragzipParallel( const std::string& fileName )
 {
-    using namespace pragzip;
-
-    try
-    {
-        BgzfBlockFinder( std::make_unique<StandardFileReader>( fileName ) );
-    } catch ( const std::invalid_argument& ) {
-        /* Not a bgz file. */
-        return 0;
-    }
-
     size_t totalDecodedBytes = 0;
 
     ParallelGzipReader gzipReader( std::make_unique<StandardFileReader>( fileName ) );
@@ -409,9 +399,11 @@ benchmarkDecompression( const std::string& fileName )
     std::cout << "Decompressed " << fileContents.size() << " B to " << sizeLibArchive << " B with libarchive:\n";
     printDurations( durationsLibArchive, sizeLibArchive );
 
+    const auto expectedSize = sizeLibArchive;
+
     const auto [sizeZlib, durationsZlib] = benchmarkFunction( [&fileContents] () {
         return decompressWithZlib( fileContents ); } );
-    if ( sizeZlib == sizeLibArchive ) {
+    if ( sizeZlib == expectedSize ) {
         std::cout << "Decompressed " << fileContents.size() << " B to " << sizeZlib << " B with zlib:\n";
         printDurations( durationsZlib, sizeZlib );
     } else {
@@ -420,7 +412,7 @@ benchmarkDecompression( const std::string& fileName )
 
     const auto [sizePragzip, durationsPragzip] = benchmarkFunction(
         [&fileName] () { return decompressWithPragzip( fileName ); } );
-    if ( sizePragzip == sizeLibArchive ) {
+    if ( sizePragzip == expectedSize ) {
         std::cout << "Decompressed " << fileContents.size() << " B to " << sizePragzip << " B "
                   << "with pragzip (serial):\n";
         printDurations( durationsPragzip, sizePragzip );
@@ -430,19 +422,20 @@ benchmarkDecompression( const std::string& fileName )
 
     const auto [sizePragzipParallel, durationsPragzipParallel] = benchmarkFunction(
         [&fileName] () { return decompressWithPragzipParallel( fileName ); } );
-    if ( sizePragzipParallel == sizeLibArchive ) {
+    if ( sizePragzipParallel == expectedSize ) {
         std::cout << "Decompressed " << fileContents.size() << " B to " << sizePragzipParallel << " B "
                   << "with pragzip (parallel):\n";
         printDurations( durationsPragzipParallel, sizePragzipParallel );
     } else {
-        std::cerr << "Decompressing with pragzip (parallel) decoded a different amount than libarchive!\n";
+        std::cerr << "Decompressing with pragzip (parallel) decoded a different amount (" << sizePragzipParallel
+                  << ") than libarchive (" << expectedSize << ")!\n";
     }
 
     const auto [sizePragzipParallelIndex, durationsPragzipParallelIndex] = benchmarkFunction(
         [&fileName] () { return createGzipIndex( fileName ); }, decompressWithPragzipParallelIndex );
-    if ( sizePragzipParallelIndex == sizeLibArchive ) {
+    if ( sizePragzipParallelIndex == expectedSize ) {
         std::cout << "Decompressed " << fileContents.size() << " B to " << sizePragzipParallelIndex << " B "
-                  << "with pragzip (parallel):\n";
+                  << "with pragzip (parallel + index):\n";
         printDurations( durationsPragzipParallelIndex, sizePragzipParallelIndex );
     } else {
         std::cerr << "Decompressing with pragzip (parallel + index) decoded a different amount than libarchive!\n";
@@ -575,6 +568,35 @@ make benchmarkGzip && tests/benchmarkGzip large.bgz
 time bgzip --threads $( nproc ) -d -c large.bgz | wc -c
     real  0m2.155s
   -> Twice as fast as parallel pragzip
+
+
+base64 /dev/urandom | head -c $(( 4*1024*1024*1024 )) > large
+pigz -k -c large > large.pgz
+make benchmarkGzip && tests/benchmarkGzip large.pgz
+    Decompressed 408430549 B to 536870912 B with libarchive:
+        Runtime / s: 1.66289 <= 1.66528 +- 0.00324291 <= 1.66897
+        Bandwidth on Encoded Data / (MB/s): 244.719 <= 245.263 +- 0.477146 <= 245.614
+        Bandwidth on Decoded Data / (MB/s): 321.677 <= 322.391 +- 0.627195 <= 322.853
+    Decompressed 408430549 B to 536870912 B with zlib:
+        Runtime / s: 1.96574 <= 1.96892 +- 0.00326911 <= 1.97227
+        Bandwidth on Encoded Data / (MB/s): 207.087 <= 207.44 +- 0.344381 <= 207.775
+        Bandwidth on Decoded Data / (MB/s): 272.21 <= 272.674 +- 0.452679 <= 273.115
+    Decompressed 408430549 B to 536870912 B with pragzip (serial):
+        Runtime / s: 6.28719 <= 6.31069 +- 0.0316445 <= 6.34667
+        Bandwidth on Encoded Data / (MB/s): 64.3535 <= 64.7215 +- 0.323731 <= 64.9623
+        Bandwidth on Decoded Data / (MB/s): 84.591 <= 85.0747 +- 0.425536 <= 85.3912
+    Decompressed 408430549 B to 536870912 B with pragzip (parallel):
+        Runtime / s: 1.05459 <= 1.06086 +- 0.00635215 <= 1.06729
+        Bandwidth on Encoded Data / (MB/s): 382.68 <= 385.008 +- 2.30486 <= 387.289
+        Bandwidth on Decoded Data / (MB/s): 503.022 <= 506.083 +- 3.02967 <= 509.081
+    Decompressed 408430549 B to 536870912 B with pragzip (parallel + index):
+        Runtime / s: 0.473138 <= 0.499125 +- 0.0385823 <= 0.543457
+        Bandwidth on Encoded Data / (MB/s): 751.542 <= 821.432 +- 60.9144 <= 863.238
+        Bandwidth on Decoded Data / (MB/s): 987.881 <= 1079.75 +- 80.0703 <= 1134.7
+  -> Pragzip has abysmal serial decoder speed, probably because pigz deflate blocks are only 16 KiB so that the
+     upfront cost for the double-symbol cached Huffman-decoder becomes expensive.
+  -> The parallel version on 12 physical cores (24 virtual cores) is still 6x faster than pragzip in serial
+     and almost 2x faster than with zlib although this is pretty wasteful when thinking of all cores being used.
 */
 
 /**

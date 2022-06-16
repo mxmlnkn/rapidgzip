@@ -23,9 +23,118 @@ namespace pragzip
 {
 struct BlockData
 {
+public:
+    void
+    append( const deflate::Block</* CRC32 */ false>::BufferViews& buffers )
+    {
+        if ( buffers.dataWithMarkersSize() > 0 ) {
+            if ( !data.empty() ) {
+                throw std::invalid_argument( "It is not allowed to append data with markers when fully decoded data "
+                                             "has already been appended because the ordering will be wrong!" );
+            }
+
+            auto& copied = dataWithMarkers.emplace_back( buffers.dataWithMarkersSize() );
+            size_t offset{ 0 };
+            for ( const auto& buffer : buffers.dataWithMarkers ) {
+                std::memcpy( copied.data() + offset, buffer.data(), buffer.size() * sizeof( buffer[0] ) );
+                offset += buffer.size();
+            }
+        }
+
+        if ( buffers.dataSize() > 0 ) {
+            auto& copied = data.emplace_back( buffers.dataSize() );
+            size_t offset{ 0 };
+            for ( const auto& buffer : buffers.data ) {
+                std::memcpy( copied.data() + offset, buffer.data(), buffer.size() );
+                offset += buffer.size();
+            }
+        }
+    }
+
+    [[nodiscard]] size_t
+    dataSize() const noexcept
+    {
+        const auto addSize = [] ( const size_t size, const auto& container ) { return size + container.size(); };
+        return std::accumulate( data.begin(), data.end(), size_t( 0 ), addSize );
+    }
+
+    [[nodiscard]] size_t
+    dataWithMarkersSize() const noexcept
+    {
+        const auto addSize = [] ( const size_t size, const auto& container ) { return size + container.size(); };
+        return std::accumulate( dataWithMarkers.begin(), dataWithMarkers.end(), size_t( 0 ), addSize );
+    }
+
+    [[nodiscard]] size_t
+    size() const noexcept
+    {
+        return dataSize() + dataWithMarkersSize();
+    }
+
+    void
+    applyWindow( const deflate::WindowView& window )
+    {
+        if ( dataWithMarkersSize() == 0 ) {
+            dataWithMarkers.clear();
+            return;
+        }
+
+        std::vector<uint8_t> downcasted( dataWithMarkersSize() );
+        size_t offset{ 0 };
+        for ( auto& chunk : dataWithMarkers ) {
+            deflate::Block<>::replaceMarkerBytes( &chunk, window );
+            std::transform( chunk.begin(), chunk.end(), downcasted.begin() + offset,
+                            [] ( const auto symbol ) { return static_cast<uint8_t>( symbol ); } );
+            offset += chunk.size();
+        }
+        data.insert( data.begin(), std::move( downcasted ) );
+        dataWithMarkers.clear();
+    }
+
+    /**
+     * Returns the last 32 KiB decoded bytes. This can be called after decoding a block has finished
+     * and then can be used to store and load it with deflate::Block::setInitialWindow to restart decoding
+     * with the next block. Because this is not supposed to be called very often, it returns a copy of
+     * the data instead of views.
+     */
+    [[nodiscard]] deflate::Window
+    getLastWindow( const deflate::WindowView& previousWindow ) const
+    {
+        if ( dataWithMarkersSize() > 0 ) {
+            throw std::invalid_argument( "No valid window available!" );
+        }
+
+        deflate::Window window;
+        size_t nBytesWritten{ 0 };
+
+        /* Fill the result from the back with data from our buffer. */
+        for ( auto chunk = data.rbegin(); ( chunk != data.rend() ) && ( nBytesWritten < window.size() ); ++chunk ) {
+            for ( auto symbol = chunk->rbegin(); ( symbol != chunk->rend() ) && ( nBytesWritten < window.size() );
+                  ++symbol, ++nBytesWritten )
+            {
+                window[window.size() - 1 - nBytesWritten] = *symbol;
+            }
+        }
+
+        /* Fill the remaining part with the given window. This should only happen for very small BlockData sizes. */
+        if ( nBytesWritten < deflate::MAX_WINDOW_SIZE ) {
+            const auto remainingBytes = deflate::MAX_WINDOW_SIZE - nBytesWritten;
+            assert( remainingBytes <= previousWindow.size() );
+            std::copy( std::reverse_iterator( previousWindow.end() ),
+                       std::reverse_iterator( previousWindow.end() ) + remainingBytes,
+                       window.rbegin() + nBytesWritten );
+        }
+
+        return window;
+    }
+
+public:
     size_t encodedOffsetInBits{ std::numeric_limits<size_t>::max() };
     size_t encodedSizeInBits{ 0 };
-    std::vector<uint8_t> data;
+
+    /* Use vectors of vectors to avoid reallocations. */
+    std::vector<std::vector<uint8_t> > data;
+    std::vector<std::vector<uint16_t> > dataWithMarkers;
 };
 
 
@@ -36,13 +145,16 @@ class GzipBlockFetcher :
 public:
     using BaseType = BlockFetcher<::BlockFinder<Combined>, BlockData, FetchingStrategy>;
     using BitReader = pragzip::BitReader;
+    using Windows = std::unordered_map</* block offet */ size_t, deflate::Window>;
 
 public:
     GzipBlockFetcher( BitReader                                       bitReader,
                       std::shared_ptr<typename BaseType::BlockFinder> blockFinder,
+                      bool                                            isBgzfFile,
                       size_t                                          parallelization ) :
         BaseType( std::move( blockFinder ), parallelization ),
-        m_bitReader( bitReader )
+        m_bitReader( bitReader ),
+        m_isBgzfFile( isBgzfFile )
     {}
 
     virtual
@@ -111,17 +223,31 @@ public:
      * should be close enough for performance.
      */
 
+    [[nodiscard]] virtual std::shared_ptr<BlockData>
+    get( size_t                blockOffset,
+         std::optional<size_t> dataBlockIndex = {} ) override
+    {
+        return BaseType::get( blockOffset, dataBlockIndex );
+    }
+
+private:
     [[nodiscard]] BlockData
     decodeBlock( size_t blockIndex,
                  size_t blockOffset ) const override
     {
-        std::optional<ArrayView<std::uint8_t, pragzip::deflate::MAX_WINDOW_SIZE> > window;
-        if ( const auto match = windows.find( blockOffset ); match != windows.end() ) {
-            window.emplace( match->second );
+        std::optional<deflate::WindowView> window;
+        {
+            std::scoped_lock lock( windowsMutex );
+            if ( const auto match = windows.find( blockOffset ); match != windows.end() ) {
+                window.emplace( match->second );
+            }
         }
-        return decodeBlock( blockOffset, this->m_blockFinder->get( blockIndex + 1 ), window );
+        return decodeBlock( m_bitReader, blockOffset, this->m_blockFinder->get( blockIndex + 1 ),
+                            /* needsNoInitialWindow */ ( blockIndex == 0 ) || m_isBgzfFile,
+                            std::move( window ) );
     }
 
+public:
     /**
      * @param untilOffset Decode to excluding at least this compressed offset. It can be the offset of the next
      *                    deflate block or next gzip stream but it can also be the starting guess for the block finder
@@ -130,12 +256,14 @@ public:
      *                      start.
      * @todo Make it automatically decompress to replacement markers if no valid window was given but needed anyway.
      */
-    [[nodiscard]] BlockData
-    decodeBlock( size_t                blockOffset,
-                 std::optional<size_t> untilOffset,
-                 std::optional<ArrayView<std::uint8_t, pragzip::deflate::MAX_WINDOW_SIZE> > initialWindow ) const
+    [[nodiscard]] static BlockData
+    decodeBlock( const BitReader&                   originalBitReader,
+                 size_t                             blockOffset,
+                 std::optional<size_t>              untilOffset,
+                 bool                               needsNoInitialWindow,
+                 std::optional<deflate::WindowView> initialWindow )
     {
-        BitReader bitReader( m_bitReader );
+        BitReader bitReader( originalBitReader );
         bitReader.seek( blockOffset );
 
         BlockData result;
@@ -145,13 +273,14 @@ public:
          * start reading in the middle of a gzip stream and will not meet the gzip header for a while or never. */
         bool isAtStreamEnd = false;
         size_t streamBytesRead = 0;
-        std::optional<pragzip::gzip::Header> gzipHeader;
+        std::optional<gzip::Header> gzipHeader;
 
-        pragzip::deflate::Block block;
-        if ( initialWindow ) {
-            block.setInitialWindow( *initialWindow );
-        } else {
-            block.setInitialWindow();
+        std::optional<deflate::Block</* CRC32 */ false> > block;
+        block.emplace();
+        if ( needsNoInitialWindow ) {
+            block->setInitialWindow();
+        } else if ( initialWindow ) {
+            block->setInitialWindow( *initialWindow );
         }
 
         /* Loop over possibly gzip streams and deflate blocks. We cannot use GzipReader even though it does
@@ -164,71 +293,57 @@ public:
             }
 
             if ( isAtStreamEnd ) {
-                const auto [header, error] = pragzip::gzip::readHeader( bitReader );
-                if ( error != pragzip::Error::NONE ) {
-                    std::cerr << "Encountered error while trying to read gzip header: "
-                              << pragzip::toString( error ) << "\n";
+                const auto [header, error] = gzip::readHeader( bitReader );
+                if ( error != Error::NONE ) {
+                    std::cerr << "Encountered error while trying to read gzip header: " << toString( error ) << "\n";
                     break;
                 }
 
                 gzipHeader = std::move( header );
-                block.setInitialWindow();
+                block.emplace();
+                block->setInitialWindow();
 
                 if ( untilOffset && ( bitReader.tell() >= untilOffset ) ) {
                     break;
                 }
             }
 
-            if ( auto error = block.readHeader( bitReader ); error != pragzip::Error::NONE ) {
+            if ( auto error = block->readHeader( bitReader ); error != Error::NONE ) {
                 std::cerr << "Erroneous block header at offset " << blockOffset << " b (after read: "
-                          << bitReader.tell() << " b): " << pragzip::toString( error ) << "\n";
+                          << bitReader.tell() << " b): " << toString( error ) << "\n";
                 return {};
             }
 
-            /* Loop until we have read the full contents of the current deflate block. */
-            while ( !block.eob() )
+            /* Loop until we have read the full contents of the current deflate block-> */
+            while ( !block->eob() )
             {
-                const auto [bufferViews, error] = block.read( bitReader, std::numeric_limits<size_t>::max() );
-                if ( error != pragzip::Error::NONE ) {
-                    std::cerr << "Erroneous block at offset " << blockOffset
-                              << " b: " << pragzip::toString( error ) << "\n";
+                const auto [bufferViews, error] = block->read( bitReader, std::numeric_limits<size_t>::max() );
+                if ( error != Error::NONE ) {
+                    std::cerr << "Erroneous block at offset " << blockOffset << " b: " << toString( error ) << "\n";
                     return {};
                 }
 
-                for ( const auto& buffer : bufferViews.data ) {
-                    if ( buffer.empty() ) {
-                        continue;
-                    }
-
-                    const auto oldSize = result.data.size();
-                    result.data.resize( oldSize + buffer.size() );
-                    std::memcpy( result.data.data() + oldSize, buffer.data(), buffer.size() );
-                    streamBytesRead += buffer.size();
-                }
+                result.append( bufferViews );
+                streamBytesRead += bufferViews.size();
             }
 
-            if ( block.isLastBlock() ) {
-                const auto footer = pragzip::gzip::readFooter( bitReader );
+            if ( block->isLastBlock() ) {
+                const auto footer = gzip::readFooter( bitReader );
 
                 /* We only check for the stream size and CRC32 if we have read the whole stream including the header! */
                 if ( gzipHeader ) {
                     if ( streamBytesRead != footer.uncompressedSize ) {
                         std::stringstream message;
-                        message << "Mismatching size (" << streamBytesRead << " <-> footer: " << footer.uncompressedSize << ") for gzip stream!";
+                        message << "Mismatching size (" << streamBytesRead << " <-> footer: "
+                                << footer.uncompressedSize << ") for gzip stream!";
                         throw std::runtime_error( message.str() );
                     }
 
-                    if ( ( block.crc32() != 0 ) && ( block.crc32() != footer.crc32 ) ) {
+                    if ( ( block->crc32() != 0 ) && ( block->crc32() != footer.crc32 ) ) {
                         std::stringstream message;
-                        message << "Mismatching CRC32 (0x" << std::hex << block.crc32() << " <-> stored: 0x"
+                        message << "Mismatching CRC32 (0x" << std::hex << block->crc32() << " <-> stored: 0x"
                                 << footer.crc32 << ") for gzip stream!";
                         throw std::runtime_error( message.str() );
-                    }
-
-                    if ( block.crc32() != 0 ) {
-                        std::stringstream message;
-                        message << "Validated CRC32 0x" << std::hex << block.crc32() << " for gzip stream!\n";
-                        std::cerr << message.str();
                     }
                 }
 
@@ -242,16 +357,38 @@ public:
             }
         }
 
+        /* Try to check previous blocks whether they might be free of markers when we ended up with a fully-decoded
+         * window. */
+        if ( !result.dataWithMarkers.empty() && !result.data.empty() ) {
+            std::vector<std::vector<uint8_t> > downcastedVectors;
+            while ( !result.dataWithMarkers.empty()
+                    && !deflate::containsMarkers( result.dataWithMarkers.back() ) )
+            {
+                const auto& toDowncast = result.dataWithMarkers.back();
+                auto& downcasted = downcastedVectors.emplace_back( toDowncast.size() );
+                std::transform( toDowncast.begin(), toDowncast.end(), downcasted.begin(),
+                                [] ( auto symbol ) { return static_cast<uint8_t>( symbol ); } );
+                result.dataWithMarkers.pop_back();
+            }
+
+            /* The above loop iterates starting from the back and also insert at the back in the result,
+             * therefore, we need to reverse the temporary container again to get the correct order. */
+            result.data.insert( result.data.begin(),
+                                std::move_iterator( downcastedVectors.rbegin() ),
+                                std::move_iterator( downcastedVectors.rend() ) );
+        }
+
         result.encodedSizeInBits = bitReader.tell() - blockOffset;
         return result;
     }
 
 public:
-    /** @todo put into BlockMap and use that here instead? */
-    std::unordered_map<size_t, std::array<std::uint8_t, pragzip::deflate::MAX_WINDOW_SIZE> > windows;
+    Windows windows;
+    mutable std::mutex windowsMutex;
 
 private:
     /* Variables required by decodeBlock and which therefore should be either const or locked. */
     const BitReader m_bitReader;
+    const bool m_isBgzfFile;
 };
 }  // namespace pragzip

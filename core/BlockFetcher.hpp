@@ -82,7 +82,7 @@ public:
     /**
      * Fetches, prefetches, caches, and returns result.
      */
-    [[nodiscard]] std::shared_ptr<BlockData>
+    [[nodiscard]] virtual std::shared_ptr<BlockData>
     get( size_t                blockOffset,
          std::optional<size_t> dataBlockIndex = {} )
     {

@@ -146,6 +146,18 @@ alignas(8) static constexpr LengthLUT
 lengthLUT = createLengthLUT();
 
 
+[[nodiscard]] static bool
+containsMarkers( const VectorView<uint16_t>& values )
+{
+    return std::any_of( values.begin(), values.end(),
+                        [] ( auto value ) { return value > std::numeric_limits<uint8_t>::max(); } );
+}
+
+
+using Window = std::array<std::uint8_t, MAX_WINDOW_SIZE>;
+using WindowView = ArrayView<std::uint8_t, MAX_WINDOW_SIZE>;
+
+
 /**
  * @todo Silesia is ~70% slower when writing back and calculating CRC32.
  * When only only writing the result and not calculating CRC32, then it is ~60% slower.
@@ -193,6 +205,18 @@ public:
         size() const noexcept
         {
             return dataWithMarkers[0].size() + dataWithMarkers[1].size() + data[0].size() + data[1].size();
+        }
+
+        [[nodiscard]] size_t
+        dataSize() const
+        {
+            return data[0].size() + data[1].size();
+        }
+
+        [[nodiscard]] size_t
+        dataWithMarkersSize() const
+        {
+            return dataWithMarkers[0].size() + dataWithMarkers[1].size();
         }
 
         [[nodiscard]] constexpr bool
@@ -280,14 +304,14 @@ public:
      * and then can be used to store and load it with setInitialWindow to restart decoding with the next block.
      * Because this is not supposed to be called very often, it returns a copy of the data instead of views.
      */
-    [[nodiscard]] std::array<uint8_t, MAX_WINDOW_SIZE>
+    [[nodiscard]] Window
     lastWindow() const
     {
         if ( m_containsMarkerBytes ) {
             throw std::invalid_argument( "No valid window available!" );
         }
 
-        std::array<uint8_t, MAX_WINDOW_SIZE> result;
+        Window result;
 
         const auto nBytesToCopy = std::min( m_decodedBytes, MAX_WINDOW_SIZE );
         if ( m_windowPosition >= nBytesToCopy ) {
@@ -327,8 +351,8 @@ public:
     }
 
     static void
-    replaceMarkerBytes( WeakVector<std::uint16_t>                      buffer,
-                        ArrayView<std::uint8_t, MAX_WINDOW_SIZE> const initialWindow )
+    replaceMarkerBytes( WeakVector<std::uint16_t> buffer,
+                        WindowView const          initialWindow )
     {
         checkMarkerBytes( buffer );
 
@@ -352,13 +376,25 @@ public:
     /**
      * Should be called if this is the first block, i.e., if there is now winow buffer to initialize.
      * @todo I don't like that the API requires to call this for normal blocks :/. Maybe automatically
-     *       detect and set m_containsMarkerBytes.
+     *       detect and set m_containsMarkerBytes. Or maybe, require calling a method when this is not the first block!
      */
     void
     setInitialWindow()
     {
-        m_containsMarkerBytes = false;
-        m_decodedBytes = 0;
+        if ( !m_containsMarkerBytes || ( m_decodedBytes == 0 ) ) {
+            m_containsMarkerBytes = false;
+            return;
+        }
+
+        if ( ( m_distanceToLastMarkerByte >= m_window16.size() )
+             || ( ( m_distanceToLastMarkerByte >= MAX_WINDOW_SIZE )
+                  && ( m_distanceToLastMarkerByte == m_decodedBytes ) ) ) {
+            setInitialWindow( Window{} );
+            return;
+        }
+
+        throw std::invalid_argument( "The block contains half-decoded marker bytes. "
+                                     "Refusing to apply an empty initial window! Create a new block instead." );
     }
 
     /**
@@ -373,7 +409,7 @@ public:
      * This method does not much more but has to account for wrap-around, too.
      */
     std::array<VectorView<uint8_t>, 2>
-    setInitialWindow( ArrayView<std::uint8_t, MAX_WINDOW_SIZE> const initialWindow )
+    setInitialWindow( WindowView const initialWindow )
     {
         if ( !m_containsMarkerBytes ) {
             return lastBuffers( m_window, m_windowPosition, std::min( m_window.size(), m_decodedBytes ) );
@@ -548,6 +584,13 @@ private:
      * It is used to determine whether a backreference references valid data.
      */
     size_t m_decodedBytes{ 0 };
+
+    /**
+     * This is incremented whenever a symbol could be fully decoded and it gets reset when a marker byte is
+     * encountered. It is used to determine when the last window buffer has been fully decoded.
+     * The exact value does not matter and is undefined when @ref m_containsMarkerBytes is false.
+     */
+    size_t m_distanceToLastMarkerByte{ 0 };
 };
 } // namespace deflate
 
@@ -773,32 +816,70 @@ deflate::Block<CALCULATE_CRC32>::read( BitReader& bitReader,
 
     BufferViews result;
 
-    /**
-     * Special case for uncompressed blocks larger or equal than the window size.
-     * Because, in this case, we can simply copy the uncompressed block to the beginning of the window
-     * without worrying about wrap-around and also now we know that there are no markers remaining!
-     * @todo use memcpy / large read even when smaller than MAX_WINDOW_SIZE to improve speed
-     */
-    if ( ( m_compressionType == CompressionType::UNCOMPRESSED ) && ( m_uncompressedSize >= MAX_WINDOW_SIZE ) ) {
-        m_containsMarkerBytes = false;
-        m_windowPosition = m_uncompressedSize;
-        m_atEndOfBlock = true;
-        m_decodedBytes += m_uncompressedSize;
+    if ( m_compressionType == CompressionType::UNCOMPRESSED ) {
+        std::optional<size_t> nBytesRead;
+        if ( m_uncompressedSize >= MAX_WINDOW_SIZE ) {
+            /* Special case for uncompressed blocks larger or equal than the window size.
+             * Because, in this case, we can simply copy the uncompressed block to the beginning of the window
+             * without worrying about wrap-around and also now we know that there are no markers remaining! */
+            m_windowPosition = m_uncompressedSize;
+            nBytesRead = bitReader.read( reinterpret_cast<char*>( m_window.data() ), m_uncompressedSize );
+        } else if ( m_containsMarkerBytes && ( m_distanceToLastMarkerByte + m_uncompressedSize >= MAX_WINDOW_SIZE ) ) {
+            /* Special case for when the new uncompressed data plus some fully-decoded data from the window buffer
+            * together exceed the maximum backreference distance. */
+            assert( m_distanceToLastMarkerByte <= m_decodedBytes );
 
-        const auto nBytesRead = bitReader.read( reinterpret_cast<char*>( m_window.data() ), m_uncompressedSize );
+            /* Copy and at the same time downcast enough data for the window from the 16-bit element buffer. */
+            std::vector<uint8_t> remainingData( MAX_WINDOW_SIZE - m_uncompressedSize );
+            size_t downcastedSize{ 0 };
+            for ( const auto buffer : lastBuffers( m_window16, m_windowPosition, remainingData.size() ) ) {
+                if ( std::any_of( buffer.begin(), buffer.end(), [] ( const auto symbol ) { return symbol > 255; } ) ) {
+                    throw std::logic_error( "Encountered marker byte even though there shouldn't be one!" );
+                }
 
-        if constexpr ( CALCULATE_CRC32 ) {
-            for ( size_t i = 0; i < nBytesRead; ++i ) {
-                m_crc32 = updateCRC32( m_crc32, m_window[i] );
+                std::transform( buffer.begin(), buffer.end(), remainingData.data() + downcastedSize,
+                                [] ( const auto symbol ) { return static_cast<uint8_t>( symbol ); } );
+                downcastedSize += buffer.size();
             }
+
+            m_windowPosition = MAX_WINDOW_SIZE;
+
+            std::memcpy( m_window.data(), remainingData.data(), remainingData.size() );
+            nBytesRead = bitReader.read( reinterpret_cast<char*>( m_window.data() + remainingData.size() ),
+                                         m_uncompressedSize );
         }
 
-        result.data = lastBuffers( m_window, m_windowPosition, nBytesRead );
-        return { result, nBytesRead == m_uncompressedSize ? Error::NONE : Error::EOF_UNCOMPRESSED };
+        if ( nBytesRead ) {
+            m_containsMarkerBytes = false;
+            m_atEndOfBlock = true;
+            m_decodedBytes += *nBytesRead;
+
+            if constexpr ( CALCULATE_CRC32 ) {
+                for ( size_t i = 0; i < *nBytesRead; ++i ) {
+                    m_crc32 = updateCRC32( m_crc32, m_window[i] );
+                }
+            }
+
+            result.data = lastBuffers( m_window, m_windowPosition, *nBytesRead );
+            return { result, *nBytesRead == m_uncompressedSize ? Error::NONE : Error::EOF_UNCOMPRESSED };
+        }
     }
 
     if ( m_containsMarkerBytes ) {
+        /* This is the only case that should increment or reset m_distanceToLastMarkerByte. */
         const auto [nBytesRead, error] = readInternal( bitReader, nMaxToDecode, m_window16 );
+
+        /* Theoretically, it would be enough if m_distanceToLastMarkerByte >= MAX_WINDOW_SIZE but that complicates
+         * things because we can only convert up to m_distanceToLastMarkerByte of data even though we might need
+         * to return up to nBytesRead of data! Furthermore, the wrap-around, again, would be more complicated. */
+        if ( ( m_distanceToLastMarkerByte >= m_window16.size() )
+             || ( ( m_distanceToLastMarkerByte >= MAX_WINDOW_SIZE )
+                  && ( m_distanceToLastMarkerByte == m_decodedBytes ) ) ) {
+            setInitialWindow();
+            result.data = lastBuffers( m_window, m_windowPosition, nBytesRead );
+            return { result, error };
+        }
+
         result.dataWithMarkers = lastBuffers( m_window16, m_windowPosition, nBytesRead );
         return { result, error };
     }
@@ -823,6 +904,14 @@ deflate::Block<CALCULATE_CRC32>::readInternal( BitReader& bitReader,
 
             if constexpr ( CALCULATE_CRC32 && !containsMarkerBytes ) {
                 m_crc32 = updateCRC32( m_crc32, decodedSymbol );
+            }
+
+            if constexpr ( containsMarkerBytes ) {
+                if ( decodedSymbol > std::numeric_limits<uint8_t>::max() ) {
+                    m_distanceToLastMarkerByte = 0;
+                } else {
+                    ++m_distanceToLastMarkerByte;
+                }
             }
 
             window[m_windowPosition] = decodedSymbol;

@@ -42,6 +42,7 @@ public:
     explicit
     ParallelGzipReader( std::unique_ptr<FileReader> fileReader,
                         size_t                      parallelization = 0 ) :
+        m_isBgzfFile( BgzfBlockFinder::isBgzfFile( fileReader ) ),
         m_bitReader( std::move( fileReader ) ),
         m_fetcherParallelization(
             parallelization == 0
@@ -188,6 +189,7 @@ public:
                     break;
                 }
 
+                /* If the code is not in the block map, then we read the next block from the blockfinder. */
                 const auto encodedOffsetInBits = blockFinder().get( m_nextUnprocessedBlockIndex );
                 if ( !encodedOffsetInBits ) {
                     m_blockMap->finalize();
@@ -196,10 +198,46 @@ public:
                 }
 
                 blockData = blockFetcher().get( *encodedOffsetInBits, m_nextUnprocessedBlockIndex );
-                m_blockMap->push( blockData->encodedOffsetInBits,
-                                  blockData->encodedSizeInBits,
-                                  blockData->data.size() );
+                m_blockMap->push( blockData->encodedOffsetInBits, blockData->encodedSizeInBits, blockData->size() );
+
+                /* Because this is a new block, it might contain markers that we have to replace with the window
+                 * of the last block. The very first block should not contain any markers, ensuring that we
+                 * can successively propagate the window through all blocks. */
+                pragzip::deflate::Window* lastWindow = nullptr;
+                {
+                    std::scoped_lock lock{ blockFetcher().windowsMutex };
+                    const auto match = blockFetcher().windows.find( blockData->encodedOffsetInBits );
+                    if ( match != blockFetcher().windows.end() ) {
+                        lastWindow = &match->second;
+                    } else if ( m_nextUnprocessedBlockIndex > 0 ) {
+                        throw std::logic_error( "The window of the last block should exist at this point!" );
+                    }
+                }
+
+                if ( !blockData->dataWithMarkers.empty() ) {
+                    if ( m_nextUnprocessedBlockIndex == 0 ) {
+                        throw std::logic_error( "The first block should not contain markers!" );
+                    }
+
+                    blockData->applyWindow( *lastWindow );
+                    assert( blockData->dataWithMarkers.empty() );
+                }
+
                 ++m_nextUnprocessedBlockIndex;
+
+                {
+
+                    std::scoped_lock lock{ blockFetcher().windowsMutex };
+                    const auto& [_, wasInserted] = blockFetcher().windows.try_emplace(
+                        blockData->encodedOffsetInBits + blockData->encodedSizeInBits,
+                        lastWindow == nullptr
+                        ? blockData->getLastWindow( pragzip::deflate::Window{} )  /* Only for first block. */
+                        : blockData->getLastWindow( *lastWindow )
+                    );
+                    if ( !wasInserted ) {
+                        throw std::logic_error( "A window for the supposedly unknown block already exists!" );
+                    }
+                }
 
                 /* We could also directly continue but then the block would be refetched,
                  * and fetching is quite complex. */
@@ -211,33 +249,53 @@ public:
                 blockData = blockFetcher().get( blockInfo.encodedOffsetInBits );
             }
 
+            if ( !blockData->dataWithMarkers.empty() ) {
+                throw std::logic_error( "Did not expect to get results with markers!" );
+            }
+
             /* Copy data from fetched block to output. */
 
             const auto offsetInBlock = m_currentPosition - blockInfo.decodedOffsetInBytes;
-
-            if ( offsetInBlock >= blockData->data.size() ) {
+            if ( offsetInBlock >= blockData->size() ) {
                 throw std::logic_error( "Block does not contain the requested offset even though it "
                                         "shouldn't be according to block map!" );
             }
 
-            const auto nBytesToDecode = std::min( blockData->data.size() - offsetInBlock,
-                                                  nBytesToRead - nBytesDecoded );
-            const auto nBytesWritten = writeResult(
-                outputFileDescriptor,
-                outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded,
-                reinterpret_cast<const char*>( blockData->data.data() + offsetInBlock ),
-                nBytesToDecode
-            );
-
-            if ( nBytesWritten != nBytesToDecode ) {
-                std::stringstream msg;
-                msg << "Less (" << nBytesWritten << ") than the requested number of bytes (" << nBytesToDecode
-                    << ") were written to the output!";
-                throw std::logic_error( msg.str() );
+            if ( blockData->data.empty() ) {
+                throw std::logic_error( "Did not expect empty block. Cannot proceed!" );
             }
 
-            nBytesDecoded += nBytesToDecode;
-            m_currentPosition += nBytesToDecode;
+            /* Iterate over chunks, first to find offset, then to copy data to output. */
+            size_t offsetInChunk{ offsetInBlock };
+            for ( const auto& chunk : blockData->data ) {
+                if ( nBytesDecoded >= nBytesToRead ) {
+                    break;
+                }
+
+                if ( offsetInChunk > chunk.size() ) {
+                    offsetInChunk -= chunk.size();
+                    continue;
+                }
+
+                const auto nBytesToDecode = std::min( chunk.size() - offsetInChunk, nBytesToRead - nBytesDecoded );
+                const auto nBytesWritten = writeResult(
+                    outputFileDescriptor,
+                    outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded,
+                    reinterpret_cast<const char*>( chunk.data() + offsetInChunk ),
+                    nBytesToDecode
+                );
+
+                if ( nBytesWritten != nBytesToDecode ) {
+                    std::stringstream msg;
+                    msg << "Less (" << nBytesWritten << ") than the requested number of bytes (" << nBytesToDecode
+                        << ") were written to the output!";
+                    throw std::logic_error( msg.str() );
+                }
+
+                nBytesDecoded += nBytesToDecode;
+                m_currentPosition += nBytesToDecode;
+                offsetInChunk = 0;
+            }
         }
 
         return nBytesDecoded;
@@ -472,7 +530,8 @@ private:
             blockFinder().startThreads();
         }
 
-        m_blockFetcher = std::make_unique<BlockFetcher>( m_bitReader, m_blockFinder, m_fetcherParallelization );
+        m_blockFetcher = std::make_unique<BlockFetcher>( m_bitReader, m_blockFinder, m_isBgzfFile,
+                                                         m_fetcherParallelization );
 
         if ( !m_blockFetcher ) {
             throw std::logic_error( "Block fetcher should have been initialized!" );
@@ -524,6 +583,7 @@ private:
     }
 
 private:
+    const bool m_isBgzfFile;
     BitReader m_bitReader;
 
     size_t m_currentPosition = 0; /**< the current position as can only be modified with read or seek calls. */

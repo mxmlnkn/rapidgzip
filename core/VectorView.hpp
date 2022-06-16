@@ -108,9 +108,9 @@ public:
     constexpr WeakVector& operator=( WeakVector&& ) = default;
 
     constexpr
-    WeakVector( const std::vector<T>& vector ) noexcept :
-        m_data( vector.data() ),
-        m_size( vector.size() )
+    WeakVector( std::vector<T>* vector ) noexcept :
+        m_data( vector->data() ),
+        m_size( vector->size() )
     {}
 
     constexpr
