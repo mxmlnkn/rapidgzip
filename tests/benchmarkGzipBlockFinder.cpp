@@ -174,7 +174,6 @@ parseWithZlib(const std::string& fileName)
 
     /* Counters to avoid 4GB limit */
     off_t totin = 0;
-    off_t totout = 0;
     stream.avail_out = 0;
 
     /* inflate the input, maintain a sliding window, and build an index -- this
@@ -207,10 +206,8 @@ parseWithZlib(const std::string& fileName)
             /* inflate until out of input, output, or at end of block --
                update the total input and output counters */
             totin  += stream.avail_in;
-            totout += stream.avail_out;
             ret     = inflate( &stream, Z_BLOCK );  /* return at end of block */
             totin  -= stream.avail_in;
-            totout -= stream.avail_out;
             if ( ret == Z_NEED_DICT ) {
                 ret = Z_DATA_ERROR;
             }
@@ -403,7 +400,7 @@ findDeflateBlocksZlib( const std::string& fileName )
     std::vector<size_t> bitOffsets;
     GzipWrapper gzip( GzipWrapper::Format::RAW );
 
-    uint32_t nextThreeBits = bitReader.read<2>();
+    [[maybe_unused]] uint32_t nextThreeBits = bitReader.read<2>();
 
     const auto t0 = now();
     for ( size_t offset = 0; offset <= ( buffer.size() - 1 ) * sizeof( buffer[0]) * CHAR_BIT; ++offset ) {

@@ -51,6 +51,7 @@ protected:
     {}
 
 public:
+    virtual
     ~BlockFetcher()
     {
         if constexpr ( SHOW_PROFILE ) {

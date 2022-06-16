@@ -54,6 +54,7 @@ public:
         m_blockSize100k( bzip2::readBzip2Header( bitReader ) )
     {}
 
+    virtual
     ~BZ2BlockFetcher()
     {
         this->stopThreadPool();

@@ -45,6 +45,7 @@ public:
         m_bitReader( bitReader )
     {}
 
+    virtual
     ~GzipBlockFetcher()
     {
         this->stopThreadPool();

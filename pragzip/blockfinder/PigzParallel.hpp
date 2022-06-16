@@ -292,7 +292,6 @@ private:
 private:
     const std::unique_ptr<FileReader> m_fileReader;
     BufferedFileReader::AlignedBuffer m_buffer;
-    size_t m_bufferBytesRead{ 0 };
     size_t m_lastBlockOffsetReturned{ 0 };  /**< absolute offset in bits */
 
     ThreadPool m_threadPool{ 12 };  /**< @todo expose this configuration parameter */
