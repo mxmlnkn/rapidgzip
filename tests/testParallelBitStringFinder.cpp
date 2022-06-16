@@ -5,9 +5,9 @@
 
 #include <unistd.h>
 
-#include "ParallelBitStringFinder.hpp"
-#include "MemoryFileReader.hpp"
-#include "common.hpp"
+#include <ParallelBitStringFinder.hpp>
+#include <filereader/Memory.hpp>
+#include <common.hpp>
 
 
 template<class TemplatedBitStringFinder>

@@ -6,8 +6,8 @@
 #include <vector>
 
 #include <BitReader.hpp>
-#include <BufferedFileReader.hpp>
 #include <common.hpp>
+#include <filereader/Buffered.hpp>
 #include <HuffmanCodingDoubleLiteralCached.hpp>
 #include <HuffmanCodingLinearSearch.hpp>
 #include <HuffmanCodingReversedBitsCached.hpp>

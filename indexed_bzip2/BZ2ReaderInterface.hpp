@@ -4,7 +4,7 @@
 #include <limits>
 #include <map>
 
-#include <FileReader.hpp>
+#include <filereader/FileReader.hpp>
 
 using std::size_t;
 

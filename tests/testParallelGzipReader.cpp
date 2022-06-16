@@ -10,11 +10,11 @@
 #include <unordered_set>
 #include <vector>
 
-#include <BufferedFileReader.hpp>
-#include <ParallelGzipReader.hpp>
 #include <common.hpp>
+#include <filereader/Buffered.hpp>
+#include <filereader/Standard.hpp>
+#include <ParallelGzipReader.hpp>
 #include <pragzip.hpp>
-#include <StandardFileReader.hpp>
 
 
 using namespace pragzip;

@@ -16,8 +16,8 @@
 #include <utility>
 #include <vector>
 
-#include "BitReader.hpp"
 #include "BitStringFinder.hpp"
+#include "BitReader.hpp"
 #include "common.hpp"
 #include "ThreadPool.hpp"
 

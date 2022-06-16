@@ -13,10 +13,10 @@
 
 #include <BitReader.hpp>
 #include <common.hpp>
+#include <filereader/Memory.hpp>
+#include <filereader/Standard.hpp>
 #include <FileUtils.hpp>
-#include <MemoryFileReader.hpp>
 #include <pragzip.hpp>
-#include <StandardFileReader.hpp>
 #include <Statistics.hpp>
 
 

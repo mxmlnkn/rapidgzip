@@ -9,7 +9,7 @@
 #include <blockfinder/PigzParallel.hpp>
 #include <blockfinder/PigzNaive.hpp>
 #include <blockfinder/PigzStringView.hpp>
-#include <BufferedFileReader.hpp>
+#include <filereader/Buffered.hpp>
 #include <FileUtils.hpp>
 
 

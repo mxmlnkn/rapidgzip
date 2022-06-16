@@ -16,14 +16,14 @@
 #include <BlockFinder.hpp>
 #include <BlockMap.hpp>
 #include <common.hpp>
-#include <FileReader.hpp>
+#include <filereader/FileReader.hpp>
 #include <IndexFileFormat.hpp>
 
 #include "GzipBlockFetcher.hpp"
 #include "gzip.hpp"
 
 #ifdef WITH_PYTHON_SUPPORT
-    #include "PythonFileReader.hpp"
+    #include <filereader/Python.hpp>
 #endif
 
 

@@ -10,12 +10,12 @@
 #include <stdexcept>
 #include <utility>
 
-#include <FileReader.hpp>
+#include <filereader/FileReader.hpp>
+#include <filereader/Standard.hpp>
 #include <pragzip.hpp>
-#include <StandardFileReader.hpp>
 
 #ifdef WITH_PYTHON_SUPPORT
-    #include <PythonFileReader.hpp>
+    #include <filereader/Python.hpp>
 #endif
 
 

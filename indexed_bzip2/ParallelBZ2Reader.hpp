@@ -16,7 +16,7 @@
 #include <BlockFinder.hpp>
 #include <BlockMap.hpp>
 #include <common.hpp>
-#include <FileReader.hpp>
+#include <filereader/FileReader.hpp>
 #include <ParallelBitStringFinder.hpp>
 
 #include "BZ2BlockFetcher.hpp"
@@ -24,7 +24,7 @@
 #include "bzip2.hpp"
 
 #ifdef WITH_PYTHON_SUPPORT
-    #include "PythonFileReader.hpp"
+    #include <filereader/Python.hpp>
 #endif
 
 

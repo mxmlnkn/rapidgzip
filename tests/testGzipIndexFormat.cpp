@@ -6,7 +6,7 @@
 
 #include <common.hpp>
 #include <IndexFileFormat.hpp>
-#include <StandardFileReader.hpp>
+#include <filereader/Standard.hpp>
 
 
 [[nodiscard]] TemporaryDirectory

@@ -8,7 +8,7 @@
 #include <stdexcept>
 #include <utility>
 
-#include <FileReader.hpp>
+#include <filereader/FileReader.hpp>
 
 #include "OffsetFinderInterface.hpp"
 

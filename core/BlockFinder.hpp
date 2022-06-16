@@ -13,7 +13,7 @@
 #include <thread>
 #include <utility>
 
-#include <FileReader.hpp>
+#include <filereader/FileReader.hpp>
 #include <JoiningThread.hpp>
 #include <StreamedResults.hpp>
 

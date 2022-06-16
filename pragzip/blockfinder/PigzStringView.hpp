@@ -9,9 +9,9 @@
 #include <string_view>
 #include <utility>
 
-#include <BufferedFileReader.hpp>
 #include <common.hpp>
-#include <FileReader.hpp>
+#include <filereader/Buffered.hpp>
+#include <filereader/FileReader.hpp>
 #include <gzip.hpp>
 
 #include "OffsetFinderInterface.hpp"

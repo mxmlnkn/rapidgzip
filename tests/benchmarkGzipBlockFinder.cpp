@@ -22,8 +22,8 @@ https://www.ietf.org/rfc/rfc1952.txt
 #include <BitReader.hpp>
 #include <blockfinder/Bgzf.hpp>
 #include <blockfinder/PigzParallel.hpp>
-#include <BufferedFileReader.hpp>
 #include <common.hpp>
+#include <filereader/Buffered.hpp>
 #include <pragzip.hpp>
 #include <Statistics.hpp>
 

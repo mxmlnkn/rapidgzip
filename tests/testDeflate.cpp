@@ -3,9 +3,9 @@
 #include <iostream>
 #include <vector>
 
-#include <BufferedFileReader.hpp>
 #include <common.hpp>
 #include <deflate.hpp>
+#include <filereader/Buffered.hpp>
 #include <gzip.hpp>
 
 

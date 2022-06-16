@@ -11,15 +11,15 @@
 #include <utility>
 #include <vector>
 
-#include <BitReader.hpp>
 #include <common.hpp>
-#include <FileReader.hpp>
+#include <BitReader.hpp>
+#include <filereader/FileReader.hpp>
 
 #include "bzip2.hpp"
 #include "BZ2ReaderInterface.hpp"
 
 #ifdef WITH_PYTHON_SUPPORT
-    #include "PythonFileReader.hpp"
+    #include <filereader/Python.hpp>
 #endif
 
 

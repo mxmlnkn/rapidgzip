@@ -8,9 +8,9 @@
 #include <utility>
 #include <vector>
 
-#include <BufferedFileReader.hpp>
 #include <common.hpp>
-#include <FileReader.hpp>
+#include <filereader/Buffered.hpp>
+#include <filereader/FileReader.hpp>
 #include <ThreadPool.hpp>
 
 #include "../pragzip.hpp"

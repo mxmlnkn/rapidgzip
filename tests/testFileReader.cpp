@@ -6,11 +6,10 @@
 #include <sstream>
 #include <string>
 
-#include "common.hpp"
-#include "BufferedFileReader.hpp"
-#include "FileReader.hpp"
-#include "SharedFileReader.hpp"
-#include "StandardFileReader.hpp"
+#include <common.hpp>
+#include <filereader/Buffered.hpp>
+#include <filereader/FileReader.hpp>
+#include <filereader/Standard.hpp>
 
 
 std::string

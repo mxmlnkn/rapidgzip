@@ -16,11 +16,11 @@
 
 #include <sys/stat.h>
 
-#include "BitManipulation.hpp"
-#include "common.hpp"
-#include "FileReader.hpp"
-#include "StandardFileReader.hpp"
-#include "SharedFileReader.hpp"
+#include <BitManipulation.hpp>
+#include <common.hpp>
+#include <filereader/FileReader.hpp>
+#include <filereader/Standard.hpp>
+#include <filereader/Shared.hpp>
 
 
 /**

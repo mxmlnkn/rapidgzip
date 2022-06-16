@@ -17,9 +17,9 @@
 #include <utility>
 #include <vector>
 
-#include "common.hpp"
-#include "FileReader.hpp"
-#include "StandardFileReader.hpp"
+#include <common.hpp>
+#include <filereader/FileReader.hpp>
+#include <filereader/Standard.hpp>
 
 
 /**

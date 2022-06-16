@@ -23,7 +23,6 @@
 #include <vector>
 
 #include <BitReader.hpp>
-
 #include <HuffmanCodingDoubleLiteralCached.hpp>
 #include <HuffmanCodingSymbolsPerLength.hpp>
 #include <HuffmanCodingReversedBitsCached.hpp>
