@@ -272,13 +272,13 @@ decompressWithPragzip( const std::string& fileName )
         const auto nBytesRead = gzipReader.read( -1,
                                                  reinterpret_cast<char*>( outputBuffer.data() ),
                                                  outputBuffer.size(),
-                                                 GzipReader::StoppingPoint::END_OF_BLOCK_HEADER );
+                                                 StoppingPoint::END_OF_BLOCK_HEADER );
         if ( ( nBytesRead == 0 ) && gzipReader.eof() ) {
             break;
         }
 
         const auto currentPoint = gzipReader.currentPoint();
-        if ( currentPoint == GzipReader::StoppingPoint::END_OF_BLOCK_HEADER ) {
+        if ( currentPoint == StoppingPoint::END_OF_BLOCK_HEADER ) {
             blockCount++;
         }
         totalDecodedBytes += nBytesRead;

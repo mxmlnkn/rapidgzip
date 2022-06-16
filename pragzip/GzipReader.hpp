@@ -21,6 +21,17 @@
 
 namespace pragzip
 {
+enum StoppingPoint : uint32_t
+{
+    NONE                 = 0,
+    END_OF_STREAM_HEADER = 1 << 0,
+    END_OF_STREAM        = 1 << 1,  // after gzip footer has been read
+    END_OF_BLOCK_HEADER  = 1 << 2,
+    END_OF_BLOCK         = 1 << 3,
+    ALL                  = 0xFFFF'FFFFU,
+};
+
+
 /**
  * A strictly sequential gzip interface that can iterate over multiple gzip streams and of course deflate blocks.
  * It cannot seek back nor is it parallelized but it can be used to implement a parallelization scheme.
@@ -28,17 +39,6 @@ namespace pragzip
 class GzipReader :
     public FileReader
 {
-public:
-    enum StoppingPoint : uint32_t
-    {
-        NONE                 = 0,
-        END_OF_STREAM_HEADER = 1 << 0,
-        END_OF_STREAM        = 1 << 1,  // after gzip footer has been read
-        END_OF_BLOCK_HEADER  = 1 << 2,
-        END_OF_BLOCK         = 1 << 3,
-        ALL                  = 0xFFFF'FFFFU,
-    };
-
 public:
     explicit
     GzipReader( std::unique_ptr<FileReader> fileReader ) :
@@ -509,16 +509,16 @@ GzipReader::readGzipFooter()
 
 
 [[nodiscard]] std::string
-toString( GzipReader::StoppingPoint stoppingPoint )
+toString( StoppingPoint stoppingPoint )
 {
     switch ( stoppingPoint )
     {
-    case GzipReader::StoppingPoint::NONE                 : return "None";
-    case GzipReader::StoppingPoint::END_OF_STREAM_HEADER : return "End of Stream Header";
-    case GzipReader::StoppingPoint::END_OF_STREAM        : return "End of Stream";
-    case GzipReader::StoppingPoint::END_OF_BLOCK_HEADER  : return "End of Block Header";
-    case GzipReader::StoppingPoint::END_OF_BLOCK         : return "End of Block";
-    case GzipReader::StoppingPoint::ALL                  : return "All";
+    case StoppingPoint::NONE                 : return "None";
+    case StoppingPoint::END_OF_STREAM_HEADER : return "End of Stream Header";
+    case StoppingPoint::END_OF_STREAM        : return "End of Stream";
+    case StoppingPoint::END_OF_BLOCK_HEADER  : return "End of Block Header";
+    case StoppingPoint::END_OF_BLOCK         : return "End of Block";
+    case StoppingPoint::ALL                  : return "All";
     };
     return "Unknown";
 }

@@ -101,7 +101,7 @@ testSerialDecoderNanoSampleStoppingPoints()
     const auto [encoded, decoded] = duplicateNanoStream( multiples );
 
     const auto collectStoppingPoints =
-        [&encoded = encoded, &decoded = decoded] ( GzipReader::StoppingPoint stoppingPoint )
+        [&encoded = encoded, &decoded = decoded] ( StoppingPoint stoppingPoint )
         {
             std::vector<size_t> offsets;
             std::vector<size_t> compressedOffsets;
@@ -124,20 +124,20 @@ testSerialDecoderNanoSampleStoppingPoints()
         };
 
     {
-        const auto [offsets, compressedOffsets] = collectStoppingPoints( GzipReader::StoppingPoint::NONE );
+        const auto [offsets, compressedOffsets] = collectStoppingPoints( StoppingPoint::NONE );
         REQUIRE( offsets == std::vector<size_t>( { decoded.size() } ) );
         REQUIRE( compressedOffsets == std::vector<size_t>( { encoded.size() * 8 } ) );
     }
 
     {
-        const auto [offsets, compressedOffsets] = collectStoppingPoints( GzipReader::StoppingPoint::END_OF_STREAM );
+        const auto [offsets, compressedOffsets] = collectStoppingPoints( StoppingPoint::END_OF_STREAM );
         REQUIRE( offsets == std::vector<size_t>( { NANO_SAMPLE_DECODED.size(), decoded.size() } ) );
         REQUIRE( compressedOffsets == std::vector<size_t>( { NANO_SAMPLE_GZIP.size() * 8, encoded.size() * 8 } ) );
     }
 
     {
         const auto [offsets, compressedOffsets] =
-            collectStoppingPoints( GzipReader::StoppingPoint::END_OF_STREAM_HEADER );
+            collectStoppingPoints( StoppingPoint::END_OF_STREAM_HEADER );
         REQUIRE( offsets == std::vector<size_t>( { 0, NANO_SAMPLE_DECODED.size(), decoded.size() } ) );
         REQUIRE( compressedOffsets == std::vector<size_t>( { 15 * 8, ( NANO_SAMPLE_GZIP.size() + 15 ) * 8,
                                                              encoded.size() * 8 } ) );
@@ -145,7 +145,7 @@ testSerialDecoderNanoSampleStoppingPoints()
 
     {
         const auto [offsets, compressedOffsets] =
-            collectStoppingPoints( GzipReader::StoppingPoint::END_OF_BLOCK_HEADER );
+            collectStoppingPoints( StoppingPoint::END_OF_BLOCK_HEADER );
         REQUIRE( offsets == std::vector<size_t>( { 0, NANO_SAMPLE_DECODED.size(), decoded.size() } ) );
         REQUIRE( compressedOffsets == std::vector<size_t>( { 15 * 8 + 270, ( NANO_SAMPLE_GZIP.size() + 15 ) * 8 + 270,
                                                              encoded.size() * 8 } ) );
@@ -153,7 +153,7 @@ testSerialDecoderNanoSampleStoppingPoints()
 
     {
         const auto [offsets, compressedOffsets] =
-            collectStoppingPoints( GzipReader::StoppingPoint::END_OF_BLOCK );
+            collectStoppingPoints( StoppingPoint::END_OF_BLOCK );
         REQUIRE( offsets == std::vector<size_t>( { NANO_SAMPLE_DECODED.size(), decoded.size(), decoded.size() } ) );
         constexpr auto FOOTER_SIZE = 8;
         REQUIRE( compressedOffsets == std::vector<size_t>( { ( NANO_SAMPLE_GZIP.size() - FOOTER_SIZE ) * 8 ,
@@ -220,17 +220,17 @@ testTwoStagedDecoding( std::string_view encodedFilePath,
     GzipReader gzipReader{ std::make_unique<StandardFileReader>( encodedFilePath.data() ) };
     std::vector<char> decompressed( 1024ULL * 1024ULL );
     const auto firstBlockSize = gzipReader.read( -1, decompressed.data(), decompressed.size(),
-                                                 GzipReader::StoppingPoint::END_OF_BLOCK );
+                                                 StoppingPoint::END_OF_BLOCK );
     decompressed.resize( firstBlockSize );
-    REQUIRE( gzipReader.currentPoint() == GzipReader::StoppingPoint::END_OF_BLOCK );
+    REQUIRE( gzipReader.currentPoint() == StoppingPoint::END_OF_BLOCK );
 
     /* Save all information required for seeking directly to second block. */
     const auto secondBlockOffset = gzipReader.tellCompressed();
     REQUIRE( gzipReader.currentDeflateBlock().has_value() );
     const auto lastWindow = gzipReader.currentDeflateBlock()->lastWindow();
 
-    gzipReader.read( -1, nullptr, std::numeric_limits<size_t>::max(), GzipReader::StoppingPoint::ALL );
-    if ( gzipReader.currentPoint() != GzipReader::StoppingPoint::END_OF_BLOCK_HEADER ) {
+    gzipReader.read( -1, nullptr, std::numeric_limits<size_t>::max(), StoppingPoint::ALL );
+    if ( gzipReader.currentPoint() != StoppingPoint::END_OF_BLOCK_HEADER ) {
         /* Ignore files with only one block for this test. */
         return;
     }
