@@ -5,6 +5,11 @@ project("Indexed BZip2 Decoder" CXX)
 
 option(CODE_COVERAGE "Enable coverage reporting" OFF)
 
+
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Chile the build type: Debug, Release, RelWithDebInfo" FORCE)
+endif()
+
 add_compile_options(
     "$<$<CXX_COMPILER_ID:Clang>:-Wall;-Wextra;-Wshadow;-Werror=return-type>"
     "$<$<CXX_COMPILER_ID:GNU>:-Wall;-Wextra;-Wshadow;-Wunused;-Wsuggest-override;-Werror=return-type>"
