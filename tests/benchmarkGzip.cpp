@@ -401,15 +401,6 @@ benchmarkDecompression( const std::string& fileName )
 
     const auto expectedSize = sizeLibArchive;
 
-    const auto [sizeZlib, durationsZlib] = benchmarkFunction( [&fileContents] () {
-        return decompressWithZlib( fileContents ); } );
-    if ( sizeZlib == expectedSize ) {
-        std::cout << "Decompressed " << fileContents.size() << " B to " << sizeZlib << " B with zlib:\n";
-        printDurations( durationsZlib, sizeZlib );
-    } else {
-        std::cerr << "Decompressing with zlib decoded a different amount than libarchive!\n";
-    }
-
     const auto [sizePragzip, durationsPragzip] = benchmarkFunction(
         [&fileName] () { return decompressWithPragzip( fileName ); } );
     if ( sizePragzip == expectedSize ) {
@@ -439,6 +430,15 @@ benchmarkDecompression( const std::string& fileName )
         printDurations( durationsPragzipParallelIndex, sizePragzipParallelIndex );
     } else {
         std::cerr << "Decompressing with pragzip (parallel + index) decoded a different amount than libarchive!\n";
+    }
+
+    const auto [sizeZlib, durationsZlib] = benchmarkFunction( [&fileContents] () {
+        return decompressWithZlib( fileContents ); } );
+    if ( sizeZlib == expectedSize ) {
+        std::cout << "Decompressed " << fileContents.size() << " B to " << sizeZlib << " B with zlib:\n";
+        printDurations( durationsZlib, sizeZlib );
+    } else {
+        std::cerr << "Decompressing with zlib decoded a different amount than libarchive!\n";
     }
 }
 

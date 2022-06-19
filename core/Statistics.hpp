@@ -61,6 +61,36 @@ struct Statistics
         ++count;
     }
 
+    [[nodiscard]] std::string
+    formatAverageWithUncertainty() const
+    {
+        /* Round uncertainty and value according to DIN 1333
+         * @see https://www.tu-chemnitz.de/physik/PGP/files/Allgemeines/Rundungsregeln.pdf */
+
+        /* Log10: 0.1 -> -1, 1 -> 0, 2 -> 0.301, 10 -> 1.
+         * In order to scale to a range [0,100), we have to divide by 10^magnitude. */
+        auto magnitude = std::floor( std::log10( standardDeviation() ) ) - 1;
+        auto scaled = standardDeviation() / std::pow( 10, magnitude );
+
+        /* Round uncertainties beginning with 1 and 2 to two significant digits and all others to only one.
+         * This could probably be integrated into the magnitude calculation but it would be less readable. */
+        if ( scaled >= 30 ) {
+            magnitude += 1;
+        }
+
+        /**
+         * @note To be exact, we would also have to avoid trailing zeros beyond the certainty but that would require
+         *       integrating unit formatting into this routine. E.g., do not write (13000 +- 1000) MB but instead
+         *       (13 +- 1) GB.
+         */
+        std::stringstream result;
+        result << std::round( average() / std::pow( 10, magnitude ) ) * std::pow( 10, magnitude )
+               << " +- "
+               << std::round( standardDeviation() / std::pow( 10, magnitude ) ) * std::pow( 10, magnitude );
+
+        return result.str();
+    }
+
 public:
     T min{ std::numeric_limits<T>::infinity() };
     T max{ -std::numeric_limits<T>::infinity() };
