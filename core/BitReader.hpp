@@ -146,9 +146,20 @@ public:
     /**
      * Forcing to inline this function is superimportant because it depends even between gcc versions,
      * whether it is actually inlined or not but inlining can save 30%!
+     * Note that splitting part of this method off into readSafe made the compiler actually
+     * inline this now small function and thereby sped up runtimes significantly!
      */
     BitBuffer
-    forceinline read( uint8_t bitsWanted );
+    forceinline read( uint8_t bitsWanted )
+    {
+        if ( bitsWanted > m_bitBufferSize ) {
+            return readSafe( bitsWanted );
+        }
+
+        const auto result = peekUnsafe( bitsWanted );
+        m_bitBufferSize -= bitsWanted;
+        return result;
+    }
 
     /**
      * This is a performant unchecked helper to seek forward the same amount that has already been peeked.
@@ -457,24 +468,6 @@ public:
     uint8_t m_bitBufferSize = 0; // size of bitbuffer in bits
     uint8_t m_originalBitBufferSize = 0; // size of valid bitbuffer bits including already read ones
 };
-
-
-/**
- * Note that splitting part of this method off into readSafe made the compiler actually
- * inline this now small function and thereby sped up runtimes significantly!
- */
-template<bool MOST_SIGNIFICANT_BITS_FIRST, typename BitBuffer>
-inline BitBuffer
-BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::read( const uint8_t bitsWanted )
-{
-    if ( bitsWanted > m_bitBufferSize ) {
-        return readSafe( bitsWanted );
-    }
-
-    const auto result = peekUnsafe( bitsWanted );
-    m_bitBufferSize -= bitsWanted;
-    return result;
-}
 
 
 template<bool MOST_SIGNIFICANT_BITS_FIRST, typename BitBuffer>
