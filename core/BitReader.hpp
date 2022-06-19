@@ -83,7 +83,7 @@ public:
         m_inputBuffer( other.m_inputBuffer )
     {
         assert( static_cast<bool>( m_file ) == static_cast<bool>( other.m_file ) );
-        if ( m_file && !m_file->seekable() ) {
+        if ( UNLIKELY( m_file && !m_file->seekable() ) ) [[unlikely]] {
             throw std::invalid_argument( "Copying BitReader to unseekable file not supported yet!" );
         }
         seek( other.tell() );
@@ -152,7 +152,7 @@ public:
     BitBuffer
     forceinline read( uint8_t bitsWanted )
     {
-        if ( bitsWanted > m_bitBufferSize ) {
+        if ( UNLIKELY( bitsWanted > m_bitBufferSize ) ) [[unlikely]] {
             return readSafe( bitsWanted );
         }
 
@@ -193,7 +193,7 @@ public:
     {
         const auto oldTell = tell();
 
-        if ( outputBuffer == nullptr ) {
+        if ( UNLIKELY( outputBuffer == nullptr ) ) [[unlikely]] {
             seek( nBytesToRead, SEEK_CUR );
         } else {
             /** @todo Optimize this for the case that we are on a byte-boundary and that more than the
@@ -206,7 +206,7 @@ public:
         }
 
         const auto nBitsRead = tell() - oldTell;
-        if ( nBitsRead % CHAR_BIT != 0 ) {
+        if ( UNLIKELY( nBitsRead % CHAR_BIT != 0 ) ) [[unlikely]] {
             throw std::runtime_error( "Read not a multiple of CHAR_BIT, probably because EOF was encountered!" );
         }
         return nBitsRead / CHAR_BIT;
@@ -223,9 +223,9 @@ public:
     forceinline std::optional<BitBuffer>
     peek( uint8_t bitsWanted )
     {
-        if ( bitsWanted > m_bitBufferSize ) {
+        if ( UNLIKELY( bitsWanted > m_bitBufferSize ) ) [[unlikely]] {
             refillBitBuffer();
-            if ( bitsWanted > m_bitBufferSize ) {
+            if ( UNLIKELY( bitsWanted > m_bitBufferSize ) ) [[unlikely]] {
                 return {};
             }
         }
@@ -242,7 +242,7 @@ public:
         size_t position = tellBuffer();
         if ( m_file ) {
             const auto filePosition = m_file->tell();
-            if ( static_cast<size_t>( filePosition ) < m_inputBuffer.size() ) {
+            if ( UNLIKELY( static_cast<size_t>( filePosition ) < m_inputBuffer.size() ) ) [[unlikely]] {
                 throw std::logic_error( "The byte buffer should not contain more data than the file position!" );
             }
             position += ( filePosition - m_inputBuffer.size() ) * CHAR_BIT;
@@ -262,10 +262,10 @@ public:
     [[nodiscard]] int
     fileno() const override final
     {
-        if ( m_file ) {
-            return m_file->fileno();
+        if ( UNLIKELY( m_file ) ) [[unlikely]] {
+            throw std::invalid_argument( "The file is not open!" );
         }
-        throw std::invalid_argument( "The file is not open!" );
+        return m_file->fileno();
     }
 
     size_t
@@ -289,7 +289,7 @@ private:
     tellBuffer() const
     {
         size_t position = m_inputBufferPosition * CHAR_BIT;
-        if ( position < m_bitBufferSize ) {
+        if ( UNLIKELY( position < m_bitBufferSize ) ) [[unlikely]] {
             std::logic_error( "The bit buffer should not contain data if the byte buffer doesn't!" );
         }
         return position - m_bitBufferSize;
@@ -301,7 +301,7 @@ private:
     void
     refillBuffer()
     {
-        if ( !m_file ) {
+        if ( UNLIKELY( !m_file ) ) [[unlikely]] {
             throw std::logic_error( "Can not refill buffer with data from non-existing file!" );
         }
 
@@ -364,7 +364,7 @@ private:
         for ( ; m_originalBitBufferSize + CHAR_BIT <= MAX_BIT_BUFFER_SIZE;
               m_bitBufferSize += CHAR_BIT, m_originalBitBufferSize += CHAR_BIT )
         {
-            if ( m_inputBufferPosition >= m_inputBuffer.size() ) {
+            if ( UNLIKELY( m_inputBufferPosition >= m_inputBuffer.size() ) ) [[unlikely]] {
                 refillBuffer();
                 if ( m_inputBufferPosition >= m_inputBuffer.size() ) {
                     break;
@@ -483,7 +483,7 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::readSafe( const uint8_t bitsW
 
     refillBitBuffer();
 
-    if ( bitsNeeded > m_bitBufferSize ) {
+    if ( UNLIKELY( bitsNeeded > m_bitBufferSize ) ) [[unlikely]] {
         // this will also happen for invalid file descriptor -1
         std::stringstream msg;
         msg
