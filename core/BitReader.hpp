@@ -153,7 +153,27 @@ public:
     forceinline read( uint8_t bitsWanted )
     {
         if ( UNLIKELY( bitsWanted > m_bitBufferSize ) ) [[unlikely]] {
-            return readSafe( bitsWanted );
+            const auto bitsInResult = m_bitBufferSize;
+            auto bits = peekUnsafe( m_bitBufferSize );
+            m_bitBufferSize = 0;
+
+            const auto bitsNeeded = bitsWanted - bitsInResult;
+
+            refillBitBuffer();
+
+            if ( UNLIKELY( bitsNeeded > m_bitBufferSize ) ) [[unlikely]] {
+                throw std::domain_error( "[BitReader] Not enough data for requested bits!" );
+            }
+
+            /* Append remaining requested bits. */
+            if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
+                bits = ( bits << bitsNeeded ) | peekUnsafe( bitsNeeded );
+            } else {
+                bits |= peekUnsafe( bitsNeeded ) << bitsInResult;
+            }
+            m_bitBufferSize -= bitsNeeded;
+
+            return bits;
         }
 
         const auto result = peekUnsafe( bitsWanted );
@@ -224,7 +244,45 @@ public:
     peek( uint8_t bitsWanted )
     {
         if ( UNLIKELY( bitsWanted > m_bitBufferSize ) ) [[unlikely]] {
-            refillBitBuffer();
+            m_originalBitBufferSize = m_bitBufferSize;
+            if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
+                m_bitBuffer &= nLowestBitsSet<decltype( m_bitBuffer )>( m_originalBitBufferSize );
+            } else {
+                m_bitBuffer &= nHighestBitsSet<decltype( m_bitBuffer )>( m_originalBitBufferSize );
+            }
+
+            if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
+                if ( m_originalBitBufferSize > 0 ) {
+                    m_bitBuffer >>= MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize;
+                }
+            }
+
+            /* Refill buffer one byte at a time to enforce endianness and avoid unaligned access. */
+            for ( ; m_originalBitBufferSize + CHAR_BIT <= MAX_BIT_BUFFER_SIZE;
+                  m_bitBufferSize += CHAR_BIT, m_originalBitBufferSize += CHAR_BIT )
+            {
+                if ( UNLIKELY( m_inputBufferPosition >= m_inputBuffer.size() ) ) [[unlikely]] {
+                    refillBuffer();
+                    if ( m_inputBufferPosition >= m_inputBuffer.size() ) {
+                        break;
+                    }
+                }
+
+                if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
+                    m_bitBuffer <<= CHAR_BIT;
+                    m_bitBuffer |= static_cast<BitBuffer>( m_inputBuffer[m_inputBufferPosition++] );
+                } else {
+                    m_bitBuffer |= ( static_cast<BitBuffer>( m_inputBuffer[m_inputBufferPosition++] )
+                                   << m_originalBitBufferSize );
+                }
+            }
+
+            /* Move LSB bits (which are filled left-to-right) to the left if so necessary
+             * so that the format is the same as for MSB bits! */
+            if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
+                m_bitBuffer <<= MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize;
+            }
+
             if ( UNLIKELY( bitsWanted > m_bitBufferSize ) ) [[unlikely]] {
                 return {};
             }
@@ -294,9 +352,6 @@ private:
         }
         return position - m_bitBufferSize;
     }
-
-    BitBuffer
-    readSafe( uint8_t );
 
     void
     refillBuffer()
@@ -383,10 +438,7 @@ private:
         /* Move LSB bits (which are filled left-to-right) to the left if so necessary
          * so that the format is the same as for MSB bits! */
         if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
-            const auto leftPadding = MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize;
-            if ( leftPadding > 0 ) {
-                m_bitBuffer <<= leftPadding;
-            }
+            m_bitBuffer <<= MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize;
         }
     }
 
@@ -468,49 +520,6 @@ public:
     uint8_t m_bitBufferSize = 0; // size of bitbuffer in bits
     uint8_t m_originalBitBufferSize = 0; // size of valid bitbuffer bits including already read ones
 };
-
-
-template<bool MOST_SIGNIFICANT_BITS_FIRST, typename BitBuffer>
-inline BitBuffer
-BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::readSafe( const uint8_t bitsWanted )
-{
-    assert( bitsWanted > m_bitBufferSize );
-
-    const auto bitsInResult = m_bitBufferSize;
-    auto bits = read( m_bitBufferSize );
-    const auto bitsNeeded = bitsWanted - bitsInResult;
-    assert( bitsWanted <= std::numeric_limits<decltype( bits )>::digits );
-
-    refillBitBuffer();
-
-    if ( UNLIKELY( bitsNeeded > m_bitBufferSize ) ) [[unlikely]] {
-        // this will also happen for invalid file descriptor -1
-        std::stringstream msg;
-        msg
-        << "[BitReader] Not enough data for requested bits!\n"
-        << "  Bits requested    : " << (int)bitsWanted << "\n"
-        << "  Bits already read : " << (int)bitsInResult << "\n"
-        << "  Bits still needed : " << (int)bitsNeeded << "\n"
-        << "  File position     : " << m_file->tell() << "\n"
-        << "  File size         : " << m_file->size() << "B\n"
-        << "  Input buffer size : " << m_inputBuffer.size() << "B\n"
-        << "  EOF               : " << m_file->eof() << "\n"
-        << "  Error             : " << m_file->fail() << "\n"
-        << "\n";
-        throw std::domain_error( msg.str() );
-    }
-
-    /* Append remaining requested bits. */
-    if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
-        bits = ( bits << bitsNeeded ) | read( bitsNeeded );
-    } else {
-        bits |= read( bitsNeeded ) << bitsInResult;
-    }
-
-    /* Check that no bits after the bitsWanted-th lowest bit are set! I.e., that no junk is returned. */
-    assert( bits == ( bits & nLowestBitsSet<decltype( bits )>( bitsWanted ) ) );
-    return bits;
-}
 
 
 template<bool MOST_SIGNIFICANT_BITS_FIRST, typename BitBuffer>
