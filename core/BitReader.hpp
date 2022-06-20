@@ -45,6 +45,8 @@ class BitReader :
     public FileReader
 {
 public:
+    static_assert( std::is_unsigned_v<BitBuffer>, "Bit buffer type must be unsigned!" );
+
     /**
      * If it is too large, then the use case of only reading one Bzip2 block per opened BitReader
      * will load much more data than necessary because of the too large buffer.
@@ -149,8 +151,8 @@ public:
      * Note that splitting part of this method off into readSafe made the compiler actually
      * inline this now small function and thereby sped up runtimes significantly!
      */
-    BitBuffer
-    forceinline read( uint8_t bitsWanted )
+    forceinline BitBuffer
+    read( uint8_t bitsWanted )
     {
         if ( UNLIKELY( bitsWanted > m_bitBufferSize ) ) [[unlikely]] {
             const auto bitsInResult = m_bitBufferSize;
@@ -432,6 +434,16 @@ private:
             } else {
                 m_bitBuffer |= ( static_cast<BitBuffer>( m_inputBuffer[m_inputBufferPosition++] )
                                << m_originalBitBufferSize );
+                /**
+                 * Avoiding the single shift before and after the loop for LSB by modifying how the bits are
+                 * appended slows it down by ~10%, probably because one additional shift per loop iteration
+                 * is necessary:
+                 * @verbatim
+                 * m_bitBuffer <<= CHAR_BIT;
+                 * m_bitBuffer |= ( static_cast<BitBuffer>( m_inputBuffer[m_inputBufferPosition++] )
+                 *                << ( MAX_BIT_BUFFER_SIZE - CHAR_BIT ) );
+                 * @endverbatim
+                 */
             }
         }
 

@@ -523,12 +523,20 @@ private:
      * Note that this buffer may be used for 16-bit half-decompressed data for when the initial window buffer is
      * unknown as well as for the case of the window buffer being known which only requires uint8_t.
      * For the former we need twice the size!
+     * @note The buffer size should probably be a power of two or else I observed a slowdown probably because the
+     *       circular buffer index modulo operation cannot be executed by a simple bitwise 'and' anymore.
      */
     using PreDecodedBuffer = std::array<uint16_t, 2 * MAX_WINDOW_SIZE>;
     using DecodedBuffer = WeakArray<std::uint8_t, PreDecodedBuffer().size() * sizeof( uint16_t ) / sizeof( uint8_t )>;
+
+    /* The marker byte buffer does not have to fit an uncompressed block because larger uncompressed blocks will
+     * trigger a conversion from PreDecodedBuffer to DecodedBuffer anyway. */
+    static_assert( PreDecodedBuffer().size() * sizeof( uint16_t ) / sizeof( uint8_t ) >= MAX_UNCOMPRESSED_SIZE,
+                   "Buffer should at least be able to fit one uncompressed block." );
     static_assert( std::min( PreDecodedBuffer().size(),
-                             PreDecodedBuffer().size() * sizeof( uint16_t ) / sizeof( uint8_t ) ) >= 64 * 1024,
-                   "Buffers should at least be able to fit one uncompressed block." );
+                             PreDecodedBuffer().size() * sizeof( uint16_t ) / sizeof( uint8_t ) )
+                   >= MAX_WINDOW_SIZE + MAX_RUN_LENGTH,
+                   "Buffers should at least be able to fit the back-reference window plus the maximum match length." );
 
 private:
     [[nodiscard]] Error
