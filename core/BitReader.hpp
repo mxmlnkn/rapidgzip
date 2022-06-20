@@ -58,6 +58,16 @@ public:
     static constexpr int NO_FILE = -1;
     static constexpr auto MAX_BIT_BUFFER_SIZE = std::numeric_limits<BitBuffer>::digits;
 
+    /**
+     * This exception is thrown by refillBitBuffer when the I/O buffer has been emptied.
+     * Because the I/O buffer is rather large compared to the bit buffer, it only empties infrequently.
+     * Using an exception instead of conditionals **doubled** performance in a synthetic BitReader benchmark
+     * and improved the gzip decoder performance by ~20%!
+     */
+    class BufferNeedsToBeRefilled :
+        public std::exception
+    {};
+
 public:
     explicit
     BitReader( std::string filePath ) :
@@ -156,14 +166,22 @@ public:
     read( uint8_t bitsWanted )
     {
         if ( UNLIKELY( bitsWanted > m_bitBufferSize ) ) [[unlikely]] {
-            const auto bitsInResult = m_bitBufferSize;
-            auto bits = peekUnsafe( m_bitBufferSize );
-            m_bitBufferSize = 0;
+            assert( bitsWanted <= MAX_BIT_BUFFER_SIZE );
 
+            const auto bitsInResult = m_bitBufferSize;
             const auto bitsNeeded = bitsWanted - bitsInResult;
+            auto bits = peekUnsafe( m_bitBufferSize );
             clearBitBuffer();
 
-            refillBitBuffer();
+            try {
+                fillBitBuffer();
+            } catch ( const BufferNeedsToBeRefilled& ) {
+                refillBuffer();
+                try {
+                    refillBitBuffer();
+                } catch ( const BufferNeedsToBeRefilled& ) {
+                }
+            }
 
             if ( UNLIKELY( bitsNeeded > m_bitBufferSize ) ) [[unlikely]] {
                 throw std::domain_error( "[BitReader] Not enough data for requested bits!" );
@@ -248,43 +266,54 @@ public:
     peek( uint8_t bitsWanted )
     {
         if ( UNLIKELY( bitsWanted > m_bitBufferSize ) ) [[unlikely]] {
-            m_originalBitBufferSize = m_bitBufferSize;
-            if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
-                m_bitBuffer &= nLowestBitsSet<decltype( m_bitBuffer )>( m_originalBitBufferSize );
-            } else {
-                m_bitBuffer &= nHighestBitsSet<decltype( m_bitBuffer )>( m_originalBitBufferSize );
-            }
-
-            if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
-                if ( m_originalBitBufferSize > 0 ) {
-                    m_bitBuffer >>= MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize;
+            try {
+                m_originalBitBufferSize = m_bitBufferSize;
+                if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
+                    m_bitBuffer &= nLowestBitsSet<decltype( m_bitBuffer )>( m_originalBitBufferSize );
+                } else {
+                    m_bitBuffer &= nHighestBitsSet<decltype( m_bitBuffer )>( m_originalBitBufferSize );
                 }
-            }
 
-            /* Refill buffer one byte at a time to enforce endianness and avoid unaligned access. */
-            for ( ; m_originalBitBufferSize + CHAR_BIT <= MAX_BIT_BUFFER_SIZE;
-                  m_bitBufferSize += CHAR_BIT, m_originalBitBufferSize += CHAR_BIT )
-            {
-                if ( UNLIKELY( m_inputBufferPosition >= m_inputBuffer.size() ) ) [[unlikely]] {
-                    refillBuffer();
-                    if ( m_inputBufferPosition >= m_inputBuffer.size() ) {
-                        break;
+                if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
+                    if ( m_originalBitBufferSize > 0 ) {
+                        m_bitBuffer >>= MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize;
                     }
                 }
 
-                if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
-                    m_bitBuffer <<= CHAR_BIT;
-                    m_bitBuffer |= static_cast<BitBuffer>( m_inputBuffer[m_inputBufferPosition++] );
-                } else {
-                    m_bitBuffer |= ( static_cast<BitBuffer>( m_inputBuffer[m_inputBufferPosition++] )
-                                   << m_originalBitBufferSize );
-                }
-            }
+                /* Refill buffer one byte at a time to enforce endianness and avoid unaligned access. */
+                for ( ; m_originalBitBufferSize + CHAR_BIT <= MAX_BIT_BUFFER_SIZE;
+                      m_bitBufferSize += CHAR_BIT, m_originalBitBufferSize += CHAR_BIT )
+                {
+                    if ( UNLIKELY( m_inputBufferPosition >= m_inputBuffer.size() ) ) [[unlikely]] {
+                        throw BufferNeedsToBeRefilled();
+                    }
 
-            /* Move LSB bits (which are filled left-to-right) to the left if so necessary
-             * so that the format is the same as for MSB bits! */
-            if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
-                m_bitBuffer <<= MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize;
+                    if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
+                        m_bitBuffer <<= CHAR_BIT;
+                        m_bitBuffer |= static_cast<BitBuffer>( m_inputBuffer[m_inputBufferPosition++] );
+                    } else {
+                        m_bitBuffer |= ( static_cast<BitBuffer>( m_inputBuffer[m_inputBufferPosition++] )
+                                       << m_originalBitBufferSize );
+                    }
+                }
+
+                /* Move LSB bits (which are filled left-to-right) to the left if so necessary
+                 * so that the format is the same as for MSB bits! */
+                if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
+                    m_bitBuffer <<= MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize;
+                }
+            } catch ( const BufferNeedsToBeRefilled& ) {
+                /* Move LSB bits (which are filled left-to-right) to the left if so necessary
+                 * so that the format is the same as for MSB bits! */
+                if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
+                    m_bitBuffer <<= MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize;
+                }
+
+                refillBuffer();
+                try {
+                    refillBitBuffer();
+                } catch ( const BufferNeedsToBeRefilled& ) {
+                }
             }
 
             if ( UNLIKELY( bitsWanted > m_bitBufferSize ) ) [[unlikely]] {
@@ -425,15 +454,35 @@ private:
     void
     fillBitBuffer()
     {
+        /* Using an ad-hoc destructor to emulate a 'finally' does not seem to hurt performance
+         * when comparing it to manually copy-pasting the shift in all outer catch clauses. */
+        struct ShiftBackOnReturn
+        {
+            ShiftBackOnReturn( BitBuffer& bitBuffer,
+                               uint8_t&   originalBitBufferSize ) noexcept :
+                m_bitBuffer( bitBuffer ),
+                m_originalBitBufferSize( originalBitBufferSize )
+            {}
+
+            ~ShiftBackOnReturn() noexcept {
+                /* Move LSB bits (which are filled left-to-right) to the left if so necessary
+                 * so that the format is the same as for MSB bits! */
+                if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
+                    m_bitBuffer <<= MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize;
+                }
+            }
+
+        private:
+            BitBuffer& m_bitBuffer;
+            uint8_t&   m_originalBitBufferSize;
+        } shiftBackOnExit( m_bitBuffer, m_originalBitBufferSize );
+
         /* Refill buffer one byte at a time to enforce endianness and avoid unaligned access. */
         for ( ; m_originalBitBufferSize + CHAR_BIT <= MAX_BIT_BUFFER_SIZE;
               m_bitBufferSize += CHAR_BIT, m_originalBitBufferSize += CHAR_BIT )
         {
             if ( UNLIKELY( m_inputBufferPosition >= m_inputBuffer.size() ) ) [[unlikely]] {
-                refillBuffer();
-                if ( m_inputBufferPosition >= m_inputBuffer.size() ) {
-                    break;
-                }
+                throw BufferNeedsToBeRefilled();
             }
 
             if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
@@ -453,12 +502,6 @@ private:
                  * @endverbatim
                  */
             }
-        }
-
-        /* Move LSB bits (which are filled left-to-right) to the left if so necessary
-         * so that the format is the same as for MSB bits! */
-        if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
-            m_bitBuffer <<= MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize;
         }
     }
 
