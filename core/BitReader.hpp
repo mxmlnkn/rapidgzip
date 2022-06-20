@@ -52,6 +52,7 @@ public:
      * will load much more data than necessary because of the too large buffer.
      * The size should also be a multiple of the block size of the underlying device.
      * Any power of 2 larger than 4096 (4k blocks) should be safe bet.
+     * 4K is too few, and will lead to a 2x slowdown in some test because of the frequent buffer refills.
      */
     static constexpr size_t IOBUF_SIZE = 128*1024;
     static constexpr int NO_FILE = -1;
@@ -160,6 +161,7 @@ public:
             m_bitBufferSize = 0;
 
             const auto bitsNeeded = bitsWanted - bitsInResult;
+            clearBitBuffer();
 
             refillBitBuffer();
 
@@ -417,6 +419,12 @@ private:
             }
         }
 
+        fillBitBuffer();
+    }
+
+    void
+    fillBitBuffer()
+    {
         /* Refill buffer one byte at a time to enforce endianness and avoid unaligned access. */
         for ( ; m_originalBitBufferSize + CHAR_BIT <= MAX_BIT_BUFFER_SIZE;
               m_bitBufferSize += CHAR_BIT, m_originalBitBufferSize += CHAR_BIT )
@@ -468,7 +476,7 @@ private:
         }
     }
 
-    void
+    forceinline void
     clearBitBuffer()
     {
         m_originalBitBufferSize = 0;
