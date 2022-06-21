@@ -102,11 +102,7 @@ benchmarkBitReaderTemplatedPeekBits( const std::vector<char>& data )
     uint64_t sum = 0;
     try {
         while ( true ) {
-            const auto value = bitReader.template peek<nBits>();
-            if ( !value ) {
-                break;
-            }
-            sum += *value;
+            sum += bitReader.template peek<nBits>();
             bitReader.seekAfterPeek( nBits );
         }
     } catch ( const std::exception& ) {

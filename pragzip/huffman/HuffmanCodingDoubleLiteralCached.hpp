@@ -241,27 +241,26 @@ public:
             return result;
         }
 
-        const auto value = bitReader.peek<CACHED_BIT_COUNT>();
-        /* This if alone eats 15% of runtime in silesia.tar.gz for something only happening once or not even at all
-         * because only truncated files will directly end with a Huffman Decoding. The gzip footer is longer than
-         * the amount of bits we peek! However, small.gz actually gets slower sometimes when removing this ...
-         * Goddamn compiler optimizations.
-         * Maybe move this outside by comparing with tell() inside deflate::read? */
-        if ( !value ) {
+        try
+        {
+            const auto value = bitReader.peek<CACHED_BIT_COUNT>();
+
+            assert( value < m_doubleCodeCache.size() / 2 );
+            /* Casting value to int improves speed ~2% probably because of the relaxed bound-checking because
+             * signed integer overflow is undefined behavior (and therefore can be assumed to never happen by
+             * the compiler). */
+            auto symbol1 = m_doubleCodeCache[(int)value * 2];
+            m_nextSymbol = m_doubleCodeCache[(int)value * 2 + 1];
+            assert( ( symbol1 >> LENGTH_SHIFT ) <= CACHED_BIT_COUNT );
+            bitReader.seekAfterPeek( symbol1 >> LENGTH_SHIFT );
+            symbol1 &= nLowestBitsSet<Symbol, LENGTH_SHIFT>();
+
+            return symbol1;
+        } catch ( const BitReader::EndOfFileReached& ) {
+            /* Should only happen at the end of the file and probably not even there
+             * because the gzip footer should be longer than the peek length. */
             return BaseType::decode( bitReader );
         }
-
-        assert( *value < m_doubleCodeCache.size() / 2 );
-        /* Casting value to int improves speed ~2% probably because of the relaxed bound-checking because
-         * signed integer overflow is undefined behavior (and therefore can be assumed to never happen by
-         * the compiler). */
-        auto symbol1 = m_doubleCodeCache[(int)*value * 2];
-        m_nextSymbol = m_doubleCodeCache[(int)*value * 2 + 1];
-        assert( ( symbol1 >> LENGTH_SHIFT ) <= CACHED_BIT_COUNT );
-        bitReader.seekAfterPeek( symbol1 >> LENGTH_SHIFT );
-        symbol1 &= nLowestBitsSet<Symbol, LENGTH_SHIFT>();
-
-        return symbol1;
     }
 
 private:

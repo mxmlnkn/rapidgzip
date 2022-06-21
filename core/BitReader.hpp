@@ -58,6 +58,10 @@ public:
     static constexpr int NO_FILE = -1;
     static constexpr auto MAX_BIT_BUFFER_SIZE = std::numeric_limits<BitBuffer>::digits;
 
+    class BitReaderException :
+        public std::exception
+    {};
+
     /**
      * This exception is thrown by refillBitBuffer when the I/O buffer has been emptied.
      * Because the I/O buffer is rather large compared to the bit buffer, it only empties infrequently.
@@ -65,7 +69,18 @@ public:
      * and improved the gzip decoder performance by ~20%!
      */
     class BufferNeedsToBeRefilled :
-        public std::exception
+        public BitReaderException
+    {};
+
+    /**
+     * An exception that may be returned by @ref BitReader::peek. An exception is used instead of std::optional
+     * because this only happens once for the whole input stream, so very rarely, and it is expensive to still
+     * check the optional each time when it isn't needed 99.999% of the time! A try-catch block instead can act
+     * as a kind of zero-cost conditional in case nothing is thrown and is sufficiently cheap for the very rare
+     * case that an exception has to be thrown.
+     */
+    class EndOfFileReached :
+        public BitReaderException
     {};
 
 public:
@@ -257,14 +272,14 @@ public:
     }
 
     template<uint8_t bitsWanted>
-    forceinline std::optional<BitBuffer>
+    forceinline BitBuffer
     peek()
     {
         static_assert( bitsWanted <= MAX_BIT_BUFFER_SIZE, "Requested bits must fit in buffer!" );
         return peek( bitsWanted );
     }
 
-    forceinline std::optional<BitBuffer>
+    forceinline BitBuffer
     peek( uint8_t bitsWanted )
     {
         if ( UNLIKELY( bitsWanted > m_bitBufferSize ) ) [[unlikely]] {
@@ -319,7 +334,7 @@ public:
                      * that we have enough bits as long as fewer than the bit buffer size were requested.
                      * Removing this if from the non-throwing frequent path, improves performance measurably! */
                     if UNLIKELY( bitsWanted > m_bitBufferSize ) {
-                        return {};
+                        throw EndOfFileReached();
                     }
                 }
             }

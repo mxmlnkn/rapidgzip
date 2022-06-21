@@ -86,24 +86,25 @@ public:
     [[nodiscard]] forceinline std::optional<Symbol>
     decode( BitReader& bitReader ) const
     {
-        const auto value = bitReader.peek<CACHED_BIT_COUNT>();
-        if ( !value ) {
+        try {
+            const auto value = bitReader.peek<CACHED_BIT_COUNT>();
+
+            assert( value < m_codeCache.size() );
+            const auto [length, symbol] = m_codeCache[(int)value];
+
+            /* Unfortunately, read is much faster than a simple seek forward,
+             * probably because of inlining and extraneous checks. For some reason read seems even faster than
+             * the newly introduced and trimmed down seekAfterPeek ... */
+            bitReader.read( length );
+            if ( length == 0 ) {
+                throw std::logic_error( "Invalid Huffman code encountered!" );
+            }
+            return symbol;
+        } catch ( const BitReader::EndOfFileReached& ) {
             /* Should only happen at the end of the file and probably not even there
              * because the gzip footer should be longer than the peek length. */
             return BaseType::decode( bitReader );
         }
-
-        assert( *value < m_codeCache.size() );
-        const auto [length, symbol] = m_codeCache[(int)*value];
-
-        /* Unfortunately, read is much faster than a simple seek forward,
-         * probably because of inlining and extraneous checks. For some reason read seems even faster than
-         * the newly introduced and trimmed down seekAfterPeek ... */
-        bitReader.read( length );
-        if ( length == 0 ) {
-            throw std::logic_error( "Invalid Huffman code encountered!" );
-        }
-        return symbol;
     }
 
 private:
