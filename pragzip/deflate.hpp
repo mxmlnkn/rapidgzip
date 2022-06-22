@@ -38,7 +38,7 @@ namespace pragzip
 namespace deflate
 {
 /** For this namespace, refer to @see RFC 1951 "DEFLATE Compressed Data Format Specification version 1.3" */
-constexpr size_t MAX_WINDOW_SIZE = 32*1024;
+constexpr size_t MAX_WINDOW_SIZE = 32 * 1024;
 constexpr size_t MAX_UNCOMPRESSED_SIZE = std::numeric_limits<uint16_t>::max();
 /* This is because the code length alphabet can't encode any higher value and because length 0 is ignored! */
 constexpr uint8_t MAX_CODE_LENGTH = 15;
@@ -718,12 +718,12 @@ deflate::Block<CALCULATE_CRC32>::readDynamicHuffmanCoding( BitReader& bitReader 
         /* Note that this interpretation of the alphabet results in the maximum code length being 15! */
         if ( code <= 15 ) {
             literalCL[i] = code;
-             ++i;
+            ++i;
         } else if ( code == 16 ) {
             if ( i == 0 ) {
                 return Error::INVALID_CL_BACKREFERENCE;
             }
-            const auto lastValue = literalCL[i-1];
+            const auto lastValue = literalCL[i - 1];
             const auto repeatCount = bitReader.read<2>() + 3;
             if ( i + repeatCount > literalCLSize ) {
                 return Error::EXCEEDED_LITERAL_RANGE;
@@ -834,7 +834,7 @@ deflate::Block<CALCULATE_CRC32>::read( BitReader& bitReader,
             nBytesRead = bitReader.read( reinterpret_cast<char*>( m_window.data() ), m_uncompressedSize );
         } else if ( m_containsMarkerBytes && ( m_distanceToLastMarkerByte + m_uncompressedSize >= MAX_WINDOW_SIZE ) ) {
             /* Special case for when the new uncompressed data plus some fully-decoded data from the window buffer
-            * together exceed the maximum backreference distance. */
+             * together exceed the maximum backreference distance. */
             assert( m_distanceToLastMarkerByte <= m_decodedBytes );
 
             /* Copy and at the same time downcast enough data for the window from the 16-bit element buffer. */
@@ -964,7 +964,7 @@ deflate::Block<CALCULATE_CRC32>::readInternal( BitReader& bitReader,
 
         if ( code <= 255 ) {
             appendToWindow( code );
-             ++nBytesRead;
+            ++nBytesRead;
             continue;
         }
 
@@ -1001,8 +1001,8 @@ deflate::Block<CALCULATE_CRC32>::readInternal( BitReader& bitReader,
 
             for ( size_t nCopied = 0; nCopied < length; ) {
                 for ( size_t position = offset;
-                     ( position < offset + nToCopyPerRepeat ) && ( nCopied < length );
-                     ++position, ++nCopied )
+                      ( position < offset + nToCopyPerRepeat ) && ( nCopied < length );
+                      ++position, ++nCopied )
                 {
                     const auto copiedSymbol = window[position % window.size()];
                     appendToWindow( copiedSymbol );

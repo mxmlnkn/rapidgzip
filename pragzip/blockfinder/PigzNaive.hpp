@@ -131,11 +131,11 @@ public:
                     return offset;
 
                  #if 0
-                     /* In my 512MiB test with only compressed blocks, this did not filter any false positives because
-                      * there were none. Plus, for uncompressed blocks containing gzip files, it might also not filter
-                      * false positives because it is a valid gzip file meaning the next block will likely also be valid.
-                      * The only way to detect these is by checking against "overlapping" found blocks while decoding.
-                      * This additional check reduces speed from ~1350 MiB/s down to ~750 MiB/s. It seems not worth it! */
+                    /* In my 512MiB test with only compressed blocks, this did not filter any false positives because
+                     * there were none. Plus, for uncompressed blocks containing gzip files, it might also not filter
+                     * false positives because it is a valid gzip file meaning the next block will likely also be valid.
+                     * The only way to detect these is by checking against "overlapping" found blocks while decoding.
+                     * This additional check reduces speed from ~1350 MiB/s down to ~750 MiB/s. It seems not worth it! */
                     m_bitReader.seek( offset );
                     try
                     {

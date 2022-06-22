@@ -54,12 +54,12 @@ protected:
                 codeValuesPerLevel[k]++;
 
                 HuffmanCode reversedCode;
-                if constexpr ( sizeof(HuffmanCode) <= sizeof(reversedBitsLUT16[0]) ) {
+                if constexpr ( sizeof( HuffmanCode ) <= sizeof( reversedBitsLUT16[0] ) ) {
                     reversedCode = reversedBitsLUT16[code];
                 } else {
                     reversedCode = reverseBits( code );
                 }
-                reversedCode >>= ( std::numeric_limits<decltype(code)>::digits - length );
+                reversedCode >>= ( std::numeric_limits<decltype( code )>::digits - length );
 
                 m_symbolsPerLength[sizes[k]] = symbol;
                 m_codesPerLength[sizes[k]] = reversedCode;

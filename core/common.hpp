@@ -66,8 +66,8 @@
 template<typename I1,
          typename I2,
          typename Enable = typename std::enable_if<
-            std::is_integral<I1>::value &&
-            std::is_integral<I2>::value
+             std::is_integral<I1>::value &&
+             std::is_integral<I2>::value
          >::type>
 [[nodiscard]] constexpr I1
 ceilDiv( I1 dividend,

@@ -518,7 +518,7 @@ Block::readBlockData()
                 throw std::domain_error( msg.str() );
             }
             hufGroup = &groups[selectors[selector++]];
-            base  = hufGroup->base .data() - 1;
+            base  = hufGroup->base.data() - 1;
             limit = hufGroup->limit.data() - 1;
         }
 

@@ -80,7 +80,7 @@ testZeroBytesToChar( const std::unique_ptr<FileReader>& file )
 size_t
 findZeroBytesBuffers( const std::unique_ptr<FileReader>& file )
 {
-    static constexpr size_t BUFFER_SIZE = 4*1024;
+    static constexpr size_t BUFFER_SIZE = 4 * 1024;
     alignas( 64 ) std::array<char, BUFFER_SIZE> buffer;
     alignas( 64 ) std::array<char, BUFFER_SIZE> zeroBytes;
     alignas( 64 ) std::array<char, BUFFER_SIZE> ffBytes;
@@ -94,7 +94,7 @@ findZeroBytesBuffers( const std::unique_ptr<FileReader>& file )
         }
 
         for ( size_t i = 4; i < nBytesRead; ++i ) {
-            ffBytes[i] &= ffBytes[i-1] & zeroBytes[i-2] & zeroBytes[i-3];
+            ffBytes[i] &= ffBytes[i - 1] & zeroBytes[i - 2] & zeroBytes[i - 3];
         }
     }
 
@@ -105,7 +105,7 @@ findZeroBytesBuffers( const std::unique_ptr<FileReader>& file )
 size_t
 findZeroBytes64Bit( const std::unique_ptr<FileReader>& file )
 {
-    static constexpr size_t BUFFER_SIZE = 4*1024;
+    static constexpr size_t BUFFER_SIZE = 4 * 1024;
     alignas( 64 ) std::array<char, BUFFER_SIZE> buffer;
 
     auto const* const buffer32 = reinterpret_cast<std::uint32_t*>( buffer.data() );
@@ -156,7 +156,7 @@ findZeroBytes64Bit( const std::unique_ptr<FileReader>& file )
 size_t
 findZeroBytes64BitLUT( const std::unique_ptr<FileReader>& file )
 {
-    static constexpr size_t BUFFER_SIZE = 128*1024;
+    static constexpr size_t BUFFER_SIZE = 128 * 1024;
     alignas( 64 ) std::array<char, BUFFER_SIZE> buffer;
 
     auto const* const buffer32 = reinterpret_cast<std::uint32_t*>( buffer.data() );
@@ -192,8 +192,8 @@ findZeroBytes64BitLUT( const std::unique_ptr<FileReader>& file )
             bitBuffer |= static_cast<uint64_t>( buffer32[i] ) << 32;
 
             for ( size_t j = 0; j < sizeof( std::uint32_t ); ++j ) {
-                const auto testString = testStrings[2*j+0];
-                const auto testMask = testStrings[2*j+1];
+                const auto testString = testStrings[2 * j + 0];
+                const auto testMask = testStrings[2 * j + 1];
                 auto const doesMatch = ( bitBuffer & testMask ) == testString;
 
                 //std::cerr << "Test bit buffer: 0x" << std::hex << bitBuffer << " masked with 0x"

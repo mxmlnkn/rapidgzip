@@ -108,7 +108,7 @@ main( int    argc,
               const std::vector<size_t>& markerSizes,
               const std::vector<size_t>& sizes )
         {
-            testAutomaticMarkerResolution( testFolder / fileName , blockIndex, markerSizes, sizes );
+            testAutomaticMarkerResolution( testFolder / fileName, blockIndex, markerSizes, sizes );
         };
 
     test( "base64-32KiB.gz" , 0, {}, { 32768 } );

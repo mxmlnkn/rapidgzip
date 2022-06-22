@@ -134,7 +134,7 @@ public:
         std::vector<HuffmanCode> minimumCodeValuesPerLevel( bitLengthFrequencies.size() + 1 );
         minimumCodeValuesPerLevel[0] = 0;
         for ( size_t bits = 1; bits <= bitLengthFrequencies.size(); ++bits ) {
-            minimumCodeValuesPerLevel[bits] = ( minimumCodeValuesPerLevel[bits-1] + bitLengthFrequencies[bits-1] ) << 1;
+            minimumCodeValuesPerLevel[bits] = ( minimumCodeValuesPerLevel[bits - 1] + bitLengthFrequencies[bits - 1] ) << 1;
         }
 
         /* Now, begin assigning the alphabet consecutively to the codes starting from the minimumCodes.

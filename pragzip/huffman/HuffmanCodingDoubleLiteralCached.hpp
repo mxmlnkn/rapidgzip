@@ -168,7 +168,7 @@ public:
 
                 symbols[symbolSize++] = 0;
                 for ( BitCount k = 0; k <= this->m_maxCodeLength - this->m_minCodeLength; ++k ) {
-                    for ( HuffmanCode subIndex = 0; subIndex < this->m_offsets[k+1] - this->m_offsets[k]; ++subIndex ) {
+                    for ( HuffmanCode subIndex = 0; subIndex < this->m_offsets[k + 1] - this->m_offsets[k]; ++subIndex ) {
                         const auto code = static_cast<HuffmanCode>( this->m_minimumCodeValuesPerLevel[k] + subIndex );
                         const auto symbol = this->m_symbolsPerLength[this->m_offsets[k] + subIndex];
                         const auto length = this->m_minCodeLength + k;
@@ -180,10 +180,10 @@ public:
                         } else {
                             reversedCode = reverseBits( code );
                         }
-                        reversedCode >>= ( std::numeric_limits<decltype(code)>::digits - length );
+                        reversedCode >>= ( std::numeric_limits<decltype( code )>::digits - length );
 
-                        assert( ( reversedCode & nLowestBitsSet<decltype(reversedCode)>( length ) ) == reversedCode );
-                        assert( ( mergedCode & nLowestBitsSet<decltype(mergedCode)>( mergedCodeLength ) ) == mergedCode );
+                        assert( ( reversedCode & nLowestBitsSet<decltype( reversedCode )>( length ) ) == reversedCode );
+                        assert( ( mergedCode & nLowestBitsSet<decltype( mergedCode )>( mergedCodeLength ) ) == mergedCode );
 
                         /* Add to cache or append further Huffman codes recursively. */
                         const auto newMergedCode = static_cast<HuffmanCode>( ( reversedCode << mergedCodeLength ) | mergedCode )

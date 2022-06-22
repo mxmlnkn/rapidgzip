@@ -62,12 +62,12 @@ public:
             const auto code = codeValues[k]++;
 
             HuffmanCode reversedCode;
-            if constexpr ( sizeof(HuffmanCode) <= sizeof(reversedBitsLUT16[0]) ) {
+            if constexpr ( sizeof( HuffmanCode ) <= sizeof( reversedBitsLUT16[0] ) ) {
                 reversedCode = reversedBitsLUT16[code];
             } else {
                 reversedCode = reverseBits( code );
             }
-            reversedCode >>= ( std::numeric_limits<decltype(code)>::digits - length );
+            reversedCode >>= ( std::numeric_limits<decltype( code )>::digits - length );
 
             const auto fillerBitCount = CACHED_BIT_COUNT - length;
             for ( HuffmanCode fillerBits = 0; fillerBits < ( 1UL << fillerBitCount ); ++fillerBits ) {

@@ -156,7 +156,7 @@ testSerialDecoderNanoSampleStoppingPoints()
             collectStoppingPoints( StoppingPoint::END_OF_BLOCK );
         REQUIRE( offsets == std::vector<size_t>( { NANO_SAMPLE_DECODED.size(), decoded.size(), decoded.size() } ) );
         constexpr auto FOOTER_SIZE = 8;
-        REQUIRE( compressedOffsets == std::vector<size_t>( { ( NANO_SAMPLE_GZIP.size() - FOOTER_SIZE ) * 8 ,
+        REQUIRE( compressedOffsets == std::vector<size_t>( { ( NANO_SAMPLE_GZIP.size() - FOOTER_SIZE ) * 8,
                                                              ( encoded.size() - FOOTER_SIZE ) * 8,
                                                              encoded.size() * 8 } ) );
     }
@@ -245,7 +245,7 @@ testTwoStagedDecoding( std::string_view encodedFilePath,
     const auto validWindowMatches = std::equal(
         lastWindow.end() - validWindowSize, lastWindow.end(),
         uncompressed.end() - static_cast<ssize_t>( validWindowSize ),
-        [] ( auto a, auto b ) { return a == static_cast<decltype(a)>( b ); } );
+        [] ( auto a, auto b ) { return a == static_cast<decltype( a )>( b ); } );
     REQUIRE( validWindowMatches );
     if ( !validWindowMatches ) {
         for ( size_t i = lastWindow.size() - validWindowSize; i < lastWindow.size(); ++i ) {

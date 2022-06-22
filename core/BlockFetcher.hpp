@@ -110,7 +110,7 @@ public:
 
         prefetchNewBlocks(
             validDataBlockIndex,
-            [&]() {
+            [&] () {
                 using namespace std::chrono_literals;
                 return result.has_value() ||
                        ( resultFuture.valid() && ( resultFuture.wait_for( 0s ) == std::future_status::ready ) );
@@ -135,7 +135,7 @@ public:
 
         m_cache.insert( blockOffset, *result );
 
-        if constexpr ( SHOW_PROFILE ){
+        if constexpr ( SHOW_PROFILE ) {
             std::scoped_lock lock( m_analyticsMutex );
             m_futureWaitTotalTime += futureGetDuration;
             m_getTotalTime += duration( tGetStart );
@@ -152,7 +152,7 @@ private:
         std::future<BlockData> resultFuture;
         const auto match = std::find_if(
             m_prefetching.begin(), m_prefetching.end(),
-            [blockOffset] ( auto const& kv ){ return kv.first == blockOffset; }
+            [blockOffset] ( auto const& kv ) { return kv.first == blockOffset; }
         );
 
         if ( match != m_prefetching.end() ) {

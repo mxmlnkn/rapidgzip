@@ -49,7 +49,7 @@ uint64_t nHighestBitsSet64()
 void
 testMSBBitReader()
 {
-    const std::vector<char> fileContents ={
+    const std::vector<char> fileContents = {
         /*       0x5A                0xAA               0x0F               0x0F               0x0F */
         (char)0b0101'1010, (char)0b1010'1010, (char)0b0000'1111, (char)0b0000'1111, (char)0b0000'1111
     };
@@ -124,7 +124,7 @@ testMSBBitReader()
 void
 testLSBBitReader()
 {
-    const std::vector<char> fileContents ={
+    const std::vector<char> fileContents = {
         /*       0x5A                0xAA               0x0F               0x0F               0x0F    */
         (char)0b0101'1010, (char)0b1010'1010, (char)0b0000'1111, (char)0b0000'1111, (char)0b0000'1111
     };
@@ -200,7 +200,7 @@ testLSBBitReader()
 void
 testMSBBitReaderPeek()
 {
-    const std::vector<char> fileContents ={
+    const std::vector<char> fileContents = {
         /*       0x5A                0xAA               0x0F               0x0F               0x0F */
         (char)0b0101'1010, (char)0b1010'1010, (char)0b0000'1111, (char)0b0000'1111, (char)0b0000'1111
     };
@@ -292,7 +292,7 @@ testMSBBitReaderPeek()
 void
 testLSBBitReaderPeek()
 {
-    const std::vector<char> fileContents ={
+    const std::vector<char> fileContents = {
         /*       0x5A                0xAA               0x0F               0x0F               0x0F    */
         (char)0b0101'1010, (char)0b1010'1010, (char)0b0000'1111, (char)0b0000'1111, (char)0b0000'1111
     };

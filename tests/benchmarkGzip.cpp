@@ -23,7 +23,7 @@
 class GzipWrapper
 {
 public:
-    static constexpr int WINDOW_SIZE = 32*1024;
+    static constexpr int WINDOW_SIZE = 32 * 1024;
 
     enum class Format
     {

@@ -16,7 +16,7 @@ public:
     virtual ~BZ2ReaderInterface() = default;
 
     [[nodiscard]] size_t
-    read( char* outputBuffer,
+    read( char*  outputBuffer,
           size_t nBytesToRead ) final
     {
         return read( -1,  outputBuffer, nBytesToRead );

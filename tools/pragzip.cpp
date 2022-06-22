@@ -405,8 +405,8 @@ cli( int argc, char** argv )
     /* Parse other arguments. */
 
     const auto decompress = ( ( parsedArgs.count( "decompress" ) > 0 )
-                                && ( ( outputFilePath.empty() && !stdoutIsDevNull() )
-                                      || ( !outputFilePath.empty() && ( outputFilePath != "/dev/null" ) ) ) )
+                              && ( ( outputFilePath.empty() && !stdoutIsDevNull() )
+                                   || ( !outputFilePath.empty() && ( outputFilePath != "/dev/null" ) ) ) )
                             || ( parsedArgs.count( "list-offsets" ) > 0 )
                             || force;
 

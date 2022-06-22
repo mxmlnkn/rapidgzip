@@ -26,7 +26,7 @@ constexpr auto MAGIC_BYTES_GZIP = 0x08'8B'1FU;
 
 /* This is not a gzip-specific constant. It's such so that the decoder will not try to
  * read the whole file to memory for invalid data. */
-constexpr auto MAX_ALLOWED_FIELD_SIZE = 1024*1024;
+constexpr auto MAX_ALLOWED_FIELD_SIZE = 1024 * 1024;
 
 
 [[nodiscard]] std::string

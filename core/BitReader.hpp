@@ -54,7 +54,7 @@ public:
      * Any power of 2 larger than 4096 (4k blocks) should be safe bet.
      * 4K is too few, and will lead to a 2x slowdown in some test because of the frequent buffer refills.
      */
-    static constexpr size_t IOBUF_SIZE = 128*1024;
+    static constexpr size_t IOBUF_SIZE = 128 * 1024;
     static constexpr int NO_FILE = -1;
     static constexpr auto MAX_BIT_BUFFER_SIZE = std::numeric_limits<BitBuffer>::digits;
 

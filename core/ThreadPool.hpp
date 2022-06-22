@@ -72,7 +72,7 @@ private:
         void
         operator()()
         {
-            (*m_impl)();
+            ( *m_impl )();
         }
 
     private:
@@ -145,7 +145,7 @@ private:
         while ( m_threadPoolRunning )
         {
             std::unique_lock<std::mutex> tasksLock( m_mutex );
-            m_pingWorkers.wait( tasksLock, [this](){ return !m_tasks.empty() || !m_threadPoolRunning; } );
+            m_pingWorkers.wait( tasksLock, [this] () { return !m_tasks.empty() || !m_threadPoolRunning; } );
 
             if ( !m_threadPoolRunning ) {
                 break;

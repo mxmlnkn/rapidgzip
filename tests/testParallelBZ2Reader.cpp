@@ -96,7 +96,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
         };
 
     const auto read =
-        [&]( size_t nBytesToRead )
+        [&] ( size_t nBytesToRead )
         {
             std::cerr << "Read " << nBytesToRead << "B\n";
 

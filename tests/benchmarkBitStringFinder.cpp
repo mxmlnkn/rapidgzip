@@ -635,7 +635,7 @@ findBitStrings5( const std::string& filename )
             matches.pop_back();
             break;
         }
-        if ( ( matches.size() > 1 ) && ( matches[matches.size()-2] >= matches.back() ) ) {
+        if ( ( matches.size() > 1 ) && ( matches[matches.size() - 2] >= matches.back() ) ) {
             throw std::logic_error( "Returned offsets should be unique and monotonically increasing!" );
         }
     }

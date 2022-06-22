@@ -151,7 +151,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
              int           origin = SEEK_SET )
         { testSeek( decodedFileSize, decodedFile, encodedFile, offset, origin ); };
 
-    const auto read = [&]( size_t nBytesToRead ){ testRead( decodedFile, encodedFile, nBytesToRead ); };
+    const auto read = [&] ( size_t nBytesToRead ) { testRead( decodedFile, encodedFile, nBytesToRead ); };
 
     /* Try some subsequent small reads. */
     read( 1 );
@@ -279,7 +279,7 @@ testSeekBeforeOffsetCompletion( const std::string& decodedTestFilePath,
              int           origin = SEEK_SET )
         { testSeek( decodedFileSize, decodedFile, encodedFile, offset, origin ); };
 
-    const auto read = [&]( size_t nBytesToRead ){ testRead( decodedFile, encodedFile, nBytesToRead ); };
+    const auto read = [&] ( size_t nBytesToRead ) { testRead( decodedFile, encodedFile, nBytesToRead ); };
 
     /* Read a bit because having a non-zero decoded count is a prerequisite to trigger a possible bug. */
     REQUIRE( encodedFile->availableBlockOffsets().empty() );

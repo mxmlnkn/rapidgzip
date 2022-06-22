@@ -96,7 +96,7 @@ public:
             const auto minCode = this->m_minimumCodeValuesPerLevel[k];
             if ( minCode <= code ) {
                 const auto subIndex = m_offsets[k] + static_cast<size_t>( code - minCode );
-                if ( subIndex < m_offsets[k+1] ) {
+                if ( subIndex < m_offsets[k + 1] ) {
                     return m_symbolsPerLength[subIndex];
                 }
             }

@@ -115,8 +115,8 @@ public:
         m_unit( std::move( unit ) )
     {
         if ( !std::isfinite( m_statistics.min )
-            || !std::isfinite( m_statistics.max )
-            || ( m_statistics.min == m_statistics.max ) )
+             || !std::isfinite( m_statistics.max )
+             || ( m_statistics.min == m_statistics.max ) )
         {
             return;
         }

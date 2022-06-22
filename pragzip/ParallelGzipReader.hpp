@@ -157,7 +157,7 @@ public:
     }
 
     [[nodiscard]] size_t
-    read( char* outputBuffer,
+    read( char*  outputBuffer,
           size_t nBytesToRead ) override
     {
         return read( -1,  outputBuffer, nBytesToRead );
@@ -594,7 +594,7 @@ private:
     /** The block finder is much faster than the fetcher and therefore does not require es much parallelization! */
     size_t const m_finderParallelization{ ceilDiv( m_fetcherParallelization, 8U ) };
 
-    std::function<std::shared_ptr<BlockFinder>(void)> const m_startBlockFinder;
+    std::function<std::shared_ptr<BlockFinder>( void )> const m_startBlockFinder;
 
     /* These are the three larger "submodules" of ParallelGzipReader */
 

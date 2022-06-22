@@ -192,7 +192,7 @@ protected:
 template<uint8_t bitStringSize>
 typename BitStringFinder<bitStringSize>::ShiftedLUTTable
 BitStringFinder<bitStringSize>::createdShiftedBitStringLUT( uint64_t bitString,
-                                             bool     includeLastFullyShifted )
+                                                            bool     includeLastFullyShifted )
 {
     const auto nWildcardBits = sizeof( uint64_t ) * CHAR_BIT - bitStringSize;
     ShiftedLUTTable shiftedBitStrings( nWildcardBits + includeLastFullyShifted );
@@ -339,8 +339,8 @@ BitStringFinder<bitStringSize>::find()
         /* Initialize the moving window with bitStringSize-1 bits.
          * Note that one additional bit is loaded before the first comparison.
          * At this point, we know that there are at least bitStringSize unread bits in the buffer. */
-        if ( m_nTotalBytesRead * CHAR_BIT + m_bufferBitsRead < bitStringSize-1u ) {
-            const auto nBitsToRead = bitStringSize-1 - ( m_nTotalBytesRead * CHAR_BIT + m_bufferBitsRead );
+        if ( m_nTotalBytesRead * CHAR_BIT + m_bufferBitsRead < bitStringSize - 1U ) {
+            const auto nBitsToRead = bitStringSize - 1 - ( m_nTotalBytesRead * CHAR_BIT + m_bufferBitsRead );
             for ( size_t i = 0; i < nBitsToRead; ++i, ++m_bufferBitsRead ) {
                 const auto byte = static_cast<unsigned char>( m_buffer[m_bufferBitsRead / CHAR_BIT] );
                 const auto bit = ( byte >> ( 7 - ( m_bufferBitsRead & 7U ) ) ) & 1U;

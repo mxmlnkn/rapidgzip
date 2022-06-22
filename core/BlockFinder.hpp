@@ -154,7 +154,7 @@ private:
         while ( !m_cancelThread ) {
             std::unique_lock lock( m_mutex );
             /* m_blockOffsets.size() will only grow, so we don't need to be notified when it changes! */
-            m_changed.wait( lock, [this]{
+            m_changed.wait( lock, [this] {
                 return m_cancelThread || ( m_blockOffsets.size() <= m_highestRequestedBlockNumber + m_prefetchCount );
             } );
             if ( m_cancelThread ) {
