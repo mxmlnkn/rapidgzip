@@ -42,6 +42,7 @@ target_sources(cxxopts INTERFACE ${CMAKE_SOURCE_DIR}/external/cxxopts/include/cx
 find_package(Threads REQUIRED)
 
 
+add_subdirectory(benchmarks)
 add_subdirectory(core)
 add_subdirectory(indexed_bzip2)
 add_subdirectory(pragzip)
