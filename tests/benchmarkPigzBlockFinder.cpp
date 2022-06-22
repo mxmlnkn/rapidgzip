@@ -433,7 +433,6 @@ main( int    argc,
         const auto returnCode = std::system( command.c_str() );
         if ( returnCode != 0 ) {
             std::cerr << "Failed to create a temporary file for benchmarking\n";
-        throw 3;
             return 1;
         }
 
