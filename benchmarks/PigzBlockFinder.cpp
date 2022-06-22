@@ -55,7 +55,7 @@ findZeroBytesVector( const std::unique_ptr<FileReader>& file )
         }
     }
 
-    return zeroBytes[BUFFER_SIZE / 2];
+    return zeroBytes[BUFFER_SIZE / 2] ? 1 : 0;
 }
 
 
@@ -69,7 +69,7 @@ testZeroBytesToChar( const std::unique_ptr<FileReader>& file )
     while ( !file->eof() ) {
         const auto nBytesRead = file->read( buffer.data(), buffer.size() );
         for ( size_t i = 0; i < nBytesRead; ++i ) {
-            zeroBytes[i] = buffer[i] == 0;
+            zeroBytes[i] = buffer[i] == 0 ? 1 : 0;
         }
     }
 
@@ -82,19 +82,21 @@ findZeroBytesBuffers( const std::unique_ptr<FileReader>& file )
 {
     static constexpr size_t BUFFER_SIZE = 4 * 1024;
     alignas( 64 ) std::array<char, BUFFER_SIZE> buffer{};
-    alignas( 64 ) std::array<char, BUFFER_SIZE> zeroBytes{};
-    alignas( 64 ) std::array<char, BUFFER_SIZE> ffBytes{};
+    alignas( 64 ) std::array<uint8_t, BUFFER_SIZE> zeroBytes{};
+    alignas( 64 ) std::array<uint8_t, BUFFER_SIZE> ffBytes{};
 
     while ( !file->eof() ) {
         const auto nBytesRead = file->read( buffer.data(), buffer.size() );
 
         for ( size_t i = 0; i < nBytesRead; ++i ) {
-            zeroBytes[i] = buffer[i] == 0;
-            ffBytes[i] = buffer[i] == (char)0xFF;
+            zeroBytes[i] = buffer[i] == 0 ? 1U : 0U;
+            ffBytes[i] = buffer[i] == (char)0xFFU ? 1 : 0;
         }
 
         for ( size_t i = 4; i < nBytesRead; ++i ) {
-            ffBytes[i] &= ffBytes[i - 1] & zeroBytes[i - 2] & zeroBytes[i - 3];
+            ffBytes[i] &= static_cast<uint8_t>( static_cast<uint32_t>( ffBytes  [i - 1] ) &
+                                                static_cast<uint32_t>( zeroBytes[i - 2] ) &
+                                                static_cast<uint32_t>( zeroBytes[i - 3] ) );
         }
     }
 
@@ -125,18 +127,18 @@ findZeroBytes64Bit( const std::unique_ptr<FileReader>& file )
     //uint64_t constexpr TEST_MASK   = 0xFF'FF'FF'FF'FF'FF'FF'FFULL;
 
     size_t count{ 0 };
-    uint64_t bitBuffer = buffer[0];
+    uint64_t bitBuffer = static_cast<uint8_t>( buffer[0] );
     while ( !file->eof() ) {
         const auto nBytesRead = file->read( buffer.data(), buffer.size() );
         for ( size_t i = 0; i < nBytesRead / sizeof( std::uint32_t ); ++i ) {
             //if ( i > 4 ) {
             //    return 333;
             //}
-            bitBuffer >>= 32;
-            bitBuffer |= static_cast<uint64_t>( buffer32[i] ) << 32;
+            bitBuffer >>= 32U;
+            bitBuffer |= static_cast<uint64_t>( buffer32[i] ) << 32U;
             for ( size_t j = 0; j < sizeof( std::uint32_t ); ++j ) {
-                const auto testMask = TEST_MASK << ( 8 * j );
-                const auto testString = TEST_STRING << ( 8 * j );
+                const auto testMask = TEST_MASK << ( 8U * j );
+                const auto testString = TEST_STRING << ( 8U * j );
                 auto const doesMatch = ( bitBuffer & testMask ) == testString;
 
                 //std::cerr << "Test bit buffer: 0x" << std::hex << bitBuffer << " masked with 0x"
@@ -176,10 +178,10 @@ findZeroBytes64BitLUT( const std::unique_ptr<FileReader>& file )
     //uint64_t constexpr TEST_MASK   = 0xFF'FF'FF'FF'FF'FF'FF'FFULL;
 
     std::array<uint64_t, 2 * 4> testStrings = {
-        TEST_STRING, TEST_MASK,
-        TEST_STRING << 8, TEST_MASK << 8,
-        TEST_STRING << 16, TEST_MASK << 16,
-        TEST_STRING << 24, TEST_MASK << 24
+        TEST_STRING       , TEST_MASK,
+        TEST_STRING << 8U , TEST_MASK << 8U,
+        TEST_STRING << 16U, TEST_MASK << 16U,
+        TEST_STRING << 24U, TEST_MASK << 24U
     };
 
     size_t count{ 0 };
@@ -188,12 +190,12 @@ findZeroBytes64BitLUT( const std::unique_ptr<FileReader>& file )
         const auto nBytesRead = file->read( buffer.data(), buffer.size() );
         for ( size_t i = 0; i < nBytesRead / sizeof( std::uint32_t ); ++i ) {
             /* Append new data to the left because the byte order is from lowest bits (right) to highest. */
-            bitBuffer >>= 32;
-            bitBuffer |= static_cast<uint64_t>( buffer32[i] ) << 32;
+            bitBuffer >>= 32U;
+            bitBuffer |= static_cast<uint64_t>( buffer32[i] ) << 32U;
 
             for ( size_t j = 0; j < sizeof( std::uint32_t ); ++j ) {
-                const auto testString = testStrings[2 * j + 0];
-                const auto testMask = testStrings[2 * j + 1];
+                const auto testString = testStrings[2U * j + 0U];
+                const auto testMask = testStrings[2U * j + 1U];
                 auto const doesMatch = ( bitBuffer & testMask ) == testString;
 
                 //std::cerr << "Test bit buffer: 0x" << std::hex << bitBuffer << " masked with 0x"
@@ -268,7 +270,7 @@ countZeroBytes( const std::unique_ptr<FileReader>& file )
     while ( !file->eof() ) {
         const auto nBytesRead = file->read( buffer.data(), buffer.size() );
         for ( size_t i = 0; i < nBytesRead; ++i ) {
-            count += buffer[i] == 0;
+            count += buffer[i] == 0 ? 1 : 0;
         }
     }
 
@@ -300,9 +302,7 @@ measureByteComparison( const std::string& fileName,
 {
     /* Load everything to memory to ignore disk I/O speeds. */
     BufferedFileReader::AlignedBuffer contents( fileSize( fileName ) );
-    auto* const file = std::fopen( fileName.c_str(), "rb" );
-    const auto nBytesRead = std::fread( contents.data(), 1, contents.size(), file );
-    std::fclose( file );
+    const auto nBytesRead = std::fread( contents.data(), 1, contents.size(), throwingOpen( fileName, "rb" ).get() );
     if ( nBytesRead != contents.size() ) {
         throw std::runtime_error( "Failed to read full file!" );
     }
@@ -326,9 +326,7 @@ measureBlockFinderTime( const std::string& fileName )
 {
     /* Load everything to memory to ignore disk I/O speeds. */
     BufferedFileReader::AlignedBuffer contents( fileSize( fileName ) );
-    auto* const file = std::fopen( fileName.c_str(), "rb" );
-    const auto nBytesRead = std::fread( contents.data(), 1, contents.size(), file );
-    std::fclose( file );
+    const auto nBytesRead = std::fread( contents.data(), 1, contents.size(), throwingOpen( fileName, "rb" ).get() );
     if ( nBytesRead != contents.size() ) {
         throw std::runtime_error( "Failed to read full file!" );
     }
