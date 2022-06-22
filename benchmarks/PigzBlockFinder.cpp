@@ -24,7 +24,7 @@ size_t
 findZeroBytesBitset( const std::unique_ptr<FileReader>& file )
 {
     static constexpr size_t BUFFER_SIZE = 4096;
-    alignas( 64 ) std::array<char, BUFFER_SIZE> buffer;
+    alignas( 64 ) std::array<char, BUFFER_SIZE> buffer{};
     std::bitset<BUFFER_SIZE> zeroBytes;
 
     size_t count = 0;
@@ -45,7 +45,7 @@ size_t
 findZeroBytesVector( const std::unique_ptr<FileReader>& file )
 {
     static constexpr size_t BUFFER_SIZE = 4096;
-    alignas( 64 ) std::array<char, BUFFER_SIZE> buffer;
+    alignas( 64 ) std::array<char, BUFFER_SIZE> buffer{};
     std::vector<bool> zeroBytes( BUFFER_SIZE );
 
     while ( !file->eof() ) {
@@ -63,8 +63,8 @@ size_t
 testZeroBytesToChar( const std::unique_ptr<FileReader>& file )
 {
     static constexpr size_t BUFFER_SIZE = 4096;
-    alignas( 64 ) std::array<char, BUFFER_SIZE> buffer;
-    alignas( 64 ) std::array<char, BUFFER_SIZE> zeroBytes;
+    alignas( 64 ) std::array<char, BUFFER_SIZE> buffer{};
+    alignas( 64 ) std::array<char, BUFFER_SIZE> zeroBytes{};
 
     while ( !file->eof() ) {
         const auto nBytesRead = file->read( buffer.data(), buffer.size() );
@@ -81,9 +81,9 @@ size_t
 findZeroBytesBuffers( const std::unique_ptr<FileReader>& file )
 {
     static constexpr size_t BUFFER_SIZE = 4 * 1024;
-    alignas( 64 ) std::array<char, BUFFER_SIZE> buffer;
-    alignas( 64 ) std::array<char, BUFFER_SIZE> zeroBytes;
-    alignas( 64 ) std::array<char, BUFFER_SIZE> ffBytes;
+    alignas( 64 ) std::array<char, BUFFER_SIZE> buffer{};
+    alignas( 64 ) std::array<char, BUFFER_SIZE> zeroBytes{};
+    alignas( 64 ) std::array<char, BUFFER_SIZE> ffBytes{};
 
     while ( !file->eof() ) {
         const auto nBytesRead = file->read( buffer.data(), buffer.size() );
@@ -106,7 +106,7 @@ size_t
 findZeroBytes64Bit( const std::unique_ptr<FileReader>& file )
 {
     static constexpr size_t BUFFER_SIZE = 4 * 1024;
-    alignas( 64 ) std::array<char, BUFFER_SIZE> buffer;
+    alignas( 64 ) std::array<char, BUFFER_SIZE> buffer{};
 
     auto const* const buffer32 = reinterpret_cast<std::uint32_t*>( buffer.data() );
 
@@ -157,7 +157,7 @@ size_t
 findZeroBytes64BitLUT( const std::unique_ptr<FileReader>& file )
 {
     static constexpr size_t BUFFER_SIZE = 128 * 1024;
-    alignas( 64 ) std::array<char, BUFFER_SIZE> buffer;
+    alignas( 64 ) std::array<char, BUFFER_SIZE> buffer{};
 
     auto const* const buffer32 = reinterpret_cast<std::uint32_t*>( buffer.data() );
 
@@ -217,7 +217,7 @@ size_t
 findStringView( const std::unique_ptr<FileReader>& file )
 {
     static constexpr size_t BUFFER_SIZE = 4096;
-    alignas( 64 ) std::array<char, BUFFER_SIZE> buffer;
+    alignas( 64 ) std::array<char, BUFFER_SIZE> buffer{};
     std::vector<bool> zeroBytes( BUFFER_SIZE );
     constexpr std::string_view TEST_STRING{ "\0\0\xFF\xFF", 4 /* required or else strlen is used resulting in zero */ };
 
@@ -260,7 +260,7 @@ size_t
 countZeroBytes( const std::unique_ptr<FileReader>& file )
 {
     static constexpr size_t BUFFER_SIZE = 4096;
-    alignas( 64 ) std::array<char, BUFFER_SIZE> buffer;
+    alignas( 64 ) std::array<char, BUFFER_SIZE> buffer{};
     std::vector<bool> zeroBytes( BUFFER_SIZE );
 
     size_t count = 0;
