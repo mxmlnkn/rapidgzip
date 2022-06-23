@@ -296,7 +296,7 @@ require( bool               condition,
 
 
 template<typename T>
-[[nodiscard]] static constexpr typename T::value_type
+[[nodiscard]] constexpr typename T::value_type
 getMinPositive( const T& container )
 {
     if ( container.empty() ) {
@@ -318,7 +318,7 @@ getMinPositive( const T& container )
 
 
 template<typename T>
-[[nodiscard]] static constexpr typename T::value_type
+[[nodiscard]] constexpr typename T::value_type
 getMax( const T& container )
 {
     const auto match = std::max_element( container.begin(), container.end() );

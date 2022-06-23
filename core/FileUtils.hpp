@@ -90,7 +90,7 @@ throwingOpen( int         fileDescriptor,
 
 
 /** dup is not strong enough to be able to independently seek in the old and the dup'ed fd! */
-std::string
+[[nodiscard]] std::string
 fdFilePath( int fileDescriptor )
 {
     std::stringstream filename;

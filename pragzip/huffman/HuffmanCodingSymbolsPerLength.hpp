@@ -24,10 +24,8 @@ public:
     using BitCount = typename BaseType::BitCount;
     using CodeLengthFrequencies = typename BaseType::CodeLengthFrequencies;
 
-    friend class Block;
-
 protected:
-    void
+    constexpr void
     initializeSymbolsPerLength( const VectorView<BitCount>&  codeLengths,
                                 const CodeLengthFrequencies& bitLengthFrequencies )
     {
@@ -54,7 +52,7 @@ protected:
     }
 
 public:
-    Error
+    [[nodiscard]] constexpr Error
     initializeFromLengths( const VectorView<BitCount>& codeLengths )
     {
         if ( const auto errorCode = BaseType::initializeMinMaxCodeLengths( codeLengths );
@@ -119,9 +117,9 @@ protected:
      * @endverbatim
      * The starting index for a given code length (CL) can be queried with m_offsets.
      */
-    std::array<Symbol, MAX_SYMBOL_COUNT> m_symbolsPerLength;
+    std::array<Symbol, MAX_SYMBOL_COUNT> m_symbolsPerLength{};
     /* +1 because it stores the size at the end as well as 0 in the first element, which might be redundant but fast. */
-    std::array<uint16_t, MAX_CODE_LENGTH + 1> m_offsets;
+    std::array<uint16_t, MAX_CODE_LENGTH + 1> m_offsets{};
     static_assert( MAX_SYMBOL_COUNT + MAX_CODE_LENGTH <= std::numeric_limits<uint16_t>::max(),
                    "Offset type must be able to point at all symbols!" );
 };

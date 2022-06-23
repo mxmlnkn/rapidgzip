@@ -34,7 +34,7 @@ public:
     static_assert( MAX_SYMBOL_COUNT <= NONE_SYMBOL, "Not enough unused symbols for special none symbol!" );
 
 public:
-    Error
+    constexpr Error
     initializeFromLengths( const VectorView<BitCount>& codeLengths )
     {
         //const auto t0 = now();
@@ -270,6 +270,6 @@ private:
      * to store the code length sum for both symbols in only one of the symbols.
      * Using std::array<std::array<Symbol, 2>, ( 1UL << CACHED_BIT_COUNT )> instead of a one-dimensional array
      * with the same size reduces speed for base64.gz by 10%! */
-    alignas(8) std::array<Symbol, 2 * ( 1UL << CACHED_BIT_COUNT )> m_doubleCodeCache = {};
+    alignas(8) std::array<Symbol, 2 * ( 1UL << CACHED_BIT_COUNT )> m_doubleCodeCache{};
 };
 }  // namespace pragzip

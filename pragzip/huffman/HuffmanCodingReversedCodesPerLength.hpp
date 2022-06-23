@@ -24,10 +24,8 @@ public:
     using BitCount = typename BaseType::BitCount;
     using CodeLengthFrequencies = typename BaseType::CodeLengthFrequencies;
 
-    friend class Block;
-
 protected:
-    void
+    constexpr void
     initializeCodingTable( const VectorView<BitCount>&  codeLengths,
                            const CodeLengthFrequencies& bitLengthFrequencies )
     {
@@ -53,7 +51,7 @@ protected:
                 const auto code = codeValuesPerLevel[k];
                 codeValuesPerLevel[k]++;
 
-                HuffmanCode reversedCode;
+                HuffmanCode reversedCode{ 0 };
                 if constexpr ( sizeof( HuffmanCode ) <= sizeof( reversedBitsLUT16[0] ) ) {
                     reversedCode = reversedBitsLUT16[code];
                 } else {
@@ -69,7 +67,7 @@ protected:
     }
 
 public:
-    Error
+    [[nodiscard]] constexpr Error
     initializeFromLengths( const VectorView<BitCount>& codeLengths )
     {
         if ( const auto errorCode = BaseType::initializeMinMaxCodeLengths( codeLengths );
@@ -127,13 +125,13 @@ protected:
      * @endverbatim
      * The starting index for a given code length (CL) can be queried with m_offsets.
      */
-    alignas(8) std::array<Symbol, MAX_SYMBOL_COUNT> m_symbolsPerLength;
-    alignas(8) std::array</* reversed code */ HuffmanCode, MAX_SYMBOL_COUNT> m_codesPerLength;
+    alignas(8) std::array<Symbol, MAX_SYMBOL_COUNT> m_symbolsPerLength{};
+    alignas(8) std::array</* reversed code */ HuffmanCode, MAX_SYMBOL_COUNT> m_codesPerLength{};
 
     /* +1 because it stores the size at the end as well as 0 in the first element, which might be redundant but fast.
      * Stores m_maxCodeLength - m_minCodeLength offsets +1 size. The array is oversized because else we would have
      * to use a std::vector with costly heap-allocations. */
-    alignas(8) std::array<uint16_t, MAX_CODE_LENGTH + 1> m_offsets;
+    alignas(8) std::array<uint16_t, MAX_CODE_LENGTH + 1> m_offsets{};
     static_assert( MAX_SYMBOL_COUNT + MAX_CODE_LENGTH <= std::numeric_limits<uint16_t>::max(),
                    "Offset type must be able to point at all symbols!" );
 };

@@ -13,6 +13,9 @@ endif()
 add_compile_options(
     "$<$<CXX_COMPILER_ID:Clang>:-Wall;-Wextra;-Wshadow;-Werror=return-type>"
     "$<$<CXX_COMPILER_ID:GNU>:-Wall;-Wextra;-Wshadow;-Wunused;-Wsuggest-override;-Werror=return-type>"
+    # The default limit is ~33 M (1<<25) and 99 M seem to be enough currently to compile.
+    "$<$<CXX_COMPILER_ID:GNU>:-fconstexpr-ops-limit=99000100>"
+    "$<$<CXX_COMPILER_ID:Clang>:-fconstexpr-steps=99000100>"
     "$<$<AND:$<CXX_COMPILER_ID:Clang,GNU>,$<BOOL:${CODE_COVERAGE}>>:-O0;-g;--coverage>"
 )
 

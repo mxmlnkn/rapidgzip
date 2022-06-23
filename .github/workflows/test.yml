@@ -85,7 +85,7 @@ jobs:
     - name: Run clang-tidy
       run: |
         mkdir -p build-compile-commands && cd -- "$_"
-        cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+        CC=clang CXX=clang++ cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
         cd ..
         set -o pipefail
         run-clang-tidy -j $( nproc ) -p build-compile-commands | tee clang-tidy.log

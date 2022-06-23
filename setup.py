@@ -4,6 +4,8 @@
 import os
 import platform
 import sys
+import tempfile
+from distutils.errors import CompileError
 
 from setuptools import setup
 from setuptools.extension import Extension
@@ -15,28 +17,38 @@ buildCython = '--cython' in sys.argv
 
 extensions = [
     Extension(
-        name               = 'indexed_bzip2',
-        sources            = [ 'indexed_bzip2/indexed_bzip2.pyx' if buildCython
-                               else 'indexed_bzip2/indexed_bzip2.cpp' ],
-        depends            = [] if buildCython else \
-                             [ 'indexed_bzip2/BitReader.hpp',
-                               'indexed_bzip2/BitStringFinder.hpp',
-                               'indexed_bzip2/BZ2Reader.hpp',
-                               'indexed_bzip2/BZ2ReaderInterface.hpp',
-                               'indexed_bzip2/bzip2.hpp',
-                               'indexed_bzip2/Cache.hpp',
-                               'indexed_bzip2/common.hpp',
-                               'indexed_bzip2/FileReader.hpp',
-                               'indexed_bzip2/JoiningThread.hpp',
-                               'indexed_bzip2/ParallelBitStringFinder.hpp',
-                               'indexed_bzip2/ParallelBZ2Reader.hpp',
-                               'indexed_bzip2/Prefetcher.hpp',
-                               'indexed_bzip2/ThreadPool.hpp'
-                             ],
-        include_dirs       = [ '.', 'core' ],
-        language           = 'c++',
+        name         = 'indexed_bzip2',
+        sources      = [ 'indexed_bzip2/indexed_bzip2.pyx' if buildCython
+                         else 'indexed_bzip2/indexed_bzip2.cpp' ],
+        depends      = [] if buildCython else \
+                       [ 'indexed_bzip2/BitReader.hpp',
+                         'indexed_bzip2/BitStringFinder.hpp',
+                         'indexed_bzip2/BZ2Reader.hpp',
+                         'indexed_bzip2/BZ2ReaderInterface.hpp',
+                         'indexed_bzip2/bzip2.hpp',
+                         'indexed_bzip2/Cache.hpp',
+                         'indexed_bzip2/common.hpp',
+                         'indexed_bzip2/FileReader.hpp',
+                         'indexed_bzip2/JoiningThread.hpp',
+                         'indexed_bzip2/ParallelBitStringFinder.hpp',
+                         'indexed_bzip2/ParallelBZ2Reader.hpp',
+                         'indexed_bzip2/Prefetcher.hpp',
+                         'indexed_bzip2/ThreadPool.hpp'
+                       ],
+        include_dirs = [ '.', 'core' ],
+        language     = 'c++',
     ),
 ]
+
+
+def supportsFlag(compiler, flag):
+    with tempfile.NamedTemporaryFile('w', suffix='.cpp') as file:
+        file.write('int main() { return 0; }')
+        try:
+            compiler.compile([file.name], extra_postargs=[flag])
+        except CompileError:
+            return False
+    return True
 
 
 # https://github.com/cython/cython/blob/master/docs/src/tutorial/appendix.rst#python-38
@@ -62,7 +74,14 @@ class Build(build_ext):
                 ]
 
             elif self.compiler.compiler_type == 'msvc':
-                ext.extra_compile_args = [ '/std:c++17', '/O2', '/DNDEBUG', '/DWITH_PYTHON_SUPPORT' ]
+                ext.extra_compile_args = [ '/std:c++17', '/O2', '/DNDEBUG', '/DWITH_PYTHON_SUPPORT',
+                                           '/constexpr:steps99000100' ]
+            else:
+                # The default limit is ~33 M (1<<25) and 99 M seem to be enough to compile currently on GCC 11.
+                if supportsFlag(self.compiler, '-fconstexpr-steps=99000100'):
+                    ext.extra_compile_args += [ '-fconstexpr-steps=99000100' ]
+                elif supportsFlag(self.compiler, '-fconstexpr-ops-limit=99000100'):
+                    ext.extra_compile_args += [ '-fconstexpr-ops-limit=99000100' ]
 
         super(Build, self).build_extensions()
 

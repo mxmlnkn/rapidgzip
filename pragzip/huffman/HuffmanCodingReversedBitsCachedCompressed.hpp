@@ -34,7 +34,7 @@ public:
     static_assert( MAX_SYMBOL_COUNT <= ( 1UL << LENGTH_SHIFT ), "Not enough free bits to pack length into Symbol!" );
 
 public:
-    Error
+    [[nodiscard]] constexpr Error
     initializeFromLengths( const VectorView<BitCount>& codeLengths )
     {
         if ( const auto errorCode = BaseType::initializeFromLengths( codeLengths );
@@ -67,7 +67,7 @@ public:
             const auto k = length - this->m_minCodeLength;
             const auto code = codeValues[k]++;
 
-            HuffmanCode reversedCode;
+            HuffmanCode reversedCode{ 0 };
             if constexpr ( sizeof( HuffmanCode ) <= sizeof( reversedBitsLUT16[0] ) ) {
                 reversedCode = reversedBitsLUT16[code];
             } else {
@@ -124,6 +124,6 @@ private:
      *  - any pair < 64-bit probably has to use some bit shifts anyway so not much more work
      *  - using 8-bit length and 16-bit symbol yields non-aligned access quite frequently
      *  - the space reduction by 33% might improve L1 cache hit rates or cache line utilization. */
-    alignas(8) std::array<Symbol, ( 1UL << CACHED_BIT_COUNT )> m_codeCache = {};
+    alignas(8) std::array<Symbol, ( 1UL << CACHED_BIT_COUNT )> m_codeCache{};
 };
 }  // namespace pragzip

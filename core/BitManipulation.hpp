@@ -7,7 +7,7 @@
 #include <type_traits>
 
 
-inline bool
+[[nodiscard]] inline bool
 isLittleEndian()
 {
     constexpr uint16_t endianTestNumber = 1;
@@ -15,7 +15,7 @@ isLittleEndian()
 }
 
 
-constexpr uint64_t
+[[nodiscard]] constexpr uint64_t
 byteSwap( uint64_t value )
 {
     value = ( ( value & uint64_t( 0x0000'0000'FFFF'FFFFULL ) ) << 32 ) |
@@ -27,7 +27,7 @@ byteSwap( uint64_t value )
     return value;
 }
 
-constexpr uint32_t
+[[nodiscard]] constexpr uint32_t
 byteSwap( uint32_t value )
 {
     value = ( ( value & uint32_t( 0x0000'FFFFUL ) ) << 16 ) | ( ( value & uint32_t( 0xFFFF'0000UL ) ) >> 16 );
@@ -35,7 +35,7 @@ byteSwap( uint32_t value )
     return value;
 }
 
-constexpr uint16_t
+[[nodiscard]] constexpr uint16_t
 byteSwap( uint16_t value )
 {
     value = ( ( value & uint16_t( 0x00FFU ) ) << 8  ) | ( ( value & uint16_t( 0xFF00U ) ) >> 8  );
@@ -44,7 +44,7 @@ byteSwap( uint16_t value )
 
 
 template<typename T>
-constexpr T
+[[nodiscard]] constexpr T
 nLowestBitsSet( uint8_t nBitsSet )
 {
     static_assert( std::is_unsigned<T>::value, "Type must be signed!" );
@@ -60,7 +60,7 @@ nLowestBitsSet( uint8_t nBitsSet )
 
 
 template<typename T, uint8_t nBitsSet>
-constexpr T
+[[nodiscard]] constexpr T
 nLowestBitsSet()
 {
     static_assert( std::is_unsigned<T>::value, "Type must be signed!" );
@@ -76,7 +76,7 @@ nLowestBitsSet()
 
 
 template<typename T>
-constexpr T
+[[nodiscard]] constexpr T
 nHighestBitsSet( uint8_t nBitsSet )
 {
     static_assert( std::is_unsigned<T>::value, "Type must be signed!" );
@@ -92,7 +92,7 @@ nHighestBitsSet( uint8_t nBitsSet )
 
 
 template<typename T, uint8_t nBitsSet>
-constexpr T
+[[nodiscard]] constexpr T
 nHighestBitsSet()
 {
     static_assert( std::is_unsigned<T>::value, "Type must be signed!" );
@@ -107,7 +107,7 @@ nHighestBitsSet()
 }
 
 
-constexpr uint8_t
+[[nodiscard]] constexpr uint8_t
 reverseBits( uint8_t data )
 {
     /* Reverse bits using bit-parallelism in a recursive fashion, i.e., first swap every bit with its neighbor,
@@ -121,7 +121,7 @@ reverseBits( uint8_t data )
 }
 
 
-constexpr uint16_t
+[[nodiscard]] constexpr uint16_t
 reverseBits( uint16_t data )
 {
     /* Reverse bits using bit-parallelism in a recursive fashion, i.e., first swap every bit with its neighbor,
@@ -140,7 +140,7 @@ reverseBits( uint16_t data )
 }
 
 
-constexpr uint32_t
+[[nodiscard]] constexpr uint32_t
 reverseBits( uint32_t data )
 {
     /* Reverse bits using bit-parallelism in a recursive fashion, i.e., first swap every bit with its neighbor,
@@ -160,7 +160,7 @@ reverseBits( uint32_t data )
 }
 
 
-constexpr uint64_t
+[[nodiscard]] constexpr uint64_t
 reverseBits( uint64_t data )
 {
     /* Reverse bits using bit-parallelism in a recursive fashion, i.e., first swap every bit with its neighbor,
@@ -186,10 +186,10 @@ reverseBits( uint64_t data )
 
 
 template<typename T>
-inline std::array<T, std::numeric_limits<T>::max()>
+[[nodiscard]] constexpr std::array<T, std::numeric_limits<T>::max()>
 createReversedBitsLUT()
 {
-    std::array<T, std::numeric_limits<T>::max()> result;
+    std::array<T, std::numeric_limits<T>::max()> result{};
     for ( uint16_t i = 0; i < result.size(); ++i ) {
         result[i] = reverseBits( i );
     }
@@ -197,5 +197,5 @@ createReversedBitsLUT()
 }
 
 
-alignas(8) static inline const std::array<uint16_t, std::numeric_limits<uint16_t>::max() >
+alignas(8) static constexpr std::array<uint16_t, std::numeric_limits<uint16_t>::max() >
 reversedBitsLUT16 = createReversedBitsLUT<uint16_t>();

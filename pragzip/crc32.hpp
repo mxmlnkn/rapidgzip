@@ -10,7 +10,7 @@ namespace pragzip
 
 using CRC32LookupTable = std::array<uint32_t, 256>;
 
-constexpr CRC32LookupTable
+[[nodiscard]] constexpr CRC32LookupTable
 createCRC32LookupTable() noexcept
 {
     CRC32LookupTable table{};
@@ -33,7 +33,7 @@ static constexpr int CRC32_LOOKUP_TABLE_SIZE = 256;
 /* a small lookup table: raw data -> CRC32 value to speed up CRC calculation */
 alignas(8) constexpr static CRC32LookupTable CRC32_TABLE = createCRC32LookupTable();
 
-constexpr uint32_t
+[[nodiscard]] constexpr uint32_t
 updateCRC32( uint32_t crc,
              uint8_t  data ) noexcept
 {

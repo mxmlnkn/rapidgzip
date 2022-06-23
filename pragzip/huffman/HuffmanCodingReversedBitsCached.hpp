@@ -28,7 +28,7 @@ public:
     static constexpr auto CACHED_BIT_COUNT = MAX_CODE_LENGTH;
 
 public:
-    Error
+    [[nodiscard]] constexpr Error
     initializeFromLengths( const VectorView<BitCount>& codeLengths )
     {
         if ( const auto errorCode = BaseType::initializeFromLengths( codeLengths );
@@ -61,7 +61,7 @@ public:
             const auto k = length - this->m_minCodeLength;
             const auto code = codeValues[k]++;
 
-            HuffmanCode reversedCode;
+            HuffmanCode reversedCode{ 0 };
             if constexpr ( sizeof( HuffmanCode ) <= sizeof( reversedBitsLUT16[0] ) ) {
                 reversedCode = reversedBitsLUT16[code];
             } else {
@@ -73,7 +73,8 @@ public:
             for ( HuffmanCode fillerBits = 0; fillerBits < ( 1UL << fillerBitCount ); ++fillerBits ) {
                 const auto paddedCode = static_cast<HuffmanCode>( ( fillerBits << length ) | reversedCode );
                 assert( paddedCode < m_codeCache.size() );
-                m_codeCache[paddedCode] = { length, symbol };
+                m_codeCache[paddedCode].first = length;
+                m_codeCache[paddedCode].second = symbol;
             }
         }
         //const auto t1 = now();
@@ -108,6 +109,6 @@ public:
     }
 
 private:
-    alignas(8) std::array<std::pair</* length */ uint8_t, Symbol>, ( 1UL << CACHED_BIT_COUNT )> m_codeCache = {};
+    alignas(8) std::array<std::pair</* length */ uint8_t, Symbol>, ( 1UL << CACHED_BIT_COUNT )> m_codeCache{};
 };
 }  // namespace pragzip

@@ -38,10 +38,8 @@ public:
         return m_minCodeLength <= m_maxCodeLength;
     }
 
-    friend class Block;
-
 protected:
-    Error
+    constexpr Error
     initializeMinMaxCodeLengths( const VectorView<BitCount>& codeLengths )
     {
         static_assert( std::is_unsigned_v<HuffmanCode>, "Huffman code type must be unsigned");
@@ -70,7 +68,7 @@ protected:
         return Error::NONE;
     }
 
-    Error
+    constexpr Error
     checkCodeLengthFrequencies( const CodeLengthFrequencies& bitLengthFrequencies,
                                 size_t                       codeLengthsSize )
     {
@@ -111,7 +109,7 @@ protected:
         return Error::NONE;
     }
 
-    void
+    constexpr void
     initializeMinimumCodeValues( CodeLengthFrequencies& bitLengthFrequencies )
     {
         /* Bit lengths of zero mean, that the particular "letter" is not used at all and should be skipped
@@ -159,7 +157,7 @@ public:
      * With this, the Huffman tree can be exactly specified as a vector, whose elements represent
      * the ordered alphabet's symbol's code lengths, e.g, for alphabet ABCD: (2,1,3,3) -> 0b10, 0b0, 0b110, 0b111
      */
-    Error
+    constexpr Error
     initializeFromLengths( const VectorView<BitCount>& codeLengths )
     {
         if ( const auto errorCode = initializeMinMaxCodeLengths( codeLengths );
@@ -183,14 +181,11 @@ public:
         return Error::NONE;
     }
 
-    [[nodiscard]] forceinline std::optional<Symbol>
-    decode( BitReader& bitReader ) const;
-
 protected:
     BitCount m_minCodeLength{ std::numeric_limits<BitCount>::max() };
     BitCount m_maxCodeLength{ std::numeric_limits<BitCount>::min() };
 
     /** Only indexes [0, m_maxCodeLength - m_minCodeLength) contain valid data! */
-    std::array<HuffmanCode, MAX_CODE_LENGTH> m_minimumCodeValuesPerLevel;
+    std::array<HuffmanCode, MAX_CODE_LENGTH> m_minimumCodeValuesPerLevel{};
 };
 }  // namespace pragzip
