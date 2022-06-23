@@ -154,6 +154,7 @@ jobs:
 
     # Valgrind takes up over half the time of the whole pipeline! Therefore, do it last.
     - name: Run valgrind
+      if: github.ref == 'refs/heads/master'
       run: |
         mkdir -p build-valgrind && cd -- "$_"
         cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-DSHORT_TESTS" ..
@@ -201,5 +202,6 @@ jobs:
         python3 -m pip install dist/*.tar.gz
 
     - name: Test BZip2 Decoder Python Package
+      if: github.ref == 'refs/heads/master'
       # indexed_bzip2 should be installed for this step!
       run: python3 tests/testBz2.py
