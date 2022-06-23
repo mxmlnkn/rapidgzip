@@ -45,7 +45,7 @@ operator<<( std::ostream& out, std::vector<size_t> vector )
 [[nodiscard]] std::vector<size_t>
 findGzipStreams( const std::string& fileName )
 {
-    const auto file = throwingOpen( fileName.c_str(), "rb" );
+    const auto file = throwingOpen( fileName, "rb" );
 
     static constexpr auto bufferSize = 4 * 1024 * 1024;
     std::vector<char> buffer( bufferSize, 0 );
@@ -108,7 +108,7 @@ findBgzStreams( const std::string& fileName )
 
     std::cout << "[findBgzStreams] Trying to find block bit offsets in " << totalBytesRead / 1024 / 1024
               << " MiB of data took " << duration(t0, t1) << " s => "
-              << ( totalBytesRead / 1e6 / duration(t0, t1) ) << " MB/s" << "\n";
+              << ( static_cast<double>( totalBytesRead ) / 1e6 / duration(t0, t1) ) << " MB/s" << "\n";
 
     return streamOffsets;
 }
@@ -120,7 +120,7 @@ findBgzStreams( const std::string& fileName )
 [[nodiscard]] std::pair<std::vector<size_t>, std::vector<size_t> >
 parseWithZlib(const std::string& fileName)
 {
-    const auto file = throwingOpen( fileName.c_str(), "rb" );
+    const auto file = throwingOpen( fileName, "rb" );
 
     std::vector<size_t> streamOffsets;
     std::vector<size_t> blockOffsets;
@@ -138,8 +138,8 @@ parseWithZlib(const std::string& fileName)
      * of memory, Z_DATA_ERROR for an error in the input file, or Z_ERRNO for a
      * file read error.  On success, *built points to the resulting index.
      */
-    unsigned char input[BUFFER_SIZE];
-    unsigned char window[WINDOW_SIZE];
+    std::array<unsigned char, BUFFER_SIZE> input{};
+    std::array<unsigned char, WINDOW_SIZE> window{};
 
     /* initialize inflate */
     z_stream stream;
@@ -182,25 +182,25 @@ parseWithZlib(const std::string& fileName)
     while( true )
     {
         /* get some compressed data from input file */
-        stream.avail_in = std::fread( input, 1, BUFFER_SIZE, file.get() );
-        if ( stream.avail_in == 0 && std::feof( file.get() ) ) {
+        stream.avail_in = std::fread( input.data(), 1, input.size(), file.get() );
+        if ( ( stream.avail_in == 0 ) && ( std::feof( file.get() ) != 0 ) ) {
             break;
         }
-        if ( std::ferror( file.get() ) ) {
+        if ( std::ferror( file.get() ) != 0 ) {
             throw Z_ERRNO;
         }
         if ( stream.avail_in == 0 ) {
             throw Z_DATA_ERROR;
         }
-        stream.next_in = input;
+        stream.next_in = input.data();
 
         /* process all of that, or until end of stream */
         while ( stream.avail_in != 0 )
         {
             /* reset sliding window if necessary */
             if ( stream.avail_out == 0 ) {
-                stream.avail_out = WINDOW_SIZE;
-                stream.next_out = window;
+                stream.avail_out = window.size();
+                stream.next_out = window.data();
             }
 
             /* inflate until out of input, output, or at end of block --
@@ -248,8 +248,8 @@ parseWithZlib(const std::string& fileName)
              *    as zlib stops AFTER the block, we are not interested in the offset for the last block,
              *    i.e., we check against the 6-th bit, which corresponds to ( x & 64 ) == 0 for all but last block.
              */
-            if ( ( ( stream.data_type & 128 ) != 0 ) && ( ( stream.data_type & 64 ) == 0 ) ) {
-                blockOffsets.push_back( totin * 8 - ( stream.data_type & 7 ) );
+            if ( ( ( stream.data_type & 128U ) != 0 ) && ( ( stream.data_type & 64U ) == 0 ) ) {
+                blockOffsets.push_back( totin * 8U - ( stream.data_type & 7U ) );
             }
 
         }
@@ -287,7 +287,7 @@ public:
         m_stream.avail_out = 0;       /* remaining free space at next_out */
         m_stream.next_out = Z_NULL;   /* next output byte will go here */
 
-        m_stream.msg = NULL;
+        m_stream.msg = nullptr;
 
         int windowBits = 15;  // maximum value corresponding to 32kiB;
         switch ( format )
@@ -350,7 +350,7 @@ public:
             m_stream.next_in += 1;
             m_stream.avail_in -= 1;
 
-            auto errorCode = inflatePrime( &m_stream, 8 - bitsToSeek, compressed[byteOffset] >> bitsToSeek );
+            auto errorCode = inflatePrime( &m_stream, 8U - bitsToSeek, compressed[byteOffset] >> bitsToSeek );
             if ( errorCode != Z_OK ) {
                 return false;
             }
@@ -373,26 +373,22 @@ public:
             return false;
         }
         const auto nBytesDecoded = outputPreviouslyAvailable - m_stream.avail_out;
-        if ( nBytesDecoded < outputPreviouslyAvailable ) {
-            return false;
-        }
-
-        return true;
+        return nBytesDecoded >= outputPreviouslyAvailable;
     }
 
 private:
     z_stream m_stream;
-    std::vector<unsigned char> m_window = std::vector<unsigned char>( 32 * 1024, '\0' );
-    std::vector<unsigned char> m_outputBuffer = std::vector<unsigned char>( 64 * 1024 * 1024 );
+    std::vector<unsigned char> m_window = std::vector<unsigned char>( 32ULL * 1024ULL, '\0' );
+    std::vector<unsigned char> m_outputBuffer = std::vector<unsigned char>( 64ULL * 1024ULL * 1024ULL );
 };
 
 
 [[nodiscard]] std::vector<size_t>
 findDeflateBlocksZlib( const std::string& fileName )
 {
-    const auto file = throwingOpen( fileName.c_str(), "rb" );
+    const auto file = throwingOpen( fileName, "rb" );
     /* Use uint32_t only for alignment. */
-    std::vector<uint32_t> buffer( 1024 * 1024 / sizeof( uint32_t ), 0 );
+    std::vector<uint32_t> buffer( 1024ULL * 1024ULL / sizeof( uint32_t ), 0 );
     const auto nElementsRead = std::fread( buffer.data(), sizeof( buffer[0] ), buffer.size(), file.get() );
     buffer.resize( nElementsRead );
     pragzip::BitReader bitReader( fileName );
@@ -404,8 +400,8 @@ findDeflateBlocksZlib( const std::string& fileName )
 
     const auto t0 = now();
     for ( size_t offset = 0; offset <= ( buffer.size() - 1 ) * sizeof( buffer[0] ) * CHAR_BIT; ++offset ) {
-        nextThreeBits >>= 1;
-        nextThreeBits |= bitReader.read<1>() << 2;
+        nextThreeBits >>= 1U;
+        nextThreeBits |= bitReader.read<1>() << 2U;
 
         if ( gzip.tryInflate( reinterpret_cast<unsigned char*>( buffer.data() ),
                               buffer.size() * sizeof( buffer[0] ),
@@ -417,7 +413,7 @@ findDeflateBlocksZlib( const std::string& fileName )
     const auto nBytesToTest = buffer.size() * sizeof( buffer[0] );
     std::cout << "[findDeflateBlocksZlib] Trying to find block bit offsets in " << nBytesToTest
               << " B of data took " << duration(t0, t1) << " s => "
-              << ( nBytesToTest / 1e6 / duration(t0, t1) ) << " MB/s" << "\n";
+              << ( static_cast<double>( nBytesToTest ) / 1e6 / duration(t0, t1) ) << " MB/s" << "\n";
 
     return bitOffsets;
 }
@@ -426,9 +422,9 @@ findDeflateBlocksZlib( const std::string& fileName )
 [[nodiscard]] std::vector<size_t>
 findDeflateBlocksZlibOptimized( const std::string& fileName )
 {
-    const auto file = throwingOpen( fileName.c_str(), "rb" );
+    const auto file = throwingOpen( fileName, "rb" );
     /* Use uint32_t only for alignment. */
-    std::vector<uint32_t> buffer( 1024 * 1024 / sizeof( uint32_t ), 0 );
+    std::vector<uint32_t> buffer( 1024ULL * 1024ULL / sizeof( uint32_t ), 0 );
     const auto nElementsRead = std::fread( buffer.data(), sizeof( buffer[0] ), buffer.size(), file.get() );
     buffer.resize( nElementsRead );
     pragzip::BitReader bitReader( fileName );
@@ -490,8 +486,8 @@ findDeflateBlocksZlibOptimized( const std::string& fileName )
 
     const auto t0 = now();
     for ( size_t offset = 0; offset <= ( buffer.size() - 1 ) * sizeof( buffer[0] ) * CHAR_BIT; ++offset ) {
-        nextThreeBits >>= 1;
-        nextThreeBits |= bitReader.read<1>() << 2;
+        nextThreeBits >>= 1U;
+        nextThreeBits |= bitReader.read<1>() << 2U;
 
         /* Ignore final blocks and those with invalid compression. */
         /* Comment out to also find deflate blocks with bgz. But this alone reduces performance by factor 2!!!
@@ -508,7 +504,7 @@ findDeflateBlocksZlibOptimized( const std::string& fileName )
         }
 
         #if 1
-        if ( ( ( nextThreeBits >> 1 ) & 0b11ULL ) == 0b000ULL ) {
+        if ( ( ( nextThreeBits >> 1U ) & 0b11ULL ) == 0b000ULL ) {
             /* Do not use CHAR_BIT because this is a deflate constant defining a byte as 8 bits. */
             const auto nextByteOffset = ceilDiv( offset + 3, 8U );
             const auto length = ( static_cast<uint16_t>( cBuffer[nextByteOffset + 1] ) << CHAR_BIT )
@@ -561,7 +557,7 @@ findDeflateBlocksZlibOptimized( const std::string& fileName )
     const auto nBytesToTest = buffer.size() * sizeof( buffer[0] );
     std::cout << "[findDeflateBlocksZlibOptimized] Trying to find block bit offsets in " << nBytesToTest
               << " B of data took " << duration(t0, t1) << " s => "
-              << ( nBytesToTest / 1e6 / duration(t0, t1) ) << " MB/s" << "\n";
+              << ( static_cast<double>( nBytesToTest ) / 1e6 / duration(t0, t1) ) << " MB/s" << "\n";
 
     const auto totalBitOffsets = ( buffer.size() - 1 ) * sizeof( buffer[0] ) * CHAR_BIT;
     std::cout << "  Needed to test with zlib " << zlibTestCount << " out of " << totalBitOffsets << " times\n";
@@ -578,9 +574,9 @@ findDeflateBlocksPragzip( const std::string& fileName )
 {
     using DeflateBlock = pragzip::deflate::Block</* CRC32 */ false>;
 
-    constexpr auto nBytesToTest = 1024 * 1024;
-    const auto file = throwingOpen( fileName.c_str(), "rb" );
-    BufferedFileReader::AlignedBuffer buffer( nBytesToTest + 4096, 0 );
+    constexpr auto nBytesToTest = 1024ULL * 1024ULL;
+    const auto file = throwingOpen( fileName, "rb" );
+    BufferedFileReader::AlignedBuffer buffer( nBytesToTest + 4096ULL, 0 );
     const auto nElementsReadFromFile = std::fread( buffer.data(), sizeof( buffer[0] ), buffer.size(), file.get() );
     buffer.resize( nElementsReadFromFile );
     pragzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( buffer ) ) );
@@ -591,7 +587,7 @@ findDeflateBlocksPragzip( const std::string& fileName )
     pragzip::deflate::Block block;
     const auto t0 = now();
     for ( size_t offset = 0; offset <= nBytesToTest * CHAR_BIT; ++offset ) {
-        bitReader.seek( offset );
+        bitReader.seek( static_cast<long long int>( offset ) );
         try
         {
         #if 0

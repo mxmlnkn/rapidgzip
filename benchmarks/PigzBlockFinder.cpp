@@ -80,7 +80,7 @@ testZeroBytesToChar( const std::unique_ptr<FileReader>& file )
 size_t
 findZeroBytesBuffers( const std::unique_ptr<FileReader>& file )
 {
-    static constexpr size_t BUFFER_SIZE = 4 * 1024;
+    static constexpr size_t BUFFER_SIZE = 4ULL * 1024ULL;
     alignas( 64 ) std::array<char, BUFFER_SIZE> buffer{};
     alignas( 64 ) std::array<uint8_t, BUFFER_SIZE> zeroBytes{};
     alignas( 64 ) std::array<uint8_t, BUFFER_SIZE> ffBytes{};
@@ -107,7 +107,7 @@ findZeroBytesBuffers( const std::unique_ptr<FileReader>& file )
 size_t
 findZeroBytes64Bit( const std::unique_ptr<FileReader>& file )
 {
-    static constexpr size_t BUFFER_SIZE = 4 * 1024;
+    static constexpr size_t BUFFER_SIZE = 4ULL * 1024ULL;
     alignas( 64 ) std::array<char, BUFFER_SIZE> buffer{};
 
     auto const* const buffer32 = reinterpret_cast<std::uint32_t*>( buffer.data() );
@@ -158,7 +158,7 @@ findZeroBytes64Bit( const std::unique_ptr<FileReader>& file )
 size_t
 findZeroBytes64BitLUT( const std::unique_ptr<FileReader>& file )
 {
-    static constexpr size_t BUFFER_SIZE = 128 * 1024;
+    static constexpr size_t BUFFER_SIZE = 128ULL * 1024ULL;
     alignas( 64 ) std::array<char, BUFFER_SIZE> buffer{};
 
     auto const* const buffer32 = reinterpret_cast<std::uint32_t*>( buffer.data() );
@@ -177,7 +177,7 @@ findZeroBytes64BitLUT( const std::unique_ptr<FileReader>& file )
     //uint64_t constexpr TEST_STRING = 0x61'D3'87'C8'08'08'8B'1FULL;
     //uint64_t constexpr TEST_MASK   = 0xFF'FF'FF'FF'FF'FF'FF'FFULL;
 
-    std::array<uint64_t, 2 * 4> testStrings = {
+    std::array<uint64_t, 2ULL * 4ULL> testStrings = {
         TEST_STRING       , TEST_MASK,
         TEST_STRING << 8U , TEST_MASK << 8U,
         TEST_STRING << 16U, TEST_MASK << 16U,
@@ -316,7 +316,8 @@ measureByteComparison( const std::string& fileName,
     }
 
     std::cout << "Searched " << nBytesRead << " B in " << minTime << " s -> "
-              << nBytesRead / 1e6 / minTime << " MB/s and found " << result.blockCount << " blocks.\n";
+              << static_cast<double>( nBytesRead ) / 1e6 / minTime << " MB/s and found " << result.blockCount
+              << " blocks.\n";
 }
 
 
@@ -367,7 +368,8 @@ benchmarkBlockFinder( const std::string& fileName )
     }
 
     std::cout << "Searched " << nBytesRead << " B in " << minTime << " s -> "
-              << nBytesRead / 1e6 / minTime << " MB/s and found " << result.blockCount << " blocks.\n";
+              << static_cast<double>( nBytesRead ) / 1e6 / minTime << " MB/s and found " << result.blockCount
+              << " blocks.\n";
 }
 
 

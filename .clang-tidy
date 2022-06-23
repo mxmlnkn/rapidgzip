@@ -22,6 +22,8 @@ Checks: |
     -modernize-use-trailing-return-type,
 
     performance-*,
+    -performance-inefficient-string-concatenation,
+
     readability-*,
     -readability-function-cognitive-complexity,
     -readability-redundant-access-specifiers,

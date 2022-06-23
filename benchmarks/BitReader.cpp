@@ -267,7 +267,7 @@ benchmarkBitReaders( const std::vector<char>& data,
         {
             std::vector<double> bandwidths( times.size() );
             std::transform( times.begin(), times.end(), bandwidths.begin(),
-                            [size = data.size()] ( double time ) { return size / time / 1e6; } );
+                            [size = data.size()] ( double time ) { return static_cast<double>( size ) / time / 1e6; } );
             Statistics<double> bandwidthStats{ bandwidths };
 
             /* Motivation for showing min times and maximum bandwidths are because nothing can go faster than
@@ -343,7 +343,7 @@ main()
     try {
         std::vector<char> dataToRead( 16ULL * 1024ULL * 1024ULL );
         for ( auto& x : dataToRead ) {
-            x = rand();
+            x = static_cast<char>( rand() );
         }
 
         std::cerr << "= MSB (bzip2) =\n";

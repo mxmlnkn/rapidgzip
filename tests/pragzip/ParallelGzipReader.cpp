@@ -150,7 +150,7 @@ testParallelDecodingWithIndex()
     const auto decodedFile = tmpFolder.path() / "decoded";
     const auto encodedFile = tmpFolder.path() / "decoded.gz";
     const auto indexFile = tmpFolder.path() / "decoded.gz.index";
-    createRandomTextFile( decodedFile, 64 * 1024 );
+    createRandomTextFile( decodedFile, 64ULL * 1024ULL );
 
     {
         const auto command = "gzip -k " + std::string( decodedFile );
