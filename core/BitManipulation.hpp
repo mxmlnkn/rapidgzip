@@ -47,7 +47,7 @@ template<typename T>
 [[nodiscard]] constexpr T
 nLowestBitsSet( uint8_t nBitsSet )
 {
-    static_assert( std::is_unsigned<T>::value, "Type must be signed!" );
+    static_assert( std::is_unsigned_v<T>, "Type must be unsigned!" );
     if ( nBitsSet == 0 ) {
         return T(0);
     }
@@ -63,7 +63,7 @@ template<typename T, uint8_t nBitsSet>
 [[nodiscard]] constexpr T
 nLowestBitsSet()
 {
-    static_assert( std::is_unsigned<T>::value, "Type must be signed!" );
+    static_assert( std::is_unsigned_v<T>, "Type must be unsigned!" );
     if constexpr ( nBitsSet == 0 ) {
         return T(0);
     } else if constexpr ( nBitsSet >= std::numeric_limits<T>::digits ) {
@@ -79,7 +79,7 @@ template<typename T>
 [[nodiscard]] constexpr T
 nHighestBitsSet( uint8_t nBitsSet )
 {
-    static_assert( std::is_unsigned<T>::value, "Type must be signed!" );
+    static_assert( std::is_unsigned_v<T>, "Type must be unsigned!" );
     if ( nBitsSet == 0 ) {
         return T(0);
     }
@@ -95,7 +95,7 @@ template<typename T, uint8_t nBitsSet>
 [[nodiscard]] constexpr T
 nHighestBitsSet()
 {
-    static_assert( std::is_unsigned<T>::value, "Type must be signed!" );
+    static_assert( std::is_unsigned_v<T>, "Type must be unsigned!" );
     if constexpr ( nBitsSet == 0 ) {
         return T(0);
     } else if constexpr ( nBitsSet >= std::numeric_limits<T>::digits ) {
@@ -189,8 +189,9 @@ template<typename T>
 [[nodiscard]] constexpr std::array<T, std::numeric_limits<T>::max()>
 createReversedBitsLUT()
 {
+    static_assert( std::is_unsigned_v<T>, "Type must be unsigned!" );
     std::array<T, std::numeric_limits<T>::max()> result{};
-    for ( uint16_t i = 0; i < result.size(); ++i ) {
+    for ( T i = 0; i < result.size(); ++i ) {
         result[i] = reverseBits( i );
     }
     return result;

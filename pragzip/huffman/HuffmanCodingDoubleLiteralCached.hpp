@@ -51,10 +51,16 @@ public:
          * Modern complex processors and compiler optimizations are fun. */
         /* const auto t0 = now() */
 
-        const auto nElements = m_doubleCodeCache.size() * sizeof( m_doubleCodeCache[0] ) / sizeof(uint64_t);
-        for ( size_t i = 0; i < nElements; ++i ) {
-            reinterpret_cast<uint64_t*>( m_doubleCodeCache.data() )[i] = 0xFFFF'FFFF'FFFF'FFFFULL;
+        // Works constexpr
+        for ( auto& x : m_doubleCodeCache ) {
+            x = NONE_SYMBOL;
         }
+        // Fast
+        //const auto nElements = m_doubleCodeCache.size() * sizeof( m_doubleCodeCache[0] ) / sizeof(uint64_t);
+        //for ( size_t i = 0; i < nElements; ++i ) {
+        //    reinterpret_cast<uint64_t*>( m_doubleCodeCache.data() )[i] = 0xFFFF'FFFF'FFFF'FFFFULL;
+        //}
+        // Slow
         //std::memset( m_doubleCodeCache.data(), 0xFF, m_doubleCodeCache.size() * sizeof( m_doubleCodeCache[0] ) );
 
         const auto size = this->m_offsets[this->m_maxCodeLength - this->m_minCodeLength + 1];
