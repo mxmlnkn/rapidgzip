@@ -62,7 +62,7 @@ struct Statistics
     }
 
     [[nodiscard]] std::string
-    formatAverageWithUncertainty() const
+    formatAverageWithUncertainty( bool includeBounds = false ) const
     {
         /* Round uncertainty and value according to DIN 1333
          * @see https://www.tu-chemnitz.de/physik/PGP/files/Allgemeines/Rundungsregeln.pdf */
@@ -78,15 +78,25 @@ struct Statistics
             magnitude += 1;
         }
 
+        const auto roundToUnertainty =
+            [magnitude] ( double value )
+            {
+                return std::round( value / std::pow( 10, magnitude ) ) * std::pow( 10, magnitude );
+            };
+
         /**
          * @note To be exact, we would also have to avoid trailing zeros beyond the certainty but that would require
          *       integrating unit formatting into this routine. E.g., do not write (13000 +- 1000) MB but instead
          *       (13 +- 1) GB.
          */
         std::stringstream result;
-        result << std::round( average() / std::pow( 10, magnitude ) ) * std::pow( 10, magnitude )
-               << " +- "
-               << std::round( standardDeviation() / std::pow( 10, magnitude ) ) * std::pow( 10, magnitude );
+        if ( includeBounds ) {
+            result << roundToUnertainty( min ) << " <= ";
+        }
+        result << roundToUnertainty( average() ) << " +- " << roundToUnertainty( standardDeviation() );
+        if ( includeBounds ) {
+            result << " <= " << roundToUnertainty( max );
+        }
 
         return result.str();
     }

@@ -329,6 +329,16 @@ getMax( const T& container )
 }
 
 
+template<typename Container,
+         typename Value>
+[[nodiscard]] constexpr bool
+contains( const Container& container,
+          Value            value )
+{
+    return std::find( container.begin(), container.end(), value ) != container.end();
+}
+
+
 [[nodiscard]] inline bool
 testFlags( const uint64_t value,
            const uint64_t flags )
