@@ -199,7 +199,7 @@ public:
                      * that we have enough bits as long as fewer than the bit buffer size were requested.
                      * Removing this if from the non-throwing frequent path, improves performance measurably! */
                     if ( UNLIKELY( bitsNeeded > m_bitBufferSize ) ) [[unlikely]] {
-                        throw std::domain_error( "[BitReader] Not enough data for requested bits!" );
+                        throw EndOfFileReached();
                     }
                 }
             }

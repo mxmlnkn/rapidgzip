@@ -37,20 +37,13 @@ benchmarkHuffmanCoding( const std::vector<typename HuffmanCoding::BitCount>& cod
 #if 1
     while ( true )
     {
-        try
-        {
+        try {
             const auto symbol = coding.decode( bitReader );
             if ( !symbol ) {
                 break;
             }
             sum += *symbol;
-        }
-        catch ( const std::domain_error& e )
-        {
-            const std::string message = e.what();
-            if ( message.find( "Not enough data" ) == std::string::npos ) {
-                throw e;
-            }
+        } catch ( const pragzip::BitReader::EndOfFileReached& ) {
             break;
         }
     }
