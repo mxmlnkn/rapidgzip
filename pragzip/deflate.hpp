@@ -290,6 +290,14 @@ public:
     [[nodiscard]] Error
     readHeader( BitReader& bitReader );
 
+    /**
+     * Reads the dynamic Huffman code. This is called by @ref readHeader after reading the first three header bits
+     * and determining that it is a dynamic Huffman encoded block.
+     * @note Normally, you want to call @ref readHeader instead. This is only for very specific edge use cases!
+     */
+    [[nodiscard]] Error
+    readDynamicHuffmanCoding( BitReader& bitReader );
+
     [[nodiscard]] constexpr const auto&
     window() const noexcept
     {
@@ -549,9 +557,6 @@ private:
                    "Buffers should at least be able to fit the back-reference window plus the maximum match length." );
 
 private:
-    [[nodiscard]] Error
-    readDynamicHuffmanCoding( BitReader& bitReader );
-
     /* Note that making this constexpr or an immediately evaluated lambda expression to initialize the buffer,
      * increases compile time from 14s to 64s with GCC 11! */
     [[nodiscard]] static PreDecodedBuffer

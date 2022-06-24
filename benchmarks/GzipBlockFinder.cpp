@@ -765,20 +765,20 @@ findDeflateBlocksPragzipLUT( const std::string& fileName )
             const auto nextPosition = nextDeflateCandidateLUT[peeked];  // ~8 MB/s
             //const auto nextPosition = nextDeflateCandidate<CACHED_BIT_COUNT>( peeked );  // ~6 MB/s (slower than LUT!)
 
+            /* If we can skip forward, then that means that the new position only has been partially checked.
+             * Therefore, rechecking the LUT for non-zero skips not only ensures that we aren't wasting time in
+             * readHeader but it also ensures that we can avoid checking the first three bits again inside readHeader
+             * and instead start reading and checking the dynamic Huffman code directly! */
             if ( nextPosition > 0 ) {
                 bitReader.seekAfterPeek( nextPosition );
                 offset += nextPosition;
                 continue;
             }
 
-            auto error = block.readHeader</* count last block as error */ true>( bitReader );
+            bitReader.seekAfterPeek( 3 );
+            auto error = block.readDynamicHuffmanCoding( bitReader );
             if ( error != pragzip::Error::NONE ) {
                 ++offset;
-                continue;
-            }
-
-            if ( block.compressionType() == DeflateBlock::CompressionType::FIXED_HUFFMAN ) {
-                throw 3;
                 continue;
             }
 
@@ -980,13 +980,13 @@ Deflate blocks (495):  192 205414 411532 617749 824122 1029728 1236300 1442840 1
   Needed to test with zlib 2052961 out of 8388576 times
   Block candidates using zlib with shortcuts (41):  192 205414 411532 617749 824122 1029728 1236300 1442840 1649318 1855554 2061582 2267643 2473676 2679825 2886058 ...
 
-[findDeflateBlocksPragzipLUT] Trying to find block bit offsets in 1048576 B of data took 0.13005 s => 8.06289 MB/s
+[findDeflateBlocksPragzipLUT] Trying to find block bit offsets in 1048576 B of data took 0.114624 s => 9.14797 MB/s
   Block candidates pragzip with lookup table (41):  192 205414 411532 617749 824122 1029728 1236300 1442840 1649318 1855554 2061582 2267643 2473676 2679825 2886058 ...
 
 Uncompressed block candidate: 1028349
 Uncompressed block candidate: 3035965
 Uncompressed block candidate: 4654997
-[findDeflateBlocksPragzip] Trying to find block bit offsets in 1048576 B of data took 0.253467 s => 4.13693 MB/s
+[findDeflateBlocksPragzip] Trying to find block bit offsets in 1048576 B of data took 0.238409 s => 4.39822 MB/s
   Block candidates pragzip (44):  192 205414 411532 617749 824122 1028349 1029728 1236300 1442840 1649318 1855554 2061582 2267643 2473676 2679825 ...
 
 Block size distribution: min: 0 B, avg: 25783.4 B +- 38.8132 B, max: 25888 B
@@ -1018,7 +1018,7 @@ Deflate blocks (1195):  192 102374 205527 308631 411790 515077 618182 721566 797
   Needed to test with zlib 2053982 out of 8388576 times
   Block candidates using zlib with shortcuts (87):  192 102374 205527 308631 411790 515077 618182 721566 797472 900531 1003441 1106502 1209841 1313251 1416637 ...
 
-[findDeflateBlocksPragzipLUT] Trying to find block bit offsets in 1048576 B of data took 0.133676 s => 7.84416 MB/s
+[findDeflateBlocksPragzipLUT] Trying to find block bit offsets in 1048576 B of data took 0.119504 s => 8.77443 MB/s
   Block candidates pragzip with lookup table (85):  192 102374 205527 308631 411790 515077 618182 721566 797472 900531 1003441 1106502 1209841 1313251 1416637 ...
 
 Uncompressed block candidate: 2392754
@@ -1047,7 +1047,7 @@ Uncompressed block candidate: 6380404
 Uncompressed block candidate: 6380405
 Uncompressed block candidate: 7330941
 Uncompressed block candidate: 8200597
-[findDeflateBlocksPragzip] Trying to find block bit offsets in 1048576 B of data took 0.258852 s => 4.05088 MB/s
+[findDeflateBlocksPragzip] Trying to find block bit offsets in 1048576 B of data took 0.243356 s => 4.30881 MB/s
   Block candidates pragzip (111):  192 102374 205527 308631 411790 515077 618182 721566 797472 900531 1003441 1106502 1209841 1313251 1416637 ...
 
 Block size distribution: min: 0 B, avg: 10679.8 B +- 4498.38 B, max: 12979 B
@@ -1079,10 +1079,10 @@ Deflate blocks (129):  1136 790905 1580736 2370674 3160686 3950671 4740448 55303
   Needed to test with zlib 2048092 out of 8388576 times
   Block candidates using zlib with shortcuts (12):  1136 790905 1580736 2370674 3160686 3950671 4740448 5530378 6321349 7112718 7903168 8069446
 
-[findDeflateBlocksPragzipLUT] Trying to find block bit offsets in 1048576 B of data took 0.121081 s => 8.66011 MB/s
+[findDeflateBlocksPragzipLUT] Trying to find block bit offsets in 1048576 B of data took 0.111406 s => 9.41218 MB/s
   Block candidates pragzip with lookup table (11):  1136 790905 1580736 2370674 3160686 3950671 4740448 5530378 6321349 7112718 7903168
 
-[findDeflateBlocksPragzip] Trying to find block bit offsets in 1048576 B of data took 0.243206 s => 4.31147 MB/s
+[findDeflateBlocksPragzip] Trying to find block bit offsets in 1048576 B of data took 0.239417 s => 4.37971 MB/s
   Block candidates pragzip (11):  1136 790905 1580736 2370674 3160686 3950671 4740448 5530378 6321349 7112718 7903168
 
 Block size distribution: min: 0 B, avg: 98870.4 B +- 77.9492 B, max: 98950 B
@@ -1116,10 +1116,10 @@ Deflate blocks (259):  144 403992 807728 1211616 1615408 2019104 2422936 2826584
   Needed to test with zlib 2021401 out of 8388576 times
   Block candidates using zlib with shortcuts (0):
 
-[findDeflateBlocksPragzipLUT] Trying to find block bit offsets in 1048576 B of data took 0.118353 s => 8.85972 MB/s
+[findDeflateBlocksPragzipLUT] Trying to find block bit offsets in 1048576 B of data took 0.111294 s => 9.4217 MB/s
   Block candidates pragzip with lookup table (0):
 
-[findDeflateBlocksPragzip] Trying to find block bit offsets in 1048576 B of data took 0.238285 s => 4.40051 MB/s
+[findDeflateBlocksPragzip] Trying to find block bit offsets in 1048576 B of data took 0.231394 s => 4.53155 MB/s
   Block candidates pragzip (0):
 
 Block size distribution: min: 0 B, avg: 50276.8 B +- 3127.04 B, max: 50494 B
@@ -1159,12 +1159,12 @@ Deflate blocks (989):  192 102672 205833 308639 411748 515132 618285 721612 8248
   Needed to test with zlib 2053331 out of 8388576 times
   Block candidates using zlib with shortcuts (81):  192 102672 205833 308639 411748 515132 618285 721612 824892 928415 1031456 1134888 1238197 1341253 1444122 ...
 
-[findDeflateBlocksPragzipLUT] Trying to find block bit offsets in 1048576 B of data took 0.133418 s => 7.85932 MB/s
+[findDeflateBlocksPragzipLUT] Trying to find block bit offsets in 1048576 B of data took 0.118611 s => 8.84046 MB/s
   Block candidates pragzip with lookup table (82):  192 102672 205833 308639 411748 515132 618285 721612 824892 928415 1031456 1134888 1238197 1341253 1444122 ...
 
 Uncompressed block candidate: 7237461
 Uncompressed block candidate: 7694037
-[findDeflateBlocksPragzip] Trying to find block bit offsets in 1048576 B of data took 0.256962 s => 4.08066 MB/s
+[findDeflateBlocksPragzip] Trying to find block bit offsets in 1048576 B of data took 0.23903 s => 4.38679 MB/s
   Block candidates pragzip (84):  192 102672 205833 308639 411748 515132 618285 721612 824892 928415 1031456 1134888 1238197 1341253 1444122 ...
 
 Block size distribution: min: 0 B, avg: 12903 B +- 27.2736 B, max: 12999 B
@@ -1206,13 +1206,13 @@ Deflate blocks (495):  272 205800 411533 617885 824269 1030628 1237131 1442923 1
   Needed to test with zlib 2049704 out of 8388576 times
   Block candidates using zlib with shortcuts (41):  272 205800 411533 617885 824269 1030628 1237131 1442923 1649106 1855109 2061199 2267938 2473926 2680186 2886437 ...
 
-[findDeflateBlocksPragzipLUT] Trying to find block bit offsets in 1048576 B of data took 0.129953 s => 8.06888 MB/s
+[findDeflateBlocksPragzipLUT] Trying to find block bit offsets in 1048576 B of data took 0.114198 s => 9.18211 MB/s
   Block candidates pragzip with lookup table (41):  272 205800 411533 617885 824269 1030628 1237131 1442923 1649106 1855109 2061199 2267938 2473926 2680186 2886437 ...
 
 Uncompressed block candidate: 2347916
 Uncompressed block candidate: 2347917
 Uncompressed block candidate: 6206005
-[findDeflateBlocksPragzip] Trying to find block bit offsets in 1048576 B of data took 0.254669 s => 4.1174 MB/s
+[findDeflateBlocksPragzip] Trying to find block bit offsets in 1048576 B of data took 0.237604 s => 4.41313 MB/s
   Block candidates pragzip (44):  272 205800 411533 617885 824269 1030628 1237131 1442923 1649106 1855109 2061199 2267938 2347916 2347917 2473926 ...
 
 Block size distribution: min: 0 B, avg: 25782.9 B +- 37.5362 B, max: 25890 B
