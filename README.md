@@ -27,6 +27,19 @@ However, per default, the older serial implementation is used.
 To use the parallel implementation you need to specify a `parallelization` argument other than 1 to `IndexedBzip2File`, see e.g. [this example](#comparison-with-bz2-module).
 
 
+# Table of Contents
+
+1. [Installation](#installation)
+2. [Usage](#usage)
+   1. [Python Library](#python-library)
+   2. [Via Ratarmount](#via-ratarmount)
+   3. [Command Line Tool](#command-line-tool)
+   4. [C++ Library](#c-library)
+3. [Performance comparison with bz2 module](#performance-comparison-with-bz2-module)
+4. [Internal Architecture](#internal-architecture)
+5. [Tracing the Decoder](#tracing-the-decoder)
+
+
 # Installation
 
 You can simply install it from PyPI:
@@ -36,9 +49,11 @@ python3 -m pip install --upgrade pip  # Recommended for newer manylinux wheels
 python3 -m pip install indexed_bzip2
 ```
 
-# Usage Examples
+# Usage
 
-## Simple open, seek, read, and close
+## Python Library
+
+### Simple open, seek, read, and close
 
 ```python3
 from indexed_bzip2 import IndexedBzip2File
@@ -55,7 +70,7 @@ The first call to seek will ensure that the block offset list is complete and th
 Because of this the first call to seek might take a while.
 
 
-## Use with context manager
+### Use with context manager
 
 ```python3
 import os
@@ -67,7 +82,7 @@ with ibz2.open( "example.bz2", parallelization = os.cpu_count() ) as file:
 ```
 
 
-## Storing and loading the block offset map
+### Storing and loading the block offset map
 
 The creation of the list of bzip2 blocks can take a while because it has to decode the bzip2 file completely.
 To avoid this setup when opening a bzip2 file, the block offset list can be exported and imported.
@@ -97,7 +112,7 @@ file2.close()
 ```
 
 
-## Open a pure Python file-like object for indexed reading
+### Open a pure Python file-like object for indexed reading
 
 ```python3
 import io
@@ -113,7 +128,68 @@ with ibz2.open( in_memory_file, parallelization = os.cpu_count() ) as file:
 ```
 
 
-## Comparison with bz2 module
+## Via Ratarmount
+
+Because `indexed_bzip2` is used by default as a backend in ratarmount, you can use [ratarmount](https://github.com/mxmlnkn/ratarmount) to mount single bzip2 files easily.
+Furthermore, since ratarmount 0.11.0, parallelization is the default and does not have to be specified explicitly with `-P`.
+
+```bash
+base64 /dev/urandom | head -c $(( 512 * 1024 * 1024 )) | bzip2 > sample.bz2
+# Serial decoding: 23 s
+time bzip2 -c -d sample.bz2 | wc -c
+
+python3 -m pip install --user ratarmount
+ratarmount sample.bz2 mounted
+
+# Parallel decoding: 2 s
+time cat mounted/sample | wc -c
+
+# Random seeking to the middle of the file and reading 1 MiB: 0.132 s
+time dd if=mounted/sample bs=$(( 1024 * 1024 )) \
+       iflag=skip_bytes,count_bytes skip=$(( 256 * 1024 * 1024 )) count=$(( 1024 * 1024 )) | wc -c
+```
+
+
+## Command Line Tool
+
+
+A rudimentary command line tool exists but is not yet shipped with the Python module and instead has to be built from source.
+
+```c++
+git clone https://github.com/mxmlnkn/indexed_bzip2.git
+cd indexed_bzip2
+mkdir build
+cd build
+cmake ..
+cmake --build . -- ibzip2
+```
+
+The finished `ibzip2` binary is created in the `tools` subfolder.
+To install it, it can be copied, e.g., to `/usr/local/bin` or anywhere else as long as it is available in your `PATH` variable.
+The command line options are similar to those of the existing `bzip2` tool.
+
+```bash
+tools/ibzip2 --help
+
+# Parallel decoding: 1.7 s
+time tools/ibzip2 -d -c -P 0 sample.bz2 | wc -c
+
+# Serial decoding: 22 s
+time bzip2 -d -c sample.bz2 | wc -c
+```
+
+
+# C++ library
+
+Because it is written in C++, it can of course also be used as a C++ library.
+In order to make heavy use of templates and to simplify compiling with Python `setuptools`, it is completely header-only so that integration it into another project should be easy.
+The license is also permissive enough for most use cases.
+
+I currently did not yet test integrating it into other projects other than simply manually copying the source in `core` and `indexed_bzip2`.
+If you have suggestions and wishes like support with CMake or Conan, please open an issue.
+
+
+# Performance comparison with bz2 module
 
 These are simple timing tests for reading all the contents of a bzip2 file sequentially.
 
@@ -170,7 +246,7 @@ Click [here](results/design/ParallelBZ2Reader.png) or the image to get a larger 
 
 [![Class Diagram for ParallelBZ2Reader](results/design/ParallelBZ2Reader.png)](results/design/ParallelBZ2Reader.png)
 
-# Tracing the decoder
+# Tracing the Decoder
 
 Performance profiling and tracing is done with [Score-P](https://www.vi-hps.org/projects/score-p/) for instrumentation and [Vampir](https://vampir.eu/) for visualization.
 This is one way, you could install Score-P with most of the functionalities on Debian 10.
