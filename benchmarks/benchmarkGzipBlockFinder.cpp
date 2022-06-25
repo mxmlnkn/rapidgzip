@@ -857,8 +857,9 @@ benchmarkGzip( const std::string& fileName )
     /* In general, all solutions should return all blocks except for the final block, uncompressed blocks
      * and fixed Huffman encoded blocks. */
     const auto verifyCandidates =
-        [&blockOffsets] ( const std::vector<size_t>& blockCandidates,
-                          const size_t               nBytesToTest )
+        [&blockOffsets = blockOffsets]
+        ( const std::vector<size_t>& blockCandidates,
+          const size_t               nBytesToTest )
         {
             for ( size_t i = 0; i + 1 < blockOffsets.size(); ++i ) {
                 /* Pigz produces a lot of very small fixed Huffman blocks, probably because of a "flush".
@@ -1041,8 +1042,9 @@ main( int    argc,
 
             if ( name == "gzip" ) {
                 std::cerr << "=== Testing different Pragzip + LUT table sizes ===\n\n";
-                /* CACHED_BIT_COUNT == 19 fails because it requires > 99 M constexpr steps. */
-                benchmarkLUTSize<18>( bufferFile( newFileName ) );
+                /* CACHED_BIT_COUNT == 19 fails on GCC because it requires > 99 M constexpr steps.
+                 * CACHED_BIT_COUNT == 18 fail on clang because it requires > 99 M constexpr steps. */
+                benchmarkLUTSize<16>( bufferFile( newFileName ) );
                 std::cerr << "\n\n";
             }
 
