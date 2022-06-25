@@ -57,7 +57,7 @@ checkOffsets( const std::string&         filePath,
     }
 
     const std::set<uint64_t> bitStringsToFind = { bzip2::MAGIC_BITS_BLOCK, bzip2::MAGIC_BITS_EOS };
-    BitReader bitReader( filePath );
+    bzip2::BitReader bitReader( filePath );
     for ( const auto offset : offsets ) {
         bitReader.seek( static_cast<long long int>( offset ) );
         /* Because bitReader is limited to 32-bit. */

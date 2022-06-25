@@ -422,165 +422,165 @@ main()
 == Benchmarking by reading 1 bits ==
 
 === 32-bit Buffer ===
-[  Simple bit reading loop] Decoded with ( 230.1 +- 2.7, max: 232.073 ) MB/s
-[           BitReader read] Decoded with ( 167.9 +- 1.6, max: 170.2 ) MB/s
-[  BitReader template read] Decoded with ( 254.5 +- 0.4, max: 254.888 ) MB/s
-[  BitReader template peek] Decoded with ( 221.9 +- 1.5, max: 223.728 ) MB/s
+[  Simple bit reading loop] Decoded with ( 230.1 +- 2.9, max: 231.861 ) MB/s
+[           BitReader read] Decoded with ( 162.1 +- 2, max: 163.732 ) MB/s
+[  BitReader template read] Decoded with ( 195 +- 9, max: 206.677 ) MB/s
+[  BitReader template peek] Decoded with ( 217 +- 10, max: 225.264 ) MB/s
 
 === 64-bit Buffer ===
-[  Simple bit reading loop] Decoded with ( 230.7 +- 1.5, max: 231.746 ) MB/s
-[           BitReader read] Decoded with ( 150.2 +- 0.5, max: 150.706 ) MB/s
-[  BitReader template read] Decoded with ( 240.7 +- 1.7, max: 242.482 ) MB/s
-[  BitReader template peek] Decoded with ( 208.4 +- 2.1, max: 210.639 ) MB/s
+[  Simple bit reading loop] Decoded with ( 227 +- 0.7, max: 227.758 ) MB/s
+[           BitReader read] Decoded with ( 153 +- 1.8, max: 154.097 ) MB/s
+[  BitReader template read] Decoded with ( 188 +- 5, max: 190.886 ) MB/s
+[  BitReader template peek] Decoded with ( 219.7 +- 2, max: 222.18 ) MB/s
 
 == Benchmarking by reading 2 bits ==
 
 === 32-bit Buffer ===
-[  Simple bit reading loop] Decoded with ( 429.1 +- 0.5, max: 429.573 ) MB/s
-[           BitReader read] Decoded with ( 311.3 +- 0.9, max: 312.134 ) MB/s
-[  BitReader template read] Decoded with ( 372.4 +- 2.9, max: 376.526 ) MB/s
-[  BitReader template peek] Decoded with ( 399.7 +- 0.5, max: 400.529 ) MB/s
+[  Simple bit reading loop] Decoded with ( 415.2 +- 2.4, max: 418.042 ) MB/s
+[           BitReader read] Decoded with ( 280 +- 0.5, max: 280.418 ) MB/s
+[  BitReader template read] Decoded with ( 341 +- 1.4, max: 342.356 ) MB/s
+[  BitReader template peek] Decoded with ( 324 +- 4, max: 327.874 ) MB/s
 
 === 64-bit Buffer ===
-[  Simple bit reading loop] Decoded with ( 416.6 +- 2.9, max: 419.988 ) MB/s
-[           BitReader read] Decoded with ( 277 +- 4, max: 281.569 ) MB/s
-[  BitReader template read] Decoded with ( 376 +- 4, max: 381.526 ) MB/s
-[  BitReader template peek] Decoded with ( 392.6 +- 0.2, max: 392.882 ) MB/s
+[  Simple bit reading loop] Decoded with ( 407.6 +- 0.5, max: 408.046 ) MB/s
+[           BitReader read] Decoded with ( 273.6 +- 2.5, max: 275.975 ) MB/s
+[  BitReader template read] Decoded with ( 273.5 +- 1.9, max: 276.256 ) MB/s
+[  BitReader template peek] Decoded with ( 348.9 +- 1.3, max: 349.805 ) MB/s
 
 == Benchmarking by reading 8 bits ==
 
 === 32-bit Buffer ===
-[  Simple bit reading loop] Decoded with ( 990 +- 90, max: 1066.78 ) MB/s
-[           BitReader read] Decoded with ( 830 +- 4, max: 834.197 ) MB/s
-[  BitReader template read] Decoded with ( 1037 +- 10, max: 1046.63 ) MB/s
-[  BitReader template peek] Decoded with ( 1063 +- 5, max: 1070 ) MB/s
+[  Simple bit reading loop] Decoded with ( 1050 +- 100, max: 1101.68 ) MB/s
+[           BitReader read] Decoded with ( 520 +- 70, max: 604.628 ) MB/s
+[  BitReader template read] Decoded with ( 673 +- 27, max: 689.042 ) MB/s
+[  BitReader template peek] Decoded with ( 604 +- 5, max: 607.177 ) MB/s
 
 === 64-bit Buffer ===
-[  Simple bit reading loop] Decoded with ( 892 +- 5, max: 897.132 ) MB/s
-[           BitReader read] Decoded with ( 820.1 +- 2, max: 822.338 ) MB/s
-[  BitReader template read] Decoded with ( 1088 +- 4, max: 1091.71 ) MB/s
-[  BitReader template peek] Decoded with ( 1090 +- 9, max: 1096.57 ) MB/s
+[  Simple bit reading loop] Decoded with ( 980 +- 90, max: 1034.65 ) MB/s
+[           BitReader read] Decoded with ( 669 +- 4, max: 672.538 ) MB/s
+[  BitReader template read] Decoded with ( 693 +- 8, max: 701.251 ) MB/s
+[  BitReader template peek] Decoded with ( 625 +- 15, max: 636.502 ) MB/s
 
 == Benchmarking by reading 15 bits ==
 
 === 32-bit Buffer ===
-[  Simple bit reading loop] Decoded with ( 929 +- 28, max: 949.778 ) MB/s
-[           BitReader read] Decoded with ( 1009 +- 7, max: 1014.65 ) MB/s
-[  BitReader template read] Decoded with ( 1248 +- 8, max: 1255.21 ) MB/s
-[  BitReader template peek] Decoded with ( 950 +- 5, max: 957.703 ) MB/s
+[  Simple bit reading loop] Decoded with ( 890 +- 60, max: 921.511 ) MB/s
+[           BitReader read] Decoded with ( 694.2 +- 1.3, max: 695.381 ) MB/s
+[  BitReader template read] Decoded with ( 776 +- 6, max: 782.315 ) MB/s
+[  BitReader template peek] Decoded with ( 594 +- 16, max: 611.964 ) MB/s
 
 === 64-bit Buffer ===
-[  Simple bit reading loop] Decoded with ( 979 +- 5, max: 982.57 ) MB/s
-[           BitReader read] Decoded with ( 1087 +- 3, max: 1090.67 ) MB/s
-[  BitReader template read] Decoded with ( 1362 +- 11, max: 1377.61 ) MB/s
-[  BitReader template peek] Decoded with ( 1303 +- 19, max: 1322.43 ) MB/s
+[  Simple bit reading loop] Decoded with ( 1062 +- 12, max: 1069.96 ) MB/s
+[           BitReader read] Decoded with ( 756 +- 8, max: 766.969 ) MB/s
+[  BitReader template read] Decoded with ( 792.9 +- 2, max: 795.802 ) MB/s
+[  BitReader template peek] Decoded with ( 676 +- 5, max: 680.475 ) MB/s
 
 == Benchmarking by reading 16 bits ==
 
 === 32-bit Buffer ===
-[  Simple bit reading loop] Decoded with ( 1170 +- 80, max: 1279.44 ) MB/s
-[           BitReader read] Decoded with ( 1120 +- 80, max: 1167.36 ) MB/s
-[  BitReader template read] Decoded with ( 1310 +- 100, max: 1366.1 ) MB/s
-[  BitReader template peek] Decoded with ( 1360 +- 100, max: 1414.47 ) MB/s
+[  Simple bit reading loop] Decoded with ( 1239 +- 4, max: 1243.71 ) MB/s
+[           BitReader read] Decoded with ( 758.8 +- 1.9, max: 760.537 ) MB/s
+[  BitReader template read] Decoded with ( 768 +- 7, max: 777.922 ) MB/s
+[  BitReader template peek] Decoded with ( 657 +- 4, max: 660.942 ) MB/s
 
 === 64-bit Buffer ===
-[  Simple bit reading loop] Decoded with ( 1020 +- 40, max: 1043.82 ) MB/s
-[           BitReader read] Decoded with ( 1192 +- 7, max: 1198.86 ) MB/s
-[  BitReader template read] Decoded with ( 1455 +- 18, max: 1474.78 ) MB/s
-[  BitReader template peek] Decoded with ( 1429 +- 17, max: 1455.03 ) MB/s
+[  Simple bit reading loop] Decoded with ( 1150 +- 40, max: 1192.12 ) MB/s
+[           BitReader read] Decoded with ( 829 +- 5, max: 832.061 ) MB/s
+[  BitReader template read] Decoded with ( 828.5 +- 1.6, max: 830.172 ) MB/s
+[  BitReader template peek] Decoded with ( 688 +- 7, max: 692.378 ) MB/s
 
 = LSB (gzip) =
 
 == Benchmarking by reading 1 bits ==
 
 === 32-bit Buffer ===
-[  Simple bit reading loop] Decoded with ( 262.8 +- 0.6, max: 263.223 ) MB/s
-[           BitReader read] Decoded with ( 155.5 +- 2.2, max: 158.327 ) MB/s
-[  BitReader template read] Decoded with ( 218.3 +- 1.4, max: 219.231 ) MB/s
-[  BitReader template peek] Decoded with ( 226 +- 1.5, max: 227.281 ) MB/s
+[  Simple bit reading loop] Decoded with ( 241.6 +- 2.2, max: 243.662 ) MB/s
+[           BitReader read] Decoded with ( 190.8 +- 0.7, max: 191.297 ) MB/s
+[  BitReader template read] Decoded with ( 175 +- 3, max: 178.7 ) MB/s
+[  BitReader template peek] Decoded with ( 182.2 +- 1.3, max: 183.099 ) MB/s
 
 === 64-bit Buffer ===
-[  Simple bit reading loop] Decoded with ( 256 +- 3, max: 259.625 ) MB/s
-[           BitReader read] Decoded with ( 153.5 +- 1.2, max: 154.163 ) MB/s
-[  BitReader template read] Decoded with ( 210.5 +- 0.8, max: 211.311 ) MB/s
-[  BitReader template peek] Decoded with ( 225.4 +- 1.9, max: 227.542 ) MB/s
+[  Simple bit reading loop] Decoded with ( 216.3 +- 0.6, max: 216.802 ) MB/s
+[           BitReader read] Decoded with ( 212.5 +- 2.2, max: 214.712 ) MB/s
+[  BitReader template read] Decoded with ( 224.5 +- 2.2, max: 226.785 ) MB/s
+[  BitReader template peek] Decoded with ( 191.9 +- 2.1, max: 194.702 ) MB/s
 
 == Benchmarking by reading 2 bits ==
 
 === 32-bit Buffer ===
-[  Simple bit reading loop] Decoded with ( 475 +- 4, max: 478.4 ) MB/s
-[           BitReader read] Decoded with ( 290 +- 1.2, max: 290.765 ) MB/s
-[  BitReader template read] Decoded with ( 362 +- 3, max: 366.267 ) MB/s
-[  BitReader template peek] Decoded with ( 250.8 +- 0.8, max: 251.849 ) MB/s
+[  Simple bit reading loop] Decoded with ( 388 +- 3, max: 390.164 ) MB/s
+[           BitReader read] Decoded with ( 326.3 +- 0.6, max: 327.178 ) MB/s
+[  BitReader template read] Decoded with ( 290.1 +- 0.9, max: 290.789 ) MB/s
+[  BitReader template peek] Decoded with ( 279.3 +- 2.6, max: 281.663 ) MB/s
 
 === 64-bit Buffer ===
-[  Simple bit reading loop] Decoded with ( 464.1 +- 2.2, max: 465.842 ) MB/s
-[           BitReader read] Decoded with ( 288.8 +- 1.8, max: 291.104 ) MB/s
-[  BitReader template read] Decoded with ( 352.3 +- 2.6, max: 354.538 ) MB/s
-[  BitReader template peek] Decoded with ( 361.4 +- 0.6, max: 362.289 ) MB/s
+[  Simple bit reading loop] Decoded with ( 386 +- 0.9, max: 386.937 ) MB/s
+[           BitReader read] Decoded with ( 384.8 +- 0.3, max: 385.251 ) MB/s
+[  BitReader template read] Decoded with ( 326.3 +- 2.6, max: 328.408 ) MB/s
+[  BitReader template peek] Decoded with ( 326.51 +- 0.21, max: 326.768 ) MB/s
 
 == Benchmarking by reading 8 bits ==
 
 === 32-bit Buffer ===
-[  Simple bit reading loop] Decoded with ( 1232 +- 9, max: 1238.25 ) MB/s
-[           BitReader read] Decoded with ( 768 +- 4, max: 770.705 ) MB/s
-[  BitReader template read] Decoded with ( 1030 +- 14, max: 1042.51 ) MB/s
-[  BitReader template peek] Decoded with ( 964 +- 10, max: 972.195 ) MB/s
+[  Simple bit reading loop] Decoded with ( 893 +- 3, max: 895.86 ) MB/s
+[           BitReader read] Decoded with ( 680 +- 3, max: 683.871 ) MB/s
+[  BitReader template read] Decoded with ( 621.6 +- 1.3, max: 623.266 ) MB/s
+[  BitReader template peek] Decoded with ( 604 +- 21, max: 618.594 ) MB/s
 
 === 64-bit Buffer ===
-[  Simple bit reading loop] Decoded with ( 1134 +- 11, max: 1143.01 ) MB/s
-[           BitReader read] Decoded with ( 831 +- 9, max: 837.487 ) MB/s
-[  BitReader template read] Decoded with ( 1072 +- 4, max: 1076.04 ) MB/s
-[  BitReader template peek] Decoded with ( 910 +- 5, max: 915.332 ) MB/s
+[  Simple bit reading loop] Decoded with ( 810 +- 50, max: 836.893 ) MB/s
+[           BitReader read] Decoded with ( 810 +- 60, max: 844.787 ) MB/s
+[  BitReader template read] Decoded with ( 800 +- 60, max: 832.863 ) MB/s
+[  BitReader template peek] Decoded with ( 714 +- 22, max: 726.076 ) MB/s
 
 == Benchmarking by reading 15 bits ==
 
 === 32-bit Buffer ===
-[  Simple bit reading loop] Decoded with ( 989 +- 3, max: 991.775 ) MB/s
-[           BitReader read] Decoded with ( 1073 +- 5, max: 1077.67 ) MB/s
-[  BitReader template read] Decoded with ( 1305 +- 5, max: 1309.69 ) MB/s
-[  BitReader template peek] Decoded with ( 968.3 +- 2, max: 970.302 ) MB/s
+[  Simple bit reading loop] Decoded with ( 740 +- 40, max: 764.192 ) MB/s
+[           BitReader read] Decoded with ( 740 +- 40, max: 760.927 ) MB/s
+[  BitReader template read] Decoded with ( 714 +- 28, max: 732.89 ) MB/s
+[  BitReader template peek] Decoded with ( 625 +- 9, max: 634.09 ) MB/s
 
 === 64-bit Buffer ===
-[  Simple bit reading loop] Decoded with ( 1440 +- 8, max: 1446.74 ) MB/s
-[           BitReader read] Decoded with ( 1192 +- 8, max: 1200.35 ) MB/s
-[  BitReader template read] Decoded with ( 1402 +- 14, max: 1415.49 ) MB/s
-[  BitReader template peek] Decoded with ( 1201 +- 12, max: 1211.54 ) MB/s
+[  Simple bit reading loop] Decoded with ( 981.5 +- 2.4, max: 983.68 ) MB/s
+[           BitReader read] Decoded with ( 983 +- 6, max: 989.062 ) MB/s
+[  BitReader template read] Decoded with ( 1026 +- 4, max: 1029.28 ) MB/s
+[  BitReader template peek] Decoded with ( 779 +- 4, max: 782.971 ) MB/s
 
 == Benchmarking by reading 16 bits ==
 
 === 32-bit Buffer ===
-[  Simple bit reading loop] Decoded with ( 1473 +- 5, max: 1477.78 ) MB/s
-[           BitReader read] Decoded with ( 1091 +- 4, max: 1095.11 ) MB/s
-[  BitReader template read] Decoded with ( 1378 +- 3, max: 1381.31 ) MB/s
-[  BitReader template peek] Decoded with ( 1224 +- 3, max: 1227.96 ) MB/s
+[  Simple bit reading loop] Decoded with ( 1050 +- 10, max: 1058.53 ) MB/s
+[           BitReader read] Decoded with ( 847.8 +- 2.2, max: 849.808 ) MB/s
+[  BitReader template read] Decoded with ( 748 +- 4, max: 753.922 ) MB/s
+[  BitReader template peek] Decoded with ( 728 +- 5, max: 734.149 ) MB/s
 
 === 64-bit Buffer ===
-[  Simple bit reading loop] Decoded with ( 1610.6 +- 2.7, max: 1613.77 ) MB/s
-[           BitReader read] Decoded with ( 1270 +- 5, max: 1274.75 ) MB/s
-[  BitReader template read] Decoded with ( 1516 +- 8, max: 1525 ) MB/s
-[  BitReader template peek] Decoded with ( 1317 +- 11, max: 1327.02 ) MB/s
+[  Simple bit reading loop] Decoded with ( 1069 +- 12, max: 1084.89 ) MB/s
+[           BitReader read] Decoded with ( 1025 +- 4, max: 1029.37 ) MB/s
+[  BitReader template read] Decoded with ( 1031 +- 5, max: 1035.14 ) MB/s
+[  BitReader template peek] Decoded with ( 804 +- 4, max: 808.422 ) MB/s
 
 
 = MSB (bzip2) =
 == Simple bit reading loop ==
 64-bit is faster 1, slower 2, and approximately equal 2 out of 5 times.
 == BitReader read ==
-64-bit is faster 2, slower 3, and approximately equal 0 out of 5 times.
-== BitReader template read ==
-64-bit is faster 3, slower 1, and approximately equal 1 out of 5 times.
-== BitReader template peek ==
 64-bit is faster 3, slower 2, and approximately equal 0 out of 5 times.
+== BitReader template read ==
+64-bit is faster 2, slower 1, and approximately equal 2 out of 5 times.
+== BitReader template peek ==
+64-bit is faster 3, slower 0, and approximately equal 2 out of 5 times.
 
 = LSB (gzip) =
 == Simple bit reading loop ==
-64-bit is faster 2, slower 3, and approximately equal 0 out of 5 times.
+64-bit is faster 1, slower 2, and approximately equal 2 out of 5 times.
 == BitReader read ==
-64-bit is faster 3, slower 0, and approximately equal 2 out of 5 times.
+64-bit is faster 5, slower 0, and approximately equal 0 out of 5 times.
 == BitReader template read ==
-64-bit is faster 3, slower 2, and approximately equal 0 out of 5 times.
+64-bit is faster 5, slower 0, and approximately equal 0 out of 5 times.
 == BitReader template peek ==
-64-bit is faster 3, slower 1, and approximately equal 1 out of 5 times.
+64-bit is faster 5, slower 0, and approximately equal 0 out of 5 times.
 
     -> These results don't seem very stable over different benchmark runs but there are always
        multiple instances where the 64-bit buffer slows things down?!

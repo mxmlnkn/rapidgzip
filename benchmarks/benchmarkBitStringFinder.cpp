@@ -501,7 +501,7 @@ findBitStrings2( const std::string& filename )
 {
     std::vector<size_t> blockOffsets;
 
-    BitReader bitReader( filename );
+    bzip2::BitReader bitReader( filename );
 
     uint64_t bytes = bitReader.read( bitStringToFindSize - 1 );
     while ( true ) {
@@ -663,7 +663,7 @@ int main( int argc, char** argv )
      *    which then makes double-buffering a viable option for a total speedup of hopefully 8x!
      */
 
-    BitReader bitReader( filename );
+    bzip2::BitReader bitReader( filename );
     std::cerr << "Block offsets  :\n";
     for ( const auto offset : blockOffsets ) {
         std::cerr << offset / 8 << " B " << offset % 8 << " b";

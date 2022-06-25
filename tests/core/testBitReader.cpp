@@ -53,7 +53,7 @@ testMSBBitReader()
         /*       0x5A                0xAA               0x0F               0x0F               0x0F */
         (char)0b0101'1010, (char)0b1010'1010, (char)0b0000'1111, (char)0b0000'1111, (char)0b0000'1111
     };
-    BitReader<true> bitReader( std::make_unique<BufferedFileReader>( fileContents ) );
+    BitReader<true, uint64_t> bitReader( std::make_unique<BufferedFileReader>( fileContents ) );
 
     REQUIRE( bitReader.read<0>() == 0b0UL );
     REQUIRE( bitReader.read<1>() == 0b0UL );
@@ -128,7 +128,7 @@ testLSBBitReader()
         /*       0x5A                0xAA               0x0F               0x0F               0x0F    */
         (char)0b0101'1010, (char)0b1010'1010, (char)0b0000'1111, (char)0b0000'1111, (char)0b0000'1111
     };
-    BitReader<false> bitReader( std::make_unique<BufferedFileReader>( fileContents ) );
+    BitReader<false, uint64_t> bitReader( std::make_unique<BufferedFileReader>( fileContents ) );
 
     REQUIRE( bitReader.read<0>() == 0b0UL );
     REQUIRE( bitReader.read<1>() == 0b0UL );

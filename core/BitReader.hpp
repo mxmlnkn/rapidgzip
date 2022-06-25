@@ -34,13 +34,9 @@
  * bit numbering starting from the least-significant one and also contrary to to DEFLATE (RFC 1951)!
  * @see https://github.com/dsnet/compress/blob/master/doc/bzip2-format.pdf
  * @see https://tools.ietf.org/html/rfc1951
- *
- * Slowdowns when using a 64-bit or 16-bit (they are both similarly slow) vs. 32-bit buffer:
- *  - serial bzip2 decoding: 20%
- *  - parallel (24x) bzip2 decoding: 40%
  */
-template<bool MOST_SIGNIFICANT_BITS_FIRST = true,
-         typename BitBuffer = uint32_t>
+template<bool MOST_SIGNIFICANT_BITS_FIRST,
+         typename BitBuffer>
 class BitReader :
     public FileReader
 {

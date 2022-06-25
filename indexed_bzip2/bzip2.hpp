@@ -61,7 +61,7 @@ constexpr auto MAGIC_BITS_EOS = 0x177245385090ULL; /* bcd(sqrt(pi)) */
 constexpr auto MAGIC_BITS_SIZE = 48;
 constexpr std::string_view MAGIC_BYTES_BZ2 = "BZh";
 
-using BitReader = ::BitReader<true>;
+using BitReader = ::BitReader<true, uint64_t>;
 
 
 /**
