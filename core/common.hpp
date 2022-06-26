@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <cstring>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -406,3 +407,41 @@ private:
     #define LIKELY(x) (x)
     #define UNLIKELY(x) (x)
 #endif
+
+
+enum class Endian
+{
+    LITTLE,
+    BIG,
+    UNKNOWN,
+};
+
+
+/**
+ * g++-dM -E -x c++ /dev/null | grep -i endian
+ * > #define __BYTE_ORDER__ __ORDER_LITTLE_ENDIAN__
+ * clang++ -dM -E -x c++ /dev/null | grep -i little
+ * > #define __BYTE_ORDER__ __ORDER_LITTLE_ENDIAN__
+ */
+constexpr Endian ENDIAN =
+#if defined(__BYTE_ORDER__) && defined( __ORDER_LITTLE_ENDIAN__ ) && ( __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ )
+    Endian::LITTLE
+#else
+    Endian::UNKNOWN
+#endif
+;
+
+
+/**
+ * This should compile to a single load on modern compilers instead of a function call. Test e.g. on godbolt.org.
+ * Note that we cannot use reinterpret_cast from char* to uint64_t* because it would result in unedefined behavior
+ * because of strict-aliasing rules! @see https://en.cppreference.com/w/cpp/language/reinterpret_cast#Type_aliasing
+ */
+template<typename T>
+[[nodiscard]] constexpr T
+loadUnaligned( const void* data )
+{
+	T result{ 0 };
+	std::memcpy( &result, data, sizeof( result ) );
+	return result;
+}

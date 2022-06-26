@@ -721,6 +721,84 @@ findDeflateBlocksPragzipLUT( BufferedFileReader::AlignedBuffer data )
             break;
         }
     }
+
+    return bitOffsets;
+}
+
+
+[[nodiscard]] std::vector<size_t>
+findUncompressdDeflateBlocksNestedBranches( const BufferedFileReader::AlignedBuffer& buffer )
+{
+    std::vector<size_t> bitOffsets;
+
+    for ( size_t i = 2; i + 2 < buffer.size(); ++i ) {
+        if ( LIKELY( static_cast<uint8_t>( static_cast<uint8_t>( buffer[i] )
+                                           ^ static_cast<uint8_t>( buffer[i+2] ) ) != 0xFFU ) ) [[likely]] {
+            continue;
+        }
+
+        if ( LIKELY( static_cast<uint8_t>( static_cast<uint8_t>( buffer[i-1] )
+                                           ^ static_cast<uint8_t>( buffer[i+1] ) ) != 0xFFU ) ) [[likely]] {
+            continue;
+        }
+
+        if ( LIKELY( ( static_cast<uint8_t>( buffer[i-2] ) & 0b111 ) != 0 ) ) [[likely]] {
+            continue;
+        }
+
+        if ( UNLIKELY( ( buffer[i] == 0 ) && ( buffer[i-1] == 0 ) ) ) [[unlikely]] {
+            continue;
+        }
+
+        /* The size and negated size must be preceded by at least three zero bits, one indicating a non-final block
+         * and two indicating a non-compressed block. This test assumes that the padding between the deflate block
+         * header and the byte-aligned non-compressed data is zero!
+         * @todo It is fine ignoring weird output with non-zero padding in the finder but the decoder should then
+         *       know of this and not stop decoding thinking that the other thread has found that block!
+         * @todo I might need an interface to determine what blocks could have been found and what not :/ */
+        uint8_t trailingZeros = 3;
+        for ( uint8_t j = trailingZeros + 1; j <= 8U; ++j ) {
+            if ( ( static_cast<uint8_t>( buffer[i-1] ) & ( 1U << static_cast<uint8_t>( j - 1U ) ) ) == 0 ) {
+                trailingZeros = j;
+            }
+        }
+        bitOffsets.push_back( i * CHAR_BIT - trailingZeros );
+    }
+
+    return bitOffsets;
+}
+
+
+[[nodiscard]] std::vector<size_t>
+findUncompressdDeflateBlocks( const BufferedFileReader::AlignedBuffer& buffer )
+{
+    std::vector<size_t> bitOffsets;
+
+    for ( size_t i = 1; i + 2 < buffer.size(); ++i ) {
+        const auto blockSize = loadUnaligned<uint16_t>( buffer.data() + i );
+        const auto negatedBlockSize = loadUnaligned<uint16_t>( buffer.data() + i + 2 );
+        if ( LIKELY( static_cast<uint16_t>( blockSize ^ negatedBlockSize ) != 0xFFFFU ) ) [[likely]] {
+            continue;
+        }
+
+        if ( LIKELY( ( static_cast<uint8_t>( buffer[i-1] ) & 0b111 ) != 0 ) ) [[likely]] {
+            continue;
+        }
+
+        if ( UNLIKELY( blockSize == 0 ) ) {
+            continue;
+        }
+
+        uint8_t trailingZeros = 3;
+        for ( uint8_t j = trailingZeros + 1; j <= 8; ++j ) {
+            if ( ( static_cast<uint8_t>( buffer[i-1] ) & ( 1U << static_cast<uint8_t>( j - 1U ) ) ) == 0 ) {
+                trailingZeros = j;
+            }
+        }
+
+        bitOffsets.push_back( i * CHAR_BIT - trailingZeros );
+    }
+
     return bitOffsets;
 }
 
@@ -838,6 +916,26 @@ formatBandwidth( const std::vector<double>& times,
 void
 benchmarkGzip( const std::string& fileName )
 {
+    {
+        const auto buffer = bufferFile( fileName, 128ULL * 1024ULL * 1024ULL );
+        const auto [blockCandidates, durations] = benchmarkFunction(
+            [&buffer] () { return findUncompressdDeflateBlocks( buffer ); } );
+
+        std::cout << "[findUncompressdDeflateBlocks] " << formatBandwidth( durations, buffer.size() ) << "\n";
+        std::cout << "    Block candidates (" << blockCandidates.size() << "): "
+                  << blockCandidates << "\n\n";
+    }
+
+    {
+        const auto buffer = bufferFile( fileName, 128ULL * 1024ULL * 1024ULL );
+        const auto [blockCandidates, durations] = benchmarkFunction(
+            [&buffer] () { return findUncompressdDeflateBlocksNestedBranches( buffer ); } );
+
+        std::cout << "[findUncompressdDeflateBlocksNestedBranches] " << formatBandwidth( durations, buffer.size() ) << "\n";
+        std::cout << "    Block candidates (" << blockCandidates.size() << "): "
+                  << blockCandidates << "\n\n";
+    }
+
     /* Ground truth offsets. */
     const auto [streamOffsets, blockOffsets] = parseWithZlib( fileName );
     std::cout << "Gzip streams (" << streamOffsets.size() << "): " << streamOffsets << "\n";
@@ -1077,6 +1175,15 @@ main( int    argc,
 
 
 /*
+cmake --build . -- benchmarkGzipBlockFinder && benchmarks/benchmarkGzipBlockFinder random.gz
+
+[findUncompressdDeflateBlocks] ( 2052 <= 2072 +- 18 <= 2084 ) MB/s
+    Block candidates (4356):  80 262304 524560 786800 1049120 1311392 1573784 1836072 2098344 2360744 2623032 2791488 2885360 3147648 3409952 ...
+
+[findUncompressdDeflateBlocksNestedBranches] ( 1969 <= 1974 +- 5 <= 1978 ) MB/s
+    Block candidates (4356):  88 262312 524568 786808 1049128 1311400 1573792 1836080 2098352 2360752 2623040 2791501 2885368 3147656 3409960 ...
+
+
 cmake --build . -- benchmarkGzipBlockFinder && benchmarks/benchmarkGzipBlockFinder
 
 
