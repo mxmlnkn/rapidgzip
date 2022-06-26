@@ -182,55 +182,71 @@ public:
         /* Reading the whole buffer is not allowed because it would require another expensive rarely used branch! */
         assert( bitsWanted < MAX_BIT_BUFFER_SIZE );
 
-        if ( UNLIKELY( bitsWanted > m_bitBufferSize ) ) [[unlikely]] {
-            const auto bitsInResult = m_bitBufferSize;
-            const auto bitsNeeded = bitsWanted - bitsInResult;
-            BitBuffer bits{ 0 };
-
-            /* Read out the remaining bits from m_bitBuffer to the lowest bits in @ref bits.
-             * This is copy-pasted from @ref peekUnsafe because for MSB, we don't have to do the expensive
-             * m_bitBufferSize == 0 branching! */
-            if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
-                bits = m_bitBuffer & nLowestBitsSet<BitBuffer>( m_bitBufferSize );
-            } else {
-                bits = m_bitBufferSize == 0
-                       ? BitBuffer( 0 )
-                       : ( m_bitBuffer >> ( MAX_BIT_BUFFER_SIZE - m_bitBufferSize ) )
-                         & nLowestBitsSet<BitBuffer>( m_bitBufferSize );
-            }
-
-            clearBitBuffer();
-
-            try {
-                fillBitBuffer();
-            } catch ( const BufferNeedsToBeRefilled& ) {
-                refillBuffer();
-                try {
-                    refillBitBuffer();
-                } catch ( const BufferNeedsToBeRefilled& ) {
-                    /* When fillBitBuffer does not throw, then it has been filled almost completely and it is ensured
-                     * that we have enough bits as long as fewer than the bit buffer size were requested.
-                     * Removing this if from the non-throwing frequent path, improves performance measurably! */
-                    if ( UNLIKELY( bitsNeeded > m_bitBufferSize ) ) [[unlikely]] {
-                        throw EndOfFileReached();
-                    }
-                }
-            }
-
-            /* Append remaining requested bits. */
-            if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
-                bits = ( bits << bitsNeeded ) | peekUnsafe( bitsNeeded );
-            } else {
-                bits |= peekUnsafe( bitsNeeded ) << bitsInResult;
-            }
-            m_bitBufferSize -= bitsNeeded;
-
-            return bits;
+        if ( LIKELY( bitsWanted <= m_bitBufferSize ) ) [[likely]] {
+            const auto result = peekUnsafe( bitsWanted );
+            m_bitBufferSize -= bitsWanted;
+            return result;
         }
 
-        const auto result = peekUnsafe( bitsWanted );
-        m_bitBufferSize -= bitsWanted;
-        return result;
+        const auto bitsInResult = m_bitBufferSize;
+        const auto bitsNeeded = bitsWanted - bitsInResult;
+        BitBuffer bits{ 0 };
+
+        /* Read out the remaining bits from m_bitBuffer to the lowest bits in @ref bits.
+         * This is copy-pasted from @ref peekUnsafe because for MSB, we don't have to do the expensive
+         * m_bitBufferSize == 0 branching! */
+        if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
+            bits = m_bitBuffer & nLowestBitsSet<BitBuffer>( m_bitBufferSize );
+        } else {
+            bits = m_bitBufferSize == 0
+                   ? BitBuffer( 0 )
+                   : ( m_bitBuffer >> ( MAX_BIT_BUFFER_SIZE - m_bitBufferSize ) )
+                     & nLowestBitsSet<BitBuffer>( m_bitBufferSize );
+        }
+
+        if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST && ( ENDIAN == Endian::LITTLE ) ) {
+            constexpr uint8_t BYTES_WANTED = sizeof( BitBuffer );
+            constexpr uint8_t BITS_WANTED = sizeof( BitBuffer ) * CHAR_BIT;
+
+            if ( LIKELY( m_inputBufferPosition + BYTES_WANTED < m_inputBuffer.size() ) ) [[likely]] {
+                m_originalBitBufferSize = BITS_WANTED;
+                m_bitBufferSize = BITS_WANTED;
+                m_bitBuffer = loadUnaligned<BitBuffer>( &m_inputBuffer[m_inputBufferPosition] );
+
+                m_inputBufferPosition += BYTES_WANTED;
+
+                bits |= peekUnsafe( bitsNeeded ) << bitsInResult;
+                m_bitBufferSize -= bitsNeeded;
+                return bits;
+            }
+        }
+
+        try {
+            clearBitBuffer();
+            fillBitBuffer();
+        } catch ( const BufferNeedsToBeRefilled& ) {
+            refillBuffer();
+            try {
+                refillBitBuffer();
+            } catch ( const BufferNeedsToBeRefilled& ) {
+                /* When fillBitBuffer does not throw, then it has been filled almost completely and it is ensured
+                 * that we have enough bits as long as fewer than the bit buffer size were requested.
+                 * Removing this if from the non-throwing frequent path, improves performance measurably! */
+                if ( UNLIKELY( bitsNeeded > m_bitBufferSize ) ) [[unlikely]] {
+                    throw EndOfFileReached();
+                }
+            }
+        }
+
+        /* Append remaining requested bits. */
+        if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
+            bits = ( bits << bitsNeeded ) | peekUnsafe( bitsNeeded );
+        } else {
+            bits |= peekUnsafe( bitsNeeded ) << bitsInResult;
+        }
+        m_bitBufferSize -= bitsNeeded;
+
+        return bits;
     }
 
     /**
@@ -456,7 +472,8 @@ private:
             return;
         }
 
-        assert( m_originalBitBufferSize % CHAR_BIT == 0 );
+        assert( ( m_originalBitBufferSize % CHAR_BIT == 0 ) &&
+                "Not necessary but should be true because we only load byte-wise and only shrink byte-wise!" );
         assert( m_originalBitBufferSize >= m_bitBufferSize );
         assert( m_originalBitBufferSize >= ceilDiv( m_bitBufferSize, CHAR_BIT ) * CHAR_BIT );
 
