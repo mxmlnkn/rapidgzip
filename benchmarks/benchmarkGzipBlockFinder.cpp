@@ -15,6 +15,7 @@ https://www.ietf.org/rfc/rfc1952.txt
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include <zlib.h>
@@ -140,11 +141,13 @@ parseWithZlib(const std::string& fileName)
     stream.avail_in = 0;
     stream.next_in = Z_NULL;
 
+    const auto throwCode = [] ( const auto code ) { throw std::domain_error( std::to_string( code ) ); };
+
     /* Second argument is window bits. log2 base of window size. Adding 32 to that (setting the 5-th bit),
      * means that automatic zlib or gzip decoding is detected. */
     auto ret = inflateInit2(&stream, 32 + 15);
     if ( ret != Z_OK ) {
-        throw ret;
+        throwCode( ret );
     }
 
     std::vector<unsigned char> extraBuffer( 1024 );
@@ -159,7 +162,7 @@ parseWithZlib(const std::string& fileName)
     bool readHeader = true;
     ret = inflateGetHeader(&stream, &header);
     if ( ret != Z_OK ) {
-        throw ret;
+        throwCode( ret );
     }
     streamOffsets.push_back( 0 );
 
@@ -178,10 +181,10 @@ parseWithZlib(const std::string& fileName)
             break;
         }
         if ( std::ferror( file.get() ) != 0 ) {
-            throw Z_ERRNO;
+            throwCode( Z_ERRNO );
         }
         if ( stream.avail_in == 0 ) {
-            throw Z_DATA_ERROR;
+            throwCode( Z_DATA_ERROR );
         }
         stream.next_in = input.data();
 
@@ -203,7 +206,7 @@ parseWithZlib(const std::string& fileName)
                 ret = Z_DATA_ERROR;
             }
             if ( ( ret == Z_MEM_ERROR ) || ( ret == Z_DATA_ERROR ) ) {
-                throw ret;
+                throwCode( ret );
             }
 
             if ( readHeader && ( header.done == 1 ) && ( header.extra_len > 0 ) ) {
@@ -239,10 +242,10 @@ parseWithZlib(const std::string& fileName)
              *    as zlib stops AFTER the block, we are not interested in the offset for the last block,
              *    i.e., we check against the 6-th bit, which corresponds to ( x & 64 ) == 0 for all but last block.
              */
-            if ( ( ( stream.data_type & 128U ) != 0 ) && ( ( stream.data_type & 64U ) == 0 ) ) {
-                blockOffsets.push_back( totin * 8U - ( stream.data_type & 7U ) );
+            const auto bits = static_cast<std::make_unsigned_t<decltype( stream.data_type )> >( stream.data_type );
+            if ( ( ( bits & 128U ) != 0 ) && ( ( bits & 64U ) == 0 ) ) {
+                blockOffsets.push_back( totin * 8U - ( bits & 7U ) );
             }
-
         }
     }
 
@@ -298,7 +301,7 @@ public:
 
         auto ret = inflateInit2( &m_stream, windowBits );
         if ( ret != Z_OK ) {
-            throw ret;
+            throw std::domain_error( std::to_string( ret ) );
         }
     }
 
@@ -472,10 +475,13 @@ findDeflateBlocksZlibOptimized( BufferedFileReader::AlignedBuffer buffer )
         if ( ( ( nextThreeBits >> 1U ) & 0b11ULL ) == 0b000ULL ) {
             /* Do not use CHAR_BIT because this is a deflate constant defining a byte as 8 bits. */
             const auto nextByteOffset = ceilDiv( offset + 3, 8U );
-            const auto length = ( static_cast<uint16_t>( cBuffer[nextByteOffset + 1] ) << CHAR_BIT )
+            const auto length = ( static_cast<uint16_t>( cBuffer[nextByteOffset + 1] )
+                                  << static_cast<uint8_t>( CHAR_BIT ) )
                                 + cBuffer[nextByteOffset];
-            const auto negatedLength = ( static_cast<uint16_t>( cBuffer[nextByteOffset + 3] ) << CHAR_BIT )
-                                       + cBuffer[nextByteOffset + 2];
+            const auto negatedLength = static_cast<uint16_t>(
+                ( static_cast<uint16_t>( cBuffer[nextByteOffset + 3] )
+                  << static_cast<uint8_t>( CHAR_BIT ) )
+                + cBuffer[nextByteOffset + 2] );
             if ( ( length != static_cast<uint16_t>( ~negatedLength ) ) || ( length < 8 * 1024 ) ) {
                 continue;
             }
@@ -668,18 +674,18 @@ findDeflateBlocksPragzipLUT( BufferedFileReader::AlignedBuffer data )
     std::vector<size_t> bitOffsets;
 
     static constexpr auto nextDeflateCandidateLUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
-    if ( nextDeflateCandidate<0>( 0b0 ) != 0 ) throw std::logic_error( "" );
-    if ( nextDeflateCandidate<1>( 0b1 ) != 1 ) throw std::logic_error( "" );
-    if ( nextDeflateCandidate<1>( 0b0 ) != 0 ) throw std::logic_error( "" );
+    if ( nextDeflateCandidate<0>( 0b0 ) != 0 ) { throw std::logic_error( "" ); }
+    if ( nextDeflateCandidate<1>( 0b1 ) != 1 ) { throw std::logic_error( "" ); }
+    if ( nextDeflateCandidate<1>( 0b0 ) != 0 ) { throw std::logic_error( "" ); }
 
-    if ( nextDeflateCandidate<2>( 0b01 ) != 1 ) throw std::logic_error( "" );
-    if ( nextDeflateCandidate<2>( 0b00 ) != 0 ) throw std::logic_error( "" );
-    if ( nextDeflateCandidate<2>( 0b11 ) != 2 ) throw std::logic_error( "" );
-    if ( nextDeflateCandidate<2>( 0b10 ) != 2 ) throw std::logic_error( "" );
+    if ( nextDeflateCandidate<2>( 0b01 ) != 1 ) { throw std::logic_error( "" ); }
+    if ( nextDeflateCandidate<2>( 0b00 ) != 0 ) { throw std::logic_error( "" ); }
+    if ( nextDeflateCandidate<2>( 0b11 ) != 2 ) { throw std::logic_error( "" ); }
+    if ( nextDeflateCandidate<2>( 0b10 ) != 2 ) { throw std::logic_error( "" ); }
 
     pragzip::deflate::Block block;
     for ( size_t offset = 0; offset <= nBitsToTest; ) {
-        bitReader.seek( offset );
+        bitReader.seek( static_cast<ssize_t>( offset ) );
 
         try
         {
@@ -872,7 +878,7 @@ benchmarkGzip( const std::string& fileName )
                 /* Especially for the naive zlib finder up to one deflate block might be missing,
                  * i.e., up to ~64 KiB! */
                 const auto offset = blockOffsets[i];
-                if ( offset >= nBytesToTest * CHAR_BIT - 128 * 1024 * CHAR_BIT ) {
+                if ( offset >= nBytesToTest * CHAR_BIT - 128ULL * 1024ULL * CHAR_BIT ) {
                     break;
                 }
 

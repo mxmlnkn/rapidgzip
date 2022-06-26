@@ -114,7 +114,7 @@ findZeroBytes64Bit( const std::unique_ptr<FileReader>& file )
 
     /* Check endianness */
     for ( size_t i = 0; i < sizeof( std::uint32_t ); ++i ) {
-        buffer[i] = i;
+        buffer[i] = static_cast<char>( i );
     }
     if ( buffer32[0] != 0x03'02'01'00UL ) {
         throw std::logic_error( "Not little endian as assumed!" );
@@ -165,7 +165,7 @@ findZeroBytes64BitLUT( const std::unique_ptr<FileReader>& file )
 
     /* Check endianness */
     for ( size_t i = 0; i < sizeof( std::uint32_t ); ++i ) {
-        buffer[i] = i;
+        buffer[i] = static_cast<char>( i );
     }
     if ( buffer32[0] != 0x03'02'01'00UL ) {
         throw std::logic_error( "Not little endian as assumed!" );

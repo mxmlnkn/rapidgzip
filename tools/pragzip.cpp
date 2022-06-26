@@ -388,7 +388,8 @@ cli( int argc, char** argv )
     if ( ( parsedArgs.count( "stdout" ) == 0 ) && !inputFilePath.empty() ) {
         const std::string& suffix = ".gz";
         if ( endsWith( inputFilePath, suffix, /* case sensitive */ false ) ) {
-            outputFilePath = std::string( inputFilePath.begin(), inputFilePath.end() - suffix.size() );
+            outputFilePath = std::string( inputFilePath.begin(),
+                                          inputFilePath.end() - static_cast<ssize_t>( suffix.size() ) );
         } else {
             outputFilePath = inputFilePath + ".out";
             if ( !quiet ) {
@@ -461,7 +462,7 @@ cli( int argc, char** argv )
 
         const auto t1 = now();
         std::cerr << "Decompressed in total " << totalBytesRead << " B in " << duration( t0, t1 ) << " s -> "
-                  << totalBytesRead / 1e6 / duration( t0, t1 ) << " MB/s\n";
+                  << static_cast<double>( totalBytesRead ) / 1e6 / duration( t0, t1 ) << " MB/s\n";
 
 
         /** @todo need to write out block offsets here, see ibzip2 */
