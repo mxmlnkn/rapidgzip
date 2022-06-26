@@ -179,10 +179,10 @@ public:
         /* Handling bitsWanted == 0 here would incure a 75% slowdown for the benchmark reading single bits!
          * Just let the caller handle that case. Performance comes first, especially at this steep price for safety. */
         assert( bitsWanted > 0 );
+        /* Reading the whole buffer is not allowed because it would require another expensive rarely used branch! */
+        assert( bitsWanted < MAX_BIT_BUFFER_SIZE );
 
         if ( UNLIKELY( bitsWanted > m_bitBufferSize ) ) [[unlikely]] {
-            assert( bitsWanted <= MAX_BIT_BUFFER_SIZE );
-
             const auto bitsInResult = m_bitBufferSize;
             const auto bitsNeeded = bitsWanted - bitsInResult;
             BitBuffer bits{ 0 };

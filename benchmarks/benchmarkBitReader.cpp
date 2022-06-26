@@ -19,7 +19,8 @@ template<bool MOST_SIGNIFICANT_BITS_FIRST,
 benchmarkBitReader( const std::vector<char>& data,
                     const uint8_t            nBits )
 {
-    BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer> bitReader( std::make_unique<BufferedFileReader>( data ) );
+    using CustomBitReader = BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>;
+    CustomBitReader bitReader( std::make_unique<BufferedFileReader>( data ) );
 
     const auto t0 = now();
 
@@ -28,7 +29,7 @@ benchmarkBitReader( const std::vector<char>& data,
         while ( true ) {
             sum += bitReader.read( nBits );
         }
-    } catch ( const std::exception& ) {
+    } catch ( const typename CustomBitReader::EndOfFileReached& ) {
         /* Ignore EOF exception. Checking for it in each loop is expensive! */
     }
 
@@ -42,7 +43,8 @@ template<bool     MOST_SIGNIFICANT_BITS_FIRST,
 [[nodiscard]] std::pair<double, uint64_t>
 benchmarkBitReaderTemplatedReadBits( const std::vector<char>& data )
 {
-    BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer> bitReader( std::make_unique<BufferedFileReader>( data ) );
+    using CustomBitReader = BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>;
+    CustomBitReader bitReader( std::make_unique<BufferedFileReader>( data ) );
 
     const auto t0 = now();
 
@@ -51,7 +53,7 @@ benchmarkBitReaderTemplatedReadBits( const std::vector<char>& data )
         while ( true ) {
             sum += bitReader.template read<nBits>();
         }
-    } catch ( const std::exception& ) {
+    } catch ( const typename CustomBitReader::EndOfFileReached& ) {
         /* Ignore EOF exception. Checking for it in each loop is expensive! */
     }
 
@@ -83,9 +85,65 @@ benchmarkBitReaderTemplatedRead( const std::vector<char>& data,
     case 14: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 14>( data );
     case 15: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 15>( data );
     case 16: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 16>( data );
+    case 17: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 17>( data );
+    case 18: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 18>( data );
+    case 19: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 19>( data );
+    case 20: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 20>( data );
+    case 21: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 21>( data );
+    case 22: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 22>( data );
+    case 23: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 23>( data );
+    case 24: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 24>( data );
+    case 25: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 25>( data );
+    case 26: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 26>( data );
+    case 27: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 27>( data );
+    case 28: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 28>( data );
+    case 29: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 29>( data );
+    case 30: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 30>( data );
+    case 31: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 31>( data );
     default: break;
     }
-    return { 0, 0 };
+
+    if constexpr ( sizeof( BitBuffer ) >= 64 ) {
+        switch ( nBits )
+        {
+        /* Reading the full buffer not allowed because it complicates things and would require another branch! */
+        case 32: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 32>( data );
+        case 33: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 33>( data );
+        case 34: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 34>( data );
+        case 35: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 35>( data );
+        case 36: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 36>( data );
+        case 37: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 37>( data );
+        case 38: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 38>( data );
+        case 39: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 39>( data );
+        case 40: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 40>( data );
+        case 41: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 41>( data );
+        case 42: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 42>( data );
+        case 43: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 43>( data );
+        case 44: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 44>( data );
+        case 45: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 45>( data );
+        case 46: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 46>( data );
+        case 47: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 47>( data );
+        case 48: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 48>( data );
+        case 49: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 49>( data );
+        case 50: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 50>( data );
+        case 51: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 51>( data );
+        case 52: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 52>( data );
+        case 53: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 53>( data );
+        case 54: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 54>( data );
+        case 55: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 55>( data );
+        case 56: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 56>( data );
+        case 57: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 57>( data );
+        case 58: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 58>( data );
+        case 59: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 59>( data );
+        case 60: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 60>( data );
+        case 61: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 61>( data );
+        case 62: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 62>( data );
+        case 63: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 63>( data );
+        default: break;
+        }
+    }
+
+    throw std::logic_error( "Template redirction for specified bits not implemented!" );
 }
 
 
@@ -95,7 +153,8 @@ template<bool     MOST_SIGNIFICANT_BITS_FIRST,
 [[nodiscard]] std::pair<double, uint64_t>
 benchmarkBitReaderTemplatedPeekBits( const std::vector<char>& data )
 {
-    BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer> bitReader( std::make_unique<BufferedFileReader>( data ) );
+    using CustomBitReader = BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>;
+    CustomBitReader bitReader( std::make_unique<BufferedFileReader>( data ) );
 
     const auto t0 = now();
 
@@ -105,7 +164,7 @@ benchmarkBitReaderTemplatedPeekBits( const std::vector<char>& data )
             sum += bitReader.template peek<nBits>();
             bitReader.seekAfterPeek( nBits );
         }
-    } catch ( const std::exception& ) {
+    } catch ( const typename CustomBitReader::EndOfFileReached& ) {
         /* Ignore EOF exception. Checking for it in each loop is expensive! */
     }
 
@@ -137,9 +196,65 @@ benchmarkBitReaderTemplatedPeek( const std::vector<char>& data,
     case 14: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 14>( data );
     case 15: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 15>( data );
     case 16: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 16>( data );
+    case 17: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 17>( data );
+    case 18: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 18>( data );
+    case 19: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 19>( data );
+    case 20: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 20>( data );
+    case 21: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 21>( data );
+    case 22: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 22>( data );
+    case 23: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 23>( data );
+    case 24: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 24>( data );
+    case 25: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 25>( data );
+    case 26: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 26>( data );
+    case 27: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 27>( data );
+    case 28: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 28>( data );
+    case 29: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 29>( data );
+    case 30: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 30>( data );
+    case 31: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 31>( data );
+    case 32: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 32>( data );
     default: break;
     }
-    return { 0, 0 };
+
+    if constexpr ( sizeof( BitBuffer ) >= 64 ) {
+        switch ( nBits )
+        {
+        case 33: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 33>( data );
+        case 34: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 34>( data );
+        case 35: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 35>( data );
+        case 36: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 36>( data );
+        case 37: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 37>( data );
+        case 38: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 38>( data );
+        case 39: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 39>( data );
+        case 40: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 40>( data );
+        case 41: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 41>( data );
+        case 42: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 42>( data );
+        case 43: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 43>( data );
+        case 44: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 44>( data );
+        case 45: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 45>( data );
+        case 46: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 46>( data );
+        case 47: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 47>( data );
+        case 48: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 48>( data );
+        case 49: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 49>( data );
+        case 50: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 50>( data );
+        case 51: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 51>( data );
+        case 52: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 52>( data );
+        case 53: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 53>( data );
+        case 54: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 54>( data );
+        case 55: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 55>( data );
+        case 56: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 56>( data );
+        case 57: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 57>( data );
+        case 58: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 58>( data );
+        case 59: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 59>( data );
+        case 60: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 60>( data );
+        case 61: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 61>( data );
+        case 62: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 62>( data );
+        case 63: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 63>( data );
+        case 64: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, 64>( data );
+        default: break;
+        }
+    }
+
+    throw std::logic_error( "Template redirction for specified bits not implemented!" );
 }
 
 
