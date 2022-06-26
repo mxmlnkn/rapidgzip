@@ -176,12 +176,29 @@ public:
     forceinline BitBuffer
     read( uint8_t bitsWanted )
     {
+        /* Handling bitsWanted == 0 here would incure a 75% slowdown for the benchmark reading single bits!
+         * Just let the caller handle that case. Performance comes first, especially at this steep price for safety. */
+        assert( bitsWanted > 0 );
+
         if ( UNLIKELY( bitsWanted > m_bitBufferSize ) ) [[unlikely]] {
             assert( bitsWanted <= MAX_BIT_BUFFER_SIZE );
 
             const auto bitsInResult = m_bitBufferSize;
             const auto bitsNeeded = bitsWanted - bitsInResult;
-            auto bits = peekUnsafe( m_bitBufferSize );
+            BitBuffer bits{ 0 };
+
+            /* Read out the remaining bits from m_bitBuffer to the lowest bits in @ref bits.
+             * This is copy-pasted from @ref peekUnsafe because for MSB, we don't have to do the expensive
+             * m_bitBufferSize == 0 branching! */
+            if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
+                bits = m_bitBuffer & nLowestBitsSet<BitBuffer>( m_bitBufferSize );
+            } else {
+                bits = m_bitBufferSize == 0
+                       ? BitBuffer( 0 )
+                       : ( m_bitBuffer >> ( MAX_BIT_BUFFER_SIZE - m_bitBufferSize ) )
+                         & nLowestBitsSet<BitBuffer>( m_bitBufferSize );
+            }
+
             clearBitBuffer();
 
             try {
@@ -235,8 +252,12 @@ public:
     forceinline BitBuffer
     read()
     {
-        static_assert( bitsWanted <= MAX_BIT_BUFFER_SIZE, "Requested bits must fit in buffer!" );
-        return read( bitsWanted );
+        if constexpr ( bitsWanted == 0 ) {
+            return 0;
+        } else {
+            static_assert( bitsWanted <= MAX_BIT_BUFFER_SIZE, "Requested bits must fit in buffer!" );
+            return read( bitsWanted );
+        }
     }
 
     /**
@@ -271,8 +292,12 @@ public:
     forceinline BitBuffer
     peek()
     {
-        static_assert( bitsWanted <= MAX_BIT_BUFFER_SIZE, "Requested bits must fit in buffer!" );
-        return peek( bitsWanted );
+        if constexpr ( bitsWanted == 0 ) {
+            return 0;
+        } else {
+            static_assert( bitsWanted <= MAX_BIT_BUFFER_SIZE, "Requested bits must fit in buffer!" );
+            return peek( bitsWanted );
+        }
     }
 
     forceinline BitBuffer
@@ -438,9 +463,9 @@ private:
         m_originalBitBufferSize = ceilDiv( m_bitBufferSize, CHAR_BIT ) * CHAR_BIT;
 
         if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
-            m_bitBuffer &= nLowestBitsSet<decltype( m_bitBuffer )>( m_originalBitBufferSize );
+            m_bitBuffer &= nLowestBitsSet<BitBuffer>( m_originalBitBufferSize );
         } else {
-            m_bitBuffer &= nHighestBitsSet<decltype( m_bitBuffer )>( m_originalBitBufferSize );
+            m_bitBuffer &= nHighestBitsSet<BitBuffer>( m_originalBitBufferSize );
         }
     }
 
@@ -524,13 +549,14 @@ private:
     peekUnsafe( uint8_t bitsWanted ) const
     {
         assert( bitsWanted <= m_bitBufferSize );
+        assert( bitsWanted > 0 );
 
         if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
             return ( m_bitBuffer >> ( m_bitBufferSize - bitsWanted ) )
-                   & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
+                   & nLowestBitsSet<BitBuffer>( bitsWanted );
         } else {
             return ( m_bitBuffer >> ( MAX_BIT_BUFFER_SIZE - m_bitBufferSize ) )
-                   & nLowestBitsSet<decltype( m_bitBuffer )>( bitsWanted );
+                   & nLowestBitsSet<BitBuffer>( bitsWanted );
         }
     }
 
@@ -646,7 +672,9 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
             clearBitBuffer();
 
             m_inputBufferPosition += stillToSeek / CHAR_BIT;
-            read( stillToSeek % CHAR_BIT );
+            if ( stillToSeek % CHAR_BIT > 0 ) {
+                read( stillToSeek % CHAR_BIT );
+            }
 
             return static_cast<size_t>( offsetBits );
         }
