@@ -427,8 +427,8 @@ benchmarkBitReaders( const std::vector<char>& data,
             Statistics<double>( times )
         );
 
-        std::cerr << "[" << std::setw( LABEL_WIDTH ) << toString( benchmarkType ) << "] ";
-        std::cerr << "Decoded with " << formatBandwidth( times ) << "\n";
+        std::cout << "[" << std::setw( LABEL_WIDTH ) << toString( benchmarkType ) << "] ";
+        std::cout << "Decoded with " << formatBandwidth( times ) << "\n";
     };
 
     measureTimes( BenchmarkType::SIMPLE_LOOP, [&] () {
@@ -461,25 +461,25 @@ main()
             x = static_cast<char>( rand() );
         }
 
-        std::cerr << "= MSB (bzip2) =\n";
+        std::cout << "= MSB (bzip2) =\n";
 
         for ( const auto nBits : nBitsToTest ) {
-            std::cerr << "\n== Benchmarking by reading " << static_cast<int>( nBits ) << " bits ==\n";
+            std::cout << "\n== Benchmarking by reading " << static_cast<int>( nBits ) << " bits ==\n";
 
-            std::cerr << "\n=== 32-bit Buffer ===\n";
+            std::cout << "\n=== 32-bit Buffer ===\n";
             results.merge( benchmarkBitReaders<true, uint32_t>( dataToRead, nBits ) );
-            std::cerr << "\n=== 64-bit Buffer ===\n";
+            std::cout << "\n=== 64-bit Buffer ===\n";
             results.merge( benchmarkBitReaders<true, uint64_t>( dataToRead, nBits ) );
         }
 
-        std::cerr << "\n= LSB (gzip) =\n";
+        std::cout << "\n= LSB (gzip) =\n";
 
         for ( const auto nBits : nBitsToTest ) {
-            std::cerr << "\n== Benchmarking by reading " << static_cast<int>( nBits ) << " bits ==\n";
+            std::cout << "\n== Benchmarking by reading " << static_cast<int>( nBits ) << " bits ==\n";
 
-            std::cerr << "\n=== 32-bit Buffer ===\n";
+            std::cout << "\n=== 32-bit Buffer ===\n";
             results.merge( benchmarkBitReaders<false, uint32_t>( dataToRead, nBits ) );
-            std::cerr << "\n=== 64-bit Buffer ===\n";
+            std::cout << "\n=== 64-bit Buffer ===\n";
             results.merge( benchmarkBitReaders<false, uint64_t>( dataToRead, nBits ) );
         }
     } catch ( const std::exception& exception ) {
@@ -494,9 +494,9 @@ main()
     };
 
     /* Analyze whether 32-bit or 64-bit buffer is faster. */
-    std::cerr << "\n";
+    std::cout << "\n";
     for ( const auto msb : { true, false } ) {
-        std::cerr << "\n= " << ( msb ? "MSB (bzip2)" : "LSB (gzip)" ) << " =\n";
+        std::cout << "\n= " << ( msb ? "MSB (bzip2)" : "LSB (gzip)" ) << " =\n";
         for ( const auto benchmarkType : allBenchmarktypes ) {
             std::cout << "== " << toString( benchmarkType ) << " ==\n";
 

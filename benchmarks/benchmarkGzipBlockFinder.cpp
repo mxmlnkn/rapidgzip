@@ -899,7 +899,7 @@ benchmarkGzip( const std::string& fileName )
         const auto [blockCandidates, durations] = benchmarkFunction(
             [&buffer] () { return findDeflateBlocksZlib( buffer ); } );
 
-        std::cerr << "[findDeflateBlocksZlib] " << formatBandwidth( durations, buffer.size() ) << "\n";
+        std::cout << "[findDeflateBlocksZlib] " << formatBandwidth( durations, buffer.size() ) << "\n";
         std::cout << "    Block candidates (" << blockCandidates.size() << "): "
                   << blockCandidates << "\n\n";
         verifyCandidates( blockCandidates, buffer.size() );
@@ -912,7 +912,7 @@ benchmarkGzip( const std::string& fileName )
         const auto [blockCandidates, durations] = benchmarkFunction(
             [&buffer] () { return findDeflateBlocksZlibOptimized( buffer ); } );
 
-        std::cerr << "[findDeflateBlocksZlibOptimized] " << formatBandwidth( durations, buffer.size() ) << "\n";
+        std::cout << "[findDeflateBlocksZlibOptimized] " << formatBandwidth( durations, buffer.size() ) << "\n";
         std::cout << "    Block candidates (" << blockCandidates.size() << "): "
                   << blockCandidates << "\n\n";
     }
@@ -923,7 +923,7 @@ benchmarkGzip( const std::string& fileName )
         const auto [blockCandidates, durations] = benchmarkFunction(
             [&buffer] () { return findDeflateBlocksPragzip( buffer ); } );
 
-        std::cerr << "[findDeflateBlocksPragzip] " << formatBandwidth( durations, buffer.size() ) << "\n";
+        std::cout << "[findDeflateBlocksPragzip] " << formatBandwidth( durations, buffer.size() ) << "\n";
         std::cout << "    Block candidates (" << blockCandidates.size() << "): "
                   << blockCandidates << "\n\n";
 
@@ -935,7 +935,7 @@ benchmarkGzip( const std::string& fileName )
              * slower bandwidths! 13 bits is the best configuration as far as I know. */
             [&buffer] () { return findDeflateBlocksPragzipLUT<13>( buffer ); } );
 
-        std::cerr << "[findDeflateBlocksPragzipLUT] " << formatBandwidth( durationsLUT, buffer.size() ) << "\n";
+        std::cout << "[findDeflateBlocksPragzipLUT] " << formatBandwidth( durationsLUT, buffer.size() ) << "\n";
         std::cout << "    Block candidates (" << blockCandidatesLUT.size() << "): "
                   << blockCandidatesLUT << "\n\n";
 
@@ -948,7 +948,7 @@ benchmarkGzip( const std::string& fileName )
         const auto [blockCandidates, durations] =
             benchmarkFunction( [fileName] () { return findBgzStreams( fileName ); } );
 
-        std::cerr << "[findBgzStreams] " << formatBandwidth( durations, fileSize( fileName ) ) << "\n";
+        std::cout << "[findBgzStreams] " << formatBandwidth( durations, fileSize( fileName ) ) << "\n";
         std::cout << "    Block candidates (" << blockCandidates.size() << "): "
                   << blockCandidates << "\n\n";
     }
@@ -976,7 +976,7 @@ benchmarkLUTSize( const BufferedFileReader::AlignedBuffer& buffer )
     const auto [blockCandidates, durations] = benchmarkFunction(
         [&buffer] () { return findDeflateBlocksPragzipLUT<CACHED_BIT_COUNT>( buffer ); } );
 
-    std::cerr << "[findDeflateBlocksPragzipLUT with " << static_cast<int>( CACHED_BIT_COUNT ) << " bits] "
+    std::cout << "[findDeflateBlocksPragzipLUT with " << static_cast<int>( CACHED_BIT_COUNT ) << " bits] "
               << formatBandwidth( durations, buffer.size() ) << "\n";
 
     if ( blockCandidatesWithLessBits && ( *blockCandidatesWithLessBits != blockCandidates ) ) {
@@ -1047,11 +1047,11 @@ main( int    argc,
             /* Benchmark Pragzip LUT version with different LUT sizes. */
 
             if ( name == "gzip" ) {
-                std::cerr << "=== Testing different Pragzip + LUT table sizes ===\n\n";
+                std::cout << "=== Testing different Pragzip + LUT table sizes ===\n\n";
                 /* CACHED_BIT_COUNT == 19 fails on GCC because it requires > 99 M constexpr steps.
                  * CACHED_BIT_COUNT == 18 fail on clang because it requires > 99 M constexpr steps. */
                 benchmarkLUTSize<16>( bufferFile( newFileName ) );
-                std::cerr << "\n\n";
+                std::cout << "\n\n";
             }
 
             /* Benchmark all different blockfinder implementations with the current encoded file. */

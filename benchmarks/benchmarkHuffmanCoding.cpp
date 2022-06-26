@@ -212,7 +212,7 @@ int main()
 
         benchmarkHuffmanCodings<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_SYMBOL_COUNT>( codeLengths, encoded );
     }
-    std::cerr << "\n";
+    std::cout << "\n";
 
     for ( uint8_t bitLength = 1; bitLength <= 9; ++bitLength ) {
         std::vector<uint8_t> codeLengths( 1U << bitLength, bitLength );
@@ -220,7 +220,7 @@ int main()
 
         benchmarkHuffmanCodings<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_SYMBOL_COUNT>( codeLengths, encoded );
     }
-    std::cerr << "\n";
+    std::cout << "\n";
 
     for ( uint8_t longestCode = 2; longestCode <= 15; ++longestCode ) {
         std::vector<uint8_t> codeLengths( longestCode );
