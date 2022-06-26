@@ -319,50 +319,63 @@ public:
     forceinline BitBuffer
     peek( uint8_t bitsWanted )
     {
+        assert( ( bitsWanted <= MAX_BIT_BUFFER_SIZE - ( CHAR_BIT - 1 ) )
+                && "The last 7 bits of the buffer may not be readable because we can only refill 8-bits at a time." );
+        assert( bitsWanted > 0 );
+
         if ( UNLIKELY( bitsWanted > m_bitBufferSize ) ) [[unlikely]] {
+            if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST && ( ENDIAN == Endian::LITTLE ) ) {
+                if ( LIKELY( m_inputBufferPosition + sizeof( BitBuffer ) < m_inputBuffer.size() ) ) [[likely]] {
+                    /* There is no way around this special case because of the damn undefined behavior when shifting! */
+                    if ( m_bitBufferSize == 0 ) {
+                        m_originalBitBufferSize = sizeof( BitBuffer ) * CHAR_BIT;
+                        m_bitBufferSize = sizeof( BitBuffer ) * CHAR_BIT;
+                        m_bitBuffer = loadUnaligned<BitBuffer>( &m_inputBuffer[m_inputBufferPosition] );
+
+                        m_inputBufferPosition += sizeof( BitBuffer );
+                        return peekUnsafe( bitsWanted );
+                    }
+
+                    const auto shrinkedBitBufferSize = ceilDiv( m_bitBufferSize, CHAR_BIT ) * CHAR_BIT;
+                    const auto bitsToLoad  = static_cast<uint8_t>( MAX_BIT_BUFFER_SIZE - shrinkedBitBufferSize );
+                    const auto bytesToLoad = static_cast<uint8_t>( bitsToLoad / CHAR_BIT );
+
+                    /* Load new bytes directly to the left if the (virtually) shrinked bit buffer.
+                     * This is possibly because read but still "loaded" (m_originalBitBufferSize) bits are to the
+                     * right. */
+                    const auto bytesToAppend = loadUnaligned<BitBuffer>( &m_inputBuffer[m_inputBufferPosition] );
+                    m_bitBuffer = ( m_bitBuffer >> bitsToLoad )
+                                  | ( bytesToAppend << ( MAX_BIT_BUFFER_SIZE - bitsToLoad ) );
+
+                    m_originalBitBufferSize = MAX_BIT_BUFFER_SIZE;
+                    m_bitBufferSize += bitsToLoad;
+                    m_inputBufferPosition += bytesToLoad;
+
+                    return peekUnsafe( bitsWanted );
+                }
+            }
+
             try {
-                m_originalBitBufferSize = m_bitBufferSize;
-                if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
-                    m_bitBuffer &= nLowestBitsSet<decltype( m_bitBuffer )>( m_originalBitBufferSize );
+                /* In the case of the shortcut for filling the bit buffer by reading 64-bit, don't inline
+                 * the very rarely used fallback to keep this function rather small for inlining. */
+                if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST && ( ENDIAN == Endian::LITTLE ) ) {
+                    /* This point should only happen rarely, e.g., when the byte buffer needs to be refilled. */
+                    refillBitBuffer();
                 } else {
-                    m_bitBuffer &= nHighestBitsSet<decltype( m_bitBuffer )>( m_originalBitBufferSize );
-                }
-
-                if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
-                    if ( m_originalBitBufferSize > 0 ) {
-                        m_bitBuffer >>= MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize;
-                    }
-                }
-
-                /* Refill buffer one byte at a time to enforce endianness and avoid unaligned access. */
-                for ( ; m_originalBitBufferSize + CHAR_BIT <= MAX_BIT_BUFFER_SIZE;
-                      m_bitBufferSize += CHAR_BIT, m_originalBitBufferSize += CHAR_BIT )
-                {
-                    if ( UNLIKELY( m_inputBufferPosition >= m_inputBuffer.size() ) ) [[unlikely]] {
-                        throw BufferNeedsToBeRefilled();
-                    }
-
-                    if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
-                        m_bitBuffer <<= CHAR_BIT;
-                        m_bitBuffer |= static_cast<BitBuffer>( m_inputBuffer[m_inputBufferPosition++] );
+                    if ( m_bitBufferSize == 0 ) {
+                        m_bitBuffer = 0;
+                        m_originalBitBufferSize = 0;
                     } else {
-                        m_bitBuffer |= ( static_cast<BitBuffer>( m_inputBuffer[m_inputBufferPosition++] )
-                                       << m_originalBitBufferSize );
-                    }
-                }
+                        shrinkBitBuffer();
 
-                /* Move LSB bits (which are filled left-to-right) to the left if so necessary
-                 * so that the format is the same as for MSB bits! */
-                if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
-                    m_bitBuffer <<= MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize;
+                        if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
+                            m_bitBuffer >>= MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize;
+                        }
+                    }
+
+                    fillBitBuffer();
                 }
             } catch ( const BufferNeedsToBeRefilled& ) {
-                /* Move LSB bits (which are filled left-to-right) to the left if so necessary
-                 * so that the format is the same as for MSB bits! */
-                if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
-                    m_bitBuffer <<= MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize;
-                }
-
                 refillBuffer();
                 try {
                     refillBitBuffer();
