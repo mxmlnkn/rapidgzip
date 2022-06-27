@@ -13,6 +13,9 @@
 #include <thread>
 #include <utility>
 
+#include <blockfinder/Bgzf.hpp>
+#include <blockfinder/Combined.hpp>
+#include <blockfinder/Skipping.hpp>
 #include <BlockFinder.hpp>
 #include <BlockMap.hpp>
 #include <common.hpp>
@@ -50,9 +53,12 @@ public:
             : parallelization ),
         m_startBlockFinder( [&] ()
             {
-                return std::make_shared<BlockFinder>(
-                    std::make_unique<typename BlockFinder::RawBlockFinder>(
-                        m_bitReader.cloneSharedFileReader()
+                return std::make_unique<BlockFinder>(
+                    std::make_unique<pragzip::blockfinder::Skipping>(
+                        std::make_unique<Combined>(
+                            m_bitReader.cloneSharedFileReader()
+                        ),
+                        /* nBlocksToSkip */ 16
                     ) );
             } )
     {
@@ -60,6 +66,34 @@ public:
             throw std::invalid_argument( "Parallel BZ2 Reader will not work on non-seekable input like stdin (yet)!" );
         }
     }
+
+#ifdef BENCHMARK_CHUNKING
+    explicit
+    ParallelGzipReader( std::unique_ptr<FileReader> fileReader,
+                        size_t                      parallelization,
+                        size_t                      nBlocksToSkip ) :
+        m_isBgzfFile( BgzfBlockFinder::isBgzfFile( fileReader ) ),
+        m_bitReader( std::move( fileReader ) ),
+        m_fetcherParallelization(
+            parallelization == 0
+            ? std::max<size_t>( 1U, std::thread::hardware_concurrency() )
+            : parallelization ),
+        m_startBlockFinder( [this, nBlocksToSkip] ()
+            {
+                return std::make_unique<BlockFinder>(
+                    std::make_unique<pragzip::blockfinder::Skipping>(
+                        std::make_unique<Combined>(
+                            m_bitReader.cloneSharedFileReader()
+                        ),
+                        nBlocksToSkip
+                    ) );
+            } )
+    {
+        if ( !m_bitReader.seekable() ) {
+            throw std::invalid_argument( "Parallel BZ2 Reader will not work on non-seekable input like stdin (yet)!" );
+        }
+    }
+#endif
 
 #ifdef WITH_PYTHON_SUPPORT
     /* These constructor overloads are for easier construction in the Cython-interface.

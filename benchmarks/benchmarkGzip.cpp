@@ -11,6 +11,8 @@
 #include <archive.h>
 #include <zlib.h>
 
+#define BENCHMARK_CHUNKING
+
 #include <BitReader.hpp>
 #include <common.hpp>
 #include <filereader/Memory.hpp>
@@ -312,6 +314,29 @@ decompressWithPragzipParallel( const std::string& fileName )
 }
 
 
+[[nodiscard]] size_t
+decompressWithPragzipParallelChunked( const std::string& fileName,
+                                      const size_t       nBlocksToSkip )
+{
+    size_t totalDecodedBytes = 0;
+
+    ParallelGzipReader gzipReader( std::make_unique<StandardFileReader>( fileName ), 0, nBlocksToSkip );
+    std::vector<uint8_t> outputBuffer( 64UL * 1024UL * 1024UL );
+    while ( true ) {
+        const auto nBytesRead = gzipReader.read( -1,
+                                                 reinterpret_cast<char*>( outputBuffer.data() ),
+                                                 outputBuffer.size() );
+        if ( ( nBytesRead == 0 ) && gzipReader.eof() ) {
+            break;
+        }
+
+        totalDecodedBytes += nBytesRead;
+    }
+
+    return totalDecodedBytes;
+}
+
+
 [[nodiscard]] std::pair<std::string, GzipIndex>
 createGzipIndex( const std::string& fileName )
 {
@@ -360,40 +385,69 @@ decompressWithPragzipParallelIndex( const std::pair<std::string, GzipIndex>& fil
 
 
 void
+printBandwidths( const std::vector<double>& durations,
+                 size_t                     nBytesEncoded,
+                 size_t                     nBytesDecoded )
+{
+    std::cout << "    Runtime / s: " << Statistics<double>( durations ).formatAverageWithUncertainty( true ) << "\n";
+
+    std::vector<double> encodedBandwidths( durations.size() );
+    std::transform( durations.begin(), durations.end(), encodedBandwidths.begin(),
+                    [nBytesEncoded] ( auto duration ) {
+                        return static_cast<double>( nBytesEncoded ) / 1e6 / duration; } );
+    std::cout << "    Bandwidth on Encoded Data / (MB/s): "
+              << Statistics<double>( encodedBandwidths ).formatAverageWithUncertainty( true ) << "\n";
+
+    std::vector<double> decodedBandwidths( durations.size() );
+    std::transform( durations.begin(), durations.end(), decodedBandwidths.begin(),
+                    [nBytesDecoded] ( auto duration ) {
+                        return static_cast<double>( nBytesDecoded ) / 1e6 / duration; } );
+    std::cout << "    Bandwidth on Decoded Data / (MB/s): "
+              << Statistics<double>( decodedBandwidths ).formatAverageWithUncertainty( true ) << "\n";
+};
+
+
+void
+benchmarkChunkedParallelDecompression( const std::string& fileName )
+{
+    const auto fileContents = readFile( fileName );
+
+    std::cout << "\n== Benchmarking with pragzip in parallel with different decoding chunk sizes ==\n\n";
+
+    const auto [sizeLibArchive, durationsLibArchive] = benchmarkFunction(
+        [&fileContents] () { return decompressWithLibArchive( fileContents ); } );
+    //std::cout << "Decompressed " << fileContents.size() << " B to " << sizeLibArchive << " B with libarchive:\n";
+    //printBandwidths( durationsLibArchive, fileContents.size(), sizeLibArchive );
+
+    const auto expectedSize = sizeLibArchive;
+
+    for ( size_t nBlocksToSkip : { 0, 1, 2, 4, 8, 16, 24, 32, 64, 128 } ) {
+        const auto [sizePragzipParallel, durationsPragzipParallel] = benchmarkFunction(
+            [&fileName, nBlocksToSkip] () { return decompressWithPragzipParallelChunked( fileName, nBlocksToSkip ); } );
+        if ( sizePragzipParallel == expectedSize ) {
+            std::cout << "Decompressed " << fileContents.size() << " B to " << sizePragzipParallel << " B "
+                      << "with pragzip (parallel, nBlocksToSkip=" << nBlocksToSkip << "):\n";
+            printBandwidths( durationsPragzipParallel, fileContents.size(), sizePragzipParallel );
+        } else {
+            std::cerr << "Decompressing with pragzip (parallel, nBlocksToSkip=" << nBlocksToSkip
+                      << ") decoded a different amount (" << sizePragzipParallel
+                      << ") than libarchive (" << expectedSize << ")!\n";
+        }
+    }
+
+    std::cout << "\n";
+}
+
+
+void
 benchmarkDecompression( const std::string& fileName )
 {
     const auto fileContents = readFile( fileName );
 
-    const auto printStats =
-        [] ( const std::vector<double>& values )
-        {
-            return Statistics<double>( values ).formatAverageWithUncertainty( true );
-        };
-
-    const auto printDurations =
-        [&printStats, nBytesEncoded = fileContents.size()]
-        ( const std::vector<double>& durations,
-          size_t                     nBytesDecoded )
-        {
-            std::cout << "    Runtime / s: " << printStats( durations ) << "\n";
-
-            std::vector<double> encodedBandwidths( durations.size() );
-            std::transform( durations.begin(), durations.end(), encodedBandwidths.begin(),
-                            [nBytesEncoded] ( auto duration ) {
-                                return static_cast<double>( nBytesEncoded ) / 1e6 / duration; } );
-            std::cout << "    Bandwidth on Encoded Data / (MB/s): " << printStats( encodedBandwidths ) << "\n";
-
-            std::vector<double> decodedBandwidths( durations.size() );
-            std::transform( durations.begin(), durations.end(), decodedBandwidths.begin(),
-                            [nBytesDecoded] ( auto duration ) {
-                                return static_cast<double>( nBytesDecoded ) / 1e6 / duration; } );
-            std::cout << "    Bandwidth on Decoded Data / (MB/s): " << printStats( decodedBandwidths ) << "\n";
-        };
-
     const auto [sizeLibArchive, durationsLibArchive] = benchmarkFunction(
         [&fileContents] () { return decompressWithLibArchive( fileContents ); } );
     std::cout << "Decompressed " << fileContents.size() << " B to " << sizeLibArchive << " B with libarchive:\n";
-    printDurations( durationsLibArchive, sizeLibArchive );
+    printBandwidths( durationsLibArchive, fileContents.size(), sizeLibArchive );
 
     const auto expectedSize = sizeLibArchive;
 
@@ -401,7 +455,7 @@ benchmarkDecompression( const std::string& fileName )
         return decompressWithZlib( fileContents ); } );
     if ( sizeZlib == expectedSize ) {
         std::cout << "Decompressed " << fileContents.size() << " B to " << sizeZlib << " B with zlib:\n";
-        printDurations( durationsZlib, sizeZlib );
+        printBandwidths( durationsZlib, fileContents.size(), sizeZlib );
     } else {
         std::cerr << "Decompressing with zlib decoded a different amount than libarchive!\n";
     }
@@ -411,7 +465,7 @@ benchmarkDecompression( const std::string& fileName )
     if ( sizePragzip == expectedSize ) {
         std::cout << "Decompressed " << fileContents.size() << " B to " << sizePragzip << " B "
                   << "with pragzip (serial):\n";
-        printDurations( durationsPragzip, sizePragzip );
+        printBandwidths( durationsPragzip, fileContents.size(), sizePragzip );
     } else {
         std::cerr << "Decompressing with pragzip (serial) decoded a different amount than libarchive!\n";
     }
@@ -421,7 +475,7 @@ benchmarkDecompression( const std::string& fileName )
     if ( sizePragzipParallel == expectedSize ) {
         std::cout << "Decompressed " << fileContents.size() << " B to " << sizePragzipParallel << " B "
                   << "with pragzip (parallel):\n";
-        printDurations( durationsPragzipParallel, sizePragzipParallel );
+        printBandwidths( durationsPragzipParallel, fileContents.size(), sizePragzipParallel );
     } else {
         std::cerr << "Decompressing with pragzip (parallel) decoded a different amount (" << sizePragzipParallel
                   << ") than libarchive (" << expectedSize << ")!\n";
@@ -432,7 +486,7 @@ benchmarkDecompression( const std::string& fileName )
     if ( sizePragzipParallelIndex == expectedSize ) {
         std::cout << "Decompressed " << fileContents.size() << " B to " << sizePragzipParallelIndex << " B "
                   << "with pragzip (parallel + index):\n";
-        printDurations( durationsPragzipParallelIndex, sizePragzipParallelIndex );
+        printBandwidths( durationsPragzipParallelIndex, fileContents.size(), sizePragzipParallelIndex );
     } else {
         std::cerr << "Decompressing with pragzip (parallel + index) decoded a different amount than libarchive!\n";
     }
@@ -453,6 +507,12 @@ main( int    argc,
         return 2;
     }
     const std::string fileName = argv[1];
+
+    if ( ( std::filesystem::path( fileName ).extension() == ".bgz" )
+         || ( std::filesystem::path( fileName ).extension() == ".pigz" )
+         || ( std::filesystem::path( fileName ).extension() == ".pgz" ) ) {
+        benchmarkChunkedParallelDecompression( fileName );
+    }
 
     benchmarkDecompression( fileName );
 
@@ -496,32 +556,162 @@ time gzip -d -k -c small.gz | wc -c
     real  0m3.542s
   -> pragzip is ~28% slower than gzip 1.10. Maybe slower than the above benchmarks because of I/O?
 
+pigz -c small > small.pigz
+make benchmarkGzip && benchmarks/benchmarkGzip small.pigz
+
+    Decompressed 408430549 B to 536870912 B with pragzip (parallel, nBlocksToSkip=0):
+        Runtime / s: 0.8306 <= 0.8319 +- 0.0016 <= 0.8337
+        Bandwidth on Encoded Data / (MB/s): 489.9 <= 491 +- 1 <= 491.7
+        Bandwidth on Decoded Data / (MB/s): 643.9 <= 645.3 +- 1.3 <= 646.4
+    Decompressed 408430549 B to 536870912 B with pragzip (parallel, nBlocksToSkip=1):
+        Runtime / s: 0.57 <= 0.61 +- 0.04 <= 0.65
+        Bandwidth on Encoded Data / (MB/s): 630 <= 680 +- 50 <= 710
+        Bandwidth on Decoded Data / (MB/s): 820 <= 890 +- 60 <= 940
+    Decompressed 408430549 B to 536870912 B with pragzip (parallel, nBlocksToSkip=2):
+        Runtime / s: 0.526 <= 0.544 +- 0.017 <= 0.56
+        Bandwidth on Encoded Data / (MB/s): 729 <= 751 +- 24 <= 776
+        Bandwidth on Decoded Data / (MB/s): 960 <= 990 +- 30 <= 1020
+    Decompressed 408430549 B to 536870912 B with pragzip (parallel, nBlocksToSkip=4):
+        Runtime / s: 0.462 <= 0.466 +- 0.006 <= 0.472
+        Bandwidth on Encoded Data / (MB/s): 865 <= 877 +- 11 <= 884
+        Bandwidth on Decoded Data / (MB/s): 1137 <= 1152 +- 14 <= 1162
+    Decompressed 408430549 B to 536870912 B with pragzip (parallel, nBlocksToSkip=8):
+        Runtime / s: 0.479 <= 0.484 +- 0.006 <= 0.491
+        Bandwidth on Encoded Data / (MB/s): 831 <= 844 +- 11 <= 853
+        Bandwidth on Decoded Data / (MB/s): 1093 <= 1109 +- 15 <= 1122
+    Decompressed 408430549 B to 536870912 B with pragzip (parallel, nBlocksToSkip=16):
+        Runtime / s: 0.43 <= 0.48 +- 0.06 <= 0.55
+        Bandwidth on Encoded Data / (MB/s): 750 <= 860 +- 110 <= 960
+        Bandwidth on Decoded Data / (MB/s): 980 <= 1130 +- 140 <= 1260
+    Decompressed 408430549 B to 536870912 B with pragzip (parallel, nBlocksToSkip=24):
+        Runtime / s: 0.47 <= 0.479 +- 0.008 <= 0.486
+        Bandwidth on Encoded Data / (MB/s): 840 <= 853 +- 15 <= 869
+        Bandwidth on Decoded Data / (MB/s): 1104 <= 1121 +- 20 <= 1142
+    Decompressed 408430549 B to 536870912 B with pragzip (parallel, nBlocksToSkip=32):
+        Runtime / s: 0.459 <= 0.478 +- 0.02 <= 0.499
+        Bandwidth on Encoded Data / (MB/s): 820 <= 850 +- 40 <= 890
+        Bandwidth on Decoded Data / (MB/s): 1080 <= 1120 +- 50 <= 1170
+    Decompressed 408430549 B to 536870912 B with pragzip (parallel, nBlocksToSkip=64):
+        Runtime / s: 0.518 <= 0.528 +- 0.013 <= 0.543
+        Bandwidth on Encoded Data / (MB/s): 752 <= 774 +- 19 <= 788
+        Bandwidth on Decoded Data / (MB/s): 989 <= 1017 +- 25 <= 1036
+    Decompressed 408430549 B to 536870912 B with pragzip (parallel, nBlocksToSkip=128):
+        Runtime / s: 0.581 <= 0.593 +- 0.01 <= 0.599
+        Bandwidth on Encoded Data / (MB/s): 682 <= 689 +- 12 <= 702
+        Bandwidth on Decoded Data / (MB/s): 896 <= 906 +- 15 <= 923
+
+  -> 16 blocks as chunks are the fastest!, starting from 4, it seems to be somewhat saturated already.
+     -> pragzip --analyze small.pigz
+        - There are 37796 blocks in total
+        - Each block is ~ 12800 B encoded and ~16900 B decoded,
+        - Flush marker blocks (byte-aligning uncompressed blocks of size 0) appear very irregularly:
+          - 25, 61, 88, 97, 196, 277, 286, 304, 342, 361, 370, 379, 399, 408, 425, 434, 475, 484, 503, 522, 531, 548,
+            557, 566, 575, 584, 593, 602, 641, 660, 680, 689, 723, 732, 752, 769, 778, 787, 826, 835, 844, 864, 873, ...
+            So yeah, anywhere from 9 to 99 blocks! Really might be better if I skip based on encoded data size
+          - pragzip --analyze small.pigz | grep ': Uncompressed' | wc -l
+            In total there are 2114 flush markers, so on average, after 17.88 blocks, i.e.,
+            17.88 * 12800 B * 16 (flush markers to skip) = 3.5 MiB of encoded data and 4.61 MiB of decoded data.
+
+Decompressed 408430549 B to 536870912 B with libarchive:
+        Runtime / s: 1.656 <= 1.661 +- 0.005 <= 1.665
+        Bandwidth on Encoded Data / (MB/s): 245.3 <= 245.8 +- 0.7 <= 246.6
+        Bandwidth on Decoded Data / (MB/s): 322.4 <= 323.1 +- 0.9 <= 324.1
+    Decompressed 408430549 B to 536870912 B with zlib:
+        Runtime / s: 1.969 <= 1.981 +- 0.013 <= 1.995
+        Bandwidth on Encoded Data / (MB/s): 204.7 <= 206.2 +- 1.4 <= 207.4
+        Bandwidth on Decoded Data / (MB/s): 269.1 <= 271 +- 1.8 <= 272.6
+    Decoded 37796 deflate blocks
+    Decoded 37796 deflate blocks
+    Decoded 37796 deflate blocks
+    Decompressed 408430549 B to 536870912 B with pragzip (serial):
+        Runtime / s: 5.197 <= 5.229 +- 0.029 <= 5.251
+        Bandwidth on Encoded Data / (MB/s): 77.8 <= 78.1 +- 0.4 <= 78.6
+        Bandwidth on Decoded Data / (MB/s): 102.2 <= 102.7 +- 0.6 <= 103.3
+    Decompressed 408430549 B to 536870912 B with pragzip (parallel):
+        Runtime / s: 0.4359 <= 0.4386 +- 0.0028 <= 0.4415
+        Bandwidth on Encoded Data / (MB/s): 925 <= 931 +- 6 <= 937
+        Bandwidth on Decoded Data / (MB/s): 1216 <= 1224 +- 8 <= 1232
+    Decompressed 408430549 B to 536870912 B with pragzip (parallel + index):
+        Runtime / s: 0.388 <= 0.397 +- 0.014 <= 0.413
+        Bandwidth on Encoded Data / (MB/s): 990 <= 1030 +- 40 <= 1050
+        Bandwidth on Decoded Data / (MB/s): 1300 <= 1350 +- 50 <= 1390
+
+
 bgzip -c small > small.bgz
 make benchmarkGzip && benchmarks/benchmarkGzip small.bgz
 
+    Decompressed 415096389 B to 536870912 B with pragzip (parallel, nBlocksToSkip=0):
+        Runtime / s: 0.494 <= 0.503 +- 0.014 <= 0.52
+        Bandwidth on Encoded Data / (MB/s): 799 <= 826 +- 23 <= 841
+        Bandwidth on Decoded Data / (MB/s): 1030 <= 1070 +- 30 <= 1090
+    Decompressed 415096389 B to 536870912 B with pragzip (parallel, nBlocksToSkip=1):
+        Runtime / s: 0.371 <= 0.38 +- 0.008 <= 0.388
+        Bandwidth on Encoded Data / (MB/s): 1070 <= 1093 +- 24 <= 1119
+        Bandwidth on Decoded Data / (MB/s): 1380 <= 1410 +- 30 <= 1450
+    Decompressed 415096389 B to 536870912 B with pragzip (parallel, nBlocksToSkip=2):
+        Runtime / s: 0.357 <= 0.369 +- 0.012 <= 0.382
+        Bandwidth on Encoded Data / (MB/s): 1090 <= 1130 +- 40 <= 1160
+        Bandwidth on Decoded Data / (MB/s): 1410 <= 1460 +- 50 <= 1500
+    Decompressed 415096389 B to 536870912 B with pragzip (parallel, nBlocksToSkip=4):
+        Runtime / s: 0.316 <= 0.326 +- 0.016 <= 0.344
+        Bandwidth on Encoded Data / (MB/s): 1210 <= 1280 +- 60 <= 1310
+        Bandwidth on Decoded Data / (MB/s): 1560 <= 1650 +- 80 <= 1700
+    Decompressed 415096389 B to 536870912 B with pragzip (parallel, nBlocksToSkip=8):
+        Runtime / s: 0.3184 <= 0.3195 +- 0.0018 <= 0.3215
+        Bandwidth on Encoded Data / (MB/s): 1291 <= 1299 +- 7 <= 1304
+        Bandwidth on Decoded Data / (MB/s): 1670 <= 1680 +- 9 <= 1686
+    Decompressed 415096389 B to 536870912 B with pragzip (parallel, nBlocksToSkip=16):
+        Runtime / s: 0.291 <= 0.307 +- 0.019 <= 0.329
+        Bandwidth on Encoded Data / (MB/s): 1260 <= 1360 +- 80 <= 1430
+        Bandwidth on Decoded Data / (MB/s): 1630 <= 1760 +- 110 <= 1850
+    Decompressed 415096389 B to 536870912 B with pragzip (parallel, nBlocksToSkip=24):
+        Runtime / s: 0.275 <= 0.285 +- 0.012 <= 0.298
+        Bandwidth on Encoded Data / (MB/s): 1390 <= 1460 +- 60 <= 1510
+        Bandwidth on Decoded Data / (MB/s): 1800 <= 1890 +- 80 <= 1950
+    Decompressed 415096389 B to 536870912 B with pragzip (parallel, nBlocksToSkip=32):
+        Runtime / s: 0.277 <= 0.281 +- 0.004 <= 0.286
+        Bandwidth on Encoded Data / (MB/s): 1454 <= 1477 +- 22 <= 1497
+        Bandwidth on Decoded Data / (MB/s): 1880 <= 1910 +- 28 <= 1936
+    Decompressed 415096389 B to 536870912 B with pragzip (parallel, nBlocksToSkip=64):
+        Runtime / s: 0.31 <= 0.325 +- 0.015 <= 0.341
+        Bandwidth on Encoded Data / (MB/s): 1220 <= 1280 +- 60 <= 1340
+        Bandwidth on Decoded Data / (MB/s): 1570 <= 1660 +- 80 <= 1730
+    Decompressed 415096389 B to 536870912 B with pragzip (parallel, nBlocksToSkip=128):
+        Runtime / s: 0.305 <= 0.311 +- 0.01 <= 0.323
+        Bandwidth on Encoded Data / (MB/s): 1280 <= 1330 +- 40 <= 1360
+        Bandwidth on Decoded Data / (MB/s): 1660 <= 1730 +- 60 <= 1760
+
+  -> 32 blocks for bgz would be the best in this case! But starting from 16, it feels already saturated.
+     -> pragzip --analyze small.bgz
+        - There are 8226 blocks and gzip streams in total
+        - Each block is ~ 50400 B encoded and 65280 B (63.75 KiB) decoded,
+        - So, when skipping ~32 blocks (~33 chunked), we have ~1.54 MiB encoded and ~2 MiB decoded data
+          -> This is only a factor 2 less than the optimum for pigz, so that we might use the same blocking criterium,
+             or not.
+
     Decompressed 415096389 B to 536870912 B with libarchive:
-        Runtime / s: 1.82 <= 1.851 +- 0.028 <= 1.875
-        Bandwidth on Encoded Data / (MB/s): 221 <= 224 +- 3 <= 228
-        Bandwidth on Decoded Data / (MB/s): 286 <= 290 +- 4 <= 295
+        Runtime / s: 1.874 <= 1.877 +- 0.004 <= 1.882
+        Bandwidth on Encoded Data / (MB/s): 220.6 <= 221.1 +- 0.5 <= 221.5
+        Bandwidth on Decoded Data / (MB/s): 285.3 <= 286 +- 0.7 <= 286.5
     Decompressed 415096389 B to 536870912 B with zlib:
-        Runtime / s: 2.071 <= 2.102 +- 0.028 <= 2.123
-        Bandwidth on Encoded Data / (MB/s): 195.5 <= 197.5 +- 2.6 <= 200.5
-        Bandwidth on Decoded Data / (MB/s): 253 <= 255 +- 3 <= 259
+        Runtime / s: 2.076 <= 2.087 +- 0.011 <= 2.098
+        Bandwidth on Encoded Data / (MB/s): 197.9 <= 198.9 +- 1.1 <= 200
+        Bandwidth on Decoded Data / (MB/s): 255.9 <= 257.3 +- 1.4 <= 258.6
     Decoded 8226 deflate blocks
     Decoded 8226 deflate blocks
     Decoded 8226 deflate blocks
     Decompressed 415096389 B to 536870912 B with pragzip (serial):
-        Runtime / s: 3.245 <= 3.251 +- 0.006 <= 3.257
-        Bandwidth on Encoded Data / (MB/s): 127.46 <= 127.7 +- 0.24 <= 127.94
-        Bandwidth on Decoded Data / (MB/s): 164.9 <= 165.2 +- 0.3 <= 165.5
+        Runtime / s: 3.185 <= 3.202 +- 0.015 <= 3.213
+        Bandwidth on Encoded Data / (MB/s): 129.2 <= 129.6 +- 0.6 <= 130.3
+        Bandwidth on Decoded Data / (MB/s): 167.1 <= 167.7 +- 0.8 <= 168.5
     Decompressed 415096389 B to 536870912 B with pragzip (parallel):
-        Runtime / s: 0.452 <= 0.459 +- 0.008 <= 0.467
-        Bandwidth on Encoded Data / (MB/s): 889 <= 905 +- 15 <= 918
-        Bandwidth on Decoded Data / (MB/s): 1149 <= 1171 +- 20 <= 1188
+        Runtime / s: 0.281 <= 0.287 +- 0.008 <= 0.296
+        Bandwidth on Encoded Data / (MB/s): 1400 <= 1450 +- 40 <= 1480
+        Bandwidth on Decoded Data / (MB/s): 1810 <= 1870 +- 50 <= 1910
     Decompressed 415096389 B to 536870912 B with pragzip (parallel + index):
-        Runtime / s: 0.403 <= 0.412 +- 0.011 <= 0.424
-        Bandwidth on Encoded Data / (MB/s): 978 <= 1007 +- 26 <= 1029
-        Bandwidth on Decoded Data / (MB/s): 1270 <= 1300 +- 30 <= 1330
+        Runtime / s: 0.42 <= 0.45 +- 0.04 <= 0.49
+        Bandwidth on Encoded Data / (MB/s): 850 <= 920 +- 70 <= 990
+        Bandwidth on Decoded Data / (MB/s): 1090 <= 1190 +- 90 <= 1280
 
      -> ~1 GB/s for the decompressed bandwidth with the parallel bgz decoder and when decoding with an
         existing index is already quite nice!
@@ -540,36 +730,81 @@ ls -la small.*gz
   -> The .bgz file is even smaller!
 
 
-base64 /dev/urandom | head -c $(( 1024*1024*1024 )) > large
+base64 /dev/urandom | head -c $(( 4*1024*1024*1024 )) > large
 gzip -k large
 bgzip -c large > large.bgz
 make benchmarkGzip && benchmarks/benchmarkGzip large.bgz
 
+    Decompressed 3320779389 B to 4294967296 B with pragzip (parallel, nBlocksToSkip=0):
+        Runtime / s: 3.82 <= 3.92 +- 0.1 <= 4.03
+        Bandwidth on Encoded Data / (MB/s): 825 <= 847 +- 23 <= 870
+        Bandwidth on Decoded Data / (MB/s): 1067 <= 1095 +- 29 <= 1125
+    Decompressed 3320779389 B to 4294967296 B with pragzip (parallel, nBlocksToSkip=1):
+        Runtime / s: 3.105 <= 3.122 +- 0.015 <= 3.134
+        Bandwidth on Encoded Data / (MB/s): 1060 <= 1064 +- 5 <= 1070
+        Bandwidth on Decoded Data / (MB/s): 1370 <= 1376 +- 7 <= 1383
+    Decompressed 3320779389 B to 4294967296 B with pragzip (parallel, nBlocksToSkip=2):
+        Runtime / s: 2.84 <= 2.98 +- 0.21 <= 3.22
+        Bandwidth on Encoded Data / (MB/s): 1030 <= 1120 +- 80 <= 1170
+        Bandwidth on Decoded Data / (MB/s): 1330 <= 1450 +- 100 <= 1510
+    Decompressed 3320779389 B to 4294967296 B with pragzip (parallel, nBlocksToSkip=4):
+        Runtime / s: 2.62 <= 2.66 +- 0.05 <= 2.71
+        Bandwidth on Encoded Data / (MB/s): 1225 <= 1249 +- 22 <= 1270
+        Bandwidth on Decoded Data / (MB/s): 1585 <= 1615 +- 29 <= 1642
+    Decompressed 3320779389 B to 4294967296 B with pragzip (parallel, nBlocksToSkip=8):
+        Runtime / s: 2.313 <= 2.33 +- 0.019 <= 2.35
+        Bandwidth on Encoded Data / (MB/s): 1413 <= 1425 +- 11 <= 1436
+        Bandwidth on Decoded Data / (MB/s): 1828 <= 1843 +- 15 <= 1857
+    Decompressed 3320779389 B to 4294967296 B with pragzip (parallel, nBlocksToSkip=16):
+        Runtime / s: 2.15 <= 2.27 +- 0.13 <= 2.4
+        Bandwidth on Encoded Data / (MB/s): 1380 <= 1470 +- 80 <= 1550
+        Bandwidth on Decoded Data / (MB/s): 1790 <= 1900 +- 110 <= 2000
+    Decompressed 3320779389 B to 4294967296 B with pragzip (parallel, nBlocksToSkip=24):
+        Runtime / s: 2.02 <= 2.16 +- 0.16 <= 2.33
+        Bandwidth on Encoded Data / (MB/s): 1420 <= 1550 +- 110 <= 1640
+        Bandwidth on Decoded Data / (MB/s): 1840 <= 2000 +- 140 <= 2120
+    Decompressed 3320779389 B to 4294967296 B with pragzip (parallel, nBlocksToSkip=32):
+        Runtime / s: 2 <= 2.07 +- 0.06 <= 2.11
+        Bandwidth on Encoded Data / (MB/s): 1570 <= 1610 +- 50 <= 1660
+        Bandwidth on Decoded Data / (MB/s): 2030 <= 2080 +- 70 <= 2150
+    Decompressed 3320779389 B to 4294967296 B with pragzip (parallel, nBlocksToSkip=64):
+        Runtime / s: 2 <= 2.05 +- 0.05 <= 2.1
+        Bandwidth on Encoded Data / (MB/s): 1580 <= 1620 +- 40 <= 1660
+        Bandwidth on Decoded Data / (MB/s): 2040 <= 2100 +- 50 <= 2150
+    Decompressed 3320779389 B to 4294967296 B with pragzip (parallel, nBlocksToSkip=128):
+        Runtime / s: 1.98 <= 2.04 +- 0.05 <= 2.08
+        Bandwidth on Encoded Data / (MB/s): 1600 <= 1630 +- 40 <= 1670
+        Bandwidth on Decoded Data / (MB/s): 2070 <= 2110 +- 50 <= 2160
+
+  -> I don't see the peak yet! I guess the benchmark with the 512 MiB base64 file only topped out at 16 blocks
+     per chunk because then the tail might produce stragglers!
+     -> So we are fine using a chunking criterium shared with pigz of roughly 4 MiB of encoded data or maybe more.
+        -> Note that for generic gzip files, we would need roughly 32 MiB of encoded data because of the much slower
+           block finder amortizing slower!
+
     Decompressed 3320779389 B to 4294967296 B with libarchive:
-        Runtime / s: 14.42 <= 14.57 +- 0.14 <= 14.68
-        Bandwidth on Encoded Data / (MB/s): 226.2 <= 227.9 +- 2.2 <= 230.3
-        Bandwidth on Decoded Data / (MB/s): 292.5 <= 294.7 +- 2.8 <= 297.9
+        Runtime / s: 14.76 <= 14.81 +- 0.05 <= 14.86
+        Bandwidth on Encoded Data / (MB/s): 223.5 <= 224.2 +- 0.7 <= 225
+        Bandwidth on Decoded Data / (MB/s): 289.1 <= 289.9 +- 1 <= 291
     Decompressed 3320779389 B to 4294967296 B with zlib:
-        Runtime / s: 16.57 <= 16.66 +- 0.09 <= 16.75
-        Bandwidth on Encoded Data / (MB/s): 198.2 <= 199.3 +- 1.1 <= 200.5
-        Bandwidth on Decoded Data / (MB/s): 256.4 <= 257.8 +- 1.4 <= 259.3
+        Runtime / s: 16.89 <= 17.05 +- 0.14 <= 17.15
+        Bandwidth on Encoded Data / (MB/s): 193.7 <= 194.8 +- 1.6 <= 196.6
+        Bandwidth on Decoded Data / (MB/s): 250.5 <= 252 +- 2.1 <= 254.3
     Decoded 65795 deflate blocks
     Decoded 65795 deflate blocks
     Decoded 65795 deflate blocks
     Decompressed 3320779389 B to 4294967296 B with pragzip (serial):
-        Runtime / s: 25.08 <= 25.24 +- 0.25 <= 25.52
-        Bandwidth on Encoded Data / (MB/s): 130.1 <= 131.6 +- 1.3 <= 132.4
-        Bandwidth on Decoded Data / (MB/s): 168.3 <= 170.2 +- 1.7 <= 171.2
+        Runtime / s: 26.03 <= 26.2 +- 0.24 <= 26.47
+        Bandwidth on Encoded Data / (MB/s): 125.4 <= 126.7 +- 1.1 <= 127.6
+        Bandwidth on Decoded Data / (MB/s): 162.2 <= 163.9 +- 1.5 <= 165
     Decompressed 3320779389 B to 4294967296 B with pragzip (parallel):
-        Runtime / s: 3.7 <= 3.8 +- 0.12 <= 3.94
-        Bandwidth on Encoded Data / (MB/s): 843 <= 874 +- 28 <= 898
-        Bandwidth on Decoded Data / (MB/s): 1090 <= 1130 +- 40 <= 1160
+        Runtime / s: 2.058 <= 2.082 +- 0.025 <= 2.107
+        Bandwidth on Encoded Data / (MB/s): 1576 <= 1595 +- 19 <= 1613
+        Bandwidth on Decoded Data / (MB/s): 2038 <= 2063 +- 24 <= 2087
     Decompressed 3320779389 B to 4294967296 B with pragzip (parallel + index):
-        Runtime / s: 3.052 <= 3.072 +- 0.019 <= 3.091
-        Bandwidth on Encoded Data / (MB/s): 1074 <= 1081 +- 7 <= 1088
-        Bandwidth on Decoded Data / (MB/s): 1390 <= 1398 +- 9 <= 1407
-
-     -> @todo maybe same problem as for pigz: maybe could get another factor 2 speedup when batching bgz blocks!
+        Runtime / s: 3.2 <= 3.29 +- 0.1 <= 3.39
+        Bandwidth on Encoded Data / (MB/s): 980 <= 1010 +- 30 <= 1040
+        Bandwidth on Decoded Data / (MB/s): 1270 <= 1300 +- 40 <= 1340
 
 time bgzip --threads $( nproc ) -d -c large.bgz | wc -c
     real  0m2.155s
@@ -577,38 +812,76 @@ time bgzip --threads $( nproc ) -d -c large.bgz | wc -c
 
 
 base64 /dev/urandom | head -c $(( 1024*1024*1024 )) > large
-pigz -k -c large > large.pgz
-make benchmarkGzip && benchmarks/benchmarkGzip large.pgz
+pigz -k -c large > large.pigz
+make benchmarkGzip && benchmarks/benchmarkGzip large.pigz
+
+    Decompressed 816860634 B to 1073741824 B with pragzip (parallel, nBlocksToSkip=0):
+        Runtime / s: 1.54 <= 1.59 +- 0.05 <= 1.64
+        Bandwidth on Encoded Data / (MB/s): 498 <= 513 +- 16 <= 530
+        Bandwidth on Decoded Data / (MB/s): 655 <= 674 +- 21 <= 696
+    Decompressed 816860634 B to 1073741824 B with pragzip (parallel, nBlocksToSkip=1):
+        Runtime / s: 1.084 <= 1.103 +- 0.022 <= 1.127
+        Bandwidth on Encoded Data / (MB/s): 725 <= 740 +- 15 <= 753
+        Bandwidth on Decoded Data / (MB/s): 953 <= 973 +- 19 <= 990
+    Decompressed 816860634 B to 1073741824 B with pragzip (parallel, nBlocksToSkip=2):
+        Runtime / s: 0.965 <= 0.979 +- 0.02 <= 1.002
+        Bandwidth on Encoded Data / (MB/s): 815 <= 834 +- 17 <= 847
+        Bandwidth on Decoded Data / (MB/s): 1071 <= 1097 +- 22 <= 1113
+    Decompressed 816860634 B to 1073741824 B with pragzip (parallel, nBlocksToSkip=4):
+        Runtime / s: 0.877 <= 0.895 +- 0.021 <= 0.917
+        Bandwidth on Encoded Data / (MB/s): 890 <= 913 +- 21 <= 931
+        Bandwidth on Decoded Data / (MB/s): 1170 <= 1200 +- 27 <= 1224
+    Decompressed 816860634 B to 1073741824 B with pragzip (parallel, nBlocksToSkip=8):
+        Runtime / s: 0.808 <= 0.822 +- 0.013 <= 0.835
+        Bandwidth on Encoded Data / (MB/s): 978 <= 994 +- 16 <= 1011
+        Bandwidth on Decoded Data / (MB/s): 1286 <= 1307 +- 21 <= 1328
+    Decompressed 816860634 B to 1073741824 B with pragzip (parallel, nBlocksToSkip=16):
+        Runtime / s: 0.772 <= 0.779 +- 0.008 <= 0.788
+        Bandwidth on Encoded Data / (MB/s): 1037 <= 1048 +- 11 <= 1059
+        Bandwidth on Decoded Data / (MB/s): 1363 <= 1378 +- 14 <= 1392
+    Decompressed 816860634 B to 1073741824 B with pragzip (parallel, nBlocksToSkip=24):
+        Runtime / s: 0.77 <= 0.778 +- 0.01 <= 0.79
+        Bandwidth on Encoded Data / (MB/s): 1034 <= 1050 +- 14 <= 1061
+        Bandwidth on Decoded Data / (MB/s): 1359 <= 1380 +- 18 <= 1395
+    Decompressed 816860634 B to 1073741824 B with pragzip (parallel, nBlocksToSkip=32):
+        Runtime / s: 0.775 <= 0.791 +- 0.017 <= 0.81
+        Bandwidth on Encoded Data / (MB/s): 1009 <= 1033 +- 23 <= 1054
+        Bandwidth on Decoded Data / (MB/s): 1326 <= 1358 +- 30 <= 1385
+    Decompressed 816860634 B to 1073741824 B with pragzip (parallel, nBlocksToSkip=64):
+        Runtime / s: 0.884 <= 0.904 +- 0.023 <= 0.929
+        Bandwidth on Encoded Data / (MB/s): 879 <= 904 +- 23 <= 924
+        Bandwidth on Decoded Data / (MB/s): 1156 <= 1188 +- 30 <= 1215
+    Decompressed 816860634 B to 1073741824 B with pragzip (parallel, nBlocksToSkip=128):
+        Runtime / s: 0.983 <= 1.006 +- 0.025 <= 1.033
+        Bandwidth on Encoded Data / (MB/s): 791 <= 812 +- 20 <= 831
+        Bandwidth on Decoded Data / (MB/s): 1039 <= 1068 +- 27 <= 1092
 
     Decompressed 816860634 B to 1073741824 B with libarchive:
-        Runtime / s: 3.27 <= 3.3 +- 0.04 <= 3.34
-        Bandwidth on Encoded Data / (MB/s): 244.6 <= 247.3 +- 2.6 <= 249.8
-        Bandwidth on Decoded Data / (MB/s): 322 <= 325 +- 3 <= 328
+        Runtime / s: 3.274 <= 3.281 +- 0.008 <= 3.289
+        Bandwidth on Encoded Data / (MB/s): 248.4 <= 249 +- 0.6 <= 249.5
+        Bandwidth on Decoded Data / (MB/s): 326.5 <= 327.2 +- 0.8 <= 328
     Decompressed 816860634 B to 1073741824 B with zlib:
-        Runtime / s: 3.85 <= 3.89 +- 0.06 <= 3.95
-        Bandwidth on Encoded Data / (MB/s): 207 <= 210 +- 3 <= 212
-        Bandwidth on Decoded Data / (MB/s): 272 <= 276 +- 4 <= 279
+        Runtime / s: 3.87 <= 3.92 +- 0.04 <= 3.95
+        Bandwidth on Encoded Data / (MB/s): 206.8 <= 208.3 +- 2.2 <= 210.8
+        Bandwidth on Decoded Data / (MB/s): 271.8 <= 273.8 +- 2.9 <= 277.2
     Decoded 75802 deflate blocks
     Decoded 75802 deflate blocks
     Decoded 75802 deflate blocks
     Decompressed 816860634 B to 1073741824 B with pragzip (serial):
-        Runtime / s: 10.14 <= 10.2 +- 0.08 <= 10.28
-        Bandwidth on Encoded Data / (MB/s): 79.4 <= 80.1 +- 0.6 <= 80.6
-        Bandwidth on Decoded Data / (MB/s): 104.4 <= 105.3 +- 0.8 <= 105.9
+        Runtime / s: 10.33 <= 10.4 +- 0.07 <= 10.48
+        Bandwidth on Encoded Data / (MB/s): 78 <= 78.6 +- 0.6 <= 79.1
+        Bandwidth on Decoded Data / (MB/s): 102.5 <= 103.3 +- 0.7 <= 103.9
     Decompressed 816860634 B to 1073741824 B with pragzip (parallel):
-        Runtime / s: 1.51 <= 1.61 +- 0.09 <= 1.67
-        Bandwidth on Encoded Data / (MB/s): 490 <= 510 +- 28 <= 542
-        Bandwidth on Decoded Data / (MB/s): 640 <= 670 +- 40 <= 710
+        Runtime / s: 0.7809 <= 0.7829 +- 0.002 <= 0.7849
+        Bandwidth on Encoded Data / (MB/s): 1040.7 <= 1043.4 +- 2.7 <= 1046.1
+        Bandwidth on Decoded Data / (MB/s): 1368 <= 1372 +- 4 <= 1375
     Decompressed 816860634 B to 1073741824 B with pragzip (parallel + index):
-        Runtime / s: 0.7 <= 0.73 +- 0.04 <= 0.78
-        Bandwidth on Encoded Data / (MB/s): 1050 <= 1120 +- 70 <= 1170
-        Bandwidth on Decoded Data / (MB/s): 1380 <= 1480 +- 90 <= 1530
+        Runtime / s: 0.708 <= 0.72 +- 0.016 <= 0.738
+        Bandwidth on Encoded Data / (MB/s): 1107 <= 1135 +- 24 <= 1154
+        Bandwidth on Decoded Data / (MB/s): 1460 <= 1490 +- 30 <= 1520
 
   -> Pragzip has abysmal serial decoder speed, probably because pigz deflate blocks are only 16 KiB so that the
      upfront cost for the double-symbol cached Huffman-decoder becomes expensive.
-  -> The parallel version on 12 physical cores (24 virtual cores) is still 6x faster than pragzip in serial
-     and almost 2x faster than with zlib although this is pretty wasteful when thinking of all cores being used.
-     @todo It becomes a lot faster when skipping some found pigz blocks, i.e., decoding them in batches of 10 or so!
 */
 
 /**
@@ -720,7 +993,7 @@ time crc32 small
 */
 
 
-/**
+/*
 Repeat benchmarks with tarred and gzipped Silesia corpus.
 http://sun.aei.polsl.pl/~sdeor/index.php?page=silesia
 
@@ -826,4 +1099,74 @@ python3 -c 'import indexed_gzip as igz; import time; t0 = time.time(); igz.open(
 
 python3 -c 'import indexed_gzip as igz; import time; t0 = time.time(); igz.open("small.gz", spacing=int(128*1024**2), readbuf_size=int(1024**2), buffer_size=int(128*1024**2)).read(); print(f"Decompression took {time.time() - t0:.3f} s")'
     Decompression took 13.290 s
+*/
+
+
+/*
+git clone https://github.com/mxmlnkn/indexed_bzip2
+cd indexed_bzip2 && mkdir build && cd build && cmake ..
+sudo apt install pigz isal tabix
+
+# Create a compressible random file
+base64 /dev/urandom | head -c $(( 512 * 1024 * 1024 )) > small
+pigz  -k -c small > small.pigz
+bgzip    -c small > small.bgz
+gzip  -k -c small > small.gz
+igzip -k -c small > small.igz
+
+fileSize=$( stat --format=%s small )
+for format in gz bgz pigz igz; do
+    printf '\n| %6s | %19s | %10s | %18s |\n' Format Decoder 'Runtime / s' 'Bandwidth / (MB/s)'
+    printf -- '|--------|---------------------|-------------|--------------------|\n'
+    for tool in gzip bgzip "bgzip -@ $( nproc )" pigz igzip "igzip -T $( nproc )" tools/pragzip "tools/pragzip -P $( nproc )"; do
+        runtime=$( ( time $tool -d -c "small.$format" | wc -c ) 2>&1 | sed -n -E 's|real[ \t]*0m||p' | sed 's|[ \ts]||' )
+        bandwidth=$( python3 -c "print( int( round( $fileSize / 1e6 / $runtime ) ) )" )
+        printf '| %6s | %19s | %11s | %18s |\n' "$format" "$tool" "$runtime" "$bandwidth"
+    done
+done
+
+
+| Format |             Decoder | Runtime / s | Bandwidth / (MB/s) |
+|--------|---------------------|-------------|--------------------|
+|     gz |                gzip |       2.948 |                182 |
+|     gz |               bgzip |       2.137 |                251 |
+|     gz |         bgzip -@ 24 |       2.128 |                252 |
+|     gz |                pigz |       1.737 |                309 |
+|     gz |               igzip |       1.178 |                456 |
+|     gz |         igzip -T 24 |       1.163 |                462 |
+|     gz |       tools/pragzip |       3.598 |                149 |
+|     gz | tools/pragzip -P 24 |       3.909 |                137 |
+
+| Format |             Decoder | Runtime / s | Bandwidth / (MB/s) |
+|--------|---------------------|-------------|--------------------|
+|    bgz |                gzip |       3.303 |                163 |
+|    bgz |               bgzip |       1.592 |                337 |
+|    bgz |         bgzip -@ 24 |       0.193 |               2782 |
+|    bgz |                pigz |       2.723 |                197 |
+|    bgz |               igzip |       1.192 |                450 |
+|    bgz |         igzip -T 24 |       1.216 |                442 |
+|    bgz |       tools/pragzip |       3.296 |                163 |
+|    bgz | tools/pragzip -P 24 |       0.375 |               1432 |
+
+| Format |             Decoder | Runtime / s | Bandwidth / (MB/s) |
+|--------|---------------------|-------------|--------------------|
+|   pigz |                gzip |       3.514 |                153 |
+|   pigz |               bgzip |       2.153 |                249 |
+|   pigz |         bgzip -@ 24 |       2.148 |                250 |
+|   pigz |                pigz |       1.773 |                303 |
+|   pigz |               igzip |       1.247 |                431 |
+|   pigz |         igzip -T 24 |       1.336 |                402 |
+|   pigz |       tools/pragzip |       5.241 |                102 |
+|   pigz | tools/pragzip -P 24 |       0.496 |               1082 |
+
+| Format |             Decoder | Runtime / s | Bandwidth / (MB/s) |
+|--------|---------------------|-------------|--------------------|
+|    igz |                gzip |       2.793 |                192 |
+|    igz |               bgzip |       1.958 |                274 |
+|    igz |         bgzip -@ 24 |       2.004 |                268 |
+|    igz |                pigz |       1.593 |                337 |
+|    igz |               igzip |       1.019 |                527 |
+|    igz |         igzip -T 24 |       1.065 |                504 |
+|    igz |       tools/pragzip |       2.450 |                219 |
+|    igz | tools/pragzip -P 24 |       2.626 |                204 |
 */

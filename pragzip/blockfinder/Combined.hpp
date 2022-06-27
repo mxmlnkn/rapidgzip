@@ -1,11 +1,6 @@
 #pragma once
 
-#include <array>
-#include <cstdint>
-#include <limits>
 #include <memory>
-#include <optional>
-#include <stdexcept>
 #include <utility>
 
 #include "Bgzf.hpp"
