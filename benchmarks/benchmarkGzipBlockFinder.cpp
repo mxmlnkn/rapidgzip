@@ -726,6 +726,61 @@ findDeflateBlocksPragzipLUT( BufferedFileReader::AlignedBuffer data )
 }
 
 
+/**
+ * Same as findDeflateBlocksPragzipLUT but tries to improve pipelining by going over the data twice.
+ * Once, doing simple Boyer-Moore-like string search tests and skips forward and the second time doing
+ * extensive tests by loading and checking the dynamic Huffman trees, which might require seeking back.
+ */
+template<uint8_t CACHED_BIT_COUNT>
+[[nodiscard]] std::vector<size_t>
+findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
+{
+    const size_t nBitsToTest = data.size() * CHAR_BIT;
+    pragzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( data ) ) );
+
+    std::vector<size_t> bitOffsetCandidates;
+
+    static constexpr auto nextDeflateCandidateLUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
+
+    for ( size_t offset = 0; offset <= nBitsToTest; ) {
+        try {
+            const auto nextPosition = nextDeflateCandidateLUT[bitReader.peek<CACHED_BIT_COUNT>()];
+            if ( nextPosition == 0 ) {
+                bitOffsetCandidates.push_back( offset );
+                ++offset;
+                bitReader.seekAfterPeek( 1 );
+            } else {
+                offset += nextPosition;
+                bitReader.seekAfterPeek( nextPosition );
+            }
+        } catch ( const pragzip::BitReader::EndOfFileReached& ) {
+            break;
+        }
+    }
+
+    std::vector<size_t> bitOffsets;
+    pragzip::deflate::Block block;
+
+    const auto checkOffset =
+        [&block, &bitReader] ( const auto offset ) {
+            try {
+                bitReader.seek( static_cast<ssize_t>( offset + 3 ) );
+                return block.readDynamicHuffmanCoding( bitReader ) == pragzip::Error::NONE;
+            } catch ( const pragzip::BitReader::EndOfFileReached& ) {}
+            return false;
+        };
+
+    std::copy_if( bitOffsetCandidates.begin(), bitOffsetCandidates.end(),
+                  std::back_inserter( bitOffsets ), checkOffset );
+
+    /* From 134'217'728 bits to test, found 14'220'922 candidates and reduced them down further to 652 */
+    //std::cerr << "From " << nBitsToTest << " bits to test, found " << bitOffsetCandidates.size()
+    //          << " candidates and reduced them down further to " << bitOffsets.size() << "\n";
+
+    return bitOffsets;
+}
+
+
 [[nodiscard]] std::vector<size_t>
 findUncompressdDeflateBlocksNestedBranches( const BufferedFileReader::AlignedBuffer& buffer )
 {
@@ -1039,6 +1094,22 @@ benchmarkGzip( const std::string& fileName )
 
         if ( blockCandidates != blockCandidatesLUT ) {
             throw std::logic_error( "Results with and without LUT differ!" );
+        }
+
+        /* Same as above but with a LUT and two-pass. */
+
+        const auto [blockCandidatesLUT2P, durationsLUT2P] = benchmarkFunction(
+            /* As for choosing CACHED_BIT_COUNT == 13, see the output of the results at the end of the file.
+             * 13 is the last for which it significantly improves over less bits and 14 bits produce reproducibly
+             * slower bandwidths! 13 bits is the best configuration as far as I know. */
+            [&buffer] () { return findDeflateBlocksPragzipLUTTwoPass<13>( buffer ); } );
+
+        std::cout << "[findDeflateBlocksPragzipLUTTwoPass] " << formatBandwidth( durationsLUT2P, buffer.size() ) << "\n";
+        std::cout << "    Block candidates (" << blockCandidatesLUT2P.size() << "): "
+                  << blockCandidatesLUT2P << "\n\n";
+
+        if ( blockCandidates != blockCandidatesLUT2P ) {
+            throw std::logic_error( "Results with and without LUT + 2-pass differ!" );
         }
     }
 
