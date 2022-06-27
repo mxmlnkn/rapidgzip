@@ -13,16 +13,18 @@
 #include <filereader/FileReader.hpp>
 #include <gzip.hpp>
 
-#include "OffsetFinderInterface.hpp"
+#include "Interface.hpp"
 
 
+namespace pragzip::blockfinder
+{
 /**
  * @note Tops out at 1-1.5 GiB/s, which might bottleneck decompression with ~12 cores for
  *       my decoder (~90 MB/s) and ~6 cores for zlib decompression (~200 MB/s).
- * @deprecated Use PigzBlockFinderStringView instead because it achieves more than 8 GB/s!
+ * @deprecated Use blockfinder::PigzStringView instead because it achieves more than 8 GB/s!
  */
-class PigzBlockFinderNaive :
-    public OffsetFinderInterface
+class PigzNaive :
+    public Interface
 {
 public:
     /**
@@ -34,7 +36,7 @@ public:
     static constexpr uint8_t MAGIC_BIT_STRING_SIZE = 35;
 
 public:
-    PigzBlockFinderNaive( std::unique_ptr<FileReader> fileReader ) :
+    PigzNaive( std::unique_ptr<FileReader> fileReader ) :
         m_fileReader( std::move( fileReader ) )
     {}
 
@@ -165,3 +167,4 @@ private:
     size_t m_lastBlockOffsetReturned{ 0 };  /**< absolute offset in bits */
     size_t m_blockCandidate{ 0 };  /**< relative offset in bytes */
 };
+}  // pragzip::blockfinder

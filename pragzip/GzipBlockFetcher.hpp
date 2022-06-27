@@ -14,7 +14,7 @@
 #include <BlockFetcher.hpp>
 
 #include "BlockFinder.hpp"
-#include "blockfinder/OffsetFinderInterface.hpp"
+#include "blockfinder/Interface.hpp"
 #include "deflate.hpp"
 #include "gzip.hpp"
 
@@ -140,10 +140,10 @@ public:
 
 template<typename FetchingStrategy = FetchingStrategy::FetchNextSmart>
 class GzipBlockFetcher :
-    public BlockFetcher<BlockFinder<OffsetFinderInterface>, BlockData, FetchingStrategy>
+    public BlockFetcher<BlockFinder<blockfinder::Interface>, BlockData, FetchingStrategy>
 {
 public:
-    using BaseType = BlockFetcher<::BlockFinder<OffsetFinderInterface>, BlockData, FetchingStrategy>;
+    using BaseType = BlockFetcher<::BlockFinder<blockfinder::Interface>, BlockData, FetchingStrategy>;
     using BitReader = pragzip::BitReader;
     using Windows = std::unordered_map</* block offet */ size_t, deflate::Window>;
 

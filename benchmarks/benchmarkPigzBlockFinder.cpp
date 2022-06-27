@@ -442,6 +442,8 @@ main( int    argc,
 
     try
     {
+        using namespace pragzip::blockfinder;
+
         std::cout << "[countZeroBytes] ";
         measureByteComparison( fileName, countZeroBytes );
         std::cout << "[findZeroBytesBitset] ";
@@ -459,12 +461,12 @@ main( int    argc,
         std::cout << "[findStringView] ";
         measureByteComparison( fileName, findStringView );
 
-        std::cout << "[PigzBlockFinderNaive] ";
-        benchmarkBlockFinder<PigzBlockFinderNaive>( fileName );
-        std::cout << "[PigzBlockFinderStringView] ";
-        benchmarkBlockFinder<PigzBlockFinderStringView>( fileName );
-        std::cout << "[ParallelPigzBlockFinder] ";
-        benchmarkBlockFinder<ParallelPigzBlockFinder>( fileName );
+        std::cout << "[blockfinder::PigzNaive] ";
+        benchmarkBlockFinder<PigzNaive>( fileName );
+        std::cout << "[blockfinder::PigzStringView] ";
+        benchmarkBlockFinder<PigzStringView>( fileName );
+        std::cout << "[blockfinder::PigzParallel] ";
+        benchmarkBlockFinder<PigzParallel>( fileName );
     }
     catch ( const std::exception& e )
     {
@@ -488,11 +490,11 @@ cmake --build . -- benchmarkPigzBlockFinder && tests/benchmarkPigzBlockFinder
 [findZeroBytes64BitLUT]     Searched 408430549 B in 0.208149 s -> 1962  MB/s and found 2114 blocks.
 [findStringView]            Searched 408430549 B in 0.056172 s -> 7271  MB/s and found 2112 blocks.
 
-[PigzBlockFinderNaive]      Searched 408430549 B in 0.250202 s -> 1632  MB/s and found 2115 blocks.
-[PigzBlockFinderStringView] Searched 408430549 B in 0.050008 s -> 8167  MB/s and found 2115 blocks.
-[ParallelPigzBlockFinder]   Searched 408430549 B in 0.080975 s -> 5044  MB/s and found 2115 blocks.
+[blockfinder::PigzParallel]   Searched 408430549 B in 0.250202 s -> 1632  MB/s and found 2115 blocks.
+[blockfinder::PigzStringView] Searched 408430549 B in 0.050008 s -> 8167  MB/s and found 2115 blocks.
+[blockfinder::PigzParallel]   Searched 408430549 B in 0.080975 s -> 5044  MB/s and found 2115 blocks.
 
-[ParallelPigzBlockFinder]
+[blockfinder::PigzParallel]
     [BlockFetcher::~BlockFetcher]
        Time spent in:
            refillBuffer                   : 0.035006 s

@@ -4,19 +4,21 @@
 #include <utility>
 
 #include "Bgzf.hpp"
-#include "OffsetFinderInterface.hpp"
+#include "Interface.hpp"
 #include "PigzStringView.hpp"
 
 
+namespace pragzip::blockfinder
+{
 class Combined :
-    public OffsetFinderInterface
+    public Interface
 {
 public:
     Combined( std::unique_ptr<FileReader> fileReader ) :
         m_blockFinder(
-            BgzfBlockFinder::isBgzfFile( fileReader )
-            ? static_cast<OffsetFinderInterface*>( new BgzfBlockFinder( std::move( fileReader ) ) )
-            : static_cast<OffsetFinderInterface*>( new PigzBlockFinderStringView( std::move( fileReader ) ) )
+            Bgzf::isBgzfFile( fileReader )
+            ? static_cast<Interface*>( new Bgzf( std::move( fileReader ) ) )
+            : static_cast<Interface*>( new PigzStringView( std::move( fileReader ) ) )
         )
     {}
 
@@ -30,5 +32,6 @@ public:
     }
 
 private:
-    const std::unique_ptr<OffsetFinderInterface> m_blockFinder;
+    const std::unique_ptr<Interface> m_blockFinder;
 };
+}  // pragzip::blockfinder

@@ -3,7 +3,7 @@
 #include <memory>
 #include <utility>
 
-#include "OffsetFinderInterface.hpp"
+#include "Interface.hpp"
 
 
 namespace pragzip::blockfinder
@@ -12,11 +12,11 @@ namespace pragzip::blockfinder
  * Returns the first find, then skips n finds and returns the next find, and so on.
  */
 class Skipping :
-    public OffsetFinderInterface
+    public Interface
 {
 public:
-    Skipping( std::unique_ptr<OffsetFinderInterface> blockFinder,
-              size_t                                 nToSkip ) :
+    Skipping( std::unique_ptr<Interface> blockFinder,
+              size_t                     nToSkip ) :
         m_blockFinder( std::move( blockFinder ) ),
         m_nToSkip( nToSkip )
     {}
@@ -36,7 +36,7 @@ public:
     }
 
 private:
-    const std::unique_ptr<OffsetFinderInterface> m_blockFinder;
+    const std::unique_ptr<Interface> m_blockFinder;
     const size_t m_nToSkip;
     bool m_firstFound{ false };
 };

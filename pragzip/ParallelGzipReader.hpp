@@ -45,7 +45,7 @@ public:
     explicit
     ParallelGzipReader( std::unique_ptr<FileReader> fileReader,
                         size_t                      parallelization = 0 ) :
-        m_isBgzfFile( BgzfBlockFinder::isBgzfFile( fileReader ) ),
+        m_isBgzfFile( pragzip::blockfinder::Bgzf::isBgzfFile( fileReader ) ),
         m_bitReader( std::move( fileReader ) ),
         m_fetcherParallelization(
             parallelization == 0
@@ -55,7 +55,7 @@ public:
             {
                 return std::make_unique<BlockFinder>(
                     std::make_unique<pragzip::blockfinder::Skipping>(
-                        std::make_unique<Combined>(
+                        std::make_unique<pragzip::blockfinder::Combined>(
                             m_bitReader.cloneSharedFileReader()
                         ),
                         /* nBlocksToSkip */ 16
@@ -72,7 +72,7 @@ public:
     ParallelGzipReader( std::unique_ptr<FileReader> fileReader,
                         size_t                      parallelization,
                         size_t                      nBlocksToSkip ) :
-        m_isBgzfFile( BgzfBlockFinder::isBgzfFile( fileReader ) ),
+        m_isBgzfFile( pragzip::blockfinder::Bgzf::isBgzfFile( fileReader ) ),
         m_bitReader( std::move( fileReader ) ),
         m_fetcherParallelization(
             parallelization == 0
@@ -82,7 +82,7 @@ public:
             {
                 return std::make_unique<BlockFinder>(
                     std::make_unique<pragzip::blockfinder::Skipping>(
-                        std::make_unique<Combined>(
+                        std::make_unique<pragzip::blockfinder::Combined>(
                             m_bitReader.cloneSharedFileReader()
                         ),
                         nBlocksToSkip

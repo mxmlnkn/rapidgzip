@@ -3,6 +3,7 @@ target_include_directories(libblockfinder INTERFACE ${CMAKE_CURRENT_LIST_DIR}/..
 target_sources(libblockfinder INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/Bgzf.hpp
     ${CMAKE_CURRENT_LIST_DIR}/Combined.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/Interface.hpp
     ${CMAKE_CURRENT_LIST_DIR}/PigzNaive.hpp
     ${CMAKE_CURRENT_LIST_DIR}/PigzParallel.hpp
     ${CMAKE_CURRENT_LIST_DIR}/PigzStringView.hpp

@@ -88,7 +88,7 @@ findBgzStreams( const std::string& fileName )
     std::vector<size_t> streamOffsets;
 
     try {
-        BgzfBlockFinder blockFinder( std::make_unique<StandardFileReader>( fileName ) );
+        pragzip::blockfinder::Bgzf blockFinder( std::make_unique<StandardFileReader>( fileName ) );
 
         while ( true ) {
             const auto offset = blockFinder.find();
@@ -1059,7 +1059,7 @@ benchmarkGzip( const std::string& fileName )
     }
 
     /* Because final blocks are skipped, it won't find anything for BGZ files! */
-    const auto isBgzfFile = BgzfBlockFinder::isBgzfFile( std::make_unique<StandardFileReader>( fileName ) );
+    const auto isBgzfFile = pragzip::blockfinder::Bgzf::isBgzfFile( std::make_unique<StandardFileReader>( fileName ) );
     if ( !isBgzfFile ) {
         const auto buffer = bufferFile( fileName, 256ULL * 1024ULL );
         const auto [blockCandidates, durations] = benchmarkFunction(

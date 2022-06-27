@@ -14,13 +14,15 @@
 #include <ThreadPool.hpp>
 
 #include "../pragzip.hpp"
-#include "OffsetFinderInterface.hpp"
+#include "Interface.hpp"
 
 
+namespace pragzip::blockfinder
+{
 /**
  * @note Does not even give a speedup of two! ~2300 MB/s vs. 1450 MB/s ... even when using /dev/shm!?
  *       I also tried varying the buffer size but to no avail.
- * @deprecated Use PigzBlockFinderStringView instead because it achieves more than 8 GB/s!
+ * @deprecated Use blockfinder::PigzStringView instead because it achieves more than 8 GB/s!
  *
  * 12 threads:
  *     [findPigzBlocks] Trying to find block bit offsets in 389 MiB of data took 0.170229 s => 2399.3 MB/s
@@ -81,8 +83,8 @@
  *      sys	0m0.627s                                               speed up a lot beause it is not the critical path!
  *
  */
-class ParallelPigzBlockFinder :
-    public OffsetFinderInterface
+class PigzParallel :
+    public Interface
 {
 public:
     using DeflateBlock = pragzip::deflate::Block</* CRC32 */ false>;
@@ -97,12 +99,12 @@ public:
     static constexpr uint8_t MAGIC_BYTE_STRING_SIZE = 5;
 
 public:
-    ParallelPigzBlockFinder( std::unique_ptr<FileReader> fileReader ) :
+    PigzParallel( std::unique_ptr<FileReader> fileReader ) :
         m_fileReader( std::move( fileReader ) )
     {}
 
     #if 1
-    ~ParallelPigzBlockFinder()
+    ~PigzParallel()
     {
         std::cerr << "[BlockFetcher::~BlockFetcher]"
         << "\n   Time spent in:"
@@ -303,3 +305,4 @@ private:
     mutable double m_refillDuration{ 0 };
     mutable double m_futureWaitDuration{ 0 };
 };
+}  // pragzip::blockfinder

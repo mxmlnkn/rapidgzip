@@ -10,9 +10,11 @@
 
 #include <filereader/FileReader.hpp>
 
-#include "OffsetFinderInterface.hpp"
+#include "Interface.hpp"
 
 
+namespace pragzip::blockfinder
+{
 /**
  * @see https://www.ietf.org/rfc/rfc1952.txt
  * Each member has the following structure:
@@ -78,8 +80,8 @@
  * EOF is the end of the file as intended by the program that wrote it. Empty BGZF blocks are not otherwise
  * special; in particular, the presence of an EOF marker block does not by itself signal end of file.
  */
-class BgzfBlockFinder :
-    public OffsetFinderInterface
+class Bgzf :
+    public Interface
 {
 public:
     using HeaderBytes = std::array<uint8_t, 18>;
@@ -101,7 +103,7 @@ public:
     };
 
 public:
-    BgzfBlockFinder( std::unique_ptr<FileReader> fileReader ) :
+    Bgzf( std::unique_ptr<FileReader> fileReader ) :
         m_fileReader( std::move( fileReader ) )
     {
         HeaderBytes header;
@@ -225,3 +227,4 @@ private:
     const std::unique_ptr<FileReader> m_fileReader;
     size_t m_currentBlockOffset = 0;  /**< in bytes because these are gzip stream offsets */
 };
+}  // pragzip::blockfinder

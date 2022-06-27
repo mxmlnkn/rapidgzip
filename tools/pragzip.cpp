@@ -478,7 +478,7 @@ cli( int argc, char** argv )
         }
 
         std::cerr << "Bgzf block offsets:\n";
-        BgzfBlockFinder blockFinder( std::make_unique<StandardFileReader>( inputFilePath ) );
+        pragzip::blockfinder::Bgzf blockFinder( std::make_unique<StandardFileReader>( inputFilePath ) );
         for ( auto offset = blockFinder.find();
               offset != std::numeric_limits<size_t>::max();
               offset = blockFinder.find() )

@@ -14,11 +14,13 @@
 #include <filereader/FileReader.hpp>
 #include <gzip.hpp>
 
-#include "OffsetFinderInterface.hpp"
+#include "Interface.hpp"
 
 
-class PigzBlockFinderStringView :
-    public OffsetFinderInterface
+namespace pragzip::blockfinder
+{
+class PigzStringView :
+    public Interface
 {
 public:
     /**
@@ -30,7 +32,7 @@ public:
     static constexpr uint8_t MAGIC_BIT_STRING_SIZE = 35;
 
 public:
-    PigzBlockFinderStringView( std::unique_ptr<FileReader> fileReader ) :
+    PigzStringView( std::unique_ptr<FileReader> fileReader ) :
         m_fileReader( std::move( fileReader ) ),
         m_fileSize( m_fileReader->size() )
     {}
@@ -164,3 +166,4 @@ private:
         "\0\0\xFF\xFF", 4 /* required or else strlen is used resulting in zero */
     };
 };
+}  // pragzip::blockfinder
