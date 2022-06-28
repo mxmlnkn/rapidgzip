@@ -1,0 +1,5 @@
+include LICENSE
+include README.md
+include pragzip.pyx
+recursive-include pragzip *.hpp
+recursive-include core *.hpp

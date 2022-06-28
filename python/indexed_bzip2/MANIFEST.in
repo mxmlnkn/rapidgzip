@@ -1,0 +1,5 @@
+include LICENSE
+include README.md
+include indexed_bzip2.pyx
+recursive-include indexed_bzip2 *.hpp
+recursive-include core *.hpp

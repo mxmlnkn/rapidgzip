@@ -31,44 +31,17 @@ jobs:
     - name: Install Dependencies
       run: |
         python3 -m pip install --upgrade pip
-        python3 -m pip install --upgrade-strategy eager --upgrade cython twine cibuildwheel
+        python3 -m pip install --upgrade-strategy eager --upgrade cython twine cibuildwheel build
 
     - name: Build Tarball
       if: matrix.manylinux-image == 'manylinux_2014' && matrix.os == 'ubuntu-latest'
-      run: python3 setup.py sdist
+      run: python3 -m build --sdist
 
     - name: Build Wheels
       env:
         CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux-image }}
         CIBW_MANYLINUX_I686_IMAGE: ${{ matrix.manylinux-image }}
-      run: python -m cibuildwheel --output-dir dist
-
-    - name: Check Wheels
-      run: twine check dist/*
-
-    - name: Publish to PyPI
-      env:
-        TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
-      run: twine upload --skip-existing -u __token__ dist/*
-
-
-  Deploy-Tarball:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: 3.9
-
-    - name: Install Dependencies
-      run: |
-        python3 -m pip install --upgrade pip
-        python3 -m pip install --upgrade-strategy eager --upgrade setuptools twine
-
-    - name: Create Tarball
-      run: python3 setup.py sdist
+      run: python -m cibuildwheel --output-dir dist python/indexed_bzip2
 
     - name: Check Wheels
       run: twine check dist/*
@@ -112,7 +85,11 @@ jobs:
       env:
         ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
       run: |
-        conda install conda-build anaconda-client conda-verify
+        # Circumvent bug introduced in https://github.com/conda/conda/pull/11364#issuecomment-1139184379
+        # https://github.com/conda/conda-build/issues/4509
+        conda install conda=4.12.0 conda-build anaconda-client conda-verify packaging
         conda config --set anaconda_upload yes
-        cd conda
+        python3 -m pip install --user build
+        python3 -m build -o . --sdist ../python/indexed_bzip2
+        mv indexed_bzip2-*.tar* src.tar
         conda build --token "$ANACONDA_TOKEN" .

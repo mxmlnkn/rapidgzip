@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project("Indexed BZip2 Decoder" CXX)
+project("Indexed BZip2/Gzip Decoder" CXX)
 
 
 option(CODE_COVERAGE "Enable coverage reporting" OFF)
@@ -33,24 +33,12 @@ endif()
 include(CTest)
 
 
-find_package(ZLIB)
-find_package(LibArchive)
-
-
-add_library(cxxopts INTERFACE)
-target_include_directories(cxxopts SYSTEM INTERFACE ${CMAKE_SOURCE_DIR}/external/cxxopts/include)
-target_sources(cxxopts INTERFACE ${CMAKE_SOURCE_DIR}/external/cxxopts/include/cxxopts.hpp)
-
-
+find_package(ZLIB QUIET)
+find_package(LibArchive QUIET)
 find_package(Threads REQUIRED)
 
 
-add_subdirectory(benchmarks)
-add_subdirectory(core)
-add_subdirectory(indexed_bzip2)
-add_subdirectory(pragzip)
-add_subdirectory(tools)
-add_subdirectory(tests)
+add_subdirectory(src)
 
 
 # Add convenience custom targets

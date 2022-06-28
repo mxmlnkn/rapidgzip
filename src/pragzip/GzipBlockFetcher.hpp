@@ -8,6 +8,7 @@
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 

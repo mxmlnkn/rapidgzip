@@ -494,6 +494,14 @@ public:
         }
     }
 
+#ifdef WITH_PYTHON_SUPPORT
+    void
+    setBlockOffsets( PyObject* pythonObject )
+    {
+        setBlockOffsets( readGzipIndex( std::make_unique<PythonFileReader>( pythonObject ) ) );
+    }
+#endif
+
     /**
      * @return number of processed bits of compressed bzip2 input file stream
      * @note Bzip2 is block based and blocks are currently read fully, meaning that the granularity

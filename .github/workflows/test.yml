@@ -15,7 +15,7 @@ jobs:
       run: |
         sudo apt-get -y install bzip2 pbzip2 lbzip2 cppcheck clang clang-tidy g++ lcov ninja-build valgrind wget
         python3 -m pip install --upgrade pip
-        python3 -m pip install --upgrade-strategy eager --upgrade cython twine numpy indexed_gzip
+        python3 -m pip install --upgrade-strategy eager --upgrade cython twine numpy indexed_gzip build
         #
         # Install infer
         VERSION=1.1.0
@@ -35,24 +35,6 @@ jobs:
         g++ --version
         clang++ --version
         cppcheck --version
-
-    - name: Check committed Cython source
-      run: |
-        # Note that modification times can't be compared because they are changed by the git checkout
-        python3 setup.py build_ext --inplace --cython
-        git status
-        git diff
-        ls -la indexed_bzip2/indexed_bzip2.cpp
-        if ! git diff --quiet indexed_bzip2/indexed_bzip2.cpp; then
-          echo -e '\e[31mPlease trigger a rebuild of indexed_bzip2.pyx using "python3 setup.py build_ext --inplace --cython" and commit the new file\e[0m'
-          git diff indexed_bzip2/indexed_bzip2.cpp
-        fi
-
-    - name: Install From Tarball
-      run: |
-        python3 setup.py sdist
-        twine check dist/*
-        python3 -m pip install dist/*.tar.gz
 
     - name: Create Test Sample Data
       run: |
@@ -76,7 +58,7 @@ jobs:
     - name: Run cppcheck
       run: |
         set -o pipefail
-        cppcheck --enable=all --std=c++17 --suppress=unusedFunction --suppress=useStlAlgorithm -I indexed_bzip2 tests/ indexed_bzip2/*hpp 2>&1 | tee cppcheck.log
+        cppcheck --enable=all --std=c++17 --suppress=unusedFunction --suppress=useStlAlgorithm -I src/indexed_bzip2 src/tests/ src/indexed_bzip2/*.hpp 2>&1 | tee cppcheck.log
         if grep -E -i 'error: .* \[[^]]*\]$' cppcheck.log; then
             echo -e '\e[31mThere were errors while running cppcheck!\e[0m'
             exit 1
@@ -146,7 +128,7 @@ jobs:
         cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug ..
         cmake --build . -- ibzip2
         set -o pipefail
-        bash ../tests/testIbzip2.sh | tee run-standard-tests.log
+        bash ../src/tests/testIbzip2.sh | tee run-standard-tests.log
         if grep -i 'failed' run-standard-tests.log; then
             echo -e '\e[31mThere were errors while running the tests!\e[0m'
             exit 1
@@ -194,14 +176,44 @@ jobs:
         python3 -m pip install --upgrade pip
         python3 -m pip install --upgrade-strategy eager --upgrade cibuildwheel cython twine numpy
 
-    - name: Test Installation From Tarball
+    - name: Install Python Modules (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        # https://github.com/pypa/build/issues/253#issuecomment-793906474
+        # https://bugs.python.org/issue43749
+        # Only seems to be an issue with versions older than 3.9 because they did not backport the fix.
+        python3 -m pip install --upgrade build[virtualenv]
+
+    - name: Install Python Modules (Non-Windows)
+      if: matrix.os != 'windows-latest'
+      run: |
+        python3 -m pip install --upgrade build
+
+    - name: Test indexed_bzip2 Installation From Tarball
+      working-directory: python/indexed_bzip2
       shell: bash
       run: |
-        python3 setup.py sdist
+        python3 -m build
+        twine check dist/*
+        python3 -m pip install dist/*.tar.gz
+
+    - name: Test pragzip Installation From Tarball
+      working-directory: python/pragzip
+      shell: bash
+      run: |
+        python3 -m build
         twine check dist/*
         python3 -m pip install dist/*.tar.gz
 
     - name: Test BZip2 Decoder Python Package
       if: github.ref == 'refs/heads/master'
       # indexed_bzip2 should be installed for this step!
-      run: python3 tests/testBz2.py
+      run: python3 src/tests/testBz2.py
+
+    - name: Test pragzip Installation From Tarball
+      working-directory: python/pragzip
+      shell: bash
+      run: |
+        python3 -m build
+        twine check dist/*
+        python3 -m pip install dist/*.tar.gz

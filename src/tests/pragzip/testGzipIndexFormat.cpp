@@ -32,13 +32,16 @@ main( int    argc,
     if ( binaryFolder.empty() ) {
         binaryFolder = ".";
     }
-    const auto rootFolder = findParentFolderContaining( binaryFolder, "tests/data/base64-256KiB.gz.index" );
+    const auto rootFolder =
+        static_cast<std::filesystem::path>(
+            findParentFolderContaining( binaryFolder, "src/tests/data/base64-256KiB.bgz" )
+        ) / "src" / "tests" / "data";
 
     const auto index = readGzipIndex(
-        std::make_unique<StandardFileReader>( rootFolder + "/tests/data/base64-256KiB.gz.index" ) );
+        std::make_unique<StandardFileReader>( rootFolder / "base64-256KiB.gz.index" ) );
 
-    REQUIRE( index.compressedSizeInBytes == fileSize( rootFolder + "/tests/data/base64-256KiB.gz" ) );
-    REQUIRE( index.uncompressedSizeInBytes == fileSize( rootFolder + "/tests/data/base64-256KiB" ) );
+    REQUIRE( index.compressedSizeInBytes == fileSize( rootFolder / "base64-256KiB.gz" ) );
+    REQUIRE( index.uncompressedSizeInBytes == fileSize( rootFolder / "base64-256KiB" ) );
 
     REQUIRE( index.checkpointSpacing == 64 * 1024 );
     REQUIRE( index.checkpoints.size() == 5 );

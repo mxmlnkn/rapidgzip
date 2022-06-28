@@ -28,17 +28,18 @@ jobs:
     - name: Install Dependencies
       run: |
         python3 -m pip install --upgrade pip
-        python3 -m pip install --upgrade-strategy eager --upgrade cython twine cibuildwheel
+        python3 -m pip install --upgrade-strategy eager --upgrade cython twine cibuildwheel build
 
     - name: Build Tarball
+      working-directory: python/indexed_bzip2
       if: matrix.manylinux-image == 'manylinux_2014' && matrix.os == 'ubuntu-latest'
-      run: python3 setup.py sdist
+      run: python3 -m build --sdist
 
     - name: Build Wheels
       env:
         CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux-image }}
         CIBW_MANYLINUX_I686_IMAGE: ${{ matrix.manylinux-image }}
-      run: python -m cibuildwheel --output-dir dist
+      run: python -m cibuildwheel --output-dir dist python/indexed_bzip2
 
     - name: Check Wheels
       run: twine check dist/*

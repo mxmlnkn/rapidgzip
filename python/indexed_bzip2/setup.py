@@ -11,34 +11,25 @@ from setuptools import setup
 from setuptools.extension import Extension
 from setuptools.command.build_ext import build_ext
 
-
-buildCython = '--cython' in sys.argv
+# This fallback is only for jinja, which is used by conda to analyze this setup.py before any build environment
+# is set up.
+try:
+    from Cython.Build import cythonize
+except ImportError:
+    cythonize = None
 
 
 extensions = [
     Extension(
         name         = 'indexed_bzip2',
-        sources      = [ 'indexed_bzip2/indexed_bzip2.pyx' if buildCython
-                         else 'indexed_bzip2/indexed_bzip2.cpp' ],
-        depends      = [] if buildCython else \
-                       [ 'indexed_bzip2/BitReader.hpp',
-                         'indexed_bzip2/BitStringFinder.hpp',
-                         'indexed_bzip2/BZ2Reader.hpp',
-                         'indexed_bzip2/BZ2ReaderInterface.hpp',
-                         'indexed_bzip2/bzip2.hpp',
-                         'indexed_bzip2/Cache.hpp',
-                         'indexed_bzip2/common.hpp',
-                         'indexed_bzip2/FileReader.hpp',
-                         'indexed_bzip2/JoiningThread.hpp',
-                         'indexed_bzip2/ParallelBitStringFinder.hpp',
-                         'indexed_bzip2/ParallelBZ2Reader.hpp',
-                         'indexed_bzip2/Prefetcher.hpp',
-                         'indexed_bzip2/ThreadPool.hpp'
-                       ],
-        include_dirs = [ '.', 'core' ],
+        sources      = [ 'indexed_bzip2.pyx' ],
+        include_dirs = [ 'core', 'indexed_bzip2' ],
         language     = 'c++',
     ),
 ]
+
+if cythonize:
+    extensions = cythonize( extensions, compiler_directives = { 'language_level' : '3' } )
 
 
 def supportsFlag(compiler, flag):
@@ -47,6 +38,7 @@ def supportsFlag(compiler, flag):
         try:
             compiler.compile([file.name], extra_postargs=[flag])
         except CompileError:
+            print("[Info] Compiling with argument failed. Will try another one. The above error can be ignored!")
             return False
     return True
 
@@ -78,18 +70,12 @@ class Build(build_ext):
                                            '/constexpr:steps99000100' ]
             else:
                 # The default limit is ~33 M (1<<25) and 99 M seem to be enough to compile currently on GCC 11.
-                if supportsFlag(self.compiler, '-fconstexpr-steps=99000100'):
-                    ext.extra_compile_args += [ '-fconstexpr-steps=99000100' ]
-                elif supportsFlag(self.compiler, '-fconstexpr-ops-limit=99000100'):
+                if supportsFlag(self.compiler, '-fconstexpr-ops-limit=99000100'):
                     ext.extra_compile_args += [ '-fconstexpr-ops-limit=99000100' ]
+                elif supportsFlag(self.compiler, '-fconstexpr-steps=99000100'):
+                    ext.extra_compile_args += [ '-fconstexpr-steps=99000100' ]
 
         super(Build, self).build_extensions()
-
-
-if buildCython:
-    from Cython.Build import cythonize
-    extensions = cythonize( extensions, compiler_directives = { 'language_level' : '3' } )
-    del sys.argv[sys.argv.index( '--cython' )]
 
 
 scriptPath = os.path.abspath( os.path.dirname( __file__ ) )
@@ -107,8 +93,7 @@ setup(
     author_email     = 'mxmlnkn@github.de',
     license          = 'MIT',
     classifiers      = [ 'License :: OSI Approved :: MIT License',
-                         'Development Status :: 4 - Beta',
-                         'Intended Audience :: Developers',
+                         'Development Status :: 5 - Production/Stable',
                          'Natural Language :: English',
                          'Operating System :: MacOS',
                          'Operating System :: POSIX',
@@ -119,10 +104,13 @@ setup(
                          'Programming Language :: Python :: 3.7',
                          'Programming Language :: Python :: 3.8',
                          'Programming Language :: Python :: 3.9',
+                         'Programming Language :: Python :: 3.10',
                          'Programming Language :: C++',
                          'Topic :: Software Development :: Libraries',
                          'Topic :: Software Development :: Libraries :: Python Modules',
-                         'Topic :: System :: Archiving' ],
+                         'Topic :: System :: Archiving',
+                         'Topic :: System :: Archiving :: Compression'
+                       ],
 
     long_description = readmeContents,
     long_description_content_type = 'text/markdown',

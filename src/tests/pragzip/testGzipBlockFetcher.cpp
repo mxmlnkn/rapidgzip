@@ -99,8 +99,10 @@ main( int    argc,
         binaryFolder = std::string( binaryFilePath.begin(),
                                     binaryFilePath.begin() + static_cast<ssize_t>( lastSlash ) );
     }
-    const std::filesystem::path rootFolder = findParentFolderContaining( binaryFolder, "tests/data/base64-256KiB.gz" );
-    const auto testFolder = rootFolder / "tests" / "data";
+    const auto testFolder =
+        static_cast<std::filesystem::path>(
+            findParentFolderContaining( binaryFolder, "src/tests/data/base64-256KiB.bgz" )
+        ) / "src" / "tests" / "data";
 
     const auto test =
         [&] ( const std::string&         fileName,

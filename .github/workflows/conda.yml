@@ -43,8 +43,12 @@ jobs:
 
     - name: Build Conda Packages
       run: |
-        # Circumvent bug introduced in https://github.com/conda/conda/pull/11364
-        conda install conda=4.12.0 conda-build anaconda-client conda-verify
+        # Circumvent bug introduced in https://github.com/conda/conda/pull/11364#issuecomment-1139184379
+        # https://github.com/conda/conda-build/issues/4509
+        conda install conda=4.12.0 conda-build anaconda-client conda-verify packaging
         conda config --set anaconda_upload no
         cd conda
+        python3 -m pip install --user build
+        python3 -m build -o . --sdist ../python/indexed_bzip2
+        mv indexed_bzip2-*.tar* src.tar
         conda build .

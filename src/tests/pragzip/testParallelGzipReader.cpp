@@ -197,17 +197,20 @@ main( int    argc,
         binaryFolder = std::string( binaryFilePath.begin(),
                                     binaryFilePath.begin() + static_cast<ssize_t>( lastSlash ) );
     }
-    const std::filesystem::path rootFolder = findParentFolderContaining( binaryFolder, "tests/data/base64-256KiB.bgz" );
+    const auto rootFolder =
+        static_cast<std::filesystem::path>(
+            findParentFolderContaining( binaryFolder, "src/tests/data/base64-256KiB.bgz" )
+        ) / "src" / "tests" / "data";
 
     testParallelDecoderNano();
 
-    testParallelDecoder( rootFolder / "tests/data/base64-256KiB.pgz" );
+    testParallelDecoder( rootFolder / "base64-256KiB.pgz" );
 
-    testParallelDecoder( rootFolder / "tests/data/base64-256KiB.bgz" );
+    testParallelDecoder( rootFolder / "base64-256KiB.bgz" );
 
-    testParallelDecoder( rootFolder / "tests/data/base64-256KiB.gz",
-                         rootFolder / "tests/data/base64-256KiB",
-                         rootFolder / "tests/data/base64-256KiB.gz.index" );
+    testParallelDecoder( rootFolder / "base64-256KiB.gz",
+                         rootFolder / "base64-256KiB",
+                         rootFolder / "base64-256KiB.gz.index" );
 
     /**
      * @todo add test with false pigz positive, e.g., pigz marker inside comment, extra, or file name field.

@@ -20,8 +20,8 @@ ctypedef (long long int) lli
 
 cdef extern from "BZ2Reader.hpp":
     cppclass BZ2Reader:
-        BZ2Reader(string) except +
         BZ2Reader(int) except +
+        BZ2Reader(string) except +
         BZ2Reader(PyObject*) except +
 
         bool eof() except +
