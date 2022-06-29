@@ -43,10 +43,13 @@ add_subdirectory(src)
 
 # Add convenience custom targets
 
-add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --extra-verbose)
+include(ProcessorCount)
+ProcessorCount(coreCount)
+
+add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} -j ${coreCount} --extra-verbose)
 
 add_custom_target(check-memcheck
-    COMMAND ${CMAKE_CTEST_COMMAND} --extra-verbose --force-new-ctest-process --test-action memcheck
+    COMMAND ${CMAKE_CTEST_COMMAND} -j ${coreCount} --extra-verbose --force-new-ctest-process --test-action memcheck
     COMMAND cat "${CMAKE_BINARY_DIR}/Testing/Temporary/MemoryChecker.*.log"
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
 )
