@@ -18,6 +18,7 @@ class StandardFileReader :
     public FileReader
 {
 public:
+    explicit
     StandardFileReader( std::string filePath ) :
         m_file( throwingOpen( filePath, "rb" ) ),
         m_fileDescriptor( ::fileno( fp() ) ),
@@ -28,6 +29,7 @@ public:
         init();
     }
 
+    explicit
     StandardFileReader( int fileDescriptor ) :
         /* Use dup here so that the following fclose will not close the original file descriptor,
          * which probably is still in use by the caller! Note that dup will not guarantee independent

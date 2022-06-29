@@ -58,7 +58,12 @@ jobs:
     - name: Run cppcheck
       run: |
         set -o pipefail
-        cppcheck --enable=all --std=c++17 --suppress=unusedFunction --suppress=useStlAlgorithm -I src/indexed_bzip2 src/tests/ src/indexed_bzip2/*.hpp 2>&1 | tee cppcheck.log
+        cppcheck -j $( nproc ) --enable=all --std=c++17 --suppress=unusedFunction --suppress=useStlAlgorithm \
+            -I src/core \
+            -I src/indexed_bzip2 \
+            -I src/pragzip \
+            -I src/pragzip/huffman \
+            src 2>&1 | tee cppcheck.log
         if grep -E -i 'error: .* \[[^]]*\]$' cppcheck.log; then
             echo -e '\e[31mThere were errors while running cppcheck!\e[0m'
             exit 1

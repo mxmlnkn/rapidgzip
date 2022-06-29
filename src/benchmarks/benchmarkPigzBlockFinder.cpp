@@ -220,7 +220,6 @@ findStringView( const std::unique_ptr<FileReader>& file )
 {
     static constexpr size_t BUFFER_SIZE = 4096;
     alignas( 64 ) std::array<char, BUFFER_SIZE> buffer{};
-    std::vector<bool> zeroBytes( BUFFER_SIZE );
     constexpr std::string_view TEST_STRING{ "\0\0\xFF\xFF", 4 /* required or else strlen is used resulting in zero */ };
 
     std::size_t count{ 0 };
@@ -263,7 +262,6 @@ countZeroBytes( const std::unique_ptr<FileReader>& file )
 {
     static constexpr size_t BUFFER_SIZE = 4096;
     alignas( 64 ) std::array<char, BUFFER_SIZE> buffer{};
-    std::vector<bool> zeroBytes( BUFFER_SIZE );
 
     size_t count = 0;
 

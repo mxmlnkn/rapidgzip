@@ -284,7 +284,7 @@ public:
     using value_type = T;
 
 public:
-    constexpr
+    constexpr explicit
     WeakArray( T* data ) noexcept :
         m_data( data )
     {}

@@ -184,15 +184,8 @@ benchmarkFunction( SetupFunctor setup,
 [[nodiscard]] std::vector<uint8_t>
 readFile( const std::string& fileName )
 {
+    std::vector<uint8_t> contents( std::filesystem::file_size( fileName ) );
     const auto file = throwingOpen( fileName, "rb" );
-    const auto success = std::fseek( file.get(), 0, SEEK_END );
-    if ( success != 0 ) {
-        throw std::runtime_error( "Could not seek in given file!" );
-    }
-
-    const auto fileSize = std::ftell( file.get() );
-    std::vector<uint8_t> contents( fileSize );
-    std::fseek( file.get(), 0, SEEK_SET );
     const auto nBytesRead = std::fread( contents.data(), sizeof( contents[0] ), contents.size(), file.get() );
 
     if ( nBytesRead != contents.size() ) {

@@ -13,6 +13,7 @@ class MemoryFileReader :
     public FileReader
 {
 public:
+    explicit
     MemoryFileReader( std::vector<char> data ) :
         m_data( std::move( data ) )
     {}

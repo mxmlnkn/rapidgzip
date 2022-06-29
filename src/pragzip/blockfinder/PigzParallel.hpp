@@ -99,6 +99,7 @@ public:
     static constexpr uint8_t MAGIC_BYTE_STRING_SIZE = 5;
 
 public:
+    explicit
     PigzParallel( std::unique_ptr<FileReader> fileReader ) :
         m_fileReader( std::move( fileReader ) )
     {}

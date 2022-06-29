@@ -32,6 +32,7 @@ public:
     static constexpr uint8_t MAGIC_BIT_STRING_SIZE = 35;
 
 public:
+    explicit
     PigzStringView( std::unique_ptr<FileReader> fileReader ) :
         m_fileReader( std::move( fileReader ) ),
         m_fileSize( m_fileReader->size() )

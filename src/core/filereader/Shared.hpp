@@ -17,6 +17,7 @@ public:
     /**
      * Create a new shared file reader from an existing FileReader. Takes ownership of the given FileReader!
      */
+    explicit
     SharedFileReader( FileReader* file ) :
         m_mutex( std::make_shared<std::mutex>() ),
         m_fileSizeBytes( ( file != nullptr ) ? file->size() : 0 )
@@ -48,6 +49,7 @@ public:
         m_currentPosition = m_sharedFile->tell();
     }
 
+    explicit
     SharedFileReader( std::unique_ptr<FileReader> file ) :
         SharedFileReader( file.release() )
     {}

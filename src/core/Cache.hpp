@@ -113,7 +113,7 @@ public:
             }
         }
 
-        const auto [match, wasInserted] = m_cache.try_emplace( std::move( key ), std::move( value ) );
+        const auto [match, wasInserted] = m_cache.try_emplace( key, std::move( value ) );
         if ( !wasInserted ) {
             match->second = std::move( value );
         }

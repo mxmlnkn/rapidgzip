@@ -96,6 +96,7 @@ class PythonFileReader :
     public FileReader
 {
 public:
+    explicit
     PythonFileReader( PyObject* pythonObject ) :
         m_pythonObject( checkNullptr( pythonObject ) ),
 

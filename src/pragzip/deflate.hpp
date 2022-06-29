@@ -713,9 +713,8 @@ deflate::Block<CALCULATE_CRC32>::readDynamicHuffmanCoding( BitReader& bitReader 
         codeLengthCL[alphabetOrderC[i]] = bitReader.read<CL_CODE_LENGTH_BIT_COUNT>();
     }
 
-    Error error = Error::NONE;
     HuffmanCodingSymbolsPerLength<uint8_t, MAX_CL_CODE_LENGTH, uint8_t, MAX_CL_SYMBOL_COUNT> codeLengthHC;
-    error = codeLengthHC.initializeFromLengths( VectorView<uint8_t>( codeLengthCL.data(), codeLengthCL.size() ) );
+    auto error = codeLengthHC.initializeFromLengths( VectorView<uint8_t>( codeLengthCL.data(), codeLengthCL.size() ) );
     if ( error != Error::NONE ) {
         return error;
     }

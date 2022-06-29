@@ -38,18 +38,18 @@ public:
 
     explicit
     BZ2Reader( const std::string& filePath ) :
-        m_bitReader( new StandardFileReader( filePath ) )
+        m_bitReader( std::make_unique<StandardFileReader>( filePath ) )
     {}
 
     explicit
     BZ2Reader( int fileDescriptor ) :
-        m_bitReader( new StandardFileReader( fileDescriptor ) )
+        m_bitReader( std::make_unique<StandardFileReader>( fileDescriptor ) )
     {}
 
 #ifdef WITH_PYTHON_SUPPORT
     explicit
     BZ2Reader( PyObject* pythonObject ) :
-        m_bitReader( new PythonFileReader( pythonObject ) )
+        m_bitReader( std::make_unique<PythonFileReader>( pythonObject ) )
     {}
 #endif
 

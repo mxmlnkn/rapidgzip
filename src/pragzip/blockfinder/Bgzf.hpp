@@ -103,6 +103,7 @@ public:
     };
 
 public:
+    explicit
     Bgzf( std::unique_ptr<FileReader> fileReader ) :
         m_fileReader( std::move( fileReader ) )
     {

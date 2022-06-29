@@ -14,6 +14,7 @@ class Combined :
     public Interface
 {
 public:
+    explicit
     Combined( std::unique_ptr<FileReader> fileReader ) :
         m_blockFinder(
             Bgzf::isBgzfFile( fileReader )

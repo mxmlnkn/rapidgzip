@@ -11,7 +11,7 @@ template<typename T>
 struct Statistics
 {
     template<typename Container>
-    explicit constexpr
+    constexpr explicit
     Statistics( const Container& values ) noexcept
     {
         for ( const auto value : values ) {

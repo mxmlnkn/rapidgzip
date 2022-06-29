@@ -81,19 +81,6 @@ public:
 
 public:
     explicit
-    BitReader( std::string filePath ) :
-        m_file( std::make_unique<SharedFileReader>( new StandardFileReader( filePath ) ) )
-    {}
-
-    /**
-     * @param fileReader ownership is taken.
-     */
-    explicit
-    BitReader( FileReader* fileReader ) :
-        m_file( std::make_unique<SharedFileReader>( fileReader ) )
-    {}
-
-    explicit
     BitReader( std::unique_ptr<FileReader> fileReader ) :
         m_file( std::make_unique<SharedFileReader>( std::move( fileReader ) ) )
     {}
@@ -528,8 +515,8 @@ private:
          * when comparing it to manually copy-pasting the shift in all outer catch clauses. */
         struct ShiftBackOnReturn
         {
-            ShiftBackOnReturn( BitBuffer& bitBuffer,
-                               uint8_t&   originalBitBufferSize ) noexcept :
+            ShiftBackOnReturn( BitBuffer&     bitBuffer,
+                               const uint8_t& originalBitBufferSize ) noexcept :
                 m_bitBuffer( bitBuffer ),
                 m_originalBitBufferSize( originalBitBufferSize )
             {}
@@ -544,7 +531,7 @@ private:
 
         private:
             BitBuffer& m_bitBuffer;
-            uint8_t&   m_originalBitBufferSize;
+            const uint8_t& m_originalBitBufferSize;
         } shiftBackOnExit( m_bitBuffer, m_originalBitBufferSize );
 
         /* Refill buffer one byte at a time to enforce endianness and avoid unaligned access. */

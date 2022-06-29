@@ -36,6 +36,7 @@ public:
     static constexpr uint8_t MAGIC_BIT_STRING_SIZE = 35;
 
 public:
+    explicit
     PigzNaive( std::unique_ptr<FileReader> fileReader ) :
         m_fileReader( std::move( fileReader ) )
     {}
