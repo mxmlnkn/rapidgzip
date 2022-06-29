@@ -33,9 +33,10 @@
 #ifdef _MSC_VER
     #include <io.h>
 
-    #define fileno _fileno
-    #define dup _dup
-    #define fdopen _fdopen
+    /* MSVC still has a fileno alias even though it is deprecated. Using define is not a good idea because some
+     * methods are named fileno! Instead, disable the deprecation warning for this and if a more recent compiler
+     * removes the alias, then use: const auto fileno = _fileno; */
+    #pragma warning(disable : 4996)
 
     #include <sys/stat.h>
 

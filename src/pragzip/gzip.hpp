@@ -103,9 +103,9 @@ readHeader( BitReader& bitReader )
     }
 
     const auto flags = bitReader.read<BYTE_SIZE>();
-    header.modificationTime = bitReader.read<4 * BYTE_SIZE>();
-    header.extraFlags = bitReader.read<BYTE_SIZE>();
-    header.operatingSystem = bitReader.read<BYTE_SIZE>();
+    header.modificationTime = static_cast<uint32_t>( bitReader.read<4 * BYTE_SIZE>() );
+    header.extraFlags = static_cast<uint8_t>( bitReader.read<BYTE_SIZE>() );
+    header.operatingSystem = static_cast<uint8_t>( bitReader.read<BYTE_SIZE>() );
 
     header.isLikelyASCII = ( flags & 1 ) != 0;
 
@@ -118,7 +118,7 @@ readHeader( BitReader& bitReader )
                     return { result, Error::EOF_ZERO_STRING };
                 }
 
-                const auto toAppend = bitReader.read<BYTE_SIZE>();
+                const auto toAppend = static_cast<char>( bitReader.read<BYTE_SIZE>() );
                 if ( toAppend == 0 ) {
                     break;
                 }
@@ -132,7 +132,7 @@ readHeader( BitReader& bitReader )
         const auto length = bitReader.read<16>();
         std::vector<uint8_t> extraData( length );
         for ( auto& extraByte : extraData ) {
-            extraByte = bitReader.read<BYTE_SIZE>();
+            extraByte = static_cast<uint8_t>( bitReader.read<BYTE_SIZE>() );
         }
         header.extra = std::move( extraData );
     }
@@ -227,8 +227,8 @@ readFooter( BitReader& bitReader )
     }
 
     Footer footer;
-    footer.crc32 = bitReader.read<32>();
-    footer.uncompressedSize = bitReader.read<32>();
+    footer.crc32 = static_cast<uint32_t>( bitReader.read<32>() );
+    footer.uncompressedSize = static_cast<uint32_t>( bitReader.read<32>() );
     return footer;
 }
 } // namespace gzip

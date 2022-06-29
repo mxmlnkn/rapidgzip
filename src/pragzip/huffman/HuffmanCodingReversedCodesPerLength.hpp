@@ -33,7 +33,7 @@ protected:
          * for the code-length-sorted alphabet vector. */
         size_t sum = 0;
         for ( uint8_t bitLength = this->m_minCodeLength; bitLength <= this->m_maxCodeLength; ++bitLength ) {
-            m_offsets[bitLength - this->m_minCodeLength] = sum;
+            m_offsets[bitLength - this->m_minCodeLength] = static_cast<uint16_t>( sum );
             sum += bitLengthFrequencies[bitLength];
         }
         m_offsets[this->m_maxCodeLength - this->m_minCodeLength + 1] = sum;
