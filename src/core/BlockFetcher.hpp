@@ -144,6 +144,12 @@ public:
         return *result;
     }
 
+    void
+    clearCache()
+    {
+        m_cache.clear();
+    }
+
 private:
     [[nodiscard]] std::future<BlockData>
     takeFromPrefetchQueue( size_t blockOffset )

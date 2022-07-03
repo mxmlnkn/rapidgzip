@@ -152,6 +152,12 @@ public:
         return m_cache.size();
     }
 
+    void
+    clear()
+    {
+        m_cache.clear();
+    }
+
 private:
     CacheStrategy m_cacheStrategy;
     size_t const m_maxCacheSize;

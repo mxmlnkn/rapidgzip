@@ -492,6 +492,7 @@ public:
             std::memcpy( window.data(), checkpoint.window.data() + checkpoint.window.size() - window.size(),
                          window.size() );
         }
+        blockFetcher().clearCache();
     }
 
 #ifdef WITH_PYTHON_SUPPORT
@@ -531,6 +532,10 @@ public:
     void
     joinThreads()
     {
+        /** @todo move windows into blockmap so that we do not have to save them! */
+        if ( m_blockFetcher ) {
+            m_windows = m_blockFetcher->windows;
+        }
         m_blockFetcher = {};
         m_blockFinder = {};
     }
@@ -577,6 +582,11 @@ private:
 
         if ( !m_blockFetcher ) {
             throw std::logic_error( "Block fetcher should have been initialized!" );
+        }
+
+        if ( m_blockFetcher->windows.empty() ) {
+            m_blockFetcher->windows = std::move( m_windows );
+            m_windows = {};
         }
 
         return *m_blockFetcher;
@@ -648,4 +658,7 @@ private:
     /* This is the highest found block inside BlockFinder we ever processed and put into the BlockMap.
      * After the BlockMap has been finalized, this isn't needed anymore. */
     size_t m_nextUnprocessedBlockIndex{ 0 };
+
+    /** @todo move windows into block map to get rid of this temporary copy. */
+    std::unordered_map</* block offet */ size_t, pragzip::deflate::Window> m_windows;
 };
