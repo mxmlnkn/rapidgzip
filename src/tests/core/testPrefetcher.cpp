@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <fstream>
 #include <iostream>
+#include <numeric>
 #include <stdexcept>
 
 #include <Cache.hpp>
@@ -13,7 +14,73 @@
 using namespace FetchingStrategy;
 
 
-void testFetchNext()
+void
+testFindAdjacentIf()
+{
+    const auto findAdjacentIncreasing =
+        [] ( const auto& container ) {
+            return findAdjacentIf( container.begin(), container.end(),
+                                   [] ( const auto& current, const auto& next ) { return current + 1 == next; } );
+        };
+
+    /* Empty */
+    {
+        std::vector<int> values;
+        const auto [sequenceBegin, sequenceEnd] = findAdjacentIncreasing( values );
+        REQUIRE( sequenceBegin == values.end() );
+        REQUIRE( sequenceEnd == values.end() );
+    }
+
+    /* One */
+    {
+        std::vector<int> values = { 1 };
+        const auto [sequenceBegin, sequenceEnd] = findAdjacentIncreasing( values );
+        REQUIRE( sequenceBegin == values.end() );
+        REQUIRE( sequenceEnd == values.end() );
+    }
+
+    /* Consecutive */
+    {
+        for ( size_t size : { 2, 3, 10, 20 } ) {
+            std::vector<int> values( size );
+            std::iota( values.begin(), values.end(), 1 );
+            const auto [sequenceBegin, sequenceEnd] = findAdjacentIncreasing( values );
+            REQUIRE( sequenceBegin == values.begin() );
+            REQUIRE( sequenceEnd == values.end() );
+        }
+    }
+
+    /* Non-consecutive because of inversed order */
+    {
+        for ( size_t size : { 2, 3, 10, 20 } ) {
+            std::vector<int> values( size );
+            std::iota( values.rbegin(), values.rend(), 1 );
+            const auto [sequenceBegin, sequenceEnd] = findAdjacentIncreasing( values );
+            REQUIRE( sequenceBegin == values.end() );
+            REQUIRE( sequenceEnd == values.end() );
+        }
+    }
+
+    /* Partially consecutive */
+    {
+        std::vector<int> values = { 0, 10, 11, 100 };
+        const auto [sequenceBegin, sequenceEnd] = findAdjacentIncreasing( values );
+        REQUIRE( sequenceBegin == values.begin() + 1 );
+        REQUIRE( sequenceEnd == values.end() - 1 );
+    }
+
+    /* Consecutive end-sequence */
+    {
+        std::vector<int> values = { 0, 3, 10, 11};
+        const auto [sequenceBegin, sequenceEnd] = findAdjacentIncreasing( values );
+        REQUIRE( sequenceBegin == values.begin() + 2 );
+        REQUIRE( sequenceEnd == values.end() );
+    }
+}
+
+
+void
+testFetchNext()
 {
     FetchNext strategy;
     strategy.fetch( 23 );
@@ -28,16 +95,21 @@ void testFetchNext()
 }
 
 
-void testFetchNextSmart()
+template<typename FetchingStrategy>
+void
+testLinearAccess()
 {
-    FetchNextSmart strategy;
+    FetchingStrategy strategy;
     strategy.fetch( 23 );
-    REQUIRE_EQUAL( strategy.prefetch( 3 ), std::vector<size_t>( { 24, 25, 26 } ) );
-    REQUIRE_EQUAL( strategy.prefetch( 3 ), std::vector<size_t>( { 24, 25, 26 } ) );
+    {
+        const auto prefetched = strategy.prefetch( 3 );
+        REQUIRE_EQUAL( prefetched, std::vector<size_t>( { 24, 25, 26 } ) );
+        REQUIRE_EQUAL( prefetched, std::vector<size_t>( { 24, 25, 26 } ) );
+    }
 
-    /* Strictly speaking this is not a consecutive access and therefore an empty list could be correct.
-     * However, duplicate fetches should not alter the returned prefetche list so that if there was not
-     * enough time in the last call to prefetch everything, now on this call those missing prefetch suggestions
+    /* Strictly speaking, this is not a consecutive access and therefore an empty list could be correct.
+     * However, duplicate fetches should not alter the returned prefetch list so that, if there was not
+     * enough time in the last call to prefetch everything, now, on this call, those missing prefetch suggestions
      * can be added to the cache. */
     strategy.fetch( 23 );
     REQUIRE_EQUAL( strategy.prefetch( 3 ), std::vector<size_t>( { 24, 25, 26 } ) );
@@ -54,8 +126,11 @@ void testFetchNextSmart()
     /* A single random seek after a lot of consecutive ones should not result in an empty list at once. */
     strategy.fetch( 3 );
     for ( auto prefetchCount = 1; prefetchCount < 10; ++prefetchCount ) {
-        REQUIRE( !strategy.prefetch( prefetchCount ).empty() );
-        REQUIRE_EQUAL( strategy.prefetch( prefetchCount ).front(), size_t( 4 ) );
+        const auto prefetched = strategy.prefetch( prefetchCount );
+        REQUIRE( !prefetched.empty() );
+        if ( !prefetched.empty() ) {
+            REQUIRE_EQUAL( prefetched.front(), size_t( 4 ) );
+        }
     }
 
     /* After a certain amount of non-consecutive fetches, an empty prefetch list should be returned. */
@@ -64,8 +139,63 @@ void testFetchNextSmart()
         for ( size_t i = 0; i < 10000 * prefetchCount; i += prefetchCount ) {
             strategy.fetch( i );
         }
-        REQUIRE( strategy.prefetch( prefetchCount ).empty() );
+        REQUIRE_EQUAL( strategy.prefetch( prefetchCount ), std::vector<size_t>() );
     }
+}
+
+
+template<typename FetchingStrategy>
+void
+testInterleavedLinearAccess( size_t streamCount )
+{
+    const size_t memorySize{ 3 };
+    FetchingStrategy strategy( memorySize, streamCount );
+
+    REQUIRE_EQUAL( strategy.prefetch( 3 ), std::vector<size_t>() );
+
+    if ( streamCount == 0 ) {
+        throw std::invalid_argument( "Counts must be non-zero." );
+    }
+
+    std::vector<size_t> secondValues;
+    for ( size_t stream = 0; stream < streamCount; ++stream ) {
+        secondValues.push_back( stream * 1000 + 1 );
+    }
+
+    /* The very first accesses should prefetch as far as possible. */
+    for ( size_t stream = 0; stream < streamCount; ++stream ) {
+        strategy.fetch( stream * 1000 );
+        const auto maxAmountToPrefetch = streamCount;
+
+        std::vector<std::vector<size_t> > prefetchedPerStream( stream + 1 );
+        for ( size_t i = 0; i < prefetchedPerStream.size(); ++i ) {
+            for ( size_t j = 0; j < maxAmountToPrefetch; ++j ) {
+                prefetchedPerStream[i].push_back( i * 1000 + 1 + j );
+            }
+        }
+
+        auto expected = interleave( prefetchedPerStream );
+        expected.resize( maxAmountToPrefetch );
+        REQUIRE_EQUAL( strategy.prefetch( maxAmountToPrefetch ), expected );
+    }
+
+    /* After memory size * stream count accesses, the maximum should be prefetched. */
+    for ( size_t i = 1; i < memorySize; ++i ) {
+        for ( size_t stream = 0; stream < streamCount; ++stream ) {
+            strategy.fetch( stream * 1000 + i );
+        }
+    }
+
+    std::vector<size_t> interleavedPrefetches;
+    for ( size_t i = memorySize; i < memorySize + 4U; ++i ) {
+        for ( size_t stream = 0; stream < streamCount; ++stream ) {
+            interleavedPrefetches.push_back( stream * 1000 + i );
+        }
+    }
+
+    REQUIRE_EQUAL( strategy.prefetch( 4 * streamCount ),
+                   std::vector<size_t>( interleavedPrefetches.begin(),
+                                        interleavedPrefetches.begin() + 4 * streamCount ) );
 }
 
 
@@ -370,8 +500,13 @@ benchmarkFetchNextSmart()
 int
 main()
 {
+    testFindAdjacentIf();
+
     testFetchNext();
-    testFetchNextSmart();
+    testLinearAccess<FetchNextSmart>();
+    testLinearAccess<FetchNextMulti>();
+    testInterleavedLinearAccess<FetchNextMulti>( 1 );
+    testInterleavedLinearAccess<FetchNextMulti>( 2 );
 
     benchmarkFetchNext();
     benchmarkFetchNextSmart();

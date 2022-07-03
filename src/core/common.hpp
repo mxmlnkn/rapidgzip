@@ -11,6 +11,7 @@
 #include <iomanip>
 #include <iostream>
 #include <memory>
+#include <numeric>
 #include <ostream>
 #include <sstream>
 #include <string>
@@ -338,6 +339,73 @@ contains( const Container& container,
           Value            value )
 {
     return std::find( container.begin(), container.end(), value ) != container.end();
+}
+
+
+template<typename Iterator,
+         typename T = const decltype( *std::declval<Iterator>() )&>
+[[nodiscard]] constexpr size_t
+countAdjacentIf( const Iterator rangeBegin,
+                 const Iterator rangeEnd,
+                 const std::function<bool( const decltype( *std::declval<Iterator>() )&,
+                                           const decltype( *std::declval<Iterator>() )& )>& equal )
+{
+    size_t result{ 0 };
+    if ( rangeBegin != rangeEnd ) {
+        for ( auto it = rangeBegin, nit = std::next( it ); nit != rangeEnd; ++it, ++nit ) {
+            if ( equal( *it, *nit ) ) {
+                ++result;
+            }
+        }
+    }
+    return result;
+}
+
+
+/**
+ * Returns iterators to the first sequence of elements that are increasing by one each.
+ */
+template<typename Iterator>
+[[nodiscard]] constexpr std::pair<Iterator, Iterator>
+findAdjacentIf( const Iterator rangeBegin,
+                const Iterator rangeEnd,
+                const std::function<bool( const decltype( *std::declval<Iterator>() )&,
+                                          const decltype( *std::declval<Iterator>() )& )>& equal  )
+{
+    auto sequenceBegin = rangeEnd;
+    size_t result{ 0 };
+    if ( rangeBegin != rangeEnd ) {
+        for ( auto it = rangeBegin, nit = std::next( it ); nit != rangeEnd; ++it, ++nit ) {
+            if ( equal( *it, *nit ) ) {
+                ++result;
+                if ( sequenceBegin == rangeEnd ) {
+                    sequenceBegin = it;
+                }
+            } else if ( sequenceBegin != rangeEnd ) {
+                return { sequenceBegin, nit };
+            }
+        }
+    }
+    return { sequenceBegin, rangeEnd };
+}
+
+
+template<typename Container>
+[[nodiscard]] Container
+interleave( const std::vector<Container>& values )
+{
+    const auto size = std::accumulate( values.begin(), values.end(), size_t{ 0 },
+                                       [] ( size_t sum, const auto& container ) { return sum + container.size(); } );
+    Container result;
+    result.reserve( size );
+    for ( size_t i = 0; i < size; ++i ) {
+        for ( const auto& container : values ) {
+            if ( i < container.size() ) {
+                result.emplace_back( container[i] );
+            }
+        }
+    }
+    return result;
 }
 
 

@@ -8,6 +8,7 @@
 #include <iterator>
 #include <numeric>
 #include <optional>
+#include <set>
 #include <vector>
 
 
@@ -71,6 +72,11 @@ class FetchNextSmart :
     public FetchingStrategy
 {
 public:
+    explicit
+    FetchNextSmart( size_t memorySize = 3 ) :
+        m_memorySize( memorySize )
+    {}
+
     void
     fetch( size_t index ) override
     {
@@ -81,71 +87,151 @@ public:
         }
 
         m_previousIndexes.push_front( index );
-        while ( m_previousIndexes.size() > MEMORY_SIZE ) {
+        while ( m_previousIndexes.size() > m_memorySize ) {
             m_previousIndexes.pop_back();
         }
     }
 
-    [[nodiscard]] std::vector<size_t>
-    prefetch( size_t maxAmountToPrefetch ) const override
+    [[nodiscard]] static std::vector<size_t>
+    extrapolate( const size_t firstValue,
+                 const size_t consecutiveValues,
+                 const size_t saturationCount,
+                 const size_t maxExtrapolation )
     {
-        if ( m_previousIndexes.empty() || ( maxAmountToPrefetch == 0 ) ) {
+        /** 0 <= consecutiveRatio <= 1 */
+        const auto consecutiveRatio = static_cast<double>( std::min( consecutiveValues, saturationCount ) )
+                                      / saturationCount;
+        /** 1 <= maxAmountToPrefetch +- floating point errors */
+        const auto amountToPrefetch = std::round( std::exp2( consecutiveRatio * std::log2( maxExtrapolation ) ) );
+
+        assert( amountToPrefetch >= 0 );
+        assert( static_cast<size_t>( amountToPrefetch ) <= maxExtrapolation );
+
+        std::vector<size_t> toPrefetch( static_cast<size_t>( std::max( 0.0, amountToPrefetch ) ) );
+        std::iota( toPrefetch.begin(), toPrefetch.end(), firstValue + 1 );
+        return toPrefetch;
+    }
+
+    template<typename Iterator>
+    [[nodiscard]] static std::vector<size_t>
+    extrapolate( const Iterator rangeBegin,
+                 const Iterator rangeEnd,
+                 const size_t   maxAmountToPrefetch )
+    {
+        const auto size = std::distance( rangeBegin, rangeEnd );
+        if ( ( size == 0 ) || ( maxAmountToPrefetch == 0 ) ) {
             return {};
         }
 
         /** This avoids division by 0 further down below! */
-        if ( m_previousIndexes.size() == 1 ) {
+        if ( size == 1 ) {
+            /* This enables parallel sequential decoding with only a single cache miss.
+             * I think this is an often enough encountered use case to have this special case justified. */
             std::vector<size_t> toPrefetch( maxAmountToPrefetch );
-            std::iota( toPrefetch.begin(), toPrefetch.end(), m_previousIndexes.front() + 1 );
+            std::iota( toPrefetch.begin(), toPrefetch.end(), *rangeBegin + 1 );
             return toPrefetch;
         }
 
-        size_t consecutiveCount = 0; /**< can be at most m_previousIndexes.size() - 1 */
-        for ( auto it = m_previousIndexes.begin(), nit = std::next( it );
-              nit != m_previousIndexes.end(); ++it, ++nit )
-        {
-            if ( *it == *nit + 1 ) {
-                ++consecutiveCount;
-            }
-        }
-
-        /* Handle special case of only random accesses. */
-        if ( consecutiveCount == 0 ) {
+        /* Count adjacent decreasing elements (because the most recent is on the left!). */
+        if ( countAdjacentIf( rangeBegin, rangeEnd, [] ( auto a, auto b ) { return a == b + 1; } ) == 0 ) {
+            /* Handle special case of only random accesses. */
             return {};
         }
 
+        /* The most recent values are assumed to be at begin! */
         size_t lastConsecutiveCount = 0;
-        for ( auto it = m_previousIndexes.begin(), nit = std::next( it );
-              nit != m_previousIndexes.end(); ++it, ++nit )
-        {
+        for ( auto it = rangeBegin, nit = std::next( it ); nit != rangeEnd; ++it, ++nit ) {
             if ( *it == *nit + 1 ) {
-                ++lastConsecutiveCount;
+                lastConsecutiveCount = lastConsecutiveCount == 0 ? 2 : lastConsecutiveCount + 1;
             } else {
                 break;
             }
         }
 
-        /** 0 <= consecutiveRatio <= 1 */
-        const auto consecutiveRatio = static_cast<double>( lastConsecutiveCount ) / ( m_previousIndexes.size() - 1 );
-        /** 1 <= maxAmountToPrefetch +- floating point errors */
-        const auto amountToPrefetch = std::round( std::exp2( consecutiveRatio * std::log2( maxAmountToPrefetch ) ) );
-
-        assert( amountToPrefetch >= 0 );
-        assert( static_cast<size_t>( amountToPrefetch ) <= maxAmountToPrefetch );
-
-        std::vector<size_t> toPrefetch( static_cast<size_t>( amountToPrefetch ) );
-        std::iota( toPrefetch.begin(), toPrefetch.end(), m_previousIndexes.front() + 1 );
-        return toPrefetch;
+        return extrapolate( *rangeBegin, lastConsecutiveCount, size, maxAmountToPrefetch );
     }
 
-private:
-    static constexpr size_t MEMORY_SIZE = 3;
+    [[nodiscard]] std::vector<size_t>
+    prefetch( size_t maxAmountToPrefetch ) const override
+    {
+        return extrapolate( m_previousIndexes.begin(), m_previousIndexes.end(), maxAmountToPrefetch );
+    }
+
+protected:
+    const size_t m_memorySize;
     std::deque<size_t> m_previousIndexes;
 };
 
 
-/** @todo A prefetcher that can detect multiple interleaved consecutive patterns by sorting all last indexes and
- *        then search for consecutive (|diff neighbors| == 1) and return predictions for all of them at the same
- *        time relative to their length. Well, for bzip2, it sounds like the possibility of this happening is low.
- *        Even consecutive backward seeking should be a low frequency use case. */
-}
+/**
+ * Similar to @ref FetchNextSmart but it is able to detect multiple interleaved consecutive accesses as might happen
+ * for parallel processes accessing the cache.
+ * Detection works by sorting all last indexes and looking for consecutive sequences there and return predictions
+ * for them at the same time.
+ */
+class FetchNextMulti :
+    public FetchNextSmart
+{
+public:
+    explicit
+    FetchNextMulti( size_t memorySize = 3,
+                    size_t maxStreamCount = 16U ) :
+        FetchNextSmart( maxStreamCount * memorySize ),
+        m_maxStreamCount( maxStreamCount ),
+        m_memorySizePerStream( memorySize )
+    {}
+
+    [[nodiscard]] std::vector<size_t>
+    prefetch( size_t maxAmountToPrefetch ) const override
+    {
+        const auto& previousIndexes = this->m_previousIndexes;
+        if ( previousIndexes.empty() ) {
+            return {};
+        }
+
+        const std::set<size_t> sortedIndexes( previousIndexes.begin(), previousIndexes.end() );
+
+        std::vector<std::vector<size_t> > subsequencePrefetches;
+        const auto extrapolateSubsequence =
+            [&, this] ( const auto begin,
+                        const auto end )
+            {
+                const auto sequenceLength = static_cast<size_t>( std::distance( begin, end ) );
+                /* For the very first prefetches, fewer than the memory size, extrapolate them fully for faster
+                 * first-time decoding. */
+                const auto saturationCount = previousIndexes.size() < m_memorySize
+                                             ? sequenceLength : m_memorySizePerStream;
+                subsequencePrefetches.emplace_back(
+                    extrapolate( *std::prev( end ), sequenceLength, saturationCount, maxAmountToPrefetch ) );
+            };
+
+        auto lastRangeBegin = sortedIndexes.begin();
+        for ( auto it = sortedIndexes.begin(), nit = std::next( it ); ; ++it, ++nit ) {
+            if ( ( nit == sortedIndexes.end() ) || ( *it + 1 != *nit ) ) {
+                extrapolateSubsequence( lastRangeBegin, nit );
+                lastRangeBegin = nit;
+                if ( nit == sortedIndexes.end() ) {
+                    break;
+                }
+            }
+        }
+
+        /* Handle special case of only random accesses. */
+        if ( ( subsequencePrefetches.size() == sortedIndexes.size() ) && ( previousIndexes.size() >= m_memorySize ) ) {
+            return {};
+        }
+
+        auto result = interleave( subsequencePrefetches );
+        const auto newEnd = std::remove_if(
+            result.begin(), result.end(),
+            [&sortedIndexes] ( auto value ) { return sortedIndexes.count( value ) > 0; } );
+        result.resize( std::min( static_cast<size_t>( std::distance( result.begin(), newEnd ) ),
+                                 maxAmountToPrefetch ) );
+        return result;
+    }
+
+private:
+    const size_t m_maxStreamCount;
+    const size_t m_memorySizePerStream;
+};
+}  // FetchingStrategy

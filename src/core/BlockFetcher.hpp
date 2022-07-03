@@ -29,7 +29,7 @@
  */
 template<typename T_BlockFinder,
          typename T_BlockData,
-         typename FetchingStrategy = FetchingStrategy::FetchNextSmart>
+         typename FetchingStrategy>
 class BlockFetcher
 {
 public:
