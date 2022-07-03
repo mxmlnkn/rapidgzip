@@ -15,6 +15,7 @@ jobs:
         # manylinux_2_24, which is newer than manylinux2014, is not supported because it comes with GCC 5.3,
         # which cannot compile C++17 code. Just why?
         # https://github.com/pypa/manylinux/issues/1012
+        # manylinux2010 runs into this problem https://github.com/pypa/cibuildwheel/issues/1001
         manylinux-image: [manylinux2014]
 
     steps:
