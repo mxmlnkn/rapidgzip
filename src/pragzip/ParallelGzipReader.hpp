@@ -444,6 +444,9 @@ private:
     setBlockOffsets( std::map<size_t, size_t> offsets )
     {
         if ( offsets.empty() ) {
+            if ( m_blockMap->dataBlockCount() == 0 ) {
+                return;
+            }
             throw std::invalid_argument( "May not clear offsets. Construct a new ParallelGzipReader instead!" );
         }
 
@@ -459,6 +462,10 @@ public:
     void
     setBlockOffsets( GzipIndex index )
     {
+        if ( index.checkpoints.empty() ) {
+            return;
+        }
+
         /* Generate simple compressed to uncompressed offset map from index. */
         std::map<size_t, size_t> newBlockOffsets;
         for ( const auto& checkpoint : index.checkpoints ) {
