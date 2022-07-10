@@ -274,13 +274,35 @@ public:
 
         if ( UNLIKELY( outputBuffer == nullptr ) ) [[unlikely]] {
             seek( nBytesToRead, SEEK_CUR );
-        } else {
-            /** @todo Optimize this for the case that we are on a byte-boundary and that more than the
-             *        bit buffer size is requested. In that case, first, copy the rest of the bit buffer
-             *        and then do a direct read on the underlying file object! This case is common for
-             *        uncompressed deflate blocks in a gzip stream! */
+        } else if ( oldTell % CHAR_BIT != 0 ) {
             for ( size_t i = 0; i < nBytesToRead; ++i ) {
                 outputBuffer[i] = static_cast<char>( read( CHAR_BIT ) );
+            }
+        } else {
+            size_t nBytesRead{ 0 };
+            /* Should be true because of oldTell % BYTE_SIZE == 0! */
+            assert( m_bitBufferSize % CHAR_BIT == 0 );
+
+            /* 1. Empty bit buffer */
+            for ( ; ( nBytesRead < nBytesToRead ) && ( m_bitBufferSize >= CHAR_BIT ); ++nBytesRead ) {
+                outputBuffer[nBytesRead] = peekUnsafe( CHAR_BIT );
+                seekAfterPeek( CHAR_BIT );
+            }
+
+            /* 2. Empty byte buffer */
+            const auto nBytesReadFromBuffer = std::min( nBytesToRead - nBytesRead,
+                                                        m_inputBuffer.size() - m_inputBufferPosition );
+            if ( nBytesReadFromBuffer > 0 ) {
+                std::memcpy( outputBuffer + nBytesRead, m_inputBuffer.data() + m_inputBufferPosition,
+                             nBytesReadFromBuffer );
+                nBytesRead += nBytesReadFromBuffer;
+                m_inputBufferPosition += nBytesReadFromBuffer;
+            }
+
+            /* 3. Read directly from underlying file */
+            const auto nBytesToReadFromFile = nBytesToRead - nBytesRead;
+            if ( ( nBytesToReadFromFile > 0 ) && m_file ) {
+                m_file->read( outputBuffer + nBytesRead, nBytesToReadFromFile );
             }
         }
 

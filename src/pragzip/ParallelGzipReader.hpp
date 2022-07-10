@@ -247,10 +247,11 @@ public:
                  * can successively propagate the window through all blocks. */
                 pragzip::deflate::Window* lastWindow = nullptr;
                 {
-                    std::scoped_lock lock{ blockFetcher().windowsMutex };
-                    const auto match = blockFetcher().windows.find( blockData->encodedOffsetInBits );
-                    if ( match != blockFetcher().windows.end() ) {
-                        lastWindow = &match->second;
+                    std::scoped_lock lock{ blockFetcher().blockMapMutex };
+                    const auto match = blockFetcher().blockMap.find( blockData->encodedOffsetInBits );
+                    if ( match != blockFetcher().blockMap.end() ) {
+                        lastWindow = &match->second.window;
+                        match->second.decodedSize = blockData->dataSize();
                     } else if ( m_nextUnprocessedBlockIndex > 0 ) {
                         throw std::logic_error( "The window of the last block should exist at this point!" );
                     }
@@ -267,14 +268,17 @@ public:
 
                 ++m_nextUnprocessedBlockIndex;
 
+                /* Populate block map inside block fetcher with new block information. */
                 {
-
-                    std::scoped_lock lock{ blockFetcher().windowsMutex };
-                    const auto& [_, wasInserted] = blockFetcher().windows.try_emplace(
+                    std::scoped_lock lock{ blockFetcher().blockMapMutex };
+                    const auto& [_, wasInserted] = blockFetcher().blockMap.try_emplace(
                         blockData->encodedOffsetInBits + blockData->encodedSizeInBits,
-                        lastWindow == nullptr
-                        ? blockData->getLastWindow( pragzip::deflate::Window{} )  /* Only for first block. */
-                        : blockData->getLastWindow( *lastWindow )
+                        BlockFetcher::BlockInfo{
+                            lastWindow == nullptr
+                            ? blockData->getLastWindow( pragzip::deflate::Window{} )  /* Only for first block. */
+                            : blockData->getLastWindow( *lastWindow ),
+                            /* decoded size (not yet known!) */ 0
+                        }
                     );
                     if ( !wasInserted ) {
                         throw std::logic_error( "A window for the supposedly unknown block already exists!" );
@@ -468,7 +472,7 @@ private:
 
 public:
     void
-    setBlockOffsets( GzipIndex index )
+    setBlockOffsets( const GzipIndex& index )
     {
         if ( index.checkpoints.empty() ) {
             return;
@@ -495,7 +499,8 @@ public:
 
         /** @todo put windows into blockmap that always is ensured to exist. */
         for ( const auto& checkpoint : index.checkpoints ) {
-            if ( checkpoint.window.empty() ) {
+            if ( checkpoint.window.empty()
+                 || ( checkpoint.compressedOffsetInBits == index.compressedSizeInBytes * 8 ) ) {
                 continue;
             }
 
@@ -503,7 +508,16 @@ public:
                 throw std::invalid_argument( "Insufficient window size!" );
             }
 
-            auto& window = blockFetcher().windows[checkpoint.compressedOffsetInBits];
+            auto& blockFetcherInfo = blockFetcher().blockMap[checkpoint.compressedOffsetInBits];
+            const auto blockMapInfo = m_blockMap->getEncodedOffset( checkpoint.compressedOffsetInBits );
+            if ( !blockMapInfo ) {
+                std::stringstream message;
+                message << "Encoded offset " << checkpoint.compressedOffsetInBits << " should exist in block map!";
+                throw std::logic_error( message.str() );
+            }
+            blockFetcherInfo.decodedSize = blockMapInfo->decodedSizeInBytes;
+
+            auto& window = blockFetcherInfo.window;
             std::memcpy( window.data(), checkpoint.window.data() + checkpoint.window.size() - window.size(),
                          window.size() );
         }
@@ -549,7 +563,7 @@ public:
     {
         /** @todo move windows into blockmap so that we do not have to save them! */
         if ( m_blockFetcher ) {
-            m_windows = m_blockFetcher->windows;
+            m_blockFetcherData = m_blockFetcher->blockMap;
         }
         m_blockFetcher = {};
         m_blockFinder = {};
@@ -599,9 +613,9 @@ private:
             throw std::logic_error( "Block fetcher should have been initialized!" );
         }
 
-        if ( m_blockFetcher->windows.empty() ) {
-            m_blockFetcher->windows = std::move( m_windows );
-            m_windows = {};
+        if ( m_blockFetcher->blockMap.empty() ) {
+            m_blockFetcher->blockMap = std::move( m_blockFetcherData );
+            m_blockFetcherData = {};
         }
 
         return *m_blockFetcher;
@@ -675,5 +689,5 @@ private:
     size_t m_nextUnprocessedBlockIndex{ 0 };
 
     /** @todo move windows into block map to get rid of this temporary copy. */
-    std::unordered_map</* block offet */ size_t, pragzip::deflate::Window> m_windows;
+    std::unordered_map</* block offet */ size_t, typename BlockFetcher::BlockInfo> m_blockFetcherData;
 };

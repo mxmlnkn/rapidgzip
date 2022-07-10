@@ -47,6 +47,9 @@ public:
         size_t decodedSizeInBytes{ 0 };
     };
 
+    using BlockOffsets = std::vector<std::pair</* encoded offset in bits */ size_t,
+                                               /* decoded offset in bytes */ size_t> >;
+
 public:
     BlockMap() = default;
 
@@ -110,38 +113,37 @@ public:
     {
         std::scoped_lock lock( m_mutex );
 
-        BlockInfo result;
-
         /* find offset from map (key and values should be sorted in ascending order, so we can bisect!) */
         const auto blockOffset = std::lower_bound(
             m_blockToDataOffsets.rbegin(), m_blockToDataOffsets.rend(), std::make_pair( 0, dataOffset ),
             [] ( std::pair<size_t, size_t> a, std::pair<size_t, size_t> b ) { return a.second > b.second; } );
 
         if ( blockOffset == m_blockToDataOffsets.rend() ) {
-            return result;
+            return {};
         }
 
         if ( dataOffset < blockOffset->second ) {
             throw std::logic_error( "Algorithm for finding the block to an offset is faulty!" );
         }
 
-        result.encodedOffsetInBits = blockOffset->first;
-        result.decodedOffsetInBytes = blockOffset->second;
-        result.blockIndex = std::distance( blockOffset, m_blockToDataOffsets.rend() ) - 1;
+        return get( blockOffset );
+    }
 
-        if ( blockOffset == m_blockToDataOffsets.rbegin() ) {
-            result.decodedSizeInBytes = m_lastBlockDecodedSize;
-            result.encodedSizeInBits = m_lastBlockEncodedSize;
-        } else {
-            const auto higherBlock = std::prev( /* reverse! */ blockOffset );
-            if ( higherBlock->second < blockOffset->second ) {
-                std::logic_error( "Data offsets are not monotonically increasing!" );
-            }
-            result.decodedSizeInBytes = higherBlock->second - blockOffset->second;
-            result.encodedSizeInBits = higherBlock->first - blockOffset->first;
+    [[nodiscard]] std::optional<BlockInfo>
+    getEncodedOffset( size_t encodedOffsetInBits ) const
+    {
+        std::scoped_lock lock( m_mutex );
+
+        /* find offset from map (key and values should be sorted in ascending order, so we can bisect!) */
+        const auto blockOffset = std::lower_bound(
+            m_blockToDataOffsets.rbegin(), m_blockToDataOffsets.rend(), std::make_pair( encodedOffsetInBits, 0 ),
+            [] ( std::pair<size_t, size_t> a, std::pair<size_t, size_t> b ) { return a.first > b.first; } );
+
+        if ( ( blockOffset == m_blockToDataOffsets.rend() ) || ( blockOffset->first != encodedOffsetInBits ) ) {
+            return std::nullopt;
         }
 
-        return result;
+        return get( blockOffset );
     }
 
     /**
@@ -229,10 +231,38 @@ public:
     }
 
 private:
+    [[nodiscard]] BlockInfo
+    get( typename BlockOffsets::const_reverse_iterator blockOffset ) const
+    {
+        BlockInfo result;
+        if ( blockOffset == m_blockToDataOffsets.rend() ) {
+            return result;
+        }
+
+        result.encodedOffsetInBits = blockOffset->first;
+        result.decodedOffsetInBytes = blockOffset->second;
+        result.blockIndex = std::distance( blockOffset, m_blockToDataOffsets.rend() ) - 1;
+
+        if ( blockOffset == m_blockToDataOffsets.rbegin() ) {
+            result.decodedSizeInBytes = m_lastBlockDecodedSize;
+            result.encodedSizeInBits = m_lastBlockEncodedSize;
+        } else {
+            const auto higherBlock = std::prev( /* reverse! */ blockOffset );
+            if ( higherBlock->second < blockOffset->second ) {
+                std::logic_error( "Data offsets are not monotonically increasing!" );
+            }
+            result.decodedSizeInBytes = higherBlock->second - blockOffset->second;
+            result.encodedSizeInBits = higherBlock->first - blockOffset->first;
+        }
+
+        return result;
+    }
+
+private:
     mutable std::mutex m_mutex;
 
     /** If complete, the last block will be of size 0 and indicate the end of stream! */
-    std::vector<std::pair<size_t, size_t> > m_blockToDataOffsets;
+    BlockOffsets m_blockToDataOffsets;
     std::vector<size_t> m_eosBlocks;
     bool m_finalized{ false };
 

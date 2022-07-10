@@ -12,6 +12,8 @@
 #include <utility>
 #include <vector>
 
+#include <zlib.h>
+
 #include <BlockFetcher.hpp>
 
 #include "BlockFinder.hpp"
@@ -25,6 +27,14 @@ namespace pragzip
 struct BlockData
 {
 public:
+    void
+    append( std::vector<uint8_t>&& toAppend )
+    {
+        if ( !toAppend.empty() ) {
+            data.emplace_back( std::move( toAppend ) );
+        }
+    }
+
     void
     append( const deflate::Block</* CRC32 */ false>::BufferViews& buffers )
     {
@@ -146,7 +156,14 @@ class GzipBlockFetcher :
 public:
     using BaseType = BlockFetcher<::BlockFinder<blockfinder::Interface>, BlockData, FetchingStrategy>;
     using BitReader = pragzip::BitReader;
-    using Windows = std::unordered_map</* block offet */ size_t, deflate::Window>;
+
+    struct BlockInfo
+    {
+        deflate::Window window;
+        size_t decodedSize{ 0 };
+    };
+
+    using BlockMap = std::unordered_map</* encoded block offset */ size_t, BlockInfo>;
 
 public:
     GzipBlockFetcher( BitReader                                       bitReader,
@@ -177,15 +194,21 @@ private:
                  size_t blockOffset ) const override
     {
         std::optional<deflate::WindowView> window;
+        std::optional<size_t> decodedSize;
         {
-            std::scoped_lock lock( windowsMutex );
-            if ( const auto match = windows.find( blockOffset ); match != windows.end() ) {
-                window.emplace( match->second );
+            std::scoped_lock lock( blockMapMutex );
+            if ( const auto match = blockMap.find( blockOffset ); match != blockMap.end() ) {
+                window.emplace( match->second.window );
+                if ( match->second.decodedSize > 0 ) {
+                    /** @todo We cannot be sure that this zero is valid because there is no finalized flag.
+                     *        Move the windows and the decoded sizes into the real BlockMap and use that here. */
+                    decodedSize = match->second.decodedSize;
+                }
             }
         }
         return decodeBlock( m_bitReader, blockOffset, this->m_blockFinder->get( blockIndex + 1 ),
                             /* needsNoInitialWindow */ ( blockIndex == 0 ) || m_isBgzfFile,
-                            std::move( window ) );
+                            std::move( window ), decodedSize );
     }
 
 public:
@@ -202,8 +225,17 @@ public:
                  size_t                             blockOffset,
                  std::optional<size_t>              untilOffset,
                  bool                               needsNoInitialWindow,
-                 std::optional<deflate::WindowView> initialWindow )
+                 std::optional<deflate::WindowView> initialWindow,
+                 std::optional<size_t>              decodedSize )
     {
+        if ( ( needsNoInitialWindow || initialWindow ) && decodedSize && ( *decodedSize > 0 ) ) {
+            return decodeBlockWithZlib( originalBitReader,
+                                        blockOffset,
+                                        untilOffset ? *untilOffset : originalBitReader.size(),
+                                        needsNoInitialWindow ? std::nullopt : initialWindow,
+                                        *decodedSize );
+        }
+
         BitReader bitReader( originalBitReader );
         bitReader.seek( blockOffset );
 
@@ -332,9 +364,174 @@ public:
         return result;
     }
 
+private:
+    /**
+     * This is a small wrapper around zlib. It is able to:
+     *  - work on BitReader as input
+     *  - start at deflate block offset as opposed to gzip start
+     */
+    class ZlibDeflateWrapper
+    {
+    public:
+        explicit
+        ZlibDeflateWrapper( BitReader bitReader ) :
+            m_bitReader( std::move( bitReader ) )
+        {
+            initStream();
+            /* 2^15 = 32 KiB window buffer and minus signaling raw deflate stream to decode. */
+            if ( inflateInit2( &m_stream, -15 ) != Z_OK ) {
+                throw std::runtime_error( "Probably encountered invalid deflate data!" );
+            }
+        }
+
+        ~ZlibDeflateWrapper()
+        {
+            inflateEnd( &m_stream );
+        }
+
+        void
+        initStream()
+        {
+            m_stream = {};
+
+            m_stream.zalloc = Z_NULL;     /* used to allocate the internal state */
+            m_stream.zfree = Z_NULL;      /* used to free the internal state */
+            m_stream.opaque = Z_NULL;     /* private data object passed to zalloc and zfree */
+
+            m_stream.avail_in = 0;        /* number of bytes available at next_in */
+            m_stream.next_in = Z_NULL;    /* next input byte */
+
+            m_stream.avail_out = 0;       /* remaining free space at next_out */
+            m_stream.next_out = Z_NULL;   /* next output byte will go here */
+            m_stream.total_out = 0;       /* total amount of bytes read */
+
+            m_stream.msg = nullptr;
+        }
+
+        void
+        refillBuffer()
+        {
+            if ( m_bitReader.tell() % BYTE_SIZE != 0 ) {
+                const auto nBitsToPrime = BYTE_SIZE - ( m_bitReader.tell() % BYTE_SIZE );
+                if ( inflatePrime( &m_stream, nBitsToPrime, m_bitReader.read( nBitsToPrime ) ) != Z_OK ) {
+                    throw std::runtime_error( "InflatePrime failed!" );
+                }
+                assert( m_bitReader.tell() % BYTE_SIZE == 0 );
+            }
+
+            if ( m_stream.avail_in > 0 ) {
+                return;
+            }
+
+            m_stream.avail_in = m_bitReader.read(
+                m_buffer.data(), std::min( ( m_bitReader.size() - m_bitReader.tell() ) / BYTE_SIZE, m_buffer.size() ) );
+            m_stream.next_in = reinterpret_cast<unsigned char*>( m_buffer.data() );
+        }
+
+        void
+        setWindow( deflate::WindowView window )
+        {
+            if ( inflateSetDictionary( &m_stream, window.data(), window.size() ) != Z_OK ) {
+                throw std::runtime_error( "Failed to set back-reference window in zlib!" );
+            }
+        }
+
+        [[nodiscard]] size_t
+        read( uint8_t* const output,
+              size_t   const outputSize )
+        {
+            m_stream.next_out = output;
+            m_stream.avail_out = outputSize;
+            m_stream.total_out = 0;
+
+            size_t decodedSize{ 0 };
+            while ( decodedSize + m_stream.total_out < outputSize ) {
+                refillBuffer();
+                if ( m_stream.avail_in == 0 ) {
+                    throw std::runtime_error( "Not enough input for requested output!" );
+                }
+
+                const auto errorCode = inflate( &m_stream, Z_BLOCK );
+                if ( ( errorCode != Z_OK ) && ( errorCode != Z_STREAM_END ) ) {
+                    std::stringstream message;
+                    message << "[" << std::this_thread::get_id() << "] "
+                            << "Decoding failed with error code " << errorCode << " "
+                            << ( m_stream.msg == nullptr ? "" : m_stream.msg ) << "! "
+                            << "Already decoded " << m_stream.total_out << " B.";
+                    throw std::runtime_error( message.str() );
+                }
+
+                if ( decodedSize + m_stream.total_out > outputSize ) {
+                    throw std::logic_error( "Decoded more than fits into output buffer!" );
+                }
+                if ( decodedSize + m_stream.total_out == outputSize ) {
+                    return outputSize;
+                }
+
+                if ( errorCode == Z_STREAM_END ) {
+                    decodedSize += m_stream.total_out;
+
+                    inflateEnd( &m_stream );
+                    initStream();
+                    /* 2^15 = 32 KiB window buffer and minus signaling raw deflate stream to decode. */
+                    if ( inflateInit2( &m_stream, /* decode gzip */ 16 + /* 2^15 buffer */ 15 ) != Z_OK ) {
+                        throw std::runtime_error( "Probably encountered invalid gzip header!" );
+                    }
+
+                    m_stream.next_out = output + decodedSize;
+                    m_stream.avail_out = outputSize - decodedSize;
+                }
+
+                if ( m_stream.avail_out == 0 ) {
+                    return outputSize;
+                }
+            }
+
+            return decodedSize;
+        }
+
+    private:
+        BitReader m_bitReader;
+        z_stream m_stream{};
+        /* Loading the whole encoded data (multiple MiB) into memory first and then
+         * decoding it in one go is 4x slower than processing it in chunks of 128 KiB! */
+        std::array<char, 128 * 1024> m_buffer;
+    };
+
+private:
+    [[nodiscard]] static BlockData
+    decodeBlockWithZlib( const BitReader&                   originalBitReader,
+                         size_t                             blockOffset,
+                         size_t                             untilOffset,
+                         std::optional<deflate::WindowView> initialWindow,
+                         size_t                             decodedSize )
+    {
+        BitReader bitReader( originalBitReader );
+        bitReader.seek( blockOffset );
+        ZlibDeflateWrapper deflateWrapper( std::move( bitReader ) );
+
+        if ( initialWindow ) {
+            deflateWrapper.setWindow( *initialWindow );
+        }
+
+        BlockData result;
+        result.encodedOffsetInBits = blockOffset;
+
+        std::vector<uint8_t> decoded( decodedSize );
+        if ( deflateWrapper.read( decoded.data(), decoded.size() ) != decoded.size() ) {
+            throw std::runtime_error( "Could not decode as much as requested!" );
+        }
+        result.append( std::move( decoded ) );
+
+        /* We cannot arbitarily use bitReader.tell here, because the zlib wrapper buffers input read from BitReader.
+         * If untilOffset is nullopt, then we are to read to the end of the file. */
+        result.encodedSizeInBits = untilOffset - blockOffset;
+        return result;
+    }
+
 public:
-    Windows windows;
-    mutable std::mutex windowsMutex;
+    BlockMap blockMap;
+    mutable std::mutex blockMapMutex;
 
 private:
     /* Variables required by decodeBlock and which therefore should be either const or locked. */

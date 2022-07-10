@@ -32,8 +32,11 @@ endif()
 # to find a test file in the build directory root.
 include(CTest)
 
-
+set(OLD_CMAKE_FIND_LIBRARY_SUFFIXES "${CMAKE_FIND_LIBRARY_SUFFIXES}")
+set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 find_package(ZLIB QUIET)
+set(CMAKE_FIND_LIBRARY_SUFFIXES "${OLD_CMAKE_FIND_LIBRARY_SUFFIXES}")
+
 find_package(LibArchive QUIET)
 find_package(Threads REQUIRED)
 

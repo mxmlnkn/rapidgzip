@@ -174,7 +174,7 @@ jobs:
     - name: Install Dependencies
       if: matrix.os == 'ubuntu-latest'
       run: |
-        sudo apt-get -y install bzip2 pbzip2 lbzip2 g++
+        sudo apt-get -y install bzip2 pbzip2 lbzip2 g++ zlib1g-dev
 
     - name: Install Python Modules
       run: |
