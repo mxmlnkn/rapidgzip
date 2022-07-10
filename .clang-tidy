@@ -28,3 +28,7 @@ Checks: |
     -readability-function-cognitive-complexity,
     -readability-redundant-access-specifiers,
     -readability-magic-numbers
+
+CheckOptions:
+  - key:   misc-non-private-member-variables-in-classes.IgnoreClassesWithAllMemberVariablesBeingPublic
+    value: '1'

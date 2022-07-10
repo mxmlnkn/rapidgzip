@@ -1,8 +1,8 @@
 #pragma once
 
 #include <iterator>
-#include <map>
 #include <optional>
+#include <unordered_map>
 #include <utility>
 
 
@@ -12,9 +12,21 @@ template<typename Index>
 class CacheStrategy
 {
 public:
-    virtual ~CacheStrategy() = default;
-    virtual void touch( Index index ) = 0;
-    [[nodiscard]] virtual std::optional<Index> evict() = 0;
+    virtual
+    ~CacheStrategy() = default;
+
+    virtual void
+    touch( Index index ) = 0;
+
+    [[nodiscard]] virtual std::optional<Index>
+    nextEviction() const = 0;
+
+    /**
+     * @param indexToEvict If an index is given, that index will be removed if it exists instead of using
+     *                     the cache strategy.
+     */
+    virtual std::optional<Index>
+    evict( std::optional<Index> indexToEvict = {} ) = 0;
 };
 
 
@@ -36,7 +48,7 @@ public:
     }
 
     [[nodiscard]] std::optional<Index>
-    evict() override
+    nextEviction() const override
     {
         if ( m_lastUsage.empty() ) {
             return std::nullopt;
@@ -49,20 +61,37 @@ public:
             }
         }
 
-        auto indexToEvict = lowest->first;
-        m_lastUsage.erase( lowest );
-        return indexToEvict;
+        return lowest->first;
+    }
+
+    std::optional<Index>
+    evict( std::optional<Index> indexToEvict = {} ) override
+    {
+        if ( indexToEvict && ( m_lastUsage.find( *indexToEvict ) != m_lastUsage.end() ) ) {
+            m_lastUsage.erase( *indexToEvict );
+            return indexToEvict;
+        }
+
+        auto evictedIndex = nextEviction();
+        if ( evictedIndex ) {
+            m_lastUsage.erase( *evictedIndex );
+        }
+        return evictedIndex;
     }
 
 private:
     /* With this, inserting will be relatively fast but eviction make take longer
      * because we have to go over all elements. */
-    std::map<Index, size_t> m_lastUsage;
+    std::unordered_map<Index, size_t> m_lastUsage;
     size_t usageNonce{ 0 };
 };
 }
 
 
+/**
+ * @ref get and @ref insert should be sufficient for simple cache usages.
+ * For advanced control, there are also @ref touch, @ref clear, @ref evict, and @ref test available.
+ */
 template<
     typename Key,
     typename Value,
@@ -71,10 +100,69 @@ template<
 class Cache
 {
 public:
+    struct Statistics
+    {
+        size_t hits{ 0 };
+        size_t misses{ 0 };
+        size_t unusedEntries{ 0 };
+        size_t capacity{ 0 };
+    };
+
+public:
     explicit
     Cache( size_t maxCacheSize ) :
         m_maxCacheSize( maxCacheSize )
     {}
+
+    [[nodiscard]] std::optional<Value>
+    get( const Key& key )
+    {
+        if ( const auto match = m_cache.find( key ); match != m_cache.end() ) {
+            ++m_statistics.hits;
+            ++m_accesses[key];
+            m_cacheStrategy.touch( key );
+            return match->second;
+        }
+
+        ++m_statistics.misses;
+        return std::nullopt;
+    }
+
+    void
+    insert( Key   key,
+            Value value )
+    {
+        if ( capacity() == 0 ) {
+            return;
+        }
+
+        while ( m_cache.size() >= m_maxCacheSize ) {
+            const auto toEvict = m_cacheStrategy.evict();
+            assert( toEvict );
+            const auto keyToEvict = toEvict ? *toEvict : m_cache.begin()->first;
+            m_cache.erase( keyToEvict );
+
+            if ( const auto match = m_accesses.find( keyToEvict ); match != m_accesses.end() ) {
+                if ( match->second == 0 ) {
+                    m_statistics.unusedEntries++;
+                }
+                m_accesses.erase( match );
+            }
+        }
+
+        if ( const auto match = m_accesses.find( key ); match == m_accesses.end() ) {
+            m_accesses[key] = 0;
+        }
+
+        const auto [match, wasInserted] = m_cache.try_emplace( key, std::move( value ) );
+        if ( !wasInserted ) {
+            match->second = std::move( value );
+        }
+
+        m_cacheStrategy.touch( key );
+    }
+
+    /* Advanced Control and Usage */
 
     void
     touch( const Key& key )
@@ -88,56 +176,34 @@ public:
         return m_cache.find( key ) != m_cache.end();
     }
 
-    [[nodiscard]] std::optional<Value>
-    get( const Key& key )
+    void
+    clear()
     {
-        if ( const auto match = m_cache.find( key ); match != m_cache.end() ) {
-            ++m_hits;
-            m_cacheStrategy.touch( key );
-            return match->second;
-        }
-
-        ++m_misses;
-        return std::nullopt;
+        m_cache.clear();
     }
 
     void
-    insert( Key   key,
-            Value value )
+    evict( const Key& key )
     {
-        while ( m_cache.size() >= m_maxCacheSize ) {
-            if ( const auto toEvict = m_cacheStrategy.evict(); toEvict ) {
-                m_cache.erase( *toEvict );
-            } else {
-                m_cache.erase( m_cache.begin() );
-            }
-        }
-
-        const auto [match, wasInserted] = m_cache.try_emplace( key, std::move( value ) );
-        if ( !wasInserted ) {
-            match->second = std::move( value );
-        }
-
-        m_cacheStrategy.touch( key );
+        m_cacheStrategy.evict( key );
+        m_cache.erase( key );
     }
 
-    [[nodiscard]] size_t
-    hits() const
-    {
-        return m_hits;
-    }
+    /* Analytics */
 
-    [[nodiscard]] size_t
-    misses() const
+    [[nodiscard]] Statistics
+    statistics() const
     {
-        return m_misses;
+        auto result = m_statistics;
+        result.capacity = capacity();
+        return result;
     }
 
     void
     resetStatistics()
     {
-        m_hits = 0;
-        m_misses = 0;
+        m_statistics = Statistics{};
+        m_accesses.clear();
     }
 
     [[nodiscard]] size_t
@@ -152,18 +218,18 @@ public:
         return m_cache.size();
     }
 
-    void
-    clear()
+    [[nodiscard]] const CacheStrategy&
+    cacheStrategy() const
     {
-        m_cache.clear();
+        return m_cacheStrategy;
     }
 
 private:
     CacheStrategy m_cacheStrategy;
     size_t const m_maxCacheSize;
-    std::map<Key, Value > m_cache;
+    std::unordered_map<Key, Value > m_cache;
 
     /* Analytics */
-    size_t m_hits = 0;
-    size_t m_misses = 0;
+    Statistics m_statistics;
+    std::unordered_map<Key, size_t> m_accesses;
 };

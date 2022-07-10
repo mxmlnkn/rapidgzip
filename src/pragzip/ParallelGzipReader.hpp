@@ -37,7 +37,15 @@ class ParallelGzipReader final :
     public FileReader
 {
 public:
-    using BlockFetcher = pragzip::GzipBlockFetcher<FetchingStrategy::FetchNextSmart>;
+    /**
+     * The fetching strategy should support parallelization via prefetching for sequential accesses while
+     * avoiding a lot of useless prefetches for random or multi-stream sequential accesses like those occuring
+     * via ratarmount.
+     * The fetching strategy does not have to and also should not account for backward and strided accesses
+     * because the prefetch and cache units are very large and striding or backward accessing over multiple
+     * megabytes should be extremely rare.
+     */
+    using BlockFetcher = pragzip::GzipBlockFetcher<FetchingStrategy::FetchNextMulti>;
     using BlockFinder = typename BlockFetcher::BlockFinder;
     using BitReader = pragzip::BitReader;
 
