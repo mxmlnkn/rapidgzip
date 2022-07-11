@@ -122,7 +122,7 @@ with open( os.path.join( scriptPath, 'README.md' ), encoding = 'utf-8' ) as file
 
 setup(
     name             = 'pragzip',
-    version          = '0.1.0',
+    version          = '0.2.0',
 
     description      = 'Parallel random access to gzip files',
     url              = 'https://github.com/mxmlnkn/indexed_bzip2',
