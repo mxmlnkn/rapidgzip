@@ -169,10 +169,10 @@ To install it, it can be copied, e.g., to `/usr/local/bin` or anywhere else as l
 The command line options are similar to those of the existing `bzip2` tool.
 
 ```bash
-tools/ibzip2 --help
+src/tools/ibzip2 --help
 
 # Parallel decoding: 1.7 s
-time tools/ibzip2 -d -c -P 0 sample.bz2 | wc -c
+time src/tools/ibzip2 -d -c -P 0 sample.bz2 | wc -c
 
 # Serial decoding: 22 s
 time bzip2 -d -c sample.bz2 | wc -c
