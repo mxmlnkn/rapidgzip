@@ -4,6 +4,7 @@ project("Indexed BZip2/Gzip Decoder" CXX)
 
 
 option(CODE_COVERAGE "Enable coverage reporting" OFF)
+option(USE_SYSTEM_ZLIB "Use the system-installed zlib library instead of compiling it from source" OFF)
 
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -12,10 +13,11 @@ endif()
 
 add_compile_options(
     "$<$<CXX_COMPILER_ID:Clang>:-Wall;-Wextra;-Wshadow;-Werror=return-type>"
-    "$<$<CXX_COMPILER_ID:GNU>:-Wall;-Wextra;-Wshadow;-Wunused;-Wsuggest-override;-Werror=return-type>"
+    "$<$<CXX_COMPILER_ID:GNU>:-Wall;-Wextra;-Wshadow;-Wunused;-Werror=return-type>"
+    "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-Wsuggest-override>"
     # The default limit is ~33 M (1<<25) and 99 M seem to be enough currently to compile.
-    "$<$<CXX_COMPILER_ID:GNU>:-fconstexpr-ops-limit=99000100>"
-    "$<$<CXX_COMPILER_ID:Clang>:-fconstexpr-steps=99000100>"
+    "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-fconstexpr-ops-limit=99000100>"
+    "$<$<COMPILE_LANG_AND_ID:CXX,Clang>:-fconstexpr-steps=99000100>"
     "$<$<AND:$<CXX_COMPILER_ID:Clang,GNU>,$<BOOL:${CODE_COVERAGE}>>:-O0;-g;--coverage>"
 )
 
@@ -32,11 +34,13 @@ endif()
 # to find a test file in the build directory root.
 include(CTest)
 
-set(OLD_CMAKE_FIND_LIBRARY_SUFFIXES "${CMAKE_FIND_LIBRARY_SUFFIXES}")
-set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-find_package(ZLIB QUIET)
-set(CMAKE_FIND_LIBRARY_SUFFIXES "${OLD_CMAKE_FIND_LIBRARY_SUFFIXES}")
-
+if(USE_SYSTEM_ZLIB)
+    set(OLD_CMAKE_FIND_LIBRARY_SUFFIXES "${CMAKE_FIND_LIBRARY_SUFFIXES}")
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+    find_package(ZLIB QUIET)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES "${OLD_CMAKE_FIND_LIBRARY_SUFFIXES}")
+    add_library(zlibstatic ALIAS ZLIB::ZLIB)
+endif()
 find_package(LibArchive QUIET)
 find_package(Threads REQUIRED)
 

@@ -1,3 +1,6 @@
 [submodule "external/bzip2-tests"]
 	path = src/external/bzip2-tests
 	url = https://sourceware.org/git/bzip2-tests.git
+[submodule "src/external/zlib"]
+	path = src/external/zlib
+	url = https://github.com/madler/zlib.git

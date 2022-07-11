@@ -3,3 +3,20 @@ include README.md
 include pragzip.pyx
 recursive-include pragzip *.hpp
 recursive-include core *.hpp
+
+include external/zlib/README
+include external/zlib/inflate.c
+include external/zlib/inflate.h
+include external/zlib/crc32.c
+include external/zlib/crc32.h
+include external/zlib/adler32.c
+include external/zlib/inffast.c
+include external/zlib/inffast.h
+include external/zlib/inffixed.h
+include external/zlib/inftrees.c
+include external/zlib/inftrees.h
+include external/zlib/gzguts.h
+include external/zlib/zconf.h
+include external/zlib/zutil.c
+include external/zlib/zutil.h
+include external/zlib/zlib.h

@@ -57,11 +57,11 @@ add_custom_target(run-benchmarkPigzBlockFinder
 add_dependencies(run-benchmarks run-benchmarkPigzBlockFinder)
 
 
-if(LibArchive_FOUND AND ZLIB_FOUND)
+if(LibArchive_FOUND)
 
 add_executable(benchmarkGzip)
 target_sources(benchmarkGzip PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkGzip.cpp)
-target_link_libraries(benchmarkGzip PRIVATE ZLIB::ZLIB LibArchive::LibArchive libpragzip)
+target_link_libraries(benchmarkGzip PRIVATE zlibstatic LibArchive::LibArchive libpragzip)
 # TODO Still requires an input file
 #add_custom_target(run-benchmarkGzip
 #    COMMAND ./benchmarkGzip 2>&1 | tee benchmarkGzip.log
@@ -73,7 +73,7 @@ target_link_libraries(benchmarkGzip PRIVATE ZLIB::ZLIB LibArchive::LibArchive li
 
 add_executable(benchmarkGzipBlockFinder)
 target_sources(benchmarkGzipBlockFinder PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkGzipBlockFinder.cpp)
-target_link_libraries(benchmarkGzipBlockFinder PRIVATE cxxopts libpragzip libblockfinder ZLIB::ZLIB)
+target_link_libraries(benchmarkGzipBlockFinder PRIVATE cxxopts libpragzip libblockfinder zlibstatic)
 add_custom_target(run-benchmarkGzipBlockFinder
     COMMAND ./benchmarkGzipBlockFinder 2>&1 | tee benchmarkGzipBlockFinder.log
     VERBATIM

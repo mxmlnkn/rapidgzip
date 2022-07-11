@@ -16,5 +16,5 @@ target_sources(libpragzip INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/ParallelGzipReader.hpp
     ${CMAKE_CURRENT_LIST_DIR}/pragzip.hpp
 )
-target_link_libraries(libpragzip INTERFACE libhuffman core ZLIB::ZLIB)
+target_link_libraries(libpragzip INTERFACE libhuffman core zlibstatic)
 target_compile_features(libpragzip INTERFACE cxx_std_17)

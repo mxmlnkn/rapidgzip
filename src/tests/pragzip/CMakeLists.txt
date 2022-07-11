@@ -12,13 +12,13 @@ add_dependencies(all_tests testHuffmanCoding)
 
 add_executable(testDeflate)
 target_sources(testDeflate PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testDeflate.cpp)
-target_link_libraries(testDeflate PRIVATE ZLIB::ZLIB libpragzip)
+target_link_libraries(testDeflate PRIVATE zlibstatic libpragzip)
 add_test(NAME Test-Deflate COMMAND testDeflate)
 add_dependencies(all_tests testDeflate)
 
 add_executable(testGzip)
 target_sources(testGzip PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testGzip.cpp)
-target_link_libraries(testGzip PRIVATE ZLIB::ZLIB libpragzip)
+target_link_libraries(testGzip PRIVATE zlibstatic libpragzip)
 add_test(NAME Test-Gzip COMMAND testGzip)
 add_dependencies(all_tests testGzip)
 
