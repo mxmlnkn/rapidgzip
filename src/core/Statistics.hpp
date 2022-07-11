@@ -117,9 +117,9 @@ class Histogram
 public:
     template<typename Container>
     explicit
-    Histogram( const Container& container,
-               uint16_t         binCount,
-               std::string      unit = {} ) :
+    Histogram( const Container&   container,
+               uint16_t           binCount,
+               const std::string& unit = {} ) :
         m_statistics( container ),
         m_bins( binCount, 0 ),
         m_unit( std::move( unit ) )

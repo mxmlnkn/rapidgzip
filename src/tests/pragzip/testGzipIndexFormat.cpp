@@ -14,7 +14,7 @@ createTemporaryDirectory()
 {
     const std::filesystem::path tmpFolderName = "pragzip.testGzipIndexFormat." + std::to_string( unixTime() );
     std::filesystem::create_directory( tmpFolderName );
-    return tmpFolderName;
+    return TemporaryDirectory( tmpFolderName );
 }
 
 

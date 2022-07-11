@@ -204,7 +204,7 @@ public:
 private:
     std::vector<BitCount> m_codeLengths;
     std::vector<HuffmanCode> m_codes;
-    BitCount m_minCodeLength;
-    BitCount m_maxCodeLength;
+    BitCount m_minCodeLength{ 0 };
+    BitCount m_maxCodeLength{ 0 };
 };
 }  // namespace pragzip

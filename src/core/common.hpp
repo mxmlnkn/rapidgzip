@@ -170,8 +170,8 @@ duration( const T& t0,
 [[nodiscard]] uint64_t
 unixTime() noexcept
 {
-    const auto now = std::chrono::system_clock::now().time_since_epoch();
-    return static_cast<uint64_t>( std::chrono::duration_cast<std::chrono::seconds>( now ).count() );
+    const auto currentTime = std::chrono::system_clock::now().time_since_epoch();
+    return static_cast<uint64_t>( std::chrono::duration_cast<std::chrono::seconds>( currentTime ).count() );
 }
 
 
@@ -373,11 +373,9 @@ findAdjacentIf( const Iterator rangeBegin,
                                           const decltype( *std::declval<Iterator>() )& )>& equal  )
 {
     auto sequenceBegin = rangeEnd;
-    size_t result{ 0 };
     if ( rangeBegin != rangeEnd ) {
         for ( auto it = rangeBegin, nit = std::next( it ); nit != rangeEnd; ++it, ++nit ) {
             if ( equal( *it, *nit ) ) {
-                ++result;
                 if ( sequenceBegin == rangeEnd ) {
                     sequenceBegin = it;
                 }
@@ -436,6 +434,7 @@ createRandomTextFile( std::filesystem::path path,
 class TemporaryDirectory
 {
 public:
+    explicit
     TemporaryDirectory( std::filesystem::path path ) :
         m_path( std::move( path ) )
     {}

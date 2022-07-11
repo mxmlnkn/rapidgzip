@@ -63,7 +63,12 @@ jobs:
             -I src/indexed_bzip2 \
             -I src/pragzip \
             -I src/pragzip/huffman \
-            src 2>&1 | tee cppcheck.log
+            src/benchmarks \
+            src/core \
+            src/indexed_bzip2 \
+            src/pragzip \
+            src/tests \
+            src/tools  2>&1 | tee cppcheck.log
         if grep -E -i 'error: .* \[[^]]*\]$' cppcheck.log; then
             echo -e '\e[31mThere were errors while running cppcheck!\e[0m'
             exit 1

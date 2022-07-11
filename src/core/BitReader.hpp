@@ -302,7 +302,9 @@ public:
             /* 3. Read directly from underlying file */
             const auto nBytesToReadFromFile = nBytesToRead - nBytesRead;
             if ( ( nBytesToReadFromFile > 0 ) && m_file ) {
-                m_file->read( outputBuffer + nBytesRead, nBytesToReadFromFile );
+                /* We don't need the return value because we are using tell! */
+                [[maybe_unused]] const auto nBytesReadFromFile =
+                    m_file->read( outputBuffer + nBytesRead, nBytesToReadFromFile );
             }
         }
 

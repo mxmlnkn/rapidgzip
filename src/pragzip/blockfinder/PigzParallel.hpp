@@ -120,7 +120,7 @@ public:
     {
         struct MeasureTime
         {
-            MeasureTime( double& result ) : m_result( result ) {}
+            explicit MeasureTime( double& result ) : m_result( result ) {}
             ~MeasureTime() { m_result += duration( t0, now() ); }
             const decltype( now() ) t0 = now();
             double& m_result;

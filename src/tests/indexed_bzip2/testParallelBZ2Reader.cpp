@@ -268,7 +268,7 @@ createTemporaryDirectory()
 {
     const std::filesystem::path tmpFolderName = "indexed_bzip2.testParellelBZ2Reader." + std::to_string( unixTime() );
     std::filesystem::create_directory( tmpFolderName );
-    return tmpFolderName;
+    return TemporaryDirectory( tmpFolderName );
 }
 
 

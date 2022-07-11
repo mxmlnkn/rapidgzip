@@ -876,7 +876,7 @@ createTemporaryDirectory()
 {
     const std::filesystem::path tmpFolderName = "pragzip.benchmarkGzipBlockFinder." + std::to_string( unixTime() );
     std::filesystem::create_directory( tmpFolderName );
-    return tmpFolderName;
+    return TemporaryDirectory( tmpFolderName );
 }
 
 
