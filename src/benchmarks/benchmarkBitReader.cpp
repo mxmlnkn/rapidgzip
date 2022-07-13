@@ -9,7 +9,7 @@
 #include <BitManipulation.hpp>
 #include <BitReader.hpp>
 #include <common.hpp>
-#include <filereader/Buffered.hpp>
+#include <filereader/BufferView.hpp>
 #include <Statistics.hpp>
 
 
@@ -20,7 +20,7 @@ benchmarkBitReader( const std::vector<char>& data,
                     const uint8_t            nBits )
 {
     using CustomBitReader = BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>;
-    CustomBitReader bitReader( std::make_unique<BufferedFileReader>( data ) );
+    CustomBitReader bitReader( std::make_unique<BufferViewFileReader>( data ) );
 
     const auto t0 = now();
 
@@ -44,7 +44,7 @@ template<bool     MOST_SIGNIFICANT_BITS_FIRST,
 benchmarkBitReaderTemplatedReadBits( const std::vector<char>& data )
 {
     using CustomBitReader = BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>;
-    CustomBitReader bitReader( std::make_unique<BufferedFileReader>( data ) );
+    CustomBitReader bitReader( std::make_unique<BufferViewFileReader>( data ) );
 
     const auto t0 = now();
 
@@ -154,7 +154,7 @@ template<bool     MOST_SIGNIFICANT_BITS_FIRST,
 benchmarkBitReaderTemplatedPeekBits( const std::vector<char>& data )
 {
     using CustomBitReader = BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>;
-    CustomBitReader bitReader( std::make_unique<BufferedFileReader>( data ) );
+    CustomBitReader bitReader( std::make_unique<BufferViewFileReader>( data ) );
 
     const auto t0 = now();
 

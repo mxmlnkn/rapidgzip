@@ -10,6 +10,7 @@
 
 #include "AlignedAllocator.hpp"
 #include "FileReader.hpp"
+#include "VectorView.hpp"
 
 
 class BufferedFileReader :
@@ -29,6 +30,13 @@ public:
     explicit
     BufferedFileReader( const std::vector<char>& inMemoryFileContents,
                         size_t                   bufferSize = 128 * 1024 ) :
+        m_maxBufferSize( bufferSize ),
+        m_buffer( inMemoryFileContents.begin(), inMemoryFileContents.end() )
+    {}
+
+    explicit
+    BufferedFileReader( const VectorView<char>& inMemoryFileContents,
+                        size_t                  bufferSize = 128 * 1024 ) :
         m_maxBufferSize( bufferSize ),
         m_buffer( inMemoryFileContents.begin(), inMemoryFileContents.end() )
     {}

@@ -2,6 +2,7 @@ add_library(filereader INTERFACE)
 target_include_directories(filereader INTERFACE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(filereader INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/Buffered.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/BufferView.hpp
     ${CMAKE_CURRENT_LIST_DIR}/FileReader.hpp
     ${CMAKE_CURRENT_LIST_DIR}/Memory.hpp
     ${CMAKE_CURRENT_LIST_DIR}/Python.hpp
