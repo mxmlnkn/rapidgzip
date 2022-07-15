@@ -84,11 +84,16 @@ callPyObject( PyObject* pythonObject,
               Args...   args )
 {
     constexpr auto nArgs = sizeof...( Args );
-    const auto result = PyObject_Call( pythonObject, PyTuple_Pack( nArgs, toPyObject( args )... ), nullptr );
-    if ( result == nullptr ) {
-        throw std::invalid_argument( "Can't convert nullptr Python object!" );
+
+    if constexpr ( std::is_same_v<Result, void> ) {
+        PyObject_Call( pythonObject, PyTuple_Pack( nArgs, toPyObject( args )... ), nullptr );
+    } else {
+        const auto result = PyObject_Call( pythonObject, PyTuple_Pack( nArgs, toPyObject( args )... ), nullptr );
+        if ( result == nullptr ) {
+            throw std::invalid_argument( "Can't convert nullptr Python object!" );
+        }
+        return fromPyObject<Result>( result );
     }
-    return fromPyObject<Result>( result );
 }
 
 
@@ -104,6 +109,7 @@ public:
         mpo_seek( getAttribute( m_pythonObject, "seek" ) ),
         mpo_read( getAttribute( m_pythonObject, "read" ) ),
         mpo_seekable( getAttribute( m_pythonObject, "seekable" ) ),
+        mpo_close( getAttribute( m_pythonObject, "close" ) ),
 
         m_initialPosition( callPyObject<long long int>( mpo_tell ) ),
         m_seekable( callPyObject<bool>( mpo_seekable ) )
@@ -119,6 +125,10 @@ public:
         if ( m_seekable ) {
             seek( 0, SEEK_SET );
         }
+
+        /* No throws should come after incrementing the reference count because an exception thrown inside the
+         * constructor means the destructor will not be called! */
+        Py_INCREF( m_pythonObject );
     }
 
     ~PythonFileReader()
@@ -147,7 +157,10 @@ public:
             seek( m_initialPosition );
         }
 
-        /* Do not call close on because the file-like Python object is not owned by us. */
+        if ( Py_REFCNT( m_pythonObject ) == 1 ) {
+            callPyObject<void>( mpo_close );
+        }
+        Py_DECREF( m_pythonObject );
         m_pythonObject = nullptr;
     }
 
@@ -302,10 +315,11 @@ private:
 
 protected:
     PyObject* m_pythonObject{ nullptr };
-    PyObject* const mpo_tell{ nullptr };
-    PyObject* const mpo_seek{ nullptr };
-    PyObject* const mpo_read{ nullptr };
-    PyObject* const mpo_seekable{ nullptr };
+    PyObject* const mpo_tell;
+    PyObject* const mpo_seek;
+    PyObject* const mpo_read;
+    PyObject* const mpo_seekable;
+    PyObject* const mpo_close;
 
     const long long int m_initialPosition;
     const bool m_seekable;

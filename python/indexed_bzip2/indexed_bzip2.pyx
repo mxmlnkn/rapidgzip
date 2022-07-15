@@ -83,7 +83,6 @@ def _hasValidFileno(file):
 
 cdef class _IndexedBzip2File():
     cdef BZ2Reader* bz2reader
-    _fileobj : object  # references counted object kept until the BZ2Reader with the pointer to this is destructed
 
     def __cinit__(self, file):
         """
@@ -96,8 +95,7 @@ cdef class _IndexedBzip2File():
         elif _hasValidFileno(file):
             self.bz2reader = new BZ2Reader(<int>file.fileno())
         elif _isFileObject(file):
-            self._fileobj = file  # store to avoid it being garbage collected
-            self.bz2reader = new BZ2Reader(<PyObject*>self._fileobj)
+            self.bz2reader = new BZ2Reader(<PyObject*>file)
         elif isinstance(file, basestring) and hasattr(file, 'encode'):
             # Note that BytesIO also is an instance of basestring but fortunately has no encode method!
             self.bz2reader = new BZ2Reader(<string>file.encode())
@@ -163,7 +161,6 @@ cdef class _IndexedBzip2File():
 
 cdef class _IndexedBzip2FileParallel():
     cdef ParallelBZ2Reader* bz2reader
-    _fileobj : object  # references counted object kept until the BZ2Reader with the pointer to this is destructed
 
     def __cinit__(self, file, parallelization):
         """
@@ -176,8 +173,7 @@ cdef class _IndexedBzip2FileParallel():
         elif _hasValidFileno(file):
             self.bz2reader = new ParallelBZ2Reader(<int>file.fileno(), <int>parallelization)
         elif _isFileObject(file):
-            self._fileobj = file  # store to avoid it being garbage collected
-            self.bz2reader = new ParallelBZ2Reader(<PyObject*>self._fileobj, <int>parallelization)
+            self.bz2reader = new ParallelBZ2Reader(<PyObject*>file, <int>parallelization)
         elif isinstance(file, basestring) and hasattr(file, 'encode'):
             # Note that BytesIO also is an instance of basestring but fortunately has no encode method!
             self.bz2reader = new ParallelBZ2Reader(<string>file.encode(), <int>parallelization)
@@ -196,8 +192,6 @@ cdef class _IndexedBzip2FileParallel():
     def close(self):
         if not self.bz2reader.closed():
             self.bz2reader.close()
-        if self._fileobj:
-            self._fileobj.close()
 
     def closed(self):
         return self.bz2reader.closed()

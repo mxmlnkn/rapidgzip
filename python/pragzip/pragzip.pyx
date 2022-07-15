@@ -63,7 +63,6 @@ def _hasValidFileno(file):
 
 cdef class _PragzipFile():
     cdef ParallelGzipReader* gzipReader
-    _fileobj : object  # references counted object kept until the GzipReader with the pointer to this is destructed
 
     def __cinit__(self, file, parallelization):
         """
@@ -76,8 +75,7 @@ cdef class _PragzipFile():
         elif _hasValidFileno(file):
             self.gzipReader = new ParallelGzipReader(<int>file.fileno(), <int>parallelization)
         elif _isFileObject(file):
-            self._fileobj = file  # store to avoid it being garbage collected
-            self.gzipReader = new ParallelGzipReader(<PyObject*>self._fileobj, <int>parallelization)
+            self.gzipReader = new ParallelGzipReader(<PyObject*>file, <int>parallelization)
         elif isinstance(file, basestring) and hasattr(file, 'encode'):
             # Note that BytesIO also is an instance of basestring but fortunately has no encode method!
             self.gzipReader = new ParallelGzipReader(<string>file.encode(), <int>parallelization)
@@ -96,8 +94,6 @@ cdef class _PragzipFile():
     def close(self):
         if not self.gzipReader.closed():
             self.gzipReader.close()
-        if self._fileobj:
-            self._fileobj.close()
 
     def closed(self):
         return self.gzipReader.closed()
