@@ -139,7 +139,7 @@ testSerialDecoderNanoSampleStoppingPoints()
         const auto [offsets, compressedOffsets] =
             collectStoppingPoints( StoppingPoint::END_OF_STREAM_HEADER );
         REQUIRE( offsets == std::vector<size_t>( { 0, NANO_SAMPLE_DECODED.size(), decoded.size() } ) );
-        REQUIRE( compressedOffsets == std::vector<size_t>( { 15 * 8, ( NANO_SAMPLE_GZIP.size() + 15 ) * 8,
+        REQUIRE( compressedOffsets == std::vector<size_t>( { 15UL * 8UL, ( NANO_SAMPLE_GZIP.size() + 15 ) * 8,
                                                              encoded.size() * 8 } ) );
     }
 

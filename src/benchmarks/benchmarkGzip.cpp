@@ -42,6 +42,12 @@ public:
         init( format );
     }
 
+    /* These are implicitly deleted anyway because of the const member but clang-tidy keeps complaining without this. */
+    GzipWrapper( const GzipWrapper& ) = delete;
+    GzipWrapper( GzipWrapper&& ) = delete;
+    GzipWrapper& operator=( GzipWrapper&& ) = delete;
+    GzipWrapper& operator=( GzipWrapper& ) = delete;
+
 private:
     void
     init( Format format )
@@ -98,6 +104,7 @@ public:
 
         m_stream.avail_in = *compressedSize;
         /* const_cast should be safe because zlib presumably only uses this in a const manner. */
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
         m_stream.next_in = const_cast<unsigned char*>( *compressedData );
 
         m_stream.avail_out = m_outputBuffer.size();

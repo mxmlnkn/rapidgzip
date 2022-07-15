@@ -5,6 +5,8 @@ Checks: |
 
     clang-analyzer-*,
     clang-diagnostic-*,
+    -clang-diagnostic-unknown-attributes,
+    -clang-diagnostic-comment,
 
     cppcoreguidelines-*,
     -cppcoreguidelines-avoid-magic-numbers,
@@ -26,8 +28,9 @@ Checks: |
 
     readability-*,
     -readability-function-cognitive-complexity,
-    -readability-redundant-access-specifiers,
-    -readability-magic-numbers
+    -readability-identifier-length,
+    -readability-magic-numbers,
+    -readability-redundant-access-specifiers
 
 CheckOptions:
   - key:   misc-non-private-member-variables-in-classes.IgnoreClassesWithAllMemberVariablesBeingPublic

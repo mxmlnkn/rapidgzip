@@ -305,6 +305,11 @@ public:
         }
     }
 
+    GzipWrapper( const GzipWrapper& ) = delete;
+    GzipWrapper( GzipWrapper&& ) = delete;
+    GzipWrapper& operator=( GzipWrapper&& ) = delete;
+    GzipWrapper& operator=( GzipWrapper& ) = delete;
+
     ~GzipWrapper()
     {
         inflateEnd( &m_stream );
@@ -329,6 +334,7 @@ public:
         /* const_cast should be safe because zlib presumably only uses this in a const manner.
          * I'll probably have to roll out my own deflate decoder anyway so I might be able
          * to change this bothersome interface. */
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
         m_stream.next_in = const_cast<unsigned char*>( compressed ) + byteOffset;
 
         const auto outputPreviouslyAvailable = std::min( size_t( 8 * 1024 ), m_outputBuffer.size() );
@@ -344,7 +350,8 @@ public:
             m_stream.next_in += 1;
             m_stream.avail_in -= 1;
 
-            auto errorCode = inflatePrime( &m_stream, 8U - bitsToSeek, compressed[byteOffset] >> bitsToSeek );
+            auto errorCode = inflatePrime( &m_stream, static_cast<int>( 8U - bitsToSeek ),
+                                           compressed[byteOffset] >> bitsToSeek );
             if ( errorCode != Z_OK ) {
                 return false;
             }
@@ -371,7 +378,7 @@ public:
     }
 
 private:
-    z_stream m_stream;
+    z_stream m_stream{};
     std::vector<unsigned char> m_window = std::vector<unsigned char>( 32ULL * 1024ULL, '\0' );
     std::vector<unsigned char> m_outputBuffer = std::vector<unsigned char>( 64ULL * 1024ULL * 1024ULL );
 };
@@ -797,7 +804,7 @@ findUncompressdDeflateBlocksNestedBranches( const BufferedFileReader::AlignedBuf
             continue;
         }
 
-        if ( LIKELY( ( static_cast<uint8_t>( buffer[i-2] ) & 0b111 ) != 0 ) ) [[likely]] {
+        if ( LIKELY( ( static_cast<uint8_t>( buffer[i-2] ) & 0b111U ) != 0 ) ) [[likely]] {
             continue;
         }
 
@@ -836,7 +843,7 @@ findUncompressdDeflateBlocks( const BufferedFileReader::AlignedBuffer& buffer )
             continue;
         }
 
-        if ( LIKELY( ( static_cast<uint8_t>( buffer[i-1] ) & 0b111 ) != 0 ) ) [[likely]] {
+        if ( LIKELY( ( static_cast<uint8_t>( buffer[i-1] ) & 0b111U ) != 0 ) ) [[likely]] {
             continue;
         }
 
