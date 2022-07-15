@@ -62,20 +62,6 @@ public:
         }
     }
 
-    /** @note Legacy constructor. Preferably, use the FileReader constructor. */
-    BitStringFinder( std::string const& filePath,
-                     uint64_t           bitStringToFind,
-                     size_t             fileBufferSizeBytes = 1*1024*1024 ) :
-        BitStringFinder( std::make_unique<StandardFileReader>( filePath ), bitStringToFind, fileBufferSizeBytes )
-    {}
-
-    /** @note Legacy constructor. Preferably, use the FileReader constructor. */
-    BitStringFinder( int      fileDescriptor,
-                     uint64_t bitStringToFind,
-                     size_t   fileBufferSizeBytes = 1*1024*1024 ) :
-        BitStringFinder( std::make_unique<StandardFileReader>( fileDescriptor ), bitStringToFind, fileBufferSizeBytes )
-    {}
-
     /** @note This overload is used for the tests but can also be useful for other things. */
     BitStringFinder( const char* buffer,
                      size_t      size,

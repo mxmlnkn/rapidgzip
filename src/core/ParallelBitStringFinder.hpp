@@ -49,29 +49,6 @@ public:
         m_threadPool( parallelization )
     {}
 
-    ParallelBitStringFinder( std::string const& filePath,
-                             uint64_t           bitStringToFind,
-                             size_t             parallelization = std::max( 1U,
-                                                                            std::thread::hardware_concurrency() / 8U ),
-                             size_t             requestedBytes = 0,
-                             size_t             fileBufferSizeBytes = 1*1024*1024 ) :
-        BaseType( std::make_unique<StandardFileReader>( filePath ),
-                  bitStringToFind,
-                  chunkSize( fileBufferSizeBytes, requestedBytes, parallelization ) ),
-        m_threadPool( parallelization )
-    {}
-
-    ParallelBitStringFinder( int      fileDescriptor,
-                             uint64_t bitStringToFind,
-                             size_t   parallelization = std::max( 1U, std::thread::hardware_concurrency() / 8U ),
-                             size_t   requestedBytes = 0,
-                             size_t   fileBufferSizeBytes = 1*1024*1024 ) :
-        BaseType( std::make_unique<StandardFileReader>( fileDescriptor ),
-                  bitStringToFind,
-                  chunkSize( fileBufferSizeBytes, requestedBytes, parallelization ) ),
-        m_threadPool( parallelization )
-    {}
-
     /** @note This overload is used for the tests but can also be useful for other things. */
     ParallelBitStringFinder( const char* buffer,
                              size_t      size,

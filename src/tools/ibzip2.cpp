@@ -20,6 +20,7 @@
 #include <BitReader.hpp>
 #include <BitStringFinder.hpp>
 #include <BZ2Reader.hpp>
+#include <filereader/Standard.hpp>
 #include <ParallelBZ2Reader.hpp>
 #include <ParallelBitStringFinder.hpp>
 
@@ -121,23 +122,15 @@ findCompressedBlocks( const std::string& inputFilePath,
     for ( const auto bitStringToFind : bitStringsToFind ) {
         using Finder = BitStringFinder<bzip2::MAGIC_BITS_SIZE>;
         using ParallelFinder = ParallelBitStringFinder<bzip2::MAGIC_BITS_SIZE>;
-        std::unique_ptr<Finder> finder;
 
-        if ( parallelism == 1 ) {
-            if ( inputFilePath.empty() ) {
-                finder = std::make_unique<Finder>( STDIN_FILENO, bitStringToFind, bufferSize );
-            } else {
-                finder = std::make_unique<Finder>( inputFilePath, bitStringToFind, bufferSize );
-            }
-        } else {
-            if ( inputFilePath.empty() ) {
-                finder = std::make_unique<ParallelFinder>( STDIN_FILENO, bitStringToFind,
-                                                           parallelism, 0, bufferSize );
-            } else {
-                finder = std::make_unique<ParallelFinder>( inputFilePath, bitStringToFind,
-                                                           parallelism, 0, bufferSize );
-            }
-        }
+        auto file = inputFilePath.empty()
+                    ? std::make_unique<StandardFileReader>( STDIN_FILENO )
+                    : std::make_unique<StandardFileReader>( inputFilePath );
+
+        std::unique_ptr<Finder> finder =
+            parallelism == 1
+            ? std::make_unique<Finder>( std::move( file ), bitStringToFind, bufferSize )
+            : std::make_unique<ParallelFinder>( std::move( file ), bitStringToFind, parallelism, 0, bufferSize );
 
         for ( auto offset = finder->find(); offset != std::numeric_limits<size_t>::max(); offset = finder->find() ) {
             offsets.push_back( offset );
@@ -370,15 +363,15 @@ cli( int argc, char** argv )
             std::cerr << "Decompress with " << decoderParallelism << " threads\n";
         }
 
+        auto fileReader = inputFilePath.empty()
+                   ? std::make_unique<StandardFileReader>( STDIN_FILENO )
+                   : std::make_unique<StandardFileReader>( inputFilePath );
+
         std::unique_ptr<BZ2ReaderInterface> reader;
         if ( decoderParallelism == 1 ) {
-            reader = inputFilePath.empty()
-                     ? std::make_unique<BZ2Reader>( STDIN_FILENO )
-                     : std::make_unique<BZ2Reader>( inputFilePath );
+            reader = std::make_unique<BZ2Reader>( std::move( fileReader ) );
         } else {
-            reader = inputFilePath.empty()
-                     ? std::make_unique<ParallelBZ2Reader>( STDIN_FILENO, decoderParallelism )
-                     : std::make_unique<ParallelBZ2Reader>( inputFilePath, decoderParallelism );
+            reader = std::make_unique<ParallelBZ2Reader>( std::move( fileReader ), decoderParallelism );
         }
 
         auto outputFileDescriptor = STDOUT_FILENO;

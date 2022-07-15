@@ -6,6 +6,7 @@
 
 #include <BitStringFinder.hpp>
 #include <common.hpp>
+#include <filereader/Standard.hpp>
 #include <ParallelBZ2Reader.hpp>
 
 
@@ -32,7 +33,7 @@ testSimpleOpenAndClose( const std::string& bz2File )
 {
     const auto t0 = std::chrono::high_resolution_clock::now();
     {
-        ParallelBZ2Reader encodedFile( bz2File );  // NOLINT
+        ParallelBZ2Reader encodedFile( std::make_unique<StandardFileReader>( bz2File ) );
         const auto t1 = std::chrono::high_resolution_clock::now();
         const auto dt = std::chrono::duration_cast<std::chrono::duration<double> >( t1 - t0 ).count();
         REQUIRE( dt < 1 );
@@ -60,7 +61,8 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     std::cerr << "Decoded file size: " << decodedFileSize << "\n";
 
     std::ifstream decodedFile( decodedTestFilePath );
-    auto encodedFile = std::make_unique<ParallelBZ2Reader>( encodedTestFilePath );
+    auto encodedFile =
+        std::make_unique<ParallelBZ2Reader>( std::make_unique<StandardFileReader>( encodedTestFilePath ) );
 
     const auto seek =
         [&]( long long int offset,
@@ -231,7 +233,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     std::cerr << "Test block offset loading\n";
     decodedFile.clear();
     decodedFile.seekg( 0 );
-    encodedFile = std::make_unique<ParallelBZ2Reader>( encodedTestFilePath );
+    encodedFile = std::make_unique<ParallelBZ2Reader>( std::make_unique<StandardFileReader>( encodedTestFilePath ) );
     encodedFile->setBlockOffsets( blockOffsets );
 
     std::cerr << "Try reading 1B before the end of file\n";
@@ -243,7 +245,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     std::cerr << "Test block offset loading\n";
     decodedFile.clear();
     decodedFile.seekg( 0 );
-    encodedFile = std::make_unique<ParallelBZ2Reader>( encodedTestFilePath );
+    encodedFile = std::make_unique<ParallelBZ2Reader>( std::make_unique<StandardFileReader>( encodedTestFilePath ) );
     encodedFile->setBlockOffsets( blockOffsets );
 
     std::cerr << "Try reading 1B before the end of file\n";
@@ -253,7 +255,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     std::cerr << "Test block offset loading after partial reading\n";
     decodedFile.clear();
     decodedFile.seekg( 0 );
-    encodedFile = std::make_unique<ParallelBZ2Reader>( encodedTestFilePath );
+    encodedFile = std::make_unique<ParallelBZ2Reader>( std::make_unique<StandardFileReader>( encodedTestFilePath ) );
     read( 4 );
     encodedFile->setBlockOffsets( blockOffsets );
 

@@ -65,6 +65,7 @@ public:
         }
     }
 
+#ifdef WITH_PYTHON_SUPPORT
     explicit
     ParallelBZ2Reader( int    fileDescriptor,
                        size_t parallelization = 0 ) :
@@ -77,8 +78,6 @@ public:
         ParallelBZ2Reader( std::make_unique<StandardFileReader>( filePath ), parallelization )
     {}
 
-
-#ifdef WITH_PYTHON_SUPPORT
     explicit
     ParallelBZ2Reader( PyObject* pythonObject,
                        size_t    parallelization = 0 ) :

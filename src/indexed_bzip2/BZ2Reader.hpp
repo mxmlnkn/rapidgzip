@@ -34,8 +34,12 @@ public:
     static constexpr size_t IOBUF_SIZE = 4096;
 
 public:
-    /* Constructors */
+    explicit
+    BZ2Reader( std::unique_ptr<FileReader> fileReader ) :
+        m_bitReader( std::move( fileReader ) )
+    {}
 
+#ifdef WITH_PYTHON_SUPPORT
     explicit
     BZ2Reader( const std::string& filePath ) :
         m_bitReader( std::make_unique<StandardFileReader>( filePath ) )
@@ -46,7 +50,6 @@ public:
         m_bitReader( std::make_unique<StandardFileReader>( fileDescriptor ) )
     {}
 
-#ifdef WITH_PYTHON_SUPPORT
     explicit
     BZ2Reader( PyObject* pythonObject ) :
         m_bitReader( std::make_unique<PythonFileReader>( pythonObject ) )
