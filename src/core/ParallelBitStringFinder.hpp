@@ -123,8 +123,7 @@ private:
     }
 
     /**
-     * The findBitString function only returns the first result, so this worker main basically just calls it in a
-     * a loop with increasing start offsets. It also handles all the parallel synchronization stuff like sending
+     * Calls findBitStrings and handles all the parallel synchronization stuff like sending
      * the results to the reading thread through the result buffer.
      * When it is finished, it will return std::numeric_limits<size_t>::max() to signal that the future can be waited
      * for.
@@ -143,27 +142,15 @@ private:
                 size_t         const bitOffsetToAdd,
                 ThreadResults* const result )
     {
-        for ( size_t bufferBitsRead = firstBitsToIgnore; bufferBitsRead < bufferSizeInBytes * CHAR_BIT; ) {
-            const auto byteOffset = bufferBitsRead / CHAR_BIT;
-            const auto bitOffset  = static_cast<uint8_t>( bufferBitsRead % CHAR_BIT );
-
-            const auto relpos = BaseType::findBitString( reinterpret_cast<const uint8_t*>( buffer ) + byteOffset,
-                                                         bufferSizeInBytes - byteOffset, bitStringToFind, bitOffset );
-            if ( relpos == std::numeric_limits<size_t>::max() ) {
-                break;
-            }
-
-            bufferBitsRead += relpos;
-
-            {
-                std::lock_guard<std::mutex> lock( result->mutex );
-                result->foundOffsets.push( bitOffsetToAdd + bufferBitsRead );
-                result->changed.notify_one();
-            }
-            bufferBitsRead += 1;
-        }
+        auto offsets = BaseType::findBitStrings( { buffer, bufferSizeInBytes }, bitStringToFind );
+        std::sort( offsets.begin(), offsets.end() );
 
         std::lock_guard<std::mutex> lock( result->mutex );
+        for ( const auto offset : offsets ) {
+            if ( offset >= firstBitsToIgnore ) {
+                result->foundOffsets.push( bitOffsetToAdd + offset );
+            }
+        }
         result->foundOffsets.push( std::numeric_limits<size_t>::max() );
         result->changed.notify_one();
     }
@@ -201,8 +188,7 @@ ParallelBitStringFinder<bitStringSize>::find()
             auto& result = m_threadResults.front();
             using namespace std::chrono;
 
-            /* Check if some results are already calculated. No locking necessary between the queue empty check
-             * and the future valid check because only we can make it invalid when calling get on it. */
+            /* Check whether some results are already calculated. */
             std::unique_lock<std::mutex> lock( result.mutex );
             while ( !result.foundOffsets.empty() || result.future.valid() ) {
                 /* In the easiest case we have something to return already. */

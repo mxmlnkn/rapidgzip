@@ -86,6 +86,8 @@ main()
     //testBitStringFinder<0>( 0b1111'1111, {}, {} );
     //testBitStringFinder<0>( 0b1111'1111, { 0x00 }, {} );
 
+    /* BitStringReader is optimized and only works with bit strings that are multiplies of and greater than 8. */
+    /*
     testBitStringFinder<1>( 0b0, { 0b0000'1111 }, { 0, 1, 2, 3 } );
     testBitStringFinder<1>( 0b0, { 0b1010'1010 }, { 1, 3, 5, 7 } );
     testBitStringFinder<1>( 0b0, { 0b1111'1111 }, {} );
@@ -105,6 +107,7 @@ main()
     testBitStringFinder<5>( 0b1111'1111, { 0b0000'1111 }, {} );
 
     testBitStringFinder<10>( 0b10'1010'1010, { 0b0101'0101, 0b0101'0101 }, { 1, 3, 5 } );
+    */
     testBitStringFinder<48>( 0x314159265359ULL, { 0x11, 0x41, 0x59, 0x26, 0x53, 0x59 }, {} );
     testBitStringFinder<48>( 0x314159265359ULL, { 0x31, 0x41, 0x59, 0x26, 0x53, 0x58 }, {} );
     testBitStringFinder<48>( 0x314159265359ULL, { 0x31, 0x41, 0x59, 0x26, 0x53, 0x59 }, { 0 } );
@@ -113,6 +116,9 @@ main()
     testBitStringFinder<48>( 0x314159265359ULL, { 0, 0, 0x31, 0x41, 0x59, 0x26, 0x53, 0x59, 0, 0 }, { 16 } );
     testBitStringFinder<48>( 0x314159265359ULL, { 0, 0, 0, 0x31, 0x41, 0x59, 0x26, 0x53, 0x59, 0, 0 }, { 24 } );
     testBitStringFinder<48>( 0x314159265359ULL, { 0, 0, 0, 0, 0x31, 0x41, 0x59, 0x26, 0x53, 0x59, 0, 0 }, { 32 } );
+
+    testBitStringFinder<48>( 0x314159265359ULL, { 0x18, 0xA0, 0xAC, 0x93, 0x29, 0xAC, 0x80 }, { 1 } );
+    testBitStringFinder<48>( 0x314159265359ULL, { 0x00, 0x62, 0x82, 0xB2, 0x4C, 0xA6, 0xB2 }, { 7 } );
 
     /* Tests with second match a lot further away and definitely over the loading chunk size. */
     {

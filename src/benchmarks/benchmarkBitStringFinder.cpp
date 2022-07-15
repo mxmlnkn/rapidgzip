@@ -422,7 +422,6 @@ enum FindBitStringImplementation : int
     TEMPLATE_SIZE,
     TEMPLATE_SIZE_AND_PATTERN,
     NON_TEMPLATED,
-    BIT_STRING_FINDER,
 };
 
 
@@ -455,13 +454,6 @@ findBitStrings( const std::vector<char>& buffer )
                 buffer.size() - byteOffset,
                 bitStringToFind,
                 bitStringToFindSize
-            );
-        } else if constexpr ( FIND_BITSTRING_VERSION == BIT_STRING_FINDER ) {
-            /* Should normally be one of the above implementations! */
-            relpos = BitStringFinder<bitStringToFindSize>::findBitString(
-                reinterpret_cast<const uint8_t*>( buffer.data() ) + byteOffset,
-                buffer.size() - byteOffset,
-                bitStringToFind
             );
         }
 
@@ -552,9 +544,9 @@ msbToString( uint64_t bitString,
              uint8_t  bitStringSize )
 {
     std::vector<char> result( bitStringSize / 8U );
-    for ( size_t i = 0; i < result.size(); ++i ) {
+    for ( auto& c : result ) {
         bitStringSize -= 8U;
-        result[i] = static_cast<char>( ( bitString >> bitStringSize ) & 0xFFU );
+        c = static_cast<char>( ( bitString >> bitStringSize ) & 0xFFU );
     }
     return result;
 }
@@ -632,7 +624,7 @@ nextBitStringCandidate( uint32_t bits )
         return 0;
     } else {
         static_assert( bitCount <= bitStringToFindSize, "LUT sized > 2^48 should be reasonable anyway!" );
-        if ( ( bitStringToFind >> ( bitStringToFindSize - bitCount ) ) == bits ) {
+        if ( ( bitStringToFind >> static_cast<uint8_t>( bitStringToFindSize - bitCount ) ) == bits ) {
             return 0;
         }
         return 1U + nextBitStringCandidate<bitCount - 1U>( bits & nLowestBitsSet<uint32_t, bitCount - 1U>() );
@@ -656,32 +648,32 @@ createNextBitStringCandidateLUT()
 template<uint8_t bitCount>
 [[nodiscard]] constexpr uint8_t
 nextBitStringCandidateNonTemplate( uint32_t bits,
-                                   uint64_t bitStringToFind,
-                                   uint8_t  bitStringToFindSize )
+                                   uint64_t bitString,
+                                   uint8_t  bitStringSize )
 {
     if constexpr ( bitCount == 0 ) {
         return 0;
     } else {
-        if ( bitCount > bitStringToFindSize ) {
+        if ( bitCount > bitStringSize ) {
             throw std::invalid_argument( "LUT sized > 2^48 should be reasonable anyway!" );
         }
-        if ( ( bitStringToFind >> static_cast<uint8_t>( bitStringToFindSize - bitCount ) ) == bits ) {
+        if ( ( bitString >> static_cast<uint8_t>( bitStringSize - bitCount ) ) == bits ) {
             return 0;
         }
         return 1U + nextBitStringCandidateNonTemplate<bitCount - 1U>( bits & nLowestBitsSet<uint32_t, bitCount - 1U>(),
-                                                                      bitStringToFind, bitStringToFindSize );
+                                                                      bitString, bitStringSize );
     }
 }
 
 
 template<uint8_t CACHED_BIT_COUNT>
 [[nodiscard]] std::array<uint8_t, 1U << CACHED_BIT_COUNT>
-createNextBitStringCandidateLUTNonTemplate( uint64_t bitStringToFind,
-                                            uint8_t  bitStringToFindSize )
+createNextBitStringCandidateLUTNonTemplate( uint64_t bitString,
+                                            uint8_t  bitStringSize )
 {
     std::array<uint8_t, 1U << CACHED_BIT_COUNT> result{};
     for ( uint32_t i = 0; i < result.size(); ++i ) {
-        result[i] = nextBitStringCandidateNonTemplate<CACHED_BIT_COUNT>( i, bitStringToFind, bitStringToFindSize );
+        result[i] = nextBitStringCandidateNonTemplate<CACHED_BIT_COUNT>( i, bitString, bitStringSize );
     }
     return result;
 }
@@ -795,10 +787,10 @@ findBitStringsParallel( const std::vector<char>& data )
 {
     std::vector<size_t> matches;
 
-    const auto parallelisation = 48UL; //std::thread::hardware_concurrency();
+    const auto parallelization = std::thread::hardware_concurrency();
     ParallelBitStringFinder<bitStringToFindSize> bitStringFinder(
         std::make_unique<BufferViewFileReader>( data ),
-        bitStringToFind, parallelisation, 0, parallelisation * 1*1024*1024
+        bitStringToFind, parallelization, 0, parallelization * 1024ULL * 1024ULL
     );
     while( true )  {
         matches.push_back( bitStringFinder.find() );
@@ -924,12 +916,9 @@ benchmarkFindBitString( const std::vector<char>& data )
     measureTimes( "Boyer-Moore like LUT (16 bits)" , [&] () { return findBitStringsLUT<16>( data ); } );
     measureTimes( "Boyer-Moore like LUT (17 bits)" , [&] () { return findBitStringsLUT<17>( data ); } );
     measureTimes( "Boyer-Moore like LUT (18 bits)" , [&] () { return findBitStringsLUT<18>( data ); } );
-    measureTimes( "BitStringFinder",
-                  [&] () { return findBitStringsFinder<BitStringFinder<bitStringToFindSize> >( data ); } );
-    measureTimes( "BitStringFinder custom loop"    , [&] () { return findBitStrings<BIT_STRING_FINDER>( data ); } );
-    measureTimes( "findBitString<size>( pattern )" , [&] () { return findBitStrings<TEMPLATE_SIZE>( data ); } );
     measureTimes( "findBitString<pattern, size>()" ,
                   [&] () { return findBitStrings<TEMPLATE_SIZE_AND_PATTERN>( data ); } );
+    measureTimes( "findBitString<size>( pattern )" , [&] () { return findBitStrings<TEMPLATE_SIZE>( data ); } );
     measureTimes( "findBitStrings( pattern, size )", [&] () { return findBitStrings<NON_TEMPLATED>( data ); } );
     measureTimes( "Avoid BitReader::read<1>()"     , [&] () { return findBitStringsBitWiseWithoutBitReader( data ); } );
     measureTimes( "BitReader::read<1>()"           , [&] () { return findBitStringsBitReaderRead( data ); } );
@@ -970,9 +959,9 @@ main( int    argc,
 
 /*
 Results for 256 MiB of random data on Ryzen 3700X (12-core) with parallelization = 24:
-[        ParallelBitStringFinder] Processed with ( 1485    +- 25  , max: 1514.53 ) MB/s
-[         Using std::string_view] Processed with ( 1369    +- 12  , max: 1386.66 ) MB/s
-[                BitStringFinder] Processed with (  194.4  +- 2.1 , max: 197.184 ) MB/s
+[        ParallelBitStringFinder] Processed with ( 6000    +- 300 , max: 6399.00 ) MB/s
+[         Using std::string_view] Processed with ( 1491    +- 8   , max: 1498.69 ) MB/s
+[                BitStringFinder] Processed with ( 1780    +- 60  , max: 1817.67 ) MB/s
 [  Boyer-Moore like LUT (8 bits)] Processed with (  206.7  +- 0.4 , max: 207.256 ) MB/s
 [ Boyer-Moore like LUT (12 bits)] Processed with (  302.64 +- 0.18, max: 302.862 ) MB/s
 [ Boyer-Moore like LUT (13 bits)] Processed with (  317    +- 1   , max: 317.977 ) MB/s
@@ -981,8 +970,6 @@ Results for 256 MiB of random data on Ryzen 3700X (12-core) with parallelization
 [ Boyer-Moore like LUT (16 bits)] Processed with (  332.9  +- 1.3 , max: 333.946 ) MB/s
 [ Boyer-Moore like LUT (17 bits)] Processed with (  317    +- 3   , max: 320.255 ) MB/s
 [ Boyer-Moore like LUT (18 bits)] Processed with (  321    +- 4   , max: 325.359 ) MB/s
-[                BitStringFinder] Processed with (  203.2  +- 1   , max: 204.271 ) MB/s
-[    BitStringFinder custom loop] Processed with (  201    +- 4   , max: 206.971 ) MB/s
 [ findBitString<size>( pattern )] Processed with (  275    +- 6   , max: 280.458 ) MB/s
 [ findBitString<pattern, size>()] Processed with (  398    +- 5   , max: 401.782 ) MB/s
 [findBitStrings( pattern, size )] Processed with (  260.2  +- 2   , max: 263.136 ) MB/s

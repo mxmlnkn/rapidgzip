@@ -520,7 +520,7 @@ private:
 private:
     size_t const m_fetcherParallelization;
     /** The block finder is much faster than the fetcher and therefore does not require es much parallelization! */
-    size_t const m_finderParallelization{ ceilDiv( m_fetcherParallelization, 8U ) };
+    size_t const m_finderParallelization{ ceilDiv( m_fetcherParallelization, 64U ) };
 
     std::function<std::shared_ptr<BlockFinder>( void )> const m_startBlockFinder;
 
