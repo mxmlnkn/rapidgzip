@@ -10,6 +10,7 @@ from libcpp cimport bool
 from cpython.buffer cimport PyObject_GetBuffer, PyBuffer_Release, PyBUF_ANY_CONTIGUOUS, PyBUF_SIMPLE
 from cpython.ref cimport PyObject
 
+import builtins
 import io
 import os
 import sys
@@ -142,7 +143,7 @@ cdef class _PragzipFile():
 
     def set_block_offsets(self, offsetsFileObject):
         if isinstance(offsetsFileObject, str):
-            with open(offsetsFileObject, "rb") as file:
+            with builtins.open(offsetsFileObject, "rb") as file:
                 return self.gzipReader.setBlockOffsets(<PyObject*>file)
         return self.gzipReader.setBlockOffsets(<PyObject*>offsetsFileObject)
 
