@@ -86,9 +86,8 @@ public:
     virtual ~ParallelBitStringFinder() = default;
 
     /**
-     * @return the next match and the requested bytes or nullopt if at end of file.
+     * @return the next match and the requested bytes or std::numeric_limits<size_t>::max() if at end of file.
      */
-    //std::optional<std::pair<size_t, BitReader> >
     [[nodiscard]] size_t
     find() override;
 
@@ -190,11 +189,8 @@ private:
  *   6. Load the next chunk plus at least the last bitStringSize-1 bits from the chunk before.
  *   7. Use that new chunk to append more of the requested bytes after matches to the result buffer.
  *      More than one chunk should not be necessary for this! This is ensured in the chunkSize method.
- *
- * @return the next match and the requested bytes or nullopt if at end of file.
  */
 template<uint8_t bitStringSize>
-//std::optional<std::pair<size_t, BitReader> >
 size_t
 ParallelBitStringFinder<bitStringSize>::find()
 {

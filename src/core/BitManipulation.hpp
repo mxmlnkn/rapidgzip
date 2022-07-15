@@ -43,6 +43,17 @@ byteSwap( uint16_t value )
 }
 
 
+/**
+ * @verbatim
+ * 63                48                  32                  16        8         0
+ * |                 |                   |                   |         |         |
+ * 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 1111 1111 1111
+ *                                                                  <------------>
+ *                                                                   nBitsSet = 12
+ * @endverbatim
+ *
+ * @param nBitsSet the number of lowest bits which should be 1 (rest are 0)
+ */
 template<typename T>
 [[nodiscard]] constexpr T
 nLowestBitsSet( uint8_t nBitsSet )

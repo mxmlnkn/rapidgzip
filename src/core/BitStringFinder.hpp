@@ -18,6 +18,7 @@
 #include <vector>
 
 #include <common.hpp>
+#include <BitManipulation.hpp>
 #include <filereader/FileReader.hpp>
 #include <filereader/Standard.hpp>
 
@@ -46,7 +47,7 @@ public:
     BitStringFinder( std::unique_ptr<FileReader> fileReader,
                      uint64_t                    bitStringToFind,
                      size_t                      fileBufferSizeBytes = 1*1024*1024 ) :
-        m_bitStringToFind( bitStringToFind & mask<uint64_t>( bitStringSize ) ),
+        m_bitStringToFind( bitStringToFind & nLowestBitsSet<uint64_t>( bitStringSize ) ),
         m_movingBitsToKeep( bitStringSize > 0 ? bitStringSize - 1U : 0U ),
         m_movingBytesToKeep( ceilDiv( m_movingBitsToKeep, CHAR_BIT ) ),
         m_fileReader( std::move( fileReader ) ),
@@ -119,24 +120,6 @@ protected:
     refillBuffer();
 
 public:
-    /**
-     * @verbatim
-     * 63                48                  32                  16        8         0
-     * |                 |                   |                   |         |         |
-     * 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 1111 1111 1111
-     *                                                                  <------------>
-     *                                                                    length = 12
-     * @endverbatim
-     *
-     * @param length the number of lowest bits which should be 1 (rest are 0)
-     */
-    template<typename T>
-    static constexpr T
-    mask( uint8_t length )
-    {
-        return ~static_cast<T>( 0 ) >> ( sizeof( T ) * CHAR_BIT - length );
-    }
-
     static ShiftedLUTTable
     createdShiftedBitStringLUT( uint64_t bitString,
                                 bool     includeLastFullyShifted = false );
@@ -307,9 +290,6 @@ BitStringFinder<bitStringSize>::find()
             }
         }
 
-        #define ALGO 1
-        #if ALGO == 1
-
         for ( ; m_bufferBitsRead < m_buffer.size() * CHAR_BIT; ) {
             const auto byteOffset = m_bufferBitsRead / CHAR_BIT;
             const auto firstBitsToIgnore = static_cast<uint8_t>( m_bufferBitsRead % CHAR_BIT );
@@ -331,37 +311,6 @@ BitStringFinder<bitStringSize>::find()
             m_bufferBitsRead += 1;
             return foundOffset;
         }
-
-        #elif ALGO == 2
-
-        const auto bitMask = mask<uint64_t>( bitStringSize );
-
-        /* Initialize the moving window with bitStringSize-1 bits.
-         * Note that one additional bit is loaded before the first comparison.
-         * At this point, we know that there are at least bitStringSize unread bits in the buffer. */
-        if ( m_nTotalBytesRead * CHAR_BIT + m_bufferBitsRead < bitStringSize - 1U ) {
-            const auto nBitsToRead = bitStringSize - 1 - ( m_nTotalBytesRead * CHAR_BIT + m_bufferBitsRead );
-            for ( size_t i = 0; i < nBitsToRead; ++i, ++m_bufferBitsRead ) {
-                const auto byte = static_cast<unsigned char>( m_buffer[m_bufferBitsRead / CHAR_BIT] );
-                const auto bit = ( byte >> ( 7 - ( m_bufferBitsRead & 7U ) ) ) & 1U;
-                m_movingWindow = ( ( m_movingWindow << 1 ) | bit ) & bitMask;
-            }
-        }
-
-        for ( ; m_bufferBitsRead < m_buffer.size() * CHAR_BIT; ) {
-            const auto byte = static_cast<unsigned char>( m_buffer[m_bufferBitsRead / CHAR_BIT] );
-            for ( int j = m_bufferBitsRead & 7U; j < CHAR_BIT; ++j, ++m_bufferBitsRead ) {
-                const auto bit = ( byte >> ( 7 - j ) ) & 1U;
-                m_movingWindow = ( ( m_movingWindow << 1 ) | bit ) & bitMask;
-                if ( m_movingWindow == m_bitStringToFind )
-                {
-                    ++m_bufferBitsRead;
-                    return m_nTotalBytesRead * CHAR_BIT + m_bufferBitsRead - bitStringSize;
-                }
-            }
-        }
-
-        #endif
     }
 
     return std::numeric_limits<size_t>::max();

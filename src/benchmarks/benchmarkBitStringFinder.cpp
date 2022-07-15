@@ -12,7 +12,10 @@
 #include <utility>
 
 #include <BitStringFinder.hpp>
+#include <filereader/BufferView.hpp>
+#include <filereader/Standard.hpp>
 #include <ParallelBitStringFinder.hpp>
+#include <Statistics.hpp>
 #include <common.hpp>
 
 //#define BENCHMARK
@@ -30,7 +33,7 @@ constexpr uint8_t bitStringToFindSize = 48;
  * @param bitString the lowest bitStringSize bits will be looked for in the buffer
  * @return size_t max if not found else position in buffer
  */
-size_t
+[[nodiscard]] size_t
 findBitString( const char* buffer,
                size_t      bufferSize,
                uint64_t    bitString,
@@ -87,7 +90,7 @@ findBitString( const char* buffer,
 
 
 template<uint8_t bitStringSize>
-constexpr auto
+[[nodiscard]] constexpr auto
 createdShiftedBitStringLUTArray( uint64_t bitString )
 {
     constexpr auto nWildcardBits = sizeof( uint64_t ) * 8 - bitStringSize;
@@ -107,7 +110,7 @@ createdShiftedBitStringLUTArray( uint64_t bitString )
 }
 
 
-auto
+[[nodiscard]] auto
 createdShiftedBitStringLUT( uint64_t bitString,
                             uint8_t  bitStringSize,
                             bool     includeLastFullyShifted = false )
@@ -134,7 +137,7 @@ createdShiftedBitStringLUT( uint64_t bitString,
  * @return size_t max if not found else position in buffer
  */
 template<uint8_t bitStringSize>
-size_t
+[[nodiscard]] size_t
 findBitString( const uint8_t* buffer,
                size_t         bufferSize,
                uint64_t       bitString,
@@ -259,7 +262,7 @@ findBitString( const uint8_t* buffer,
 }
 
 
-size_t
+[[nodiscard]] size_t
 findBitStringNonTemplated( const uint8_t* buffer,
                            size_t         bufferSize,
                            uint64_t       bitString,
@@ -316,7 +319,7 @@ findBitStringNonTemplated( const uint8_t* buffer,
 
 template<uint64_t bitString,
          uint8_t  bitStringSize>
-constexpr auto
+[[nodiscard]] constexpr auto
 createdShiftedBitStringLUTArrayTemplated()
 {
     constexpr auto nWildcardBits = sizeof( uint64_t ) * 8 - bitStringSize;
@@ -338,7 +341,7 @@ createdShiftedBitStringLUTArrayTemplated()
 
 template<uint64_t bitString,
          uint8_t  bitStringSize>
-constexpr auto
+[[nodiscard]] constexpr auto
 createdShiftedBitStringLUTArrayTemplatedConstexpr()
 {
     constexpr auto nWildcardBits = sizeof( uint64_t ) * 8 - bitStringSize;
@@ -358,7 +361,7 @@ createdShiftedBitStringLUTArrayTemplatedConstexpr()
 
 template<uint64_t bitString,
          uint8_t  bitStringSize>
-size_t
+[[nodiscard]] size_t
 findBitStringBitStringTemplated( const uint8_t* buffer,
                                  size_t         bufferSize,
                                  uint8_t        firstBitsToIgnore = 0 )
@@ -414,98 +417,78 @@ findBitStringBitStringTemplated( const uint8_t* buffer,
 }
 
 
-/** I think this version isn't even correct because magic bytes across buffer boundaries will be overlooked! */
-std::vector<size_t>
-findBitStrings( const std::string& filename )
+enum FindBitStringImplementation : int
+{
+    TEMPLATE_SIZE,
+    TEMPLATE_SIZE_AND_PATTERN,
+    NON_TEMPLATED,
+    BIT_STRING_FINDER,
+};
+
+
+template<FindBitStringImplementation FIND_BITSTRING_VERSION>
+[[nodiscard]] std::vector<size_t>
+findBitStrings( const std::vector<char>& buffer )
 {
     std::vector<size_t> blockOffsets;
 
-    auto ufile = make_unique_file_ptr( filename.c_str(), "rb" );
-    auto* const file = ufile.get();
-    const auto movingBytesToKeep = ceilDiv( bitStringToFindSize, CHAR_BIT ); // 6
-    std::vector<char> buffer( 2 * 1024 * 1024 + movingBytesToKeep ); // for performance testing
-    //std::vector<char> buffer( 53 ); // for bug testing with bit strings accross buffer boundaries
-    size_t nTotalBytesRead = 0;
-    while ( true ) {
-        size_t nBytesRead = 0;
-        if ( nTotalBytesRead == 0 ) {
-            nBytesRead = fread( buffer.data(), 1, buffer.size(), file );
-            buffer.resize( nBytesRead );
-        } else {
-            std::memmove( buffer.data(), buffer.data() + buffer.size() - movingBytesToKeep, movingBytesToKeep );
-            nBytesRead = fread( buffer.data() + movingBytesToKeep, 1, buffer.size() - movingBytesToKeep, file );
-            buffer.resize( movingBytesToKeep + nBytesRead );
+    for ( size_t bitpos = 0; bitpos < buffer.size() * CHAR_BIT; ) {
+        const auto byteOffset = bitpos / CHAR_BIT;  // round down because we can't give bit precision
+
+        size_t relpos = 0;
+        if constexpr ( FIND_BITSTRING_VERSION == TEMPLATE_SIZE ) {
+            relpos = findBitString<bitStringToFindSize>(
+                reinterpret_cast<const uint8_t*>( buffer.data() )
+                + byteOffset,
+                buffer.size() - byteOffset,
+                bitStringToFind
+            );
+        } else if constexpr ( FIND_BITSTRING_VERSION == TEMPLATE_SIZE_AND_PATTERN ) {
+            relpos = findBitStringBitStringTemplated<bitStringToFind, bitStringToFindSize>(
+                reinterpret_cast<const uint8_t*>( buffer.data() ) + byteOffset,
+                buffer.size() - byteOffset
+            );
+        } else if constexpr ( FIND_BITSTRING_VERSION == NON_TEMPLATED ) {
+            relpos = findBitStringNonTemplated(
+                reinterpret_cast<const uint8_t*>( buffer.data() )
+                + byteOffset,
+                buffer.size() - byteOffset,
+                bitStringToFind,
+                bitStringToFindSize
+            );
+        } else if constexpr ( FIND_BITSTRING_VERSION == BIT_STRING_FINDER ) {
+            /* Should normally be one of the above implementations! */
+            relpos = BitStringFinder<bitStringToFindSize>::findBitString(
+                reinterpret_cast<const uint8_t*>( buffer.data() ) + byteOffset,
+                buffer.size() - byteOffset,
+                bitStringToFind
+            );
         }
-        if ( nBytesRead == 0 ) {
+
+        if ( relpos == std::numeric_limits<size_t>::max() ) {
             break;
         }
-
-        for ( size_t bitpos = 0; bitpos < nBytesRead * CHAR_BIT; ) {
-            const auto byteOffset = bitpos / CHAR_BIT; // round down because we can't give bit precision
-
-            size_t relpos = 0;
-            static constexpr int FIND_BITSTRING_VERSION = 3;
-            if constexpr ( FIND_BITSTRING_VERSION == 0 ) {
-                /* 1.85s */
-                relpos = findBitString<bitStringToFindSize>(
-                    reinterpret_cast<const uint8_t*>( buffer.data() )
-                    + byteOffset,
-                    buffer.size() - byteOffset,
-                    bitStringToFind
-                );
-            } else if constexpr ( FIND_BITSTRING_VERSION == 1 ) {
-                /* 2.05s */
-                relpos = findBitStringBitStringTemplated<bitStringToFind, bitStringToFindSize>(
-                    reinterpret_cast<const uint8_t*>( buffer.data() ) + byteOffset,
-                    buffer.size() - byteOffset
-                );
-            } else if constexpr ( FIND_BITSTRING_VERSION == 2 ) {
-                /* 3.45s */
-                relpos = findBitStringNonTemplated(
-                    reinterpret_cast<const uint8_t*>( buffer.data() )
-                    + byteOffset,
-                    buffer.size() - byteOffset,
-                    bitStringToFind,
-                    bitStringToFindSize
-                );
-            } else if constexpr ( FIND_BITSTRING_VERSION == 3 ) {
-                /* Should normally be one of the above implementations! */
-                relpos = BitStringFinder<bitStringToFindSize>::findBitString(
-                    reinterpret_cast<const uint8_t*>( buffer.data() ) + byteOffset,
-                    buffer.size() - byteOffset,
-                    bitStringToFind
-                );
-            }
-
-            if ( relpos == std::numeric_limits<size_t>::max() ) {
-                break;
-            }
-            bitpos = byteOffset * CHAR_BIT + relpos;
-            const auto foundOffset = ( nTotalBytesRead > movingBytesToKeep
-                                       ? nTotalBytesRead - movingBytesToKeep
-                                       : nTotalBytesRead ) * CHAR_BIT + bitpos;
-            if ( blockOffsets.empty() || ( blockOffsets.back() != foundOffset ) ) {
-                blockOffsets.push_back( foundOffset );
-            }
-            bitpos += bitStringToFindSize;
+        const auto foundOffset = byteOffset * CHAR_BIT + relpos;
+        if ( blockOffsets.empty() || ( blockOffsets.back() != foundOffset ) ) {
+            blockOffsets.push_back( foundOffset );
         }
-        nTotalBytesRead += nBytesRead;
+        bitpos = foundOffset + bitStringToFindSize;
     }
 
     return blockOffsets;
 }
 
 /** use BitReader.read instead of the pre-shifted table trick */
-std::vector<size_t>
-findBitStrings2( const std::string& filename )
+[[nodiscard]] std::vector<size_t>
+findBitStringsBitReaderRead( const std::vector<char>& data )
 {
     std::vector<size_t> blockOffsets;
 
-    bzip2::BitReader bitReader( std::make_unique<StandardFileReader>( filename ) );
+    bzip2::BitReader bitReader( std::make_unique<BufferViewFileReader>( data ) );
 
     uint64_t bytes = bitReader.read( bitStringToFindSize - 1 );
     while ( true ) {
-        bytes = ( ( bytes << 1U ) | bitReader.read( 1 ) ) & 0xFFFF'FFFF'FFFFULL;
+        bytes = ( ( bytes << 1U ) | bitReader.read<1>() ) & 0xFFFF'FFFF'FFFFULL;
         if ( bitReader.eof() ) {
             break;
         }
@@ -519,55 +502,117 @@ findBitStrings2( const std::string& filename )
 }
 
 /** always get one more bit but avoid slow BitReader.read calls */
-std::vector<size_t>
-findBitStrings3( const std::string& filename )
+[[nodiscard]] std::vector<size_t>
+findBitStringsBitWiseWithoutBitReader( const std::vector<char>& buffer )
 {
     std::vector<size_t> blockOffsets;
 
-    auto ufile = make_unique_file_ptr( filename.c_str(), "rb" );
-    auto* const file = ufile.get();
-    std::vector<char> buffer( 2UL * 1024UL * 1024UL );
-    size_t nTotalBytesRead = 0;
     uint64_t window = 0;
-    while ( true ) {
-        const auto nBytesRead = fread( buffer.data(), 1, buffer.size(), file );
-        if ( nBytesRead == 0 ) {
-            break;
-        }
+    for ( size_t i = 0; i < buffer.size(); ++i ) {
+        const auto byte = static_cast<uint8_t>( buffer[i] );
+        for ( int j = 0; j < CHAR_BIT; ++j ) {
+            const auto nthBitMask = static_cast<uint8_t>( CHAR_BIT - 1 - j );
+            /* Beware! Shift operator casts uint8_t input to int.
+             * @see https://en.cppreference.com/w/cpp/language/operator_arithmetic#Conversions */
+            const auto bit = static_cast<uint8_t>( byte >> nthBitMask ) & 1U;
+            window <<= 1U;
+            window |= bit;
+            if ( i * CHAR_BIT + j < bitStringToFindSize ) {
+                continue;
+            }
 
-        for ( size_t i = 0; i < nBytesRead; ++i ) {
-            const auto byte = static_cast<uint8_t>( buffer[i] );
-            for ( int j = 0; j < CHAR_BIT; ++j ) {
-                const auto nthBitMask = static_cast<uint8_t>( CHAR_BIT - 1 - j );
-                /* Beware! Shift operator casts uint8_t input to int.
-                 * @see https://en.cppreference.com/w/cpp/language/operator_arithmetic#Conversions */
-                const auto bit = static_cast<uint8_t>( byte >> nthBitMask ) & 1U;
-                window <<= 1U;
-                window |= bit;
-                if ( ( nTotalBytesRead + i ) * CHAR_BIT + j < bitStringToFindSize ) {
-                    continue;
-                }
-
-                if ( ( window & 0xFFFF'FFFF'FFFFULL ) == bitStringToFind ) {
-                    /* Dunno why the + 1 is necessary but it works (tm) */
-                    blockOffsets.push_back( ( nTotalBytesRead + i ) * CHAR_BIT + j + 1 - bitStringToFindSize );
-                }
+            if ( ( window & 0xFFFF'FFFF'FFFFULL ) == bitStringToFind ) {
+                /* Dunno why the + 1 is necessary but it works (tm) */
+                blockOffsets.push_back( i * CHAR_BIT + j + 1 - bitStringToFindSize );
             }
         }
-
-        nTotalBytesRead += nBytesRead;
     }
 
     return blockOffsets;
 }
 
 
-std::vector<size_t>
-findBitStrings4( const std::string& filename )
+[[nodiscard]] std::vector<size_t>
+findStrings( const std::string_view& data,
+             const std::string_view& stringToFind )
+{
+    std::vector<size_t> blockOffsets;
+    for ( auto position = data.find( stringToFind, 0 );
+          position != std::string_view::npos;
+          position = data.find( stringToFind, position + 1U ) )
+    {
+        blockOffsets.push_back( position );
+    }
+    return blockOffsets;
+}
+
+
+[[nodiscard]] std::vector<char>
+msbToString( uint64_t bitString,
+             uint8_t  bitStringSize )
+{
+    std::vector<char> result( bitStringSize / 8U );
+    for ( size_t i = 0; i < result.size(); ++i ) {
+        bitStringSize -= 8U;
+        result[i] = static_cast<char>( ( bitString >> bitStringSize ) & 0xFFU );
+    }
+    return result;
+}
+
+
+[[nodiscard]] std::vector<size_t>
+findBitStringsWithStringView( const std::vector<char>& buffer )
+{
+    const std::string_view stringView( buffer.data(), buffer.size() );
+
+    /* Without shift is too much a special case, so handle it here separately. */
+    const auto unshiftedStringToFind = msbToString( bitStringToFind, bitStringToFindSize );
+    auto blockOffsets = findStrings( stringView, { unshiftedStringToFind.data(), unshiftedStringToFind.size() } );
+    for ( auto& offset : blockOffsets ) {
+        offset *= 8U;
+    }
+
+    for ( uint32_t shift = 1U; shift < 8U; ++shift ) {
+        const auto stringToFind = msbToString( bitStringToFind >> shift, bitStringToFindSize - 8U );
+        const auto newBlockOffsets = findStrings( stringView, { stringToFind.data(), stringToFind.size() } );
+
+        /* Try to estimate reserve from first bit-shifted for all subsequent ones. */
+        blockOffsets.reserve( blockOffsets.size() + newBlockOffsets.size() * ( shift == 1U ? 7U : 1U ) );
+
+        const auto subStringSize = bitStringToFindSize / 8U - 1U;
+        for ( const auto offset : newBlockOffsets ) {
+            if ( ( offset == 0 ) || ( offset + subStringSize >= buffer.size() ) ) {
+                continue;
+            }
+
+            const auto nBitsAfter = shift;
+            const auto nBitsBefore = 8U - shift;
+            const auto headMatches = ( static_cast<uint8_t>( buffer[offset - 1] )
+                                       & nLowestBitsSet<uint64_t>( nBitsBefore ) )
+                                     == ( ( bitStringToFind >> ( bitStringToFindSize - nBitsBefore ) )
+                                          & nLowestBitsSet<uint64_t>( nBitsBefore ) );
+            const auto tailMatches = ( static_cast<uint64_t>( static_cast<uint8_t>( buffer[offset + subStringSize] ) )
+                                       >> ( 8U - nBitsAfter ) )
+                                     == ( bitStringToFind & nLowestBitsSet<uint64_t>( nBitsAfter ) );
+
+            if ( headMatches && tailMatches ) {
+                blockOffsets.push_back( offset * 8U - nBitsBefore );
+            }
+        }
+    }
+
+    std::sort( blockOffsets.begin(), blockOffsets.end() );
+    return blockOffsets;
+}
+
+
+template<typename Finder>
+[[nodiscard]] std::vector<size_t>
+findBitStringsFinder( const std::vector<char>& data )
 {
     std::vector<size_t> matches;
 
-    BitStringFinder<bitStringToFindSize> bitStringFinder( filename, bitStringToFind );
+    Finder bitStringFinder( std::make_unique<BufferViewFileReader>( data ), bitStringToFind );
     while( true )  {
         matches.push_back( bitStringFinder.find() );
         if ( matches.back() == std::numeric_limits<size_t>::max() ) {
@@ -576,6 +621,131 @@ findBitStrings4( const std::string& filename )
         }
     }
     return matches;
+}
+
+
+template<uint8_t bitCount>
+[[nodiscard]] constexpr uint8_t
+nextBitStringCandidate( uint32_t bits )
+{
+    if constexpr ( bitCount == 0 ) {
+        return 0;
+    } else {
+        static_assert( bitCount <= bitStringToFindSize, "LUT sized > 2^48 should be reasonable anyway!" );
+        if ( ( bitStringToFind >> ( bitStringToFindSize - bitCount ) ) == bits ) {
+            return 0;
+        }
+        return 1U + nextBitStringCandidate<bitCount - 1U>( bits & nLowestBitsSet<uint32_t, bitCount - 1U>() );
+    }
+}
+
+
+
+template<uint8_t CACHED_BIT_COUNT>
+[[nodiscard]] constexpr std::array<uint8_t, 1U << CACHED_BIT_COUNT>
+createNextBitStringCandidateLUT()
+{
+    std::array<uint8_t, 1U << CACHED_BIT_COUNT> result{};
+    for ( uint32_t i = 0; i < result.size(); ++i ) {
+        result[i] = nextBitStringCandidate<CACHED_BIT_COUNT>( i );
+    }
+    return result;
+}
+
+
+template<uint8_t bitCount>
+[[nodiscard]] constexpr uint8_t
+nextBitStringCandidateNonTemplate( uint32_t bits,
+                                   uint64_t bitStringToFind,
+                                   uint8_t  bitStringToFindSize )
+{
+    if constexpr ( bitCount == 0 ) {
+        return 0;
+    } else {
+        if ( bitCount > bitStringToFindSize ) {
+            throw std::invalid_argument( "LUT sized > 2^48 should be reasonable anyway!" );
+        }
+        if ( ( bitStringToFind >> static_cast<uint8_t>( bitStringToFindSize - bitCount ) ) == bits ) {
+            return 0;
+        }
+        return 1U + nextBitStringCandidateNonTemplate<bitCount - 1U>( bits & nLowestBitsSet<uint32_t, bitCount - 1U>(),
+                                                                      bitStringToFind, bitStringToFindSize );
+    }
+}
+
+
+template<uint8_t CACHED_BIT_COUNT>
+[[nodiscard]] std::array<uint8_t, 1U << CACHED_BIT_COUNT>
+createNextBitStringCandidateLUTNonTemplate( uint64_t bitStringToFind,
+                                            uint8_t  bitStringToFindSize )
+{
+    std::array<uint8_t, 1U << CACHED_BIT_COUNT> result{};
+    for ( uint32_t i = 0; i < result.size(); ++i ) {
+        result[i] = nextBitStringCandidateNonTemplate<CACHED_BIT_COUNT>( i, bitStringToFind, bitStringToFindSize );
+    }
+    return result;
+}
+
+
+template<uint8_t CACHED_BIT_COUNT>
+[[nodiscard]] std::vector<size_t>
+findBitStringsLUT( const std::vector<char>& data )
+{
+    bzip2::BitReader bitReader( std::make_unique<BufferViewFileReader>( data ) );
+
+    std::vector<size_t> bitOffsets;
+
+    /* constexpr vs non constexpr is not visibly different from each other as it should be because it should be
+     * negligible work for the setup as opposed to searching. */
+    //static constexpr auto nextBitStringCandidateLUT = createNextBitStringCandidateLUT<CACHED_BIT_COUNT>();
+    const auto nextBitStringCandidateLUT = createNextBitStringCandidateLUTNonTemplate<CACHED_BIT_COUNT>(
+        bitStringToFind, bitStringToFindSize );
+
+    /* 0x3141'5926'5359 : 0x31 == 0b0011'0001, 0x41 == 0b0100'0001 */
+    if ( nextBitStringCandidate<0>( 0b0 ) != 0 ) { throw std::logic_error( "" ); }
+
+    if ( nextBitStringCandidate<1>( 0b1 ) != 1 ) { throw std::logic_error( "" ); }
+    if ( nextBitStringCandidate<1>( 0b0 ) != 0 ) { throw std::logic_error( "" ); }
+
+    if ( nextBitStringCandidate<2>( 0b00 ) != 0 ) { throw std::logic_error( "" ); }
+    if ( nextBitStringCandidate<2>( 0b01 ) != 2 ) { throw std::logic_error( "" ); }
+    if ( nextBitStringCandidate<2>( 0b10 ) != 1 ) { throw std::logic_error( "" ); }
+    if ( nextBitStringCandidate<2>( 0b11 ) != 2 ) { throw std::logic_error( "" ); }
+
+    if ( nextBitStringCandidate<3>( 0b001 ) != 0 ) { throw std::logic_error( "" ); }
+    if ( nextBitStringCandidate<3>( 0b000 ) != 1 ) { throw std::logic_error( "" ); }
+    if ( nextBitStringCandidate<3>( 0b011 ) != 3 ) { throw std::logic_error( "" ); }
+    if ( nextBitStringCandidate<3>( 0b010 ) != 2 ) { throw std::logic_error( "" ); }
+    if ( nextBitStringCandidate<3>( 0b101 ) != 3 ) { throw std::logic_error( "" ); }
+    if ( nextBitStringCandidate<3>( 0b100 ) != 1 ) { throw std::logic_error( "" ); }
+    if ( nextBitStringCandidate<3>( 0b111 ) != 3 ) { throw std::logic_error( "" ); }
+    if ( nextBitStringCandidate<3>( 0b110 ) != 2 ) { throw std::logic_error( "" ); }
+
+    try
+    {
+        while ( true ) {
+            const auto peeked = bitReader.peek<CACHED_BIT_COUNT>();
+            const auto nextPosition = nextBitStringCandidateLUT[peeked];
+
+            /* If we can skip forward, then that means that the new position only has been partially checked.
+             * Therefore, rechecking the LUT for non-zero skips not only ensures that we aren't wasting time in
+             * readHeader but it also ensures that we can avoid checking the first three bits again inside readHeader
+             * and instead start reading and checking the dynamic Huffman code directly! */
+            if ( nextPosition > 0 ) {
+                bitReader.seekAfterPeek( nextPosition );
+                continue;
+            }
+
+            if ( bitReader.peek( bitStringToFindSize ) == bitStringToFind ) {
+                bitOffsets.push_back( bitReader.tell() );
+            }
+            bitReader.seekAfterPeek( 1 );
+        }
+    } catch ( const bzip2::BitReader::EndOfFileReached& ) {
+        /* Break condition for infinite loop inside. */
+    }
+
+    return bitOffsets;
 }
 
 
@@ -620,14 +790,15 @@ findBitStrings4( const std::string& filename )
  *      Double buffering would also allow to fill the buffer in the background in parallel!
  *      This might help a lot, assuming the buffer filling is the serial bottleneck.
  */
-std::vector<size_t>
-findBitStrings5( const std::string& filename )
+[[nodiscard]] std::vector<size_t>
+findBitStringsParallel( const std::vector<char>& data )
 {
     std::vector<size_t> matches;
 
     const auto parallelisation = 48UL; //std::thread::hardware_concurrency();
     ParallelBitStringFinder<bitStringToFindSize> bitStringFinder(
-        filename, bitStringToFind, parallelisation, 0, parallelisation * 1*1024*1024
+        std::make_unique<BufferViewFileReader>( data ),
+        bitStringToFind, parallelisation, 0, parallelisation * 1*1024*1024
     );
     while( true )  {
         matches.push_back( bitStringFinder.find() );
@@ -643,47 +814,178 @@ findBitStrings5( const std::string& filename )
 }
 
 
-int main( int argc, char** argv )
+void
+benchmarkFindBitString( const std::vector<char>& data )
 {
-    if ( argc < 2 ) {
-        std::cerr << "A bzip2 file name to decompress must be specified!\n";
-        return 1;
-    }
-    const std::string filename( argv[1] );
+    static constexpr int LABEL_WIDTH = 31;
 
-    /* comments contain tests on firefox-66.0.5.tar.bz2 */
-    //const auto blockOffsets = findBitStrings( filename ); // ~520ms // ~1.7s on /dev/shm with 911MiB large.bz2
-    //const auto blockOffsets = findBitStrings2( filename ); // ~9.5s // ~100s on /dev/shm with 911MiB large.bz2
-    //const auto blockOffsets = findBitStrings3( filename ); // ~520ms // 6.4s on /dev/shm with 911MiB large.bz2
-    //const auto blockOffsets = findBitStrings4( filename ); // ~1.8s on /dev/shm with 911MiB large.bz2
-    const auto blockOffsets = findBitStrings5( filename ); // ~0.5s on /dev/shm with 911MiB large.bz2 and 24 threads
-    /* lookup table and manual minimal bit reader were virtually equally fast
-     * probably because the encrypted SSD was the limiting factor -> repeat with /dev/shm
-     * => searching is roughly 4x slower, so multithreading on 4 threads should make it equally fast,
-     *    which then makes double-buffering a viable option for a total speedup of hopefully 8x!
-     */
+    const auto formatBandwidth =
+        [&] ( const std::vector<double>& times )
+        {
+            std::vector<double> bandwidths( times.size() );
+            std::transform( times.begin(), times.end(), bandwidths.begin(),
+                            [size = data.size()] ( double time ) { return static_cast<double>( size ) / time / 1e6; } );
+            Statistics<double> bandwidthStats{ bandwidths };
 
-    bzip2::BitReader bitReader( std::make_unique<StandardFileReader>( filename ) );
-    std::cerr << "Block offsets  :\n";
-    for ( const auto offset : blockOffsets ) {
-        std::cerr << offset / 8 << " B " << offset % 8 << " b";
-        if ( offset < bitReader.size() ) {
-            bitReader.seek( static_cast<ssize_t>( offset ) );
+            /* Motivation for showing min times and maximum bandwidths are because nothing can go faster than
+             * physically possible but many noisy influences can slow things down, i.e., the minimum time is
+             * the value closest to be free of noise. */
+            std::stringstream result;
+            result << "( " + bandwidthStats.formatAverageWithUncertainty()
+                   << ", max: " << bandwidthStats.max << " ) MB/s";
+            return result.str();
+        };
 
-            /* Because bitReader is limited to 32-bit. */
-            static_assert( bitStringToFindSize % 2 == 0, "Assuming magic bit string size to be an even number." );
-            constexpr uint8_t BITS_PER_READ = bitStringToFindSize / 2;
-            const auto magicBytes = ( static_cast<uint64_t>( bitReader.read( BITS_PER_READ ) ) << BITS_PER_READ )
-                                    | bitReader.read( BITS_PER_READ );
+    /* block offsets are used as "checksum", i.e., some "small" result that can be compared. */
+    std::optional<std::vector<size_t> > checksum;
 
-            std::cerr << " -> magic bytes: 0x" << std::hex << magicBytes << std::dec;
-            if ( magicBytes != bitStringToFind ) {
-                throw std::logic_error( "Magic Bytes do not match!" );
+    const auto checkBlockOffsets =
+        [] ( const std::vector<size_t>& blockOffsets,
+             const std::vector<char>&   buffer )
+        {
+            bzip2::BitReader bitReader( std::make_unique<BufferViewFileReader>( buffer ) );
+            for ( const auto offset : blockOffsets ) {
+                if ( offset < bitReader.size() ) {
+                    bitReader.seek( static_cast<ssize_t>( offset ) );
+
+                    /* Because bitReader is limited to 32-bit. */
+                    static_assert( bitStringToFindSize % 2 == 0, "Assuming magic bit string size to be an even number." );
+                    constexpr uint8_t BITS_PER_READ = bitStringToFindSize / 2;
+                    const auto magicBytes = ( static_cast<uint64_t>( bitReader.read( BITS_PER_READ ) ) << BITS_PER_READ )
+                                            | bitReader.read( BITS_PER_READ );
+
+                    if ( magicBytes != bitStringToFind ) {
+                        std::stringstream msg;
+                        msg << "Magic bytes at offset " << offset / 8 << " B " << offset % 8 << " b"
+                            << "(0x" << std::hex << magicBytes << std::dec << ") do not match!";
+                        throw std::logic_error( msg.str() );
+                    }
+                }
+            }
+
+            /*
+            if ( !blockOffsets.empty() ) {
+                std::cerr << "Block offsets  :\n";
+            }
+            for ( const auto offset : blockOffsets ) {
+                std::cerr << offset / 8 << " B " << offset % 8 << " b\n";
+            }
+            std::cerr << "Found " << blockOffsets.size() << " blocks\n";
+            */
+        };
+
+    const auto measureTimes =
+        [&] ( const std::string& benchmarkType,
+              const auto&        toMeasure )
+    {
+        std::optional<std::vector<size_t> > batchChecksum;
+        std::vector<double> times( 4 );
+        for ( auto& time : times ) {
+            const auto t0 = now();
+            const auto calculatedChecksum = toMeasure();
+            time = duration( t0 );
+
+            if ( !batchChecksum ) {
+                checkBlockOffsets( calculatedChecksum, data );
+                batchChecksum = calculatedChecksum;
+            } else if ( *batchChecksum != calculatedChecksum ) {
+                throw std::runtime_error( "Indeterministic result for " + benchmarkType + "!" );
+            }
+            if ( checksum && batchChecksum && ( *checksum != *batchChecksum ) ) {
+                std::cerr << "Found " << batchChecksum->size() << " blocks for \"" << benchmarkType << "\"\n";
+                throw std::runtime_error( "Wrong result for " + benchmarkType + "!" );
+            }
+            if ( !checksum ) {
+                checksum = batchChecksum;
             }
         }
-        std::cerr << "\n";
+
+        checksum = batchChecksum;
+
+        /* Remove two (arbitrary) outliers. */
+        if ( times.size() >= 5 ) {
+            times.erase( std::min_element( times.begin(), times.end() ) );
+            times.erase( std::max_element( times.begin(), times.end() ) );
+        }
+
+        std::cout << "[" << std::setw( LABEL_WIDTH ) << benchmarkType << "] ";
+        std::cout << "Processed with " << formatBandwidth( times ) << std::endl;
+    };
+
+    measureTimes( "ParallelBitStringFinder"        , [&] () { return findBitStringsParallel( data ); } );
+    measureTimes( "Using std::string_view"         , [&] () { return findBitStringsWithStringView( data ); } );
+    measureTimes( "BitStringFinder",
+                  [&] () { return findBitStringsFinder<BitStringFinder<bitStringToFindSize> >( data ); } );
+    measureTimes( "Boyer-Moore like LUT (8 bits)"  , [&] () { return findBitStringsLUT<8>( data ); } );
+    measureTimes( "Boyer-Moore like LUT (12 bits)" , [&] () { return findBitStringsLUT<12>( data ); } );
+    measureTimes( "Boyer-Moore like LUT (13 bits)" , [&] () { return findBitStringsLUT<13>( data ); } );
+    measureTimes( "Boyer-Moore like LUT (14 bits)" , [&] () { return findBitStringsLUT<14>( data ); } );
+    measureTimes( "Boyer-Moore like LUT (15 bits)" , [&] () { return findBitStringsLUT<15>( data ); } );
+    measureTimes( "Boyer-Moore like LUT (16 bits)" , [&] () { return findBitStringsLUT<16>( data ); } );
+    measureTimes( "Boyer-Moore like LUT (17 bits)" , [&] () { return findBitStringsLUT<17>( data ); } );
+    measureTimes( "Boyer-Moore like LUT (18 bits)" , [&] () { return findBitStringsLUT<18>( data ); } );
+    measureTimes( "BitStringFinder",
+                  [&] () { return findBitStringsFinder<BitStringFinder<bitStringToFindSize> >( data ); } );
+    measureTimes( "BitStringFinder custom loop"    , [&] () { return findBitStrings<BIT_STRING_FINDER>( data ); } );
+    measureTimes( "findBitString<size>( pattern )" , [&] () { return findBitStrings<TEMPLATE_SIZE>( data ); } );
+    measureTimes( "findBitString<pattern, size>()" ,
+                  [&] () { return findBitStrings<TEMPLATE_SIZE_AND_PATTERN>( data ); } );
+    measureTimes( "findBitStrings( pattern, size )", [&] () { return findBitStrings<NON_TEMPLATED>( data ); } );
+    measureTimes( "Avoid BitReader::read<1>()"     , [&] () { return findBitStringsBitWiseWithoutBitReader( data ); } );
+    measureTimes( "BitReader::read<1>()"           , [&] () { return findBitStringsBitReaderRead( data ); } );
+}
+
+
+int
+main( int    argc,
+      char** argv )
+{
+    std::vector<char> data;
+    if ( argc == 2 ) {
+        std::filesystem::path filename{ argv[1] };
+        if ( !std::filesystem::exists( filename ) ) {
+            std::cerr << filename << " is not a file!\n";
+            return 1;
+        }
+        data.resize( std::filesystem::file_size( filename ) );
+        data.resize( StandardFileReader( filename ).read( data.data(), data.size() ) );
+    } else {
+        std::cerr << "Using a random buffer for testing. Because this will rarely result in positives, "
+                  << "the correctness of the bit string find algorithms should already have been verified!\n";
+        data.resize( 256ULL * 1024ULL * 1024ULL );
+        for ( size_t i = 0; i + 3 < data.size(); i += 4 ) {
+            const auto randomNumber = static_cast<uint32_t>( rand() );
+            data[i+0] = static_cast<char>( ( randomNumber >>  0U ) & 0xFFU );
+            data[i+1] = static_cast<char>( ( randomNumber >>  8U ) & 0xFFU );
+            data[i+2] = static_cast<char>( ( randomNumber >> 16U ) & 0xFFU );
+            data[i+3] = static_cast<char>( ( randomNumber >> 24U ) & 0xFFU );
+        }
     }
-    std::cerr << "Found " << blockOffsets.size() << " blocks\n";
+
+    benchmarkFindBitString( data );
 
     return 0;
 }
+
+
+/*
+Results for 256 MiB of random data on Ryzen 3700X (12-core) with parallelization = 24:
+[        ParallelBitStringFinder] Processed with ( 1485    +- 25  , max: 1514.53 ) MB/s
+[         Using std::string_view] Processed with ( 1369    +- 12  , max: 1386.66 ) MB/s
+[                BitStringFinder] Processed with (  194.4  +- 2.1 , max: 197.184 ) MB/s
+[  Boyer-Moore like LUT (8 bits)] Processed with (  206.7  +- 0.4 , max: 207.256 ) MB/s
+[ Boyer-Moore like LUT (12 bits)] Processed with (  302.64 +- 0.18, max: 302.862 ) MB/s
+[ Boyer-Moore like LUT (13 bits)] Processed with (  317    +- 1   , max: 317.977 ) MB/s
+[ Boyer-Moore like LUT (14 bits)] Processed with (  330.1  +- 1.6 , max: 331.569 ) MB/s
+[ Boyer-Moore like LUT (15 bits)] Processed with (  360    +- 0.4 , max: 360.515 ) MB/s
+[ Boyer-Moore like LUT (16 bits)] Processed with (  332.9  +- 1.3 , max: 333.946 ) MB/s
+[ Boyer-Moore like LUT (17 bits)] Processed with (  317    +- 3   , max: 320.255 ) MB/s
+[ Boyer-Moore like LUT (18 bits)] Processed with (  321    +- 4   , max: 325.359 ) MB/s
+[                BitStringFinder] Processed with (  203.2  +- 1   , max: 204.271 ) MB/s
+[    BitStringFinder custom loop] Processed with (  201    +- 4   , max: 206.971 ) MB/s
+[ findBitString<size>( pattern )] Processed with (  275    +- 6   , max: 280.458 ) MB/s
+[ findBitString<pattern, size>()] Processed with (  398    +- 5   , max: 401.782 ) MB/s
+[findBitStrings( pattern, size )] Processed with (  260.2  +- 2   , max: 263.136 ) MB/s
+[     Avoid BitReader::read<1>()] Processed with (  132    +- 27  , max: 161.978 ) MB/s
+[           BitReader::read<1>()] Processed with (   26    +- 0.17, max: 26.2077 ) MB/s
+*/
