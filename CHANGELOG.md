@@ -1,4 +1,8 @@
 
+# Version 1.3.2 built on 2022-mm-dd
+
+ - Fix segmentation fault when IndexedBzip2File failed to construct, e.g., because of a wrong argument type given.
+
 # Version 1.3.1 built on 2021-12-23
 
  - Fix logic_error exception for certain files when using the parallel decoder.

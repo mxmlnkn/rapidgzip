@@ -69,6 +69,12 @@ cdef class _PragzipFile():
         file : can be a file path, a file descriptor, or a file object
                with suitable read, seekable, seek, tell methods.
         """
+        # This should be done before any error handling because we cannot initialize members in-place in Cython!
+        # nullptr exists but does not work: https://github.com/cython/cython/issues/3314
+        self.gzipReader = NULL
+
+        if not isinstance(parallelization, int):
+            raise TypeError(f"Parallelization argument must be an integer not '{parallelization}'!")
 
         if isinstance(file, int):
             self.gzipReader = new ParallelGzipReader(<int>file, <int>parallelization)
@@ -92,19 +98,24 @@ cdef class _PragzipFile():
         del self.gzipReader
 
     def close(self):
-        if not self.gzipReader.closed():
+        if self.gzipReader != NULL and not self.gzipReader.closed():
             self.gzipReader.close()
 
     def closed(self):
-        return self.gzipReader.closed()
+        return self.gzipReader == NULL or self.gzipReader.closed()
 
     def fileno(self):
+        if not self.gzipReader:
+            raise Exception("Invalid file object!")
         return self.gzipReader.fileno()
 
     def seekable(self):
-        return self.gzipReader.seekable()
+        return self.gzipReader != NULL and self.gzipReader.seekable()
 
     def readinto(self, bytes_like):
+        if not self.gzipReader:
+            raise Exception("Invalid file object!")
+
         bytes_count = 0
 
         cdef Py_buffer buffer
@@ -117,33 +128,51 @@ cdef class _PragzipFile():
         return bytes_count
 
     def seek(self, offset, whence):
+        if not self.gzipReader:
+            raise Exception("Invalid file object!")
         return self.gzipReader.seek(offset, whence)
 
     def tell(self):
+        if not self.gzipReader:
+            raise Exception("Invalid file object!")
         return self.gzipReader.tell()
 
     def size(self):
+        if not self.gzipReader:
+            raise Exception("Invalid file object!")
         return self.gzipReader.size()
 
     def tell_compressed(self):
+        if not self.gzipReader:
+            raise Exception("Invalid file object!")
         return self.gzipReader.tellCompressed()
 
     def block_offsets_complete(self):
+        if not self.gzipReader:
+            raise Exception("Invalid file object!")
         return self.gzipReader.blockOffsetsComplete()
 
     def block_offsets(self):
+        if not self.gzipReader:
+            raise Exception("Invalid file object!")
         return <dict>self.gzipReader.blockOffsets()
 
     def available_block_offsets(self):
+        if not self.gzipReader:
+            raise Exception("Invalid file object!")
         return <dict>self.gzipReader.availableBlockOffsets()
 
     def set_block_offsets(self, offsetsFileObject):
+        if not self.gzipReader:
+            raise Exception("Invalid file object!")
         if isinstance(offsetsFileObject, str):
             with builtins.open(offsetsFileObject, "rb") as file:
                 return self.gzipReader.setBlockOffsets(<PyObject*>file)
         return self.gzipReader.setBlockOffsets(<PyObject*>offsetsFileObject)
 
     def join_threads(self):
+        if not self.gzipReader:
+            raise Exception("Invalid file object!")
         return self.gzipReader.joinThreads()
 
 # Extra class because cdefs are not visible from outside but cdef class can't inherit from io.BufferedIOBase
