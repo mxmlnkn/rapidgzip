@@ -50,7 +50,18 @@ main( int    argc,
     {
         const auto tmpFolder = createTemporaryDirectory();
         const auto gzipIndexPath = tmpFolder.path() / "gzipindex";
-        writeGzipIndex( index, gzipIndexPath );
+
+        {
+            const auto file = throwingOpen( gzipIndexPath, "wb" );
+            const auto checkedWrite =
+                [&file] ( const void* buffer, size_t size )
+                {
+                    if ( std::fwrite( buffer, 1, size, file.get() ) != size ) {
+                        throw std::runtime_error( "Failed to write data to index!" );
+                    }
+                };
+            writeGzipIndex( index, checkedWrite );
+        }
         const auto rereadIndex = readGzipIndex( std::make_unique<StandardFileReader>( gzipIndexPath ) );
         REQUIRE( rereadIndex == index );
     }

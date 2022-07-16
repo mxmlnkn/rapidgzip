@@ -439,6 +439,50 @@ public:
         return m_blockMap->blockOffsets();
     }
 
+    [[nodiscard]] GzipIndex
+    gzipIndex()
+    {
+        const auto offsets = blockOffsets();  // Also finalizes reading implicitly.
+        if ( offsets.empty() ) {
+            return {};
+        }
+
+        GzipIndex index;
+        index.compressedSizeInBytes = ceilDiv( offsets.rbegin()->first, 8U );
+        index.uncompressedSizeInBytes = offsets.rbegin()->second;
+        index.windowSizeInBytes = 32ULL * 1024ULL;
+
+        /* Heuristically determine a checkpoint spacing from the existing checkpoints. */
+        std::vector<size_t> uncompressedSpacings;
+        for ( auto it = offsets.begin(), nit = std::next( offsets.begin() ); nit != offsets.end(); ++it, ++nit ) {
+            uncompressedSpacings.push_back( nit->second - it->second );
+        }
+        index.checkpointSpacing = ceilDiv(
+            *std::max_element( uncompressedSpacings.begin(), uncompressedSpacings.end() ),
+            32ULL * 1024ULL ) * 32ULL * 1024ULL;
+
+        const auto& fetcher = blockFetcher();
+        const std::scoped_lock lock( fetcher.blockMapMutex );
+        for ( const auto& [compressedOffsetInBits, uncompressedOffsetInBytes] : offsets ) {
+            Checkpoint checkpoint;
+            checkpoint.compressedOffsetInBits = compressedOffsetInBits;
+            checkpoint.uncompressedOffsetInBytes = uncompressedOffsetInBytes;
+
+            const auto blockInfo = fetcher.blockMap.find( compressedOffsetInBits );
+            if ( ( blockInfo != fetcher.blockMap.end() ) && !blockInfo->second.window.empty() ) {
+                const auto& window = blockInfo->second.window;
+                if ( window.size() != index.windowSizeInBytes ) {
+                    throw std::logic_error( "Windows should all be <=32 KiB!" );
+                }
+                checkpoint.window.assign( window.begin(), window.end() );
+            }
+
+            index.checkpoints.emplace_back( std::move( checkpoint ) );
+        }
+
+        return index;
+    }
+
     /**
      * Same as @ref blockOffsets but it won't force calculation of all blocks and simply returns
      * what is availabe at call time.
@@ -499,8 +543,10 @@ public:
 
         /** @todo put windows into blockmap that always is ensured to exist. */
         for ( const auto& checkpoint : index.checkpoints ) {
-            if ( checkpoint.window.empty()
-                 || ( checkpoint.compressedOffsetInBits == index.compressedSizeInBytes * 8 ) ) {
+            /* For some reason, indexed_gzip also stores windows for the very last checkpoint at the end of the file,
+             * which is useless because there is nothing thereafter. But, don't filter it here so that exportIndex
+             * is mirrors importIndex better. */
+            if ( checkpoint.window.empty() ) {
                 continue;
             }
 
@@ -526,9 +572,24 @@ public:
 
 #ifdef WITH_PYTHON_SUPPORT
     void
-    setBlockOffsets( PyObject* pythonObject )
+    importIndex( PyObject* pythonObject )
     {
         setBlockOffsets( readGzipIndex( std::make_unique<PythonFileReader>( pythonObject ) ) );
+    }
+
+    void
+    exportIndex( PyObject* pythonObject )
+    {
+        const auto file = std::make_unique<PythonFileReader>( pythonObject );
+        const auto checkedWrite =
+            [&file] ( const void* buffer, size_t size )
+            {
+                if ( file->write( reinterpret_cast<const char*>( buffer ), size ) != size ) {
+                    throw std::runtime_error( "Failed to write data to index!" );
+                }
+            };
+
+        writeGzipIndex( gzipIndex(), checkedWrite );
     }
 #endif
 

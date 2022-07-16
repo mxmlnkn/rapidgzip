@@ -108,6 +108,7 @@ public:
         mpo_tell( getAttribute( m_pythonObject, "tell" ) ),
         mpo_seek( getAttribute( m_pythonObject, "seek" ) ),
         mpo_read( getAttribute( m_pythonObject, "read" ) ),
+        mpo_write( getAttribute( m_pythonObject, "write" ) ),
         mpo_seekable( getAttribute( m_pythonObject, "seekable" ) ),
         mpo_close( getAttribute( m_pythonObject, "close" ) ),
 
@@ -199,7 +200,7 @@ public:
           size_t nMaxBytesToRead ) override
     {
         if ( m_pythonObject == nullptr ) {
-            throw std::invalid_argument( "Invalid or file can't be seeked!" );
+            throw std::invalid_argument( "Invalid or file can't be read from!" );
         }
 
         if ( nMaxBytesToRead == 0 ) {
@@ -209,6 +210,7 @@ public:
         /** @todo better to use readinto because read might return less than requested even before the EOF! */
         auto* const bytes = callPyObject<PyObject*>( mpo_read, nMaxBytesToRead );
         if ( !PyBytes_Check( bytes ) ) {
+            Py_XDECREF( bytes );
             throw std::runtime_error( "Expected a bytes object to be returned by read!" );
         }
 
@@ -217,6 +219,7 @@ public:
             std::memset( buffer, '\0', nBytesRead );
             std::memcpy( buffer, PyBytes_AsString( bytes ), nBytesRead );
         }
+        Py_XDECREF( bytes );
 
         if ( nBytesRead <= 0 ) {
             std::stringstream message;
@@ -236,6 +239,38 @@ public:
         m_lastReadSuccessful = static_cast<size_t>( nBytesRead ) == nMaxBytesToRead;
 
         return nBytesRead;
+    }
+
+    /**
+     * Should not be mixed with read calls on the same PythonFileReader object!
+     */
+    [[nodiscard]] size_t
+    write( const char* buffer,
+           size_t      nBytesToWrite )
+    {
+        if ( m_pythonObject == nullptr ) {
+            throw std::invalid_argument( "Invalid or file can't be written to!" );
+        }
+
+        if ( nBytesToWrite == 0 ) {
+            return 0;
+        }
+
+        auto* const bytes = PyBytes_FromStringAndSize( buffer, nBytesToWrite );
+        const auto nBytesWritten = callPyObject<long long int>( mpo_write, bytes );
+
+        if ( ( nBytesWritten < 0 ) || ( static_cast<size_t>( nBytesWritten ) < nBytesToWrite ) ) {
+            std::stringstream message;
+            message
+            << "[PythonFileReader] Write call failed (" << nBytesWritten << " B written)!\n"
+            << "  Buffer: " << (void*)buffer << "\n"
+            << "  tell: " << tell() << "\n"
+            << "\n";
+            std::cerr << message.str();
+            throw std::domain_error( message.str() );
+        }
+
+        return nBytesWritten;
     }
 
     size_t
@@ -318,6 +353,7 @@ protected:
     PyObject* const mpo_tell;
     PyObject* const mpo_seek;
     PyObject* const mpo_read;
+    PyObject* const mpo_write;
     PyObject* const mpo_seekable;
     PyObject* const mpo_close;
 

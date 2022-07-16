@@ -37,10 +37,10 @@ cdef extern from "ParallelGzipReader.hpp":
         size_t tellCompressed() except +
         int read(int, char*, size_t) except +
         bool blockOffsetsComplete() except +
-        # TODO Add API for the back-reference windows not just the gzip offset!
         map[size_t, size_t] blockOffsets() except +
         map[size_t, size_t] availableBlockOffsets() except +
-        void setBlockOffsets(PyObject*) except +
+        void importIndex(PyObject*) except +
+        void exportIndex(PyObject*) except +
         void joinThreads() except +
 
 def _isFileObject(file):
@@ -162,13 +162,21 @@ cdef class _PragzipFile():
             raise Exception("Invalid file object!")
         return <dict>self.gzipReader.availableBlockOffsets()
 
-    def set_block_offsets(self, offsetsFileObject):
+    def import_index(self, file):
         if not self.gzipReader:
             raise Exception("Invalid file object!")
-        if isinstance(offsetsFileObject, str):
-            with builtins.open(offsetsFileObject, "rb") as file:
-                return self.gzipReader.setBlockOffsets(<PyObject*>file)
-        return self.gzipReader.setBlockOffsets(<PyObject*>offsetsFileObject)
+        if isinstance(file, str):
+            with builtins.open(file, "rb") as fileObject:
+                return self.gzipReader.importIndex(<PyObject*>fileObject)
+        return self.gzipReader.importIndex(<PyObject*>file)
+
+    def export_index(self, file):
+        if not self.gzipReader:
+            raise Exception("Invalid file object!")
+        if isinstance(file, str):
+            with builtins.open(file, "wb") as fileObject:
+                return self.gzipReader.exportIndex(<PyObject*>fileObject)
+        return self.gzipReader.exportIndex(<PyObject*>file)
 
     def join_threads(self):
         if not self.gzipReader:
@@ -194,7 +202,8 @@ class PragzipFile(io.RawIOBase):
 
         self.tell_compressed         = self.gzipReader.tell_compressed
         self.block_offsets           = self.gzipReader.block_offsets
-        self.set_block_offsets       = self.gzipReader.set_block_offsets
+        self.export_index            = self.gzipReader.export_index
+        self.import_index            = self.gzipReader.import_index
         self.block_offsets_complete  = self.gzipReader.block_offsets_complete
         self.available_block_offsets = self.gzipReader.available_block_offsets
         self.size                    = self.gzipReader.size

@@ -63,6 +63,11 @@ struct GzipIndex
 {
     uint64_t compressedSizeInBytes{ 0 };
     uint64_t uncompressedSizeInBytes{ 0 };
+    /**
+     * This is a kind of guidance for spacing between checkpoints in the uncompressed data!
+     * If the compression ratio is very high, it could mean that the checkpoint sizes can be larger
+     * than the compressed file even for very large spacings.
+     */
     uint32_t checkpointSpacing{ 0 };
     uint32_t windowSizeInBytes{ 0 };
     std::vector<Checkpoint> checkpoints;
@@ -189,19 +194,9 @@ readGzipIndex( std::unique_ptr<FileReader> file )
 
 
 void
-writeGzipIndex( const GzipIndex&   index,
-                const std::string& filePath )
+writeGzipIndex( const GzipIndex&                                              index,
+                const std::function<void( const void* buffer, size_t size )>& checkedWrite )
 {
-    const auto file = throwingOpen( filePath, "wb" );
-
-    const auto checkedWrite =
-        [&file] ( const void* buffer, size_t size )
-        {
-            if ( std::fwrite( buffer, 1, size, file.get() ) != size ) {
-                throw std::runtime_error( "Failed to write data to index!" );
-            }
-        };
-
     const auto writeValue = [&checkedWrite] ( auto value ) { checkedWrite( &value, sizeof( value ) ); };
 
     const auto& checkpoints = index.checkpoints;
@@ -245,13 +240,19 @@ writeGzipIndex( const GzipIndex&   index,
     }
 
     for ( const auto& checkpoint : checkpoints ) {
-        if ( checkpoint.window.empty() ) {
+        const auto& window = checkpoint.window;
+        if ( window.empty() ) {
             continue;
         }
-        if ( checkpoint.window.size() == windowSizeInBytes ) {
-            checkedWrite( checkpoint.window.data(), checkpoint.window.size() );
-        } else if ( checkpoint.window.size() > windowSizeInBytes ) {
-            checkedWrite( checkpoint.window.data() + checkpoint.window.size() - windowSizeInBytes, windowSizeInBytes );
+
+        if ( window.size() == windowSizeInBytes ) {
+            checkedWrite( window.data(), window.size() );
+        } else if ( window.size() > windowSizeInBytes ) {
+            checkedWrite( window.data() + window.size() - windowSizeInBytes, windowSizeInBytes );
+        } else if ( window.size() < windowSizeInBytes ) {
+            const std::vector<char> zeros( windowSizeInBytes - window.size(), 0 );
+            checkedWrite( zeros.data(), zeros.size() );
+            checkedWrite( window.data(), window.size() );
         }
     }
 }

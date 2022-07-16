@@ -70,6 +70,7 @@ testParallelDecoder( std::unique_ptr<FileReader> encoded,
     ParallelGzipReader reader( std::move( encoded ) );
     if ( index ) {
         reader.setBlockOffsets( *index );
+        REQUIRE( reader.blockOffsetsComplete() );
     }
 
     std::vector<char> result( decoded->size() * 2 );
@@ -176,9 +177,60 @@ testParallelDecodingWithIndex()
     }
 
     std::cerr << "Test parallel decoder with larger gz file given an indexed_gzip index.\n";
+    const auto realIndex = readGzipIndex( std::make_unique<StandardFileReader>( indexFile.string() ) );
     testParallelDecoder( std::make_unique<StandardFileReader>( encodedFile ),
                          std::make_unique<StandardFileReader>( decodedFile ),
-                         readGzipIndex( std::make_unique<StandardFileReader>( indexFile.string() ) ) );
+                         realIndex );
+
+    std::cerr << "Test exporting and reimporting index.\n";
+    ParallelGzipReader reader( std::make_unique<StandardFileReader>( encodedFile ) );
+    reader.setBlockOffsets( realIndex );
+
+    const auto reconstructedIndex = reader.gzipIndex();
+    REQUIRE_EQUAL( reconstructedIndex.compressedSizeInBytes, realIndex.compressedSizeInBytes );
+    REQUIRE_EQUAL( reconstructedIndex.uncompressedSizeInBytes, realIndex.uncompressedSizeInBytes);
+    REQUIRE_EQUAL( reconstructedIndex.windowSizeInBytes, uint32_t( 32 ) * uint32_t( 1024 ) );
+    REQUIRE( reconstructedIndex.checkpointSpacing >= reconstructedIndex.windowSizeInBytes );
+    REQUIRE_EQUAL( reconstructedIndex.checkpoints.size(), realIndex.checkpoints.size() );
+    if ( reconstructedIndex.checkpoints.size() == realIndex.checkpoints.size() ) {
+        for ( size_t i = 0; i < reconstructedIndex.checkpoints.size(); ++i ) {
+            const auto& reconstructed = reconstructedIndex.checkpoints[i];
+            const auto& real = realIndex.checkpoints[i];
+            REQUIRE_EQUAL( reconstructed.compressedOffsetInBits, real.compressedOffsetInBits );
+            REQUIRE_EQUAL( reconstructed.uncompressedOffsetInBytes, real.uncompressedOffsetInBytes );
+            REQUIRE_EQUAL( reconstructed.window.size(), real.window.size() );
+            REQUIRE( reconstructed.window == real.window );
+        }
+    }
+
+    testParallelDecoder( std::make_unique<StandardFileReader>( encodedFile ),
+                         std::make_unique<StandardFileReader>( decodedFile ),
+                         reconstructedIndex );
+
+    const auto writtenIndexFile = tmpFolder.path() / "decoded.gz.written-index";
+    {
+        const auto file = throwingOpen( writtenIndexFile.string(), "wb" );
+        const auto checkedWrite =
+            [&file] ( const void* buffer, size_t size )
+            {
+                if ( std::fwrite( buffer, 1, size, file.get() ) != size ) {
+                    throw std::runtime_error( "Failed to write data to index!" );
+                }
+            };
+        writeGzipIndex( realIndex, checkedWrite );
+    }
+    const auto rewrittenIndex = readGzipIndex( std::make_unique<StandardFileReader>( writtenIndexFile.string() ) );
+
+    REQUIRE_EQUAL( rewrittenIndex.compressedSizeInBytes, realIndex.compressedSizeInBytes );
+    REQUIRE_EQUAL( rewrittenIndex.uncompressedSizeInBytes, realIndex.uncompressedSizeInBytes);
+    REQUIRE_EQUAL( rewrittenIndex.windowSizeInBytes, uint32_t( 32 ) * uint32_t( 1024 ) );
+    REQUIRE( rewrittenIndex.checkpointSpacing >= rewrittenIndex.windowSizeInBytes );
+    REQUIRE_EQUAL( rewrittenIndex.checkpoints.size(), realIndex.checkpoints.size() );
+    REQUIRE( rewrittenIndex.checkpoints == realIndex.checkpoints );
+
+    testParallelDecoder( std::make_unique<StandardFileReader>( encodedFile ),
+                         std::make_unique<StandardFileReader>( decodedFile ),
+                         rewrittenIndex );
 }
 
 
