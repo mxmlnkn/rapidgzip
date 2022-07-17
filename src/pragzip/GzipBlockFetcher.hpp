@@ -140,13 +140,49 @@ public:
         return window;
     }
 
+    /**
+     * Check decoded blocks that account for possible markers whether they actually contain markers and if not so
+     * convert and move them to actual decoded data.
+     */
+    void
+    cleanUnmarkedData()
+    {
+        if ( dataWithMarkers.empty() || data.empty() ) {
+            return;
+        }
+
+        std::vector<std::vector<uint8_t> > downcastedVectors;
+        while ( !dataWithMarkers.empty()
+                && !deflate::containsMarkers( dataWithMarkers.back() ) )
+        {
+            const auto& toDowncast = dataWithMarkers.back();
+            auto& downcasted = downcastedVectors.emplace_back( toDowncast.size() );
+            std::transform( toDowncast.begin(), toDowncast.end(), downcasted.begin(),
+                            [] ( auto symbol ) { return static_cast<uint8_t>( symbol ); } );
+            dataWithMarkers.pop_back();
+        }
+
+        /* The above loop iterates starting from the back and also inserts at the back in the result,
+         * therefore, we need to reverse the temporary container again to get the correct order. */
+        data.insert( data.begin(),
+                     std::move_iterator( downcastedVectors.rbegin() ),
+                     std::move_iterator( downcastedVectors.rend() ) );
+    }
+
 public:
     size_t encodedOffsetInBits{ std::numeric_limits<size_t>::max() };
     size_t encodedSizeInBits{ 0 };
 
-    /* Use vectors of vectors to avoid reallocations. */
-    std::vector<std::vector<uint8_t> > data;
+    /**
+     * Use vectors of vectors to avoid reallocations. The order of this data is:
+     * - @ref dataWithMarkers (front to back)
+     * - @ref data (front to back)
+     * This order is fixed because there should be no reason for markers after we got enough data without markers!
+     * There is no append( BlockData ) method because this property might not be retained after using
+     * @ref cleanUnmarkedData.
+     */
     std::vector<std::vector<uint16_t> > dataWithMarkers;
+    std::vector<std::vector<uint8_t> > data;
 };
 
 
@@ -338,26 +374,7 @@ public:
             }
         }
 
-        /* Try to check previous blocks whether they might be free of markers when we ended up with a fully-decoded
-         * window. */
-        if ( !result.dataWithMarkers.empty() && !result.data.empty() ) {
-            std::vector<std::vector<uint8_t> > downcastedVectors;
-            while ( !result.dataWithMarkers.empty()
-                    && !deflate::containsMarkers( result.dataWithMarkers.back() ) )
-            {
-                const auto& toDowncast = result.dataWithMarkers.back();
-                auto& downcasted = downcastedVectors.emplace_back( toDowncast.size() );
-                std::transform( toDowncast.begin(), toDowncast.end(), downcasted.begin(),
-                                [] ( auto symbol ) { return static_cast<uint8_t>( symbol ); } );
-                result.dataWithMarkers.pop_back();
-            }
-
-            /* The above loop iterates starting from the back and also insert at the back in the result,
-             * therefore, we need to reverse the temporary container again to get the correct order. */
-            result.data.insert( result.data.begin(),
-                                std::move_iterator( downcastedVectors.rbegin() ),
-                                std::move_iterator( downcastedVectors.rend() ) );
-        }
+        result.cleanUnmarkedData();
 
         /**
          * @todo write window back if we somehow got fully-decoded?
