@@ -251,7 +251,6 @@ public:
                     const auto match = blockFetcher().blockMap.find( blockData->encodedOffsetInBits );
                     if ( match != blockFetcher().blockMap.end() ) {
                         lastWindow = &match->second.window;
-                        match->second.decodedSize = blockData->dataSize();
                     } else if ( m_nextUnprocessedBlockIndex > 0 ) {
                         throw std::logic_error( "The window of the last block should exist at this point!" );
                     }
@@ -276,8 +275,7 @@ public:
                         BlockFetcher::BlockInfo{
                             lastWindow == nullptr
                             ? blockData->getLastWindow( pragzip::deflate::Window{} )  /* Only for first block. */
-                            : blockData->getLastWindow( *lastWindow ),
-                            /* decoded size (not yet known!) */ 0
+                            : blockData->getLastWindow( *lastWindow )
                         }
                     );
                     if ( !wasInserted ) {
@@ -561,7 +559,6 @@ public:
                 message << "Encoded offset " << checkpoint.compressedOffsetInBits << " should exist in block map!";
                 throw std::logic_error( message.str() );
             }
-            blockFetcherInfo.decodedSize = blockMapInfo->decodedSizeInBytes;
 
             auto& window = blockFetcherInfo.window;
             std::memcpy( window.data(), checkpoint.window.data() + checkpoint.window.size() - window.size(),
@@ -667,7 +664,7 @@ private:
             blockFinder().startThreads();
         }
 
-        m_blockFetcher = std::make_unique<BlockFetcher>( m_bitReader, m_blockFinder, m_isBgzfFile,
+        m_blockFetcher = std::make_unique<BlockFetcher>( m_bitReader, m_blockFinder, m_blockMap, m_isBgzfFile,
                                                          m_fetcherParallelization );
 
         if ( !m_blockFetcher ) {
@@ -742,7 +739,7 @@ private:
 
     /** Necessary for prefetching decoded blocks in parallel. */
     std::shared_ptr<BlockFinder>    m_blockFinder;
-    std::unique_ptr<BlockMap> const m_blockMap{ std::make_unique<BlockMap>() };
+    std::shared_ptr<BlockMap> const m_blockMap{ std::make_shared<BlockMap>() };
     std::unique_ptr<BlockFetcher>   m_blockFetcher;
 
     /* This is the highest found block inside BlockFinder we ever processed and put into the BlockMap.

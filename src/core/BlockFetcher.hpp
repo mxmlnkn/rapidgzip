@@ -135,7 +135,11 @@ protected:
         m_cache          ( std::max( size_t( 16 ), m_parallelization ) ),
         m_prefetchCache  ( 2 * m_parallelization /* Only m_parallelization would lead to lot of cache pollution! */ ),
         m_threadPool     ( m_parallelization )
-    {}
+    {
+        if ( !m_blockFinder ) {
+            throw std::invalid_argument( "BlockFinder must be valid!" );
+        }
+    }
 
 public:
     virtual

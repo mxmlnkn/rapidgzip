@@ -18,13 +18,7 @@
  * The idea is that at first any forward seeking should be done using read calls and the read call will
  * push all block information to the BlockMap.
  *
- * Currently, it is used in ParallelBZ2Reader, which has a non-thread-safe seek-read interface.
- * Furthermore, this class expects @ref push to be called with monotonically increasing arguments.
- * This can only be assured if it is called in a serialized.
- * Meaning this class itself does not have to be thread-safe.
- *
- * @todo Remove locks and mutexes from this class.
- *       It was a design error, I think, but it also doesn't hurt if done correctly.
+ * This class expects @ref push to be called with monotonically increasing arguments.
  */
 class BlockMap
 {
@@ -39,7 +33,7 @@ public:
         }
 
     public:
-        /**< each BZ2 block in the stream will be given an increasing index number. */
+        /** Each block in the stream will be given an increasing index number. */
         size_t blockIndex{ 0 };
         size_t encodedOffsetInBits{ 0 };
         size_t encodedSizeInBits{ 0 };

@@ -18,6 +18,7 @@
 
 #include "BlockFinder.hpp"
 #include "blockfinder/Interface.hpp"
+#include "BlockMap.hpp"
 #include "deflate.hpp"
 #include "gzip.hpp"
 
@@ -160,20 +161,25 @@ public:
     struct BlockInfo
     {
         deflate::Window window;
-        size_t decodedSize{ 0 };
     };
 
-    using BlockMap = std::unordered_map</* encoded block offset */ size_t, BlockInfo>;
+    using WindowMap = std::unordered_map</* encoded block offset */ size_t, BlockInfo>;
 
 public:
     GzipBlockFetcher( BitReader                                       bitReader,
                       std::shared_ptr<typename BaseType::BlockFinder> blockFinder,
+                      std::shared_ptr<BlockMap>                       blockMap,
                       bool                                            isBgzfFile,
                       size_t                                          parallelization ) :
         BaseType( std::move( blockFinder ), parallelization ),
         m_bitReader( bitReader ),
-        m_isBgzfFile( isBgzfFile )
-    {}
+        m_isBgzfFile( isBgzfFile ),
+        m_blockMap( std::move( blockMap ) )
+    {
+        if ( !m_blockMap ) {
+            throw std::invalid_argument( "BlockMap must be valid!" );
+        }
+    }
 
     virtual
     ~GzipBlockFetcher()
@@ -193,17 +199,19 @@ private:
     decodeBlock( size_t blockIndex,
                  size_t blockOffset ) const override
     {
-        std::optional<deflate::WindowView> window;
+        /* The decoded size of the block is only for optimization purposes. Therefore, we do not have to take care
+         * about the correct ordering between BlockMap accesses and mofications (the BlockMap is still thread-safe). */
+        const auto blockInfo = m_blockMap->getEncodedOffset( blockOffset );
         std::optional<size_t> decodedSize;
+        if ( blockInfo ) {
+            decodedSize = blockInfo->decodedSizeInBytes;
+        }
+
+        std::optional<deflate::WindowView> window;
         {
             std::scoped_lock lock( blockMapMutex );
             if ( const auto match = blockMap.find( blockOffset ); match != blockMap.end() ) {
                 window.emplace( match->second.window );
-                if ( match->second.decodedSize > 0 ) {
-                    /** @todo We cannot be sure that this zero is valid because there is no finalized flag.
-                     *        Move the windows and the decoded sizes into the real BlockMap and use that here. */
-                    decodedSize = match->second.decodedSize;
-                }
             }
         }
         return decodeBlock( m_bitReader, blockOffset, this->m_blockFinder->get( blockIndex + 1 ),
@@ -530,12 +538,13 @@ private:
     }
 
 public:
-    BlockMap blockMap;
+    WindowMap blockMap;
     mutable std::mutex blockMapMutex;
 
 private:
     /* Variables required by decodeBlock and which therefore should be either const or locked. */
     const BitReader m_bitReader;
     const bool m_isBgzfFile;
+    std::shared_ptr<BlockMap> const m_blockMap;
 };
 }  // namespace pragzip
