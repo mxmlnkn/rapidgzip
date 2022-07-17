@@ -113,7 +113,7 @@ public:
     getLastWindow( const deflate::WindowView& previousWindow ) const
     {
         if ( dataWithMarkersSize() > 0 ) {
-            throw std::invalid_argument( "No valid window available!" );
+            throw std::invalid_argument( "No valid window available. Please call applyWindow first!" );
         }
 
         deflate::Window window;
@@ -147,26 +147,25 @@ public:
     void
     cleanUnmarkedData()
     {
-        if ( dataWithMarkers.empty() || data.empty() ) {
-            return;
-        }
-
-        std::vector<std::vector<uint8_t> > downcastedVectors;
-        while ( !dataWithMarkers.empty()
-                && !deflate::containsMarkers( dataWithMarkers.back() ) )
-        {
+        while ( !dataWithMarkers.empty() ) {
             const auto& toDowncast = dataWithMarkers.back();
-            auto& downcasted = downcastedVectors.emplace_back( toDowncast.size() );
-            std::transform( toDowncast.begin(), toDowncast.end(), downcasted.begin(),
-                            [] ( auto symbol ) { return static_cast<uint8_t>( symbol ); } );
-            dataWithMarkers.pop_back();
-        }
+            /* Try to not only downcast whole chunks of data but also as many bytes as possible for the last chunk. */
+            const auto marker = std::find_if(
+                toDowncast.rbegin(), toDowncast.rend(),
+                [] ( auto value ) { return value > std::numeric_limits<uint8_t>::max(); } );
 
-        /* The above loop iterates starting from the back and also inserts at the back in the result,
-         * therefore, we need to reverse the temporary container again to get the correct order. */
-        data.insert( data.begin(),
-                     std::move_iterator( downcastedVectors.rbegin() ),
-                     std::move_iterator( downcastedVectors.rend() ) );
+            const auto sizeWithoutMarkers = static_cast<size_t>( std::distance( toDowncast.rbegin(), marker ) );
+            auto downcasted = data.emplace( data.begin(), sizeWithoutMarkers );
+            std::transform( marker.base(), toDowncast.end(), downcasted->begin(),
+                            [] ( auto symbol ) { return static_cast<uint8_t>( symbol ); } );
+
+            if ( marker == toDowncast.rend() ) {
+                dataWithMarkers.pop_back();
+            } else {
+                dataWithMarkers.back().resize( dataWithMarkers.back().size() - sizeWithoutMarkers );
+                break;
+            }
+        }
     }
 
 public:
