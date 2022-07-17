@@ -21,12 +21,16 @@
 #include "BlockMap.hpp"
 #include "deflate.hpp"
 #include "gzip.hpp"
+#include "WindowMap.hpp"
 
 
 namespace pragzip
 {
 struct BlockData
 {
+public:
+    using WindowView = VectorView<uint8_t>;
+
 public:
     void
     append( std::vector<uint8_t>&& toAppend )
@@ -84,7 +88,7 @@ public:
     }
 
     void
-    applyWindow( const deflate::WindowView& window )
+    applyWindow( WindowView const& window )
     {
         if ( dataWithMarkersSize() == 0 ) {
             dataWithMarkers.clear();
@@ -109,14 +113,14 @@ public:
      * with the next block. Because this is not supposed to be called very often, it returns a copy of
      * the data instead of views.
      */
-    [[nodiscard]] deflate::Window
-    getLastWindow( const deflate::WindowView& previousWindow ) const
+    [[nodiscard]] std::array<std::uint8_t, deflate::MAX_WINDOW_SIZE>
+    getLastWindow( WindowView const& previousWindow ) const
     {
         if ( dataWithMarkersSize() > 0 ) {
             throw std::invalid_argument( "No valid window available. Please call applyWindow first!" );
         }
 
-        deflate::Window window;
+        std::array<std::uint8_t, deflate::MAX_WINDOW_SIZE> window{};
         size_t nBytesWritten{ 0 };
 
         /* Fill the result from the back with data from our buffer. */
@@ -131,9 +135,9 @@ public:
         /* Fill the remaining part with the given window. This should only happen for very small BlockData sizes. */
         if ( nBytesWritten < deflate::MAX_WINDOW_SIZE ) {
             const auto remainingBytes = deflate::MAX_WINDOW_SIZE - nBytesWritten;
-            assert( remainingBytes <= previousWindow.size() );
             std::copy( std::reverse_iterator( previousWindow.end() ),
-                       std::reverse_iterator( previousWindow.end() ) + remainingBytes,
+                       std::reverse_iterator( previousWindow.end() )
+                       + std::min( remainingBytes, previousWindow.size() ),
                        window.rbegin() + nBytesWritten );
         }
 
@@ -192,27 +196,36 @@ class GzipBlockFetcher :
 public:
     using BaseType = BlockFetcher<::BlockFinder<blockfinder::Interface>, BlockData, FetchingStrategy>;
     using BitReader = pragzip::BitReader;
-
-    struct BlockInfo
-    {
-        deflate::Window window;
-    };
-
-    using WindowMap = std::unordered_map</* encoded block offset */ size_t, BlockInfo>;
+    using WindowView = VectorView<uint8_t>;
 
 public:
     GzipBlockFetcher( BitReader                                       bitReader,
                       std::shared_ptr<typename BaseType::BlockFinder> blockFinder,
                       std::shared_ptr<BlockMap>                       blockMap,
+                      std::shared_ptr<WindowMap>                      windowMap,
                       bool                                            isBgzfFile,
                       size_t                                          parallelization ) :
         BaseType( std::move( blockFinder ), parallelization ),
         m_bitReader( bitReader ),
         m_isBgzfFile( isBgzfFile ),
-        m_blockMap( std::move( blockMap ) )
+        m_blockMap( std::move( blockMap ) ),
+        m_windowMap( std::move( windowMap ) )
     {
         if ( !m_blockMap ) {
-            throw std::invalid_argument( "BlockMap must be valid!" );
+            throw std::invalid_argument( "Block map must be valid!" );
+        }
+        if ( !m_windowMap ) {
+            throw std::invalid_argument( "Window map must be valid!" );
+        }
+
+        if ( m_windowMap->empty() ) {
+            BitReader gzipBitReader{ m_bitReader };
+            gzipBitReader.seek( 0 );
+            const auto [header, error] = gzip::readHeader( gzipBitReader );
+            if ( error != Error::NONE ) {
+                throw std::invalid_argument( "Encountered error while reading gzip header: " + toString( error ) );
+            }
+            m_windowMap->emplace( gzipBitReader.tell(), {} );
         }
     }
 
@@ -237,21 +250,9 @@ private:
         /* The decoded size of the block is only for optimization purposes. Therefore, we do not have to take care
          * about the correct ordering between BlockMap accesses and mofications (the BlockMap is still thread-safe). */
         const auto blockInfo = m_blockMap->getEncodedOffset( blockOffset );
-        std::optional<size_t> decodedSize;
-        if ( blockInfo ) {
-            decodedSize = blockInfo->decodedSizeInBytes;
-        }
-
-        std::optional<deflate::WindowView> window;
-        {
-            std::scoped_lock lock( blockMapMutex );
-            if ( const auto match = blockMap.find( blockOffset ); match != blockMap.end() ) {
-                window.emplace( match->second.window );
-            }
-        }
         return decodeBlock( m_bitReader, blockOffset, this->m_blockFinder->get( blockIndex + 1 ),
-                            /* needsNoInitialWindow */ ( blockIndex == 0 ) || m_isBgzfFile,
-                            std::move( window ), decodedSize );
+                            m_isBgzfFile ? std::make_optional( WindowView{} ) : m_windowMap->get( blockOffset ),
+                            blockInfo ? blockInfo->decodedSizeInBytes : std::optional<size_t>{} );
     }
 
 public:
@@ -261,21 +262,19 @@ public:
      *                    to find the next deflate block or gzip stream.
      * @param initialWindow Required to resume decoding. Can be empty if, e.g., the blockOffset is at the gzip stream
      *                      start.
-     * @todo Make it automatically decompress to replacement markers if no valid window was given but needed anyway.
      */
     [[nodiscard]] static BlockData
-    decodeBlock( const BitReader&                   originalBitReader,
-                 size_t                             blockOffset,
-                 std::optional<size_t>              untilOffset,
-                 bool                               needsNoInitialWindow,
-                 std::optional<deflate::WindowView> initialWindow,
-                 std::optional<size_t>              decodedSize )
+    decodeBlock( const BitReader&          originalBitReader,
+                 size_t                    blockOffset,
+                 std::optional<size_t>     untilOffset,
+                 std::optional<WindowView> initialWindow,
+                 std::optional<size_t>     decodedSize )
     {
-        if ( ( needsNoInitialWindow || initialWindow ) && decodedSize && ( *decodedSize > 0 ) ) {
+        if ( initialWindow && decodedSize && ( *decodedSize > 0 ) ) {
             return decodeBlockWithZlib( originalBitReader,
                                         blockOffset,
                                         untilOffset ? *untilOffset : originalBitReader.size(),
-                                        needsNoInitialWindow ? std::nullopt : initialWindow,
+                                        *initialWindow,
                                         *decodedSize );
         }
 
@@ -293,9 +292,7 @@ public:
 
         std::optional<deflate::Block</* CRC32 */ false> > block;
         block.emplace();
-        if ( needsNoInitialWindow ) {
-            block->setInitialWindow();
-        } else if ( initialWindow ) {
+        if ( initialWindow ) {
             block->setInitialWindow( *initialWindow );
         }
 
@@ -453,7 +450,7 @@ private:
         }
 
         void
-        setWindow( deflate::WindowView window )
+        setWindow( WindowView const& window )
         {
             if ( inflateSetDictionary( &m_stream, window.data(), window.size() ) != Z_OK ) {
                 throw std::runtime_error( "Failed to set back-reference window in zlib!" );
@@ -524,19 +521,16 @@ private:
 
 private:
     [[nodiscard]] static BlockData
-    decodeBlockWithZlib( const BitReader&                   originalBitReader,
-                         size_t                             blockOffset,
-                         size_t                             untilOffset,
-                         std::optional<deflate::WindowView> initialWindow,
-                         size_t                             decodedSize )
+    decodeBlockWithZlib( const BitReader& originalBitReader,
+                         size_t           blockOffset,
+                         size_t           untilOffset,
+                         WindowView       initialWindow,
+                         size_t           decodedSize )
     {
         BitReader bitReader( originalBitReader );
         bitReader.seek( blockOffset );
         ZlibDeflateWrapper deflateWrapper( std::move( bitReader ) );
-
-        if ( initialWindow ) {
-            deflateWrapper.setWindow( *initialWindow );
-        }
+        deflateWrapper.setWindow( initialWindow );
 
         BlockData result;
         result.encodedOffsetInBits = blockOffset;
@@ -553,14 +547,11 @@ private:
         return result;
     }
 
-public:
-    WindowMap blockMap;
-    mutable std::mutex blockMapMutex;
-
 private:
     /* Variables required by decodeBlock and which therefore should be either const or locked. */
     const BitReader m_bitReader;
     const bool m_isBgzfFile;
     std::shared_ptr<BlockMap> const m_blockMap;
+    std::shared_ptr<WindowMap> const m_windowMap;
 };
 }  // namespace pragzip

@@ -156,18 +156,6 @@ alignas(8) static constexpr LengthLUT
 lengthLUT = createLengthLUT();
 
 
-[[nodiscard]] static bool
-containsMarkers( const VectorView<uint16_t>& values )
-{
-    return std::any_of( values.begin(), values.end(),
-                        [] ( auto value ) { return value > std::numeric_limits<uint8_t>::max(); } );
-}
-
-
-using Window = std::array<std::uint8_t, MAX_WINDOW_SIZE>;
-using WindowView = ArrayView<std::uint8_t, MAX_WINDOW_SIZE>;
-
-
 /**
  * @todo Silesia is ~70% slower when writing back and calculating CRC32.
  * When only only writing the result and not calculating CRC32, then it is ~60% slower.
@@ -322,14 +310,14 @@ public:
      * and then can be used to store and load it with setInitialWindow to restart decoding with the next block.
      * Because this is not supposed to be called very often, it returns a copy of the data instead of views.
      */
-    [[nodiscard]] Window
+    [[nodiscard]] std::array<std::uint8_t, MAX_WINDOW_SIZE>
     lastWindow() const
     {
         if ( m_containsMarkerBytes ) {
             throw std::invalid_argument( "No valid window available!" );
         }
 
-        Window result;
+        std::array<std::uint8_t, MAX_WINDOW_SIZE> result;
 
         const auto nBytesToCopy = std::min( m_decodedBytes, MAX_WINDOW_SIZE );
         if ( m_windowPosition >= nBytesToCopy ) {
@@ -354,28 +342,11 @@ public:
     }
 
     static void
-    checkMarkerBytes( WeakVector<std::uint16_t> buffer )
+    replaceMarkerBytes( WeakVector<std::uint16_t>  buffer,
+                        VectorView<uint8_t> const& window )
     {
-        for ( size_t i = 0; i < buffer.size(); ++i ) {
-            const auto code = buffer[i];
-            if ( ( code > std::numeric_limits<uint8_t>::max() )
-                 && ( code < MAX_WINDOW_SIZE ) )
-            {
-                std::stringstream message;
-                message << "Found unknown 2 B code (" << (int)buffer[i] << ") in buffer at position " << i << "!";
-                throw std::invalid_argument( message.str() );
-            }
-        }
-    }
-
-    static void
-    replaceMarkerBytes( WeakVector<std::uint16_t> buffer,
-                        WindowView const          initialWindow )
-    {
-        checkMarkerBytes( buffer );
-
         const auto mapMarker =
-            [&initialWindow] ( uint16_t value )
+            [&window] ( uint16_t value )
             {
                 if ( ( value > std::numeric_limits<uint8_t>::max() )
                      && ( value < MAX_WINDOW_SIZE ) )
@@ -383,36 +354,14 @@ public:
                     throw std::invalid_argument( "Cannot replace unknown 2 B code!" );
                 }
 
-                return value >= MAX_WINDOW_SIZE
-                       ? initialWindow[value - MAX_WINDOW_SIZE]
-                       : static_cast<uint8_t>( value );
+                if ( ( value >= MAX_WINDOW_SIZE ) && ( value - MAX_WINDOW_SIZE >= window.size() ) ) {
+                    throw std::invalid_argument( "Window too small!" );
+                }
+
+                return value >= MAX_WINDOW_SIZE ? window[value - MAX_WINDOW_SIZE] : static_cast<uint8_t>( value );
             };
 
         std::transform( buffer.begin(), buffer.end(), buffer.begin(), mapMarker );
-    }
-
-    /**
-     * Should be called if this is the first block, i.e., if there is now winow buffer to initialize.
-     * @todo I don't like that the API requires to call this for normal blocks :/. Maybe automatically
-     *       detect and set m_containsMarkerBytes. Or maybe, require calling a method when this is not the first block!
-     */
-    void
-    setInitialWindow()
-    {
-        if ( !m_containsMarkerBytes || ( m_decodedBytes == 0 ) ) {
-            m_containsMarkerBytes = false;
-            return;
-        }
-
-        if ( ( m_distanceToLastMarkerByte >= m_window16.size() )
-             || ( ( m_distanceToLastMarkerByte >= MAX_WINDOW_SIZE )
-                  && ( m_distanceToLastMarkerByte == m_decodedBytes ) ) ) {
-            setInitialWindow( Window{} );
-            return;
-        }
-
-        throw std::invalid_argument( "The block contains half-decoded marker bytes. "
-                                     "Refusing to apply an empty initial window! Create a new block instead." );
     }
 
     /**
@@ -427,7 +376,7 @@ public:
      * This method does not much more but has to account for wrap-around, too.
      */
     std::array<VectorView<uint8_t>, 2>
-    setInitialWindow( WindowView const initialWindow )
+    setInitialWindow( VectorView<uint8_t> const& initialWindow = {} )
     {
         if ( !m_containsMarkerBytes ) {
             return lastBuffers( m_window, m_windowPosition, std::min( m_window.size(), m_decodedBytes ) );
@@ -435,13 +384,19 @@ public:
 
         /* Set an initial window before decoding has started. */
         if ( ( m_decodedBytes == 0 ) && ( m_windowPosition == 0 ) ) {
-            std::memcpy( m_window.data(), initialWindow.data(), initialWindow.size() );
-            m_windowPosition = initialWindow.size();
-            m_decodedBytes = initialWindow.size();
+            if ( !initialWindow.empty() ) {
+                std::memcpy( m_window.data(), initialWindow.data(), initialWindow.size() );
+                m_windowPosition = initialWindow.size();
+                m_decodedBytes = initialWindow.size();
+            }
             m_containsMarkerBytes = false;
             return lastBuffers( m_window, m_windowPosition, std::min( m_window.size(), m_decodedBytes ) );
         }
 
+        /* The buffer is initialized with markers! We need to take care that we do not try to replace those. */
+        for ( size_t i = 0; m_decodedBytes + i < m_window16.size(); ++i ) {
+            m_window16[( m_windowPosition + i ) % m_window16.size()] = 0;
+        }
         replaceMarkerBytes( { m_window16.data(), m_window16.size() }, initialWindow );
 
         /* We cannot simply move each byte to m_window because it has twice as many elements as m_windows16
@@ -602,7 +557,9 @@ private:
      */
     size_t m_windowPosition{ 0 };
     /**
-     * @todo Instead of this bool, keep track of the largest backreference and dynamically switch to 16-bit?
+     * If true, then @ref m_window16 should be used, else @ref m_window!
+     * When @ref m_distanceToLastMarkerByte reaches a sufficient threshold, @ref m_window16 will be converted
+     * to @ref m_window and this variable will be set to true.
      */
     bool m_containsMarkerBytes{ true };
     /**

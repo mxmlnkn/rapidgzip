@@ -46,7 +46,7 @@ struct Checkpoint
 {
     uint64_t compressedOffsetInBits{ 0 };
     uint64_t uncompressedOffsetInBytes{ 0 };
-    /** @todo Use std::optional<std::array<uint8_t, MAX_WINDOW_SIZE> > instead? */
+    /** The window may be empty for the first deflate block in each gzip stream. */
     std::vector<uint8_t> window;
 
     [[nodiscard]] constexpr bool
@@ -173,7 +173,7 @@ readGzipIndex( std::unique_ptr<FileReader> file )
         }
 
         if ( formatVersion == 0 ) {
-            if ( i == 0 ) {
+            if ( i != 0 ) {
                 checkpoint.window.resize( index.windowSizeInBytes );
             }
         } else {

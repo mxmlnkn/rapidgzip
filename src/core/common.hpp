@@ -148,6 +148,13 @@ endsWith( const S& fullString,
 }
 
 
+[[nodiscard]] std::string
+formatBits( const uint64_t value )
+{
+    return std::to_string( value / 8 ) + " B " + std::to_string( value % 8 ) + " b";
+}
+
+
 [[nodiscard]] std::chrono::time_point<std::chrono::high_resolution_clock>
 now() noexcept
 {

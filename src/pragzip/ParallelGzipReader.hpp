@@ -241,47 +241,23 @@ public:
 
                 blockData = blockFetcher().get( *encodedOffsetInBits, m_nextUnprocessedBlockIndex );
                 m_blockMap->push( blockData->encodedOffsetInBits, blockData->encodedSizeInBits, blockData->size() );
+                ++m_nextUnprocessedBlockIndex;
 
                 /* Because this is a new block, it might contain markers that we have to replace with the window
                  * of the last block. The very first block should not contain any markers, ensuring that we
                  * can successively propagate the window through all blocks. */
-                pragzip::deflate::Window* lastWindow = nullptr;
-                {
-                    std::scoped_lock lock{ blockFetcher().blockMapMutex };
-                    const auto match = blockFetcher().blockMap.find( blockData->encodedOffsetInBits );
-                    if ( match != blockFetcher().blockMap.end() ) {
-                        lastWindow = &match->second.window;
-                    } else if ( m_nextUnprocessedBlockIndex > 0 ) {
-                        throw std::logic_error( "The window of the last block should exist at this point!" );
-                    }
+                auto lastWindow = m_windowMap->get( blockData->encodedOffsetInBits );
+                if ( !lastWindow ) {
+                    throw std::logic_error( "The window of the last block at "
+                                            + formatBits( blockData->encodedOffsetInBits )
+                                            + " should exist at this point!" );
                 }
-
-                if ( !blockData->dataWithMarkers.empty() ) {
-                    if ( m_nextUnprocessedBlockIndex == 0 ) {
-                        throw std::logic_error( "The first block should not contain markers!" );
-                    }
-
-                    blockData->applyWindow( *lastWindow );
-                    assert( blockData->dataWithMarkers.empty() );
-                }
-
-                ++m_nextUnprocessedBlockIndex;
 
                 /* Populate block map inside block fetcher with new block information. */
-                {
-                    std::scoped_lock lock{ blockFetcher().blockMapMutex };
-                    const auto& [_, wasInserted] = blockFetcher().blockMap.try_emplace(
-                        blockData->encodedOffsetInBits + blockData->encodedSizeInBits,
-                        BlockFetcher::BlockInfo{
-                            lastWindow == nullptr
-                            ? blockData->getLastWindow( pragzip::deflate::Window{} )  /* Only for first block. */
-                            : blockData->getLastWindow( *lastWindow )
-                        }
-                    );
-                    if ( !wasInserted ) {
-                        throw std::logic_error( "A window for the supposedly unknown block already exists!" );
-                    }
-                }
+                blockData->applyWindow( *lastWindow );
+                const auto nextWindow = blockData->getLastWindow( *lastWindow );
+                m_windowMap->emplace( blockData->encodedOffsetInBits + blockData->encodedSizeInBits,
+                                      { nextWindow.begin(), nextWindow.end() } );
 
                 /* We could also directly continue but then the block would be refetched,
                  * and fetching is quite complex. */
@@ -459,20 +435,14 @@ public:
             *std::max_element( uncompressedSpacings.begin(), uncompressedSpacings.end() ),
             32ULL * 1024ULL ) * 32ULL * 1024ULL;
 
-        const auto& fetcher = blockFetcher();
-        const std::scoped_lock lock( fetcher.blockMapMutex );
         for ( const auto& [compressedOffsetInBits, uncompressedOffsetInBytes] : offsets ) {
             Checkpoint checkpoint;
             checkpoint.compressedOffsetInBits = compressedOffsetInBits;
             checkpoint.uncompressedOffsetInBytes = uncompressedOffsetInBytes;
 
-            const auto blockInfo = fetcher.blockMap.find( compressedOffsetInBits );
-            if ( ( blockInfo != fetcher.blockMap.end() ) && !blockInfo->second.window.empty() ) {
-                const auto& window = blockInfo->second.window;
-                if ( window.size() != index.windowSizeInBytes ) {
-                    throw std::logic_error( "Windows should all be <=32 KiB!" );
-                }
-                checkpoint.window.assign( window.begin(), window.end() );
+            const auto window = m_windowMap->get( compressedOffsetInBits );
+            if ( window ) {
+                checkpoint.window.assign( window->begin(), window->end() );
             }
 
             index.checkpoints.emplace_back( std::move( checkpoint ) );
@@ -537,32 +507,12 @@ public:
 
         setBlockOffsets( std::move( newBlockOffsets ) );
 
-        /* Populate window buffers. */
-
-        /** @todo put windows into blockmap that always is ensured to exist. */
+        /* Copy window data. */
         for ( const auto& checkpoint : index.checkpoints ) {
             /* For some reason, indexed_gzip also stores windows for the very last checkpoint at the end of the file,
              * which is useless because there is nothing thereafter. But, don't filter it here so that exportIndex
-             * is mirrors importIndex better. */
-            if ( checkpoint.window.empty() ) {
-                continue;
-            }
-
-            if ( checkpoint.window.size() < pragzip::deflate::MAX_WINDOW_SIZE ) {
-                throw std::invalid_argument( "Insufficient window size!" );
-            }
-
-            auto& blockFetcherInfo = blockFetcher().blockMap[checkpoint.compressedOffsetInBits];
-            const auto blockMapInfo = m_blockMap->getEncodedOffset( checkpoint.compressedOffsetInBits );
-            if ( !blockMapInfo ) {
-                std::stringstream message;
-                message << "Encoded offset " << checkpoint.compressedOffsetInBits << " should exist in block map!";
-                throw std::logic_error( message.str() );
-            }
-
-            auto& window = blockFetcherInfo.window;
-            std::memcpy( window.data(), checkpoint.window.data() + checkpoint.window.size() - window.size(),
-                         window.size() );
+             * mirrors importIndex better. */
+            m_windowMap->emplace( checkpoint.compressedOffsetInBits, checkpoint.window );
         }
         blockFetcher().clearCache();
     }
@@ -619,12 +569,8 @@ public:
     void
     joinThreads()
     {
-        /** @todo move windows into blockmap so that we do not have to save them! */
-        if ( m_blockFetcher ) {
-            m_blockFetcherData = m_blockFetcher->blockMap;
-        }
-        m_blockFetcher = {};
-        m_blockFinder = {};
+        m_blockFetcher.reset();
+        m_blockFinder.reset();
     }
 
 private:
@@ -664,16 +610,11 @@ private:
             blockFinder().startThreads();
         }
 
-        m_blockFetcher = std::make_unique<BlockFetcher>( m_bitReader, m_blockFinder, m_blockMap, m_isBgzfFile,
-                                                         m_fetcherParallelization );
+        m_blockFetcher = std::make_unique<BlockFetcher>( m_bitReader, m_blockFinder, m_blockMap, m_windowMap,
+                                                         m_isBgzfFile, m_fetcherParallelization );
 
         if ( !m_blockFetcher ) {
             throw std::logic_error( "Block fetcher should have been initialized!" );
-        }
-
-        if ( m_blockFetcher->blockMap.empty() ) {
-            m_blockFetcher->blockMap = std::move( m_blockFetcherData );
-            m_blockFetcherData = {};
         }
 
         return *m_blockFetcher;
@@ -735,17 +676,20 @@ private:
 
     std::function<std::shared_ptr<BlockFinder>( void )> const m_startBlockFinder;
 
-    /* These are the three larger "submodules" of ParallelGzipReader */
-
     /** Necessary for prefetching decoded blocks in parallel. */
-    std::shared_ptr<BlockFinder>    m_blockFinder;
-    std::shared_ptr<BlockMap> const m_blockMap{ std::make_shared<BlockMap>() };
-    std::unique_ptr<BlockFetcher>   m_blockFetcher;
+    std::shared_ptr<BlockFinder>     m_blockFinder;
+    std::shared_ptr<BlockMap>  const m_blockMap{ std::make_shared<BlockMap>() };
+    /**
+     * The window map should contain windows to all encoded block offsets inside @ref m_blockMap.
+     * The windows are stored in a separate map even though all keys should be identical because BlockMap is
+     * too "finished". I don't see how to generically and readably add generic user data / windows to it.
+     * Furthermore, the windows might potentially be written out-of-order while block offsets should be inserted
+     * in order into @ref m_blockMap.
+     */
+    std::shared_ptr<WindowMap> const m_windowMap{ std::make_shared<WindowMap>() };
+    std::unique_ptr<BlockFetcher>    m_blockFetcher;
 
     /* This is the highest found block inside BlockFinder we ever processed and put into the BlockMap.
      * After the BlockMap has been finalized, this isn't needed anymore. */
     size_t m_nextUnprocessedBlockIndex{ 0 };
-
-    /** @todo move windows into block map to get rid of this temporary copy. */
-    std::unordered_map</* block offet */ size_t, typename BlockFetcher::BlockInfo> m_blockFetcherData;
 };

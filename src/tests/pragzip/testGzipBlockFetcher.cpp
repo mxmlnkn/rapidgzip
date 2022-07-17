@@ -47,7 +47,8 @@ testAutomaticMarkerResolution( const std::filesystem::path& filePath,
     const auto blockOffset = getBlockOffset( filePath, blockIndex );
     try {
         const auto result = GzipBlockFetcher<FetchingStrategy::FetchNextMulti>::decodeBlock(
-            bitReader, blockOffset, std::nullopt, /* needsNoInitialWindow */ false, std::nullopt, std::nullopt );
+            bitReader, blockOffset, /* untilOffset */ std::nullopt, /* window */ std::nullopt,
+            /* decodedSize */ std::nullopt );
 
         std::vector<size_t> markerBlockSizesFound( result.dataWithMarkers.size() );
         std::transform( result.dataWithMarkers.begin(), result.dataWithMarkers.end(), markerBlockSizesFound.begin(),
@@ -72,8 +73,8 @@ testAutomaticMarkerResolution( const std::filesystem::path& filePath,
                       << "    Expected : " << blockSizes << "\n\n";
         }
 
-        REQUIRE( markerBlockSizesFound == markerBlockSizes );
-        REQUIRE( blockSizesFound == blockSizes );
+        REQUIRE_EQUAL( markerBlockSizesFound, markerBlockSizes );
+        REQUIRE_EQUAL( blockSizesFound, blockSizes );
     } catch ( const std::exception& exception ) {
         REQUIRE( false && "Exception thrown!" );
 

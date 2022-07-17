@@ -285,7 +285,8 @@ testTwoStagedDecoding( std::string_view encodedFilePath,
                          buffer.data(), buffer.size() * sizeof( buffer[0] ) );
         }
 
-        DeflateBlock::replaceMarkerBytes( { concatenated.data(), concatenated.size() }, lastWindow.data() );
+        DeflateBlock::replaceMarkerBytes( { concatenated.data(), concatenated.size() },
+                                          { lastWindow.data(), lastWindow.size() } );
     } else {
         for ( const auto& buffer : bufferViews.data ) {
             concatenated.resize( concatenated.size() + buffer.size() );
@@ -312,7 +313,7 @@ testTwoStagedDecoding( std::string_view encodedFilePath,
     }
 
     /* Replace marker bytes inside the block itself. */
-    const auto decodedBuffers = block.setInitialWindow( lastWindow );
+    const auto decodedBuffers = block.setInitialWindow( { lastWindow.data(), lastWindow.size() } );
     std::vector<uint8_t> result;
     for ( const auto& buffer : decodedBuffers ) {
         result.resize( result.size() + buffer.size() );

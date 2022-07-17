@@ -209,14 +209,9 @@ public:
     using value_type = T;
 
 public:
-    constexpr
+    explicit constexpr
     ArrayView( const std::array<T, T_size>& array ) noexcept :
         m_data( array.data() )
-    {}
-
-    constexpr
-    ArrayView( const T* data ) noexcept :
-        m_data( data )
     {}
 
     [[nodiscard]] constexpr T

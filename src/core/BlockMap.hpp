@@ -47,7 +47,10 @@ public:
 public:
     BlockMap() = default;
 
-    void
+    /**
+     * @return decoded offset in bytes, i.e., the sum of all previously decoded block data.
+     */
+    size_t
     push( size_t encodedBlockOffset,
           size_t encodedSize,
           size_t decodedSize )
@@ -73,7 +76,7 @@ public:
             }
             m_lastBlockDecodedSize = decodedSize;
             m_lastBlockEncodedSize = encodedSize;
-            return;
+            return *decodedOffset;
         }
 
         /* Generally, block inserted offsets should always be increasing!
@@ -95,7 +98,8 @@ public:
             throw std::invalid_argument( "Got duplicate block offset with inconsistent size!" );
         }
 
-        /* Quietly ignore duplicate insertions. */
+        /* Quietly ignore duplicate insertions. Note that match->first == encodedBlockOffset. */
+        return match->second;
     }
 
     /**

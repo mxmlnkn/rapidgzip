@@ -17,6 +17,7 @@
 #include <cxxopts.hpp>
 
 #include <blockfinder/Bgzf.hpp>
+#include <common.hpp>
 #include <filereader/Standard.hpp>
 #include <pragzip.hpp>
 #include <ParallelGzipReader.hpp>
@@ -65,12 +66,6 @@ analyze( std::unique_ptr<FileReader> inputFile )
     size_t streamCount = 0;
 
     size_t headerOffset = 0;
-
-    const auto formatBits =
-        [] ( const uint64_t value )
-        {
-            return std::to_string( value / 8 ) + " B " + std::to_string( value % 8 ) + " b";
-        };
 
     std::vector<size_t> encodedBlockSizes;
     std::vector<size_t> decodedBlockSizes;
