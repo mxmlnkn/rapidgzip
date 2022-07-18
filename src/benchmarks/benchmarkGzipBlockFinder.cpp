@@ -789,7 +789,7 @@ findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
 
 
 [[nodiscard]] std::vector<size_t>
-findUncompressdDeflateBlocksNestedBranches( const BufferedFileReader::AlignedBuffer& buffer )
+findUncompressedDeflateBlocksNestedBranches( const BufferedFileReader::AlignedBuffer& buffer )
 {
     std::vector<size_t> bitOffsets;
 
@@ -832,7 +832,7 @@ findUncompressdDeflateBlocksNestedBranches( const BufferedFileReader::AlignedBuf
 
 
 [[nodiscard]] std::vector<size_t>
-findUncompressdDeflateBlocks( const BufferedFileReader::AlignedBuffer& buffer )
+findUncompressedDeflateBlocks( const BufferedFileReader::AlignedBuffer& buffer )
 {
     std::vector<size_t> bitOffsets;
 
@@ -981,9 +981,9 @@ benchmarkGzip( const std::string& fileName )
     {
         const auto buffer = bufferFile( fileName, 128ULL * 1024ULL * 1024ULL );
         const auto [blockCandidates, durations] = benchmarkFunction(
-            [&buffer] () { return findUncompressdDeflateBlocks( buffer ); } );
+            [&buffer] () { return findUncompressedDeflateBlocks( buffer ); } );
 
-        std::cout << "[findUncompressdDeflateBlocks] " << formatBandwidth( durations, buffer.size() ) << "\n";
+        std::cout << "[findUncompressedDeflateBlocks] " << formatBandwidth( durations, buffer.size() ) << "\n";
         std::cout << "    Block candidates (" << blockCandidates.size() << "): "
                   << blockCandidates << "\n\n";
     }
@@ -991,9 +991,9 @@ benchmarkGzip( const std::string& fileName )
     {
         const auto buffer = bufferFile( fileName, 128ULL * 1024ULL * 1024ULL );
         const auto [blockCandidates, durations] = benchmarkFunction(
-            [&buffer] () { return findUncompressdDeflateBlocksNestedBranches( buffer ); } );
+            [&buffer] () { return findUncompressedDeflateBlocksNestedBranches( buffer ); } );
 
-        std::cout << "[findUncompressdDeflateBlocksNestedBranches] " << formatBandwidth( durations, buffer.size() ) << "\n";
+        std::cout << "[findUncompressedDeflateBlocksNestedBranches] " << formatBandwidth( durations, buffer.size() ) << "\n";
         std::cout << "    Block candidates (" << blockCandidates.size() << "): "
                   << blockCandidates << "\n\n";
     }
@@ -1255,10 +1255,10 @@ main( int    argc,
 /*
 cmake --build . -- benchmarkGzipBlockFinder && benchmarks/benchmarkGzipBlockFinder random.gz
 
-[findUncompressdDeflateBlocks] ( 2052 <= 2072 +- 18 <= 2084 ) MB/s
+[findUncompressedDeflateBlocks] ( 2052 <= 2072 +- 18 <= 2084 ) MB/s
     Block candidates (4356):  80 262304 524560 786800 1049120 1311392 1573784 1836072 2098344 2360744 2623032 2791488 2885360 3147648 3409952 ...
 
-[findUncompressdDeflateBlocksNestedBranches] ( 1969 <= 1974 +- 5 <= 1978 ) MB/s
+[findUncompressedDeflateBlocksNestedBranches] ( 1969 <= 1974 +- 5 <= 1978 ) MB/s
     Block candidates (4356):  88 262312 524568 786808 1049128 1311400 1573792 1836080 2098352 2360752 2623040 2791501 2885368 3147656 3409960 ...
 
 
@@ -1267,22 +1267,22 @@ cmake --build . -- benchmarkGzipBlockFinder && benchmarks/benchmarkGzipBlockFind
 
 === Testing different Pragzip + LUT table sizes ===
 
-[findDeflateBlocksPragzipLUT with 1 bits] ( 2.083 <= 2.09 +- 0.009 <= 2.1 ) MB/s
-[findDeflateBlocksPragzipLUT with 2 bits] ( 3.971 <= 3.99 +- 0.024 <= 4.016 ) MB/s
-[findDeflateBlocksPragzipLUT with 3 bits] ( 7.167 <= 7.176 +- 0.01 <= 7.187 ) MB/s
-[findDeflateBlocksPragzipLUT with 4 bits] ( 7.42 <= 7.46 +- 0.04 <= 7.5 ) MB/s
-[findDeflateBlocksPragzipLUT with 5 bits] ( 7.611 <= 7.624 +- 0.022 <= 7.65 ) MB/s
-[findDeflateBlocksPragzipLUT with 6 bits] ( 7.72 <= 7.77 +- 0.05 <= 7.81 ) MB/s
-[findDeflateBlocksPragzipLUT with 7 bits] ( 8.28 <= 8.31 +- 0.04 <= 8.36 ) MB/s
-[findDeflateBlocksPragzipLUT with 8 bits] ( 8.37 <= 8.4 +- 0.03 <= 8.44 ) MB/s
-[findDeflateBlocksPragzipLUT with 9 bits] ( 8.21 <= 8.36 +- 0.2 <= 8.58 ) MB/s
-[findDeflateBlocksPragzipLUT with 10 bits] ( 8.21 <= 8.26 +- 0.05 <= 8.3 ) MB/s
-[findDeflateBlocksPragzipLUT with 11 bits] ( 8.41 <= 8.47 +- 0.06 <= 8.52 ) MB/s
-[findDeflateBlocksPragzipLUT with 12 bits] ( 8.859 <= 8.877 +- 0.021 <= 8.901 ) MB/s
-[findDeflateBlocksPragzipLUT with 13 bits] ( 8.942 <= 8.976 +- 0.029 <= 8.994 ) MB/s
-[findDeflateBlocksPragzipLUT with 14 bits] ( 8.68 <= 8.77 +- 0.08 <= 8.84 ) MB/s
-[findDeflateBlocksPragzipLUT with 15 bits] ( 9.206 <= 9.222 +- 0.018 <= 9.242 ) MB/s
-[findDeflateBlocksPragzipLUT with 16 bits] ( 9.06 <= 9.11 +- 0.05 <= 9.15 ) MB/s
+[findDeflateBlocksPragzipLUT with 1 bits] ( 2.018 <= 2.043 +- 0.022 <= 2.058 ) MB/s
+[findDeflateBlocksPragzipLUT with 2 bits] ( 3.72 <= 3.75 +- 0.06 <= 3.83 ) MB/s
+[findDeflateBlocksPragzipLUT with 3 bits] ( 7.113 <= 7.122 +- 0.013 <= 7.137 ) MB/s
+[findDeflateBlocksPragzipLUT with 4 bits] ( 7.534 <= 7.545 +- 0.015 <= 7.562 ) MB/s
+[findDeflateBlocksPragzipLUT with 5 bits] ( 7.45 <= 7.57 +- 0.17 <= 7.77 ) MB/s
+[findDeflateBlocksPragzipLUT with 6 bits] ( 7.861 <= 7.875 +- 0.013 <= 7.885 ) MB/s
+[findDeflateBlocksPragzipLUT with 7 bits] ( 8.12 <= 8.26 +- 0.13 <= 8.37 ) MB/s
+[findDeflateBlocksPragzipLUT with 8 bits] ( 8.502 <= 8.521 +- 0.019 <= 8.54 ) MB/s
+[findDeflateBlocksPragzipLUT with 9 bits] ( 8.31 <= 8.36 +- 0.05 <= 8.4 ) MB/s
+[findDeflateBlocksPragzipLUT with 10 bits] ( 8.3 <= 8.38 +- 0.13 <= 8.53 ) MB/s
+[findDeflateBlocksPragzipLUT with 11 bits] ( 8.49 <= 8.6 +- 0.11 <= 8.71 ) MB/s
+[findDeflateBlocksPragzipLUT with 12 bits] ( 8.781 <= 8.805 +- 0.025 <= 8.831 ) MB/s
+[findDeflateBlocksPragzipLUT with 13 bits] ( 8.866 <= 8.876 +- 0.009 <= 8.884 ) MB/s
+[findDeflateBlocksPragzipLUT with 14 bits] ( 8.927 <= 8.936 +- 0.008 <= 8.942 ) MB/s
+[findDeflateBlocksPragzipLUT with 15 bits] ( 8.96 <= 8.99 +- 0.04 <= 9.03 ) MB/s
+[findDeflateBlocksPragzipLUT with 16 bits] ( 9.001 <= 9.015 +- 0.013 <= 9.028 ) MB/s
 
 
 === Testing with encoder: gzip ===
@@ -1297,6 +1297,12 @@ There is NO WARRANTY, to the extent permitted by law.
 
 Written by Jean-loup Gailly.
 
+[findUncompressedDeflateBlocks] ( 1366 <= 1368 +- 5 <= 1374 ) MB/s
+    Block candidates (33):  1641849 14802352 16084952 18358560 19055164 23166984 28247616 32673280 32778929 34162050 37006712 37488520 38504569 43578016 43755016 ...
+
+[findUncompressedDeflateBlocksNestedBranches] ( 1329.5 <= 1331.9 +- 2.2 <= 1333.8 ) MB/s
+    Block candidates (33):  1641857 14802362 16084963 18358568 19055168 23166992 28247625 32673288 32778936 34162056 37006720 37488528 38504576 43578025 43755024 ...
+
 Gzip streams (2):  0 12748064
 Deflate blocks (495):  192 205414 411532 617749 824122 1029728 1236300 1442840 1649318 1855554 2061582 2267643 2473676 2679825 2886058 ...
 
@@ -1310,16 +1316,19 @@ Block Size Distribution (small to large):
 207110 b |==================== (494)
 
 
-[findDeflateBlocksZlib] ( 0.1773 <= 0.1798 +- 0.0023 <= 0.1816 ) MB/s
+[findDeflateBlocksZlib] ( 0.181 <= 0.184 +- 0.003 <= 0.187 ) MB/s
     Block candidates (20):  192 205414 411532 617749 824122 1028344 1028348 1028349 1029728 1236300 1442840 1572611 1572612 1641846 1641847 ...
 
-[findDeflateBlocksZlibOptimized] ( 0.625 <= 0.634 +- 0.009 <= 0.644 ) MB/s
+[findDeflateBlocksZlibOptimized] ( 0.661 <= 0.667 +- 0.006 <= 0.673 ) MB/s
     Block candidates (11):  192 205414 411532 617749 824122 1029728 1236300 1442840 1649318 1855554 2094939
 
-[findDeflateBlocksPragzip] ( 4.485 <= 4.493 +- 0.008 <= 4.5 ) MB/s
+[findDeflateBlocksPragzip] ( 4.255 <= 4.27 +- 0.015 <= 4.284 ) MB/s
     Block candidates (494):  192 205414 411532 617749 824122 1029728 1236300 1442840 1649318 1855554 2061582 2267643 2473676 2679825 2886058 ...
 
-[findDeflateBlocksPragzipLUT] ( 9.05 <= 9.07 +- 0.03 <= 9.11 ) MB/s
+[findDeflateBlocksPragzipLUT] ( 9.02 <= 9.1 +- 0.07 <= 9.15 ) MB/s
+    Block candidates (494):  192 205414 411532 617749 824122 1029728 1236300 1442840 1649318 1855554 2061582 2267643 2473676 2679825 2886058 ...
+
+[findDeflateBlocksPragzipLUTTwoPass] ( 9.12 <= 9.17 +- 0.05 <= 9.21 ) MB/s
     Block candidates (494):  192 205414 411532 617749 824122 1029728 1236300 1442840 1649318 1855554 2061582 2267643 2473676 2679825 2886058 ...
 
 
@@ -1327,6 +1336,12 @@ Block Size Distribution (small to large):
 
 > pigz --version
 pigz 2.6
+
+[findUncompressedDeflateBlocks] ( 1386 <= 1390 +- 4 <= 1394 ) MB/s
+    Block candidates (26):  9115355 15453880 17626256 20230960 20959049 32956072 33043921 36063152 36741288 38098897 42646161 44588288 47241200 51683920 53144346 ...
+
+[findUncompressedDeflateBlocksNestedBranches] ( 1357.6 <= 1360.8 +- 2.9 <= 1363.2 ) MB/s
+    Block candidates (26):  9115363 15453888 17626265 20230970 20959057 32956081 33043930 36063160 36741296 38098906 42646169 44588300 47241208 51683930 53144353 ...
 
 Gzip streams (2):  0 12761091
 Deflate blocks (1195):  192 102374 205527 308631 411790 515077 618182 721566 797442 797452 797462 797472 900531 1003441 1106502 ...
@@ -1341,16 +1356,19 @@ Block Size Distribution (small to large):
 103838 b |==================== (896)
 
 
-[findDeflateBlocksZlib] ( 0.18 <= 0.1806 +- 0.0005 <= 0.181 ) MB/s
+[findDeflateBlocksZlib] ( 0.1947 <= 0.1952 +- 0.0005 <= 0.1956 ) MB/s
     Block candidates (31):  192 102374 205527 234702 234703 234706 234707 308631 411790 515077 618182 721566 797472 900531 1003441 ...
 
-[findDeflateBlocksZlibOptimized] ( 0.613 <= 0.617 +- 0.003 <= 0.619 ) MB/s
+[findDeflateBlocksZlibOptimized] ( 0.665 <= 0.669 +- 0.004 <= 0.672 ) MB/s
     Block candidates (22):  192 102374 205527 308631 411790 515077 618182 721566 797472 900531 1003441 1106502 1209841 1313251 1416637 ...
 
-[findDeflateBlocksPragzip] ( 4.35 <= 4.4 +- 0.04 <= 4.42 ) MB/s
+[findDeflateBlocksPragzip] ( 4.173 <= 4.195 +- 0.019 <= 4.206 ) MB/s
     Block candidates (1023):  192 102374 205527 308631 411790 515077 618182 721566 797472 900531 1003441 1106502 1209841 1313251 1416637 ...
 
-[findDeflateBlocksPragzipLUT] ( 8.52 <= 8.62 +- 0.09 <= 8.68 ) MB/s
+[findDeflateBlocksPragzipLUT] ( 8.706 <= 8.738 +- 0.028 <= 8.758 ) MB/s
+    Block candidates (1023):  192 102374 205527 308631 411790 515077 618182 721566 797472 900531 1003441 1106502 1209841 1313251 1416637 ...
+
+[findDeflateBlocksPragzipLUTTwoPass] ( 8.66 <= 8.7 +- 0.06 <= 8.77 ) MB/s
     Block candidates (1023):  192 102374 205527 308631 411790 515077 618182 721566 797472 900531 1003441 1106502 1209841 1313251 1416637 ...
 
 
@@ -1359,8 +1377,14 @@ Block Size Distribution (small to large):
 > igzip --version
 igzip command line interface 2.30.0
 
-Gzip streams (2):  0 12669140
-Deflate blocks (129):  1184 790953 1580784 2370722 3160734 3950719 4740496 5530426 6321397 7112766 7903216 8693033 9482935 10274199 11065699 ...
+[findUncompressedDeflateBlocks] ( 1369 <= 1372 +- 5 <= 1378 ) MB/s
+    Block candidates (25):  9264928 9787856 11847658 25696321 26896376 30346740 32737457 32800465 34399866 36035720 44696189 48931825 49145872 52556250 53613251 ...
+
+[findUncompressedDeflateBlocksNestedBranches] ( 1080 <= 1250 +- 140 <= 1330 ) MB/s
+    Block candidates (25):  9264940 9787864 11847666 25696328 26896384 30346744 32737464 32800472 34399872 36035728 44696192 48931835 49145880 52556258 53613256 ...
+
+Gzip streams (2):  0 12669134
+Deflate blocks (129):  1136 790905 1580736 2370674 3160686 3950671 4740448 5530378 6321349 7112718 7903168 8692985 9482887 10274151 11065651 ...
 
 Block size distribution: min: 0 B, avg: 98870.4 B +- 77.9492 B, max: 98950 B
 Block Size Distribution (small to large):
@@ -1372,17 +1396,20 @@ Block Size Distribution (small to large):
 791606 b |==================== (128)
 
 
-[findDeflateBlocksZlib] ( 0.1817 <= 0.183 +- 0.0014 <= 0.1845 ) MB/s
-    Block candidates (8):  1184 790953 1139814 1173182 1580784 1702334 1702337 1702338
+[findDeflateBlocksZlib] ( 0.1884 <= 0.1891 +- 0.0006 <= 0.1894 ) MB/s
+    Block candidates (8):  1136 790905 1139766 1173134 1580736 1702286 1702289 1702290
 
-[findDeflateBlocksZlibOptimized] ( 0.628 <= 0.636 +- 0.009 <= 0.647 ) MB/s
-    Block candidates (3):  1184 790953 1580784
+[findDeflateBlocksZlibOptimized] ( 0.6621 <= 0.6644 +- 0.0022 <= 0.6664 ) MB/s
+    Block candidates (3):  1136 790905 1580736
 
-[findDeflateBlocksPragzip] ( 4.542 <= 4.56 +- 0.023 <= 4.586 ) MB/s
-    Block candidates (128):  1184 790953 1580784 2370722 3160734 3950719 4740496 5530426 6321397 7112766 7903216 8693033 9482935 10274199 11065699 ...
+[findDeflateBlocksPragzip] ( 4.228 <= 4.238 +- 0.01 <= 4.247 ) MB/s
+    Block candidates (128):  1136 790905 1580736 2370674 3160686 3950671 4740448 5530378 6321349 7112718 7903168 8692985 9482887 10274151 11065651 ...
 
-[findDeflateBlocksPragzipLUT] ( 9.25 <= 9.31 +- 0.06 <= 9.35 ) MB/s
-    Block candidates (128):  1184 790953 1580784 2370722 3160734 3950719 4740496 5530426 6321397 7112766 7903216 8693033 9482935 10274199 11065699 ...
+[findDeflateBlocksPragzipLUT] ( 9.12 <= 9.141 +- 0.023 <= 9.166 ) MB/s
+    Block candidates (128):  1136 790905 1580736 2370674 3160686 3950671 4740448 5530378 6321349 7112718 7903168 8692985 9482887 10274151 11065651 ...
+
+[findDeflateBlocksPragzipLUTTwoPass] ( 9.32 <= 9.41 +- 0.11 <= 9.54 ) MB/s
+    Block candidates (128):  1136 790905 1580736 2370674 3160686 3950671 4740448 5530378 6321349 7112718 7903168 8692985 9482887 10274151 11065651 ...
 
 
 === Testing with encoder: bgzip ===
@@ -1391,40 +1418,55 @@ Block Size Distribution (small to large):
 bgzip (htslib) 1.13+ds
 Copyright (C) 2021 Genome Research Ltd.
 
-Got 6 B of FEXTRA field!
-Gzip streams (260):  0 50481 100948 151434 201908 252370 302849 353305 403788 454267 504746 555197 605656 656134 706610 ...
-Deflate blocks (259):  144 403992 807728 1211616 1615408 2019104 2422936 2826584 3230448 3634280 4038112 4441720 4845392 5249216 5653024 ...
+[findUncompressedDeflateBlocks] ( 1351 <= 1368 +- 28 <= 1400 ) MB/s
+    Block candidates (32):  2959288 3061001 3075096 6140777 11709712 12621274 12934273 13868528 22428648 27137769 30108368 30328864 34426556 35504328 43584170 ...
 
-Block size distribution: min: 0 B, avg: 50276.8 B +- 3127.04 B, max: 50494 B
+[findUncompressedDeflateBlocksNestedBranches] ( 1328 <= 1344 +- 14 <= 1356 ) MB/s
+    Block candidates (32):  2959296 3061008 3075104 6140784 11709720 12621280 12934282 13868536 22428661 27137776 30108376 30328875 34426562 35504336 43584176 ...
+
+Got 6 B of FEXTRA field!
+Gzip streams (260):  0 49330 98651 147979 197311 246645 295981 345312 394654 443992 493330 542663 591980 641320 690645 ...
+Deflate blocks (259):  144 394784 789352 1183976 1578632 1973304 2367992 2762640 3157376 3552080 3946784 4341448 4735984 5130704 5525304 ...
+
+Block size distribution: min: 0 B, avg: 49140.7 B +- 3056.03 B, max: 49347 B
 Block Size Distribution (small to large):
      0 b |                     (1)
          |
          |
          |
          |
-403952 b |==================== (257)
+394776 b |==================== (257)
 
 
-[findDeflateBlocksZlib] ( 0.1701 <= 0.1728 +- 0.0025 <= 0.175 ) MB/s
-    Block candidates (6):  144 403992 807728 1211616 1615408 2019104
+[findDeflateBlocksZlib] ( 0.1913 <= 0.1927 +- 0.0016 <= 0.1944 ) MB/s
+    Block candidates (6):  144 394784 789352 1183976 1578632 1973304
 
-[findDeflateBlocksPragzip] ( 4.623 <= 4.644 +- 0.02 <= 4.663 ) MB/s
+[findDeflateBlocksPragzip] ( 4.36 <= 4.371 +- 0.01 <= 4.379 ) MB/s
     Block candidates (0):
 
-[findDeflateBlocksPragzipLUT] ( 9.514 <= 9.535 +- 0.019 <= 9.55 ) MB/s
+[findDeflateBlocksPragzipLUT] ( 9.42 <= 9.47 +- 0.07 <= 9.55 ) MB/s
     Block candidates (0):
 
-[findBgzStreams] ( 12000 <= 23000 +- 9000 <= 28000 ) MB/s
-    Block candidates (259):  144 403992 807728 1211616 1615408 2019104 2422936 2826584 3230448 3634280 4038112 4441720 4845392 5249216 5653024 ...
+[findDeflateBlocksPragzipLUTTwoPass] ( 9.33 <= 9.49 +- 0.14 <= 9.59 ) MB/s
+    Block candidates (0):
+
+[findBgzStreams] ( 20000 <= 31000 +- 10000 <= 37000 ) MB/s
+    Block candidates (259):  144 394784 789352 1183976 1578632 1973304 2367992 2762640 3157376 3552080 3946784 4341448 4735984 5130704 5525304 ...
 
 Found 259 gzip stream candidates!
- 0 50481 100948 151434 201908 252370 302849 353305 403788 454267 504746 555197 605656 656134 706610 ...
+ 0 49330 98651 147979 197311 246645 295981 345312 394654 443992 493330 542663 591980 641320 690645 ...
 
 
 === Testing with encoder: Python3 gzip ===
 
 > python3 --version
-Python 3.9.7
+Python 3.10.4
+
+[findUncompressedDeflateBlocks] ( 1389 <= 1401 +- 12 <= 1413 ) MB/s
+    Block candidates (27):  194240 942224 2600937 4563939 7237456 9078080 14882897 16489920 23810345 29007536 30927412 33606996 47122649 49244473 49721738 ...
+
+[findUncompressedDeflateBlocksNestedBranches] ( 1352 <= 1361 +- 12 <= 1374 ) MB/s
+    Block candidates (27):  194248 942233 2600944 4563944 7237464 9078091 14882904 16489928 23810352 29007546 30927416 33607004 47122656 49244480 49721745 ...
 
 Got 6 B of FEXTRA field!
 Gzip streams (2):  0 12759547
@@ -1440,16 +1482,19 @@ Block Size Distribution (small to large):
 103999 b |==================== (988)
 
 
-[findDeflateBlocksZlib] ( 0.1729 <= 0.1738 +- 0.001 <= 0.1749 ) MB/s
+[findDeflateBlocksZlib] ( 0.1936 <= 0.1942 +- 0.0005 <= 0.1946 ) MB/s
     Block candidates (29):  192 102672 194239 194240 194241 194242 194245 205833 308639 411748 515132 618285 721612 824892 928415 ...
 
-[findDeflateBlocksZlibOptimized] ( 0.6203 <= 0.6215 +- 0.0011 <= 0.6225 ) MB/s
+[findDeflateBlocksZlibOptimized] ( 0.6633 <= 0.6659 +- 0.0023 <= 0.6673 ) MB/s
     Block candidates (20):  192 102672 205833 308639 411748 515132 618285 721612 824892 928415 1031456 1134888 1238197 1341253 1444122 ...
 
-[findDeflateBlocksPragzip] ( 4.372 <= 4.395 +- 0.024 <= 4.42 ) MB/s
+[findDeflateBlocksPragzip] ( 4.173 <= 4.18 +- 0.007 <= 4.187 ) MB/s
     Block candidates (988):  192 102672 205833 308639 411748 515132 618285 721612 824892 928415 1031456 1134888 1238197 1341253 1444122 ...
 
-[findDeflateBlocksPragzipLUT] ( 8.688 <= 8.718 +- 0.03 <= 8.747 ) MB/s
+[findDeflateBlocksPragzipLUT] ( 8.746 <= 8.763 +- 0.018 <= 8.783 ) MB/s
+    Block candidates (988):  192 102672 205833 308639 411748 515132 618285 721612 824892 928415 1031456 1134888 1238197 1341253 1444122 ...
+
+[findDeflateBlocksPragzipLUTTwoPass] ( 8.53 <= 8.76 +- 0.2 <= 8.88 ) MB/s
     Block candidates (988):  192 102672 205833 308639 411748 515132 618285 721612 824892 928415 1031456 1134888 1238197 1341253 1444122 ...
 
 
@@ -1463,9 +1508,15 @@ Home-page: https://github.com/pgzip/pgzip
 Author: pgzip team
 Author-email: pgzip@thegoldfish.org
 License: MIT
-Location: /home/hypatia/.local/lib/python3.9/site-packages
+Location: /home/hypatia/.local/lib/python3.10/site-packages
 Requires:
 Required-by:
+
+[findUncompressedDeflateBlocks] ( 1180 <= 1290 +- 90 <= 1350 ) MB/s
+    Block candidates (23):  2311842 13547514 17302848 21375988 29568384 38396442 40876281 45811441 46230384 50735041 50861242 51689824 52966512 56154593 62322161 ...
+
+[findUncompressedDeflateBlocksNestedBranches] ( 1317 <= 1322 +- 5 <= 1327 ) MB/s
+    Block candidates (23):  2311849 13547520 17302857 21375992 29568395 38396449 40876289 45811448 46230393 50735049 50861248 51689833 52966520 56154600 62322168 ...
 
 Got 8 B of FEXTRA field!
 Gzip streams (2):  0 12747800
@@ -1481,15 +1532,18 @@ Block Size Distribution (small to large):
 207124 b |==================== (494)
 
 
-[findDeflateBlocksZlib] ( 0.1733 <= 0.1736 +- 0.0003 <= 0.174 ) MB/s
+[findDeflateBlocksZlib] ( 0.1825 <= 0.1831 +- 0.0007 <= 0.1838 ) MB/s
     Block candidates (12):  272 205800 411533 617885 824269 1030628 1164656 1237131 1442923 1649106 1771228 1855109
 
-[findDeflateBlocksZlibOptimized] ( 0.6185 <= 0.6205 +- 0.0017 <= 0.6216 ) MB/s
+[findDeflateBlocksZlibOptimized] ( 0.633 <= 0.637 +- 0.004 <= 0.641 ) MB/s
     Block candidates (10):  272 205800 411533 617885 824269 1030628 1237131 1442923 1649106 1855109
 
-[findDeflateBlocksPragzip] ( 4.41 <= 4.47 +- 0.05 <= 4.5 ) MB/s
+[findDeflateBlocksPragzip] ( 4.098 <= 4.111 +- 0.011 <= 4.119 ) MB/s
     Block candidates (494):  272 205800 411533 617885 824269 1030628 1237131 1442923 1649106 1855109 2061199 2267938 2473926 2680186 2886437 ...
 
-[findDeflateBlocksPragzipLUT] ( 9.01 <= 9.04 +- 0.04 <= 9.08 ) MB/s
+[findDeflateBlocksPragzipLUT] ( 8.725 <= 8.73 +- 0.005 <= 8.736 ) MB/s
+    Block candidates (494):  272 205800 411533 617885 824269 1030628 1237131 1442923 1649106 1855109 2061199 2267938 2473926 2680186 2886437 ...
+
+[findDeflateBlocksPragzipLUTTwoPass] ( 8.77 <= 8.85 +- 0.07 <= 8.9 ) MB/s
     Block candidates (494):  272 205800 411533 617885 824269 1030628 1237131 1442923 1649106 1855109 2061199 2267938 2473926 2680186 2886437 ...
 */
