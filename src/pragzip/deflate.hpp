@@ -28,6 +28,7 @@
 #include <HuffmanCodingReversedBitsCached.hpp>
 
 #include "crc32.hpp"
+#include "DecodedData.hpp"
 #include "definitions.hpp"
 #include "Error.hpp"
 #include "gzip.hpp"
@@ -37,20 +38,6 @@ namespace pragzip
 {
 namespace deflate
 {
-/** For this namespace, refer to @see RFC 1951 "DEFLATE Compressed Data Format Specification version 1.3" */
-constexpr size_t MAX_WINDOW_SIZE = 32 * 1024;
-constexpr size_t MAX_UNCOMPRESSED_SIZE = std::numeric_limits<uint16_t>::max();
-/* This is because the code length alphabet can't encode any higher value and because length 0 is ignored! */
-constexpr uint8_t MAX_CODE_LENGTH = 15;
-
-constexpr size_t MAX_LITERAL_OR_LENGTH_SYMBOLS = 286;
-constexpr uint8_t MAX_DISTANCE_SYMBOL_COUNT = 30;
-/* next power of two (because binary tree) of MAX_LITERAL_OR_LENGTH_SYMBOLS. This is assuming that all symbols
- * are equally likely to appear, i.e., all codes would be encoded with the same number of bits (9). */
-constexpr size_t MAX_LITERAL_HUFFMAN_CODE_COUNT = 512;
-constexpr size_t MAX_RUN_LENGTH = 258;
-
-
 using LiteralOrLengthHuffmanCoding =
     HuffmanCodingDoubleLiteralCached<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_LITERAL_HUFFMAN_CODE_COUNT>;
 
@@ -192,42 +179,6 @@ public:
         return "Unknown";
     }
 
-    /**
-     * Only one of the two will contain non-empty VectorViews depending on whether marker bytes might appear.
-     * @ref dataWithMarkers will be empty when @ref setInitialWindow has been called.
-     */
-    struct BufferViews
-    {
-    public:
-        [[nodiscard]] constexpr size_t
-        size() const noexcept
-        {
-            return dataWithMarkers[0].size() + dataWithMarkers[1].size() + data[0].size() + data[1].size();
-        }
-
-        [[nodiscard]] size_t
-        dataSize() const
-        {
-            return data[0].size() + data[1].size();
-        }
-
-        [[nodiscard]] size_t
-        dataWithMarkersSize() const
-        {
-            return dataWithMarkers[0].size() + dataWithMarkers[1].size();
-        }
-
-        [[nodiscard]] constexpr bool
-        containsMarkers() const noexcept
-        {
-            return !dataWithMarkers[0].empty() || !dataWithMarkers[1].empty();
-        }
-
-    public:
-        std::array<VectorView<uint16_t>, 2> dataWithMarkers;
-        std::array<VectorView<uint8_t>, 2> data;
-    };
-
 public:
     [[nodiscard]] bool
     eob() const noexcept
@@ -265,7 +216,7 @@ public:
      *                     It might decode more when it is an uncompressed block.
      *                     Check for @ref eob to test for the end of the block instead of testing the read byte count.
      */
-    [[nodiscard]] std::pair<BufferViews, Error>
+    [[nodiscard]] std::pair<DecodedDataView, Error>
     read( BitReader& bitReader,
           size_t     nMaxToDecode = std::numeric_limits<size_t>::max() );
 
@@ -306,65 +257,6 @@ public:
     }
 
     /**
-     * Returns the last 32 KiB decoded bytes. This can be called after decoding a block has finished
-     * and then can be used to store and load it with setInitialWindow to restart decoding with the next block.
-     * Because this is not supposed to be called very often, it returns a copy of the data instead of views.
-     */
-    [[nodiscard]] std::array<std::uint8_t, MAX_WINDOW_SIZE>
-    lastWindow() const
-    {
-        if ( m_containsMarkerBytes ) {
-            throw std::invalid_argument( "No valid window available!" );
-        }
-
-        std::array<std::uint8_t, MAX_WINDOW_SIZE> result;
-
-        const auto nBytesToCopy = std::min( m_decodedBytes, MAX_WINDOW_SIZE );
-        if ( m_windowPosition >= nBytesToCopy ) {
-            std::memcpy( result.data() + result.size() - nBytesToCopy,
-                         m_window.data() + ( m_windowPosition - nBytesToCopy ),
-                         nBytesToCopy );
-        } else {
-            const auto nToCopyFromStart = m_windowPosition;
-            const auto nToCopyFromEnd = nBytesToCopy - nToCopyFromStart;
-
-            /* Copy wrapped-around oldest data from end of m_window to "start" of result. */
-            std::memcpy( result.data() + ( result.size() - nToCopyFromStart - nToCopyFromEnd ),
-                         m_window.data() + ( m_window.size() - nToCopyFromEnd ),
-                         nToCopyFromStart );
-            /* Copy most recent decoded data from beginning of m_window to end of result. */
-            std::memcpy( result.data() + ( result.size() - nToCopyFromStart ),
-                         m_window.data(),
-                         nToCopyFromStart );
-        }
-
-        return result;
-    }
-
-    static void
-    replaceMarkerBytes( WeakVector<std::uint16_t>  buffer,
-                        VectorView<uint8_t> const& window )
-    {
-        const auto mapMarker =
-            [&window] ( uint16_t value )
-            {
-                if ( ( value > std::numeric_limits<uint8_t>::max() )
-                     && ( value < MAX_WINDOW_SIZE ) )
-                {
-                    throw std::invalid_argument( "Cannot replace unknown 2 B code!" );
-                }
-
-                if ( ( value >= MAX_WINDOW_SIZE ) && ( value - MAX_WINDOW_SIZE >= window.size() ) ) {
-                    throw std::invalid_argument( "Window too small!" );
-                }
-
-                return value >= MAX_WINDOW_SIZE ? window[value - MAX_WINDOW_SIZE] : static_cast<uint8_t>( value );
-            };
-
-        std::transform( buffer.begin(), buffer.end(), buffer.begin(), mapMarker );
-    }
-
-    /**
      * Primes the deflate decoder with a window to be used for the LZ77 backreferences.
      * There are two use cases for this function:
      *  - To set a window before decoding in order to resume decoding and for seeking in the gzip stream.
@@ -375,50 +267,8 @@ public:
      * data from the last read calls whose markers will have to be replaced using @ref replaceMarkerBytes.
      * This method does not much more but has to account for wrap-around, too.
      */
-    std::array<VectorView<uint8_t>, 2>
-    setInitialWindow( VectorView<uint8_t> const& initialWindow = {} )
-    {
-        if ( !m_containsMarkerBytes ) {
-            return lastBuffers( m_window, m_windowPosition, std::min( m_window.size(), m_decodedBytes ) );
-        }
-
-        /* Set an initial window before decoding has started. */
-        if ( ( m_decodedBytes == 0 ) && ( m_windowPosition == 0 ) ) {
-            if ( !initialWindow.empty() ) {
-                std::memcpy( m_window.data(), initialWindow.data(), initialWindow.size() );
-                m_windowPosition = initialWindow.size();
-                m_decodedBytes = initialWindow.size();
-            }
-            m_containsMarkerBytes = false;
-            return lastBuffers( m_window, m_windowPosition, std::min( m_window.size(), m_decodedBytes ) );
-        }
-
-        /* The buffer is initialized with markers! We need to take care that we do not try to replace those. */
-        for ( size_t i = 0; m_decodedBytes + i < m_window16.size(); ++i ) {
-            m_window16[( m_windowPosition + i ) % m_window16.size()] = 0;
-        }
-        replaceMarkerBytes( { m_window16.data(), m_window16.size() }, initialWindow );
-
-        /* We cannot simply move each byte to m_window because it has twice as many elements as m_windows16
-         * and simply filling it from left to right will result in wrapping not working because the right half
-         * is empty. It would only work if there is no wrapping necessary because it is a contiguous block!
-         * To achieve that, map i -> i' such that m_windowPosition is m_window.size() - 1.
-         * This way all back-references will not wrap around on the left border. */
-        std::array<uint8_t, decltype( m_window16 )().size()> conflatedBuffer{};
-
-        for ( size_t i = 0; i < m_window16.size(); ++i ) {
-            conflatedBuffer[i] = m_window16[( i + m_windowPosition ) % m_window16.size()];
-        }
-
-        std::memcpy( m_window.data() + ( m_window.size() - conflatedBuffer.size() ),
-                     conflatedBuffer.data(),
-                     conflatedBuffer.size() );
-
-        m_windowPosition = 0;
-
-        m_containsMarkerBytes = false;
-        return lastBuffers( m_window, m_windowPosition, std::min( m_window16.size(), m_decodedBytes ) );
-    }
+    void
+    setInitialWindow( VectorView<uint8_t> const& initialWindow = {} );
 
     [[nodiscard]] constexpr bool
     isValid() const noexcept
@@ -575,13 +425,12 @@ private:
      */
     size_t m_distanceToLastMarkerByte{ 0 };
 };
-} // namespace deflate
 
 
 template<bool CALCULATE_CRC32>
 template<bool treatLastBlockAsError>
 Error
-deflate::Block<CALCULATE_CRC32>::readHeader( BitReader& bitReader )
+Block<CALCULATE_CRC32>::readHeader( BitReader& bitReader )
 {
     m_isLastBlock = bitReader.read<1>();
     if constexpr ( treatLastBlockAsError ) {
@@ -634,7 +483,7 @@ deflate::Block<CALCULATE_CRC32>::readHeader( BitReader& bitReader )
 
 template<bool CALCULATE_CRC32>
 Error
-deflate::Block<CALCULATE_CRC32>::readDynamicHuffmanCoding( BitReader& bitReader )
+Block<CALCULATE_CRC32>::readDynamicHuffmanCoding( BitReader& bitReader )
 {
     /**
      * Huffman codings map variable length (bit) codes to symbols.
@@ -731,8 +580,8 @@ deflate::Block<CALCULATE_CRC32>::readDynamicHuffmanCoding( BitReader& bitReader 
 
 template<bool CALCULATE_CRC32>
 uint16_t
-deflate::Block<CALCULATE_CRC32>::getLength( uint16_t   code,
-                                            BitReader& bitReader )
+Block<CALCULATE_CRC32>::getLength( uint16_t   code,
+                                   BitReader& bitReader )
 {
     if ( code <= 264 ) {
         return code - 257U + 3U;
@@ -750,7 +599,7 @@ deflate::Block<CALCULATE_CRC32>::getLength( uint16_t   code,
 
 template<bool CALCULATE_CRC32>
 std::pair<uint16_t, Error>
-deflate::Block<CALCULATE_CRC32>::getDistance( BitReader& bitReader ) const
+Block<CALCULATE_CRC32>::getDistance( BitReader& bitReader ) const
 {
     uint16_t distance = 0;
     if ( m_compressionType == CompressionType::FIXED_HUFFMAN ) {
@@ -781,9 +630,9 @@ deflate::Block<CALCULATE_CRC32>::getDistance( BitReader& bitReader ) const
 
 
 template<bool CALCULATE_CRC32>
-std::pair<typename deflate::Block<CALCULATE_CRC32>::BufferViews, Error>
-deflate::Block<CALCULATE_CRC32>::read( BitReader& bitReader,
-                                       size_t     nMaxToDecode )
+std::pair<DecodedDataView, Error>
+Block<CALCULATE_CRC32>::read( BitReader& bitReader,
+                              size_t     nMaxToDecode )
 {
     if ( eob() ) {
         return { {}, Error::NONE };
@@ -793,7 +642,7 @@ deflate::Block<CALCULATE_CRC32>::read( BitReader& bitReader,
         throw std::domain_error( "Invalid deflate compression type!" );
     }
 
-    BufferViews result;
+    DecodedDataView result;
 
     if ( m_compressionType == CompressionType::UNCOMPRESSED ) {
         std::optional<size_t> nBytesRead;
@@ -872,9 +721,9 @@ deflate::Block<CALCULATE_CRC32>::read( BitReader& bitReader,
 template<bool CALCULATE_CRC32>
 template<typename Window>
 std::pair<size_t, Error>
-deflate::Block<CALCULATE_CRC32>::readInternal( BitReader& bitReader,
-                                               size_t     nMaxToDecode,
-                                               Window&    window )
+Block<CALCULATE_CRC32>::readInternal( BitReader& bitReader,
+                                      size_t     nMaxToDecode,
+                                      Window&    window )
 {
     const auto appendToWindow =
         [this, &window] ( auto decodedSymbol )
@@ -986,4 +835,53 @@ deflate::Block<CALCULATE_CRC32>::readInternal( BitReader& bitReader,
     m_decodedBytes += nBytesRead;
     return { nBytesRead, Error::NONE };
 }
+
+
+
+template<bool CALCULATE_CRC32>
+void
+Block<CALCULATE_CRC32>::setInitialWindow( VectorView<uint8_t> const& initialWindow )
+{
+    if ( !m_containsMarkerBytes ) {
+        return;
+    }
+
+    /* Set an initial window before decoding has started. */
+    if ( ( m_decodedBytes == 0 ) && ( m_windowPosition == 0 ) ) {
+        if ( !initialWindow.empty() ) {
+            std::memcpy( m_window.data(), initialWindow.data(), initialWindow.size() );
+            m_windowPosition = initialWindow.size();
+            m_decodedBytes = initialWindow.size();
+        }
+        m_containsMarkerBytes = false;
+        return;
+    }
+
+    /* The buffer is initialized with markers! We need to take care that we do not try to replace those. */
+    for ( size_t i = 0; m_decodedBytes + i < m_window16.size(); ++i ) {
+        m_window16[( m_windowPosition + i ) % m_window16.size()] = 0;
+    }
+    replaceMarkerBytes( { m_window16.data(), m_window16.size() }, initialWindow );
+
+    /* We cannot simply move each byte to m_window because it has twice as many elements as m_windows16
+     * and simply filling it from left to right will result in wrapping not working because the right half
+     * is empty. It would only work if there is no wrapping necessary because it is a contiguous block!
+     * To achieve that, map i -> i' such that m_windowPosition is m_window.size() - 1.
+     * This way all back-references will not wrap around on the left border. */
+    std::array<uint8_t, decltype( m_window16 )().size()> conflatedBuffer{};
+
+    for ( size_t i = 0; i < m_window16.size(); ++i ) {
+        conflatedBuffer[i] = m_window16[( i + m_windowPosition ) % m_window16.size()];
+    }
+
+    std::memcpy( m_window.data() + ( m_window.size() - conflatedBuffer.size() ),
+                 conflatedBuffer.data(),
+                 conflatedBuffer.size() );
+
+    m_windowPosition = 0;
+
+    m_containsMarkerBytes = false;
+    return;
+}
+}  // namespace deflate
 }  // namespace pragzip

@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <utility>
 
+#include <DecodedData.hpp>
 #include <filereader/FileReader.hpp>
 #include <filereader/Standard.hpp>
 #include <pragzip.hpp>
@@ -338,7 +339,7 @@ private:
      */
     std::optional<DeflateBlock> m_currentDeflateBlock;
     /** Holds non-owning views to the data decoded in the last call to m_currentDeflateBlock.read. */
-    typename DeflateBlock::BufferViews m_lastBlockData;
+    deflate::DecodedDataView m_lastBlockData;
 
     /**
      * If m_currentPoint has no value, then it means it is currently inside a deflate block.

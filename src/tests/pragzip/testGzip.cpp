@@ -224,8 +224,8 @@ testTwoStagedDecoding( std::string_view encodedFilePath,
 
     /* Save all information required for seeking directly to second block. */
     const auto secondBlockOffset = gzipReader.tellCompressed();
-    REQUIRE( gzipReader.currentDeflateBlock().has_value() );
-    const auto lastWindow = gzipReader.currentDeflateBlock()->lastWindow();
+    std::array<std::uint8_t, deflate::MAX_WINDOW_SIZE> lastWindow{};
+    std::memcpy( lastWindow.data(), decompressed.data() + decompressed.size() - lastWindow.size(), lastWindow.size() );
 
     gzipReader.read( -1, nullptr, std::numeric_limits<size_t>::max(), StoppingPoint::ALL );
     if ( gzipReader.currentPoint() != StoppingPoint::END_OF_BLOCK_HEADER ) {
@@ -276,25 +276,16 @@ testTwoStagedDecoding( std::string_view encodedFilePath,
     const auto [bufferViews, error] = block.read( bitReader, std::numeric_limits<size_t>::max() );
     REQUIRE( error == Error::NONE );
 
-    std::vector<uint16_t> concatenated;
-    if ( bufferViews.containsMarkers() ) {
-        /* Copy out results including unresolved marker words. */
-        for ( const auto& buffer : bufferViews.dataWithMarkers ) {
-            concatenated.resize( concatenated.size() + buffer.size() );
-            std::memcpy( concatenated.data() + ( concatenated.size() - buffer.size() ),
-                         buffer.data(), buffer.size() * sizeof( buffer[0] ) );
-        }
+    deflate::DecodedData decodedData;
+    decodedData.append( bufferViews );
+    decodedData.applyWindow( { lastWindow.data(), lastWindow.size() } );
 
-        DeflateBlock::replaceMarkerBytes( { concatenated.data(), concatenated.size() },
-                                          { lastWindow.data(), lastWindow.size() } );
-    } else {
-        for ( const auto& buffer : bufferViews.data ) {
-            concatenated.resize( concatenated.size() + buffer.size() );
-            std::copy( buffer.begin(), buffer.end(), concatenated.data() + ( concatenated.size() - buffer.size() ) );
-        }
+    std::vector<uint8_t> concatenated;
+    for ( const auto& buffer : decodedData.data ) {
+        concatenated.insert( concatenated.end(), buffer.begin(), buffer.end() );
     }
 
-    /* Compare concatenated (and possibly marker bytes replaced) result. */
+    /* Compare concatenated result. */
     std::vector<uint8_t> decodedBuffer( 1024ULL * 1024ULL );
     REQUIRE( decodedBuffer.size() >= concatenated.size() );
     decodedFile.seekg( static_cast<ssize_t>( firstBlockSize ) );
@@ -313,24 +304,7 @@ testTwoStagedDecoding( std::string_view encodedFilePath,
     }
 
     /* Replace marker bytes inside the block itself. */
-    const auto decodedBuffers = block.setInitialWindow( { lastWindow.data(), lastWindow.size() } );
-    std::vector<uint8_t> result;
-    for ( const auto& buffer : decodedBuffers ) {
-        result.resize( result.size() + buffer.size() );
-        std::memcpy( result.data() + ( result.size() - buffer.size() ),
-                     buffer.data(), buffer.size() * sizeof( buffer[0] ) );
-    }
-    REQUIRE( std::equal( result.begin(), result.end(), decodedBuffer.begin() ) );
-    if ( !std::equal( result.begin(), result.end(), decodedBuffer.begin() ) ) {
-        for ( size_t i = 0; i < result.size(); ++i ) {
-            if ( result[i] != decodedBuffer[i] ) {
-                std::cerr << "Decoded contents differ at position " << i << " B: "
-                          << result[i] << " != " << decodedBuffer[i] << " ("
-                          << (int)result[i] << " != " << (int)decodedBuffer[i] << ") (result != file)\n";
-                break;
-            }
-        }
-    }
+    block.setInitialWindow( { lastWindow.data(), lastWindow.size() } );
 }
 
 
