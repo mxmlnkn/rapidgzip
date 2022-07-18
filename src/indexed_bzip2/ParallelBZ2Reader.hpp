@@ -212,7 +212,7 @@ public:
                                 nextBzip2StreamBitReader.seek( nextStreamOffsetInBits );
                                 bzip2::readBzip2Header( nextBzip2StreamBitReader );
                             }
-                            catch ( const std::domain_error& )
+                            catch ( const std::exception& )
                             {
                                 std::cerr << "[Warning] Trailing garbage after EOF ignored!\n";
                                 /**
