@@ -82,8 +82,8 @@ public:
 
 private:
     [[nodiscard]] BlockData
-    decodeBlock( size_t /* blockIndex */,
-                 size_t blockOffset ) const override
+    decodeBlock( size_t                  blockOffset,
+                 [[maybe_unused]] size_t nextBlockOffset ) const override
     {
         BitReader bitReader( m_bitReader );
         bitReader.seek( blockOffset );
@@ -136,6 +136,10 @@ private:
         result.data.resize( decodedDataSize );
         result.encodedSizeInBits = block.encodedSizeInBits;
         result.calculatedCRC = block.bwdata.dataCRC;
+
+        /* The next block offset might be a farther out in case this is the last valid block in the stream! */
+        assert( ( nextBlockOffset == std::numeric_limits<size_t>::max() )
+                || ( blockOffset + result.encodedSizeInBits <= nextBlockOffset ) );
 
         return result;
     }

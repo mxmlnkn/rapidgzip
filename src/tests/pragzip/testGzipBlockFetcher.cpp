@@ -47,7 +47,10 @@ testAutomaticMarkerResolution( const std::filesystem::path& filePath,
     const auto blockOffset = getBlockOffset( filePath, blockIndex );
     try {
         const auto result = GzipBlockFetcher<FetchingStrategy::FetchNextMulti>::decodeBlock(
-            bitReader, blockOffset, /* untilOffset */ std::nullopt, /* window */ std::nullopt,
+            bitReader,
+            blockOffset,
+            /* untilOffset */ std::numeric_limits<size_t>::max(),
+            /* window */ std::nullopt,
             /* decodedSize */ std::nullopt );
 
         std::vector<size_t> markerBlockSizesFound( result.dataWithMarkers.size() );

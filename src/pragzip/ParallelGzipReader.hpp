@@ -239,7 +239,7 @@ public:
                     break;
                 }
 
-                blockData = blockFetcher().get( *encodedOffsetInBits, m_nextUnprocessedBlockIndex );
+                blockData = blockFetcher().get( *encodedOffsetInBits );
                 m_blockMap->push( blockData->encodedOffsetInBits, blockData->encodedSizeInBits, blockData->size() );
                 ++m_nextUnprocessedBlockIndex;
 

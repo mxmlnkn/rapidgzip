@@ -128,10 +128,10 @@ private:
 protected:
     BlockFetcher( std::shared_ptr<BlockFinder> blockFinder,
                   size_t                       parallelization ) :
-        m_blockFinder    ( std::move( blockFinder ) ),
         m_parallelization( parallelization == 0
                            ? std::max<size_t>( 1U, std::thread::hardware_concurrency() )
                            : parallelization ),
+        m_blockFinder    ( std::move( blockFinder ) ),
         m_cache          ( std::max( size_t( 16 ), m_parallelization ) ),
         m_prefetchCache  ( 2 * m_parallelization /* Only m_parallelization would lead to lot of cache pollution! */ ),
         m_threadPool     ( m_parallelization )
@@ -181,6 +181,7 @@ public:
         }
 
         const auto validDataBlockIndex = dataBlockIndex ? *dataBlockIndex : m_blockFinder->find( blockOffset );
+        const auto nextBlockOffset = m_blockFinder->get( validDataBlockIndex + 1 );
 
         /* Analytics for access patterns. */
         if constexpr ( SHOW_PROFILE ) {
@@ -206,8 +207,9 @@ public:
         /* Start requested calculation if necessary. */
         if ( !result && !resultFuture.valid() ) {
             ++m_statistics.onDemandFetchCount;
-            resultFuture = m_threadPool.submitTask( [this, blockOffset, validDataBlockIndex] () {
-                return decodeAndMeasureBlock( validDataBlockIndex, blockOffset );
+            resultFuture = m_threadPool.submitTask( [this, blockOffset, nextBlockOffset] () {
+                return decodeAndMeasureBlock(
+                    blockOffset, nextBlockOffset ? *nextBlockOffset : std::numeric_limits<size_t>::max() );
             } );
             assert( resultFuture.valid() );
         }
@@ -364,11 +366,18 @@ private:
             /* If the block with the requested index has not been found yet and if we have to wait on the requested
              * result future anyway, then wait a non-zero amount of time on the BlockFinder! */
             std::optional<size_t> prefetchBlockOffset;
+            std::optional<size_t> nextPrefetchBlockOffset;
             do
             {
                 prefetchBlockOffset = m_blockFinder->get( blockIndexToPrefetch, stopPrefetching() ? 0 : 0.0001 );
+                const auto wasFinalized = m_blockFinder->finalized();
+                nextPrefetchBlockOffset = m_blockFinder->get( blockIndexToPrefetch + 1,
+                                                              stopPrefetching() ? 0 : 0.0001 );
+                if ( wasFinalized && !nextPrefetchBlockOffset ) {
+                    nextPrefetchBlockOffset = std::numeric_limits<size_t>::max();
+                }
             }
-            while ( !prefetchBlockOffset && !stopPrefetching() );
+            while ( !prefetchBlockOffset && !nextPrefetchBlockOffset && !stopPrefetching() );
 
             if constexpr ( SHOW_PROFILE ) {
                 if ( !prefetchBlockOffset.has_value() ) {
@@ -380,6 +389,7 @@ private:
 
             /* Do not prefetch already cached/prefetched blocks or block indexes which are not yet in the block map. */
             if ( !prefetchBlockOffset.has_value()
+                 || !nextPrefetchBlockOffset.has_value()
                  || ( m_prefetching.find( *prefetchBlockOffset ) != m_prefetching.end() )
                  || m_cache.test( *prefetchBlockOffset )
                  || m_prefetchCache.test( *prefetchBlockOffset ) )
@@ -397,8 +407,8 @@ private:
 
             ++m_statistics.prefetchCount;
             auto prefetchedFuture = m_threadPool.submitTask(
-                [this, offset = *prefetchBlockOffset, blockIndexToPrefetch] () {
-                    return decodeAndMeasureBlock( blockIndexToPrefetch, offset );
+                [this, offset = *prefetchBlockOffset, nextOffset = *nextPrefetchBlockOffset] () {
+                    return decodeAndMeasureBlock( offset, nextOffset );
                 } );
             const auto [_, wasInserted] = m_prefetching.emplace( *prefetchBlockOffset, std::move( prefetchedFuture ) );
             if ( !wasInserted ) {
@@ -417,8 +427,8 @@ private:
 
 protected:
     [[nodiscard]] virtual BlockData
-    decodeBlock( size_t blockIndex,
-                 size_t blockOffset ) const = 0;
+    decodeBlock( size_t blockOffset,
+                 size_t nextBlockOffset ) const = 0;
 
     /**
      * This must be called before variables that are used by @ref decodeBlock are destructed, i.e.,
@@ -432,11 +442,11 @@ protected:
 
 private:
     [[nodiscard]] BlockData
-    decodeAndMeasureBlock( size_t blockIndex,
-                           size_t blockOffset ) const
+    decodeAndMeasureBlock( size_t blockOffset,
+                           size_t nextBlockOffset ) const
     {
         [[maybe_unused]] const auto tDecodeStart = now();
-        auto blockData = decodeBlock( blockIndex, blockOffset );
+        auto blockData = decodeBlock( blockOffset, nextBlockOffset );
         if constexpr ( SHOW_PROFILE ) {
             std::scoped_lock lock( this->m_analyticsMutex );
             this->m_statistics.decodeBlockTotalTime += duration( tDecodeStart );
@@ -452,13 +462,22 @@ protected:
     mutable double m_readBlockDataTotalTime{ 0 };
     mutable std::mutex m_analyticsMutex;
 
-    const std::shared_ptr<BlockFinder> m_blockFinder;
-
 private:
     std::atomic<bool> m_cancelThreads{ false };
     std::condition_variable m_cancelThreadsCondition;
 
     const size_t m_parallelization;
+
+    /**
+     * The block finder is used to prefetch blocks among others.
+     * But, in general, it only returns unconfirmed guesses for block offsets (at first)!
+     * Confirmed block offsets are written to the BlockMap but adding that in here seems a bit overkill
+     * and would need further logic to get the next blocks given a specific one.
+     * Therefore, the idea is to update and confirm the blocks inside the block finder, which would invalidate
+     * the block indexes! In order for that, to not lead to problems, the block finder should only be used by
+     * the managing thread not by the worker threads!
+     */
+    const std::shared_ptr<BlockFinder> m_blockFinder;
 
     BlockCache m_cache;
     BlockCache m_prefetchCache;

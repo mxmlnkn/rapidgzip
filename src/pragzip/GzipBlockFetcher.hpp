@@ -90,13 +90,13 @@ public:
 
 private:
     [[nodiscard]] BlockData
-    decodeBlock( size_t blockIndex,
-                 size_t blockOffset ) const override
+    decodeBlock( size_t blockOffset,
+                 size_t nextBlockOffset ) const override
     {
         /* The decoded size of the block is only for optimization purposes. Therefore, we do not have to take care
          * about the correct ordering between BlockMap accesses and mofications (the BlockMap is still thread-safe). */
         const auto blockInfo = m_blockMap->getEncodedOffset( blockOffset );
-        return decodeBlock( m_bitReader, blockOffset, this->m_blockFinder->get( blockIndex + 1 ),
+        return decodeBlock( m_bitReader, blockOffset, nextBlockOffset,
                             m_isBgzfFile ? std::make_optional( WindowView{} ) : m_windowMap->get( blockOffset ),
                             blockInfo ? blockInfo->decodedSizeInBytes : std::optional<size_t>{} );
     }
@@ -112,14 +112,14 @@ public:
     [[nodiscard]] static BlockData
     decodeBlock( const BitReader&          originalBitReader,
                  size_t                    blockOffset,
-                 std::optional<size_t>     untilOffset,
+                 size_t                    untilOffset,
                  std::optional<WindowView> initialWindow,
                  std::optional<size_t>     decodedSize )
     {
         if ( initialWindow && decodedSize && ( *decodedSize > 0 ) ) {
             return decodeBlockWithZlib( originalBitReader,
                                         blockOffset,
-                                        untilOffset ? *untilOffset : originalBitReader.size(),
+                                        std::min( untilOffset, originalBitReader.size() ),
                                         *initialWindow,
                                         *decodedSize );
         }
@@ -147,7 +147,7 @@ public:
          * might want to return buffer with placeholders in case we don't know the initial window, yet! */
         while ( true )
         {
-            if ( untilOffset && ( bitReader.tell() >= untilOffset ) ) {
+            if ( bitReader.tell() >= untilOffset ) {
                 break;
             }
 
@@ -162,7 +162,7 @@ public:
                 block.emplace();
                 block->setInitialWindow();
 
-                if ( untilOffset && ( bitReader.tell() >= untilOffset ) ) {
+                if ( bitReader.tell() >= untilOffset ) {
                     break;
                 }
             }
