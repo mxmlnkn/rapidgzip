@@ -222,52 +222,12 @@ public:
 
         size_t nBytesDecoded = 0;
         while ( ( nBytesDecoded < nBytesToRead ) && !eof() ) {
-            std::shared_ptr<BlockFetcher::BlockData> blockData;
-
-            auto blockInfo = m_blockMap->findDataOffset( m_currentPosition );
-            if ( !blockInfo.contains( m_currentPosition ) ) {
-                if ( m_blockMap->finalized() ) {
-                    m_atEndOfFile = true;
-                    break;
-                }
-
-                /* If the code is not in the block map, then we read the next block from the blockfinder. */
-                const auto encodedOffsetInBits = blockFinder().get( m_nextUnprocessedBlockIndex );
-                if ( !encodedOffsetInBits ) {
-                    m_blockMap->finalize();
-                    m_atEndOfFile = true;
-                    break;
-                }
-
-                blockData = blockFetcher().get( *encodedOffsetInBits );
-                m_blockMap->push( blockData->encodedOffsetInBits, blockData->encodedSizeInBits, blockData->size() );
-                ++m_nextUnprocessedBlockIndex;
-
-                /* Because this is a new block, it might contain markers that we have to replace with the window
-                 * of the last block. The very first block should not contain any markers, ensuring that we
-                 * can successively propagate the window through all blocks. */
-                auto lastWindow = m_windowMap->get( blockData->encodedOffsetInBits );
-                if ( !lastWindow ) {
-                    throw std::logic_error( "The window of the last block at "
-                                            + formatBits( blockData->encodedOffsetInBits )
-                                            + " should exist at this point!" );
-                }
-
-                /* Populate block map inside block fetcher with new block information. */
-                blockData->applyWindow( *lastWindow );
-                const auto nextWindow = blockData->getLastWindow( *lastWindow );
-                m_windowMap->emplace( blockData->encodedOffsetInBits + blockData->encodedSizeInBits,
-                                      { nextWindow.begin(), nextWindow.end() } );
-
-                /* We could also directly continue but then the block would be refetched,
-                 * and fetching is quite complex. */
-                blockInfo = m_blockMap->findDataOffset( m_currentPosition );
-                if ( !blockInfo.contains( m_currentPosition ) ) {
-                    continue;
-                }
-            } else {
-                blockData = blockFetcher().get( blockInfo.encodedOffsetInBits );
+            const auto blockResult = blockFetcher().get( m_currentPosition );
+            if ( !blockResult ) {
+                m_atEndOfFile = true;
+                break;
             }
+            const auto& [blockInfo, blockData] = *blockResult;
 
             if ( !blockData->dataWithMarkers.empty() ) {
                 throw std::logic_error( "Did not expect to get results with markers!" );
@@ -638,7 +598,6 @@ private:
         /* The last block is not pushed because "std::next( it )" is end but last block must be EOS anyways
          * or else BlockMap will not work correctly because the implied size of that last block is 0! */
 
-        m_nextUnprocessedBlockIndex = encodedBlockOffsets.size();
         blockFinder().setBlockOffsets( std::move( encodedBlockOffsets ) );
     }
 
@@ -688,8 +647,4 @@ private:
      */
     std::shared_ptr<WindowMap> const m_windowMap{ std::make_shared<WindowMap>() };
     std::unique_ptr<BlockFetcher>    m_blockFetcher;
-
-    /* This is the highest found block inside BlockFinder we ever processed and put into the BlockMap.
-     * After the BlockMap has been finalized, this isn't needed anymore. */
-    size_t m_nextUnprocessedBlockIndex{ 0 };
 };

@@ -155,8 +155,9 @@ public:
 
     /**
      * Fetches, prefetches, caches, and returns result.
+     * @return BlockData to requested blockOffset. Undefined what happens for an invalid blockOffset as input.
      */
-    [[nodiscard]] virtual std::shared_ptr<BlockData>
+    [[nodiscard]] std::shared_ptr<BlockData>
     get( size_t                blockOffset,
          std::optional<size_t> dataBlockIndex = {} )
     {

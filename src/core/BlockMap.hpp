@@ -160,6 +160,10 @@ public:
     {
         std::scoped_lock lock( m_mutex );
 
+        if ( m_finalized ) {
+            return;
+        }
+
         /* Add last empty block if it does not already exist in order to imply the size of the last real block. */
         if ( m_blockToDataOffsets.empty() ) {
             assert( m_lastBlockEncodedSize == 0 );

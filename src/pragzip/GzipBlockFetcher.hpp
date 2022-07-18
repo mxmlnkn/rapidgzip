@@ -43,17 +43,19 @@ public:
     using BaseType = BlockFetcher<::BlockFinder<blockfinder::Interface>, BlockData, FetchingStrategy>;
     using BitReader = pragzip::BitReader;
     using WindowView = VectorView<uint8_t>;
+    using BlockFinder = typename BaseType::BlockFinder;
 
 public:
-    GzipBlockFetcher( BitReader                                       bitReader,
-                      std::shared_ptr<typename BaseType::BlockFinder> blockFinder,
-                      std::shared_ptr<BlockMap>                       blockMap,
-                      std::shared_ptr<WindowMap>                      windowMap,
-                      bool                                            isBgzfFile,
-                      size_t                                          parallelization ) :
-        BaseType( std::move( blockFinder ), parallelization ),
+    GzipBlockFetcher( BitReader                    bitReader,
+                      std::shared_ptr<BlockFinder> blockFinder,
+                      std::shared_ptr<BlockMap>    blockMap,
+                      std::shared_ptr<WindowMap>   windowMap,
+                      bool                         isBgzfFile,
+                      size_t                       parallelization ) :
+        BaseType( blockFinder, parallelization ),
         m_bitReader( bitReader ),
         m_isBgzfFile( isBgzfFile ),
+        m_blockFinder( std::move( blockFinder ) ),
         m_blockMap( std::move( blockMap ) ),
         m_windowMap( std::move( windowMap ) )
     {
@@ -81,11 +83,54 @@ public:
         this->stopThreadPool();
     }
 
-    [[nodiscard]] virtual std::shared_ptr<BlockData>
-    get( size_t                blockOffset,
-         std::optional<size_t> dataBlockIndex = {} ) override
+    /**
+     * @param offset The current offset in the decoded data. (Does not have to be a block offset!)
+     */
+    [[nodiscard]] std::optional<std::pair<BlockMap::BlockInfo, std::shared_ptr<BlockData> > >
+    get( size_t offset )
     {
-        return BaseType::get( blockOffset, dataBlockIndex );
+        /* In case we already have decoded the block once, we can simply query it from the block map and the fetcher. */
+        auto blockInfo = m_blockMap->findDataOffset( offset );
+        if ( blockInfo.contains( offset ) ) {
+            return std::make_pair( blockInfo, BaseType::get( blockInfo.encodedOffsetInBits ) );
+        }
+
+        if ( m_blockMap->finalized() ) {
+            return std::nullopt;
+        }
+
+        /* If the requested offset lies outside the last known block, then we need to keep fetching the next blocks
+         * and filling the block- and window map until the end of the file is reached or we found the correct block. */
+        std::shared_ptr<BlockData> blockData;
+        for ( ; !blockInfo.contains( offset ); blockInfo = m_blockMap->findDataOffset( offset ) ) {
+            const auto nextBlockOffset = m_blockFinder->get( m_nextUnprocessedBlockIndex );
+            if ( !nextBlockOffset ) {
+                m_blockMap->finalize();
+                m_blockFinder->finalize( m_nextUnprocessedBlockIndex );
+                return std::nullopt;
+            }
+
+            blockData = BaseType::get( *nextBlockOffset );
+            m_blockMap->push( blockData->encodedOffsetInBits, blockData->encodedSizeInBits, blockData->size() );
+            ++m_nextUnprocessedBlockIndex;
+
+            /* Because this is a new block, it might contain markers that we have to replace with the window
+             * of the last block. The very first block should not contain any markers, ensuring that we
+             * can successively propagate the window through all blocks. */
+            auto lastWindow = m_windowMap->get( blockData->encodedOffsetInBits );
+            if ( !lastWindow ) {
+                throw std::logic_error( "The window of the last block at "
+                                        + formatBits( blockData->encodedOffsetInBits )
+                                        + " should exist at this point!" );
+            }
+
+            blockData->applyWindow( *lastWindow );
+            const auto nextWindow = blockData->getLastWindow( *lastWindow );
+            m_windowMap->emplace( blockData->encodedOffsetInBits + blockData->encodedSizeInBits,
+                                  { nextWindow.begin(), nextWindow.end() } );
+        }
+
+        return std::make_pair( blockInfo, blockData );
     }
 
 private:
@@ -397,7 +442,12 @@ private:
     /* Variables required by decodeBlock and which therefore should be either const or locked. */
     const BitReader m_bitReader;
     const bool m_isBgzfFile;
+    std::shared_ptr<BlockFinder> const m_blockFinder;
     std::shared_ptr<BlockMap> const m_blockMap;
     std::shared_ptr<WindowMap> const m_windowMap;
+
+    /* This is the highest found block inside BlockFinder we ever processed and put into the BlockMap.
+     * After the BlockMap has been finalized, this isn't needed anymore. */
+    size_t m_nextUnprocessedBlockIndex{ 0 };
 };
 }  // namespace pragzip
