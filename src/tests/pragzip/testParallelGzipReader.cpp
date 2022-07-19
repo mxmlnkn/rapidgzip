@@ -63,11 +63,12 @@ duplicateNanoStream( size_t multiples )
 void
 testParallelDecoder( std::unique_ptr<FileReader> encoded,
                      std::unique_ptr<FileReader> decoded,
-                     std::optional<GzipIndex>    index = {} )
+                     std::optional<GzipIndex>    index = {},
+                     size_t                      nBlocksToSkip = 31 )
 {
     /* Test a simple full read. */
 
-    ParallelGzipReader reader( std::move( encoded ) );
+    ParallelGzipReader reader( std::move( encoded ), /* 32 KiB chunks to skip. */ nBlocksToSkip );
     if ( index ) {
         reader.setBlockOffsets( *index );
         REQUIRE( reader.blockOffsetsComplete() );
@@ -103,9 +104,8 @@ testParallelDecoder( const std::filesystem::path& encoded,
                      const std::filesystem::path& decoded = {},
                      const std::filesystem::path& index = {} )
 {
-    auto encodedFile = std::make_unique<StandardFileReader>( encoded.string() );
     std::cerr << "Testing " << encoded.filename() << ( index.empty() ? "" : " with indexed_gzip index" )
-              << " (" << encodedFile->size() << " B)\n";
+              << " (" << std::filesystem::file_size( encoded ) << " B)\n";
 
     auto decodedFilePath = decoded;
     if ( decodedFilePath.empty() ) {
@@ -116,9 +116,13 @@ testParallelDecoder( const std::filesystem::path& encoded,
     auto indexData = index.empty()
                      ? std::nullopt
                      : std::make_optional( readGzipIndex( std::make_unique<StandardFileReader>( index.string() ) ) );
-    testParallelDecoder( std::move( encodedFile ),
-                         std::make_unique<StandardFileReader>( decodedFilePath.string() ),
-                         std::move( indexData ) );
+    for ( const size_t nBlocksToSkip : { 0, 1, 2, 4, 8, 16, 24, 32, 64, 128 } ) {
+        std::cerr << "  Testing with " << nBlocksToSkip << " blocks to skip\n";
+        testParallelDecoder( std::make_unique<StandardFileReader>( encoded.string() ),
+                             std::make_unique<StandardFileReader>( decodedFilePath.string() ),
+                             indexData,
+                             nBlocksToSkip );
+    }
 }
 
 
@@ -178,9 +182,11 @@ testParallelDecodingWithIndex()
 
     std::cerr << "Test parallel decoder with larger gz file given an indexed_gzip index.\n";
     const auto realIndex = readGzipIndex( std::make_unique<StandardFileReader>( indexFile.string() ) );
-    testParallelDecoder( std::make_unique<StandardFileReader>( encodedFile ),
-                         std::make_unique<StandardFileReader>( decodedFile ),
-                         realIndex );
+    for ( const size_t nBlocksToSkip : { 0, 1, 2, 4, 8, 16, 24, 32, 64, 128 } ) {
+        testParallelDecoder( std::make_unique<StandardFileReader>( encodedFile ),
+                             std::make_unique<StandardFileReader>( decodedFile ),
+                             realIndex, nBlocksToSkip );
+    }
 
     std::cerr << "Test exporting and reimporting index.\n";
     ParallelGzipReader reader( std::make_unique<StandardFileReader>( encodedFile ) );
@@ -234,6 +240,98 @@ testParallelDecodingWithIndex()
 }
 
 
+const std::vector<std::tuple<std::string, std::string, std::string, std::string > > TEST_ENCODERS = {
+    { "gzip", "gzip --version", "gzip -k --force", "gzip" },
+    { "pigz", "pigz --version", "pigz -k --force", "pigz" },
+    { "igzip", "igzip --version", "igzip -k --force", "igzip" },
+    { "bgzip", "bgzip --version", "bgzip --force", "bgzip" },
+    { "Python3 gzip", "python3 --version", "python3 -m gzip", "python3-gzip" },
+    { "Python3 pgzip", "python3 -m pip show pgzip", "python3 -m pgzip", "python3-pgzip" },
+};
+
+
+[[nodiscard]] std::string
+encodeTestFile( const std::string&           filePath,
+                const std::filesystem::path& folder,
+                const std::string&           command )
+{
+    /* Python3 module pgzip does not create the .gz file beside the input file but in the current directory,
+     * so change current directory to the input file first. */
+    const auto oldCWD = std::filesystem::current_path();
+    std::filesystem::current_path( folder );
+
+    /* Create backup of the uncompressed file because "bgzip" does not have a --keep option!
+     * https://github.com/samtools/htslib/pull/1331 */
+    const auto backupPath = std::filesystem::path( filePath ).filename().string() + ".bak";
+    std::cerr << "Backup " << filePath << " -> " << backupPath << "\n";
+    std::filesystem::copy( filePath, backupPath, std::filesystem::copy_options::overwrite_existing );
+
+    const auto fullCommand = command + " " + filePath;
+    const auto returnCode = std::system( fullCommand.c_str() );
+
+    if ( !std::filesystem::exists( filePath ) ) {
+        std::cerr << "Restore backup\n";
+        std::filesystem::rename( backupPath, filePath );
+    }
+
+    std::filesystem::current_path( oldCWD );
+
+    if ( returnCode != 0 ) {
+        throw std::runtime_error( "Failed to encode the temporary file with: " + fullCommand );
+    }
+
+    if ( !std::filesystem::exists( filePath + ".gz" ) ) {
+        throw std::runtime_error( "Encoded file was not found!" );
+    }
+
+    return filePath + ".gz";
+}
+
+
+void
+createRandomBase64( const std::string& filePath,
+                    const size_t       fileSize )
+{
+    constexpr std::string_view BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01234567890+/";
+    std::ofstream file{ filePath };
+    for ( size_t i = 0; i < fileSize; ++i ) {
+        file << ( ( i + 1 == fileSize ) || ( ( i + 1 ) % 77 == 0 )
+                  ? '\n' : BASE64[static_cast<size_t>( rand() ) % BASE64.size()] );
+    }
+}
+
+
+void
+testWithLargeFiles()
+{
+    const auto tmpFolder = createTemporaryDirectory();
+    const std::string fileName = std::filesystem::absolute( tmpFolder.path() / "random-base64" );
+    createRandomBase64( fileName, 8UL * 1024UL * 1024UL );
+
+    try {
+        for ( const auto& [name, getVersion, command, extension] : TEST_ENCODERS ) {
+            const auto encodedFilePath = encodeTestFile( fileName, tmpFolder, command );
+            const auto newFileName = fileName + "." + extension;
+            std::filesystem::rename( encodedFilePath, newFileName );
+
+            std::cout << "=== Testing with encoder: " << name << " ===\n\n";
+
+            std::cout << "> " << getVersion << "\n";
+            [[maybe_unused]] const auto versionReturnCode = std::system( ( getVersion + " > out" ).c_str() );
+            std::cout << std::ifstream( "out" ).rdbuf();
+            std::cout << "\n";
+
+            testParallelDecoder( newFileName );
+        }
+    } catch ( const std::exception& exception ) {
+        /* Note that the destructor for TemporaryDirectory might not be called for uncaught exceptions!
+         * @see https://stackoverflow.com/questions/222175/why-destructor-is-not-called-on-exception */
+        std::cerr << "Caught exception: " << exception.what() << "\n";
+        REQUIRE( false );
+    }
+}
+
+
 int
 main( int    argc,
       char** argv )
@@ -282,6 +380,8 @@ main( int    argc,
         std::cerr << "Caught exception: " << exception.what() << "\n";
         REQUIRE( false );
     }
+
+    testWithLargeFiles();
 
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
 

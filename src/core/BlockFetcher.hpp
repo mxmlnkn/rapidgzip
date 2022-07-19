@@ -96,6 +96,28 @@ public:
             return out.str();
         }
 
+        void
+        recordBlockIndexGet( size_t blockindex )
+        {
+            ++gets;
+
+            if ( !lastAccessedBlock ) {
+                lastAccessedBlock = blockindex;  // effectively counts the first access as sequential
+            }
+
+            if ( blockindex > *lastAccessedBlock + 1 ) {
+                forwardBlockAccesses++;
+            } else if ( blockindex < *lastAccessedBlock ) {
+                backwardBlockAccesses++;
+            } else if ( blockindex == *lastAccessedBlock ) {
+                repeatedBlockAccesses++;
+            } else {
+                sequentialBlockAccesses++;
+            }
+
+            lastAccessedBlock = blockindex;
+        }
+
     public:
         size_t parallelization{ 0 };
         size_t blockCount{ 0 };
@@ -159,7 +181,8 @@ public:
      */
     [[nodiscard]] std::shared_ptr<BlockData>
     get( size_t                blockOffset,
-         std::optional<size_t> dataBlockIndex = {} )
+         std::optional<size_t> dataBlockIndex = {},
+         bool                  onlyCheckCaches = false )
     {
         [[maybe_unused]] const auto tGetStart = now();
 
@@ -184,29 +207,16 @@ public:
         const auto validDataBlockIndex = dataBlockIndex ? *dataBlockIndex : m_blockFinder->find( blockOffset );
         const auto nextBlockOffset = m_blockFinder->get( validDataBlockIndex + 1 );
 
-        /* Analytics for access patterns. */
         if constexpr ( SHOW_PROFILE ) {
-            ++m_statistics.gets;
-
-            if ( !m_statistics.lastAccessedBlock ) {
-                m_statistics.lastAccessedBlock = validDataBlockIndex;  // effectively counts the first access as sequential
-            }
-
-            if ( validDataBlockIndex > *m_statistics.lastAccessedBlock + 1 ) {
-                m_statistics.forwardBlockAccesses++;
-            } else if ( validDataBlockIndex < *m_statistics.lastAccessedBlock ) {
-                m_statistics.backwardBlockAccesses++;
-            } else if ( validDataBlockIndex == *m_statistics.lastAccessedBlock ) {
-                m_statistics.repeatedBlockAccesses++;
-            } else {
-                m_statistics.sequentialBlockAccesses++;
-            }
-
-            m_statistics.lastAccessedBlock = validDataBlockIndex;
+            m_statistics.recordBlockIndexGet( validDataBlockIndex );
         }
 
         /* Start requested calculation if necessary. */
         if ( !result && !resultFuture.valid() ) {
+            if ( onlyCheckCaches ) {
+                return {};
+            }
+
             ++m_statistics.onDemandFetchCount;
             resultFuture = m_threadPool.submitTask( [this, blockOffset, nextBlockOffset] () {
                 return decodeAndMeasureBlock(
@@ -484,6 +494,6 @@ private:
     BlockCache m_prefetchCache;
     FetchingStrategy m_fetchingStrategy;
 
-    std::map<size_t, std::future<BlockData> > m_prefetching;
+    std::map</* block offset */ size_t, std::future<BlockData> > m_prefetching;
     ThreadPool m_threadPool;
 };

@@ -13,21 +13,18 @@
 #include <thread>
 #include <utility>
 
-#include <blockfinder/Bgzf.hpp>
-#include <blockfinder/Combined.hpp>
-#include <blockfinder/Skipping.hpp>
-#include <BlockFinder.hpp>
 #include <BlockMap.hpp>
 #include <common.hpp>
 #include <filereader/FileReader.hpp>
-#include <IndexFileFormat.hpp>
-
-#include "GzipBlockFetcher.hpp"
-#include "gzip.hpp"
 
 #ifdef WITH_PYTHON_SUPPORT
     #include <filereader/Python.hpp>
 #endif
+
+#include "GzipBlockFetcher.hpp"
+#include "GzipBlockFinder.hpp"
+#include "gzip.hpp"
+#include "IndexFileFormat.hpp"
 
 
 /**
@@ -53,22 +50,17 @@ public:
     explicit
     ParallelGzipReader( std::unique_ptr<FileReader> fileReader,
                         size_t                      parallelization = 0 ) :
-        m_isBgzfFile( pragzip::blockfinder::Bgzf::isBgzfFile( fileReader ) ),
         m_bitReader( std::move( fileReader ) ),
         m_fetcherParallelization(
             parallelization == 0
             ? std::max<size_t>( 1U, std::thread::hardware_concurrency() )
             : parallelization ),
-        m_startBlockFinder( [&] ()
-            {
-                return std::make_unique<BlockFinder>(
-                    std::make_unique<pragzip::blockfinder::Skipping>(
-                        std::make_unique<pragzip::blockfinder::Combined>(
-                            m_bitReader.cloneSharedFileReader()
-                        ),
-                        /* nBlocksToSkip */ 16
-                    ) );
-            } )
+        m_startBlockFinder(
+            [&] () {
+                return std::make_unique<BlockFinder>( m_bitReader.cloneSharedFileReader(),
+                                                     /* spacing */ 1024 * 1024 );
+            }
+        )
     {
         if ( !m_bitReader.seekable() ) {
             throw std::invalid_argument( "Parallel BZ2 Reader will not work on non-seekable input like stdin (yet)!" );
@@ -80,22 +72,17 @@ public:
     ParallelGzipReader( std::unique_ptr<FileReader> fileReader,
                         size_t                      parallelization,
                         size_t                      nBlocksToSkip ) :
-        m_isBgzfFile( pragzip::blockfinder::Bgzf::isBgzfFile( fileReader ) ),
         m_bitReader( std::move( fileReader ) ),
         m_fetcherParallelization(
             parallelization == 0
             ? std::max<size_t>( 1U, std::thread::hardware_concurrency() )
             : parallelization ),
-        m_startBlockFinder( [this, nBlocksToSkip] ()
-            {
-                return std::make_unique<BlockFinder>(
-                    std::make_unique<pragzip::blockfinder::Skipping>(
-                        std::make_unique<pragzip::blockfinder::Combined>(
-                            m_bitReader.cloneSharedFileReader()
-                        ),
-                        nBlocksToSkip
-                    ) );
-            } )
+        m_startBlockFinder(
+            [this, nBlocksToSkip] () {
+                return std::make_unique<BlockFinder>( m_bitReader.cloneSharedFileReader(),
+                                                      ( nBlocksToSkip + 1 ) * 32 * 1024 );
+            }
+        )
     {
         if ( !m_bitReader.seekable() ) {
             throw std::invalid_argument( "Parallel BZ2 Reader will not work on non-seekable input like stdin (yet)!" );
@@ -566,12 +553,10 @@ private:
         }
 
         /* As a side effect, blockFinder() creates m_blockFinder if not already initialized! */
-        if ( !blockFinder().finalized() ) {
-            blockFinder().startThreads();
-        }
+        blockFinder();
 
         m_blockFetcher = std::make_unique<BlockFetcher>( m_bitReader, m_blockFinder, m_blockMap, m_windowMap,
-                                                         m_isBgzfFile, m_fetcherParallelization );
+                                                         m_fetcherParallelization );
 
         if ( !m_blockFetcher ) {
             throw std::logic_error( "Block fetcher should have been initialized!" );
@@ -622,7 +607,6 @@ private:
     }
 
 private:
-    const bool m_isBgzfFile;
     BitReader m_bitReader;
 
     size_t m_currentPosition = 0; /**< the current position as can only be modified with read or seek calls. */

@@ -32,5 +32,13 @@ constexpr uint8_t MAX_DISTANCE_SYMBOL_COUNT = 30;
  * are equally likely to appear, i.e., all codes would be encoded with the same number of bits (9). */
 constexpr size_t MAX_LITERAL_HUFFMAN_CODE_COUNT = 512;
 constexpr size_t MAX_RUN_LENGTH = 258;
+
+enum class CompressionType : uint8_t
+{
+    UNCOMPRESSED    = 0b00,
+    FIXED_HUFFMAN   = 0b01,
+    DYNAMIC_HUFFMAN = 0b10,
+    RESERVED        = 0b11,
+};
 }  // namespace deflate
 }  // namespace pragzip

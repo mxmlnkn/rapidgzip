@@ -155,13 +155,7 @@ template<bool CALCULATE_CRC32 = false>
 class Block
 {
 public:
-    enum class CompressionType : uint8_t
-    {
-        UNCOMPRESSED    = 0b00,
-        FIXED_HUFFMAN   = 0b01,
-        DYNAMIC_HUFFMAN = 0b10,
-        RESERVED        = 0b11,
-    };
+    using CompressionType = deflate::CompressionType;
 
     [[nodiscard]] static std::string
     toString( CompressionType compressionType ) noexcept
