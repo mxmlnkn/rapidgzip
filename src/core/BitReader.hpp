@@ -82,7 +82,9 @@ public:
 public:
     explicit
     BitReader( std::unique_ptr<FileReader> fileReader ) :
-        m_file( std::make_unique<SharedFileReader>( std::move( fileReader ) ) )
+        m_file( dynamic_cast<SharedFileReader*>( fileReader.get() ) == nullptr
+                ? std::unique_ptr<FileReader>( std::make_unique<SharedFileReader>( std::move( fileReader ) ) )
+                : std::move( fileReader ) )
     {}
 
     BitReader( BitReader&& other ) = default;
@@ -755,7 +757,7 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
         if ( m_file->eof() || m_file->fail() ) {
             std::stringstream msg;
             msg << "[BitReader] Could not seek to specified byte " << bytesToSeek
-            << " subbit " << subBitsToSeek
+            << " subbit " << static_cast<int>( subBitsToSeek )
             << ", size: " << m_file->size()
             << ", feof: " << m_file->eof()
             << ", ferror: " << m_file->fail()
