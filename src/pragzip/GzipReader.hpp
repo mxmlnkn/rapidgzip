@@ -483,9 +483,9 @@ GzipReader<CALCULATE_CRC32>::readGzipFooter()
 {
     const auto footer = pragzip::gzip::readFooter( m_bitReader );
 
-    if ( m_streamBytesCount != footer.uncompressedSize ) {
+    if ( static_cast<uint32_t>( m_streamBytesCount ) != footer.uncompressedSize ) {
         std::stringstream message;
-        message << "Mismatching size (" << m_streamBytesCount << " <-> footer: "
+        message << "Mismatching size (" << static_cast<uint32_t>( m_streamBytesCount ) << " <-> footer: "
                 << footer.uncompressedSize << ") for gzip stream!";
         throw std::domain_error( message.str() );
     }

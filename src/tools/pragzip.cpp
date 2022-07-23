@@ -151,7 +151,7 @@ analyze( std::unique_ptr<FileReader> inputFile )
 
             /* No output necessary for analysis. */
 
-            uncompressedBlockSize = nBytesRead;
+            uncompressedBlockSize += nBytesRead;
         }
 
         /* Analysis Information */
@@ -181,9 +181,10 @@ analyze( std::unique_ptr<FileReader> inputFile )
         if ( block.isLastBlock() ) {
             const auto footer = gzip::readFooter( bitReader );
 
-            if ( streamBytesRead != footer.uncompressedSize ) {
+            if ( static_cast<uint32_t>( streamBytesRead ) != footer.uncompressedSize ) {
                 std::stringstream message;
-                message << "Mismatching size (" << streamBytesRead << " <-> footer: " << footer.uncompressedSize << ") for gzip stream!";
+                message << "Mismatching size (" << static_cast<uint32_t>( streamBytesRead )
+                        << " <-> footer: " << footer.uncompressedSize << ") for gzip stream!";
                 throw std::runtime_error( message.str() );
             }
 
