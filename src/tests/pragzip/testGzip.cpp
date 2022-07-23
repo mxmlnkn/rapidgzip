@@ -225,7 +225,10 @@ testTwoStagedDecoding( std::string_view encodedFilePath,
     /* Save all information required for seeking directly to second block. */
     const auto secondBlockOffset = gzipReader.tellCompressed();
     std::array<std::uint8_t, deflate::MAX_WINDOW_SIZE> lastWindow{};
-    std::memcpy( lastWindow.data(), decompressed.data() + decompressed.size() - lastWindow.size(), lastWindow.size() );
+    const auto sizeToCopy = std::min( lastWindow.size(), decompressed.size() );
+    std::memcpy( lastWindow.data() + lastWindow.size() - sizeToCopy,
+                 decompressed.data() + decompressed.size() - sizeToCopy,
+                 sizeToCopy );
 
     gzipReader.read( -1, nullptr, std::numeric_limits<size_t>::max(), StoppingPoint::ALL );
     if ( gzipReader.currentPoint() != StoppingPoint::END_OF_BLOCK_HEADER ) {

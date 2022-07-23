@@ -41,14 +41,15 @@ namespace deflate
 using LiteralOrLengthHuffmanCoding =
     HuffmanCodingDoubleLiteralCached<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_LITERAL_HUFFMAN_CODE_COUNT>;
 
-/* Use the same parameters, even when we know the symbol count for the FixedHuffmanCoding, in order to use these
- * templated types interchangibly without polymorphism.
+/**
+ * Because the fixed Huffman coding is used by different threads it HAS TO BE immutable. It is constant anyway
+ * but it also MUST NOT have mutable members. This means that HuffmanCodingDoubleLiteralCached does NOT work
+ * because it internally safes the second symbol.
  * @todo Make it such that the implementations can handle the case that the construction might result in
  *       larger symbol values than are allowed to appear in the first place! I.e., cut-off construction there.
  *       Note that changing this from 286 to 512, lead to an increase of the runtime! We need to reduce it again! */
-using FixedHuffmanCoding = LiteralOrLengthHuffmanCoding;
-//using FixedHuffmanCoding =
-//    HuffmanCodingReversedBitsCached<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_LITERAL_OR_LENGTH_SYMBOLS + 2>;
+using FixedHuffmanCoding =
+    HuffmanCodingReversedBitsCached<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_LITERAL_OR_LENGTH_SYMBOLS + 2>;
 
 
 [[nodiscard]] constexpr FixedHuffmanCoding
@@ -293,10 +294,23 @@ public:
 
 private:
     template<typename Window>
+    void
+    appendToWindow( Window&                     window,
+                    typename Window::value_type decodedSymbol );
+
+    template<typename Window>
     [[nodiscard]] std::pair<size_t, Error>
     readInternal( BitReader& bitReader,
                   size_t     nMaxToDecode,
                   Window&    window );
+
+    template<typename Window,
+             typename HuffmanCoding>
+    [[nodiscard]] std::pair<size_t, Error>
+    readInternalCompressed( BitReader&           bitReader,
+                            size_t               nMaxToDecode,
+                            Window&              window,
+                            const HuffmanCoding& coding );
 
     [[nodiscard]] static uint16_t
     getLength( uint16_t   code,
@@ -720,35 +734,37 @@ Block<CALCULATE_CRC32>::read( BitReader& bitReader,
 
 template<bool CALCULATE_CRC32>
 template<typename Window>
+void
+Block<CALCULATE_CRC32>::appendToWindow( Window&                     window,
+                                        typename Window::value_type decodedSymbol )
+{
+    constexpr bool containsMarkerBytes = std::is_same_v<std::decay_t<typename Window::value_type>, uint16_t>;
+
+    if constexpr ( CALCULATE_CRC32 && !containsMarkerBytes ) {
+        m_crc32 = updateCRC32( m_crc32, decodedSymbol );
+    }
+
+    if constexpr ( containsMarkerBytes ) {
+        if ( decodedSymbol > std::numeric_limits<uint8_t>::max() ) {
+            m_distanceToLastMarkerByte = 0;
+        } else {
+            ++m_distanceToLastMarkerByte;
+        }
+    }
+
+    window[m_windowPosition] = decodedSymbol;
+    m_windowPosition++;
+    m_windowPosition %= window.size();
+}
+
+
+template<bool CALCULATE_CRC32>
+template<typename Window>
 std::pair<size_t, Error>
 Block<CALCULATE_CRC32>::readInternal( BitReader& bitReader,
                                       size_t     nMaxToDecode,
                                       Window&    window )
 {
-    const auto appendToWindow =
-        [this, &window] ( auto decodedSymbol )
-        {
-            constexpr bool containsMarkerBytes = std::is_same_v<std::decay_t<decltype( *window.data() ) >, uint16_t>;
-
-            if constexpr ( CALCULATE_CRC32 && !containsMarkerBytes ) {
-                m_crc32 = updateCRC32( m_crc32, decodedSymbol );
-            }
-
-            if constexpr ( containsMarkerBytes ) {
-                if ( decodedSymbol > std::numeric_limits<uint8_t>::max() ) {
-                    m_distanceToLastMarkerByte = 0;
-                } else {
-                    ++m_distanceToLastMarkerByte;
-                }
-            }
-
-            window[m_windowPosition] = decodedSymbol;
-            m_windowPosition++;
-            m_windowPosition %= window.size();
-        };
-
-    constexpr bool containsMarkerBytes = std::is_same_v<std::decay_t<decltype( *window.data() ) >, uint16_t>;
-
     if ( m_compressionType == CompressionType::UNCOMPRESSED ) {
         /**
          * Because the non-compressed deflate block size is 16-bit, the uncompressed data is limited to 65535 B!
@@ -759,17 +775,34 @@ Block<CALCULATE_CRC32>::readInternal( BitReader& bitReader,
          */
         for ( uint16_t i = 0; i < m_uncompressedSize; ++i ) {
             const auto literal = bitReader.read<BYTE_SIZE>();
-            appendToWindow( literal );
+            appendToWindow( window, literal );
         }
         m_atEndOfBlock = true;
         m_decodedBytes += m_uncompressedSize;
         return { m_uncompressedSize, Error::NONE };
     }
 
-    const auto& coding = m_compressionType == CompressionType::FIXED_HUFFMAN ? m_fixedHC : m_literalHC;
+    if ( m_compressionType == CompressionType::FIXED_HUFFMAN ) {
+        return readInternalCompressed( bitReader, nMaxToDecode, window, m_fixedHC );
+    }
+    return readInternalCompressed( bitReader, nMaxToDecode, window, m_literalHC );
+}
+
+
+template<bool CALCULATE_CRC32>
+template<typename Window,
+         typename HuffmanCoding>
+std::pair<size_t, Error>
+Block<CALCULATE_CRC32>::readInternalCompressed( BitReader&           bitReader,
+                                                size_t               nMaxToDecode,
+                                                Window&              window,
+                                                const HuffmanCoding& coding )
+{
     if ( !coding.isValid() ) {
         throw std::invalid_argument( "No Huffman coding loaded! Call readHeader first!" );
     }
+
+    constexpr bool containsMarkerBytes = std::is_same_v<std::decay_t<decltype( *window.data() ) >, uint16_t>;
 
     nMaxToDecode = std::min( nMaxToDecode, window.size() - MAX_RUN_LENGTH );
 
@@ -783,7 +816,7 @@ Block<CALCULATE_CRC32>::readInternal( BitReader& bitReader,
         auto code = *decoded;
 
         if ( code <= 255 ) {
-            appendToWindow( code );
+            appendToWindow( window, code );
             ++nBytesRead;
             continue;
         }
@@ -825,7 +858,7 @@ Block<CALCULATE_CRC32>::readInternal( BitReader& bitReader,
                       ++position, ++nCopied )
                 {
                     const auto copiedSymbol = window[position % window.size()];
-                    appendToWindow( copiedSymbol );
+                    appendToWindow( window, copiedSymbol );
                     nBytesRead++;
                 }
             }
