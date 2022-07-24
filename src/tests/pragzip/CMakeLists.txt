@@ -33,3 +33,9 @@ target_sources(testGzipBlockFetcher PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testGzipBl
 target_link_libraries(testGzipBlockFetcher PRIVATE libpragzip)
 add_test(NAME Test-Gzip-Block-Fetcher COMMAND testGzipBlockFetcher)
 add_dependencies(all_tests testGzipBlockFetcher)
+
+add_executable(testGzipBlockFinder)
+target_sources(testGzipBlockFinder PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testGzipBlockFinder.cpp)
+target_link_libraries(testGzipBlockFinder PRIVATE libpragzip)
+add_test(NAME Test-Gzip-Block-Finder COMMAND testGzipBlockFinder)
+add_dependencies(all_tests testGzipBlockFinder)
