@@ -527,6 +527,12 @@ private:
             shrinkBitBuffer();
 
             if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
+                assert( m_originalBitBufferSize > 0 );
+                /* Always checking for m_originalBitBufferSize for this damn bit shift would be too cost-prohibitive.
+                 * It should never happen because in this branch we know that m_bitBufferSize > 0 and at any point
+                 * in time m_originalBitBufferSize >= m_bitBufferSize should be true!
+                 * Run unit tests in debug mode to ensure that the assert won't be triggered. */
+                // NOLINTNEXTLINE(clang-analyzer-core.uninitialized.Assign)
                 m_bitBuffer >>= MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize;
             }
         }
@@ -598,6 +604,12 @@ private:
             return ( m_bitBuffer >> ( m_bitBufferSize - bitsWanted ) )
                    & nLowestBitsSet<BitBuffer>( bitsWanted );
         } else {
+            assert( m_bitBufferSize > 0 );
+            /* Always checking for m_bitBufferSize for this damn bit shift would be too cost-prohibitive.
+             * It should only happen when the caller tries to read, e.g., 0 bits, in which case undefined behavior
+             * for the shift result value does not matter. Run unit tests in debug mode to ensure that the assert
+             * won't be triggered. */
+            // NOLINTNEXTLINE(clang-analyzer-core.UndefinedBinaryOperatorResult)
             return ( m_bitBuffer >> ( MAX_BIT_BUFFER_SIZE - m_bitBufferSize ) )
                    & nLowestBitsSet<BitBuffer>( bitsWanted );
         }
