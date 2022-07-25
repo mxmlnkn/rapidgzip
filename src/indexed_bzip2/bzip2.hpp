@@ -71,7 +71,7 @@ inline uint8_t
 readBzip2Header( BitReader& bitReader )
 {
     for ( const auto magicByte : MAGIC_BYTES_BZ2 ) {
-        const char readByte = bitReader.read<8>();
+        const auto readByte = static_cast<char>( static_cast<uint8_t>( bitReader.read<8>() ) );
         if ( readByte != magicByte ) {
             std::stringstream msg;
             msg << "Input header is not BZip2 magic string 'BZh' (0x"
@@ -86,7 +86,7 @@ readBzip2Header( BitReader& bitReader )
 
     // Next byte ASCII '1'-'9', indicates block size in units of 100k of
     // uncompressed data. Allocate intermediate buffer for block.
-    const auto i = bitReader.read<8>();
+    const auto i = static_cast<char>( static_cast<uint8_t>( bitReader.read<8>() ) );
     if ( ( i < '1' ) || ( i > '9' ) ) {
         std::stringstream msg;
         msg << "Blocksize must be one of '0' (" << std::hex << static_cast<int>( '0' ) << ") ... '9' ("
@@ -94,7 +94,7 @@ readBzip2Header( BitReader& bitReader )
         throw std::domain_error( msg.str() );
     }
 
-    return i - '0';
+    return static_cast<uint8_t>( i - '0' );
 }
 
 
@@ -163,16 +163,16 @@ public:
 
 private:
     template<uint8_t nBits>
-    uint32_t
+    [[nodiscard]] uint32_t
     getBits()
     {
-        return bitReader().read<nBits>();
+        return static_cast<uint32_t>( bitReader().read<nBits>() );
     }
 
-    uint32_t
+    [[nodiscard]] uint32_t
     getBits( uint8_t nBits )
     {
-        return bitReader().read( nBits );
+        return static_cast<uint32_t>( bitReader().read( nBits ) );
     }
 
     void
