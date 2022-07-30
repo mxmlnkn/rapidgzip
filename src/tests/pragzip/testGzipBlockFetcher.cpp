@@ -101,7 +101,7 @@ main( int    argc,
     std::string binaryFolder = ".";
     if ( const auto lastSlash = binaryFilePath.find_last_of( '/' ); lastSlash != std::string::npos ) {
         binaryFolder = std::string( binaryFilePath.begin(),
-                                    binaryFilePath.begin() + static_cast<ssize_t>( lastSlash ) );
+                                    binaryFilePath.begin() + static_cast<std::string::difference_type>( lastSlash ) );
     }
     const auto testFolder =
         static_cast<std::filesystem::path>(

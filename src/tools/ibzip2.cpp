@@ -318,7 +318,8 @@ cli( int argc, char** argv )
         const std::string& suffix = ".bz2";
         if ( endsWith( inputFilePath, suffix, /* case sensitive */ false ) ) {
             outputFilePath = std::string( inputFilePath.begin(),
-                                          inputFilePath.end() - static_cast<ssize_t>( suffix.size() ) );
+                                          inputFilePath.end()
+                                          - static_cast<std::string::difference_type>( suffix.size() ) );
         } else {
             outputFilePath = inputFilePath + ".out";
             if ( !quiet ) {

@@ -67,13 +67,13 @@ testSeek( size_t                            decodedFileSize,
         decodedFile.clear();
     }
     decodedFile.seekg( offset, toSeekdir( origin ) );
-    const auto newSeekPosDecoded = static_cast<ssize_t>( decodedFile.tellg() );
-    const auto newSeekPosEncoded = static_cast<ssize_t>( encodedFile->seek( offset, origin ) );
+    const auto newSeekPosDecoded = static_cast<long long int>( decodedFile.tellg() );
+    const auto newSeekPosEncoded = static_cast<long long int>( encodedFile->seek( offset, origin ) );
 
     /* Wanted differing behavior between std::ifstream and BZ2Reader. */
-    REQUIRE_EQUAL( std::min<ssize_t>( newSeekPosDecoded, decodedFileSize ), newSeekPosEncoded );
-    REQUIRE_EQUAL( std::min<ssize_t>( decodedFile.tellg(), decodedFileSize ),
-                   static_cast<ssize_t>( encodedFile->tell() ) );
+    REQUIRE_EQUAL( std::min<long long int>( newSeekPosDecoded, decodedFileSize ), newSeekPosEncoded );
+    REQUIRE_EQUAL( std::min<long long int>( decodedFile.tellg(), decodedFileSize ),
+                   static_cast<long long int>( encodedFile->tell() ) );
 
     /* Beware! eof behavior is different. std:ifstream requires to read more than the file contents
      * for EOF to be reached while BZ2Reader only required to read more than >or equal< the file
@@ -98,7 +98,7 @@ testRead( std::ifstream&                    decodedFile,
     }
 
     /* Why doesn't the ifstream has a similar return specifying the number of read bytes?! */
-    decodedFile.read( decodedBuffer.data(), static_cast<ssize_t>( nBytesToRead ) );
+    decodedFile.read( decodedBuffer.data(), static_cast<std::streamsize>( nBytesToRead ) );
     const auto nBytesReadDecoded = decodedFile.gcount();
 
     const auto nBytesReadEncoded = encodedFile->read( -1, encodedBuffer.data(), nBytesToRead );
@@ -110,8 +110,8 @@ testRead( std::ifstream&                    decodedFile,
 
     /* Encountering eof during read also sets fail bit meaning tellg will return -1! */
     if ( !decodedFile.eof() ) {
-        REQUIRE_EQUAL( static_cast<ssize_t>( decodedFile.tellg() ),
-                       static_cast<ssize_t>( encodedFile->tell() ) );
+        REQUIRE_EQUAL( static_cast<long long int>( decodedFile.tellg() ),
+                       static_cast<long long int>( encodedFile->tell() ) );
     }
     REQUIRE_EQUAL( decodedFile.eof(), encodedFile->eof() );
 
@@ -181,7 +181,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     seek( 3UL * 1024UL * 1024UL );
 
     /* Seek after end of file */
-    seek( static_cast<ssize_t>( decodedFileSize ) + 1000 );
+    seek( static_cast<long long int>( decodedFileSize ) + 1000 );
 
     REQUIRE( encodedFile->blockOffsetsComplete() );
     REQUIRE_EQUAL( decodedFileSize, encodedFile->size() );
@@ -215,7 +215,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     read( 432 );
 
     /* Try reading 1B before the end of file */
-    seek( static_cast<ssize_t>( decodedFileSize ) - 4 );
+    seek( static_cast<long long int>( decodedFileSize ) - 4 );
     for ( int i = 0; i < 5; ++i ) {
         read( 1 );
     }
@@ -225,7 +225,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     encodedFile->setBlockOffsets( blockOffsets );
 
     std::cerr << "Try reading 1B before the end of file\n";
-    seek( static_cast<ssize_t>( decodedFileSize ) - 4 );
+    seek( static_cast<long long int>( decodedFileSize ) - 4 );
     read( decodedFileSize + 1000 );
 
     std::cerr << "Test block offset loading\n";
@@ -235,7 +235,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     encodedFile->setBlockOffsets( blockOffsets );
 
     std::cerr << "Try reading 1B before the end of file\n";
-    seek( static_cast<ssize_t>( decodedFileSize ) - 4 );
+    seek( static_cast<long long int>( decodedFileSize ) - 4 );
     for ( int i = 0; i < 5; ++i ) {
         read( 1 );
     }
@@ -247,7 +247,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     encodedFile->setBlockOffsets( blockOffsets );
 
     std::cerr << "Try reading 1B before the end of file\n";
-    seek( static_cast<ssize_t>( decodedFileSize ) - 4 );
+    seek( static_cast<long long int>( decodedFileSize ) - 4 );
     read( decodedFileSize + 1000 );
 
     std::cerr << "Test block offset loading after partial reading\n";
@@ -258,7 +258,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     encodedFile->setBlockOffsets( blockOffsets );
 
     std::cerr << "Try reading 1B before the end of file\n";
-    seek( static_cast<ssize_t>( decodedFileSize ) - 4 );
+    seek( static_cast<long long int>( decodedFileSize ) - 4 );
     read( decodedFileSize + 1000 );
 }
 

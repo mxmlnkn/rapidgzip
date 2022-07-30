@@ -267,7 +267,7 @@ countBitPatterns( const std::string& filePath,
     std::vector<size_t> counts( mask + 1ULL, 0 );
 
     BitReader<true, uint64_t> file( std::make_unique<StandardFileReader>( filePath ) );
-    file.seek( static_cast<ssize_t>( offset ) );
+    file.seek( static_cast<long long int>( offset ) );
     if ( file.closed() || file.eof() ) {
         throw std::invalid_argument( "Given file could not be opened!" );
     }

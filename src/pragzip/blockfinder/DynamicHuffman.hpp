@@ -100,7 +100,7 @@ seekToNonFinalDynamicDeflateBlock( BitReader& bitReader,
     {
         deflate::Block block;
         for ( size_t offset = bitReader.tell(); offset < nBitsToTest; ) {
-            bitReader.seek( static_cast<ssize_t>( offset ) );
+            bitReader.seek( static_cast<long long int>( offset ) );
 
             const auto peeked = bitReader.peek<CACHED_BIT_COUNT>();
             const auto nextPosition = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT[peeked];

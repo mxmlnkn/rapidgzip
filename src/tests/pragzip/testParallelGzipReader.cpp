@@ -47,13 +47,13 @@ duplicateNanoStream( size_t multiples )
     std::vector<char> encoded( NANO_SAMPLE_GZIP.size() * multiples );
     for ( size_t i = 0; i < multiples; ++i ) {
         std::copy( NANO_SAMPLE_GZIP.begin(), NANO_SAMPLE_GZIP.end(),
-                   encoded.begin() + static_cast<ssize_t>( i * NANO_SAMPLE_GZIP.size() ) );
+                   encoded.begin() + static_cast<std::ptrdiff_t>( i * NANO_SAMPLE_GZIP.size() ) );
     }
 
     std::vector<char> decoded( NANO_SAMPLE_DECODED.size() * multiples );
     for ( size_t i = 0; i < multiples; ++i ) {
         std::copy( NANO_SAMPLE_DECODED.begin(), NANO_SAMPLE_DECODED.end(),
-                   decoded.begin() + static_cast<ssize_t>( i * NANO_SAMPLE_DECODED.size() ) );
+                   decoded.begin() + static_cast<std::ptrdiff_t>( i * NANO_SAMPLE_DECODED.size() ) );
     }
 
     return { encoded, decoded };
@@ -345,7 +345,7 @@ main( int    argc,
     std::string binaryFolder = ".";
     if ( const auto lastSlash = binaryFilePath.find_last_of( '/' ); lastSlash != std::string::npos ) {
         binaryFolder = std::string( binaryFilePath.begin(),
-                                    binaryFilePath.begin() + static_cast<ssize_t>( lastSlash ) );
+                                    binaryFilePath.begin() + static_cast<std::string::difference_type>( lastSlash ) );
     }
     const auto rootFolder =
         static_cast<std::filesystem::path>(

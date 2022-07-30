@@ -838,7 +838,7 @@ benchmarkFindBitString( const std::vector<char>& data )
             bzip2::BitReader bitReader( std::make_unique<BufferViewFileReader>( buffer ) );
             for ( const auto offset : blockOffsets ) {
                 if ( offset < bitReader.size() ) {
-                    bitReader.seek( static_cast<ssize_t>( offset ) );
+                    bitReader.seek( static_cast<long long int>( offset ) );
 
                     /* Because bitReader is limited to 32-bit. */
                     static_assert( bitStringToFindSize % 2 == 0, "Assuming magic bit string size to be an even number." );

@@ -47,13 +47,13 @@ duplicateNanoStream( size_t multiples )
     std::vector<char> encoded( NANO_SAMPLE_GZIP.size() * multiples );
     for ( size_t i = 0; i < multiples; ++i ) {
         std::copy( NANO_SAMPLE_GZIP.begin(), NANO_SAMPLE_GZIP.end(),
-                   encoded.begin() + static_cast<ssize_t>( i * NANO_SAMPLE_GZIP.size() ) );
+                   encoded.begin() + static_cast<std::ptrdiff_t>( i * NANO_SAMPLE_GZIP.size() ) );
     }
 
     std::vector<char> decoded( NANO_SAMPLE_DECODED.size() * multiples );
     for ( size_t i = 0; i < multiples; ++i ) {
         std::copy( NANO_SAMPLE_DECODED.begin(), NANO_SAMPLE_DECODED.end(),
-                   decoded.begin() + static_cast<ssize_t>( i * NANO_SAMPLE_DECODED.size() ) );
+                   decoded.begin() + static_cast<std::ptrdiff_t>( i * NANO_SAMPLE_DECODED.size() ) );
     }
 
     return { encoded, decoded };
@@ -185,7 +185,7 @@ testSerialDecoder( std::filesystem::path const& decodedFilePath,
 
         /* Compare with ground truth. */
         decodedBuffer.resize( buffer.size() );
-        decodedFile.read( decodedBuffer.data(), static_cast<ssize_t>( decodedBuffer.size() ) );
+        decodedFile.read( decodedBuffer.data(), static_cast<std::ptrdiff_t>( decodedBuffer.size() ) );
         REQUIRE( !decodedFile.fail() );
         REQUIRE( static_cast<size_t>( decodedFile.gcount() ) == buffer.size() );
 
@@ -241,13 +241,13 @@ testTwoStagedDecoding( std::string_view encodedFilePath,
     /* Check that decompressed data and the last window match the ground truth. */
     std::ifstream decodedFile( decodedFilePath.data() );
     std::vector<char> uncompressed( decompressed.size() );
-    decodedFile.read( uncompressed.data(), static_cast<ssize_t>( uncompressed.size() ) );
+    decodedFile.read( uncompressed.data(), static_cast<std::ptrdiff_t>( uncompressed.size() ) );
     REQUIRE( std::equal( decompressed.begin(), decompressed.end(), uncompressed.begin() ) );
 
     const auto validWindowSize = std::min( lastWindow.size(), firstBlockSize );
     const auto validWindowMatches = std::equal(
         lastWindow.end() - validWindowSize, lastWindow.end(),
-        uncompressed.end() - static_cast<ssize_t>( validWindowSize ),
+        uncompressed.end() - static_cast<std::ptrdiff_t>( validWindowSize ),
         [] ( auto a, auto b ) { return a == static_cast<decltype( a )>( b ); } );
     REQUIRE( validWindowMatches );
     if ( !validWindowMatches ) {
@@ -268,7 +268,7 @@ testTwoStagedDecoding( std::string_view encodedFilePath,
 
     /* Try reading, starting from second block. */
     pragzip::BitReader bitReader{ std::make_unique<StandardFileReader>( encodedFilePath.data() ) };
-    bitReader.seek( static_cast<ssize_t>( secondBlockOffset ) );
+    bitReader.seek( static_cast<long long int>( secondBlockOffset ) );
     DeflateBlock block;
 
     {
@@ -291,8 +291,9 @@ testTwoStagedDecoding( std::string_view encodedFilePath,
     /* Compare concatenated result. */
     std::vector<uint8_t> decodedBuffer( 1024ULL * 1024ULL );
     REQUIRE( decodedBuffer.size() >= concatenated.size() );
-    decodedFile.seekg( static_cast<ssize_t>( firstBlockSize ) );
-    decodedFile.read( reinterpret_cast<char*>( decodedBuffer.data() ), static_cast<ssize_t>( concatenated.size() ) );
+    decodedFile.seekg( static_cast<long long int>( firstBlockSize ) );
+    decodedFile.read( reinterpret_cast<char*>( decodedBuffer.data() ),
+                      static_cast<long long int>( concatenated.size() ) );
 
     REQUIRE( std::equal( concatenated.begin(), concatenated.end(), decodedBuffer.begin() ) );
     if ( !std::equal( concatenated.begin(), concatenated.end(), decodedBuffer.begin() ) ) {
@@ -333,7 +334,7 @@ main( int    argc,
     std::string binaryFolder = ".";
     if ( const auto lastSlash = binaryFilePath.find_last_of( '/' ); lastSlash != std::string::npos ) {
         binaryFolder = std::string( binaryFilePath.begin(),
-                                    binaryFilePath.begin() + static_cast<ssize_t>( lastSlash ) );
+                                    binaryFilePath.begin() + static_cast<std::string::difference_type>( lastSlash ) );
     }
     const auto testsFolder =
         static_cast<std::filesystem::path>(
