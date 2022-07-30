@@ -123,20 +123,20 @@ main( int    argc,
     test( "base64-32KiB.pgz", 0, {}, { 16796, 15972 } );
     test( "base64-32KiB.pgz", 1, { 15793 }, { 179 } );
 
-    test( "random-128KiB.gz" , 0, {}, { 32777, 32793, 32777, 32725 } );
-    test( "random-128KiB.bgz", 0, {}, { 65280, 65280, 512 } );
-    test( "random-128KiB.igz", 0, {}, { 65535, 65224, 313 } );
-    test( "random-128KiB.pgz", 0, {}, { 16387, 16389, 16395, 16397, 16389, 16387, 16393, 16335 } );
+    test( "random-128KiB.gz" , 0, {}, { 131072 } );
+    test( "random-128KiB.bgz", 0, {}, { 131072 } );
+    test( "random-128KiB.igz", 0, {}, { 131072 } );
+    test( "random-128KiB.pgz", 0, {}, { 16387, 114685 } );
 
-    test( "random-128KiB.gz" , 1, {}, { 32793, 32777, 32725 } );
-    test( "random-128KiB.bgz", 1, {}, { 65280, 512 } );
-    test( "random-128KiB.igz", 1, {}, { 65224, 313 } );
-    test( "random-128KiB.pgz", 1, {}, { 16389, 16395, 16397, 16389, 16387, 16393, 16335 } );
+    test( "random-128KiB.gz" , 1, {}, { 98295 } );
+    test( "random-128KiB.bgz", 1, {}, { 65792 } );
+    test( "random-128KiB.igz", 1, {}, { 65537 } );
+    test( "random-128KiB.pgz", 1, {}, { 16389, 98296 } );
 
-    test( "random-128KiB.gz" , 2, {}, { 32777, 32725 } );
+    test( "random-128KiB.gz" , 2, {}, { 65502 } );
     test( "random-128KiB.bgz", 2, {}, { 512 } );
     test( "random-128KiB.igz", 2, {}, { 313 } );
-    test( "random-128KiB.pgz", 2, {}, { 16395, 16397, 16389, 16387, 16393, 16335 } );
+    test( "random-128KiB.pgz", 2, {}, { 16395, 81901 } );
 
     /**
      * @todo Add more tests of combinations like random + base, base + random

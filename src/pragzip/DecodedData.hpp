@@ -159,20 +159,16 @@ DecodedData::append( DecodedDataView const& buffers )
                                          "has already been appended because the ordering will be wrong!" );
         }
 
-        auto& copied = dataWithMarkers.emplace_back( buffers.dataWithMarkersSize() );
-        size_t offset{ 0 };
+        auto& copied = dataWithMarkers.empty() ? dataWithMarkers.emplace_back() : dataWithMarkers.back();
         for ( const auto& buffer : buffers.dataWithMarkers ) {
-            std::memcpy( copied.data() + offset, buffer.data(), buffer.size() * sizeof( buffer[0] ) );
-            offset += buffer.size();
+            copied.insert( copied.end(), buffer.begin(), buffer.end() );
         }
     }
 
     if ( buffers.dataSize() > 0 ) {
-        auto& copied = data.emplace_back( buffers.dataSize() );
-        size_t offset{ 0 };
+        auto& copied = data.empty() ? data.emplace_back() : data.back();
         for ( const auto& buffer : buffers.data ) {
-            std::memcpy( copied.data() + offset, buffer.data(), buffer.size() );
-            offset += buffer.size();
+            copied.insert( copied.end(), buffer.begin(), buffer.end() );
         }
     }
 }
