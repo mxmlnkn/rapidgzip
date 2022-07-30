@@ -881,11 +881,15 @@ benchmarkFindBitString( const std::vector<char>& data )
                 checkBlockOffsets( calculatedChecksum, data );
                 batchChecksum = calculatedChecksum;
             } else if ( *batchChecksum != calculatedChecksum ) {
-                throw std::runtime_error( "Indeterministic result for " + benchmarkType + "!" );
+                std::stringstream message;
+                message << "Indeterministic result for " << benchmarkType << "!";
+                throw std::runtime_error( std::move( message ).str() );
             }
             if ( checksum && batchChecksum && ( *checksum != *batchChecksum ) ) {
                 std::cerr << "Found " << batchChecksum->size() << " blocks for \"" << benchmarkType << "\"\n";
-                throw std::runtime_error( "Wrong result for " + benchmarkType + "!" );
+                std::stringstream message;
+                message << "Wrong result for " << benchmarkType << "!";
+                throw std::runtime_error( std::move( message ).str() );
             }
             if ( !checksum ) {
                 checksum = batchChecksum;

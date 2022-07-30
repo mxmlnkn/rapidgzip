@@ -277,8 +277,9 @@ private:
         }
         const auto error = m_currentDeflateBlock->readHeader( m_bitReader );
         if ( error != pragzip::Error::NONE ) {
-            throw std::domain_error( "Encountered error: " + pragzip::toString( error )
-                                     + " while trying to read deflate header!" );
+            std::stringstream message;
+            message << "Encountered error: " << pragzip::toString( error ) << " while trying to read deflate header!";
+            throw std::domain_error( std::move( message ).str() );
         }
         m_currentPoint = StoppingPoint::END_OF_BLOCK_HEADER;
     }
@@ -297,8 +298,9 @@ private:
     {
         const auto [header, error] = pragzip::gzip::readHeader( m_bitReader );
         if ( error != pragzip::Error::NONE ) {
-            throw std::domain_error( "Encountered error: " + pragzip::toString( error )
-                                     + " while trying to read gzip header!" );
+            std::stringstream message;
+            message << "Encountered error: " << pragzip::toString( error ) << " while trying to read gzip header!";
+            throw std::domain_error( std::move( message ).str() );
         }
 
         m_lastGzipHeader = std::move( header );
@@ -445,8 +447,9 @@ GzipReader<CALCULATE_CRC32>::readBlock( int    const outputFileDescriptor,
             std::tie( m_lastBlockData, error ) =
                 m_currentDeflateBlock->read( m_bitReader, std::numeric_limits<size_t>::max() );
             if ( error != pragzip::Error::NONE ) {
-                throw std::domain_error( "Encountered error: " + pragzip::toString( error )
-                                         + " while decompressing deflate block." );
+                std::stringstream message;
+                message << "Encountered error: " << pragzip::toString( error ) << " while decompressing deflate block.";
+                throw std::domain_error( std::move( message ).str() );
             }
 
             if ( ( m_lastBlockData.size() == 0 ) && !m_currentDeflateBlock->eob() ) {

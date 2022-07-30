@@ -113,14 +113,17 @@ public:
             if ( !blockData ) {
                 blockData = BaseType::get( *nextBlockOffset, m_nextUnprocessedBlockIndex );
             } else if ( blockData->encodedOffsetInBits != *nextBlockOffset ) {
-                throw std::logic_error(
-                    "Got wrong block to searched offset! Looked for " + std::to_string( *nextBlockOffset )
-                    + " and looked up cache successively for estimated offset " + std::to_string( partitionOffset )
-                    + " but got block with actual offset " + std::to_string( blockData->encodedOffsetInBits )
-                );
+                std::stringstream message;
+                message << "Got wrong block to searched offset! Looked for " << std::to_string( *nextBlockOffset )
+                        << " and looked up cache successively for estimated offset "
+                        << std::to_string( partitionOffset ) << " but got block with actual offset "
+                        << std::to_string( blockData->encodedOffsetInBits );
+                throw std::logic_error( std::move( message ).str() );
             }
             if ( blockData->encodedOffsetInBits == std::numeric_limits<size_t>::max() ) {
-                throw std::domain_error( "Decoding failed at block offset " + formatBits( *nextBlockOffset ) + "!" );
+                std::stringstream message;
+                message << "Decoding failed at block offset " << formatBits( *nextBlockOffset ) << "!";
+                throw std::domain_error( std::move( message ).str() );
             }
 
             m_blockMap->push( blockData->encodedOffsetInBits, blockData->encodedSizeInBits, blockData->size() );
@@ -136,9 +139,10 @@ public:
              * can successively propagate the window through all blocks. */
             auto lastWindow = m_windowMap->get( blockData->encodedOffsetInBits );
             if ( !lastWindow ) {
-                throw std::logic_error( "The window of the last block at "
-                                        + formatBits( blockData->encodedOffsetInBits )
-                                        + " should exist at this point!" );
+                std::stringstream message;
+                message << "The window of the last block at " << formatBits( blockData->encodedOffsetInBits )
+                        << " should exist at this point!";
+                throw std::logic_error( std::move( message ).str() );
             }
 
             blockData->applyWindow( *lastWindow );
@@ -220,8 +224,10 @@ public:
             }
         }
 
-        throw std::domain_error( "Failed to find any valid deflate block in [" + std::to_string( blockOffset )
-                                 + "," + std::to_string( untilOffset ) + ")" );
+        std::stringstream message;
+        message << "Failed to find any valid deflate block in [" << std::to_string( blockOffset )
+                << "," << std::to_string( untilOffset ) << ")";
+        throw std::domain_error( std::move( message ).str() );
     }
 
 private:
@@ -422,8 +428,10 @@ private:
                 const auto headerOffset = bitReader->tell();
                 const auto [header, error] = gzip::readHeader( *bitReader );
                 if ( error != Error::NONE ) {
-                    throw std::domain_error( "Failed to read gzip header at offset " + formatBits( headerOffset )
-                                             + " because of error: " + toString( error ) );
+                    std::stringstream message;
+                    message << "Failed to read gzip header at offset " << formatBits( headerOffset )
+                               << " because of error: " << toString( error );
+                    throw std::domain_error( std::move( message ).str() );
                 }
 
                 gzipHeader = std::move( header );
@@ -441,9 +449,11 @@ private:
             nextBlockOffset = bitReader->tell();
 
             if ( auto error = block->readHeader( *bitReader ); error != Error::NONE ) {
-                throw std::domain_error( "Failed to read deflate block header at offset " + formatBits( blockOffset )
-                                         + " (position after trying: " + formatBits( bitReader->tell() ) + ": "
-                                         + toString( error ) );
+                std::stringstream message;
+                message << "Failed to read deflate block header at offset " << formatBits( blockOffset )
+                        << " (position after trying: " << formatBits( bitReader->tell() ) << ": "
+                        << toString( error );
+                throw std::domain_error( std::move( message ).str() );
             }
 
             if ( ( ( nextBlockOffset >= untilOffset )
@@ -458,8 +468,10 @@ private:
             {
                 const auto [bufferViews, error] = block->read( *bitReader, std::numeric_limits<size_t>::max() );
                 if ( error != Error::NONE ) {
-                    throw std::domain_error( "Failed to decode deflate block at " + formatBits( blockOffset )
-                                             + " because of: " + toString( error ) );
+                    std::stringstream message;
+                    message << "Failed to decode deflate block at " << formatBits( blockOffset )
+                            << " because of: " << toString( error );
+                    throw std::domain_error( std::move( message ).str() );
                 }
 
                 result.append( bufferViews );
