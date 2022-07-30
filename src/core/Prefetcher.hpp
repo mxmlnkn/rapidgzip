@@ -197,7 +197,11 @@ public:
             return toPrefetch;
         }
 
-        const std::set<size_t> sortedIndexes( previousIndexes.begin(), previousIndexes.end() );
+        const auto sortedIndexes = [&previousIndexes] () {;
+            auto result = previousIndexes;
+            std::sort( result.begin(), result.end() );
+            return result;
+        }();
 
         std::vector<std::vector<size_t> > subsequencePrefetches;
 
@@ -250,7 +254,10 @@ public:
         auto result = interleave( subsequencePrefetches );
         const auto newEnd = std::remove_if(
             result.begin(), result.end(),
-            [&sortedIndexes] ( auto value ) { return sortedIndexes.count( value ) > 0; } );
+            [this] ( auto value ) {
+                return std::find( m_previousIndexes.begin(), m_previousIndexes.end(), value )
+                       != m_previousIndexes.end();
+            } );
         result.resize( std::min( static_cast<size_t>( std::distance( result.begin(), newEnd ) ),
                                  maxAmountToPrefetch ) );
         return result;
