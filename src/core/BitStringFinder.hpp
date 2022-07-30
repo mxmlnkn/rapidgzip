@@ -58,7 +58,7 @@ public:
             std::stringstream msg;
             msg << "The file buffer size of " << m_fileChunksInBytes << "B is too small to look for strings with "
                 << bitStringSize << " bits!";
-            throw std::invalid_argument( msg.str() );
+            throw std::invalid_argument( std::move( msg ).str() );
         }
     }
 

@@ -158,7 +158,7 @@ public:
             << "  m_currentPosition: " << m_currentPosition << "\n"
             << "  ftell: " << std::ftell( m_file.get() ) << "\n"
             << "\n";
-            throw std::domain_error( message.str() );
+            throw std::domain_error( std::move( message ).str() );
         #endif
         }
 

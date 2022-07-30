@@ -163,7 +163,7 @@ public:
                 message << "The range of the code type cannot represent the given code lengths!\n"
                         << "Got length " << static_cast<int>( codeLength ) << " but code type width is "
                         << std::numeric_limits<HuffmanCode>::digits << "\n";
-                throw std::invalid_argument( message.str() );
+                throw std::invalid_argument( std::move( message ).str() );
             }
         }
         #endif

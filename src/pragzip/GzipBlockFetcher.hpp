@@ -318,7 +318,7 @@ private:
                             << "Decoding failed with error code " << errorCode << " "
                             << ( m_stream.msg == nullptr ? "" : m_stream.msg ) << "! "
                             << "Already decoded " << m_stream.total_out << " B.";
-                    throw std::runtime_error( message.str() );
+                    throw std::runtime_error( std::move( message ).str() );
                 }
 
                 if ( decodedSize + m_stream.total_out > outputSize ) {
@@ -475,14 +475,14 @@ private:
                         std::stringstream message;
                         message << "Mismatching size (" << streamBytesRead << " <-> footer: "
                                 << footer.uncompressedSize << ") for gzip stream!";
-                        throw std::runtime_error( message.str() );
+                        throw std::runtime_error( std::move( message ).str() );
                     }
 
                     if ( ( block->crc32() != 0 ) && ( block->crc32() != footer.crc32 ) ) {
                         std::stringstream message;
                         message << "Mismatching CRC32 (0x" << std::hex << block->crc32() << " <-> stored: 0x"
                                 << footer.crc32 << ") for gzip stream!";
-                        throw std::runtime_error( message.str() );
+                        throw std::runtime_error( std::move( message ).str() );
                     }
                 }
 

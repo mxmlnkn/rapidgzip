@@ -985,7 +985,7 @@ benchmarkGzip( const std::string& fileName )
                 if ( !contains( blockCandidates, offset ) ) {
                     std::stringstream message;
                     message << "Block " << i << " at offset " << offset << " was not found!";
-                    throw std::logic_error( message.str() );
+                    throw std::logic_error( std::move( message ).str() );
                 }
             }
 

@@ -850,7 +850,7 @@ benchmarkFindBitString( const std::vector<char>& data )
                         std::stringstream msg;
                         msg << "Magic bytes at offset " << offset / 8 << " B " << offset % 8 << " b"
                             << "(0x" << std::hex << magicBytes << std::dec << ") do not match!";
-                        throw std::logic_error( msg.str() );
+                        throw std::logic_error( std::move( msg ).str() );
                     }
                 }
             }

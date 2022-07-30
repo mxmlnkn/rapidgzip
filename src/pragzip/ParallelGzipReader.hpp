@@ -256,7 +256,7 @@ public:
                     std::stringstream msg;
                     msg << "Less (" << nBytesWritten << ") than the requested number of bytes (" << nBytesToDecode
                         << ") were written to the output!";
-                    throw std::logic_error( msg.str() );
+                    throw std::logic_error( std::move( msg ).str() );
                 }
 
                 nBytesDecoded += nBytesToDecode;

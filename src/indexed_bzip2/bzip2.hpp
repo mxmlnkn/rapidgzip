@@ -80,7 +80,7 @@ readBzip2Header( BitReader& bitReader )
                 /* first cast to unsigned of same length so that the hex representation makes sense. */
                 << static_cast<int>( static_cast<uint8_t>( readByte ) )
                 << ") should be " << magicByte;
-            throw std::domain_error( msg.str() );
+            throw std::domain_error( std::move( msg ).str() );
         }
     }
 
@@ -91,7 +91,7 @@ readBzip2Header( BitReader& bitReader )
         std::stringstream msg;
         msg << "Blocksize must be one of '0' (" << std::hex << static_cast<int>( '0' ) << ") ... '9' ("
             << static_cast<int>( '9' ) << ") but is " << i << " (" << static_cast<int>( i ) << ")";
-        throw std::domain_error( msg.str() );
+        throw std::domain_error( std::move( msg ).str() );
     }
 
     return static_cast<uint8_t>( i - '0' );
@@ -293,7 +293,7 @@ Block::readBlockHeader()
     if ( magicBytes != MAGIC_BITS_BLOCK ) {
         std::stringstream msg;
         msg << "[BZip2 block header] invalid compressed magic 0x" << std::hex << magicBytes;
-        throw std::domain_error( msg.str() );
+        throw std::domain_error( std::move( msg ).str() );
     }
 
     isRandomized = getBits<1>();
@@ -305,7 +305,7 @@ Block::readBlockHeader()
         std::stringstream msg;
         msg << "[BZip2 block header] origPtr " << bwdata.origPtr << " is larger than buffer size: " <<
         bwdata.dbuf.size();
-        throw std::logic_error( msg.str() );
+        throw std::logic_error( std::move( msg ).str() );
     }
 
     /**
@@ -362,7 +362,7 @@ Block::readBlockHeader()
     if ( ( groupCount < 2 ) || ( groupCount > MAX_GROUPS ) ) {
         std::stringstream msg;
         msg << "[BZip2 block header] Invalid Huffman coding group count " << groupCount;
-        throw std::logic_error( msg.str() );
+        throw std::logic_error( std::move( msg ).str() );
     }
 
     // nSelectors: Every GROUP_SIZE many symbols we switch huffman coding
@@ -375,7 +375,7 @@ Block::readBlockHeader()
     if ( !( selectors_used = getBits<15>() ) ) {
         std::stringstream msg;
         msg << "[BZip2 block header] selectors_used " << selectors_used << " is invalid";
-        throw std::logic_error( msg.str() );
+        throw std::logic_error( std::move( msg ).str() );
     }
     for ( int i = 0; i < groupCount; i++ ) {
         mtfSymbol[i] = i;
@@ -386,7 +386,7 @@ Block::readBlockHeader()
             if ( j >= groupCount ) {
                 std::stringstream msg;
                 msg << "[BZip2 block header] Could not find zero termination after " << groupCount << " bits";
-                throw std::domain_error( msg.str() );
+                throw std::domain_error( std::move( msg ).str() );
             }
         }
 
@@ -410,7 +410,7 @@ Block::readBlockHeader()
                     std::stringstream msg;
                     msg << "[BZip2 block header]  start_huffman_length " << hh
                     << " is larger than " << MAX_HUFCODE_BITS << " or zero\n";
-                    throw std::logic_error( msg.str() );
+                    throw std::logic_error( std::move( msg ).str() );
                 }
 
                 // Stop if first bit is 0, otherwise second bit says whether to
@@ -424,7 +424,7 @@ Block::readBlockHeader()
             if ( hh > std::numeric_limits<uint8_t>::max() ) {
                 std::stringstream msg;
                 msg << "[BZip2 block header] The read length is unexpectedly large: " << hh;
-                throw std::logic_error( msg.str() );
+                throw std::logic_error( std::move( msg ).str() );
             }
             length[i] = static_cast<uint8_t>( hh );
         }
@@ -515,7 +515,7 @@ Block::readBlockData()
             if ( selector >= selectors_used ) {
                 std::stringstream msg;
                 msg << "[BZip2 block data] selector " << selector << " out of maximum range " << selectors_used;
-                throw std::domain_error( msg.str() );
+                throw std::domain_error( std::move( msg ).str() );
             }
             hufGroup = &groups[selectors[selector++]];
             base  = hufGroup->base.data() - 1;
@@ -533,7 +533,7 @@ Block::readBlockData()
         if ( ii > hufGroup->maxLen ) {
             std::stringstream msg;
             msg << "[BZip2 block data] " << ii << " bigger than max length " << hufGroup->maxLen;
-            throw std::domain_error( msg.str() );
+            throw std::domain_error( std::move( msg ).str() );
         }
 
         // Huffman decode jj into nextSym (with bounds checking)
@@ -542,7 +542,7 @@ Block::readBlockData()
         if ( (unsigned)jj >= MAX_SYMBOLS ) {
             std::stringstream msg;
             msg << "[BZip2 block data] " << jj << " larger than max symbols " << MAX_SYMBOLS;
-            throw std::domain_error( msg.str() );
+            throw std::domain_error( std::move( msg ).str() );
         }
 
         const auto nextSym = hufGroup->permute[jj];
@@ -577,7 +577,7 @@ Block::readBlockData()
                 std::stringstream msg;
                 msg << "[BZip2 block data] dbufCount + hh " << dbufCount + hh
                 << " > " << bwdata.dbuf.size() << " dbufSize";
-                throw std::domain_error( msg.str() );
+                throw std::domain_error( std::move( msg ).str() );
             }
 
             const auto uc = symbolToByte[mtfSymbol[0]];
@@ -601,7 +601,7 @@ Block::readBlockData()
         if ( dbufCount >= bwdata.dbuf.size() ) {
             std::stringstream msg;
             msg << "[BZip2 block data] dbufCount " << dbufCount << " > " << bwdata.dbuf.size() << " dbufSize";
-            throw std::domain_error( msg.str() );
+            throw std::domain_error( std::move( msg ).str() );
         }
         ii = nextSym - 1;
         auto uc = mtfSymbol[ii];
@@ -623,7 +623,7 @@ Block::readBlockData()
     if ( bwdata.origPtr >= dbufCount ) {
         std::stringstream msg;
         msg << "[BZip2 block data] origPtr error " << bwdata.origPtr;
-        throw std::domain_error( msg.str() );
+        throw std::domain_error( std::move( msg ).str() );
     }
 
     bwdata.prepare();
@@ -709,7 +709,7 @@ Block::BurrowsWheelerTransformData::decodeBlock( const size_t nMaxBytesToDecode,
         if ( dataCRC != headerCRC ) {
             std::stringstream msg;
             msg << "Calculated CRC " << std::hex << dataCRC << " for block mismatches " << headerCRC;
-            throw std::runtime_error( msg.str() );
+            throw std::runtime_error( std::move( msg ).str() );
         }
     }
 

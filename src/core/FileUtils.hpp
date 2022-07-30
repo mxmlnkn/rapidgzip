@@ -63,7 +63,7 @@ throwingOpen( const std::string& filePath,
     if ( file == nullptr ) {
         std::stringstream msg;
         msg << "Opening file '" << filePath << "' with mode '" << mode << "' failed!";
-        throw std::invalid_argument( msg.str() );
+        throw std::invalid_argument( std::move( msg ).str() );
     }
 
     return file;
@@ -82,7 +82,7 @@ throwingOpen( int         fileDescriptor,
     if ( file == nullptr ) {
         std::stringstream msg;
         msg << "Opening file descriptor " << fileDescriptor << " with mode '" << mode << "' failed!";
-        throw std::invalid_argument( msg.str() );
+        throw std::invalid_argument( std::move( msg ).str() );
     }
 
     return file;

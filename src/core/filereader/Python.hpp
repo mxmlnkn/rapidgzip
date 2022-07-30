@@ -232,7 +232,7 @@ public:
             << "  tell: " << tell() << "\n"
             << "\n";
             std::cerr << message.str();
-            throw std::domain_error( message.str() );
+            throw std::domain_error( std::move( message ).str() );
         }
 
         m_currentPosition += nBytesRead;
@@ -267,7 +267,7 @@ public:
             << "  tell: " << tell() << "\n"
             << "\n";
             std::cerr << message.str();
-            throw std::domain_error( message.str() );
+            throw std::domain_error( std::move( message ).str() );
         }
 
         return nBytesWritten;
@@ -342,7 +342,7 @@ private:
         if ( attribute == nullptr ) {
             std::stringstream message;
             message << "The given Python file-like object must have a '" << name << "' method!";
-            throw std::invalid_argument( message.str() );
+            throw std::invalid_argument( std::move( message ).str() );
         }
 
         return attribute;

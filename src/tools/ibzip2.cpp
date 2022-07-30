@@ -72,7 +72,7 @@ checkOffsets( const std::string&         filePath,
             msg << "Magic bytes " << std::hex << magicBytes << std::dec << " at offset "
                 << ( offset / CHAR_BIT ) << " B " << ( offset % CHAR_BIT ) << "b "
                 << "do not match bzip2 magic bytes!";
-            throw std::logic_error( msg.str() );
+            throw std::logic_error( std::move( msg ).str() );
         }
     }
 }
@@ -419,7 +419,7 @@ cli( int argc, char** argv )
                 std::stringstream msg;
                 msg << "Wrote less bytes (" << nBytesWrittenTotal << " B) than decoded stream is large("
                     << reader->size() << " B)!";
-                throw std::logic_error( msg.str() );
+                throw std::logic_error( std::move( msg ).str() );
             }
         }
 

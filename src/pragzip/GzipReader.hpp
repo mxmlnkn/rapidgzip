@@ -487,7 +487,7 @@ GzipReader<CALCULATE_CRC32>::readGzipFooter()
         std::stringstream message;
         message << "Mismatching size (" << static_cast<uint32_t>( m_streamBytesCount ) << " <-> footer: "
                 << footer.uncompressedSize << ") for gzip stream!";
-        throw std::domain_error( message.str() );
+        throw std::domain_error( std::move( message ).str() );
     }
 
     if ( !m_currentDeflateBlock.has_value() || !m_currentDeflateBlock->isValid() ) {
@@ -499,7 +499,7 @@ GzipReader<CALCULATE_CRC32>::readGzipFooter()
         std::stringstream message;
         message << "Mismatching CRC32 (0x" << std::hex << m_currentDeflateBlock->crc32()
                 << " <-> stored: 0x" << footer.crc32 << ") for gzip stream!";
-        throw std::domain_error( message.str() );
+        throw std::domain_error( std::move( message ).str() );
     }
 
     if ( m_bitReader.eof() ) {

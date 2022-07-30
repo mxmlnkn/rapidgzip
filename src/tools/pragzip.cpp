@@ -185,7 +185,7 @@ analyze( std::unique_ptr<FileReader> inputFile )
                 std::stringstream message;
                 message << "Mismatching size (" << static_cast<uint32_t>( streamBytesRead )
                         << " <-> footer: " << footer.uncompressedSize << ") for gzip stream!";
-                throw std::runtime_error( message.str() );
+                throw std::runtime_error( std::move( message ).str() );
             }
 
             if ( ( block.crc32() != 0 ) && ( block.crc32() != footer.crc32 ) ) {

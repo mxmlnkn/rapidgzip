@@ -774,7 +774,7 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
             << ", feof: " << m_file->eof()
             << ", ferror: " << m_file->fail()
             << ", newPosition: " << newPosition;
-            throw std::invalid_argument( msg.str() );
+            throw std::invalid_argument( std::move( msg ).str() );
         }
     } else if ( static_cast<size_t>( offsetBits ) < tell() ) {
         throw std::logic_error( "Can not emulate backward seeking on non-seekable file!" );
