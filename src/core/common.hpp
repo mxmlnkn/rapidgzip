@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <cstdint>
 #include <cstring>
 #include <ctime>
 #include <filesystem>
@@ -54,6 +55,12 @@
 
     #define S_ISFIFO(m) testFileType( m, S_IFIFO )
 
+    /* ssize_t is not defined on Windows. */
+    #if defined(_WIN64)
+        using ssize_t = std::int64_t;
+    #else
+        using ssize_t = long;
+    #endif
 #else
     #include <unistd.h>
 #endif
