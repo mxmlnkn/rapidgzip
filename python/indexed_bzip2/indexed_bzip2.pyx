@@ -128,7 +128,7 @@ cdef class _IndexedBzip2File():
         return self.bz2reader != NULL and self.bz2reader.seekable()
 
     def readinto(self, bytes_like):
-        if not self.gzipReader:
+        if not self.bz2reader:
             raise Exception("Invalid file object!")
 
         bytes_count = 0
