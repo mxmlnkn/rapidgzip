@@ -711,7 +711,7 @@ findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
     const auto checkOffset =
         [&block, &bitReader] ( const auto offset ) {
             try {
-                bitReader.seek( static_cast<long long int>( offset + 3 ) );
+                bitReader.seek( static_cast<long long int>( offset ) + 3 );
                 return block.readDynamicHuffmanCoding( bitReader ) == pragzip::Error::NONE;
             } catch ( const pragzip::BitReader::EndOfFileReached& ) {}
             return false;
