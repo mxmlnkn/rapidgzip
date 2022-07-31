@@ -13,7 +13,7 @@ jobs:
 
     - name: Install Dependencies
       run: |
-        sudo apt-get -y install bzip2 pbzip2 lbzip2 cppcheck clang clang-tidy g++ lcov ninja-build valgrind wget gzip tabix pigz libarchive-dev zlib1g-dev isal
+        sudo apt-get -y install bzip2 pbzip2 lbzip2 cppcheck clang clang-tidy g++ lcov ninja-build wget gzip tabix pigz libarchive-dev zlib1g-dev isal
         python3 -m pip install --upgrade pip
         python3 -m pip install --upgrade-strategy eager --upgrade cython twine numpy indexed_gzip pgzip build
         #
@@ -143,14 +143,6 @@ jobs:
             echo -e '\e[31mThere were errors while running the tests!\e[0m'
             exit 1
         fi
-
-    # Valgrind takes up over half the time of the whole pipeline! Therefore, do it last.
-    - name: Run valgrind
-      if: github.ref == 'refs/heads/master'
-      run: |
-        mkdir -p build-valgrind && cd -- "$_"
-        cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-DSHORT_TESTS" ..
-        cmake --build . -- check-memcheck
 
   Tests:
     runs-on: ${{ matrix.os }}
