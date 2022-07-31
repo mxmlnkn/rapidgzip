@@ -21,7 +21,6 @@
 #include <utility>
 #include <vector>
 
-
 #ifdef WITH_PYTHON_SUPPORT
     #include <Python.h>
 #endif

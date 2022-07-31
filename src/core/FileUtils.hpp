@@ -7,6 +7,64 @@
 #include <stdexcept>
 #include <string>
 
+#include <sys/stat.h>
+
+#ifdef _MSC_VER
+    #define NOMINMAX
+    #include <Windows.h>
+#else
+    #include <sys/stat.h>
+    #include <sys/poll.h>
+    #include <unistd.h>
+#endif
+
+
+#ifdef _MSC_VER
+[[nodiscard]] bool
+stdinHasInput()
+{
+    const auto handle = GetStdHandle( STD_INPUT_HANDLE );
+    DWORD bytesAvailable{ 0 };
+    const auto success = PeekNamedPipe( handle, nullptr, 0, nullptr, &bytesAvailable, nullptr );
+    return ( success == 0 ) && ( bytesAvailable > 0 );
+}
+
+
+[[nodiscard]] bool
+stdoutIsDevNull()
+{
+    /**
+     * @todo Figure this out on Windows in a reasonable readable manner:
+     * @see https://stackoverflow.com/a/21070689/2191065
+     */
+    return false;
+}
+
+#else
+
+[[nodiscard]] bool
+stdinHasInput()
+{
+    pollfd fds{};
+    fds.fd = STDIN_FILENO;
+    fds.events = POLLIN;
+    return poll(&fds, 1, /* timeout in ms */ 0 ) == 1;
+}
+
+
+[[nodiscard]] bool
+stdoutIsDevNull()
+{
+    struct stat devNull{};
+    struct stat stdOut{};
+    return ( fstat( STDOUT_FILENO, &stdOut ) == 0 ) &&
+           ( stat( "/dev/null", &devNull ) == 0 ) &&
+           S_ISCHR( stdOut.st_mode ) &&  // NOLINT
+           ( devNull.st_dev == stdOut.st_dev ) &&
+           ( devNull.st_ino == stdOut.st_ino );
+}
+#endif
+
 
 inline bool
 fileExists( const std::string& filePath )

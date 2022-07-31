@@ -207,6 +207,16 @@ jobs:
         twine check dist/*
         python3 -m pip install dist/*.tar.gz
 
+    - name: Test Simple Startup pragzip
+      run: |
+        pragzip --help
+        pragzip --version
+
+    - name: Test Simple Startup ibzip2
+      run: |
+        ibzip2 --help
+        ibzip2 --version
+
     - name: Test BZip2 Decoder Python Package
       if: github.ref == 'refs/heads/master'
       # indexed_bzip2 should be installed for this step!

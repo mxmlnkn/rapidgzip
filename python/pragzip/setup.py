@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os
 import platform
-import sys
 import tempfile
 from distutils.errors import CompileError
 
@@ -26,7 +24,7 @@ extensions = [
     Extension(
         name         = 'pragzip',
         sources      = [ 'pragzip.pyx' ] + zlib_sources,
-        include_dirs = [ 'core', 'pragzip', 'pragzip/huffman', 'external/zlib' ],
+        include_dirs = [ '.', 'core', 'pragzip', 'pragzip/huffman', 'external/zlib', 'external/cxxopts/include' ],
         language     = 'c++',
     ),
 ]
@@ -115,44 +113,7 @@ class Build(build_ext):
         super(Build, self).build_extensions()
 
 
-scriptPath = os.path.abspath( os.path.dirname( __file__ ) )
-with open( os.path.join( scriptPath, 'README.md' ), encoding = 'utf-8' ) as file:
-    readmeContents = file.read()
-
-
 setup(
-    name             = 'pragzip',
-    version          = '0.2.0',
-
-    description      = 'Parallel random access to gzip files',
-    url              = 'https://github.com/mxmlnkn/indexed_bzip2',
-    author           = 'Maximilian Knespel',
-    author_email     = 'mxmlnkn@github.de',
-    license          = 'MIT',
-    classifiers      = [ 'License :: OSI Approved :: MIT License',
-                         'Development Status :: 3 - Alpha',
-                         'Natural Language :: English',
-                         'Operating System :: MacOS',
-                         'Operating System :: POSIX',
-                         'Operating System :: Unix',
-                         'Operating System :: Microsoft :: Windows',
-                         'Programming Language :: Python :: 3',
-                         'Programming Language :: Python :: 3.6',
-                         'Programming Language :: Python :: 3.7',
-                         'Programming Language :: Python :: 3.8',
-                         'Programming Language :: Python :: 3.9',
-                         'Programming Language :: Python :: 3.10',
-                         'Programming Language :: C++',
-                         'Topic :: Software Development :: Libraries',
-                         'Topic :: Software Development :: Libraries :: Python Modules',
-                         'Topic :: System :: Archiving',
-                         'Topic :: System :: Archiving :: Compression'
-                       ],
-
-    long_description = readmeContents,
-    long_description_content_type = 'text/markdown',
-
-    py_modules       = [ 'pragzip' ],
-    ext_modules      = extensions,
-    cmdclass         = { 'build_ext': Build },
+    ext_modules = extensions,
+    cmdclass    = { 'build_ext': Build },
 )

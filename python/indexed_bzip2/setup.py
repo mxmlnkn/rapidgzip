@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os
 import platform
-import sys
 import tempfile
 from distutils.errors import CompileError
 
@@ -23,7 +21,7 @@ extensions = [
     Extension(
         name         = 'indexed_bzip2',
         sources      = [ 'indexed_bzip2.pyx' ],
-        include_dirs = [ 'core', 'indexed_bzip2' ],
+        include_dirs = [ '.', 'core', 'indexed_bzip2', 'external/cxxopts/include' ],
         language     = 'c++',
     ),
 ]
@@ -78,44 +76,8 @@ class Build(build_ext):
         super(Build, self).build_extensions()
 
 
-scriptPath = os.path.abspath( os.path.dirname( __file__ ) )
-with open( os.path.join( scriptPath, 'README.md' ), encoding = 'utf-8' ) as file:
-    readmeContents = file.read()
-
-
 setup(
-    name             = 'indexed_bzip2',
-    version          = '1.3.2',
-
-    description      = 'Fast random access to bzip2 files',
-    url              = 'https://github.com/mxmlnkn/indexed_bzip2',
-    author           = 'Maximilian Knespel',
-    author_email     = 'mxmlnkn@github.de',
-    license          = 'MIT',
-    classifiers      = [ 'License :: OSI Approved :: MIT License',
-                         'Development Status :: 5 - Production/Stable',
-                         'Natural Language :: English',
-                         'Operating System :: MacOS',
-                         'Operating System :: POSIX',
-                         'Operating System :: Unix',
-                         'Operating System :: Microsoft :: Windows',
-                         'Programming Language :: Python :: 3',
-                         'Programming Language :: Python :: 3.6',
-                         'Programming Language :: Python :: 3.7',
-                         'Programming Language :: Python :: 3.8',
-                         'Programming Language :: Python :: 3.9',
-                         'Programming Language :: Python :: 3.10',
-                         'Programming Language :: C++',
-                         'Topic :: Software Development :: Libraries',
-                         'Topic :: Software Development :: Libraries :: Python Modules',
-                         'Topic :: System :: Archiving',
-                         'Topic :: System :: Archiving :: Compression'
-                       ],
-
-    long_description = readmeContents,
-    long_description_content_type = 'text/markdown',
-
-    py_modules       = [ 'indexed_bzip2' ],
-    ext_modules      = extensions,
-    cmdclass         = { 'build_ext': Build },
+    py_modules  = [ 'indexed_bzip2' ],
+    ext_modules = extensions,
+    cmdclass    = { 'build_ext': Build },
 )

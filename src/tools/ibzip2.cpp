@@ -10,10 +10,6 @@
 #include <thread>
 #include <vector>
 
-#include <sys/poll.h>
-#include <sys/stat.h>
-#include <unistd.h>
-
 #include <cxxopts.hpp>
 
 #include <bzip2.hpp>
@@ -21,31 +17,9 @@
 #include <BitStringFinder.hpp>
 #include <BZ2Reader.hpp>
 #include <filereader/Standard.hpp>
+#include <FileUtils.hpp>
 #include <ParallelBZ2Reader.hpp>
 #include <ParallelBitStringFinder.hpp>
-
-
-[[nodiscard]] bool
-stdinHasInput()
-{
-    pollfd fds;  // NOLINT
-    fds.fd = STDIN_FILENO;
-    fds.events = POLLIN;
-    return poll(&fds, 1, /* timeout in ms */ 0 ) == 1;
-}
-
-
-[[nodiscard]] bool
-stdoutIsDevNull()
-{
-    struct stat devNull;  // NOLINT
-    struct stat stdOut;  // NOLINT
-    return ( fstat( STDOUT_FILENO, &stdOut ) == 0 ) &&
-           ( stat( "/dev/null", &devNull ) == 0 ) &&
-           S_ISCHR( stdOut.st_mode ) &&  // NOLINT
-           ( devNull.st_dev == stdOut.st_dev ) &&
-           ( devNull.st_ino == stdOut.st_ino );
-}
 
 
 /* Check whether the found offsets actually point to BZ2 magic bytes. */
@@ -123,9 +97,7 @@ findCompressedBlocks( const std::string& inputFilePath,
         using Finder = BitStringFinder<bzip2::MAGIC_BITS_SIZE>;
         using ParallelFinder = ParallelBitStringFinder<bzip2::MAGIC_BITS_SIZE>;
 
-        auto file = inputFilePath.empty()
-                    ? std::make_unique<StandardFileReader>( STDIN_FILENO )
-                    : std::make_unique<StandardFileReader>( inputFilePath );
+        auto file = openFileOrStdin( inputFilePath );
 
         std::unique_ptr<Finder> finder =
             parallelism == 1
@@ -199,7 +171,7 @@ getFilePath( cxxopts::ParseResult const& parsedArgs,
 
 
 int
-cli( int argc, char** argv )
+ibzip2CLI( int argc, char** argv )
 {
     /**
      * @note For some reason implicit values do not mix very well with positional parameters!
@@ -364,9 +336,7 @@ cli( int argc, char** argv )
             std::cerr << "Decompress with " << decoderParallelism << " threads\n";
         }
 
-        auto fileReader = inputFilePath.empty()
-                   ? std::make_unique<StandardFileReader>( STDIN_FILENO )
-                   : std::make_unique<StandardFileReader>( inputFilePath );
+        auto fileReader = openFileOrStdin( inputFilePath );
 
         std::unique_ptr<BZ2ReaderInterface> reader;
         if ( decoderParallelism == 1 ) {
@@ -375,7 +345,15 @@ cli( int argc, char** argv )
             reader = std::make_unique<ParallelBZ2Reader>( std::move( fileReader ), decoderParallelism );
         }
 
-        auto outputFileDescriptor = STDOUT_FILENO;
+    #ifdef _MSC_VER
+        auto outputFileDescriptor = _fileno( stdout );
+        if ( outputFilePath.empty() ) {
+            _setmode( outputFileDescriptor, _O_BINARY );
+        }
+    #else
+        auto outputFileDescriptor = ::fileno( stdout );
+    #endif
+
         unique_file_ptr outputFile;
         if ( !outputFilePath.empty() ) {
             outputFile = make_unique_file_ptr( outputFilePath.c_str(), "wb" );
@@ -474,12 +452,13 @@ cli( int argc, char** argv )
 }
 
 
+#ifndef WITH_PYTHON_SUPPORT
 int
 main( int argc, char** argv )
 {
     try
     {
-        return cli( argc, argv );
+        return ibzip2CLI( argc, argv );
     }
     catch ( const std::exception& exception )
     {
@@ -489,3 +468,4 @@ main( int argc, char** argv )
 
     return 1;
 }
+#endif

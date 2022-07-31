@@ -1,5 +1,8 @@
 include LICENSE
 include README.md
+include CHANGELOG.md
 include indexed_bzip2.pyx
 recursive-include indexed_bzip2 *.hpp
 recursive-include core *.hpp
+include external/cxxopts/include/cxxopts.hpp
+include tools/ibzip2.cpp

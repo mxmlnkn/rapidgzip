@@ -6,6 +6,7 @@ from libc.stdlib cimport malloc, free
 from libc.stdio cimport SEEK_SET
 from libcpp.string cimport string
 from libcpp.map cimport map
+from libcpp.vector cimport vector
 from libcpp cimport bool
 from cpython.buffer cimport PyObject_GetBuffer, PyBuffer_Release, PyBUF_ANY_CONTIGUOUS, PyBUF_SIMPLE
 from cpython.ref cimport PyObject
@@ -18,7 +19,10 @@ ctypedef (unsigned long long int) size_t
 ctypedef (long long int) lli
 
 
-cdef extern from "BZ2Reader.hpp":
+cdef extern from "tools/ibzip2.cpp":
+    int ibzip2CLI(int, char**) except +
+
+cdef extern from "indexed_bzip2/BZ2Reader.hpp":
     cppclass BZ2Reader:
         BZ2Reader(int) except +
         BZ2Reader(string) except +
@@ -40,7 +44,7 @@ cdef extern from "BZ2Reader.hpp":
         map[size_t, size_t] availableBlockOffsets() except +
         void setBlockOffsets(map[size_t, size_t]) except +
 
-cdef extern from "ParallelBZ2Reader.hpp":
+cdef extern from "indexed_bzip2/ParallelBZ2Reader.hpp":
     cppclass ParallelBZ2Reader:
         ParallelBZ2Reader(string, size_t) except +
         ParallelBZ2Reader(int, size_t) except +
@@ -356,4 +360,22 @@ def open(filename, parallelization = 1):
     return IndexedBzip2File(filename, parallelization)
 
 
-__version__ = '1.3.2'
+def cli():
+    args = sys.argv
+    cdef char** cargs = <char**> malloc(len(args) * sizeof(char*))
+    cdef vector[Py_buffer] buffers
+    buffers.resize(len(args))
+
+    try:
+        for i, arg in enumerate(args):
+            PyObject_GetBuffer(arg.encode(), &buffers[i], PyBUF_SIMPLE | PyBUF_ANY_CONTIGUOUS)
+            cargs[i] = <char*>buffers[i].buf
+
+        return ibzip2CLI(len(args), cargs)
+    finally:
+        free(cargs)
+        for buffer in buffers:
+            PyBuffer_Release(&buffer)
+
+
+__version__ = '1.4.0'

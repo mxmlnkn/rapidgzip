@@ -6,8 +6,8 @@
 [![Conda Platforms](https://img.shields.io/conda/pn/mxmlnkn/pragzip?color=brightgreen&label=conda)](https://anaconda.org/mxmlnkn/pragzip)
 [![Downloads](https://pepy.tech/badge/pragzip/month)](https://pepy.tech/project/pragzip)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](http://opensource.org/licenses/MIT)
-[![Build Status](https://github.com/mxmlnkn/pragzip/workflows/tests/badge.svg)](https://github.com/mxmlnkn/pragzip/actions)
-[![codecov](https://codecov.io/gh/mxmlnkn/pragzip/branch/master/graph/badge.svg?token=94ZD4UTZQW)](https://codecov.io/gh/mxmlnkn/pragzip)
+[![Build Status](https://github.com/mxmlnkn/indexed_bzip2/workflows/tests/badge.svg)](https://github.com/mxmlnkn/pragzip/actions)
+[![codecov](https://codecov.io/gh/mxmlnkn/indexed_bzip2/branch/master/graph/badge.svg?token=94ZD4UTZQW)](https://codecov.io/gh/mxmlnkn/pragzip)
 ![C++17](https://img.shields.io/badge/C++-17-blue.svg?style=flat-square)
 
 
@@ -38,6 +38,22 @@ You can simply install it from PyPI:
 python3 -m pip install --upgrade pip  # Recommended for newer manylinux wheels
 python3 -m pip install pragzip
 ```
+
+The latest unreleased development version can be tested out with:
+
+```bash
+python3 -m pip install --force-reinstall 'git+https://github.com/mxmlnkn/indexed_bzip2.git@master#egginfo=indexed_bzip2&subdirectory=python/indexed_bzip2'
+```
+
+And to build locally, you can use `build` and install the wheel:
+
+```bash
+cd python/pragzip
+rm -rf dist
+python3 -m build .
+python3 -m pip install --force-reinstall --user dist/*.whl
+```
+
 
 # Usage
 
@@ -207,7 +223,7 @@ Results for an AMD Ryzen 3900X 12-core (24 virtual cores) processor and with `gz
 | pragzip with parallelization = 24 | 1.25        |
 | pragzip with parallelization = 32 | 1.33        |
 
-The speedup between the `gzip` module and `pragzip` with `parallelization = 0` is 17.2/1.25 = **14**.
+The speedup of `pragzip` over the `gzip` module with `parallelization = 0` is 17.2/1.25 = **14**.
 When using only one core, `pragzip` is faster by (17.2-13.8)/17.2 = 20%.
 
 

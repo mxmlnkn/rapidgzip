@@ -1,7 +1,10 @@
 
-# Version 1.3.2 built on 2022-mm-dd
+# Version 1.4.0 built on 2022-mm-dd
 
+ - Add command line CLI entrypoint ibzip2 to be used as a standalon parallel bzip2 decoder as replacement for bzip2.
+ - Speed up magic bit string finder 9-fold.
  - Fix segmentation fault when IndexedBzip2File failed to construct, e.g., because of a wrong argument type given.
+ - Refactored a lot of code in order to build pragzip on top of the indexed_bzip2 backend.
 
 # Version 1.3.1 built on 2021-12-23
 

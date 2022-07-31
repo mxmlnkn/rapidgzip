@@ -124,10 +124,13 @@ public:
         m_bins( binCount, 0 ),
         m_unit( std::move( unit ) )
     {
-        if ( !std::isfinite( m_statistics.min )
-             || !std::isfinite( m_statistics.max )
-             || ( m_statistics.min == m_statistics.max ) )
-        {
+        if constexpr ( std::is_floating_point_v<T> ) {
+            if ( !std::isfinite( m_statistics.min ) || !std::isfinite( m_statistics.max ) ) {
+                return;
+            }
+        }
+
+        if ( m_statistics.min == m_statistics.max ) {
             return;
         }
 
@@ -139,11 +142,13 @@ public:
     constexpr bool
     merge( T value )
     {
-        if ( !std::isfinite( value )
-             || ( value < m_statistics.min )
-             || ( value > m_statistics.max )
-             || m_bins.empty() )
-        {
+        if constexpr ( std::is_floating_point_v<T> ) {
+            if ( !std::isfinite( value ) ) {
+                return false;
+            }
+        }
+
+        if ( ( value < m_statistics.min ) || ( value > m_statistics.max ) || m_bins.empty() ) {
             return false;
         }
 

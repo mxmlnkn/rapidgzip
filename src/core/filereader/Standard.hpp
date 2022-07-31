@@ -10,6 +10,12 @@
 
 #include <sys/stat.h>
 
+#ifdef _MSC_VER
+    #include <stdio.h>  // stdin
+    #include <io.h>     // _setmode
+    #include <fcntl.h>
+#endif
+
 #include "common.hpp"   // unistd, S_ISFIFO, fstat, ...
 #include "FileReader.hpp"
 
@@ -262,3 +268,21 @@ protected:
     size_t m_currentPosition{ 0 };  /**< Only necessary for unseekable files. */
     bool m_lastReadSuccessful{ true };
 };
+
+
+[[nodiscard]] std::unique_ptr<FileReader>
+openFileOrStdin( const std::string& inputFilePath )
+{
+    if ( !inputFilePath.empty() ) {
+        return std::make_unique<StandardFileReader>( inputFilePath );
+    }
+
+#ifdef _MSC_VER
+    const auto stdinHandle = _fileno( stdin );
+    _setmode( stdinHandle, _O_BINARY );
+#else
+    const auto stdinHandle = STDIN_FILENO;
+#endif
+
+    return std::make_unique<StandardFileReader>( stdinHandle );
+}

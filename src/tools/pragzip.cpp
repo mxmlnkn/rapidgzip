@@ -10,41 +10,15 @@
 #include <thread>
 #include <vector>
 
-#include <sys/poll.h>
-#include <sys/stat.h>
-#include <unistd.h>
-
 #include <cxxopts.hpp>
 
 #include <blockfinder/Bgzf.hpp>
 #include <common.hpp>
 #include <filereader/Standard.hpp>
+#include <FileUtils.hpp>
 #include <pragzip.hpp>
 #include <ParallelGzipReader.hpp>
 #include <Statistics.hpp>
-
-
-[[nodiscard]] bool
-stdinHasInput()
-{
-    pollfd fds;  // NOLINT
-    fds.fd = STDIN_FILENO;
-    fds.events = POLLIN;
-    return poll(&fds, 1, /* timeout in ms */ 0 ) == 1;
-}
-
-
-[[nodiscard]] bool
-stdoutIsDevNull()
-{
-    struct stat devNull;  // NOLINT
-    struct stat stdOut;  // NOLINT
-    return ( fstat( STDOUT_FILENO, &stdOut ) == 0 ) &&
-           ( stat( "/dev/null", &devNull ) == 0 ) &&
-           S_ISCHR( stdOut.st_mode ) &&  // NOLINT
-           ( devNull.st_dev == stdOut.st_dev ) &&
-           ( devNull.st_ino == stdOut.st_ino );
-}
 
 
 [[nodiscard]] pragzip::Error
@@ -227,7 +201,7 @@ printHelp( const cxxopts::Options& options )
     << "\n"
     << "If no file names are given, pragzip decompresses from standard input to standard output.\n"
     << "If the output is discarded by piping to /dev/null, then the actual decoding step might\n"
-    << "be omitted if neither --test nor -l nor -L nor --force are given.\n"
+    << "be omitted if neither -l nor -L nor --force are given.\n"
     << "\n"
     << "Examples:\n"
     << "\n"
@@ -235,13 +209,10 @@ printHelp( const cxxopts::Options& options )
     << "  pragzip -d file.gz\n"
     << "\n"
     << "Decompress a file in parallel:\n"
-    << "  pragzip -d -P file.gz\n"
+    << "  pragzip -d -P 0 file.gz\n"
     << "\n"
-    << "Find and list the bzip2 block offsets to be used for another tool:\n"
-    << "  pragzip -l blockoffsets.dat -- file.gz\n"
-    << "\n"
-    << "List block offsets in both the compressed as well as the decompressed data during downloading:\n"
-    << "  wget -O- 'ftp://example.com/file.gz' | tee saved-file.gz | pragzip -L blockoffsets.dat > /dev/null\n"
+    << "List information about all gzip streams and deflate blocks:\n"
+    << "  pragzip --analyze file.gz\n"
     << std::endl;
 }
 
@@ -261,14 +232,14 @@ getFilePath( cxxopts::ParseResult const& parsedArgs,
 
 
 int
-cli( int argc, char** argv )
+pragzipCLI( int argc, char** argv )
 {
     /**
      * @note For some reason implicit values do not mix very well with positional parameters!
      *       Parameters given to arguments with implicit values will be matched by the positional argument instead!
      */
     cxxopts::Options options( "pragzip",
-                              "A bzip2 decompressor tool based on the indexed_bzip2 backend from ratarmount" );
+                              "A gzip decompressor tool based on the pragzip backend from ratarmount" );
     options.add_options( "Decompression" )
         ( "c,stdout"     , "Output to standard output. This is the default, when reading from standard input." )
         ( "d,decompress" , "Force decompression. Only for compatibility. No compression supported anyways." )
@@ -282,14 +253,7 @@ cli( int argc, char** argv )
           cxxopts::value<std::string>() )
         ( "k,keep"       , "Keep (do not delete) input file. Only for compatibility. "
                            "This tool will not delete anything automatically!" )
-        ( "t,test"       , "Test compressed file integrity." )
         ( "analyze"      , "Print output about the internal file format structure like the block types." )
-
-        ( "p,block-finder-parallelism",
-          "This only has an effect if the parallel decoder is used with the -P option. "
-          "If an optional integer >= 1 is given, then that is the number of threads to use for finding bzip2 blocks. "
-          "If 0 is given, then the parallelism will be determiend automatically.",
-          cxxopts::value<unsigned int>()->default_value( "1" ) )
 
         ( "P,decoder-parallelism",
           "Use the parallel decoder. "
@@ -302,17 +266,7 @@ cli( int argc, char** argv )
         ( "h,help"   , "Print this help mesage." )
         ( "q,quiet"  , "Suppress noncritical error messages." )
         ( "v,verbose", "Be verbose. A second -v (or shorthand -vv) gives even more verbosity." )
-        ( "V,version", "Display software version." )
-        ( "l,list-compressed-offsets",
-          "List only the bzip2 block offsets given in bits one per line to the specified output file. "
-          "If no file is given, it will print to stdout or to stderr if the decoded data is already written to stdout. "
-          "Specifying '-' as file path, will write to stdout.",
-          cxxopts::value<std::string>() )
-        ( "L,list-offsets",
-          "List bzip2 block offsets in bits and also the corresponding offsets in the decoded data at the beginning "
-          "of each block in bytes as a comma separated pair per line '<encoded bits>,<decoded bytes>'. "
-          "Specifying '-' as file path, will write to stdout.",
-          cxxopts::value<std::string>() );
+        ( "V,version", "Display software version." );
 
     options.parse_positional( { "input" } );
 
@@ -330,7 +284,7 @@ cli( int argc, char** argv )
     const auto decoderParallelism = getParallelism( parsedArgs["decoder-parallelism"].as<unsigned int>() );
 
     if ( verbose ) {
-        for ( auto const* const path : { "input", "output", "list-compressed-offsets", "list-offsets" } ) {
+        for ( auto const* const path : { "input", "output" } ) {
             std::string value = "<none>";
             try {
                 value = parsedArgs[path].as<std::string>();
@@ -347,14 +301,15 @@ cli( int argc, char** argv )
     }
 
     if ( parsedArgs.count( "version" ) > 0 ) {
-        std::cout << "pragzip, CLI to the indexed and seekable bzip2 decoding library indexed-bzip2 version 1.2.0.\n";
+        std::cout << "pragzip, CLI to the parallelized, indexed, and seekable gzip decoding library pragzip "
+                  << "version 0.2.0.\n";
         return 0;
     }
 
     /* Parse input file specifications. */
 
     if ( parsedArgs.count( "input" ) > 1 ) {
-        std::cerr << "One or none bzip2 filename to decompress must be specified!\n";
+        std::cerr << "One or none gzip filename to decompress must be specified!\n";
         return 1;
     }
 
@@ -368,9 +323,7 @@ cli( int argc, char** argv )
         inputFilePath = parsedArgs["input"].as<std::string>();
     }
 
-    auto inputFile = inputFilePath.empty()
-                     ? std::make_unique<StandardFileReader>( STDIN_FILENO )
-                     : std::make_unique<StandardFileReader>( inputFilePath );
+    auto inputFile = openFileOrStdin( inputFilePath );
 
     /* Check if analysis is requested. */
 
@@ -405,22 +358,7 @@ cli( int argc, char** argv )
     const auto decompress = ( ( parsedArgs.count( "decompress" ) > 0 )
                               && ( ( outputFilePath.empty() && !stdoutIsDevNull() )
                                    || ( !outputFilePath.empty() && ( outputFilePath != "/dev/null" ) ) ) )
-                            || ( parsedArgs.count( "list-offsets" ) > 0 )
                             || force;
-
-    const auto offsetsFilePath = getFilePath( parsedArgs, "list-offsets" );
-    if ( !offsetsFilePath.empty() && fileExists( offsetsFilePath ) && !force ) {
-        std::cerr << "Output file for offsets'" << offsetsFilePath
-                  << "' for offsets already exists! Use --force to overwrite.\n";
-        return 1;
-    }
-
-    const auto compressedOffsetsFilePath = getFilePath( parsedArgs, "list-compressed-offsets" );
-    if ( !compressedOffsetsFilePath.empty() && fileExists( compressedOffsetsFilePath ) && !force ) {
-        std::cerr << "Output file compressed offsets '" << compressedOffsetsFilePath
-                  << "' for offsets already exists! Use --force to overwrite.\n";
-        return 1;
-    }
 
     /* Actually do things as requested. */
 
@@ -435,7 +373,15 @@ cli( int argc, char** argv )
             return 1;
         }
 
-        auto outputFileDescriptor = STDOUT_FILENO;
+    #ifdef _MSC_VER
+        auto outputFileDescriptor = _fileno( stdout );
+        if ( outputFilePath.empty() ) {
+            _setmode( outputFileDescriptor, _O_BINARY );
+        }
+    #else
+        auto outputFileDescriptor = ::fileno( stdout );
+    #endif
+
         unique_file_ptr outputFile;
         if ( !outputFilePath.empty() ) {
             outputFile = make_unique_file_ptr( outputFilePath.c_str(), "wb" );
@@ -467,25 +413,6 @@ cli( int argc, char** argv )
         return 0;
     }
 
-    /** @todo Implement actual output format for lists @see ibzip2.
-     * For Bgzf, also get the uncompressed sizes from the gzip footers! */
-    if ( parsedArgs.count( "list-compressed-offsets" ) > 0 ) {
-        if ( verbose ) {
-            std::cerr << "Find block offsets\n";
-        }
-
-        std::cerr << "Bgzf block offsets:\n";
-        pragzip::blockfinder::Bgzf blockFinder( std::make_unique<StandardFileReader>( inputFilePath ) );
-        for ( auto offset = blockFinder.find();
-              offset != std::numeric_limits<size_t>::max();
-              offset = blockFinder.find() )
-        {
-            std::cerr << ( offset / 8 ) << " B " << ( offset % 8 ) << " b\n";
-        }
-
-        return 1;
-    }
-
     std::cerr << "No suitable arguments were given. Please refer to the help!\n\n";
 
     printHelp( options );
@@ -494,12 +421,13 @@ cli( int argc, char** argv )
 }
 
 
+#ifndef WITH_PYTHON_SUPPORT
 int
 main( int argc, char** argv )
 {
     try
     {
-        return cli( argc, argv );
+        return pragzipCLI( argc, argv );
     }
     catch ( const std::exception& exception )
     {
@@ -509,3 +437,4 @@ main( int argc, char** argv )
 
     return 1;
 }
+#endif
