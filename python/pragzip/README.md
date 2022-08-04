@@ -1,4 +1,6 @@
-# pragzip
+<p align="center"><a href=#><img src="https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/python/pragzip/pragzip.svg"/></a></p>
+
+# Parallel Random Access Gzip (pragzip)
 
 [![PyPI version](https://badge.fury.io/py/pragzip.svg)](https://badge.fury.io/py/pragzip)
 [![Python Version](https://img.shields.io/pypi/pyversions/pragzip)](https://pypi.org/project/pragzip/)

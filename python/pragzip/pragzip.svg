@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="405"
+   height="120"
+   viewBox="0 0 405 120"
+   version="1.1"
+   id="pragzip-logo"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <style
+     id="style2">
+:root {
+    --color-ratar: #aa00cc;
+    --color-mount: #009900;
+}
+
+#ratar { stroke: var(--color-ratar); }
+#stop-ratar { stop-color: var(--color-ratar); }
+#mount { stroke: var(--color-mount); }
+#stop-mount { stop-color: var(--color-mount); }
+
+/* On hover does not work for this SVG when inlined into the rendered Github Readme.md. */
+.gloweffect:hover { filter: url(#glow); }
+/* .gloweffect { filter: url(#glow); } */
+    </style>
+    <defs id="definitions">
+        <linearGradient
+           xlink:href="#linearGradientStops"
+           id="linearGradient1"
+           gradientUnits="userSpaceOnUse"
+           x1="190" y1="0" x2="320" y2="0"/>
+        <linearGradient id="linearGradientStops">
+            <stop offset="0" id="stop-ratar" style="stop-color: #aa00cc"/>
+            <stop offset="1" id="stop-mount" style="stop-color: #009900"/>
+        </linearGradient>
+        <filter id="animated-glow">
+            <feGaussianBlur stdDeviation="1" result="blur1">
+                <animate attributeName="stdDeviation" calcMode="linear" keyTimes="0.0; 0.96; 0.98; 1.0"
+                         values="0; 0; 1; 0" dur="20s" repeatCount="indefinite"/>
+            </feGaussianBlur>
+            <feGaussianBlur stdDeviation="2" result="blur2">
+                <animate attributeName="stdDeviation" calcMode="linear" keyTimes="0.0; 0.96; 0.98; 1.0"
+                         values="0; 0; 2; 0" dur="20s" repeatCount="indefinite"/>
+            </feGaussianBlur>
+            <feGaussianBlur stdDeviation="4" result="blur3">
+                <animate attributeName="stdDeviation" calcMode="linear" keyTimes="0.0; 0.96; 0.98; 1.0"
+                         values="0; 0; 4; 0" dur="20s" repeatCount="indefinite"/>
+            </feGaussianBlur>
+            <feColorMatrix in="SourceGraphic" type="saturate" values="2" result="luminescence">
+                <animate attributeName="values" calcMode="linear" keyTimes="0.0; 0.94; 0.98; 1.0"
+                         values="1; 1; 2; 1" dur="20s" repeatCount="indefinite"/>
+            </feColorMatrix>
+            <feMerge>
+                <feMergeNode in="blur1"/>
+                <feMergeNode in="blur2"/>
+                <feMergeNode in="blur3"/>
+                <feMergeNode in="SourceGraphic"/>
+                <feMergeNode in="luminescence"/>
+            </feMerge>
+        </filter>
+        <filter id="glow">
+            <feGaussianBlur stdDeviation="1" result="blur1"/>
+            <feGaussianBlur stdDeviation="2" result="blur2"/>
+            <feGaussianBlur stdDeviation="4" result="blur3"/>
+            <feColorMatrix in="SourceGraphic" type="saturate" values="2" result="luminescence"/>
+            <feMerge>
+                <feMergeNode in="blur1"/>
+                <feMergeNode in="blur2"/>
+                <feMergeNode in="blur3"/>
+                <feMergeNode in="SourceGraphic"/>
+                <feMergeNode in="luminescence"/>
+            </feMerge>
+        </filter>
+    </defs>
+    <g id="pragzip" class="gloweffect" transform="translate(0,30)" style="
+        fill: none;
+        stroke-width: 10;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-miterlimit: 4;
+        stroke-dasharray: none;
+        stroke-opacity: 1;">
+        <g id="pra" transform="translate(15,0)" style="stroke: #aa00cc">
+            <g id="p" transform="translate(0,0)">
+                <circle id="p-ring" cx="25" cy="25" r="25"/>
+                <path id="p-stroke" d="m 0,25 v 50"/>
+            </g>
+            <g id="r" transform="translate(55,0)">
+                <path d="m 35,0 c -11,0 -20,9 -20,20 v 30"/>
+            </g>
+            <g id="a" transform="translate(110,0)">
+                <circle id="a-ring" cx="25" cy="25" r="25"/>
+                <path id="a-tail" d="m 50,25 v 25"/>
+            </g>
+        </g>
+        <g id="gzip" transform="translate(195,0)" style="stroke:#009900">
+            <g id="g" transform="translate(0,0)">
+                <circle id="g-ring" cx="25" cy="25" r="25"/>
+                <path id="g-tail" d="m 50,25 v 50"/>
+            </g>
+            <g id="z" transform="translate(70,0)">
+                <path d="m 0,0 h 35 l -35,50 h 35"/>
+            </g>
+            <g id="i" transform="translate(125,0)">
+                <path id="i-stroke" d="m 0,0 v 50"/>
+                <path id="i-dot" d="m 0,-20 v 0"/>
+            </g>
+            <g id="p" transform="translate(145,0)">
+                <circle id="p-ring" cx="25" cy="25" r="25"/>
+                <path id="p-stroke" d="M 0,25 v 50"/>
+            </g>
+        </g>
+    </g>
+</svg>
