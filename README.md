@@ -14,7 +14,6 @@ Both are built upon the same basic architecture to enable block-parallel decodin
 [![PyPI version](https://badge.fury.io/py/pragzip.svg)](https://badge.fury.io/py/pragzip)
 [![Python Version](https://img.shields.io/pypi/pyversions/pragzip)](https://pypi.org/project/pragzip/)
 [![PyPI Platforms](https://img.shields.io/badge/pypi-linux%20%7C%20macOS%20%7C%20Windows-brightgreen)](https://pypi.org/project/pragzip/)
-[![Conda Platforms](https://img.shields.io/conda/pn/mxmlnkn/pragzip?color=brightgreen&label=conda)](https://anaconda.org/mxmlnkn/pragzip)
 [![Downloads](https://pepy.tech/badge/pragzip/month)](https://pepy.tech/project/pragzip)
 
 This module provides: 

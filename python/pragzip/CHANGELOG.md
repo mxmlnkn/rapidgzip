@@ -1,5 +1,5 @@
 
-# Version 0.2.0 built on 2022-08-04
+# Version 0.2.0 built on 2022-08-05
 
  - Add support for parallel decompression of arbitrary gzip files even without a preexisting gzip index file.
  - Add the command line tool pragzip to be used as a replacement for decoding gzip files.

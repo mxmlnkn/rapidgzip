@@ -19,12 +19,14 @@ jobs:
         manylinux-image: [manylinux2014]
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
 
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: 3.9
+        python-version: '3.10'
 
     - name: Install Dependencies
       run: |
@@ -32,7 +34,7 @@ jobs:
         python3 -m pip install --upgrade-strategy eager --upgrade cython twine cibuildwheel build
 
     - name: Build Tarball
-      if: matrix.manylinux-image == 'manylinux_2014' && matrix.os == 'ubuntu-latest'
+      working-directory: python/pragzip
       run: python3 -m build --sdist
 
     - name: Build Wheels
@@ -42,9 +44,14 @@ jobs:
       run: python -m cibuildwheel --output-dir dist python/pragzip
 
     - name: Check Wheels
-      run: twine check dist/*
+      run: twine check dist/* python/pragzip/dist/*
 
-    - name: Publish to PyPI
+    - name: Publish Tarball to PyPI
+      working-directory: python/pragzip
+      if: matrix.manylinux-image == 'manylinux_2014' && matrix.os == 'ubuntu-latest'
+      run: twine upload --skip-existing -u __token__ dist/*
+
+    - name: Publish Wheels to PyPI
       env:
         TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD_PRAGZIP }}
       run: twine upload --skip-existing -u __token__ dist/*
@@ -59,7 +66,9 @@ jobs:
         os: [macos-latest, ubuntu-latest, windows-latest]
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
 
     - uses: conda-incubator/setup-miniconda@v2
       with:
