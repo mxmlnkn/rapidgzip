@@ -260,7 +260,7 @@ pragzipCLI( int argc, char** argv )
           "If an optional integer >= 1 is given, then that is the number of decoder threads to use. "
           "Note that there might be further threads being started with non-decoding work. "
           "If 0 is given, then the parallelism will be determiend automatically.",
-          cxxopts::value<unsigned int>()->default_value( "1" ) );
+          cxxopts::value<unsigned int>()->default_value( "0" ) );
 
     options.add_options( "Output" )
         ( "h,help"   , "Print this help mesage." )
