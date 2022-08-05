@@ -32,7 +32,7 @@ jobs:
         python3 -m pip install --upgrade-strategy eager --upgrade cython twine cibuildwheel build
 
     - name: Build Tarball
-      if: matrix.manylinux-image == 'manylinux_2014' && matrix.os == 'ubuntu-latest'
+      if: matrix.manylinux-image == 'manylinux2014' && matrix.os == 'ubuntu-latest'
       run: python3 -m build --sdist
 
     - name: Build Wheels
