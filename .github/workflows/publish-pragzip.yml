@@ -48,7 +48,7 @@ jobs:
 
     - name: Publish Tarball to PyPI
       working-directory: python/pragzip
-      if: matrix.manylinux-image == 'manylinux_2014' && matrix.os == 'ubuntu-latest'
+      if: matrix.manylinux-image == 'manylinux2014' && matrix.os == 'ubuntu-latest'
       run: twine upload --skip-existing -u __token__ dist/*
 
     - name: Publish Wheels to PyPI
