@@ -3,7 +3,7 @@ name: Build Conda Packages (pragzip)
 on:
   push:
     # Not working yet and indexed_bzip2 only has a single download from conda ...
-    if: false
+    branches: 'NONEXISTING'
 
 jobs:
   Build-Conda:
