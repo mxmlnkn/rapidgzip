@@ -22,9 +22,9 @@ The random seeking support is the same as provided by [indexed_gzip](https://git
 
 1. [Installation](#installation)
 2. [Usage](#usage)
-   1. [Python Library](#python-library)
-   2. [Via Ratarmount](#via-ratarmount)
-   3. [Command Line Tool](#command-line-tool)
+   1. [Command Line Tool](#command-line-tool)
+   2. [Python Library](#python-library)
+   3. [Via Ratarmount](#via-ratarmount)
    4. [C++ Library](#c-library)
 3. [Performance comparison with gzip module](#performance-comparison-with-gzip-module)
 4. [Internal Architecture](#internal-architecture)
@@ -43,7 +43,7 @@ python3 -m pip install pragzip
 The latest unreleased development version can be tested out with:
 
 ```bash
-python3 -m pip install --force-reinstall 'git+https://github.com/mxmlnkn/indexed_bzip2.git@master#egginfo=indexed_bzip2&subdirectory=python/indexed_bzip2'
+python3 -m pip install --force-reinstall 'git+https://github.com/mxmlnkn/indexed_bzip2.git@master#egginfo=pragzip&subdirectory=python/pragzip'
 ```
 
 And to build locally, you can use `build` and install the wheel:
@@ -57,6 +57,19 @@ python3 -m pip install --force-reinstall --user dist/*.whl
 
 
 # Usage
+
+## Command Line Tool
+
+```bash
+pragzip --help
+
+# Parallel decoding: 1.7 s
+time pragzip -d -c -P 0 sample.gz | wc -c
+
+# Serial decoding: 22 s
+time gzip -d -c sample.gz | wc -c
+```
+
 
 ## Python Library
 
@@ -133,35 +146,6 @@ time dd if=mounted/sample bs=$(( 1024 * 1024 )) \
 ```
 
 
-## Command Line Tool
-
-
-A rudimentary command line tool exists but is not yet shipped with the Python module and instead has to be built from source.
-
-```c++
-git clone https://github.com/mxmlnkn/indexed_bzip2.git
-cd pragzip
-mkdir build
-cd build
-cmake ..
-cmake --build . -- pragzip
-```
-
-The finished `pragzip` binary is created in the `tools` subfolder.
-To install it, it can be copied, e.g., to `/usr/local/bin` or anywhere else as long as it is available in your `PATH` variable.
-The command line options are similar to those of the existing `gzip` tool.
-
-```bash
-src/tools/pragzip --help
-
-# Parallel decoding: 1.7 s
-time src/tools/pragzip -d -c -P 0 sample.gz | wc -c
-
-# Serial decoding: 22 s
-time gzip -d -c sample.gz | wc -c
-```
-
-
 # C++ library
 
 Because it is written in C++, it can of course also be used as a C++ library.
@@ -230,4 +214,4 @@ When using only one core, `pragzip` is faster by (17.2-13.8)/17.2 = 20%.
 
 # Internal Architecture
 
-The main part of the [internal architecture](https://github.com/mxmlnkn/indexed_bzip2#internal-architecture) used for parallelizing is the same as used for [indexed_bzip2](https://github.com/mxmlnkn/indexed_bzip2).
+The main part of the [internal architecture](https://github.com/mxmlnkn/indexed_bzip2/tree/master/python/indexed_bzip2#internal-architecture) used for parallelizing is the same as used for [indexed_bzip2](https://github.com/mxmlnkn/indexed_bzip2).
