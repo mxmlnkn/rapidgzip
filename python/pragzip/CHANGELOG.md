@@ -1,4 +1,8 @@
 
+# Version 0.2.1 built on 2022-08-07
+
+ - Fix exception when decoding gzips with many consecutive uncompressed blocks in parallel.
+
 # Version 0.2.0 built on 2022-08-05
 
  - Add support for parallel decompression of arbitrary gzip files even without a preexisting gzip index file.

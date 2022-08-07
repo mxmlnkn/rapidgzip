@@ -302,7 +302,7 @@ pragzipCLI( int argc, char** argv )
 
     if ( parsedArgs.count( "version" ) > 0 ) {
         std::cout << "pragzip, CLI to the parallelized, indexed, and seekable gzip decoding library pragzip "
-                  << "version 0.2.0.\n";
+                  << "version 0.2.1.\n";
         return 0;
     }
 
