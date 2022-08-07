@@ -87,6 +87,7 @@ public:
     virtual
     ~GzipBlockFetcher()
     {
+        m_cancelThreads = true;
         this->stopThreadPool();
     }
 
@@ -180,7 +181,8 @@ private:
         const auto blockInfo = m_blockMap->getEncodedOffset( blockOffset );
         return decodeBlock( m_bitReader, blockOffset, nextBlockOffset,
                             m_isBgzfFile ? std::make_optional( WindowView{} ) : m_windowMap->get( blockOffset ),
-                            blockInfo ? blockInfo->decodedSizeInBytes : std::optional<size_t>{} );
+                            blockInfo ? blockInfo->decodedSizeInBytes : std::optional<size_t>{},
+                            m_cancelThreads );
     }
 
 public:
@@ -196,7 +198,8 @@ public:
                  size_t                    const blockOffset,
                  size_t                    const untilOffset,
                  std::optional<WindowView> const initialWindow,
-                 std::optional<size_t>     const decodedSize )
+                 std::optional<size_t>     const decodedSize,
+                 std::atomic<bool>        const& cancelThreads )
     {
         if ( initialWindow && decodedSize && ( *decodedSize > 0 ) ) {
             return decodeBlockWithZlib( originalBitReader,
@@ -223,7 +226,7 @@ public:
          *       When applying multiple block finders (pigz, uncompressed, dynamic) it would be best to avoid
          *       BitReader buffer refills. Maybe only test up to BitReader::IOBUF_SIZE bytes?
          */
-        for ( size_t offset = blockOffset; offset < untilOffset; ) {
+        for ( size_t offset = blockOffset; ( offset < untilOffset ) && !cancelThreads; ) {
             try {
                 bitReader.seek( offset );
                 auto result = decodeBlockWithPragzip( &bitReader, untilOffset, initialWindow );
@@ -236,7 +239,8 @@ public:
                  * is only an estimated offset! If it happens because decodeBlockWithPragzip has a bug, then it
                  * might indirectly trigger an exception when the next required block offset cannot be found. */
                 bitReader.seek( offset + 1 );
-                offset = blockfinder::seekToNonFinalDynamicDeflateBlock<14>( bitReader );
+                offset = blockfinder::seekToNonFinalDynamicDeflateBlock<14>(
+                    bitReader, std::numeric_limits<size_t>::max(), &cancelThreads );
             }
         }
 
@@ -528,6 +532,8 @@ private:
     }
 
 private:
+    std::atomic<bool> m_cancelThreads{ false };
+
     /* Variables required by decodeBlock and which therefore should be either const or locked. */
     const BitReader m_bitReader;
     std::shared_ptr<BlockFinder> const m_blockFinder;

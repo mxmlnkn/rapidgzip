@@ -170,9 +170,6 @@ public:
         if constexpr ( SHOW_PROFILE ) {
             std::cerr << ( ThreadSafeOutput() << "[BlockFetcher::~BlockFetcher]" << statistics().print() );
         }
-
-        m_cancelThreads = true;
-        m_cancelThreadsCondition.notify_all();
     }
 
     /**
@@ -474,9 +471,6 @@ protected:
     mutable std::mutex m_analyticsMutex;
 
 private:
-    std::atomic<bool> m_cancelThreads{ false };
-    std::condition_variable m_cancelThreadsCondition;
-
     const size_t m_parallelization;
 
     /**
