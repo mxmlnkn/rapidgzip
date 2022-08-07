@@ -48,12 +48,22 @@ public:
 
 public:
     class DecompressionError :
-        public std::exception
-    {};
+        public std::runtime_error
+    {
+    public:
+        DecompressionError( const std::string& message ) :
+            std::runtime_error( message )
+        {}
+    };
 
     class NoBlockInRange :
         public DecompressionError
-    {};
+    {
+    public:
+        NoBlockInRange( const std::string& message ) :
+            DecompressionError( message )
+        {}
+    };
 
 public:
     GzipBlockFetcher( BitReader                    bitReader,
@@ -239,12 +249,14 @@ public:
                  * is only an estimated offset! If it happens because decodeBlockWithPragzip has a bug, then it
                  * might indirectly trigger an exception when the next required block offset cannot be found. */
                 bitReader.seek( offset + 1 );
-                offset = blockfinder::seekToNonFinalDynamicDeflateBlock<14>(
-                    bitReader, std::numeric_limits<size_t>::max(), &cancelThreads );
+                offset = blockfinder::seekToNonFinalDynamicDeflateBlock<14>( bitReader, untilOffset, &cancelThreads );
             }
         }
 
-        throw NoBlockInRange();
+        std::stringstream message;
+        message << "Failed to find any valid deflate block in [" << formatBits( blockOffset )
+                << ", " << formatBits( untilOffset ) << ")";
+        throw NoBlockInRange( std::move( message ).str() );
     }
 
 private:
