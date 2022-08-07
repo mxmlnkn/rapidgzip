@@ -47,6 +47,15 @@ public:
     using BlockFinder = typename BaseType::BlockFinder;
 
 public:
+    class DecompressionError :
+        public std::exception
+    {};
+
+    class NoBlockInRange :
+        public DecompressionError
+    {};
+
+public:
     GzipBlockFetcher( BitReader                    bitReader,
                       std::shared_ptr<BlockFinder> blockFinder,
                       std::shared_ptr<BlockMap>    blockMap,
@@ -109,7 +118,14 @@ public:
             }
 
             const auto partitionOffset = m_blockFinder->partitionOffsetContaining( *nextBlockOffset );
-            blockData = BaseType::get( partitionOffset, m_nextUnprocessedBlockIndex, /* only check caches */ true );
+            try {
+                blockData = BaseType::get( partitionOffset, m_nextUnprocessedBlockIndex, /* only check caches */ true );
+            } catch ( const NoBlockInRange& ) {
+                /* Trying to get the next block based on the partition offset is only a performance optimization.
+                 * It should succeed most of the time for good performance but is not required to and also might
+                 * sometimes not, e.g., when the deflate block finder failed to find any valid block inside the
+                 * partition, e.g., because it only contains fixed Huffman blocks. */
+            }
             if ( !blockData ) {
                 blockData = BaseType::get( *nextBlockOffset, m_nextUnprocessedBlockIndex );
             } else if ( blockData->encodedOffsetInBits != *nextBlockOffset ) {
@@ -224,10 +240,7 @@ public:
             }
         }
 
-        std::stringstream message;
-        message << "Failed to find any valid deflate block in [" << std::to_string( blockOffset )
-                << "," << std::to_string( untilOffset ) << ")";
-        throw std::domain_error( std::move( message ).str() );
+        throw NoBlockInRange();
     }
 
 private:
