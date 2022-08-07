@@ -46,12 +46,14 @@ testAutomaticMarkerResolution( const std::filesystem::path& filePath,
     pragzip::BitReader bitReader( std::make_unique<StandardFileReader>( filePath ) );
     const auto blockOffset = getBlockOffset( filePath, blockIndex );
     try {
+        std::atomic<bool> cancel{ false };
         const auto result = GzipBlockFetcher<FetchingStrategy::FetchNextMulti>::decodeBlock(
             bitReader,
             blockOffset,
             /* untilOffset */ std::numeric_limits<size_t>::max(),
             /* window */ std::nullopt,
-            /* decodedSize */ std::nullopt );
+            /* decodedSize */ std::nullopt,
+            cancel );
 
         std::vector<size_t> markerBlockSizesFound( result.dataWithMarkers.size() );
         std::transform( result.dataWithMarkers.begin(), result.dataWithMarkers.end(), markerBlockSizesFound.begin(),
