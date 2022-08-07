@@ -88,11 +88,13 @@ createNextDeflateCandidateLUT()
  * Also, does not find uncompressed blocks nor fixed huffman blocks and as the others no final blocks!
  * The idea is that fixed huffman blocks should be very rare and uncompressed blocks can be found very fast in a
  * separate run over the data (to be implemented).
+ *
+ * @param untilOffset All returned matches will be smaller than this offset or `std::numeric_limits<size_t>::max()`.
  */
 template<uint8_t CACHED_BIT_COUNT>
 [[nodiscard]] size_t
 seekToNonFinalDynamicDeflateBlock( BitReader&                     bitReader,
-                                   size_t                   const nBitsToTest = std::numeric_limits<size_t>::max(),
+                                   size_t                   const untilOffset = std::numeric_limits<size_t>::max(),
                                    std::atomic<bool> const* const cancel = nullptr )
 {
     static constexpr auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
@@ -101,7 +103,7 @@ seekToNonFinalDynamicDeflateBlock( BitReader&                     bitReader,
     {
         deflate::Block block;
         auto lastCancelTest = bitReader.tell();
-        for ( size_t offset = bitReader.tell(); offset < nBitsToTest; ) {
+        for ( size_t offset = bitReader.tell(); offset < untilOffset; ) {
             if ( ( cancel != nullptr ) && ( offset > lastCancelTest + 8ULL * 1024ULL ) ) {
                 lastCancelTest = offset;
                 if ( *cancel ) {
