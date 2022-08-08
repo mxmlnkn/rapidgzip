@@ -1,4 +1,10 @@
 
+# Version 0.2.2 built on 2022-08-09
+
+ - Fix specified output (-o) was ignored by pragzip.
+ - Fix exception thrown for very large runs of incompressible data because only 2147479552 B could be written.
+ - Improve performance for gzips with uncompressed deflate blocks.
+
 # Version 0.2.1 built on 2022-08-07
 
  - Fix exception when decoding gzips with many consecutive uncompressed blocks in parallel.
