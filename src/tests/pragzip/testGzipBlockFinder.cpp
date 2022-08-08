@@ -8,8 +8,10 @@
 
 #include <BitManipulation.hpp>
 #include <blockfinder/DynamicHuffman.hpp>
+#include <blockfinder/Uncompressed.hpp>
 #include <common.hpp>
 #include <deflate.hpp>
+#include <filereader/Standard.hpp>
 
 
 using namespace pragzip;
@@ -62,14 +64,67 @@ testDynamicHuffmanBlockFinder()
 }
 
 
+void
+testUncompressedBlockFinder( std::string const&                             path,
+                             std::vector<std::pair<size_t, size_t> > const& expected )
+{
+    pragzip::BitReader bitReader( std::make_unique<StandardFileReader>( path ) );
+
+    std::vector<std::pair<size_t, size_t> > foundRanges;
+    while ( true ) {
+        const auto foundRange = blockfinder::seekToNonFinalUncompressedDeflateBlock( bitReader );
+        if ( !foundRange ) {
+            break;
+        }
+
+        /* Test that we do not enter an infinite loop. */
+        if ( !foundRanges.empty() && ( foundRanges.back() == *foundRange ) ) {
+            REQUIRE( foundRanges.back() != *foundRange );
+            break;
+        }
+
+        std::cerr << "Found range: " << foundRange->first << ", " << foundRange->second << "\n";
+
+        foundRanges.emplace_back( *foundRange );
+        bitReader.seek( static_cast<long long int>( foundRange->second ) + 1 );
+    }
+
+    REQUIRE_EQUAL( foundRanges.size(), expected.size() );
+    REQUIRE( foundRanges == expected );
+}
+
+
 int
 main( int    argc,
-      char** /* argv */)
+      char** argv )
 {
     if ( argc == 0 ) {
         std::cerr << "Expected at least the launch command as the first argument!\n";
         return 1;
     }
+
+    const std::string binaryFilePath( argv[0] );
+    std::string binaryFolder = ".";
+    if ( const auto lastSlash = binaryFilePath.find_last_of( '/' ); lastSlash != std::string::npos ) {
+        binaryFolder = std::string( binaryFilePath.begin(),
+                                    binaryFilePath.begin() + static_cast<std::string::difference_type>( lastSlash ) );
+    }
+    const auto testsFolder =
+        static_cast<std::filesystem::path>(
+            findParentFolderContaining( binaryFolder, "src/tests/data/random-128KiB.bgz" )
+        ) / "src" / "tests" / "data";
+
+    /* Because the whole file consists of compressed blocks, the +5 can be easily explained.
+     * After a compressed block, the next one will begin at byte-boundary but the latest it might begin is at
+     * the next byte boundary minus 3 0-bits (non-final block + block type 0b00). */
+    const std::vector<std::pair<size_t, size_t> > expectedOffsetRanges = {
+        { 24ULL    * BYTE_SIZE, 24ULL    * BYTE_SIZE + 5ULL },
+        { 32806ULL * BYTE_SIZE, 32806ULL * BYTE_SIZE + 5ULL },
+        { 65604ULL * BYTE_SIZE, 65604ULL * BYTE_SIZE + 5ULL },
+        /* The Uncompressed block finder only looks for non-final blocks! */
+        /* { 98386ULL * BYTE_SIZE, 98386ULL * BYTE_SIZE + 5ULL }, */
+    };
+    testUncompressedBlockFinder( testsFolder / "random-128KiB.gz", expectedOffsetRanges );
 
     testDynamicHuffmanBlockFinder();
 
