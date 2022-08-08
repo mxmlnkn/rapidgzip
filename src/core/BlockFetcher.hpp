@@ -312,8 +312,14 @@ private:
             auto& [prefetchedBlockOffset, prefetchedFuture] = *it;
 
             if ( prefetchedFuture.valid() && ( prefetchedFuture.wait_for( 0s ) == std::future_status::ready ) ) {
-                m_prefetchCache.insert( prefetchedBlockOffset, std::make_shared<BlockData>( prefetchedFuture.get() ) );
-
+                BlockData result;
+                try {
+                    result = prefetchedFuture.get();
+                    m_prefetchCache.insert( prefetchedBlockOffset, std::make_shared<BlockData>( std::move( result ) ) );
+                } catch ( ... ) {
+                    /* Prefetching failed, ignore result and error. If the error was a real one, then it will
+                     * will be rethrown when the task is requested directly and run directly. */
+                }
                 it = m_prefetching.erase( it );
             } else {
                 ++it;
