@@ -499,8 +499,19 @@ private:
         size_t nBytesFlushed = dataToWriteSize; // default then there is neither output buffer nor file device given
 
         if ( outputFileDescriptor >= 0 ) {
-            const auto nBytesWritten = write( outputFileDescriptor, dataToWrite, dataToWriteSize );
-            nBytesFlushed = std::max<decltype( nBytesWritten )>( 0, nBytesWritten );
+            /* Avoid running into errors because Linux syscall write only writes up to 0x7ffff000 (2'147'479'552) B */
+            constexpr size_t CHUNK_SIZE = 128ULL * 1024ULL * 1024ULL;
+            for ( nBytesFlushed = 0; nBytesFlushed < dataToWriteSize; )
+            {
+                const auto nBytesWritten = ::write( outputFileDescriptor,
+                                                    dataToWrite + nBytesFlushed,
+                                                    std::min( CHUNK_SIZE, dataToWriteSize - nBytesFlushed ) );
+
+                if ( nBytesWritten <= 0 ) {
+                    break;
+                }
+                nBytesFlushed += static_cast<size_t>( nBytesWritten );
+            }
         }
 
         if ( outputBuffer != nullptr ) {
