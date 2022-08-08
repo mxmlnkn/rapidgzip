@@ -334,7 +334,8 @@ pragzipCLI( int argc, char** argv )
     /* Parse output file specifications. */
 
     auto outputFilePath = getFilePath( parsedArgs, "output" );
-    if ( ( parsedArgs.count( "stdout" ) == 0 ) && !inputFilePath.empty() ) {
+    /* Automatically determine output file path if none has been given and not writing to stdout. */
+    if ( ( parsedArgs.count( "stdout" ) == 0 ) && outputFilePath.empty() && !inputFilePath.empty() ) {
         const std::string& suffix = ".gz";
         if ( endsWith( inputFilePath, suffix, /* case sensitive */ false ) ) {
             outputFilePath = std::string( inputFilePath.begin(),
@@ -355,10 +356,7 @@ pragzipCLI( int argc, char** argv )
 
     /* Parse other arguments. */
 
-    const auto decompress = ( ( parsedArgs.count( "decompress" ) > 0 )
-                              && ( ( outputFilePath.empty() && !stdoutIsDevNull() )
-                                   || ( !outputFilePath.empty() && ( outputFilePath != "/dev/null" ) ) ) )
-                            || force;
+    const auto decompress = ( parsedArgs.count( "decompress" ) > 0 ) || force;
 
     /* Actually do things as requested. */
 

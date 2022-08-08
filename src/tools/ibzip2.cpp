@@ -286,7 +286,7 @@ ibzip2CLI( int argc, char** argv )
     }
 
     auto outputFilePath = getFilePath( parsedArgs, "output" );
-    if ( ( parsedArgs.count( "stdout" ) == 0 ) && !inputFilePath.empty() ) {
+    if ( ( parsedArgs.count( "stdout" ) == 0 ) && outputFilePath.empty() && !inputFilePath.empty() ) {
         const std::string& suffix = ".bz2";
         if ( endsWith( inputFilePath, suffix, /* case sensitive */ false ) ) {
             outputFilePath = std::string( inputFilePath.begin(),
@@ -333,7 +333,8 @@ ibzip2CLI( int argc, char** argv )
 
     if ( decompress ) {
         if ( verbose ) {
-            std::cerr << "Decompress with " << decoderParallelism << " threads\n";
+            std::cerr << "Decompress " << inputFilePath << " -> " << outputFilePath << " with " << decoderParallelism
+                      << " threads\n";
         }
 
         auto fileReader = openFileOrStdin( inputFilePath );
