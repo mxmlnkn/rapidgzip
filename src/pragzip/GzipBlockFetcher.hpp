@@ -18,6 +18,7 @@
 #include <BlockMap.hpp>
 
 #include "blockfinder/DynamicHuffman.hpp"
+#include "blockfinder/Uncompressed.hpp"
 #include "common.hpp"
 #include "DecodedData.hpp"
 #include "deflate.hpp"
@@ -28,10 +29,63 @@
 
 namespace pragzip
 {
+class DecompressionError :
+    public std::runtime_error
+{
+public:
+    DecompressionError( const std::string& message ) :
+        std::runtime_error( message )
+    {}
+};
+
+class NoBlockInRange :
+    public DecompressionError
+{
+public:
+    NoBlockInRange( const std::string& message ) :
+        DecompressionError( message )
+    {}
+};
+
+
 struct BlockData :
     public deflate::DecodedData
 {
+public:
+    [[nodiscard]] bool
+    matchesEncodedOffset( size_t offset )
+    {
+        if ( maxEncodedOffsetInBits == std::numeric_limits<size_t>::max() ) {
+            return offset == encodedOffsetInBits;
+        }
+        return ( encodedOffsetInBits <= offset ) && ( offset <= maxEncodedOffsetInBits );
+    }
+
+    void
+    setEncodedOffset( size_t offset )
+    {
+        if ( !matchesEncodedOffset( offset ) ) {
+            throw std::invalid_argument( "The real offset to correct to should lie inside the offset range!" );
+        }
+
+        if ( maxEncodedOffsetInBits == std::numeric_limits<size_t>::max() ) {
+            maxEncodedOffsetInBits = encodedOffsetInBits;
+        }
+
+        /* Correct the encoded size "assuming" (it must be ensured!) that it was calculated from
+         * maxEncodedOffsetInBits. */
+        encodedSizeInBits += maxEncodedOffsetInBits - offset;
+
+        encodedOffsetInBits = offset;
+        maxEncodedOffsetInBits = offset;
+    }
+
+public:
     size_t encodedOffsetInBits{ std::numeric_limits<size_t>::max() };
+    /* This should only be evaluated when it is unequal std::numeric_limits<size_t>::max() and unequal
+     * encodedOffsetInBits. Then, [encodedOffsetInBits, maxEncodedOffsetInBits] specifies a valid range for the
+     * block offset. Such a range might happen for finding uncompressed deflate blocks because of the byte-padding. */
+    size_t maxEncodedOffsetInBits{ std::numeric_limits<size_t>::max() };
     size_t encodedSizeInBits{ 0 };
 };
 
@@ -45,25 +99,6 @@ public:
     using BitReader = pragzip::BitReader;
     using WindowView = VectorView<uint8_t>;
     using BlockFinder = typename BaseType::BlockFinder;
-
-public:
-    class DecompressionError :
-        public std::runtime_error
-    {
-    public:
-        DecompressionError( const std::string& message ) :
-            std::runtime_error( message )
-        {}
-    };
-
-    class NoBlockInRange :
-        public DecompressionError
-    {
-    public:
-        NoBlockInRange( const std::string& message ) :
-            DecompressionError( message )
-        {}
-    };
 
 public:
     GzipBlockFetcher( BitReader                    bitReader,
@@ -137,45 +172,64 @@ public:
                  * sometimes not, e.g., when the deflate block finder failed to find any valid block inside the
                  * partition, e.g., because it only contains fixed Huffman blocks. */
             }
-            if ( !blockData ) {
+
+            /* If we got no block or one with the wrong data, then try again with the real offset, not the
+             * speculatively prefetched one. */
+            if ( !blockData
+                 || ( !blockData->matchesEncodedOffset( *nextBlockOffset )
+                      && ( partitionOffset != *nextBlockOffset ) ) ) {
                 blockData = BaseType::get( *nextBlockOffset, m_nextUnprocessedBlockIndex );
-            } else if ( blockData->encodedOffsetInBits != *nextBlockOffset ) {
-                std::stringstream message;
-                message << "Got wrong block to searched offset! Looked for " << std::to_string( *nextBlockOffset )
-                        << " and looked up cache successively for estimated offset "
-                        << std::to_string( partitionOffset ) << " but got block with actual offset "
-                        << std::to_string( blockData->encodedOffsetInBits );
-                throw std::logic_error( std::move( message ).str() );
             }
+
             if ( blockData->encodedOffsetInBits == std::numeric_limits<size_t>::max() ) {
                 std::stringstream message;
                 message << "Decoding failed at block offset " << formatBits( *nextBlockOffset ) << "!";
                 throw std::domain_error( std::move( message ).str() );
             }
 
-            m_blockMap->push( blockData->encodedOffsetInBits, blockData->encodedSizeInBits, blockData->size() );
-            m_blockFinder->insert( blockData->encodedOffsetInBits + blockData->encodedSizeInBits );
-            if ( blockData->encodedOffsetInBits + blockData->encodedSizeInBits >= m_bitReader.size() ) {
+            if ( !blockData->matchesEncodedOffset( *nextBlockOffset ) ) {
+                std::stringstream message;
+                message << "Got wrong block to searched offset! Looked for " << std::to_string( *nextBlockOffset )
+                        << " and looked up cache successively for estimated offset "
+                        << std::to_string( partitionOffset ) << " but got block with actual offset "
+                        << std::to_string( *nextBlockOffset );
+                throw std::logic_error( std::move( message ).str() );
+            }
+
+            /* Care has to be taken that we store the correct block offset not the speculative possible range! */
+            blockData->setEncodedOffset( *nextBlockOffset );
+            m_blockMap->push( *nextBlockOffset, blockData->encodedSizeInBits, blockData->size() );
+            const auto blockOffsetAfterNext = *nextBlockOffset + blockData->encodedSizeInBits;
+            m_blockFinder->insert( blockOffsetAfterNext );
+            if ( blockOffsetAfterNext >= m_bitReader.size() ) {
                 m_blockMap->finalize();
                 m_blockFinder->finalize();
             }
+
             ++m_nextUnprocessedBlockIndex;
+            if ( const auto insertedNextBlockOffset = m_blockFinder->get( m_nextUnprocessedBlockIndex );
+                 !m_blockFinder->finalized()
+                 && ( !insertedNextBlockOffset.has_value() || ( *insertedNextBlockOffset != blockOffsetAfterNext ) ) )
+            {
+                /* We could also keep track of the next block offset instead of the block index but then we would
+                 * have to do a bisection for each block to find the block index from the offset. */
+                throw std::logic_error( "Next block offset index is out of sync!" );
+            }
 
             /* Because this is a new block, it might contain markers that we have to replace with the window
              * of the last block. The very first block should not contain any markers, ensuring that we
              * can successively propagate the window through all blocks. */
-            auto lastWindow = m_windowMap->get( blockData->encodedOffsetInBits );
+            auto lastWindow = m_windowMap->get( *nextBlockOffset );
             if ( !lastWindow ) {
                 std::stringstream message;
-                message << "The window of the last block at " << formatBits( blockData->encodedOffsetInBits )
+                message << "The window of the last block at " << formatBits( *nextBlockOffset )
                         << " should exist at this point!";
                 throw std::logic_error( std::move( message ).str() );
             }
 
             blockData->applyWindow( *lastWindow );
             const auto nextWindow = blockData->getLastWindow( *lastWindow );
-            m_windowMap->emplace( blockData->encodedOffsetInBits + blockData->encodedSizeInBits,
-                                  { nextWindow.begin(), nextWindow.end() } );
+            m_windowMap->emplace( blockOffsetAfterNext, { nextWindow.begin(), nextWindow.end() } );
         }
 
         return std::make_pair( blockInfo, blockData );
@@ -236,10 +290,17 @@ public:
          *       When applying multiple block finders (pigz, uncompressed, dynamic) it would be best to avoid
          *       BitReader buffer refills. Maybe only test up to BitReader::IOBUF_SIZE bytes?
          */
-        for ( size_t offset = blockOffset; ( offset < untilOffset ) && !cancelThreads; ) {
+        std::optional<std::pair<size_t, size_t> > uncompressedOffsetRange;
+        size_t dynamicHuffmanOffset{ std::numeric_limits<size_t>::max() };
+        for ( std::pair<size_t, size_t> offset = { blockOffset, blockOffset };
+              ( offset.first < untilOffset ) && !cancelThreads; ) {
             try {
-                bitReader.seek( offset );
+                /* For decoding, it does not matter whether we seek to offset.first or offset.second but it DOES
+                 * matter a lot for interpreting and correcting the encodedSizeInBits in GzipBlockFetcer::get! */
+                bitReader.seek( offset.second );
                 auto result = decodeBlockWithPragzip( &bitReader, untilOffset, initialWindow );
+                result.encodedOffsetInBits = offset.first;
+                result.maxEncodedOffsetInBits = offset.second;
                 /** @todo Avoid out of memory issues for very large compression ratios by using a simple runtime
                  *        length encoding or by only undoing the Huffman coding in parallel and the LZ77 serially,
                  *        or by stopping decoding at a threshold and fall back to serial decoding in that case? */
@@ -248,8 +309,33 @@ public:
                 /* Ignore errors and try next block candidate. This is very likely to happen if @ref blockOffset
                  * is only an estimated offset! If it happens because decodeBlockWithPragzip has a bug, then it
                  * might indirectly trigger an exception when the next required block offset cannot be found. */
-                bitReader.seek( offset + 1 );
-                offset = blockfinder::seekToNonFinalDynamicDeflateBlock<14>( bitReader, untilOffset, &cancelThreads );
+                if ( !uncompressedOffsetRange && ( dynamicHuffmanOffset >= untilOffset ) ) {
+                    bitReader.seek( offset.second + 1 );
+                    uncompressedOffsetRange = blockfinder::seekToNonFinalUncompressedDeflateBlock(
+                        bitReader, untilOffset, &cancelThreads );
+
+                    bitReader.seek( offset.second + 1 );
+                    /* Note that it should not matter whether we limit the search uncompressedOffsetRange.first or
+                     * uncompressedOffsetRange.second because after both offsets there should be at least 3 0-bits,
+                     * which should make a positive match for a dynamic huffman block impossible. */
+                    const auto checkUntilOffset = uncompressedOffsetRange
+                                                  && ( uncompressedOffsetRange->second < untilOffset )
+                                                  ? uncompressedOffsetRange->second
+                                                  : untilOffset;
+                    dynamicHuffmanOffset = blockfinder::seekToNonFinalDynamicDeflateBlock<14>(
+                        bitReader, checkUntilOffset, &cancelThreads );
+                }
+
+                if ( uncompressedOffsetRange
+                     && ( uncompressedOffsetRange->first < dynamicHuffmanOffset )
+                     && ( uncompressedOffsetRange->first < untilOffset ) ) {
+                    offset = *uncompressedOffsetRange;
+                    uncompressedOffsetRange = std::nullopt;
+                    continue;
+                }
+
+                offset = { dynamicHuffmanOffset, dynamicHuffmanOffset };
+                dynamicHuffmanOffset = std::numeric_limits<size_t>::max();
             }
         }
 
@@ -485,9 +571,12 @@ private:
                 throw std::domain_error( std::move( message ).str() );
             }
 
+            /* It is only important for performance that the deflate blocks we are matching here are the same
+             * the block finder is will find. Note that we do not have to check for a uncompressed block padding
+             * of zero because the deflate decoder counts that as an error anyway! */
             if ( ( ( nextBlockOffset >= untilOffset )
                    && !block->isLastBlock()
-                   && ( block->compressionType() == deflate::CompressionType::DYNAMIC_HUFFMAN ) )
+                   && ( block->compressionType() != deflate::CompressionType::FIXED_HUFFMAN ) )
                  || ( nextBlockOffset == untilOffset ) ) {
                 break;
             }

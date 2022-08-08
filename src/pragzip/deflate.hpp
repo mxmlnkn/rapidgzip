@@ -205,6 +205,12 @@ public:
         return m_compressionType;
     }
 
+    [[nodiscard]] constexpr uint8_t
+    padding() const noexcept
+    {
+        return m_padding;
+    }
+
     /**
      * @param nMaxToDecode Maximum bytes to decode. It might decode less even when there is enough data.
      *                     It will only decode as much as fits into the internal buffer.
@@ -393,6 +399,11 @@ private:
 
     bool m_isLastBlock{ false };
     CompressionType m_compressionType{ CompressionType::RESERVED };
+    /**
+     * For UNCOMPRESSED blocks, this will hold the encountered padding, which probably is 0
+     * but we might want to check that.
+     */
+    uint8_t m_padding{ 0 };
 
     /* Initializing m_fixedHC statically leads to very weird problems when compiling with ASAN.
      * The code might be too complex and run into the static initialization order fiasco.
@@ -458,8 +469,8 @@ Block<CALCULATE_CRC32>::readHeader( BitReader& bitReader )
          *       ones should be zero. Could I also check for the padding to be zero? I just don't want to believe,
          *       that anyone would store random data here ... Although it might be good for stenography :D */
         if ( bitReader.tell() % BYTE_SIZE != 0 ) {
-            const auto padding = bitReader.read( BYTE_SIZE - ( bitReader.tell() % BYTE_SIZE ) );
-            if ( padding != 0 ) {
+            m_padding = static_cast<uint8_t>( bitReader.read( BYTE_SIZE - ( bitReader.tell() % BYTE_SIZE ) ) );
+            if ( m_padding != 0 ) {
                 return Error::NON_ZERO_PADDING;
             }
         }
