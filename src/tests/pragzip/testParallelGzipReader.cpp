@@ -15,6 +15,7 @@
 #include <filereader/Standard.hpp>
 #include <ParallelGzipReader.hpp>
 #include <pragzip.hpp>
+#include <TestHelpers.hpp>
 
 
 using namespace pragzip;
@@ -138,19 +139,10 @@ testParallelDecoderNano()
 }
 
 
-[[nodiscard]] TemporaryDirectory
-createTemporaryDirectory()
-{
-    const std::filesystem::path tmpFolderName = "pragzip.testParallelGzipReader." + std::to_string( unixTime() );
-    std::filesystem::create_directory( tmpFolderName );
-    return TemporaryDirectory( tmpFolderName );
-}
-
-
 void
 testParallelDecodingWithIndex()
 {
-    const auto tmpFolder = createTemporaryDirectory();
+    const auto tmpFolder = createTemporaryDirectory( "pragzip.testParallelGzipReader" );
 
     const auto decodedFile = tmpFolder.path() / "decoded";
     const auto encodedFile = tmpFolder.path() / "decoded.gz";
@@ -304,7 +296,7 @@ createRandomBase64( const std::string& filePath,
 void
 testWithLargeFiles()
 {
-    const auto tmpFolder = createTemporaryDirectory();
+    const auto tmpFolder = createTemporaryDirectory( "pragzip.testParallelGzipReader" );
     const std::string fileName = std::filesystem::absolute( tmpFolder.path() / "random-base64" );
     createRandomBase64( fileName, 8UL * 1024UL * 1024UL );
 

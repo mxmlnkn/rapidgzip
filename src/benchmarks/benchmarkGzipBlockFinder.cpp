@@ -28,6 +28,7 @@ https://www.ietf.org/rfc/rfc1952.txt
 #include <filereader/Buffered.hpp>
 #include <pragzip.hpp>
 #include <Statistics.hpp>
+#include <TestHelpers.hpp>
 
 
 std::ostream&
@@ -818,73 +819,6 @@ createRandomBase64( const std::string& filePath,
 }
 
 
-[[nodiscard]] TemporaryDirectory
-createTemporaryDirectory()
-{
-    const std::filesystem::path tmpFolderName = "pragzip.benchmarkGzipBlockFinder." + std::to_string( unixTime() );
-    std::filesystem::create_directory( tmpFolderName );
-    return TemporaryDirectory( tmpFolderName );
-}
-
-
-template<typename Functor,
-         typename FunctorResult = std::invoke_result_t<Functor> >
-[[nodiscard]] std::pair<FunctorResult, std::vector<double> >
-benchmarkFunction( Functor functor )
-{
-    std::optional<FunctorResult> result;
-    std::vector<double> durations;
-    for ( size_t i = 0; i < 3; ++i ) {
-        const auto t0 = now();
-        const auto currentResult = functor();
-        const auto t1 = now();
-        durations.push_back( duration( t0, t1 ) );
-
-        if ( !result ) {
-            result = std::move( currentResult );
-        } else if ( *result != currentResult ) {
-            throw std::logic_error( "Function to benchmark returns indeterministic results!" );
-        }
-    }
-
-    return { *result, durations };
-}
-
-
-template<typename Functor,
-         typename SetupFunctor,
-         typename FunctorResult = std::invoke_result_t<Functor, std::invoke_result_t<SetupFunctor> > >
-[[nodiscard]] std::pair<FunctorResult, std::vector<double> >
-benchmarkFunction( SetupFunctor setup,
-                   Functor      functor )
-{
-    decltype( setup() ) setupResult;
-    try {
-        setupResult = setup();
-    } catch ( const std::exception& e ) {
-        std::cerr << "Failed to run setup with exception: " << e.what() << "\n";
-        return {};
-    }
-
-    std::optional<FunctorResult> result;
-    std::vector<double> durations;
-    for ( size_t i = 0; i < 10; ++i ) {
-        const auto t0 = now();
-        auto currentResult = functor( setupResult );
-        const auto t1 = now();
-        durations.push_back( duration( t0, t1 ) );
-
-        if ( !result ) {
-            result = std::move( currentResult );
-        } else if ( *result != currentResult ) {
-            throw std::logic_error( "Function to benchmark returns indeterministic results!" );
-        }
-    }
-
-    return { *result, durations };
-}
-
-
 [[nodiscard]] BufferedFileReader::AlignedBuffer
 bufferFile( const std::string& fileName,
             size_t             bytesToBuffer = std::numeric_limits<size_t>::max() )
@@ -920,7 +854,7 @@ benchmarkGzip( const std::string& fileName )
 {
     {
         const auto buffer = bufferFile( fileName, 128ULL * 1024ULL * 1024ULL );
-        const auto [blockCandidates, durations] = benchmarkFunction(
+        const auto [blockCandidates, durations] = benchmarkFunction<10>(
             [&buffer] () { return findUncompressedDeflateBlocks( buffer ); } );
 
         std::cout << "[findUncompressedDeflateBlocks] " << formatBandwidth( durations, buffer.size() ) << "\n";
@@ -930,7 +864,7 @@ benchmarkGzip( const std::string& fileName )
 
     {
         const auto buffer = bufferFile( fileName, 128ULL * 1024ULL * 1024ULL );
-        const auto [blockCandidates, durations] = benchmarkFunction(
+        const auto [blockCandidates, durations] = benchmarkFunction<10>(
             [&buffer] () { return findUncompressedDeflateBlocksNestedBranches( buffer ); } );
 
         std::cout << "[findUncompressedDeflateBlocksNestedBranches] " << formatBandwidth( durations, buffer.size() ) << "\n";
@@ -996,7 +930,7 @@ benchmarkGzip( const std::string& fileName )
 
     {
         const auto buffer = bufferFile( fileName, 256ULL * 1024ULL );
-        const auto [blockCandidates, durations] = benchmarkFunction(
+        const auto [blockCandidates, durations] = benchmarkFunction<10>(
             [&buffer] () { return findDeflateBlocksZlib( buffer ); } );
 
         std::cout << "[findDeflateBlocksZlib] " << formatBandwidth( durations, buffer.size() ) << "\n";
@@ -1009,7 +943,7 @@ benchmarkGzip( const std::string& fileName )
     const auto isBgzfFile = pragzip::blockfinder::Bgzf::isBgzfFile( std::make_unique<StandardFileReader>( fileName ) );
     if ( !isBgzfFile ) {
         const auto buffer = bufferFile( fileName, 256ULL * 1024ULL );
-        const auto [blockCandidates, durations] = benchmarkFunction(
+        const auto [blockCandidates, durations] = benchmarkFunction<10>(
             [&buffer] () { return findDeflateBlocksZlibOptimized( buffer ); } );
 
         std::cout << "[findDeflateBlocksZlibOptimized] " << formatBandwidth( durations, buffer.size() ) << "\n";
@@ -1020,7 +954,7 @@ benchmarkGzip( const std::string& fileName )
     /* Benchmarks with own implementation (pragzip). */
     {
         const auto buffer = bufferFile( fileName, 16ULL * 1024ULL * 1024ULL );
-        const auto [blockCandidates, durations] = benchmarkFunction(
+        const auto [blockCandidates, durations] = benchmarkFunction<10>(
             [&buffer] () { return findDeflateBlocksPragzip( buffer ); } );
 
         std::cout << "[findDeflateBlocksPragzip] " << formatBandwidth( durations, buffer.size() ) << "\n";
@@ -1029,7 +963,7 @@ benchmarkGzip( const std::string& fileName )
 
         /* Same as above but with a LUT that can skip bits similar to the Boyer–Moore string-search algorithm. */
 
-        const auto [blockCandidatesLUT, durationsLUT] = benchmarkFunction(
+        const auto [blockCandidatesLUT, durationsLUT] = benchmarkFunction<10>(
             /* As for choosing CACHED_BIT_COUNT == 13, see the output of the results at the end of the file.
              * 13 is the last for which it significantly improves over less bits and 14 bits produce reproducibly
              * slower bandwidths! 13 bits is the best configuration as far as I know. */
@@ -1045,7 +979,7 @@ benchmarkGzip( const std::string& fileName )
 
         /* Same as above but with a LUT and two-pass. */
 
-        const auto [blockCandidatesLUT2P, durationsLUT2P] = benchmarkFunction(
+        const auto [blockCandidatesLUT2P, durationsLUT2P] = benchmarkFunction<10>(
             /* As for choosing CACHED_BIT_COUNT == 13, see the output of the results at the end of the file.
              * 13 is the last for which it significantly improves over less bits and 14 bits produce reproducibly
              * slower bandwidths! 13 bits is the best configuration as far as I know. */
@@ -1062,7 +996,7 @@ benchmarkGzip( const std::string& fileName )
 
     if ( isBgzfFile ) {
         const auto [blockCandidates, durations] =
-            benchmarkFunction( [fileName] () { return findBgzStreams( fileName ); } );
+            benchmarkFunction<10>( [fileName] () { return findBgzStreams( fileName ); } );
 
         std::cout << "[findBgzStreams] " << formatBandwidth( durations, fileSize( fileName ) ) << "\n";
         std::cout << "    Block candidates (" << blockCandidates.size() << "): "
@@ -1089,7 +1023,7 @@ benchmarkLUTSize( const BufferedFileReader::AlignedBuffer& buffer )
         blockCandidatesWithLessBits = benchmarkLUTSize<CACHED_BIT_COUNT - 1>( buffer );
     }
 
-    const auto [blockCandidates, durations] = benchmarkFunction(
+    const auto [blockCandidates, durations] = benchmarkFunction<10>(
         [&buffer] () { return findDeflateBlocksPragzipLUT<CACHED_BIT_COUNT>( buffer ); } );
 
     std::cout << "[findDeflateBlocksPragzipLUT with " << static_cast<int>( CACHED_BIT_COUNT ) << " bits] "
@@ -1115,7 +1049,7 @@ main( int    argc,
         }
     }
 
-    const auto tmpFolder = createTemporaryDirectory();
+    const auto tmpFolder = createTemporaryDirectory( "pragzip.benchmarkGzipBlockFinder" );
     const std::string fileName = std::filesystem::absolute( tmpFolder.path() / "random-base64" );
 
     const std::vector<std::tuple<std::string, std::string, std::string, std::string > > testEncoders = {

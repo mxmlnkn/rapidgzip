@@ -269,41 +269,6 @@ private:
 };
 
 
-/* Minimal Testing Helpers. */
-
-int gnTests = 0;  // NOLINT
-int gnTestErrors = 0;  // NOLINT
-
-
-template<typename T>
-void
-requireEqual( const T& a, const T& b, int line )
-{
-    ++gnTests;
-    if ( a != b ) {
-        ++gnTestErrors;
-        std::cerr << "[FAIL on line " << line << "] " << a << " != " << b << "\n";
-    }
-}
-
-
-void
-require( bool               condition,
-         std::string const& conditionString,
-         int                line )
-{
-    ++gnTests;
-    if ( !condition ) {
-        ++gnTestErrors;
-        std::cerr << "[FAIL on line " << line << "] " << conditionString << "\n";
-    }
-}
-
-
-#define REQUIRE_EQUAL( a, b ) requireEqual( a, b, __LINE__ ) // NOLINT
-#define REQUIRE( condition ) require( condition, #condition, __LINE__ ) // NOLINT
-
-
 template<typename T>
 [[nodiscard]] constexpr typename T::value_type
 getMinPositive( const T& container )
@@ -423,7 +388,7 @@ testFlags( const uint64_t value,
 
 /* error: 'std::filesystem::path' is unavailable: introduced in macOS 10.15.
  * Fortunately, this is only needed for the tests, so the incomplete std::filesystem support
- * is not a problem for building the manylinux wheels on the pre 10.15 macos kernel. */
+ * is not a problem for building the manylinux wheels on the pre 10.15 macOS kernel. */
 #ifndef __APPLE_CC__
 void
 createRandomTextFile( std::filesystem::path path,
@@ -471,6 +436,15 @@ public:
 private:
     std::filesystem::path m_path;
 };
+
+
+[[nodiscard]] TemporaryDirectory
+createTemporaryDirectory( const std::string& title = "tmpTest" )
+{
+    const std::filesystem::path tmpFolderName = title + "." + std::to_string( unixTime() );
+    std::filesystem::create_directory( tmpFolderName );
+    return TemporaryDirectory( tmpFolderName );
+}
 #endif
 
 

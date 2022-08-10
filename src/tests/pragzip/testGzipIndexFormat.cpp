@@ -7,15 +7,7 @@
 #include <common.hpp>
 #include <IndexFileFormat.hpp>
 #include <filereader/Standard.hpp>
-
-
-[[nodiscard]] TemporaryDirectory
-createTemporaryDirectory()
-{
-    const std::filesystem::path tmpFolderName = "pragzip.testGzipIndexFormat." + std::to_string( unixTime() );
-    std::filesystem::create_directory( tmpFolderName );
-    return TemporaryDirectory( tmpFolderName );
-}
+#include <TestHelpers.hpp>
 
 
 int
@@ -48,7 +40,7 @@ main( int    argc,
 
     try
     {
-        const auto tmpFolder = createTemporaryDirectory();
+        const auto tmpFolder = createTemporaryDirectory( "pragzip.testGzipIndexFormat" );
         const auto gzipIndexPath = tmpFolder.path() / "gzipindex";
 
         {

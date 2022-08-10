@@ -13,6 +13,7 @@
 #include <HuffmanCodingReversedBitsCached.hpp>
 #include <HuffmanCodingReversedCodesPerLength.hpp>
 #include <HuffmanCodingSymbolsPerLength.hpp>
+#include <TestHelpers.hpp>
 
 
 using namespace pragzip;

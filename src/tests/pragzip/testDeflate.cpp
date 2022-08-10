@@ -7,6 +7,7 @@
 #include <deflate.hpp>
 #include <filereader/Buffered.hpp>
 #include <gzip.hpp>
+#include <TestHelpers.hpp>
 
 
 using namespace pragzip;

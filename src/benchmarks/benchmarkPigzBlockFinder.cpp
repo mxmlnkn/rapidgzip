@@ -404,16 +404,6 @@ createRandomBase64( const std::string& filePath,
 }
 
 
-[[nodiscard]] TemporaryDirectory
-createTemporaryDirectory()
-{
-    const std::filesystem::path tmpFolderName = "indexed_bzip2.benchmarkPigzBlockFinder."
-                                                + std::to_string( unixTime() );
-    std::filesystem::create_directory( tmpFolderName );
-    return TemporaryDirectory( tmpFolderName );
-}
-
-
 int
 main( int    argc,
       char** argv )
@@ -423,7 +413,7 @@ main( int    argc,
     if ( ( argc > 1 ) && ( std::filesystem::exists( argv[1] ) ) ) {
         fileName = argv[1];
     } else {
-        tmpFolder.emplace( createTemporaryDirectory() );
+        tmpFolder.emplace( createTemporaryDirectory( "indexed_bzip2.benchmarkPigzBlockFinder" ) );
         fileName = tmpFolder->path() / "random-base64";
         createRandomBase64( fileName, 512UL * 1024UL * 1024UL );
 

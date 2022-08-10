@@ -10,6 +10,7 @@
 #include <Cache.hpp>
 #include <common.hpp>
 #include <Prefetcher.hpp>
+#include <TestHelpers.hpp>
 
 
 using namespace FetchingStrategy;

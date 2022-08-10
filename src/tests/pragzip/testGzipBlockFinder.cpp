@@ -12,6 +12,7 @@
 #include <common.hpp>
 #include <deflate.hpp>
 #include <filereader/Standard.hpp>
+#include <TestHelpers.hpp>
 
 
 using namespace pragzip;

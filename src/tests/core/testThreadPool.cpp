@@ -5,6 +5,7 @@
 
 #include <common.hpp>
 #include <ThreadPool.hpp>
+#include <TestHelpers.hpp>
 
 
 /**

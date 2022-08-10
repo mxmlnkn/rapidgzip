@@ -10,6 +10,7 @@
 #include <BZ2Reader.hpp>
 #include <common.hpp>
 #include <filereader/Standard.hpp>
+#include <TestHelpers.hpp>
 
 
 namespace
@@ -304,19 +305,10 @@ testSeekBeforeOffsetCompletion( const std::string& decodedTestFilePath,
 }
 
 
-[[nodiscard]] TemporaryDirectory
-createTemporaryDirectory()
-{
-    const std::filesystem::path tmpFolderName = "indexed_bzip2.testBZ2Reader." + std::to_string( unixTime() );
-    std::filesystem::create_directory( tmpFolderName );
-    return TemporaryDirectory( tmpFolderName );
-}
-
-
 int
 main()
 {
-    const auto tmpFolder = createTemporaryDirectory();
+    const auto tmpFolder = createTemporaryDirectory( "indexed_bzip2.testBZ2Reader" );
 
     const auto decodedTestFilePath = tmpFolder.path() / "decoded";
     createRandomTextFile( decodedTestFilePath, 2UL * 1024UL * 1024UL );

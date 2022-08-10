@@ -10,6 +10,7 @@
 #include <filereader/Buffered.hpp>
 #include <filereader/FileReader.hpp>
 #include <filereader/Standard.hpp>
+#include <TestHelpers.hpp>
 
 
 std::string

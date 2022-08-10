@@ -7,6 +7,7 @@
 #include <common.hpp>
 #include <BitReader.hpp>
 #include <filereader/Buffered.hpp>
+#include <TestHelpers.hpp>
 
 
 template<uint8_t bitsSet>

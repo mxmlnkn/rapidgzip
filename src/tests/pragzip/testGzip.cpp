@@ -15,6 +15,7 @@
 #include <filereader/Standard.hpp>
 #include <ParallelGzipReader.hpp>
 #include <pragzip.hpp>
+#include <TestHelpers.hpp>
 
 
 using namespace pragzip;
