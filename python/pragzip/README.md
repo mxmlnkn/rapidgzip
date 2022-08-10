@@ -126,8 +126,8 @@ with pragzip.open( in_memory_file, parallelization = os.cpu_count() ) as file:
 
 ## Via Ratarmount
 
-Because `pragzip` can be used as a backend in ratarmount, you can use [ratarmount](https://github.com/mxmlnkn/ratarmount) to mount single gzip files easily.
-Furthermore, since ratarmount 0.11.0, parallelization is the default and does not have to be specified explicitly with `-P`.
+`pragzip` is **planned** to be used as a backend inside ratarmount with version 0.12.
+Then, you can use [ratarmount](https://github.com/mxmlnkn/ratarmount) to mount single gzip files easily.
 
 ```bash
 base64 /dev/urandom | head -c $(( 4 * 1024 * 1024 * 1024 )) | gzip > sample.gz
