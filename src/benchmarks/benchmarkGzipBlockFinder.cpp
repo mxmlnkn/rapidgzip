@@ -722,15 +722,21 @@ findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
                 bitLengthFrequencies[codeLength]++;
             }
 
+            /* Note that bitLengthFrequencies[0] must not be checked because multiple symbols may have code length
+             * 0 simply when they do not appear in the text at all! And this may very well happen because the
+             * order for the code lengths per symbol in the bit stream is fixed. */
+
+            bool invalidCodeLength{ false };
             const auto nonZeroCount = codeLengthCount - bitLengthFrequencies[0];
             HuffmanCode unusedSymbolCount{ 2 };
             for ( size_t bitLength = 1; bitLength < bitLengthFrequencies.size(); ++bitLength ) {
                 const auto frequency = bitLengthFrequencies[bitLength];
-                if ( frequency > unusedSymbolCount ) {
-                    return pragzip::Error::INVALID_CODE_LENGTHS;
-                }
+                invalidCodeLength |= frequency > unusedSymbolCount;
                 unusedSymbolCount -= frequency;
                 unusedSymbolCount *= 2;  /* Because we go down one more level for all unused tree nodes! */
+            }
+            if ( invalidCodeLength ) {
+                return pragzip::Error::INVALID_CODE_LENGTHS;
             }
 
             /* Using bit-wise 'and' and 'or' to avoid expensive branching does not improve performance measurably.
