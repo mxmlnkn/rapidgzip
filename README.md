@@ -1,3 +1,5 @@
+<div align="center">
+
 # Parallel Random Access to bzip2 and gzip
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](http://opensource.org/licenses/MIT)
@@ -5,9 +7,12 @@
 [![codecov](https://codecov.io/gh/mxmlnkn/indexed_bzip2/branch/master/graph/badge.svg?token=94ZD4UTZQW)](https://codecov.io/gh/mxmlnkn/indexed_bzip2)
 ![C++17](https://img.shields.io/badge/C++-17-blue.svg?style=flat-square)
 
+</div>
+
 This repository contains the code for the [`indexed_bzip2`](python/indexed_bzip2) and [`pragzip`](python/pragzip) Python modules.
 Both are built upon the same basic architecture to enable block-parallel decoding based on prefetching and caching.
 
+<div align="center">
 
 # pragzip
 
@@ -15,6 +20,8 @@ Both are built upon the same basic architecture to enable block-parallel decodin
 [![Python Version](https://img.shields.io/pypi/pyversions/pragzip)](https://pypi.org/project/pragzip/)
 [![PyPI Platforms](https://img.shields.io/badge/pypi-linux%20%7C%20macOS%20%7C%20Windows-brightgreen)](https://pypi.org/project/pragzip/)
 [![Downloads](https://pepy.tech/badge/pragzip/month)](https://pepy.tech/project/pragzip)
+
+</div>
 
 This module provides: 
  - a `pragzip` command line tool to decompress gzip files in parallel with a similar command line interface to `gzip` so that it can be used as a replacement.
@@ -25,6 +32,8 @@ The random seeking support is similar to the one provided by [indexed_gzip](http
 [See here for the extended Readme.](python/pragzip)
 
 
+<div align="center">
+
 # indexed_bzip2
 
 [![PyPI version](https://badge.fury.io/py/indexed-bzip2.svg)](https://badge.fury.io/py/indexed-bzip2)
@@ -32,6 +41,8 @@ The random seeking support is similar to the one provided by [indexed_gzip](http
 [![PyPI Platforms](https://img.shields.io/badge/pypi-linux%20%7C%20macOS%20%7C%20Windows-brightgreen)](https://pypi.org/project/indexed-bzip2/)
 [![Conda Platforms](https://img.shields.io/conda/pn/mxmlnkn/indexed_bzip2?color=brightgreen&label=conda)](https://anaconda.org/mxmlnkn/indexed_bzip2)
 [![Downloads](https://pepy.tech/badge/indexed-bzip2/month)](https://pepy.tech/project/indexed-bzip2)
+
+</div>
 
 This module provides:
   - an `ibzip2` command line tool to decompress bzip2 files in parallel with a similar command line interface to `bzip2` so that it can be used as a replacement.
