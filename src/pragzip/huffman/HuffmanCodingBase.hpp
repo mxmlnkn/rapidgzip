@@ -182,6 +182,6 @@ protected:
     BitCount m_maxCodeLength{ std::numeric_limits<BitCount>::min() };
 
     /** Only indexes [0, m_maxCodeLength - m_minCodeLength) contain valid data! */
-    std::array<HuffmanCode, MAX_CODE_LENGTH> m_minimumCodeValuesPerLevel{};
+    std::array<HuffmanCode, MAX_CODE_LENGTH + 1> m_minimumCodeValuesPerLevel{};
 };
 }  // namespace pragzip

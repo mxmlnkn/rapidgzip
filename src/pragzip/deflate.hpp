@@ -567,7 +567,7 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& 
     /* Get code lengths (CL) for alphabet P. */
     constexpr auto MAX_CL_SYMBOL_COUNT = 19;
     constexpr auto CL_CODE_LENGTH_BIT_COUNT = 3;
-    constexpr auto MAX_CL_CODE_LENGTH = 1U << CL_CODE_LENGTH_BIT_COUNT;
+    constexpr auto MAX_CL_CODE_LENGTH = ( 1U << CL_CODE_LENGTH_BIT_COUNT ) - 1U;
     static constexpr std::array<uint8_t, MAX_CL_SYMBOL_COUNT> alphabetOrderC =
         { 16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15 };
     std::array<uint8_t, MAX_CL_SYMBOL_COUNT> codeLengthCL = {};
