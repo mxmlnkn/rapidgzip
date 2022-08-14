@@ -713,27 +713,22 @@ findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
         {
             const auto codeLengthCount = 4 + bitReaderAtPrecode.read<4>();
 
-            constexpr auto MAX_CL_SYMBOL_COUNT = 19U;
             constexpr auto CL_CODE_LENGTH_BIT_COUNT = 3U;
             constexpr auto MAX_CL_CODE_LENGTH = ( 1U << CL_CODE_LENGTH_BIT_COUNT ) - 1U;
-            static constexpr std::array<uint8_t, MAX_CL_SYMBOL_COUNT> alphabetOrderC =
-                { 16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15 };
-            /* The index of this array is the symbol and the content is the code length. */
-            std::array<uint8_t, MAX_CL_SYMBOL_COUNT> codeLengths = {};
-            for ( size_t i = 0; i < codeLengthCount; ++i ) {
-                codeLengths[alphabetOrderC[i]] = bitReaderAtPrecode.read<CL_CODE_LENGTH_BIT_COUNT>();
-            }
-
-            const auto maxCodeLength = getMax( codeLengths );
-            const auto minCodeLength = getMinPositive( codeLengths );
-
             using HuffmanCode = uint8_t;
             std::array<HuffmanCode, MAX_CL_CODE_LENGTH + 1> bitLengthFrequencies = {};
-            for ( const auto value : codeLengths ) {
-                ++bitLengthFrequencies[value];
+            uint8_t minCodeLength{ MAX_CL_CODE_LENGTH + 1 };
+            uint8_t maxCodeLength{ 0 };
+            for ( size_t i = 0; i < codeLengthCount; ++i ) {
+                const auto codeLength = bitReaderAtPrecode.read<CL_CODE_LENGTH_BIT_COUNT>();
+                if ( codeLength > 0 ) {
+                    minCodeLength = std::min( minCodeLength, static_cast<uint8_t>( codeLength ) );
+                }
+                maxCodeLength = std::max( maxCodeLength, static_cast<uint8_t>( codeLength ) );
+                bitLengthFrequencies[codeLength]++;
             }
 
-            const auto nonZeroCount = codeLengths.size() - bitLengthFrequencies[0];
+            const auto nonZeroCount = codeLengthCount - bitLengthFrequencies[0];
             HuffmanCode unusedSymbolCount = HuffmanCode( 1 ) << minCodeLength;
             for ( size_t bitLength = minCodeLength; bitLength <= maxCodeLength; ++bitLength ) {
                 const auto frequency = bitLengthFrequencies[bitLength];
