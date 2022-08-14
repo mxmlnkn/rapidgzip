@@ -713,12 +713,19 @@ findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
         {
             const auto codeLengthCount = 4 + bitReaderAtPrecode.read<4>();
 
+            constexpr auto MAX_CL_SYMBOL_COUNT = 19U;
             constexpr auto CL_CODE_LENGTH_BIT_COUNT = 3U;
             constexpr auto MAX_CL_CODE_LENGTH = ( 1U << CL_CODE_LENGTH_BIT_COUNT ) - 1U;
             using HuffmanCode = uint8_t;
+
+            static_assert( MAX_CL_SYMBOL_COUNT * CL_CODE_LENGTH_BIT_COUNT <= pragzip::BitReader::MAX_BIT_BUFFER_SIZE,
+                           "This optimization requires a larger BitBuffer inside BitReader!" );
+            auto bits = bitReaderAtPrecode.read( 3U * codeLengthCount /* Maximum 19 * 3 = 57 */ );
+
             std::array<HuffmanCode, MAX_CL_CODE_LENGTH + 1> bitLengthFrequencies = {};
             for ( size_t i = 0; i < codeLengthCount; ++i ) {
-                const auto codeLength = bitReaderAtPrecode.read<CL_CODE_LENGTH_BIT_COUNT>();
+                const auto codeLength = bits & nLowestBitsSet<uint64_t, CL_CODE_LENGTH_BIT_COUNT>();
+                bits >>= CL_CODE_LENGTH_BIT_COUNT;
                 bitLengthFrequencies[codeLength]++;
             }
 
