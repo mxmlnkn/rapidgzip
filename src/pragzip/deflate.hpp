@@ -144,6 +144,31 @@ alignas(8) static constexpr LengthLUT
 lengthLUT = createLengthLUT();
 
 
+template<bool ENABLE_STATISTICS>
+class BlockStatistics;
+
+template<>
+class BlockStatistics<false>
+{};
+
+template<>
+class BlockStatistics<true>
+{
+public:
+    uint64_t failedPrecodeInit{ 0 };
+    uint64_t failedDistanceInit{ 0 };
+    uint64_t failedLengthInit{ 0 };
+
+    std::array<uint64_t, /* codeLengthCount - 4 is 4 bits = 16 possible values */ 16> precodeCLHistogram{};
+
+    struct {
+        uint8_t precode{ 0 };
+        uint8_t distance{ 0 };
+        uint8_t literal{ 0 };
+    } codeCounts;
+};
+
+
 /**
  * @todo Silesia is ~70% slower when writing back and calculating CRC32.
  * When only only writing the result and not calculating CRC32, then it is ~60% slower.
@@ -151,8 +176,10 @@ lengthLUT = createLengthLUT();
  * Silesia contains a lot of 258 length back-references with distance 1, which could be replaced with memset
  * with the last byte.
  */
-template<bool CALCULATE_CRC32 = false>
-class Block
+template<bool CALCULATE_CRC32 = false,
+         bool ENABLE_STATISTICS = false>
+class Block :
+    public BlockStatistics<ENABLE_STATISTICS>
 {
 public:
     using CompressionType = deflate::CompressionType;
@@ -446,10 +473,11 @@ private:
 };
 
 
-template<bool CALCULATE_CRC32>
+template<bool CALCULATE_CRC32,
+         bool ENABLE_STATISTICS>
 template<bool treatLastBlockAsError>
 Error
-Block<CALCULATE_CRC32>::readHeader( BitReader& bitReader )
+Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readHeader( BitReader& bitReader )
 {
     m_isLastBlock = bitReader.read<1>();
     if constexpr ( treatLastBlockAsError ) {
@@ -500,9 +528,10 @@ Block<CALCULATE_CRC32>::readHeader( BitReader& bitReader )
 }
 
 
-template<bool CALCULATE_CRC32>
+template<bool CALCULATE_CRC32,
+         bool ENABLE_STATISTICS>
 Error
-Block<CALCULATE_CRC32>::readDynamicHuffmanCoding( BitReader& bitReader )
+Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& bitReader )
 {
     /**
      * Huffman codings map variable length (bit) codes to symbols.
@@ -512,8 +541,9 @@ Block<CALCULATE_CRC32>::readDynamicHuffmanCoding( BitReader& bitReader )
      * and also alphabets:
      *  - Alphabet L: the mixed alphabet containing 286 literals and lengths / instructions.
      *  - Alphabet D: contains distances in 30 different symbols / instructions.
-     *  - Alphabet C: contains 19 different symbols / instructions for reconstructing the code length tuples
-     *                Is used to encode L and D! It itself is encoded a sequence of 3-bit numbers for the bit lengths.
+     *  - Alphabet P: contains 19 different symbols / instructions for reconstructing the code length tuples.
+     *                It is also called Precode and used to encode L and D! It itself is "encoded" a sequence of
+     *                3-bit numbers for the bit lengths.
      *                This means, there can be no longer Huffman code than 7 for this, i.e., fits into a char.
      */
 
@@ -527,7 +557,14 @@ Block<CALCULATE_CRC32>::readDynamicHuffmanCoding( BitReader& bitReader )
     }
     const auto codeLengthCount = 4 + bitReader.read<4>();
 
-    /* Get code lengths (CL) for alphabet C. */
+    if constexpr ( ENABLE_STATISTICS ) {
+        this->precodeCLHistogram[codeLengthCount - 4]++;
+        this->codeCounts.precode = codeLengthCount;
+        this->codeCounts.distance = distanceCodeCount;
+        this->codeCounts.literal = literalCodeCount;
+    }
+
+    /* Get code lengths (CL) for alphabet P. */
     constexpr auto MAX_CL_SYMBOL_COUNT = 19;
     constexpr auto CL_CODE_LENGTH_BIT_COUNT = 3;
     constexpr auto MAX_CL_CODE_LENGTH = 1U << CL_CODE_LENGTH_BIT_COUNT;
@@ -541,6 +578,9 @@ Block<CALCULATE_CRC32>::readDynamicHuffmanCoding( BitReader& bitReader )
     HuffmanCodingSymbolsPerLength<uint8_t, MAX_CL_CODE_LENGTH, uint8_t, MAX_CL_SYMBOL_COUNT> codeLengthHC;
     auto error = codeLengthHC.initializeFromLengths( VectorView<uint8_t>( codeLengthCL.data(), codeLengthCL.size() ) );
     if ( error != Error::NONE ) {
+        if constexpr ( ENABLE_STATISTICS ) {
+            this->failedPrecodeInit++;
+        }
         return error;
     }
 
@@ -589,18 +629,27 @@ Block<CALCULATE_CRC32>::readDynamicHuffmanCoding( BitReader& bitReader )
     error = m_distanceHC.initializeFromLengths(
         VectorView<uint8_t>( literalCL.data() + literalCodeCount, distanceCodeCount ) );
     if ( error != Error::NONE ) {
+        if constexpr ( ENABLE_STATISTICS ) {
+            this->failedDistanceInit++;
+        }
         return error;
     }
 
     error = m_literalHC.initializeFromLengths( VectorView<uint8_t>( literalCL.data(), literalCodeCount ) );
+    if ( error != Error::NONE ) {
+        if constexpr ( ENABLE_STATISTICS ) {
+            this->failedLengthInit++;
+        }
+    }
     return error;
 }
 
 
-template<bool CALCULATE_CRC32>
+template<bool CALCULATE_CRC32,
+         bool ENABLE_STATISTICS>
 uint16_t
-Block<CALCULATE_CRC32>::getLength( uint16_t   code,
-                                   BitReader& bitReader )
+Block<CALCULATE_CRC32, ENABLE_STATISTICS>::getLength( uint16_t   code,
+                                                      BitReader& bitReader )
 {
     if ( code <= 264 ) {
         return code - 257U + 3U;
@@ -616,19 +665,20 @@ Block<CALCULATE_CRC32>::getLength( uint16_t   code,
 }
 
 
-template<bool CALCULATE_CRC32>
+template<bool CALCULATE_CRC32,
+         bool ENABLE_STATISTICS>
 std::pair<uint16_t, Error>
-Block<CALCULATE_CRC32>::getDistance( BitReader& bitReader ) const
+Block<CALCULATE_CRC32, ENABLE_STATISTICS>::getDistance( BitReader& bitReader ) const
 {
     uint16_t distance = 0;
     if ( m_compressionType == CompressionType::FIXED_HUFFMAN ) {
         distance = reverseBits( static_cast<uint8_t>( bitReader.read<5>() ) ) >> 3;
-        if ( distance >= MAX_DISTANCE_SYMBOL_COUNT ) {
+        if ( UNLIKELY( distance >= MAX_DISTANCE_SYMBOL_COUNT ) ) [[unlikely]] {
             return { 0, Error::EXCEEDED_DISTANCE_RANGE };
         }
     } else {
         const auto decodedDistance = m_distanceHC.decode( bitReader );
-        if ( !decodedDistance ) {
+        if ( UNLIKELY( !decodedDistance ) ) [[unlikely]] {
             return { 0, Error::INVALID_HUFFMAN_CODE };
         }
         distance = static_cast<uint16_t>( *decodedDistance );
@@ -648,10 +698,11 @@ Block<CALCULATE_CRC32>::getDistance( BitReader& bitReader ) const
 }
 
 
-template<bool CALCULATE_CRC32>
+template<bool CALCULATE_CRC32,
+         bool ENABLE_STATISTICS>
 std::pair<DecodedDataView, Error>
-Block<CALCULATE_CRC32>::read( BitReader& bitReader,
-                              size_t     nMaxToDecode )
+Block<CALCULATE_CRC32, ENABLE_STATISTICS>::read( BitReader& bitReader,
+                                                 size_t     nMaxToDecode )
 {
     if ( eob() ) {
         return { {}, Error::NONE };
@@ -737,11 +788,12 @@ Block<CALCULATE_CRC32>::read( BitReader& bitReader,
 }
 
 
-template<bool CALCULATE_CRC32>
+template<bool CALCULATE_CRC32,
+         bool ENABLE_STATISTICS>
 template<typename Window>
 void
-Block<CALCULATE_CRC32>::appendToWindow( Window&                     window,
-                                        typename Window::value_type decodedSymbol )
+Block<CALCULATE_CRC32, ENABLE_STATISTICS>::appendToWindow( Window&                     window,
+                                                           typename Window::value_type decodedSymbol )
 {
     constexpr bool containsMarkerBytes = std::is_same_v<std::decay_t<typename Window::value_type>, uint16_t>;
 
@@ -763,12 +815,13 @@ Block<CALCULATE_CRC32>::appendToWindow( Window&                     window,
 }
 
 
-template<bool CALCULATE_CRC32>
+template<bool CALCULATE_CRC32,
+         bool ENABLE_STATISTICS>
 template<typename Window>
 std::pair<size_t, Error>
-Block<CALCULATE_CRC32>::readInternal( BitReader& bitReader,
-                                      size_t     nMaxToDecode,
-                                      Window&    window )
+Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readInternal( BitReader& bitReader,
+                                                         size_t     nMaxToDecode,
+                                                         Window&    window )
 {
     if ( m_compressionType == CompressionType::UNCOMPRESSED ) {
         /**
@@ -794,14 +847,15 @@ Block<CALCULATE_CRC32>::readInternal( BitReader& bitReader,
 }
 
 
-template<bool CALCULATE_CRC32>
+template<bool CALCULATE_CRC32,
+         bool ENABLE_STATISTICS>
 template<typename Window,
          typename HuffmanCoding>
 std::pair<size_t, Error>
-Block<CALCULATE_CRC32>::readInternalCompressed( BitReader&           bitReader,
-                                                size_t               nMaxToDecode,
-                                                Window&              window,
-                                                const HuffmanCoding& coding )
+Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readInternalCompressed( BitReader&           bitReader,
+                                                                   size_t               nMaxToDecode,
+                                                                   Window&              window,
+                                                                   const HuffmanCoding& coding )
 {
     if ( !coding.isValid() ) {
         throw std::invalid_argument( "No Huffman coding loaded! Call readHeader first!" );
@@ -876,9 +930,10 @@ Block<CALCULATE_CRC32>::readInternalCompressed( BitReader&           bitReader,
 
 
 
-template<bool CALCULATE_CRC32>
+template<bool CALCULATE_CRC32,
+         bool ENABLE_STATISTICS>
 void
-Block<CALCULATE_CRC32>::setInitialWindow( VectorView<uint8_t> const& initialWindow )
+Block<CALCULATE_CRC32, ENABLE_STATISTICS>::setInitialWindow( VectorView<uint8_t> const& initialWindow )
 {
     if ( !m_containsMarkerBytes ) {
         return;

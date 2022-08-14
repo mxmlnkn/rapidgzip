@@ -44,15 +44,11 @@ protected:
     {
         static_assert( std::is_unsigned_v<HuffmanCode>, "Huffman code type must be unsigned");
 
-        if ( codeLengths.empty() ) {
+        if ( UNLIKELY( codeLengths.empty() ) ) [[unlikely]] {
             return Error::EMPTY_ALPHABET;
         }
 
-        if ( codeLengths.size() > std::numeric_limits<Symbol>::max() ) {
-            throw std::invalid_argument( "The range of the symbol type cannot represent the implied alphabet!" );
-        }
-
-        if ( codeLengths.size() > MAX_SYMBOL_COUNT ) {
+        if ( UNLIKELY( codeLengths.size() > MAX_SYMBOL_COUNT ) ) [[unlikely]] {
             throw std::invalid_argument( "The range of the symbol type cannot represent the implied alphabet!" );
         }
 
@@ -61,7 +57,7 @@ protected:
         m_maxCodeLength = getMax( codeLengths );
 
         m_minCodeLength = getMinPositive( codeLengths );
-        if ( m_maxCodeLength > MAX_CODE_LENGTH ) {
+        if ( UNLIKELY( m_maxCodeLength > MAX_CODE_LENGTH ) ) [[unlikely]] {
             throw std::invalid_argument( "The range of the code type cannot represent the given code lengths!" );
         }
 

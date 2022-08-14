@@ -674,6 +674,10 @@ template<uint8_t CACHED_BIT_COUNT>
 [[nodiscard]] std::vector<size_t>
 findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
 {
+    static_assert( CACHED_BIT_COUNT >= 13,
+                   "The LUT must check at least 13-bits, i.e., up to including the distance "
+                   "code length check, to avoid duplicate checks in the precode check!" );
+
     const size_t nBitsToTest = data.size() * CHAR_BIT;
     pragzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( data ) ) );
 
@@ -699,13 +703,89 @@ findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
     }
 
     std::vector<size_t> bitOffsets;
-    pragzip::deflate::Block block;
+
+    constexpr bool ENABLE_ANALYSIS{ false };
+    pragzip::deflate::Block</* CRC32 */ false, ENABLE_ANALYSIS> block;
+    std::unordered_map<pragzip::Error, uint64_t> errorCounts;
+
+    const auto checkPrecode =
+        [] ( pragzip::BitReader& bitReaderAtPrecode )
+        {
+            const auto codeLengthCount = 4 + bitReaderAtPrecode.read<4>();
+
+            constexpr auto MAX_CL_SYMBOL_COUNT = 19U;
+            constexpr auto CL_CODE_LENGTH_BIT_COUNT = 3U;
+            constexpr auto MAX_CL_CODE_LENGTH = ( 1U << CL_CODE_LENGTH_BIT_COUNT ) - 1U;
+            static constexpr std::array<uint8_t, MAX_CL_SYMBOL_COUNT> alphabetOrderC =
+                { 16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15 };
+            /* The index of this array is the symbol and the content is the code length. */
+            std::array<uint8_t, MAX_CL_SYMBOL_COUNT> codeLengths = {};
+            for ( size_t i = 0; i < codeLengthCount; ++i ) {
+                codeLengths[alphabetOrderC[i]] = bitReaderAtPrecode.read<CL_CODE_LENGTH_BIT_COUNT>();
+            }
+
+            const auto maxCodeLength = getMax( codeLengths );
+            const auto minCodeLength = getMinPositive( codeLengths );
+
+            using HuffmanCode = uint8_t;
+            std::array<HuffmanCode, MAX_CL_CODE_LENGTH + 1> bitLengthFrequencies = {};
+            for ( const auto value : codeLengths ) {
+                ++bitLengthFrequencies[value];
+            }
+
+            const auto nonZeroCount = codeLengths.size() - bitLengthFrequencies[0];
+            HuffmanCode unusedSymbolCount = HuffmanCode( 1 ) << minCodeLength;
+            for ( size_t bitLength = minCodeLength; bitLength <= maxCodeLength; ++bitLength ) {
+                const auto frequency = bitLengthFrequencies[bitLength];
+                if ( frequency > unusedSymbolCount ) {
+                    return pragzip::Error::INVALID_CODE_LENGTHS;
+                }
+                unusedSymbolCount -= frequency;
+                unusedSymbolCount *= 2;  /* Because we go down one more level for all unused tree nodes! */
+            }
+
+            if ( ( ( nonZeroCount == 1 ) && ( unusedSymbolCount >  1 ) ) ||
+                 ( ( nonZeroCount >  1 ) && ( unusedSymbolCount != 0 ) ) ) {
+                return pragzip::Error::BLOATING_HUFFMAN_CODING;
+            }
+
+            return pragzip::Error::NONE;
+        };
 
     const auto checkOffset =
-        [&block, &bitReader] ( const auto offset ) {
+        [&] ( const auto offset )
+        {
+            /* Check the precode Huffman coding. We can skip a lot of the generic tests done in deflate::Block
+             * because this is only called for offsets prefiltered by the LUT. But, this also means that the
+             * LUT size must be at least 13-bit! */
+            try {
+                bitReader.seek( static_cast<long long int>( offset ) + 13 );
+                const auto error = checkPrecode( bitReader );
+
+                if ( error != pragzip::Error::NONE ) {
+                    if constexpr ( ENABLE_ANALYSIS ) {
+                        const auto [count, wasInserted] = errorCounts.try_emplace( error, 1 );
+                        if ( !wasInserted ) {
+                            count->second++;
+                        }
+                    }
+
+                    return false;
+                }
+            } catch ( const pragzip::BitReader::EndOfFileReached& ) {}
+
             try {
                 bitReader.seek( static_cast<long long int>( offset ) + 3 );
-                return block.readDynamicHuffmanCoding( bitReader ) == pragzip::Error::NONE;
+                const auto error = block.readDynamicHuffmanCoding( bitReader );
+
+                if constexpr ( ENABLE_ANALYSIS ) {
+                    const auto [count, wasInserted] = errorCounts.try_emplace( error, 1 );
+                    if ( !wasInserted ) {
+                        count->second++;
+                    }
+                }
+
+                return error == pragzip::Error::NONE;
             } catch ( const pragzip::BitReader::EndOfFileReached& ) {}
             return false;
         };
@@ -713,9 +793,77 @@ findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
     std::copy_if( bitOffsetCandidates.begin(), bitOffsetCandidates.end(),
                   std::back_inserter( bitOffsets ), checkOffset );
 
-    /* From 134'217'728 bits to test, found 14'220'922 candidates and reduced them down further to 652 */
-    //std::cerr << "From " << nBitsToTest << " bits to test, found " << bitOffsetCandidates.size()
-    //          << " candidates and reduced them down further to " << bitOffsets.size() << "\n";
+#if 0  // constexpr is not strong enough to avoid compile errors for the missing members if ENABLE_ANALYSIS = false :/
+    if constexpr ( ENABLE_ANALYSIS ) {
+        /* From 134'217'728 bits to test, found 14'220'922 candidates and reduced them down further to 652 */
+        std::cerr << "From " << nBitsToTest << " bits to test, found " << bitOffsetCandidates.size()
+                  << " candidates and reduced them down further to " << bitOffsets.size() << "\n";
+
+        /**
+         * @verbatim
+         * Invalid Precode  HC: 10750095
+         * Invalid Distance HC: 8171
+         * Invalid Symbol   HC: 76
+         * @endverbatim
+         * This signifies a LOT of optimization potential! We might be able to handle precode checks faster!
+         * Note that the maximum size of the precode coding can only be 3*19 bits = 57 bits!
+         *  -> Note that BitReader::peek should be able to peek all of these on a 64-bit system even when only able to
+         *     append full bytes to the 64-bit buffer because 64-57=7! I.e., 57 is the first case for which it wouldn't
+         *     be able to further add to the bit buffer but anything smaller and it is able to insert a full byte!
+         *     Using peek can avoid costly buffer-refilling seeks back!
+         *     -> Unfortunately, we also have to seek back the 17 bits for the deflate block header and the three
+         *        code lengths. So yeah, using peek probably will do nothing.
+         */
+        std::cerr << "Reading dynamic Huffman Code (HC) deflate block failed because the code lengths were invalid:\n"
+                  << "    Invalid Precode  HC: " << block.failedPrecodeInit   << "\n"
+                  << "    Invalid Distance HC: " << block.failedDistanceInit << "\n"
+                  << "    Invalid Symbol   HC: " << block.failedLengthInit   << "\n";
+
+        /**
+         * @verbatim
+         *  5 : 657612
+         *  5 : 658795
+         *  6 : 655429
+         *  7 : 667649
+         *  8 : 656510
+         *  9 : 656660
+         * 10 : 649638
+         * 11 : 705195
+         * 12 : 663376
+         * 13 : 662214
+         * 14 : 659557
+         * 15 : 678195
+         * 16 : 670389
+         * 17 : 681204
+         * 18 : 699319
+         * 19 : 771474
+         * @endverbatim
+         * Because well compressed data is quasirandom, the distribution of the precode code lengths is also pretty even.
+         * It is weird, that exactly the longest case appears much more often than the others, same for 7. This means
+         * that runs of 1s seem to be more frequent than other things.
+         * Unfortunately, this means that a catch-all LUT does not seem feasible.
+         */
+        std::cerr << "Precode CL count:\n";
+        for ( size_t i = 0; i < block.precodeCLHistogram.size(); ++i ) {
+            std::cerr << "    " << std::setw( 2 ) << 4 + i << " : " << block.precodeCLHistogram[i] << "\n";
+        }
+
+        /**
+         * Encountered errors:
+         *   Cannot copy last length because this is the first one! : 5403
+         *   No error. : 494
+         *   Constructing a Huffman coding from the given code length sequence failed! : 7114744
+         *   Invalid number of literal/length codes! : 28976
+         *   The Huffman coding is not optimal! : 3643598
+         * -> 7M downright invalid Huffman codes but *also* ~4M non-optimal Huffman codes.
+         *    The latter is kind of a strong criterium that I'm not even sure that all gzip encoders follow!
+         */
+        std::cerr << "Encountered errors:\n";
+        for ( const auto& [error, count] : errorCounts ) {
+            std::cerr << "    " << toString( error ) << " : " << count << "\n";
+        }
+    }
+#endif
 
     return bitOffsets;
 }

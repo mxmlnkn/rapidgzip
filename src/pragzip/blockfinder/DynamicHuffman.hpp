@@ -70,8 +70,17 @@ nextDeflateCandidate( uint32_t bits )
 }
 
 
-
-template<uint8_t CACHED_BIT_COUNT>
+/**
+ * @note Using larger result types has no measurable difference, e.g., explained by easier access on 64-bit systems.
+ *       But, it increases cache usage, so keep using the 8-bit result type.
+ * @verbatim
+ * 8-bit   [findDeflateBlocksPragzipLUT] ( 8.63 <= 8.7 +- 0.04 <= 8.75 ) MB/s
+ * 16-bit  [findDeflateBlocksPragzipLUT] ( 8.31 <= 8.42 +- 0.12 <= 8.59 ) MB/s
+ * 32-bit  [findDeflateBlocksPragzipLUT] ( 8.39 <= 8.53 +- 0.09 <= 8.71 ) MB/s
+ * 64-bit  [findDeflateBlocksPragzipLUT] ( 8.618 <= 8.65 +- 0.02 <= 8.691 ) MB/s
+ * @endverbatim
+ */
+template<uint16_t CACHED_BIT_COUNT>
 constexpr std::array<uint8_t, 1U << CACHED_BIT_COUNT>
 createNextDeflateCandidateLUT()
 {
