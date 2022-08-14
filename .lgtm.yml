@@ -26,3 +26,4 @@ extraction:
      index:
         build_command:
         - cmake .
+        - cmake --build .
