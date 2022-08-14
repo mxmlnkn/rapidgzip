@@ -717,20 +717,14 @@ findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
             constexpr auto MAX_CL_CODE_LENGTH = ( 1U << CL_CODE_LENGTH_BIT_COUNT ) - 1U;
             using HuffmanCode = uint8_t;
             std::array<HuffmanCode, MAX_CL_CODE_LENGTH + 1> bitLengthFrequencies = {};
-            uint8_t minCodeLength{ MAX_CL_CODE_LENGTH + 1 };
-            uint8_t maxCodeLength{ 0 };
             for ( size_t i = 0; i < codeLengthCount; ++i ) {
                 const auto codeLength = bitReaderAtPrecode.read<CL_CODE_LENGTH_BIT_COUNT>();
-                if ( codeLength > 0 ) {
-                    minCodeLength = std::min( minCodeLength, static_cast<uint8_t>( codeLength ) );
-                }
-                maxCodeLength = std::max( maxCodeLength, static_cast<uint8_t>( codeLength ) );
                 bitLengthFrequencies[codeLength]++;
             }
 
             const auto nonZeroCount = codeLengthCount - bitLengthFrequencies[0];
-            HuffmanCode unusedSymbolCount = HuffmanCode( 1 ) << minCodeLength;
-            for ( size_t bitLength = minCodeLength; bitLength <= maxCodeLength; ++bitLength ) {
+            HuffmanCode unusedSymbolCount{ 2 };
+            for ( size_t bitLength = 1; bitLength < bitLengthFrequencies.size(); ++bitLength ) {
                 const auto frequency = bitLengthFrequencies[bitLength];
                 if ( frequency > unusedSymbolCount ) {
                     return pragzip::Error::INVALID_CODE_LENGTHS;
@@ -739,6 +733,10 @@ findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
                 unusedSymbolCount *= 2;  /* Because we go down one more level for all unused tree nodes! */
             }
 
+            /* Using bit-wise 'and' and 'or' to avoid expensive branching does not improve performance measurably.
+             * It is likely that GCC 11 already does the same optimization because it can deduce that the branched
+             * comparison have no side-effects. Therefore, keep using logical operations because they are more
+             * readable. Note that the standard defines bool to int conversion as true->1, false->0. */
             if ( ( ( nonZeroCount == 1 ) && ( unusedSymbolCount >  1 ) ) ||
                  ( ( nonZeroCount >  1 ) && ( unusedSymbolCount != 0 ) ) ) {
                 return pragzip::Error::BLOATING_HUFFMAN_CODING;
