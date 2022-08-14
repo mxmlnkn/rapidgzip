@@ -1,4 +1,5 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.17)
+# CMake 3.17 added LibArchive::LibArchive target to FindLibArchive
 
 project("Indexed BZip2/Gzip Decoder" CXX)
 
