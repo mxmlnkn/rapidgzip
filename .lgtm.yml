@@ -8,14 +8,14 @@ path_classifiers:
 
   generated:
     # Exclude the Cython-generated module C++ code that was committed for a long time.
-    - exclude: **/indexed_bzip2.cpp
+    - **/indexed_bzip2.cpp
     # By default, all files not checked into the repository are considered to be 'generated'.
 
   # The default behavior is to tag library code as `library`. Results are hidden
   # for library code. You can tag further files as being library code by adding them
   # to the `library` section.
   library:
-    - exclude: src/external
+    - src/external
 
 extraction:
   cpp:
