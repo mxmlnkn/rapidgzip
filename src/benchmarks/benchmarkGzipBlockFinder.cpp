@@ -665,6 +665,46 @@ findDeflateBlocksPragzipLUT( BufferedFileReader::AlignedBuffer data )
 }
 
 
+using CompressedHistogram = uint64_t;
+
+
+template<uint8_t FREQUENCY_BITS,
+         uint8_t VALUE_BITS,
+         uint8_t VALUE_COUNT>
+[[nodiscard]] constexpr CompressedHistogram
+calculateCompressedHistogram( uint64_t values )
+{
+    static_assert( VALUE_BITS * VALUE_COUNT < std::numeric_limits<decltype( values ) >::digits,
+                   "Values type does not fit the requested amount of values and bits per value!" );
+    static_assert( VALUE_COUNT < ( 1U << FREQUENCY_BITS ),
+                   "The number of values might overflow the frequency type!" );
+    static_assert( ( 1U << VALUE_BITS ) * FREQUENCY_BITS <= std::numeric_limits<CompressedHistogram>::digits,
+                   "The maximum possible value might overflow the histogram bins!" );
+
+    CompressedHistogram frequencies{ 0 };
+    for ( size_t i = 0; i < static_cast<size_t>( VALUE_COUNT ); ++i ) {
+        const auto value = ( values >> ( i * VALUE_BITS ) ) & nLowestBitsSet<CompressedHistogram, VALUE_BITS>();
+        /* The frequencies are calculated in a SIMD like fashion assuming that there are no overflows! */
+        frequencies += CompressedHistogram( 1 ) << ( value * FREQUENCY_BITS );
+    }
+    return frequencies;
+}
+
+
+template<uint8_t FREQUENCY_BITS,
+         uint8_t VALUE_BITS,
+         uint8_t MAX_VALUE_COUNT>
+[[nodiscard]] constexpr auto
+createCompressedHistogramLUT()
+{
+    std::array<CompressedHistogram, 2ULL << ( MAX_VALUE_COUNT * VALUE_BITS )> result{};
+    for ( size_t i = 0; i < result.size(); ++i ) {
+        result[i] = calculateCompressedHistogram<FREQUENCY_BITS, VALUE_BITS, MAX_VALUE_COUNT>( i );
+    }
+    return result;
+}
+
+
 /**
  * Same as findDeflateBlocksPragzipLUT but tries to improve pipelining by going over the data twice.
  * Once, doing simple Boyer-Moore-like string search tests and skips forward and the second time doing
@@ -715,29 +755,45 @@ findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
 
             constexpr auto MAX_CL_SYMBOL_COUNT = 19U;
             constexpr auto CL_CODE_LENGTH_BIT_COUNT = 3U;
-            constexpr auto MAX_CL_CODE_LENGTH = ( 1U << CL_CODE_LENGTH_BIT_COUNT ) - 1U;
             using HuffmanCode = uint8_t;
 
             static_assert( MAX_CL_SYMBOL_COUNT * CL_CODE_LENGTH_BIT_COUNT <= pragzip::BitReader::MAX_BIT_BUFFER_SIZE,
                            "This optimization requires a larger BitBuffer inside BitReader!" );
-            auto bits = bitReaderAtPrecode.read( 3U * codeLengthCount /* Maximum 19 * 3 = 57 */ );
+            const auto bits = bitReaderAtPrecode.read( 3U * codeLengthCount /* Maximum 19 * 3 = 57 */ );
+            using Bits = std::decay_t<decltype( bits )>;
 
-            std::array<HuffmanCode, MAX_CL_CODE_LENGTH + 1> bitLengthFrequencies = {};
-            for ( size_t i = 0; i < codeLengthCount; ++i ) {
-                const auto codeLength = bits & nLowestBitsSet<uint64_t, CL_CODE_LENGTH_BIT_COUNT>();
-                bits >>= CL_CODE_LENGTH_BIT_COUNT;
-                bitLengthFrequencies[codeLength]++;
-            }
+            /* Maximum number of code lengths / values is 19 -> 5 bit (up to 31 count) is sufficient.
+             * Note that how we create our LUT can lead to larger counts for 0 because of padding!
+             * Here we cache 4 values at a time, i.e., we have to do 5 LUT lookups, which requires
+             * padding the input by one value, i.e., the maximum count can be 20 for the value 0! */
+            constexpr auto FREQUENCY_BITS = 5U;
+            /* Max values to cache in LUT (4 * 3 bits = 12 bits LUT key -> 2^12 * 8B = 32 KiB LUT size) */
+            constexpr auto MAX_CACHED_PRECODE_VALUES = 4U;
+            static constexpr auto PRECODE_FREQUENCIES_LUT =
+                createCompressedHistogramLUT<FREQUENCY_BITS, CL_CODE_LENGTH_BIT_COUNT, MAX_CACHED_PRECODE_VALUES>();
+
+            constexpr auto CACHED_BITS = CL_CODE_LENGTH_BIT_COUNT * MAX_CACHED_PRECODE_VALUES;  // 12
+            const auto bitLengthFrequencies =
+                PRECODE_FREQUENCIES_LUT[bits & nLowestBitsSet<Bits, CACHED_BITS>()]
+                + PRECODE_FREQUENCIES_LUT[( bits >> ( 1U * CACHED_BITS ) ) & nLowestBitsSet<Bits, CACHED_BITS>()]
+                + PRECODE_FREQUENCIES_LUT[( bits >> ( 2U * CACHED_BITS ) ) & nLowestBitsSet<Bits, CACHED_BITS>()]
+                + PRECODE_FREQUENCIES_LUT[( bits >> ( 3U * CACHED_BITS ) ) & nLowestBitsSet<Bits, CACHED_BITS>()]
+                /* The last requires no bit masking because BitReader::read already has masked to the lowest 57 bits
+                 * and this shifts 48 bits to the right, leaving only 9 (<12) bits set anyways. */
+                + PRECODE_FREQUENCIES_LUT[( bits >> ( 4U * CACHED_BITS ) )];
+
+            const auto zeroCounts = bitLengthFrequencies & nLowestBitsSet<CompressedHistogram, FREQUENCY_BITS>();
+            const auto nonZeroCount = 5U * MAX_CACHED_PRECODE_VALUES - zeroCounts;
 
             /* Note that bitLengthFrequencies[0] must not be checked because multiple symbols may have code length
              * 0 simply when they do not appear in the text at all! And this may very well happen because the
              * order for the code lengths per symbol in the bit stream is fixed. */
 
             bool invalidCodeLength{ false };
-            const auto nonZeroCount = codeLengthCount - bitLengthFrequencies[0];
             HuffmanCode unusedSymbolCount{ 2 };
-            for ( size_t bitLength = 1; bitLength < bitLengthFrequencies.size(); ++bitLength ) {
-                const auto frequency = bitLengthFrequencies[bitLength];
+            for ( size_t bitLength = 1; bitLength < ( 1U << CL_CODE_LENGTH_BIT_COUNT ); ++bitLength ) {
+                const auto frequency = ( bitLengthFrequencies >> ( bitLength * FREQUENCY_BITS ) )
+                                       & nLowestBitsSet<CompressedHistogram, FREQUENCY_BITS>();
                 invalidCodeLength |= frequency > unusedSymbolCount;
                 unusedSymbolCount -= frequency;
                 unusedSymbolCount *= 2;  /* Because we go down one more level for all unused tree nodes! */
