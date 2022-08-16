@@ -4,13 +4,21 @@
 #include <cmath>
 #include <limits>
 #include <sstream>
+#include <type_traits>
 #include <vector>
 
 
 template<typename T>
 struct Statistics
 {
-    template<typename Container>
+    constexpr
+    Statistics() = default;
+
+    constexpr
+    Statistics( const Statistics& other ) = default;
+
+    template<typename Container,
+             typename = std::enable_if_t<!std::is_same_v<std::decay_t<Container>, Statistics<T> >, void> >
     constexpr explicit
     Statistics( const Container& values ) noexcept
     {
@@ -49,6 +57,20 @@ struct Statistics
     standardDeviation() const noexcept
     {
         return std::sqrt( variance() );
+    }
+
+    constexpr void
+    merge( const Statistics& other ) noexcept
+    {
+        if ( other.count == 0 ) {
+            return;
+        }
+
+        min = std::min( min, other.min );
+        max = std::max( max, other.max );
+        sum += other.sum;
+        sum2 += other.sum2;
+        count += other.count;
     }
 
     constexpr void

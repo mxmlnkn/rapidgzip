@@ -7,6 +7,9 @@
 #include <stdexcept>
 #include <utility>
 
+#include <common.hpp>
+#include <Statistics.hpp>
+
 #include "FileReader.hpp"
 
 
@@ -14,26 +17,37 @@ class SharedFileReader final :
     public FileReader
 {
 public:
+    static constexpr bool SHOW_PROFILE{ false };
+
+public:
     /**
      * Create a new shared file reader from an existing FileReader. Takes ownership of the given FileReader!
      */
     explicit
     SharedFileReader( FileReader* file ) :
-        m_mutex( std::make_shared<std::mutex>() ),
-        m_fileSizeBytes( ( file != nullptr ) ? file->size() : 0 )
+        m_statistics( dynamic_cast<SharedFileReader*>( file ) == nullptr
+                      ? ( SHOW_PROFILE ? std::make_shared<AccessStatistics>() : std::shared_ptr<AccessStatistics>() )
+                      : dynamic_cast<SharedFileReader*>( file )->m_statistics ),
+        m_mutex( dynamic_cast<SharedFileReader*>( file ) == nullptr
+                 ? std::make_shared<std::mutex>()
+                 : dynamic_cast<SharedFileReader*>( file )->m_mutex ),
+        m_fileSizeBytes( file == nullptr ? 0 : file->size() ),
+        m_currentPosition( file == nullptr ? 0 : file->tell() )
     {
         if ( file == nullptr ) {
             throw std::invalid_argument( "File reader may not be null!" );
         }
 
-        if ( dynamic_cast<SharedFileReader*>( file ) != nullptr ) {
-            throw std::invalid_argument( "It makes no sense to wrap a SharedFileReader in another one. Use clone!" );
+        /* Fall back to a clone-like copy of all members if the source is also a SharedFileReader.
+         * Most of the members are already copied inside the member initializer list. */
+        if ( auto* const sharedFile = dynamic_cast<SharedFileReader*>( file ); sharedFile != nullptr ) {
+            m_sharedFile = sharedFile->m_sharedFile;
+            return;
         }
 
         if ( !file->seekable() ) {
             throw std::invalid_argument( "This class heavily relies on seeking and won't work with unseekable files!" );
         }
-
 
         m_sharedFile =
             std::shared_ptr<FileReader>(
@@ -45,14 +59,31 @@ public:
                     delete p;
                 }
             );
-
-        m_currentPosition = m_sharedFile->tell();
     }
 
     explicit
     SharedFileReader( std::unique_ptr<FileReader> file ) :
         SharedFileReader( file.release() )
     {}
+
+    ~SharedFileReader()
+    {
+        if constexpr ( SHOW_PROFILE ) {
+            if ( m_statistics.use_count() == 1 ) {
+                std::cerr << ( ThreadSafeOutput()
+                    << "[SharedFileReader::~SharedFileReader]\n"
+                    << "   seeks back    : (" << m_statistics->seekBack.formatAverageWithUncertainty( true )
+                    << " ) B (" << m_statistics->seekBack.count << "calls)\n"
+                    << "   seeks forward : (" << m_statistics->seekForward.formatAverageWithUncertainty( true )
+                    << " ) B (" << m_statistics->seekForward.count << "calls)\n"
+                    << "   reads         : (" << m_statistics->read.formatAverageWithUncertainty( true )
+                    << " ) B (" << m_statistics->read.count << "calls)\n"
+                    << "   read in total" << m_statistics->read.sum << "B out of" << m_fileSizeBytes << "B,"
+                    << "i.e., read the file" << m_statistics->read.sum / m_fileSizeBytes << "times\n"
+                );
+            }
+        }
+    }
 
     [[nodiscard]] FileReader*
     clone() const override
@@ -64,8 +95,11 @@ private:
     /**
      * Create a new shared file reader from an existing SharedFileReader by copying shared pointers.
      * The underlying file and mutex are held as a shared_ptr and therefore not copied itself!
+     * Make it private because only @ref clone should call this. It cannot be defaulted because the FileReader
+     * base class deleted its copy constructor.
      */
     SharedFileReader( const SharedFileReader& other ) :
+        m_statistics( other.m_statistics ),
         m_sharedFile( other.m_sharedFile ),
         m_mutex( other.m_mutex ),
         m_fileSizeBytes( other.m_fileSizeBytes ),
@@ -174,8 +208,23 @@ public:
 
         /* Seeking alone does not clear the EOF nor fail bit if the last read did set it. */
         m_sharedFile->clearerr();
+
+        if constexpr ( SHOW_PROFILE ) {
+            const auto oldOffset = m_sharedFile->tell();
+            if ( m_currentPosition > oldOffset ) {
+                m_statistics->seekForward.merge( m_currentPosition - oldOffset );
+            } else if ( m_currentPosition < oldOffset ) {
+                m_statistics->seekBack.merge( oldOffset - m_currentPosition );
+            }
+        }
+
         m_sharedFile->seek( m_currentPosition, SEEK_SET );
         const auto nBytesRead = m_sharedFile->read( buffer, nMaxBytesToRead );
+
+        if constexpr ( SHOW_PROFILE ) {
+            m_statistics->read.merge( nBytesRead );
+        }
+
         m_currentPosition += nBytesRead;
         return nBytesRead;
     }
@@ -195,10 +244,24 @@ public:
     }
 
 private:
+    struct AccessStatistics {
+        Statistics<uint64_t> read;
+        Statistics<uint64_t> seekBack;
+        Statistics<uint64_t> seekForward;
+    };
+
+private:
+    std::shared_ptr<AccessStatistics> m_statistics;
+
     std::shared_ptr<FileReader> m_sharedFile;
     const std::shared_ptr<std::mutex> m_mutex;
 
-    /* These are only for performance to avoid some unnecessary locks. */
+    /** This is only for performance to avoid querying the file. */
     const size_t m_fileSizeBytes;
+
+    /**
+     * This is the independent file pointer that this class offers! Each seek call will only update this and
+     * each read call will seek to this offset in an atomic manner before reading from the underlying file.
+     */
     size_t m_currentPosition{ 0 };
 };
