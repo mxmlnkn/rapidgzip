@@ -349,7 +349,7 @@ public:
                     return std::numeric_limits<size_t>::max();
                 }
                 bitReader.seek( beginOffset );
-                return blockfinder::seekToNonFinalDynamicDeflateBlock<14>( bitReader, endOffset );
+                return blockfinder::seekToNonFinalDynamicDeflateBlock<16>( bitReader, endOffset );
             };
 
         const auto findNextUncompressed =
