@@ -57,8 +57,47 @@ public:
             : parallelization ),
         m_startBlockFinder(
             [&] () {
+                /**
+                 * Quick benchmarks for spacing:
+                 *
+                 * @verbatim
+                 * base64 /dev/urandom | head -c $(( 4 * 1024 * 1024 * 1024 )) > 4GiB-base64
+                 * gzip 4GiB-base64
+                 * m pragzip && time src/tools/pragzip -P 0 -d -c 4GiB-base64.gz | wc -c
+                 *
+                 * spacing = 128 KiB : ~840  MB/s   read the file 2.05124 times
+                 * spacing = 1 MiB   : ~1435 MB/s   read the file 1.12958 times
+                 * spacing = 4 MiB   : ~1650 MB/s   read the file 1.03353 times
+                 * spacing = 8 MiB   : ~1850 MB/s   read the file 1.01654 times
+                 * spacing = 16 MiB  : ~1740 MB/s   read the file 1.00795 times
+                 * spacing = 64 MiB  : ~1300 MB/s   read the file 1.00208 times
+                 * @endverbatim
+                 *
+                 * For 64 MiB, the bandwidths become very uncertain, probably because even work division
+                 * becomes a problem.
+                 *
+                 * @verbatim
+                 * head -c $(( 2 * 1024 * 1024 * 1024 )) /dev/urandom > random.bin
+                 * gzip random.bin
+                 * m pragzip && time src/tools/pragzip -P 0 -d -c 4GiB-base64.gz | wc -c
+                 *
+                 * spacing = 128 KiB : ~1150     MB/s   read the file 2.00037 times
+                 * spacing = 1 MiB   : 1500-1900 MB/s   read the file 1.12502 times
+                 * spacing = 4 MiB   : 1500-1900 MB/s   read the file 1.03129 times
+                 * spacing = 8 MiB   : 1950-2050 MB/s   read the file 1.01567 times
+                 * spacing = 16 MiB  : 1900-1970 MB/s   read the file 1.00786 times
+                 * spacing = 64 MiB  : 1560-1580 MB/s   read the file 1.00201 times
+                 * @endverbatim
+                 *
+                 * The case with 1 MiB spacing has an unexpectedly high deviation
+                 * The factor 2 amount of read data can be explained with the BitReader always buffering 128 KiB!
+                 * Therefore if the work chunk is too small, it leads to this problem.
+                 * @todo We might be able to reduce this overhead by buffering up to untilOffset and then
+                 *       only increase the buffer in much smaller steps, e.g., 8 KiB.
+                 *       This might actually be easy to implement by making the BitReader chunk size adjustable.
+                 */
                 return std::make_unique<BlockFinder>( m_bitReader.cloneSharedFileReader(),
-                                                     /* spacing */ 1024 * 1024 );
+                                                     /* spacing in bytes */ 8 * 1024 * 1024 );
             }
         )
     {
