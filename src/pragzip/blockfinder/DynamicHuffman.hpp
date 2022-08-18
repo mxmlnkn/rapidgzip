@@ -93,23 +93,15 @@ createNextDeflateCandidateLUT()
  */
 template<uint8_t CACHED_BIT_COUNT>
 [[nodiscard]] size_t
-seekToNonFinalDynamicDeflateBlock( BitReader&                     bitReader,
-                                   size_t                   const untilOffset = std::numeric_limits<size_t>::max(),
-                                   std::atomic<bool> const* const cancel = nullptr )
+seekToNonFinalDynamicDeflateBlock( BitReader&   bitReader,
+                                   size_t const untilOffset = std::numeric_limits<size_t>::max() )
 {
     static constexpr auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
 
     try
     {
         deflate::Block block;
-        auto lastCancelTest = bitReader.tell();
         for ( size_t offset = bitReader.tell(); offset < untilOffset; ) {
-            if ( ( cancel != nullptr ) && ( offset > lastCancelTest + 8ULL * 1024ULL ) ) {
-                lastCancelTest = offset;
-                if ( *cancel ) {
-                    break;
-                }
-            }
             bitReader.seek( static_cast<long long int>( offset ) );
 
             const auto peeked = bitReader.peek<CACHED_BIT_COUNT>();

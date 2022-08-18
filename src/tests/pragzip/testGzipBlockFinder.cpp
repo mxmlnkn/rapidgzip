@@ -97,20 +97,20 @@ testUncompressedBlockFinder( std::string const&                             path
     std::vector<std::pair<size_t, size_t> > foundRanges;
     while ( true ) {
         const auto foundRange = blockfinder::seekToNonFinalUncompressedDeflateBlock( bitReader );
-        if ( !foundRange ) {
+        if ( foundRange.first == std::numeric_limits<size_t>::max() ) {
             break;
         }
 
         /* Test that we do not enter an infinite loop. */
-        if ( !foundRanges.empty() && ( foundRanges.back() == *foundRange ) ) {
-            REQUIRE( foundRanges.back() != *foundRange );
+        if ( !foundRanges.empty() && ( foundRanges.back() == foundRange ) ) {
+            REQUIRE( foundRanges.back() != foundRange );
             break;
         }
 
-        std::cerr << "Found range: " << foundRange->first << ", " << foundRange->second << "\n";
+        std::cerr << "Found range: " << foundRange.first << ", " << foundRange.second << "\n";
 
-        foundRanges.emplace_back( *foundRange );
-        bitReader.seek( static_cast<long long int>( foundRange->second ) + 1 );
+        foundRanges.emplace_back( foundRange );
+        bitReader.seek( static_cast<long long int>( foundRange.second ) + 1 );
     }
 
     REQUIRE_EQUAL( foundRanges.size(), expected.size() );

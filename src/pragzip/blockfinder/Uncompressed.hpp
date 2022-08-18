@@ -16,27 +16,19 @@ namespace pragzip::blockfinder
  * This function searches for uncompressed blocks. It assumes a zero byte-padding between the uncompressed deflate
  * block header and the byte-aligned file size.
  * @return An inclusive range of possible offsets. Because of the byte-padding there might be multiple valid deflate
- *         block start points.
+ *         block start points. Returns std::numeric_limits<size_t>::max if was found.
  */
-[[nodiscard]] std::optional<std::pair<size_t, size_t> >
-seekToNonFinalUncompressedDeflateBlock( BitReader&                     bitReader,
-                                        size_t                   const untilOffset = std::numeric_limits<size_t>::max(),
-                                        std::atomic<bool> const* const cancel = nullptr )
+[[nodiscard]] std::pair<size_t, size_t>
+seekToNonFinalUncompressedDeflateBlock( BitReader&   bitReader,
+                                        size_t const untilOffset = std::numeric_limits<size_t>::max() )
 {
     try
     {
         const auto startOffset = bitReader.tell();
-        auto lastCancelTest = startOffset;
         for ( size_t offset = std::max( static_cast<size_t>( BYTE_SIZE ),
                                         ceilDiv( startOffset + 3U, BYTE_SIZE ) * BYTE_SIZE );
-              offset < untilOffset; offset += BYTE_SIZE ) {
-            if ( ( cancel != nullptr ) && ( offset > lastCancelTest + 8ULL * 1024ULL ) ) {
-                lastCancelTest = offset;
-                if ( *cancel ) {
-                    break;
-                }
-            }
-
+              offset < untilOffset; offset += BYTE_SIZE )
+        {
             bitReader.seek( static_cast<long long int>( offset ) );
 
             /* We should be at a byte-boundary, so try reading the size. */
@@ -70,6 +62,6 @@ seekToNonFinalUncompressedDeflateBlock( BitReader&                     bitReader
         /* This might happen when trying to read the 32 bits! */
     }
 
-    return std::nullopt;
+    return std::make_pair( std::numeric_limits<size_t>::max(), std::numeric_limits<size_t>::max() );
 }
 }  // namespace pragzip::blockfinder
