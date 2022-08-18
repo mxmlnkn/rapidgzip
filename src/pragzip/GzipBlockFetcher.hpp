@@ -310,6 +310,53 @@ public:
                  * is only an estimated offset! If it happens because decodeBlockWithPragzip has a bug, then it
                  * might indirectly trigger an exception when the next required block offset cannot be found. */
                 if ( !uncompressedOffsetRange && ( dynamicHuffmanOffset >= untilOffset ) ) {
+                    /**
+                     * Performance when looking for uncompressed blocks:
+                     * @verbatim
+                     * m pragzip && time src/tools/pragzip -P 0 -d -c 4GiB-base64.gz | wc -c
+                     *
+                     *    Cache Hit Rate                    : 99.8716 %
+                     *    Useless Prefetches                : 0 %
+                     *    Time spent in:
+                     *        bzip2::readBlockData          : 0s
+                     *        decodeBlock                   : 71.0949s
+                     *        std::future::get              : 1.32261s
+                     *        get                           : 1.53076s
+                     *    read in total 5.25998e+09 B out of 3263906195 B, i.e., read the file 1.61156 times
+                     *    Decompressed in total 4294967296 B in 4.35718 s -> 985.722 MB/s
+                     *
+                     * m pragzip && time src/tools/pragzip -P 0 -d -c random.bin.gz | wc -c
+                     *
+                     *    Cache Hit Rate                    : 99.805 %
+                     *    Useless Prefetches                : 0 %
+                     *    Time spent in:
+                     *        bzip2::readBlockData          : 0s
+                     *        decodeBlock                   : 13.2755s
+                     *        std::future::get              : 0.0175719s
+                     *        get                           : 0.108864s
+                     *    read in total 2.41669e+09 B out of 2148139037 B, i.e., read the file 1.12502 times
+                     *    Decompressed in total 2147483648 B in 1.40283 s -> 1530.82 MB/s
+                     * @endverbatim
+                     *
+                     * Performance when NOT looking for uncompressed blocks, i.e., comment out the next three lines:
+                     * @verbatim
+                     * m pragzip && time src/tools/pragzip -P 0 -d -c 4GiB-base64.gz | wc -c
+                     *
+                     *    Cache Hit Rate                    : 99.8716 %
+                     *    Useless Prefetches                : 0 %
+                     *    Time spent in:
+                     *        bzip2::readBlockData          : 0s
+                     *        decodeBlock                   : 45.4466s
+                     *        std::future::get              : 0.0315428s
+                     *        get                           : 0.179922s
+                     *    read in total 3.67191e+09 B out of 3263906195 B, i.e., read the file 1.12501 times
+                     *    Decompressed in total 4294967296 B in 3.0489 s -> 1408.69 MB/s
+                     *  -> Almost 50% faster! And only 12% file read overhead instead of 61%!
+                     *
+                     * m pragzip && time src/tools/pragzip -P 0 -d -c random.bin.gz | wc -c
+                     *   -> LONGER THAN 3 MIN!
+                     * @endverbatim
+                     */
                     bitReader.seek( offset.second + 1 );
                     uncompressedOffsetRange = blockfinder::seekToNonFinalUncompressedDeflateBlock(
                         bitReader, untilOffset, &cancelThreads );
