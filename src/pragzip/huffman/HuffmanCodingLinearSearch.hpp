@@ -198,7 +198,7 @@ public:
             code |= bitReader.read<1>();
         }
 
-        return {};
+        return std::nullopt;
     }
 
 private:

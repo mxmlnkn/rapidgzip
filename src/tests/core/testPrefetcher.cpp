@@ -642,7 +642,7 @@ private:
     {
         auto match = std::find( m_prefetching.begin(), m_prefetching.end(), dataBlockIndex );
         if ( match == m_prefetching.end() ) {
-            return {};
+            return std::nullopt;
         }
 
         ++m_statistics.prefetchDirectHits;

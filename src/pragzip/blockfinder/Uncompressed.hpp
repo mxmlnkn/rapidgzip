@@ -70,6 +70,6 @@ seekToNonFinalUncompressedDeflateBlock( BitReader&                     bitReader
         /* This might happen when trying to read the 32 bits! */
     }
 
-    return {};
+    return std::nullopt;
 }
 }  // namespace pragzip::blockfinder
