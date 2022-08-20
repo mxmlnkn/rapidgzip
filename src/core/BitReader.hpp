@@ -457,6 +457,12 @@ public:
         return m_inputBuffer;
     }
 
+    [[nodiscard]] constexpr uint64_t
+    bufferRefillCount() const
+    {
+        return m_bufferRefillCount;
+    }
+
 private:
     [[nodiscard]] size_t
     tellBuffer() const
@@ -485,6 +491,8 @@ private:
 
         m_inputBuffer.resize( nBytesRead );
         m_inputBufferPosition = 0;
+
+        m_bufferRefillCount++;
     }
 
     /**
@@ -628,6 +636,9 @@ private:
 
     std::vector<uint8_t> m_inputBuffer;
     size_t m_inputBufferPosition = 0; /** stores current position of first valid byte in buffer */
+
+    /* Performance profiling metrics. */
+    size_t m_bufferRefillCount{ 0 };
 
 public:
     /**
