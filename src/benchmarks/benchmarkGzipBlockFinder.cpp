@@ -604,6 +604,113 @@ findDeflateBlocksPragzip( BufferedFileReader::AlignedBuffer buffer )
 }
 
 
+using CompressedHistogram = uint64_t;
+
+
+template<uint8_t FREQUENCY_BITS,
+         uint8_t VALUE_BITS,
+         uint8_t VALUE_COUNT>
+[[nodiscard]] constexpr CompressedHistogram
+calculateCompressedHistogram( uint64_t values )
+{
+    static_assert( VALUE_BITS * VALUE_COUNT < std::numeric_limits<decltype( values ) >::digits,
+                   "Values type does not fit the requested amount of values and bits per value!" );
+    static_assert( VALUE_COUNT < ( 1U << FREQUENCY_BITS ),
+                   "The number of values might overflow the frequency type!" );
+    static_assert( ( 1U << VALUE_BITS ) * FREQUENCY_BITS <= std::numeric_limits<CompressedHistogram>::digits,
+                   "The maximum possible value might overflow the histogram bins!" );
+
+    CompressedHistogram frequencies{ 0 };
+    for ( size_t i = 0; i < static_cast<size_t>( VALUE_COUNT ); ++i ) {
+        const auto value = ( values >> ( i * VALUE_BITS ) ) & nLowestBitsSet<CompressedHistogram, VALUE_BITS>();
+        /* The frequencies are calculated in a SIMD like fashion assuming that there are no overflows! */
+        frequencies += CompressedHistogram( 1 ) << ( value * FREQUENCY_BITS );
+    }
+    return frequencies;
+}
+
+
+template<uint8_t FREQUENCY_BITS,
+         uint8_t VALUE_BITS,
+         uint8_t MAX_VALUE_COUNT>
+[[nodiscard]] constexpr auto
+createCompressedHistogramLUT()
+{
+    std::array<CompressedHistogram, 2ULL << ( MAX_VALUE_COUNT * VALUE_BITS )> result{};
+    for ( size_t i = 0; i < result.size(); ++i ) {
+        result[i] = calculateCompressedHistogram<FREQUENCY_BITS, VALUE_BITS, MAX_VALUE_COUNT>( i );
+    }
+    return result;
+}
+
+
+[[nodiscard]] pragzip::Error
+checkPrecode( pragzip::BitReader& bitReaderAtPrecode )
+{
+    const auto codeLengthCount = 4 + bitReaderAtPrecode.read<4>();
+
+    constexpr auto MAX_CL_SYMBOL_COUNT = 19U;
+    constexpr auto CL_CODE_LENGTH_BIT_COUNT = 3U;
+    using HuffmanCode = uint8_t;
+
+    static_assert( MAX_CL_SYMBOL_COUNT * CL_CODE_LENGTH_BIT_COUNT <= pragzip::BitReader::MAX_BIT_BUFFER_SIZE,
+                   "This optimization requires a larger BitBuffer inside BitReader!" );
+    const auto bits = bitReaderAtPrecode.read( 3U * codeLengthCount /* Maximum 19 * 3 = 57 */ );
+    using Bits = std::decay_t<decltype( bits )>;
+
+    /* Maximum number of code lengths / values is 19 -> 5 bit (up to 31 count) is sufficient.
+     * Note that how we create our LUT can lead to larger counts for 0 because of padding!
+     * Here we cache 4 values at a time, i.e., we have to do 5 LUT lookups, which requires
+     * padding the input by one value, i.e., the maximum count can be 20 for the value 0! */
+    constexpr auto FREQUENCY_BITS = 5U;
+    /* Max values to cache in LUT (4 * 3 bits = 12 bits LUT key -> 2^12 * 8B = 32 KiB LUT size) */
+    constexpr auto MAX_CACHED_PRECODE_VALUES = 4U;
+    static constexpr auto PRECODE_FREQUENCIES_LUT =
+        createCompressedHistogramLUT<FREQUENCY_BITS, CL_CODE_LENGTH_BIT_COUNT, MAX_CACHED_PRECODE_VALUES>();
+
+    constexpr auto CACHED_BITS = CL_CODE_LENGTH_BIT_COUNT * MAX_CACHED_PRECODE_VALUES;  // 12
+    const auto bitLengthFrequencies =
+        PRECODE_FREQUENCIES_LUT[bits & nLowestBitsSet<Bits, CACHED_BITS>()]
+        + PRECODE_FREQUENCIES_LUT[( bits >> ( 1U * CACHED_BITS ) ) & nLowestBitsSet<Bits, CACHED_BITS>()]
+        + PRECODE_FREQUENCIES_LUT[( bits >> ( 2U * CACHED_BITS ) ) & nLowestBitsSet<Bits, CACHED_BITS>()]
+        + PRECODE_FREQUENCIES_LUT[( bits >> ( 3U * CACHED_BITS ) ) & nLowestBitsSet<Bits, CACHED_BITS>()]
+        /* The last requires no bit masking because BitReader::read already has masked to the lowest 57 bits
+         * and this shifts 48 bits to the right, leaving only 9 (<12) bits set anyways. */
+        + PRECODE_FREQUENCIES_LUT[( bits >> ( 4U * CACHED_BITS ) )];
+
+    const auto zeroCounts = bitLengthFrequencies & nLowestBitsSet<CompressedHistogram, FREQUENCY_BITS>();
+    const auto nonZeroCount = 5U * MAX_CACHED_PRECODE_VALUES - zeroCounts;
+
+    /* Note that bitLengthFrequencies[0] must not be checked because multiple symbols may have code length
+     * 0 simply when they do not appear in the text at all! And this may very well happen because the
+     * order for the code lengths per symbol in the bit stream is fixed. */
+
+    bool invalidCodeLength{ false };
+    HuffmanCode unusedSymbolCount{ 2 };
+    for ( size_t bitLength = 1; bitLength < ( 1U << CL_CODE_LENGTH_BIT_COUNT ); ++bitLength ) {
+        const auto frequency = ( bitLengthFrequencies >> ( bitLength * FREQUENCY_BITS ) )
+                               & nLowestBitsSet<CompressedHistogram, FREQUENCY_BITS>();
+        invalidCodeLength |= frequency > unusedSymbolCount;
+        unusedSymbolCount -= frequency;
+        unusedSymbolCount *= 2;  /* Because we go down one more level for all unused tree nodes! */
+    }
+    if ( invalidCodeLength ) {
+        return pragzip::Error::INVALID_CODE_LENGTHS;
+    }
+
+    /* Using bit-wise 'and' and 'or' to avoid expensive branching does not improve performance measurably.
+     * It is likely that GCC 11 already does the same optimization because it can deduce that the branched
+     * comparison have no side-effects. Therefore, keep using logical operations because they are more
+     * readable. Note that the standard defines bool to int conversion as true->1, false->0. */
+    if ( ( ( nonZeroCount == 1 ) && ( unusedSymbolCount >  1 ) ) ||
+         ( ( nonZeroCount >  1 ) && ( unusedSymbolCount != 0 ) ) ) {
+        return pragzip::Error::BLOATING_HUFFMAN_CODING;
+    }
+
+    return pragzip::Error::NONE;
+}
+
+
 /**
  * Same as findDeflateBlocksPragzip but prefilters calling pragzip using a lookup table and even skips multiple bits.
  * Also, does not find uncompressed blocks nor fixed huffman blocks and as the others no final blocks!
@@ -642,7 +749,14 @@ findDeflateBlocksPragzipLUT( BufferedFileReader::AlignedBuffer data )
                 continue;
             }
 
-            bitReader.seekAfterPeek( 3 );
+            static_assert( CACHED_BIT_COUNT >= 13, "This implementation is optimized for LUTs with at least 13 bits!" );
+            bitReader.seekAfterPeek( 13 );
+            if ( checkPrecode( bitReader ) != pragzip::Error::NONE ) {
+                ++offset;
+                continue;
+            }
+
+            bitReader.seek( static_cast<long long int>( offset ) + 3 );
             auto error = block.readDynamicHuffmanCoding( bitReader );
             if ( error != pragzip::Error::NONE ) {
                 ++offset;
@@ -662,46 +776,6 @@ findDeflateBlocksPragzipLUT( BufferedFileReader::AlignedBuffer data )
     }
 
     return bitOffsets;
-}
-
-
-using CompressedHistogram = uint64_t;
-
-
-template<uint8_t FREQUENCY_BITS,
-         uint8_t VALUE_BITS,
-         uint8_t VALUE_COUNT>
-[[nodiscard]] constexpr CompressedHistogram
-calculateCompressedHistogram( uint64_t values )
-{
-    static_assert( VALUE_BITS * VALUE_COUNT < std::numeric_limits<decltype( values ) >::digits,
-                   "Values type does not fit the requested amount of values and bits per value!" );
-    static_assert( VALUE_COUNT < ( 1U << FREQUENCY_BITS ),
-                   "The number of values might overflow the frequency type!" );
-    static_assert( ( 1U << VALUE_BITS ) * FREQUENCY_BITS <= std::numeric_limits<CompressedHistogram>::digits,
-                   "The maximum possible value might overflow the histogram bins!" );
-
-    CompressedHistogram frequencies{ 0 };
-    for ( size_t i = 0; i < static_cast<size_t>( VALUE_COUNT ); ++i ) {
-        const auto value = ( values >> ( i * VALUE_BITS ) ) & nLowestBitsSet<CompressedHistogram, VALUE_BITS>();
-        /* The frequencies are calculated in a SIMD like fashion assuming that there are no overflows! */
-        frequencies += CompressedHistogram( 1 ) << ( value * FREQUENCY_BITS );
-    }
-    return frequencies;
-}
-
-
-template<uint8_t FREQUENCY_BITS,
-         uint8_t VALUE_BITS,
-         uint8_t MAX_VALUE_COUNT>
-[[nodiscard]] constexpr auto
-createCompressedHistogramLUT()
-{
-    std::array<CompressedHistogram, 2ULL << ( MAX_VALUE_COUNT * VALUE_BITS )> result{};
-    for ( size_t i = 0; i < result.size(); ++i ) {
-        result[i] = calculateCompressedHistogram<FREQUENCY_BITS, VALUE_BITS, MAX_VALUE_COUNT>( i );
-    }
-    return result;
 }
 
 
@@ -747,72 +821,6 @@ findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
     constexpr bool ENABLE_ANALYSIS{ false };
     pragzip::deflate::Block</* CRC32 */ false, ENABLE_ANALYSIS> block;
     std::unordered_map<pragzip::Error, uint64_t> errorCounts;
-
-    const auto checkPrecode =
-        [] ( pragzip::BitReader& bitReaderAtPrecode )
-        {
-            const auto codeLengthCount = 4 + bitReaderAtPrecode.read<4>();
-
-            constexpr auto MAX_CL_SYMBOL_COUNT = 19U;
-            constexpr auto CL_CODE_LENGTH_BIT_COUNT = 3U;
-            using HuffmanCode = uint8_t;
-
-            static_assert( MAX_CL_SYMBOL_COUNT * CL_CODE_LENGTH_BIT_COUNT <= pragzip::BitReader::MAX_BIT_BUFFER_SIZE,
-                           "This optimization requires a larger BitBuffer inside BitReader!" );
-            const auto bits = bitReaderAtPrecode.read( 3U * codeLengthCount /* Maximum 19 * 3 = 57 */ );
-            using Bits = std::decay_t<decltype( bits )>;
-
-            /* Maximum number of code lengths / values is 19 -> 5 bit (up to 31 count) is sufficient.
-             * Note that how we create our LUT can lead to larger counts for 0 because of padding!
-             * Here we cache 4 values at a time, i.e., we have to do 5 LUT lookups, which requires
-             * padding the input by one value, i.e., the maximum count can be 20 for the value 0! */
-            constexpr auto FREQUENCY_BITS = 5U;
-            /* Max values to cache in LUT (4 * 3 bits = 12 bits LUT key -> 2^12 * 8B = 32 KiB LUT size) */
-            constexpr auto MAX_CACHED_PRECODE_VALUES = 4U;
-            static constexpr auto PRECODE_FREQUENCIES_LUT =
-                createCompressedHistogramLUT<FREQUENCY_BITS, CL_CODE_LENGTH_BIT_COUNT, MAX_CACHED_PRECODE_VALUES>();
-
-            constexpr auto CACHED_BITS = CL_CODE_LENGTH_BIT_COUNT * MAX_CACHED_PRECODE_VALUES;  // 12
-            const auto bitLengthFrequencies =
-                PRECODE_FREQUENCIES_LUT[bits & nLowestBitsSet<Bits, CACHED_BITS>()]
-                + PRECODE_FREQUENCIES_LUT[( bits >> ( 1U * CACHED_BITS ) ) & nLowestBitsSet<Bits, CACHED_BITS>()]
-                + PRECODE_FREQUENCIES_LUT[( bits >> ( 2U * CACHED_BITS ) ) & nLowestBitsSet<Bits, CACHED_BITS>()]
-                + PRECODE_FREQUENCIES_LUT[( bits >> ( 3U * CACHED_BITS ) ) & nLowestBitsSet<Bits, CACHED_BITS>()]
-                /* The last requires no bit masking because BitReader::read already has masked to the lowest 57 bits
-                 * and this shifts 48 bits to the right, leaving only 9 (<12) bits set anyways. */
-                + PRECODE_FREQUENCIES_LUT[( bits >> ( 4U * CACHED_BITS ) )];
-
-            const auto zeroCounts = bitLengthFrequencies & nLowestBitsSet<CompressedHistogram, FREQUENCY_BITS>();
-            const auto nonZeroCount = 5U * MAX_CACHED_PRECODE_VALUES - zeroCounts;
-
-            /* Note that bitLengthFrequencies[0] must not be checked because multiple symbols may have code length
-             * 0 simply when they do not appear in the text at all! And this may very well happen because the
-             * order for the code lengths per symbol in the bit stream is fixed. */
-
-            bool invalidCodeLength{ false };
-            HuffmanCode unusedSymbolCount{ 2 };
-            for ( size_t bitLength = 1; bitLength < ( 1U << CL_CODE_LENGTH_BIT_COUNT ); ++bitLength ) {
-                const auto frequency = ( bitLengthFrequencies >> ( bitLength * FREQUENCY_BITS ) )
-                                       & nLowestBitsSet<CompressedHistogram, FREQUENCY_BITS>();
-                invalidCodeLength |= frequency > unusedSymbolCount;
-                unusedSymbolCount -= frequency;
-                unusedSymbolCount *= 2;  /* Because we go down one more level for all unused tree nodes! */
-            }
-            if ( invalidCodeLength ) {
-                return pragzip::Error::INVALID_CODE_LENGTHS;
-            }
-
-            /* Using bit-wise 'and' and 'or' to avoid expensive branching does not improve performance measurably.
-             * It is likely that GCC 11 already does the same optimization because it can deduce that the branched
-             * comparison have no side-effects. Therefore, keep using logical operations because they are more
-             * readable. Note that the standard defines bool to int conversion as true->1, false->0. */
-            if ( ( ( nonZeroCount == 1 ) && ( unusedSymbolCount >  1 ) ) ||
-                 ( ( nonZeroCount >  1 ) && ( unusedSymbolCount != 0 ) ) ) {
-                return pragzip::Error::BLOATING_HUFFMAN_CODING;
-            }
-
-            return pragzip::Error::NONE;
-        };
 
     const auto checkOffset =
         [&] ( const auto offset )
@@ -1221,7 +1229,7 @@ std::vector<size_t>
 benchmarkLUTSize( const BufferedFileReader::AlignedBuffer& buffer )
 {
     std::optional<std::vector<size_t> > blockCandidatesWithLessBits;
-    if constexpr ( CACHED_BIT_COUNT > 1 ) {
+    if constexpr ( CACHED_BIT_COUNT > 13 ) {
         blockCandidatesWithLessBits = benchmarkLUTSize<CACHED_BIT_COUNT - 1>( buffer );
     }
 
