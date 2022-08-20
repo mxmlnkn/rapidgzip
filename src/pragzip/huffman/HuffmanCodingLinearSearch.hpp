@@ -188,9 +188,9 @@ public:
              * @todo faster lookup than simple linear search, e.g., binning by length and binary search inbetween.
              *       -> then again binary search is not even necessary because the values in each bin are given
              *          sequentially. Might be possible to simply add the lookup value to the minimumValueCode or so! */
-            for ( Symbol j = 0; j < m_codeLengths.size(); ++j ) {
+            for ( size_t j = 0; j < m_codeLengths.size(); ++j ) {
                 if ( ( m_codeLengths[j] == bitLength ) && ( m_codes[j] == code ) ) {
-                    return j;
+                    return static_cast<Symbol>( j );
                 }
             }
 

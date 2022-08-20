@@ -76,7 +76,7 @@ public:
                 const auto fillerBitCount = CACHED_BIT_COUNT - length;
                 const auto symbolAndLength = static_cast<Symbol>( symbol | ( static_cast<Symbol>( length ) << LENGTH_SHIFT ) );
 
-                for ( HuffmanCode fillerBits = 0; fillerBits < ( 1UL << fillerBitCount ); ++fillerBits ) {
+                for ( uint32_t fillerBits = 0; fillerBits < ( uint32_t( 1 ) << fillerBitCount ); ++fillerBits ) {
                     const auto paddedCode = static_cast<HuffmanCode>( fillerBits << length ) | reversedCode;
                     m_doubleCodeCache[paddedCode * 2] = symbolAndLength;
                     //m_doubleCodeCache[paddedCode * 2 + 1] = NONE_SYMBOL;
@@ -107,7 +107,9 @@ public:
 
                         /* Using SIMD for this loop actually worsens timings. Probably too short or because of the
                          * necessary code rearrangement for the while condition for the required canonical form. */
-                        for ( HuffmanCode fillerBits = 0; fillerBits < ( 1UL << fillerBitCount ); ++fillerBits ) {
+                        static_assert( CACHED_BIT_COUNT < sizeof( uint32_t ) * CHAR_BIT,
+                                       "We need a larger data type for correct comparison." );
+                        for ( uint32_t fillerBits = 0; fillerBits < ( 1U << fillerBitCount ); ++fillerBits ) {
                             const auto paddedCode = static_cast<HuffmanCode>( fillerBits << totalLength ) | mergedCode;
                             m_doubleCodeCache[paddedCode * 2] = symbolAndLength;
                             m_doubleCodeCache[paddedCode * 2 + 1] = symbol2;
