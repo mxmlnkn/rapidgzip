@@ -72,7 +72,7 @@ find_package(Git QUIET)
 
 if(GIT_FOUND)
     add_custom_target(beautify-all
-        COMMAND git ls-tree -r --name-only HEAD > ${CMAKE_BINARY_DIR}/.beautify.lst
+        COMMAND ${GIT_EXECUTABLE} ls-tree -r --name-only HEAD > ${CMAKE_BINARY_DIR}/.beautify.lst
         COMMAND sed -i -E "/[.](h|c)(pp)?$/!d; /external\\//d; /indexed_bzip2.cpp/d;" ${CMAKE_BINARY_DIR}/.beautify.lst
         COMMAND uncrustify -c uncrustify.cfg -F ${CMAKE_BINARY_DIR}/.beautify.lst --no-backup
         VERBATIM

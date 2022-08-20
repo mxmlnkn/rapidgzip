@@ -1,3 +1,15 @@
+
+if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/external/cxxopts/include/cxxopts.hpp OR
+   NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/external/zlib/inflate.h)
+    find_package(Git REQUIRED)
+
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} submodule update --recursive --init
+        # git submodule needs to be executed in git root
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+endif()
+
 add_library(cxxopts INTERFACE)
 target_include_directories(cxxopts SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/external/cxxopts/include)
 target_sources(cxxopts INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/external/cxxopts/include/cxxopts.hpp)
@@ -10,6 +22,7 @@ add_subdirectory(pragzip)
 add_subdirectory(tools)
 add_subdirectory(tests)
 
+
 #add_subdirectory(external/zlib)
 
 project(zlibstatic C)
@@ -17,7 +30,7 @@ project(zlibstatic C)
 if(NOT USE_SYSTEM_ZLIB)
     add_library(zlibstatic STATIC)
     set(ZLIB_HOME "${CMAKE_CURRENT_SOURCE_DIR}/external/zlib")
-    target_include_directories(cxxopts SYSTEM INTERFACE ${ZLIB_HOME})
+    target_include_directories(zlibstatic SYSTEM INTERFACE ${ZLIB_HOME})
     target_sources(zlibstatic PRIVATE
         ${ZLIB_HOME}/inflate.c
         ${ZLIB_HOME}/inflate.h
