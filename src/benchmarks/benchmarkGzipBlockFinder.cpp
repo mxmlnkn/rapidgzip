@@ -621,14 +621,6 @@ findDeflateBlocksPragzipLUT( BufferedFileReader::AlignedBuffer data )
 
     using namespace pragzip::blockfinder;
     static constexpr auto nextDeflateCandidateLUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
-    if ( nextDeflateCandidate<0>( 0b0 ) != 0 ) { throw std::logic_error( "" ); }
-    if ( nextDeflateCandidate<1>( 0b1 ) != 1 ) { throw std::logic_error( "" ); }
-    if ( nextDeflateCandidate<1>( 0b0 ) != 0 ) { throw std::logic_error( "" ); }
-
-    if ( nextDeflateCandidate<2>( 0b01 ) != 1 ) { throw std::logic_error( "" ); }
-    if ( nextDeflateCandidate<2>( 0b00 ) != 0 ) { throw std::logic_error( "" ); }
-    if ( nextDeflateCandidate<2>( 0b11 ) != 2 ) { throw std::logic_error( "" ); }
-    if ( nextDeflateCandidate<2>( 0b10 ) != 2 ) { throw std::logic_error( "" ); }
 
     pragzip::deflate::Block block;
     for ( size_t offset = 0; offset <= nBitsToTest; ) {

@@ -50,10 +50,33 @@ isValidDynamicHuffmanBlock( uint32_t bits )
 void
 testDynamicHuffmanBlockFinder()
 {
-    REQUIRE( blockfinder::nextDeflateCandidate< 8>( 0x7CU ) == 0 );
-    REQUIRE( blockfinder::nextDeflateCandidate<10>( 0x7CU ) == 0 );
-    REQUIRE( blockfinder::nextDeflateCandidate<14>( 0x7CU ) == 0 );
-    static constexpr auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT = blockfinder::createNextDeflateCandidateLUT<14>();
+    using namespace pragzip::blockfinder;
+
+    /* Note that it non-final dynamic blocks must begin with 0b100 (bits are read from lowest to highest bit).
+     * From that we can already construct some tests. */
+    REQUIRE( nextDeflateCandidate<0>( 0b0 ) == 0 );
+    REQUIRE( nextDeflateCandidate<1>( 0b1 ) == 1 );
+    REQUIRE( nextDeflateCandidate<1>( 0b0 ) == 0 );
+
+    REQUIRE( nextDeflateCandidate<2>( 0b01 ) == 1 );
+    REQUIRE( nextDeflateCandidate<2>( 0b00 ) == 0 );
+    REQUIRE( nextDeflateCandidate<2>( 0b11 ) == 2 );
+    REQUIRE( nextDeflateCandidate<2>( 0b10 ) == 2 );
+
+    REQUIRE( nextDeflateCandidate<3>( 0b001 ) == 1 );
+    REQUIRE( nextDeflateCandidate<3>( 0b000 ) == 1 );
+    REQUIRE( nextDeflateCandidate<3>( 0b011 ) == 2 );
+    REQUIRE( nextDeflateCandidate<3>( 0b010 ) == 2 );
+    REQUIRE( nextDeflateCandidate<3>( 0b101 ) == 3 );
+    REQUIRE( nextDeflateCandidate<3>( 0b100 ) == 0 );
+    REQUIRE( nextDeflateCandidate<3>( 0b111 ) == 3 );
+    REQUIRE( nextDeflateCandidate<3>( 0b110 ) == 3 );
+
+    REQUIRE( nextDeflateCandidate< 8>( 0x7CU ) == 0 );
+    REQUIRE( nextDeflateCandidate<10>( 0x7CU ) == 0 );
+    REQUIRE( nextDeflateCandidate<14>( 0x7CU ) == 0 );
+
+    static constexpr auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT = createNextDeflateCandidateLUT<14>();
     for ( uint32_t bits = 0; bits < NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT.size(); ++bits ) {
         REQUIRE( isValidDynamicHuffmanBlock( bits ) == ( NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT[bits] == 0 ) );
         if ( isValidDynamicHuffmanBlock( bits ) != ( NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT[bits] == 0 ) ) {
