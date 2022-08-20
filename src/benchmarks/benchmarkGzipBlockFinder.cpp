@@ -608,6 +608,63 @@ using CompressedHistogram = uint64_t;
 
 
 template<uint8_t FREQUENCY_BITS,
+         uint8_t FREQUENCY_COUNT>
+[[nodiscard]] constexpr pragzip::Error
+checkPrecodeFrequencies( CompressedHistogram frequencies )
+{
+    static_assert( FREQUENCY_COUNT <= 7, "Precode code lengths go only up to 7!" );
+    static_assert( FREQUENCY_COUNT * FREQUENCY_BITS <= std::numeric_limits<CompressedHistogram>::digits,
+                   "Argument type does not fit as many values as to be processed!" );
+
+    /* If all counts are zero, then either it is a valid frequency distribution for an empty code or we are
+     * missing some higher counts and cannot determine whether the code is bloating because all missing counts
+     * might be zero, which is a valid special case. It is also not invalid because counts are the smallest they
+     * can be. */
+    constexpr auto bitsToProcessMask = nLowestBitsSet<CompressedHistogram, FREQUENCY_BITS * FREQUENCY_COUNT>();
+    if ( UNLIKELY( ( frequencies & bitsToProcessMask ) == 0 ) ) [[unlikely]] {
+        return pragzip::Error::NONE;
+    }
+
+    /* Because we do not know actual total count, we have to assume the most relaxed check for the bloating check. */
+    constexpr auto MAX_CL_SYMBOL_COUNT = 19U;
+    auto remainingCount = MAX_CL_SYMBOL_COUNT;
+
+    uint8_t unusedSymbolCount{ 2 };
+    for ( size_t bitLength = 1; bitLength <= FREQUENCY_COUNT; ++bitLength ) {
+        const auto frequency = ( frequencies >> ( ( bitLength - 1U ) * FREQUENCY_BITS ) )
+                               & nLowestBitsSet<CompressedHistogram, FREQUENCY_BITS>();
+        if ( frequency > unusedSymbolCount ) {
+            return pragzip::Error::INVALID_CODE_LENGTHS;
+        }
+
+        unusedSymbolCount -= frequency;
+        unusedSymbolCount *= 2;  /* Because we go down one more level for all unused tree nodes! */
+
+        remainingCount -= frequency;
+
+        if ( unusedSymbolCount > remainingCount ) {
+            return pragzip::Error::BLOATING_HUFFMAN_CODING;
+        }
+    }
+
+    return pragzip::Error::NONE;
+}
+
+
+template<uint8_t FREQUENCY_BITS,
+         uint8_t FREQUENCY_COUNT>
+[[nodiscard]] constexpr auto
+createPrecodeFrequenciesValidLUT()
+{
+    std::array<uint8_t, 1U << ( FREQUENCY_BITS * FREQUENCY_COUNT )> result{};
+    for ( size_t i = 0; i < result.size(); ++i ) {
+        result[i] = checkPrecodeFrequencies<FREQUENCY_BITS, FREQUENCY_COUNT>( i ) == pragzip::Error::NONE;
+    }
+    return result;
+}
+
+
+template<uint8_t FREQUENCY_BITS,
          uint8_t VALUE_BITS,
          uint8_t VALUE_COUNT>
 [[nodiscard]] constexpr CompressedHistogram
@@ -677,6 +734,59 @@ checkPrecode( pragzip::BitReader& bitReaderAtPrecode )
         /* The last requires no bit masking because BitReader::read already has masked to the lowest 57 bits
          * and this shifts 48 bits to the right, leaving only 9 (<12) bits set anyways. */
         + PRECODE_FREQUENCIES_LUT[( bits >> ( 4U * CACHED_BITS ) )];
+
+    /* Now, let's use a LUT to get a simple true/false whether the code is valid or not.
+     * We cannot separate the kind of errors (invalid/bloating) but speed matters more.
+     * 1. The bitLengthFrequencies consists of 8 5-bit counts. This results in 2^40 possible values.
+     * 2. The value can be stored in 1-bit, which yields a size of 2^40 b = 2^37 B large = 2^7 GiB = 128 GiB.
+     * 3. The zero-count is redundant and the non-zero count can also be calculated by taking the sum of
+     *    all other counts. This reduces the possible values by another **5** bits to 2^2 GiB.
+     * 4. The frequencies for lower counts can be prefiltered easily with a bit mask to basically force
+     *    the 5-bit counts into 4,3, or 2 bits for code lengths 3,2, or 1. This saves another 3+2+1 = **6** bits
+     *    yielding a size of 2^6 MiB = 64 MiB = 2^29 b.
+     * This is still too large. I see these possibilities:
+     * 1. Omit 2 further frequencies, the largest, because they are most likely to be correct and then use the
+     *    LUT to prefilter and after that do the full check for possibly valid candidates. This yields a LUT
+     *    size of 2^19 b = 2^16 B = 2^6 KiB = 64 KiB. This is still pretty large compared to L1-cache.
+     * 2. Do a two-staged lookup. The first LUT would have to save the unusedSymbolCount additionally to
+     *    the fail bit. Note that the unusedSymbolCount must always be <= 19 (5-bits). And if have only used
+     *    the LUT for the first 3 code lengths than it can only be 8 at maximum.
+     *    Note that if it is zero, then all other code lengths must also be zero, which is easily checked.
+     * 3. Try to reduce it by another 4-bit by checking the cases of the count of code length n being exactly
+     *    2^n because in this case all other bits would have to be 0. But how to do it fast with bit magic?
+     *    - I might be able to check it fast because I have the non-zero counts, which would have to be a power
+     *      of 2. Then, bitLengthFrequencies without zero counts should be equal that power of 2 shifted by
+     *      its log2, i.e., the number of zero bits in it. That would be equal to (2^n)^(log2 2^n) = 2^(2n).
+     *      Is there bit magic to square a power of 2? Another LUT? Might be rather small though because it
+     *      only has to go up to 4-bits and store only 16-bit values if compressed right but even with 32-bits,
+     *      it would only be 2^4 * (32/8) = 64 B large? We might even encode it smaller because actually we only
+     *      need a kind of popc LUT that gives us the zero-bit count and a bool whether it is a power of 2.
+     *    - Could use a LUT using the 0-length counts, from which the non-zero counts, can be derived. From
+     *      that map to a bit mask that defines forbidden bits such that ( bits & mask == bits ). This would
+     *      require 2^5 * 2^3 B = 2^8 = 256 B. As opposed to the above, the LUT could store much more
+     *      information than simple popc or square functions. It could also encode further information.
+     *      E.g., for 4 non-zero values, we know that the tree only should have a depth of at maximum 4 to
+     *      not be wasteful and it also would limit the frequency lengths of other entries. In general, if
+     *      the total count is smaller than 16, then we can shave off 1-bit of every frequency count!
+     *      CL counts can be in [4,19], so 16 possible values. By not allowing 16,17,18,19, this means
+     *      that 12/16 = 75% of the cases we could shave 1 bit off the higher frequency counts that we did
+     *      not already account for, i.e., for all those > 3, so **4** further bits! The problem is that it is
+     *      hard to shave off those bits. Should be doable with https://www.felixcloutier.com/x86/pext !
+     *    But, even with 4 bits less, this still would result in a large 4 MiB LUT.
+     * 4. We could use different LUTs to check parts of the histogram independently. This also would require
+     *    doing a full check thereafter to be sure but might filter enough to speed things up. We would not
+     *    be able to check many together though. Checking 3 values together would result in 2^15 b = 2^2 KiB.
+     *    We have 7 values to check. Note that this almost boils down to a combination of possibility 1 and 2
+     *    and can be combined with 3 to check more values together by using a another LUT to shift them
+     *    together first.
+     */
+
+    static constexpr auto PRECODE_FREQUENCIES_VALID_LUT = createPrecodeFrequenciesValidLUT<5, 3>();
+    if ( PRECODE_FREQUENCIES_VALID_LUT[( bitLengthFrequencies >> FREQUENCY_BITS )
+                                       & nLowestBitsSet<CompressedHistogram, 5 * 3>()] == 0 ) {
+        /* Might also be bloating not only invalid. */
+        return pragzip::Error::INVALID_CODE_LENGTHS;
+    }
 
     const auto zeroCounts = bitLengthFrequencies & nLowestBitsSet<CompressedHistogram, FREQUENCY_BITS>();
     const auto nonZeroCount = 5U * MAX_CACHED_PRECODE_VALUES - zeroCounts;
