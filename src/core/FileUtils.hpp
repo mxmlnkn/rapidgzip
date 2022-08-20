@@ -13,9 +13,19 @@
     #define NOMINMAX
     #include <Windows.h>
 #else
+    #ifndef _GNU_SOURCE
+        #define _GNU_SOURCE
+    #endif
+
+    #include <errno.h>
+    #include <fcntl.h>
     #include <sys/stat.h>
     #include <sys/poll.h>
     #include <unistd.h>
+
+    #ifndef HAVE_VMSPLICE
+        #define HAVE_VMSPLICE __linux__
+    #endif
 #endif
 
 
@@ -182,6 +192,48 @@ findParentFolderContaining( const std::string& folder,
 
 
 /**
+ * @note Throws if some splice calls were successful followed by an unsucessful one before finishing.
+ * @return true if successful and false if it could not be spliced from the beginning, e.g., because the file
+ *         descriptor is not a pipe.
+ */
+[[nodiscard]] bool
+writeAllSplice( const int         outputFileDescriptor,
+                const void* const dataToWrite,
+                const size_t      dataToWriteSize )
+{
+#if HAVE_VMSPLICE
+    /**
+     * Short overview of syscalls that optimize copies by instead copying full page pointers into the
+     * pipe buffers inside the kernel:
+     * - splice: <fd (pipe or not)> <-> <pipe>
+     * - vmsplice: memory -> <pipe>
+     * - mmap: <fd> -> memory
+     * - sendfile: <fd that supports mmap> -> <fd (before Linux 2.6.33 (2010-02-24) it had to be a socket fd)>
+     */
+    ::iovec dataToSplice{};
+    dataToSplice.iov_base = const_cast<void*>( reinterpret_cast<const void*>( dataToWrite ) );
+    dataToSplice.iov_len = dataToWriteSize;
+    while ( dataToSplice.iov_len > 0 ) {
+        /* The const_cast should be safe because vmsplice should not modify the input data. */
+        const auto nBytesWritten = ::vmsplice( outputFileDescriptor, &dataToSplice, 1, /* flags */ 0 );
+        if ( nBytesWritten < 0 ) {
+            if ( dataToSplice.iov_len == dataToWriteSize ) {
+                return false;
+            }
+            std::cerr << "error: " << errno << "\n";
+            throw std::runtime_error( "Failed to write to pipe" );
+        }
+        dataToSplice.iov_base = reinterpret_cast<char*>( dataToSplice.iov_base ) + nBytesWritten;
+        dataToSplice.iov_len -= nBytesWritten;
+    }
+    return true;
+#else
+    return false;
+#endif
+}
+
+
+/**
  * Posix write is not guaranteed to write everything and in fact was encountered to not write more than
  * 0x7ffff000 (2'147'479'552) B. To avoid this, it has to be looped over.
  */
@@ -190,6 +242,10 @@ writeAll( const int         outputFileDescriptor,
           const void* const dataToWrite,
           const size_t      dataToWriteSize )
 {
+    if ( writeAllSplice( outputFileDescriptor, dataToWrite, dataToWriteSize ) ) {
+        return;
+    }
+
     for ( uint64_t nTotalWritten = 0; nTotalWritten < dataToWriteSize; ) {
         const auto currentBufferPosition =
             reinterpret_cast<const void*>( reinterpret_cast<uintptr_t>( dataToWrite ) + nTotalWritten );
@@ -218,7 +274,9 @@ writeAll( const int         outputFileDescriptor,
     }
 
     if ( outputFileDescriptor >= 0 ) {
-        writeAll( outputFileDescriptor, dataToWrite, dataToWriteSize );
+        if ( !writeAllSplice( outputFileDescriptor, dataToWrite, dataToWriteSize ) ) {
+            writeAll( outputFileDescriptor, dataToWrite, dataToWriteSize );
+        }
     }
 
     if ( outputBuffer != nullptr ) {
