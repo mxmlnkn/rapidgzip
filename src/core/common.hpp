@@ -182,7 +182,10 @@ unixTime() noexcept
 
 
 /**
- * Use like this: std::cerr << ( ThreadSafeOutput() << "Hello" << i << "there" ).str();
+ * Use like this:
+ * @verbatim
+ * std::cerr << ( ThreadSafeOutput() << "Hello" << i << "there" ).str();
+ * @endverbatim
  */
 class ThreadSafeOutput
 {

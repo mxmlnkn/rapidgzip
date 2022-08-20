@@ -94,9 +94,7 @@ public:
          * the next level. */
         auto maxSymbolsPossible = uint8_t( 1 ) << bitLengthFrequencies.size();
         for ( int bitLength = bitLengthFrequencies.size() - 1; bitLength > 0; --bitLength ) {
-        //for ( auto frequency = bitLengthFrequencies.rbegin(); frequency != bitLengthFrequencies.rend(); ++frequency ) {
             const auto frequency = bitLengthFrequencies.begin() + bitLength;
-            //std::cerr << "bitLength: " << bitLength << ", maxSymbolsPossible: " << maxSymbolsPossible << ", frequency: " << (int)*frequency << "\n";
             if ( *frequency > maxSymbolsPossible ) {
                 return Error::EXCEEDED_CL_LIMIT;
             }

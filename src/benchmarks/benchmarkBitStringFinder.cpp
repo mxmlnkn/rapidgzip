@@ -854,16 +854,6 @@ benchmarkFindBitString( const std::vector<char>& data )
                     }
                 }
             }
-
-            /*
-            if ( !blockOffsets.empty() ) {
-                std::cerr << "Block offsets  :\n";
-            }
-            for ( const auto offset : blockOffsets ) {
-                std::cerr << offset / 8 << " B " << offset % 8 << " b\n";
-            }
-            std::cerr << "Found " << blockOffsets.size() << " blocks\n";
-            */
         };
 
     const auto measureTimes =
