@@ -718,7 +718,12 @@ checkPrecode( pragzip::BitReader& bitReaderAtPrecode )
 
     static_assert( MAX_CL_SYMBOL_COUNT * CL_CODE_LENGTH_BIT_COUNT <= pragzip::BitReader::MAX_BIT_BUFFER_SIZE,
                    "This optimization requires a larger BitBuffer inside BitReader!" );
-    const auto bits = bitReaderAtPrecode.read( 3U * codeLengthCount /* Maximum 19 * 3 = 57 */ );
+    /* Avoid data dependency on codeLengthCount by always peeking the maximum possible amount of bits.
+     * Note that >without the 64-bit gzip footer< this could be a wrong transformation because it wouldn't
+     * be able to found very small deflate blocks close to the end of the file. Note that such very small
+     * blocks would normally be Fixed Huffman decoding anyway. */
+    const auto bits = bitReaderAtPrecode.peek<MAX_CL_SYMBOL_COUNT * CL_CODE_LENGTH_BIT_COUNT /* 57 */>()
+                      & nLowestBitsSet<uint64_t>( codeLengthCount * CL_CODE_LENGTH_BIT_COUNT );
     using Bits = std::decay_t<decltype( bits )>;
 
     /* Maximum number of code lengths / values is 19 -> 5 bit (up to 31 count) is sufficient.
