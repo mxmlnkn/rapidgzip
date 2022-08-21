@@ -792,10 +792,11 @@ checkPrecode( pragzip::BitReader& bitReaderAtPrecode )
      *    together first.
      */
 
-    static const auto PRECODE_FREQUENCIES_VALID_LUT = createPrecodeFrequenciesValidLUT<5, 4>();
+    static const auto PRECODE_FREQUENCIES_VALID_LUT = createPrecodeFrequenciesValidLUT<5, 5>();
+    static constexpr auto INDEX_BIT_COUNT = 5 * 5 - 6 /* log2 64 = 6 */;
     const auto valueToLookUp = bitLengthFrequencies >> FREQUENCY_BITS;
     const auto bitIndex = valueToLookUp % 64;
-    const auto elementIndex = ( valueToLookUp / 64 ) & nLowestBitsSet<CompressedHistogram, 5 * 4 - 6>();
+    const auto elementIndex = ( valueToLookUp / 64 ) & nLowestBitsSet<CompressedHistogram, INDEX_BIT_COUNT>();
     if ( ( PRECODE_FREQUENCIES_VALID_LUT[elementIndex] & ( 1ULL << bitIndex ) ) == 0 ) {
         /* Might also be bloating not only invalid. */
         return pragzip::Error::INVALID_CODE_LENGTHS;
@@ -1344,6 +1345,15 @@ benchmarkGzip( const std::string& fileName )
         std::cout << "[findDeflateBlocksPragzipLUT] " << formatBandwidth( durations, buffer.size() ) << "\n";
 
         /* Same as above but with a LUT that can skip bits similar to the Boyer–Moore string-search algorithm. */
+
+        /* Call findDeflateBlocksPragzipLUT once to initialize the static variables! */
+        if ( const auto blockCandidatesLUT = findDeflateBlocksPragzipLUT<13>( buffer );
+             blockCandidatesLUT != blockCandidates ) {
+            std::stringstream msg;
+            msg << "Results with findDeflateBlocksPragzipLUT differ! Block candidates ("
+                << blockCandidatesLUT.size() << "): " << blockCandidatesLUT;
+            throw std::logic_error( std::move( msg ).str() );
+        }
 
         const auto [blockCandidatesLUT, durationsLUT] = benchmarkFunction<10>(
             /* As for choosing CACHED_BIT_COUNT == 13, see the output of the results at the end of the file.
