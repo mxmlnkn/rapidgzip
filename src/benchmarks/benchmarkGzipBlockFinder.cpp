@@ -789,7 +789,7 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
      * -> 7M downright invalid Huffman codes but *also* ~4M non-optimal Huffman codes.
      *    The latter is kind of a strong criterium that I'm not even sure that all gzip encoders follow!
      */
-    std::multimap<uint64_t, pragzip::Error, std::greater<uint64_t> > sortedErrorTypes;
+    std::multimap<uint64_t, pragzip::Error, std::greater<> > sortedErrorTypes;
     for ( const auto [error, count] : errorCounts ) {
         sortedErrorTypes.emplace( count, error );
     }
