@@ -851,7 +851,7 @@ findDeflateBlocksPragzipLUT( BufferedFileReader::AlignedBuffer data )
     std::vector<size_t> bitOffsets;
 
     using namespace pragzip::blockfinder;
-    static constexpr auto nextDeflateCandidateLUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
+    static const auto nextDeflateCandidateLUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
 
     pragzip::deflate::Block block;
     for ( size_t offset = 0; offset <= nBitsToTest; ) {
@@ -913,7 +913,7 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
 
     using namespace pragzip::blockfinder;
     static constexpr auto CACHED_BIT_COUNT =14;
-    static constexpr auto nextDeflateCandidateLUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
+    static const auto nextDeflateCandidateLUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
 
     size_t offsetsTestedMoreInDepth{ 0 };
     std::unordered_map<pragzip::Error, uint64_t> errorCounts;
@@ -1053,7 +1053,7 @@ findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
     std::vector<size_t> bitOffsetCandidates;
 
     using namespace pragzip::blockfinder;
-    static constexpr auto nextDeflateCandidateLUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
+    static const auto nextDeflateCandidateLUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
 
     for ( size_t offset = 0; offset <= nBitsToTest; ) {
         try {
@@ -1347,7 +1347,7 @@ benchmarkGzip( const std::string& fileName )
         /* Same as above but with a LUT that can skip bits similar to the Boyer–Moore string-search algorithm. */
 
         /* Call findDeflateBlocksPragzipLUT once to initialize the static variables! */
-        if ( const auto blockCandidatesLUT = findDeflateBlocksPragzipLUT<13>( buffer );
+        if ( const auto blockCandidatesLUT = findDeflateBlocksPragzipLUT<17>( buffer );
              blockCandidatesLUT != blockCandidates ) {
             std::stringstream msg;
             msg << "Results with findDeflateBlocksPragzipLUT differ! Block candidates ("
@@ -1359,7 +1359,7 @@ benchmarkGzip( const std::string& fileName )
             /* As for choosing CACHED_BIT_COUNT == 13, see the output of the results at the end of the file.
              * 13 is the last for which it significantly improves over less bits and 14 bits produce reproducibly
              * slower bandwidths! 13 bits is the best configuration as far as I know. */
-            [&buffer] () { return findDeflateBlocksPragzipLUT<13>( buffer ); } );
+            [&buffer] () { return findDeflateBlocksPragzipLUT<17>( buffer ); } );
 
         if ( blockCandidates != blockCandidatesLUT ) {
             std::stringstream msg;
@@ -1375,7 +1375,7 @@ benchmarkGzip( const std::string& fileName )
             /* As for choosing CACHED_BIT_COUNT == 13, see the output of the results at the end of the file.
              * 13 is the last for which it significantly improves over less bits and 14 bits produce reproducibly
              * slower bandwidths! 13 bits is the best configuration as far as I know. */
-            [&buffer] () { return findDeflateBlocksPragzipLUTTwoPass<13>( buffer ); } );
+            [&buffer] () { return findDeflateBlocksPragzipLUTTwoPass<17>( buffer ); } );
 
         if ( blockCandidates != blockCandidatesLUT2P ) {
             std::stringstream msg;
@@ -1491,8 +1491,9 @@ main( int    argc,
             if ( name == "gzip" ) {
                 std::cout << "=== Testing different Pragzip + LUT table sizes ===\n\n";
                 /* CACHED_BIT_COUNT == 19 fails on GCC because it requires > 99 M constexpr steps.
-                 * CACHED_BIT_COUNT == 18 fail on clang because it requires > 99 M constexpr steps. */
-                benchmarkLUTSize<16>( bufferFile( newFileName ) );
+                 * CACHED_BIT_COUNT == 18 fail on clang because it requires > 99 M constexpr steps.
+                 * It works when using simple const instead of constexpr */
+                benchmarkLUTSize<18>( bufferFile( newFileName ) );
                 std::cout << "\n\n";
             }
 
