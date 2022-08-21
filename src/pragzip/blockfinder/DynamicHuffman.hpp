@@ -156,7 +156,7 @@ checkPrecodeFrequencies( CompressedHistogram frequencies )
 
 template<uint8_t FREQUENCY_BITS,
          uint8_t FREQUENCY_COUNT>
-[[nodiscard]] constexpr auto
+[[nodiscard]] auto
 createPrecodeFrequenciesValidLUT()
 {
     static_assert( ( 1ULL << ( FREQUENCY_BITS * FREQUENCY_COUNT ) ) % 64U == 0,
@@ -236,7 +236,7 @@ checkPrecode( pragzip::BitReader& bitReaderAtPrecode )
     constexpr auto FREQUENCY_BITS = 5U;
     /* Max values to cache in LUT (4 * 3 bits = 12 bits LUT key -> 2^12 * 8B = 32 KiB LUT size) */
     constexpr auto MAX_CACHED_PRECODE_VALUES = 4U;
-    static constexpr auto PRECODE_FREQUENCIES_LUT =
+    static auto PRECODE_FREQUENCIES_LUT =
         createCompressedHistogramLUT<FREQUENCY_BITS, CL_CODE_LENGTH_BIT_COUNT, MAX_CACHED_PRECODE_VALUES>();
 
     constexpr auto CACHED_BITS = CL_CODE_LENGTH_BIT_COUNT * MAX_CACHED_PRECODE_VALUES;  // 12
@@ -351,7 +351,7 @@ template<uint8_t CACHED_BIT_COUNT>
 seekToNonFinalDynamicDeflateBlock( BitReader&   bitReader,
                                    size_t const untilOffset = std::numeric_limits<size_t>::max() )
 {
-    static constexpr auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
+    static auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
 
     try
     {
