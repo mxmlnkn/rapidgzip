@@ -656,9 +656,15 @@ template<uint8_t FREQUENCY_BITS,
 [[nodiscard]] constexpr auto
 createPrecodeFrequenciesValidLUT()
 {
-    std::array<uint8_t, 1U << ( FREQUENCY_BITS * FREQUENCY_COUNT )> result{};
+    static_assert( ( 1ULL << ( FREQUENCY_BITS * FREQUENCY_COUNT ) ) % 64U == 0,
+                   "LUT size must be a multiple of 64-bit for the implemented bit-packing!" );
+    std::array<uint64_t, ( 1ULL << ( FREQUENCY_BITS * FREQUENCY_COUNT ) ) / 64U> result{};
     for ( size_t i = 0; i < result.size(); ++i ) {
-        result[i] = checkPrecodeFrequencies<FREQUENCY_BITS, FREQUENCY_COUNT>( i ) == pragzip::Error::NONE;
+        for ( size_t j = 0; j < 64U; ++j ) {
+            const auto isValid = checkPrecodeFrequencies<FREQUENCY_BITS, FREQUENCY_COUNT>( i * 64U + j )
+                                 == pragzip::Error::NONE;
+            result[i] |= static_cast<uint64_t>( isValid ) << j;
+        }
     }
     return result;
 }
@@ -693,7 +699,7 @@ template<uint8_t FREQUENCY_BITS,
 [[nodiscard]] constexpr auto
 createCompressedHistogramLUT()
 {
-    std::array<CompressedHistogram, 2ULL << ( MAX_VALUE_COUNT * VALUE_BITS )> result{};
+    std::array<CompressedHistogram, 1ULL << ( MAX_VALUE_COUNT * VALUE_BITS )> result{};
     for ( size_t i = 0; i < result.size(); ++i ) {
         result[i] = calculateCompressedHistogram<FREQUENCY_BITS, VALUE_BITS, MAX_VALUE_COUNT>( i );
     }
@@ -781,9 +787,11 @@ checkPrecode( pragzip::BitReader& bitReaderAtPrecode )
      *    together first.
      */
 
-    static constexpr auto PRECODE_FREQUENCIES_VALID_LUT = createPrecodeFrequenciesValidLUT<5, 3>();
-    if ( PRECODE_FREQUENCIES_VALID_LUT[( bitLengthFrequencies >> FREQUENCY_BITS )
-                                       & nLowestBitsSet<CompressedHistogram, 5 * 3>()] == 0 ) {
+    static const auto PRECODE_FREQUENCIES_VALID_LUT = createPrecodeFrequenciesValidLUT<5, 4>();
+    const auto valueToLookUp = bitLengthFrequencies >> FREQUENCY_BITS;
+    const auto bitIndex = valueToLookUp % 64;
+    const auto elementIndex = ( valueToLookUp / 64 ) & nLowestBitsSet<CompressedHistogram, 5 * 4 - 6>();
+    if ( ( PRECODE_FREQUENCIES_VALID_LUT[elementIndex] & ( 1ULL << bitIndex ) ) == 0 ) {
         /* Might also be bloating not only invalid. */
         return pragzip::Error::INVALID_CODE_LENGTHS;
     }
