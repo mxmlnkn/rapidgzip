@@ -179,3 +179,49 @@ findParentFolderContaining( const std::string& folder,
     return {};
 }
 #endif
+
+
+/**
+ * Posix write is not guaranteed to write everything and in fact was encountered to not write more than
+ * 0x7ffff000 (2'147'479'552) B. To avoid this, it has to be looped over.
+ */
+void
+writeAll( const int         outputFileDescriptor,
+          const void* const dataToWrite,
+          const size_t      dataToWriteSize )
+{
+    for ( uint64_t nTotalWritten = 0; nTotalWritten < dataToWriteSize; ) {
+        const auto currentBufferPosition =
+            reinterpret_cast<const void*>( reinterpret_cast<uintptr_t>( dataToWrite ) + nTotalWritten );
+        const auto nBytesWritten = ::write( outputFileDescriptor,
+                                            currentBufferPosition,
+                                            dataToWriteSize - nTotalWritten );
+        if ( nBytesWritten <= 0 ) {
+            std::stringstream message;
+            message << "Unable to write all data to the given file descriptor. Wrote " << nTotalWritten << " out of "
+                    << dataToWriteSize << ".";
+            throw std::runtime_error( std::move( message ).str() );
+        }
+        nTotalWritten += static_cast<size_t>( nBytesWritten );
+    }
+}
+
+
+void
+writeAll( const int         outputFileDescriptor,
+          void* const       outputBuffer,
+          const void* const dataToWrite,
+          const size_t      dataToWriteSize )
+{
+    if ( dataToWriteSize == 0 ) {
+        return;
+    }
+
+    if ( outputFileDescriptor >= 0 ) {
+        writeAll( outputFileDescriptor, dataToWrite, dataToWriteSize );
+    }
+
+    if ( outputBuffer != nullptr ) {
+        std::memcpy( outputBuffer, dataToWrite, dataToWriteSize );
+    }
+}

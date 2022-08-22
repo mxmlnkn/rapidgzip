@@ -405,24 +405,16 @@ BZ2Reader::flushOutputBuffer( int    const outputFileDescriptor,
                               size_t const maxBytesToFlush )
 {
     const auto nBytesToFlush = std::min( m_decodedBufferPos, maxBytesToFlush );
-    size_t nBytesFlushed = nBytesToFlush; // default then there is neither output buffer nor file device given
 
-    if ( outputFileDescriptor >= 0 ) {
-        const auto nBytesWritten = write( outputFileDescriptor, m_decodedBuffer.data(), nBytesToFlush );
-        nBytesFlushed = std::max<decltype( nBytesWritten )>( 0, nBytesWritten );
+    writeAll( outputFileDescriptor, outputBuffer, m_decodedBuffer.data(), nBytesToFlush );
+
+    if ( nBytesToFlush > 0 ) {
+        m_decodedBytesCount += nBytesToFlush;
+        m_decodedBufferPos  -= nBytesToFlush;
+        std::memmove( m_decodedBuffer.data(), m_decodedBuffer.data() + nBytesToFlush, m_decodedBufferPos );
     }
 
-    if ( outputBuffer != nullptr ) {
-        std::memcpy( outputBuffer, m_decodedBuffer.data(), nBytesFlushed );
-    }
-
-    if ( nBytesFlushed > 0 ) {
-        m_decodedBytesCount += nBytesFlushed;
-        m_decodedBufferPos  -= nBytesFlushed;
-        std::memmove( m_decodedBuffer.data(), m_decodedBuffer.data() + nBytesFlushed, m_decodedBufferPos );
-    }
-
-    return nBytesFlushed;
+    return nBytesToFlush;
 }
 
 

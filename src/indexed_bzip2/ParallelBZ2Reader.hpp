@@ -248,19 +248,10 @@ public:
 
             const auto nBytesToDecode = std::min( blockData->data.size() - offsetInBlock,
                                                   nBytesToRead - nBytesDecoded );
-            const auto nBytesWritten = writeResult(
-                outputFileDescriptor,
-                outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded,
-                reinterpret_cast<const char*>( blockData->data.data() + offsetInBlock ),
-                nBytesToDecode
-            );
-
-            if ( nBytesWritten != nBytesToDecode ) {
-                std::stringstream msg;
-                msg << "Less (" << nBytesWritten << ") than the requested number of bytes (" << nBytesToDecode
-                    << ") were written to the output!";
-                throw std::logic_error( std::move( msg ).str() );
-            }
+            writeAll( outputFileDescriptor,
+                      outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded,
+                      blockData->data.data() + offsetInBlock,
+                      nBytesToDecode );
 
             nBytesDecoded += nBytesToDecode;
             m_currentPosition += nBytesToDecode;
@@ -487,38 +478,6 @@ private:
          * or else BlockMap will not work correctly because the implied size of that last block is 0! */
 
         blockFinder().setBlockOffsets( std::move( encodedBlockOffsets ) );
-    }
-
-
-    size_t
-    writeResult( int         const outputFileDescriptor,
-                 char*       const outputBuffer,
-                 char const* const dataToWrite,
-                 size_t      const dataToWriteSize )
-    {
-        size_t nBytesFlushed = dataToWriteSize; // default then there is neither output buffer nor file device given
-
-        if ( outputFileDescriptor >= 0 ) {
-            /* Avoid running into errors because Linux syscall write only writes up to 0x7ffff000 (2'147'479'552) B */
-            constexpr size_t CHUNK_SIZE = 128ULL * 1024ULL * 1024ULL;
-            for ( nBytesFlushed = 0; nBytesFlushed < dataToWriteSize; )
-            {
-                const auto nBytesWritten = ::write( outputFileDescriptor,
-                                                    dataToWrite + nBytesFlushed,
-                                                    std::min( CHUNK_SIZE, dataToWriteSize - nBytesFlushed ) );
-
-                if ( nBytesWritten <= 0 ) {
-                    break;
-                }
-                nBytesFlushed += static_cast<size_t>( nBytesWritten );
-            }
-        }
-
-        if ( outputBuffer != nullptr ) {
-            std::memcpy( outputBuffer, dataToWrite, nBytesFlushed );
-        }
-
-        return nBytesFlushed;
     }
 
 private:

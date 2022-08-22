@@ -380,23 +380,10 @@ GzipReader<CALCULATE_CRC32>::flushOutputBuffer( int    const outputFileDescripto
             const auto nBytesToWrite = std::min( buffer.size() - offsetInBuffer, maxBytesToFlush - totalBytesFlushed );
             const auto* const bufferStart = buffer.data() + offsetInBuffer;
 
-            size_t nBytesFlushed = nBytesToWrite;  // default when there is neither output buffer nor file device given
+            writeAll( outputFileDescriptor, outputBuffer + totalBytesFlushed, bufferStart, nBytesToWrite );
 
-            if ( outputFileDescriptor >= 0 ) {
-                const auto nBytesWritten = write( outputFileDescriptor, bufferStart, nBytesToWrite );
-                nBytesFlushed = std::max<decltype( nBytesWritten )>( 0, nBytesWritten );
-            }
-
-            if ( outputBuffer != nullptr ) {
-                std::memcpy( outputBuffer + totalBytesFlushed, bufferStart, nBytesFlushed );
-            }
-
-            *m_offsetInLastBuffers += nBytesFlushed;
-            totalBytesFlushed += nBytesFlushed;
-
-            if ( nBytesFlushed != nBytesToWrite ) {
-                break;
-            }
+            *m_offsetInLastBuffers += nBytesToWrite;
+            totalBytesFlushed += nBytesToWrite;
         }
 
         bufferOffset += buffer.size();
