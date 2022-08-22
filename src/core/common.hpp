@@ -496,3 +496,21 @@ loadUnaligned( const void* data )
 	std::memcpy( &result, data, sizeof( result ) );
 	return result;
 }
+
+
+[[nodiscard]] constexpr size_t
+countNewlines( const std::string_view& view )
+{
+    constexpr char NEWLINE = '\n';
+    const std::string_view toFind( std::addressof( NEWLINE ), 1 );
+
+    size_t matches{ 0 };
+    for ( auto position = view.find( toFind, 0 );
+          position != std::string_view::npos;
+          position = view.find( toFind, position + 1 ) )
+    {
+        ++matches;
+    }
+
+    return matches;
+}

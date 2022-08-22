@@ -1289,7 +1289,7 @@ main( int    argc,
 
 
 /*
-cmake --build . -- benchmarkGzipBlockFinder && taskset 0x08 benchmarks/benchmarkGzipBlockFinder random.gz
+cmake --build . -- benchmarkGzipBlockFinder && taskset 0x08 src/benchmarks/benchmarkGzipBlockFinder random.gz
 
 === Testing different Pragzip + LUT table sizes ===
 
