@@ -53,8 +53,12 @@
     }
 
     #define S_ISFIFO(m) testFileType( m, S_IFIFO )
+
+    #define CONSTEXPR_EXCEPT_MSVC
 #else
     #include <unistd.h>
+
+    #define CONSTEXPR_EXCEPT_MSVC constexpr
 #endif
 
 

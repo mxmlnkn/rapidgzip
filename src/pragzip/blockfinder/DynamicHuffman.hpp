@@ -81,7 +81,7 @@ nextDeflateCandidate( uint32_t bits )
  * @endverbatim
  */
 template<uint16_t CACHED_BIT_COUNT>
-constexpr std::array<uint8_t, 1U << CACHED_BIT_COUNT>
+CONSTEXPR_EXCEPT_MSVC std::array<uint8_t, 1U << CACHED_BIT_COUNT>
 createNextDeflateCandidateLUT()
 {
     std::array<uint8_t, 1U << CACHED_BIT_COUNT> result{};
@@ -156,7 +156,7 @@ checkPrecodeFrequencies( CompressedHistogram frequencies )
 
 template<uint8_t FREQUENCY_BITS,
          uint8_t FREQUENCY_COUNT>
-[[nodiscard]] auto
+[[nodiscard]] CONSTEXPR_EXCEPT_MSVC auto
 createPrecodeFrequenciesValidLUT()
 {
     static_assert( ( 1ULL << ( FREQUENCY_BITS * FREQUENCY_COUNT ) ) % 64U == 0,
