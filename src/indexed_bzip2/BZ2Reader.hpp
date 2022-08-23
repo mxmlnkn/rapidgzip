@@ -8,6 +8,8 @@
 #include <map>
 #include <sstream>
 #include <stdexcept>
+#include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -29,6 +31,7 @@ class BZ2Reader :
 public:
     using BlockHeader = bzip2::Block;
     using BitReader = bzip2::BitReader;
+    using WriteFunctor = std::function<void ( const void*, uint64_t )>;
 
 public:
     static constexpr size_t IOBUF_SIZE = 4096;
@@ -197,9 +200,26 @@ public:
      * @return number of bytes written
      */
     size_t
-    read( const int    outputFileDescriptor = -1,
-          char* const  outputBuffer = nullptr,
-          const size_t nBytesToRead = std::numeric_limits<size_t>::max() ) override
+    read( const int     outputFileDescriptor = -1,
+          char* const   outputBuffer         = nullptr,
+          const size_t  nBytesToRead         = std::numeric_limits<size_t>::max() ) override
+    {
+        const auto writeFunctor =
+            [nBytesDecoded = uint64_t( 0 ), outputFileDescriptor, outputBuffer]
+            ( const void* const buffer,
+              uint64_t    const size ) mutable
+            {
+                auto* const currentBufferPosition = outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded;
+                writeAll( outputFileDescriptor, currentBufferPosition, buffer, size );
+                nBytesDecoded += size;
+            };
+
+        return read( writeFunctor, nBytesToRead );
+    }
+
+    size_t
+    read( const WriteFunctor& writeFunctor,
+          const size_t        nBytesToRead = std::numeric_limits<size_t>::max() )
     {
         size_t nBytesDecoded = 0;
         while ( ( nBytesDecoded < nBytesToRead ) && !m_bitReader.eof() && !eof() ) {
@@ -223,9 +243,7 @@ public:
                 }
             }
 
-            nBytesDecoded += decodeStream( outputFileDescriptor,
-                                           outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded,
-                                           nBytesToRead - nBytesDecoded );
+            nBytesDecoded += decodeStream( writeFunctor, nBytesToRead - nBytesDecoded );
         }
         m_currentPosition += nBytesDecoded;
         return nBytesDecoded;
@@ -239,9 +257,8 @@ private:
      *         e.g., if the output file descriptor can't be written to!
      */
     size_t
-    flushOutputBuffer( int    outputFileDescriptor = -1,
-                       char*  outputBuffer         = nullptr,
-                       size_t maxBytesToFlush      = std::numeric_limits<size_t>::max() );
+    flushOutputBuffer( const WriteFunctor& writeFunctor = {},
+                       size_t              maxBytesToFlush = std::numeric_limits<size_t>::max() );
 
     /**
      * Undo burrows-wheeler transform on intermediate buffer @ref dbuf to @ref outBuf
@@ -253,9 +270,8 @@ private:
      * @return number of actually decoded bytes
      */
     [[nodiscard]] size_t
-    decodeStream( int    outputFileDescriptor = -1,
-                  char*  outputBuffer         = nullptr,
-                  size_t nMaxBytesToDecode    = std::numeric_limits<size_t>::max() );
+    decodeStream( const WriteFunctor& writeFunctor,
+                  size_t              nMaxBytesToDecode = std::numeric_limits<size_t>::max() );
 
     BlockHeader
     readBlockHeader( size_t bitsOffset );
@@ -354,7 +370,7 @@ BZ2Reader::seek( long long int offset,
     m_lastHeader = readBlockHeader( blockOffset->first );
     m_lastHeader.readBlockData();
     /* no decodeBzip2 necessary because we only seek inside one block! */
-    const auto nBytesDecoded = decodeStream( -1, nullptr, nBytesSeekInBlock );
+    const auto nBytesDecoded = decodeStream( {}, nBytesSeekInBlock );
 
     if ( nBytesDecoded != nBytesSeekInBlock ) {
         std::stringstream msg;
@@ -400,13 +416,14 @@ BZ2Reader::readBlockHeader( size_t offsetBits )
 
 
 inline size_t
-BZ2Reader::flushOutputBuffer( int    const outputFileDescriptor,
-                              char*  const outputBuffer,
-                              size_t const maxBytesToFlush )
+BZ2Reader::flushOutputBuffer( WriteFunctor const& writeFunctor,
+                              size_t       const  maxBytesToFlush )
 {
     const auto nBytesToFlush = std::min( m_decodedBufferPos, maxBytesToFlush );
 
-    writeAll( outputFileDescriptor, outputBuffer, m_decodedBuffer.data(), nBytesToFlush );
+    if ( writeFunctor ) {
+        writeFunctor( m_decodedBuffer.data(), nBytesToFlush );
+    }
 
     if ( nBytesToFlush > 0 ) {
         m_decodedBytesCount += nBytesToFlush;
@@ -419,16 +436,15 @@ BZ2Reader::flushOutputBuffer( int    const outputFileDescriptor,
 
 
 inline size_t
-BZ2Reader::decodeStream( int    const outputFileDescriptor,
-                         char*  const outputBuffer,
-                         size_t const nMaxBytesToDecode )
+BZ2Reader::decodeStream( WriteFunctor const& writeFunctor,
+                         size_t       const  nMaxBytesToDecode )
 {
     if ( eof() || ( nMaxBytesToDecode == 0 ) ) {
         return 0;
     }
 
     /* try to flush remnants in output buffer from interrupted last call */
-    size_t nBytesDecoded = flushOutputBuffer( outputFileDescriptor, outputBuffer, nMaxBytesToDecode );
+    size_t nBytesDecoded = flushOutputBuffer( writeFunctor, nMaxBytesToDecode );
 
     while ( nBytesDecoded < nMaxBytesToDecode ) {
         /* If we need to refill dbuf, do it. Only won't be required for resuming interrupted decodations. */
@@ -461,9 +477,7 @@ BZ2Reader::decodeStream( int    const outputFileDescriptor,
         }
 
         /* required for correct data offsets in readBlockHeader and for while condition of course */
-        nBytesDecoded += flushOutputBuffer( outputFileDescriptor,
-                                            outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded,
-                                            nMaxBytesToDecode - nBytesDecoded );
+        nBytesDecoded += flushOutputBuffer( writeFunctor, nMaxBytesToDecode - nBytesDecoded );
     }
 
     return nBytesDecoded;

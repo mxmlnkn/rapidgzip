@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 
@@ -38,6 +39,7 @@ public:
     using BlockFetcher = ::BZ2BlockFetcher<FetchingStrategy::FetchNextSmart>;
     using BlockFinder = typename BlockFetcher::BlockFinder;
     using BitReader = bzip2::BitReader;
+    using WriteFunctor = std::function<void ( const void*, uint64_t )>;
 
 public:
     /* Constructors */
@@ -165,6 +167,24 @@ public:
           char* const  outputBuffer = nullptr,
           const size_t nBytesToRead = std::numeric_limits<size_t>::max() ) override
     {
+        const auto writeFunctor =
+            [nBytesDecoded = uint64_t( 0 ), outputFileDescriptor, outputBuffer]
+            ( const void* const buffer,
+              uint64_t    const size ) mutable
+            {
+                auto* const currentBufferPosition = outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded;
+                writeAll( outputFileDescriptor, currentBufferPosition, buffer, size );
+                nBytesDecoded += size;
+            };
+
+        return read( writeFunctor, nBytesToRead );
+    }
+
+
+    size_t
+    read( const WriteFunctor& writeFunctor,
+          const size_t        nBytesToRead = std::numeric_limits<size_t>::max() )
+    {
         if ( closed() ) {
             throw std::invalid_argument( "You may not call read on closed ParallelBZ2Reader!" );
         }
@@ -249,10 +269,9 @@ public:
 
             const auto nBytesToDecode = std::min( blockData->data.size() - offsetInBlock,
                                                   nBytesToRead - nBytesDecoded );
-            writeAll( outputFileDescriptor,
-                      outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded,
-                      blockData->data.data() + offsetInBlock,
-                      nBytesToDecode );
+            if ( writeFunctor ) {
+                writeFunctor( blockData->data.data() + offsetInBlock, nBytesToDecode );
+            }
 
             nBytesDecoded += nBytesToDecode;
             m_currentPosition += nBytesToDecode;

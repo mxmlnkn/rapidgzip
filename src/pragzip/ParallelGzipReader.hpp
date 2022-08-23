@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 
@@ -45,6 +46,7 @@ public:
     using BlockFetcher = pragzip::GzipBlockFetcher<FetchingStrategy::FetchNextMulti>;
     using BlockFinder = typename BlockFetcher::BlockFinder;
     using BitReader = pragzip::BitReader;
+    using WriteFunctor = std::function<void ( const void*, uint64_t )>;
 
 private:
     static constexpr bool SHOW_PROFILE{ false };
@@ -250,6 +252,23 @@ public:
           char* const  outputBuffer = nullptr,
           const size_t nBytesToRead = std::numeric_limits<size_t>::max() )
     {
+        const auto writeFunctor =
+            [nBytesDecoded = uint64_t( 0 ), outputFileDescriptor, outputBuffer]
+            ( const void* const buffer,
+              uint64_t    const size ) mutable
+            {
+                auto* const currentBufferPosition = outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded;
+                writeAll( outputFileDescriptor, currentBufferPosition, buffer, size );
+                nBytesDecoded += size;
+            };
+
+        return read( writeFunctor, nBytesToRead );
+    }
+
+    size_t
+    read( const WriteFunctor& writeFunctor,
+          const size_t        nBytesToRead = std::numeric_limits<size_t>::max() )
+    {
         if ( closed() ) {
             throw std::invalid_argument( "You may not call read on closed ParallelGzipReader!" );
         }
@@ -298,10 +317,9 @@ public:
                 const auto t0 = now();
 
                 const auto nBytesToDecode = std::min( chunk.size() - offsetInChunk, nBytesToRead - nBytesDecoded );
-                writeAll( outputFileDescriptor,
-                          outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded,
-                          chunk.data() + offsetInChunk,
-                          nBytesToDecode );
+                if ( writeFunctor ) {
+                    writeFunctor( chunk.data() + offsetInChunk, nBytesToDecode );
+                }
 
                 const auto t1 = now();
                 m_writeOutputTime += duration( t0, t1 );
