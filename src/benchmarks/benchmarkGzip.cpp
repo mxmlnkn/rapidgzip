@@ -11,8 +11,6 @@
 #include <archive.h>
 #include <zlib.h>
 
-#define BENCHMARK_CHUNKING
-
 #include <BitReader.hpp>
 #include <common.hpp>
 #include <filereader/Memory.hpp>
@@ -278,7 +276,8 @@ decompressWithPragzipParallelChunked( const std::string& fileName,
 {
     size_t totalDecodedBytes = 0;
 
-    ParallelGzipReader gzipReader( std::make_unique<StandardFileReader>( fileName ), 0, nBlocksToSkip );
+    const auto spacing = ( nBlocksToSkip + 1 ) * 32 * 1024;
+    ParallelGzipReader gzipReader( std::make_unique<StandardFileReader>( fileName ), 0, spacing );
     std::vector<uint8_t> outputBuffer( 64UL * 1024UL * 1024UL );
     while ( true ) {
         const auto nBytesRead = gzipReader.read( -1,

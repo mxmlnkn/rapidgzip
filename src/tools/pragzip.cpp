@@ -255,6 +255,9 @@ pragzipCLI( int argc, char** argv )
                            "This tool will not delete anything automatically!" )
         ( "analyze"      , "Print output about the internal file format structure like the block types." )
 
+        ( "chunk-size"   , "The chunk size decoded by the parallel workers in KiB.",
+          cxxopts::value<unsigned int>()->default_value( "0" ) )
+
         ( "P,decoder-parallelism",
           "Use the parallel decoder. "
           "If an optional integer >= 1 is given, then that is the number of decoder threads to use. "
@@ -432,8 +435,12 @@ pragzipCLI( int argc, char** argv )
             pragzip::GzipReader</* CRC32 */ false> gzipReader{ std::move( inputFile ) };
             totalBytesRead = gzipReader.read( writeAndCount );
         } else {
-            ParallelGzipReader reader( std::move( inputFile ), decoderParallelism );
-            totalBytesRead = reader.read( writeAndCount );
+            const auto chunkSize = parsedArgs["chunk-size"].as<unsigned int>();
+            const auto reader =
+                chunkSize > 0
+                ? std::make_unique<ParallelGzipReader>( std::move( inputFile ), decoderParallelism, chunkSize * 1024 )
+                : std::make_unique<ParallelGzipReader>( std::move( inputFile ), decoderParallelism );
+            totalBytesRead = reader->read( writeAndCount );
         }
 
         const auto t1 = now();
