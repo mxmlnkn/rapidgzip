@@ -351,7 +351,7 @@ template<uint8_t CACHED_BIT_COUNT>
 seekToNonFinalDynamicDeflateBlock( BitReader&   bitReader,
                                    size_t const untilOffset = std::numeric_limits<size_t>::max() )
 {
-    static auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
+    static const auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
 
     try
     {
