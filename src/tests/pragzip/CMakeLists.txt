@@ -39,3 +39,9 @@ target_sources(testGzipBlockFinder PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testGzipBlo
 target_link_libraries(testGzipBlockFinder PRIVATE libpragzip)
 add_test(NAME Test-Gzip-Block-Finder COMMAND testGzipBlockFinder)
 add_dependencies(all_tests testGzipBlockFinder)
+
+add_executable(testPrecodeCheck)
+target_sources(testPrecodeCheck PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testPrecodeCheck.cpp)
+target_link_libraries(testPrecodeCheck PRIVATE libpragzip)
+add_test(NAME Test-Precode-Check COMMAND testPrecodeCheck)
+add_dependencies(all_tests testPrecodeCheck)

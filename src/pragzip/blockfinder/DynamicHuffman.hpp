@@ -110,65 +110,84 @@ createNextDeflateCandidateLUT()
 using CompressedHistogram = uint64_t;
 
 
+/**
+ * @param depth A depth of 1 means that we should iterate over 1-bit codes, which can only be 0,1,2.
+ * @param freeBits This can be calculated from the histogram but it saves constexpr instructions when
+ *        the caller updates this value outside.
+ */
 template<uint8_t FREQUENCY_BITS,
-         uint8_t FREQUENCY_COUNT>
-[[nodiscard]] constexpr pragzip::Error
-checkPrecodeFrequencies( CompressedHistogram frequencies )
+         uint8_t FREQUENCY_COUNT,
+         uint8_t DEPTH = 1,
+         typename LUT = std::array<uint64_t, ( 1ULL << ( FREQUENCY_BITS * FREQUENCY_COUNT ) ) / 64U>>
+constexpr void
+createPrecodeFrequenciesValidLUTHelper( LUT&                      result,
+                                        uint32_t const            remainingCount,
+                                        CompressedHistogram const histogram = 0,
+                                        uint32_t const            freeBits = 2 )
 {
-    static_assert( FREQUENCY_COUNT <= 7, "Precode code lengths go only up to 7!" );
-    static_assert( FREQUENCY_COUNT * FREQUENCY_BITS <= std::numeric_limits<CompressedHistogram>::digits,
-                   "Argument type does not fit as many values as to be processed!" );
-
-    /* If all counts are zero, then either it is a valid frequency distribution for an empty code or we are
-     * missing some higher counts and cannot determine whether the code is bloating because all missing counts
-     * might be zero, which is a valid special case. It is also not invalid because counts are the smallest they
-     * can be. */
-    constexpr auto bitsToProcessMask = nLowestBitsSet<CompressedHistogram, FREQUENCY_BITS * FREQUENCY_COUNT>();
-    if ( UNLIKELY( ( frequencies & bitsToProcessMask ) == 0 ) ) [[unlikely]] {
-        return pragzip::Error::NONE;
+    static_assert( DEPTH <= FREQUENCY_COUNT, "Cannot descend deeper than the frequency counts!" );
+    if ( ( histogram & nLowestBitsSet<uint64_t, ( DEPTH - 1 ) * FREQUENCY_BITS>() ) != histogram ) {
+        throw std::invalid_argument( "Only frequency of bit-lengths less than the depth may be set!" );
     }
 
-    /* Because we do not know actual total count, we have to assume the most relaxed check for the bloating check. */
-    constexpr auto MAX_CL_SYMBOL_COUNT = 19U;
-    auto remainingCount = MAX_CL_SYMBOL_COUNT;
+    const auto setValid =
+        [&result] ( CompressedHistogram histogramToSetValid ) constexpr {
+            result[histogramToSetValid / 64U] |= CompressedHistogram( 1 ) << ( histogramToSetValid % 64U );
+        };
 
-    uint8_t unusedSymbolCount{ 2 };
-    for ( size_t bitLength = 1; bitLength <= FREQUENCY_COUNT; ++bitLength ) {
-        const auto frequency = ( frequencies >> ( ( bitLength - 1U ) * FREQUENCY_BITS ) )
-                               & nLowestBitsSet<CompressedHistogram, FREQUENCY_BITS>();
-        if ( frequency > unusedSymbolCount ) {
-            return pragzip::Error::INVALID_CODE_LENGTHS;
-        }
+    const auto histogramWithCount =
+        [histogram] ( uint32_t count ) constexpr {
+            return histogram | ( count << ( ( DEPTH - 1 ) * FREQUENCY_BITS ) );
+        };
 
-        unusedSymbolCount -= frequency;
-        unusedSymbolCount *= 2;  /* Because we go down one more level for all unused tree nodes! */
+    /* The for loop maximum is given by the invalid Huffman code check, i.e.,
+     * when there are more code lengths on a tree level than there are nodes. */
+    for ( uint32_t count = 0; count <= std::min( remainingCount, freeBits ); ++count ) {
+        const auto newFreeBits = ( freeBits - count ) * 2;
+        const auto newRemainingCount = remainingCount - count;
 
-        remainingCount -= frequency;
-
-        if ( unusedSymbolCount > remainingCount ) {
-            return pragzip::Error::BLOATING_HUFFMAN_CODING;
+        if constexpr ( DEPTH == FREQUENCY_COUNT ) {
+            /* This filters out bloating Huffman codes, i.e., when the number of free nodes in the tree
+             * is larger than the maximum possible remaining (precode) symbols to fit into the tree. */
+            if ( newFreeBits <= newRemainingCount ) {
+                setValid( histogramWithCount( count ) );
+            }
+        } else {
+            if ( count == freeBits ) {
+                setValid( histogramWithCount( freeBits ) );
+            } else {
+                createPrecodeFrequenciesValidLUTHelper<FREQUENCY_BITS, FREQUENCY_COUNT, DEPTH + 1>(
+                    result, newRemainingCount, histogramWithCount( count ), newFreeBits );
+            }
         }
     }
-
-    return pragzip::Error::NONE;
 }
 
 
+/**
+ * This alternative version tries to reduce the number of instructions required for creation so that it can be
+ * used with MSVC, which is the worst in evaluating @ref createPrecodeFrequenciesValidLUT constexpr and runs into
+ * internal compiler errors or out-of-heap-space errors.
+ * This alternative implementation uses the fact only very few of the LUT entries are actually valid, meaning
+ * we can reduce instructions by initializing to invalid and then iterating only over the valid possibilities.
+ */
 template<uint8_t FREQUENCY_BITS,
          uint8_t FREQUENCY_COUNT>
-[[nodiscard]] CONSTEXPR_EXCEPT_MSVC auto
+[[nodiscard]] constexpr auto
 createPrecodeFrequenciesValidLUT()
 {
     static_assert( ( 1ULL << ( FREQUENCY_BITS * FREQUENCY_COUNT ) ) % 64U == 0,
                    "LUT size must be a multiple of 64-bit for the implemented bit-packing!" );
     std::array<uint64_t, ( 1ULL << ( FREQUENCY_BITS * FREQUENCY_COUNT ) ) / 64U> result{};
-    for ( size_t i = 0; i < result.size(); ++i ) {
-        for ( size_t j = 0; j < 64U; ++j ) {
-            const auto isValid = checkPrecodeFrequencies<FREQUENCY_BITS, FREQUENCY_COUNT>( i * 64U + j )
-                                 == pragzip::Error::NONE;
-            result[i] |= static_cast<uint64_t>( isValid ) << j;
-        }
-    }
+
+    constexpr auto MAX_CL_SYMBOL_COUNT = 19U;
+    createPrecodeFrequenciesValidLUTHelper<FREQUENCY_BITS, FREQUENCY_COUNT>( result, MAX_CL_SYMBOL_COUNT );
+
+    /* Set the special cases for zero counts and only one 1-bit lengths to valid even though they are not based
+     * on the generic algorithm test because the tree is not full but there is no other valid way to represent
+     * a one-symbol tree. */
+    result[0] |= 0b11ULL;
+
     return result;
 }
 
@@ -295,7 +314,7 @@ checkPrecode( pragzip::BitReader& bitReaderAtPrecode )
      *    together first.
      */
 
-    static const auto PRECODE_FREQUENCIES_VALID_LUT = createPrecodeFrequenciesValidLUT<5, 5>();
+    static constexpr auto PRECODE_FREQUENCIES_VALID_LUT = createPrecodeFrequenciesValidLUT<5, 5>();
     static constexpr auto INDEX_BIT_COUNT = 5 * 5 - 6 /* log2 64 = 6 */;
     const auto valueToLookUp = bitLengthFrequencies >> FREQUENCY_BITS;
     const auto bitIndex = valueToLookUp % 64;
