@@ -46,6 +46,9 @@ public:
     using BlockFinder = typename BlockFetcher::BlockFinder;
     using BitReader = pragzip::BitReader;
 
+private:
+    static constexpr bool SHOW_PROFILE{ false };
+
 public:
     explicit
     ParallelGzipReader( std::unique_ptr<FileReader> fileReader,
@@ -151,6 +154,15 @@ public:
         ParallelGzipReader( std::make_unique<PythonFileReader>( pythonObject ), parallelization )
     {}
 #endif
+
+    ~ParallelGzipReader()
+    {
+        if constexpr ( SHOW_PROFILE ) {
+            std::cerr << "[ParallelGzipReader] Time spent:";
+            std::cerr << "\n    Writing to output: " << m_writeOutputTime << " s";
+            std::cerr << std::endl;
+        }
+    }
 
     /* FileReader overrides */
 
@@ -283,11 +295,16 @@ public:
                     continue;
                 }
 
+                const auto t0 = now();
+
                 const auto nBytesToDecode = std::min( chunk.size() - offsetInChunk, nBytesToRead - nBytesDecoded );
                 writeAll( outputFileDescriptor,
                           outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded,
                           chunk.data() + offsetInChunk,
                           nBytesToDecode );
+
+                const auto t1 = now();
+                m_writeOutputTime += duration( t0, t1 );
 
                 nBytesDecoded += nBytesToDecode;
                 m_currentPosition += nBytesToDecode;
@@ -622,7 +639,9 @@ private:
     size_t m_currentPosition = 0; /**< the current position as can only be modified with read or seek calls. */
     bool m_atEndOfFile = false;
 
-private:
+    /** Benchmarking */
+    double m_writeOutputTime{ 0 };
+
     size_t const m_fetcherParallelization;
     /** The block finder is much faster than the fetcher and therefore does not require es much parallelization! */
     size_t const m_finderParallelization{ ceilDiv( m_fetcherParallelization, 8U ) };

@@ -80,6 +80,7 @@ public:
                     << " ) B (" << m_statistics->read.count << "calls)\n"
                     << "   read in total" << m_statistics->read.sum << "B out of" << m_fileSizeBytes << "B,"
                     << "i.e., read the file" << m_statistics->read.sum / m_fileSizeBytes << "times\n"
+                    << "   time spent seeking and reading:" << m_statistics->readingTime << "s\n"
                 );
             }
         }
@@ -200,6 +201,8 @@ public:
 
         std::scoped_lock lock( *m_mutex );
 
+        const auto t0 = now();
+
         if ( !m_sharedFile || m_sharedFile->closed() ) {
             throw std::invalid_argument( "Invalid or closed SharedFileReader can't be read from!" );
         }
@@ -223,6 +226,7 @@ public:
 
         if constexpr ( SHOW_PROFILE ) {
             m_statistics->read.merge( nBytesRead );
+            m_statistics->readingTime += duration( t0 );
         }
 
         m_currentPosition += nBytesRead;
@@ -248,6 +252,7 @@ private:
         Statistics<uint64_t> read;
         Statistics<uint64_t> seekBack;
         Statistics<uint64_t> seekForward;
+        double readingTime{ 0 };
     };
 
 private:
