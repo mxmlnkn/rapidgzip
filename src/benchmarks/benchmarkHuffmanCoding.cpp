@@ -105,9 +105,9 @@ benchmarkHuffmanCodings( const std::vector<uint8_t>&              codeLengths,
     /* Obiously very slow, especially for longer code lengths. It also has almost no sanity checks! */
     results.emplace_back( Result{ "Linear Search" } );
     try {
+        using HuffmanCoding = HuffmanCodingLinearSearch<HuffmanCode, Symbol>;
         std::tie( results.back().duration, results.back().sum ) =
-            benchmarkHuffmanCoding<HuffmanCodingLinearSearch<
-                HuffmanCode, Symbol> >( codeLengths, encoded );
+            benchmarkHuffmanCoding<HuffmanCoding>( codeLengths, encoded );
     } catch ( const std::exception& e ) {
         results.back().exception = e.what();
     }
@@ -115,27 +115,28 @@ benchmarkHuffmanCodings( const std::vector<uint8_t>&              codeLengths,
     /* Very slow, especially for longer code lengths. */
     results.emplace_back( Result{ "Reversed Codes Per Length" } );
     try {
+        using HuffmanCoding =
+            HuffmanCodingReversedCodesPerLength<HuffmanCode, MAX_CODE_LENGTH, Symbol, MAX_SYMBOL_COUNT>;
         std::tie( results.back().duration, results.back().sum ) =
-            benchmarkHuffmanCoding<HuffmanCodingReversedCodesPerLength<
-                HuffmanCode, MAX_CODE_LENGTH, Symbol, MAX_SYMBOL_COUNT> >( codeLengths, encoded );
+            benchmarkHuffmanCoding<HuffmanCoding>( codeLengths, encoded );
     } catch ( const std::exception& e ) {
         results.back().exception = e.what();
     }
 
     results.emplace_back( Result{ "Symbols Per Length" } );
     try {
+        using HuffmanCoding = HuffmanCodingSymbolsPerLength<HuffmanCode, MAX_CODE_LENGTH, Symbol, MAX_SYMBOL_COUNT>;
         std::tie( results.back().duration, results.back().sum ) =
-            benchmarkHuffmanCoding<HuffmanCodingSymbolsPerLength<
-                HuffmanCode, MAX_CODE_LENGTH, Symbol, MAX_SYMBOL_COUNT> >( codeLengths, encoded );
+            benchmarkHuffmanCoding<HuffmanCoding>( codeLengths, encoded );
     } catch ( const std::exception& e ) {
         results.back().exception = e.what();
     }
 
     results.emplace_back( Result{ "Reversed Bits Cached" } );
     try {
+        using HuffmanCoding = HuffmanCodingReversedBitsCached<HuffmanCode, MAX_CODE_LENGTH, Symbol, MAX_SYMBOL_COUNT>;
         std::tie( results.back().duration, results.back().sum ) =
-            benchmarkHuffmanCoding<HuffmanCodingReversedBitsCached<
-                HuffmanCode, MAX_CODE_LENGTH, Symbol, MAX_SYMBOL_COUNT> >( codeLengths, encoded );
+            benchmarkHuffmanCoding<HuffmanCoding>( codeLengths, encoded );
     } catch ( const std::exception& e ) {
         results.back().exception = e.what();
     }
@@ -143,9 +144,10 @@ benchmarkHuffmanCodings( const std::vector<uint8_t>&              codeLengths,
     /* Somtimes ~10% faster then "Double Literal Cached", especially for longer code lengths. */
     results.emplace_back( Result{ "Reversed Bits Cached Compressed" } );
     try {
+        using HuffmanCoding =
+            HuffmanCodingReversedBitsCachedCompressed<HuffmanCode, MAX_CODE_LENGTH, Symbol, MAX_SYMBOL_COUNT>;
         std::tie( results.back().duration, results.back().sum ) =
-            benchmarkHuffmanCoding<HuffmanCodingReversedBitsCachedCompressed<
-                HuffmanCode, MAX_CODE_LENGTH, Symbol, MAX_SYMBOL_COUNT> >( codeLengths, encoded );
+            benchmarkHuffmanCoding<HuffmanCoding>( codeLengths, encoded );
     } catch ( const std::exception& e ) {
         results.back().exception = e.what();
     }
@@ -153,9 +155,9 @@ benchmarkHuffmanCodings( const std::vector<uint8_t>&              codeLengths,
     /* Often the fastest. */
     results.emplace_back( Result{ "Double Literal Cached" } );
     try {
+        using HuffmanCoding = HuffmanCodingDoubleLiteralCached<HuffmanCode, MAX_CODE_LENGTH, Symbol, MAX_SYMBOL_COUNT>;
         std::tie( results.back().duration, results.back().sum ) =
-            benchmarkHuffmanCoding<HuffmanCodingDoubleLiteralCached<
-                HuffmanCode, MAX_CODE_LENGTH, Symbol, MAX_SYMBOL_COUNT> >( codeLengths, encoded );
+            benchmarkHuffmanCoding<HuffmanCoding>( codeLengths, encoded );
     } catch ( const std::exception& e ) {
         results.back().exception = e.what();
     }

@@ -859,45 +859,46 @@ benchmarkFindBitString( const std::vector<char>& data )
     const auto measureTimes =
         [&] ( const std::string& benchmarkType,
               const auto&        toMeasure )
-    {
-        std::optional<std::vector<size_t> > batchChecksum;
-        std::vector<double> times( 4 );
-        for ( auto& time : times ) {
-            const auto t0 = now();
-            const auto calculatedChecksum = toMeasure();
-            time = duration( t0 );
+        {
+            std::optional<std::vector<size_t> > batchChecksum;
+            std::vector<double> times( 4 );
+            for ( auto& time : times ) {
+                const auto t0 = now();
+                const auto calculatedChecksum = toMeasure();
+                time = duration( t0 );
 
-            if ( !batchChecksum ) {
-                checkBlockOffsets( calculatedChecksum, data );
-                batchChecksum = calculatedChecksum;
-            } else if ( *batchChecksum != calculatedChecksum ) {
-                std::stringstream message;
-                message << "Indeterministic result for " << benchmarkType << "!";
-                throw std::runtime_error( std::move( message ).str() );
+                if ( !batchChecksum ) {
+                    checkBlockOffsets( calculatedChecksum, data );
+                    batchChecksum = calculatedChecksum;
+                } else if ( *batchChecksum != calculatedChecksum ) {
+                    std::stringstream message;
+                    message << "Indeterministic result for " << benchmarkType << "!";
+                    throw std::runtime_error( std::move( message ).str() );
+                }
+                if ( checksum && batchChecksum && ( *checksum != *batchChecksum ) ) {
+                    std::cerr << "Found " << batchChecksum->size() << " blocks for \"" << benchmarkType << "\"\n";
+                    std::stringstream message;
+                    message << "Wrong result for " << benchmarkType << "!";
+                    throw std::runtime_error( std::move( message ).str() );
+                }
+                if ( !checksum ) {
+                    checksum = batchChecksum;
+                }
             }
-            if ( checksum && batchChecksum && ( *checksum != *batchChecksum ) ) {
-                std::cerr << "Found " << batchChecksum->size() << " blocks for \"" << benchmarkType << "\"\n";
-                std::stringstream message;
-                message << "Wrong result for " << benchmarkType << "!";
-                throw std::runtime_error( std::move( message ).str() );
+
+            checksum = batchChecksum;
+
+            /* Remove two (arbitrary) outliers. */
+            if ( times.size() >= 5 ) {
+                times.erase( std::min_element( times.begin(), times.end() ) );
+                times.erase( std::max_element( times.begin(), times.end() ) );
             }
-            if ( !checksum ) {
-                checksum = batchChecksum;
-            }
-        }
 
-        checksum = batchChecksum;
+            std::cout << "[" << std::setw( LABEL_WIDTH ) << benchmarkType << "] ";
+            std::cout << "Processed with " << formatBandwidth( times ) << std::endl;
+        };
 
-        /* Remove two (arbitrary) outliers. */
-        if ( times.size() >= 5 ) {
-            times.erase( std::min_element( times.begin(), times.end() ) );
-            times.erase( std::max_element( times.begin(), times.end() ) );
-        }
-
-        std::cout << "[" << std::setw( LABEL_WIDTH ) << benchmarkType << "] ";
-        std::cout << "Processed with " << formatBandwidth( times ) << std::endl;
-    };
-
+    // *INDENT-OFF*
     measureTimes( "ParallelBitStringFinder"        , [&] () { return findBitStringsParallel( data ); } );
     measureTimes( "Using std::string_view"         , [&] () { return findBitStringsWithStringView( data ); } );
     measureTimes( "BitStringFinder",
@@ -916,6 +917,7 @@ benchmarkFindBitString( const std::vector<char>& data )
     measureTimes( "findBitStrings( pattern, size )", [&] () { return findBitStrings<NON_TEMPLATED>( data ); } );
     measureTimes( "Avoid BitReader::read<1>()"     , [&] () { return findBitStringsBitWiseWithoutBitReader( data ); } );
     measureTimes( "BitReader::read<1>()"           , [&] () { return findBitStringsBitReaderRead( data ); } );
+    // *INDENT-ON*
 }
 
 
@@ -938,10 +940,10 @@ main( int    argc,
         data.resize( 256ULL * 1024ULL * 1024ULL );
         for ( size_t i = 0; i + 3 < data.size(); i += 4 ) {
             const auto randomNumber = static_cast<uint32_t>( rand() );
-            data[i+0] = static_cast<char>( ( randomNumber >>  0U ) & 0xFFU );
-            data[i+1] = static_cast<char>( ( randomNumber >>  8U ) & 0xFFU );
-            data[i+2] = static_cast<char>( ( randomNumber >> 16U ) & 0xFFU );
-            data[i+3] = static_cast<char>( ( randomNumber >> 24U ) & 0xFFU );
+            data[i + 0] = static_cast<char>( ( randomNumber >>  0U ) & 0xFFU );
+            data[i + 1] = static_cast<char>( ( randomNumber >>  8U ) & 0xFFU );
+            data[i + 2] = static_cast<char>( ( randomNumber >> 16U ) & 0xFFU );
+            data[i + 3] = static_cast<char>( ( randomNumber >> 24U ) & 0xFFU );
         }
     }
 

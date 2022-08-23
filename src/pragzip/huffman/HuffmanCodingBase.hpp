@@ -42,7 +42,7 @@ protected:
     constexpr Error
     initializeMinMaxCodeLengths( const VectorView<BitCount>& codeLengths )
     {
-        static_assert( std::is_unsigned_v<HuffmanCode>, "Huffman code type must be unsigned");
+        static_assert( std::is_unsigned_v<HuffmanCode>, "Huffman code type must be unsigned" );
 
         if ( UNLIKELY( codeLengths.empty() ) ) [[unlikely]] {
             return Error::EMPTY_ALPHABET;

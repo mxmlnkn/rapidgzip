@@ -605,7 +605,7 @@ private:
                 if ( error != Error::NONE ) {
                     std::stringstream message;
                     message << "Failed to read gzip header at offset " << formatBits( headerOffset )
-                               << " because of error: " << toString( error );
+                            << " because of error: " << toString( error );
                     throw std::domain_error( std::move( message ).str() );
                 }
 

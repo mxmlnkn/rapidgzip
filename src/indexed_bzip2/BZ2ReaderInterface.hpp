@@ -19,7 +19,7 @@ public:
     read( char*  outputBuffer,
           size_t nBytesToRead ) final
     {
-        return read( -1,  outputBuffer, nBytesToRead );
+        return read( -1, outputBuffer, nBytesToRead );
     }
 
     /**

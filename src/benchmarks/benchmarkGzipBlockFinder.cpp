@@ -73,7 +73,7 @@ findGzipStreams( const std::string& fileName )
                  && ( buffer[i + 7] == (char)0x00 )
                  && ( buffer[i + 8] == (char)0x00 ) ) {
                 //std::cerr << "Found possible candidate for a gzip stream at offset: " << totalBytesRead + i << " B\n";
-                streamOffsets.push_back(totalBytesRead + i);
+                streamOffsets.push_back( totalBytesRead + i );
             }
         }
 
@@ -112,7 +112,7 @@ findBgzStreams( const std::string& fileName )
  * @see https://github.com/madler/zlib/blob/master/examples/zran.c
  */
 [[nodiscard]] std::pair<std::vector<size_t>, std::vector<size_t> >
-parseWithZlib(const std::string& fileName)
+parseWithZlib( const std::string& fileName )
 {
     const auto file = throwingOpen( fileName, "rb" );
 
@@ -147,7 +147,7 @@ parseWithZlib(const std::string& fileName)
 
     /* Second argument is window bits. log2 base of window size. Adding 32 to that (setting the 5-th bit),
      * means that automatic zlib or gzip decoding is detected. */
-    auto ret = inflateInit2(&stream, 32 + 15);
+    auto ret = inflateInit2( &stream, 32 + 15 );
     if ( ret != Z_OK ) {
         throwCode( ret );
     }
@@ -162,7 +162,7 @@ parseWithZlib(const std::string& fileName)
     header.done = 0;
 
     bool readHeader = true;
-    ret = inflateGetHeader(&stream, &header);
+    ret = inflateGetHeader( &stream, &header );
     if ( ret != Z_OK ) {
         throwCode( ret );
     }
@@ -360,8 +360,7 @@ public:
         }
 
         auto errorCode = inflateSetDictionary( &m_stream, m_window.data(), m_window.size() );
-        if ( errorCode != Z_OK ) {
-        }
+        if ( errorCode != Z_OK ) {}
 
         errorCode = inflate( &m_stream, Z_BLOCK );
         if ( ( errorCode != Z_OK ) && ( errorCode != Z_STREAM_END ) ) {
@@ -681,7 +680,7 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
     std::vector<size_t> bitOffsets;
 
     using namespace pragzip::blockfinder;
-    static constexpr auto CACHED_BIT_COUNT =14;
+    static constexpr auto CACHED_BIT_COUNT = 14;
     static const auto nextDeflateCandidateLUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
 
     size_t offsetsTestedMoreInDepth{ 0 };
@@ -880,20 +879,20 @@ findUncompressedDeflateBlocksNestedBranches( const BufferedFileReader::AlignedBu
 
     for ( size_t i = 2; i + 2 < buffer.size(); ++i ) {
         if ( LIKELY( static_cast<uint8_t>( static_cast<uint8_t>( buffer[i] )
-                                           ^ static_cast<uint8_t>( buffer[i+2] ) ) != 0xFFU ) ) [[likely]] {
+                                           ^ static_cast<uint8_t>( buffer[i + 2] ) ) != 0xFFU ) ) [[likely]] {
             continue;
         }
 
-        if ( LIKELY( static_cast<uint8_t>( static_cast<uint8_t>( buffer[i-1] )
-                                           ^ static_cast<uint8_t>( buffer[i+1] ) ) != 0xFFU ) ) [[likely]] {
+        if ( LIKELY( static_cast<uint8_t>( static_cast<uint8_t>( buffer[i - 1] )
+                                           ^ static_cast<uint8_t>( buffer[i + 1] ) ) != 0xFFU ) ) [[likely]] {
             continue;
         }
 
-        if ( LIKELY( ( static_cast<uint8_t>( buffer[i-2] ) & 0b111U ) != 0 ) ) [[likely]] {
+        if ( LIKELY( ( static_cast<uint8_t>( buffer[i - 2] ) & 0b111U ) != 0 ) ) [[likely]] {
             continue;
         }
 
-        if ( UNLIKELY( ( buffer[i] == 0 ) && ( buffer[i-1] == 0 ) ) ) [[unlikely]] {
+        if ( UNLIKELY( ( buffer[i] == 0 ) && ( buffer[i - 1] == 0 ) ) ) [[unlikely]] {
             continue;
         }
 
@@ -905,7 +904,7 @@ findUncompressedDeflateBlocksNestedBranches( const BufferedFileReader::AlignedBu
          * @todo I might need an interface to determine what blocks could have been found and what not :/ */
         uint8_t trailingZeros = 3;
         for ( uint8_t j = trailingZeros + 1; j <= 8U; ++j ) {
-            if ( ( static_cast<uint8_t>( buffer[i-1] ) & ( 1U << static_cast<uint8_t>( j - 1U ) ) ) == 0 ) {
+            if ( ( static_cast<uint8_t>( buffer[i - 1] ) & ( 1U << static_cast<uint8_t>( j - 1U ) ) ) == 0 ) {
                 trailingZeros = j;
             }
         }
@@ -928,7 +927,7 @@ findUncompressedDeflateBlocks( const BufferedFileReader::AlignedBuffer& buffer )
             continue;
         }
 
-        if ( LIKELY( ( static_cast<uint8_t>( buffer[i-1] ) & 0b111U ) != 0 ) ) [[likely]] {
+        if ( LIKELY( ( static_cast<uint8_t>( buffer[i - 1] ) & 0b111U ) != 0 ) ) [[likely]] {
             continue;
         }
 
@@ -938,7 +937,7 @@ findUncompressedDeflateBlocks( const BufferedFileReader::AlignedBuffer& buffer )
 
         uint8_t trailingZeros = 3;
         for ( uint8_t j = trailingZeros + 1; j <= 8; ++j ) {
-            if ( ( static_cast<uint8_t>( buffer[i-1] ) & ( 1U << static_cast<uint8_t>( j - 1U ) ) ) == 0 ) {
+            if ( ( static_cast<uint8_t>( buffer[i - 1] ) & ( 1U << static_cast<uint8_t>( j - 1U ) ) ) == 0 ) {
                 trailingZeros = j;
             }
         }
@@ -968,7 +967,7 @@ bufferFile( const std::string& fileName,
             size_t             bytesToBuffer = std::numeric_limits<size_t>::max() )
 {
     const auto file = throwingOpen( fileName, "rb" );
-    BufferedFileReader::AlignedBuffer buffer( std::min( fileSize( fileName), bytesToBuffer ), 0 );
+    BufferedFileReader::AlignedBuffer buffer( std::min( fileSize( fileName ), bytesToBuffer ), 0 );
     const auto nElementsReadFromFile = std::fread( buffer.data(), sizeof( buffer[0] ), buffer.size(), file.get() );
     buffer.resize( nElementsReadFromFile );
     return buffer;

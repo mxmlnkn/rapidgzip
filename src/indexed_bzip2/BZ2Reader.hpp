@@ -359,7 +359,7 @@ BZ2Reader::seek( long long int offset,
     if ( nBytesDecoded != nBytesSeekInBlock ) {
         std::stringstream msg;
         msg << "Could not read the required " << nBytesSeekInBlock
-        << " to seek in block but only " << nBytesDecoded << "\n";
+            << " to seek in block but only " << nBytesDecoded << "\n";
         throw std::runtime_error( std::move( msg ).str() );
     }
 
@@ -385,7 +385,7 @@ BZ2Reader::readBlockHeader( size_t offsetBits )
         if ( !m_blockToDataOffsetsComplete && ( m_streamCRC != m_calculatedStreamCRC ) ) {
             std::stringstream msg;
             msg << "[BZip2 block header] Stream CRC 0x" << std::hex << m_streamCRC
-            << " does not match calculated CRC 0x" << m_calculatedStreamCRC;
+                << " does not match calculated CRC 0x" << m_calculatedStreamCRC;
             throw std::runtime_error( std::move( msg ).str() );
         }
     }

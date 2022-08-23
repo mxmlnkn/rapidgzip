@@ -64,9 +64,9 @@
 
 #if defined( _MSC_VER )
     #define forceinline __forceinline
-#elif defined(__clang__) || defined(__GNUC__)
-    /* https://stackoverflow.com/questions/38499462/how-to-tell-clang-to-stop-pretending-to-be-other-compilers */
-    #define forceinline __attribute__((always_inline))
+#elif defined( __clang__ ) || defined( __GNUC__ )
+/* https://stackoverflow.com/questions/38499462/how-to-tell-clang-to-stop-pretending-to-be-other-compilers */
+    #define forceinline __attribute__(( always_inline ))
 #endif
 
 template<typename I1,
@@ -85,8 +85,8 @@ ceilDiv( I1 dividend,
 
 template<typename S, typename T>
 std::ostream&
-operator<<( std::ostream&  out,
-            std::pair<S,T> pair )
+operator<<( std::ostream&   out,
+            std::pair<S, T> pair )
 {
     out << "(" << pair.first << "," << pair.second << ")";
     return out;
@@ -321,12 +321,12 @@ contains( const Container& container,
 
 
 template<typename Iterator,
-         typename T = const decltype( *std::declval<Iterator>() )&>
+         typename T = const decltype( *std::declval<Iterator>() ) &>
 [[nodiscard]] constexpr size_t
-countAdjacentIf( const Iterator rangeBegin,
-                 const Iterator rangeEnd,
+countAdjacentIf( const Iterator                                                              rangeBegin,
+                 const Iterator                                                              rangeEnd,
                  const std::function<bool( const decltype( *std::declval<Iterator>() )&,
-                                           const decltype( *std::declval<Iterator>() )& )>& equal )
+                                           const decltype( *std::declval<Iterator>() ) & )>& equal )
 {
     size_t result{ 0 };
     if ( rangeBegin != rangeEnd ) {
@@ -345,10 +345,10 @@ countAdjacentIf( const Iterator rangeBegin,
  */
 template<typename Iterator>
 [[nodiscard]] constexpr std::pair<Iterator, Iterator>
-findAdjacentIf( const Iterator rangeBegin,
-                const Iterator rangeEnd,
+findAdjacentIf( const Iterator                                                              rangeBegin,
+                const Iterator                                                              rangeEnd,
                 const std::function<bool( const decltype( *std::declval<Iterator>() )&,
-                                          const decltype( *std::declval<Iterator>() )& )>& equal  )
+                                          const decltype( *std::declval<Iterator>() ) & )>& equal )
 {
     auto sequenceBegin = rangeEnd;
     if ( rangeBegin != rangeEnd ) {
@@ -455,12 +455,12 @@ createTemporaryDirectory( const std::string& title = "tmpTest" )
 #endif
 
 
-#if defined(__GNUC__)
-    #define LIKELY(x) (__builtin_expect(static_cast<bool>(x),1))
-    #define UNLIKELY(x) (__builtin_expect(static_cast<bool>(x),0))
+#if defined( __GNUC__ )
+    #define LIKELY( x ) ( __builtin_expect( static_cast<bool>( x ), 1 ))
+    #define UNLIKELY( x ) ( __builtin_expect( static_cast<bool>( x ), 0 ))
 #else
-    #define LIKELY(x) (x)
-    #define UNLIKELY(x) (x)
+    #define LIKELY( x ) ( x )
+    #define UNLIKELY( x ) ( x )
 #endif
 
 
@@ -479,7 +479,7 @@ enum class Endian
  * > #define __BYTE_ORDER__ __ORDER_LITTLE_ENDIAN__
  */
 constexpr Endian ENDIAN =
-#if defined(__BYTE_ORDER__) && defined( __ORDER_LITTLE_ENDIAN__ ) && ( __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ )
+#if defined( __BYTE_ORDER__ ) && defined( __ORDER_LITTLE_ENDIAN__ ) && ( __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ )
     Endian::LITTLE
 #else
     Endian::UNKNOWN
@@ -496,9 +496,9 @@ template<typename T>
 [[nodiscard]] constexpr T
 loadUnaligned( const void* data )
 {
-	T result{ 0 };
-	std::memcpy( &result, data, sizeof( result ) );
-	return result;
+    T result{ 0 };
+    std::memcpy( &result, data, sizeof( result ) );
+    return result;
 }
 
 

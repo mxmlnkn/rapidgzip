@@ -224,13 +224,13 @@ public:
         if ( nBytesRead <= 0 ) {
             std::stringstream message;
             message
-            << "[PythonFileReader] Read call failed (" << nBytesRead << " B read)!\n"
-            << "  Buffer: " << (void*)buffer << "\n"
-            << "  nMaxBytesToRead: " << nMaxBytesToRead << " B\n"
-            << "  File size: " << m_fileSizeBytes << " B\n"
-            << "  m_currentPosition: " << m_currentPosition << "\n"
-            << "  tell: " << tell() << "\n"
-            << "\n";
+                << "[PythonFileReader] Read call failed (" << nBytesRead << " B read)!\n"
+                << "  Buffer: " << (void*)buffer << "\n"
+                << "  nMaxBytesToRead: " << nMaxBytesToRead << " B\n"
+                << "  File size: " << m_fileSizeBytes << " B\n"
+                << "  m_currentPosition: " << m_currentPosition << "\n"
+                << "  tell: " << tell() << "\n"
+                << "\n";
             std::cerr << message.str();
             throw std::domain_error( std::move( message ).str() );
         }
@@ -262,10 +262,10 @@ public:
         if ( ( nBytesWritten < 0 ) || ( static_cast<size_t>( nBytesWritten ) < nBytesToWrite ) ) {
             std::stringstream message;
             message
-            << "[PythonFileReader] Write call failed (" << nBytesWritten << " B written)!\n"
-            << "  Buffer: " << (void*)buffer << "\n"
-            << "  tell: " << tell() << "\n"
-            << "\n";
+                << "[PythonFileReader] Write call failed (" << nBytesWritten << " B written)!\n"
+                << "  Buffer: " << (void*)buffer << "\n"
+                << "  tell: " << tell() << "\n"
+                << "\n";
             std::cerr << message.str();
             throw std::domain_error( std::move( message ).str() );
         }

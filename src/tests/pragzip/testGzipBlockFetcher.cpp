@@ -120,6 +120,7 @@ main( int    argc,
             testAutomaticMarkerResolution( testFolder / fileName, blockIndex, markerSizes, sizes );
         };
 
+    // *INDENT-OFF*
     test( "base64-32KiB.gz" , 0, {}, { 32768 } );
     test( "base64-32KiB.bgz", 0, {}, { 32768 } );
     test( "base64-32KiB.igz", 0, {}, { 32768 } );
@@ -140,6 +141,7 @@ main( int    argc,
     test( "random-128KiB.bgz", 2, {}, { 512 } );
     test( "random-128KiB.igz", 2, {}, { 313 } );
     test( "random-128KiB.pgz", 2, {}, { 16395, 81901 } );
+    // *INDENT-ON*
 
     /**
      * @todo Add more tests of combinations like random + base, base + random

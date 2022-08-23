@@ -197,11 +197,12 @@ public:
             return toPrefetch;
         }
 
-        const auto sortedIndexes = [&previousIndexes] () {;
-            auto result = previousIndexes;
-            std::sort( result.begin(), result.end() );
-            return result;
-        }();
+        const auto sortedIndexes =
+            [&previousIndexes] () {
+                auto result = previousIndexes;
+                std::sort( result.begin(), result.end() );
+                return result;
+            }();
 
         std::vector<std::vector<size_t> > subsequencePrefetches;
 

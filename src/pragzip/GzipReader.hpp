@@ -149,7 +149,7 @@ public:
     read( char*  outputBuffer,
           size_t nBytesToRead ) final
     {
-        return read( -1,  outputBuffer, nBytesToRead );
+        return read( -1, outputBuffer, nBytesToRead );
     }
 
 
@@ -503,6 +503,7 @@ GzipReader<CALCULATE_CRC32>::readGzipFooter()
 [[nodiscard]] std::string
 toString( StoppingPoint stoppingPoint )
 {
+    // *INDENT-OFF*
     switch ( stoppingPoint )
     {
     case StoppingPoint::NONE                 : return "None";
@@ -513,5 +514,6 @@ toString( StoppingPoint stoppingPoint )
     case StoppingPoint::ALL                  : return "All";
     };
     return "Unknown";
+    // *INDENT-ON*
 }
 }  // namespace pragzip

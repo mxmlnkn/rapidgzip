@@ -30,7 +30,7 @@ fillFile( const std::string& fileName )
 
 void
 testUniqueFilePointer( const std::string& tmpFileName,
-                       const std::string& tmpFileContents  )
+                       const std::string& tmpFileContents )
 {
     const auto file1 = throwingOpen( tmpFileName, "rb" );
     std::string readData( 2 * tmpFileContents.size(), '\0' );

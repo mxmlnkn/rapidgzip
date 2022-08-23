@@ -50,14 +50,15 @@ public:
             parallelization == 0
             ? std::max<size_t>( 1U, std::thread::hardware_concurrency() )
             : parallelization ),
-        m_startBlockFinder( [&] ()
+        m_startBlockFinder(
+            [&] ()
             {
                 return std::make_shared<BlockFinder>(
                     std::make_unique<ParallelBitStringFinder<bzip2::MAGIC_BITS_SIZE> >(
                         m_bitReader.cloneSharedFileReader(),
                         bzip2::MAGIC_BITS_BLOCK,
                         m_finderParallelization
-                    ) );
+                ) );
             } )
     {
         if ( !m_bitReader.seekable() ) {

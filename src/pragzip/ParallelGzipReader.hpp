@@ -97,7 +97,7 @@ public:
                  *       This might actually be easy to implement by making the BitReader chunk size adjustable.
                  */
                 return std::make_unique<BlockFinder>( m_bitReader.cloneSharedFileReader(),
-                                                     /* spacing in bytes */ 8 * 1024 * 1024 );
+                                                      /* spacing in bytes */ 8 * 1024 * 1024 );
             }
         )
     {
@@ -228,7 +228,7 @@ public:
     read( char*  outputBuffer,
           size_t nBytesToRead ) override
     {
-        return read( -1,  outputBuffer, nBytesToRead );
+        return read( -1, outputBuffer, nBytesToRead );
     }
 
     /* Simpler file reader interface for Python-interfacing */

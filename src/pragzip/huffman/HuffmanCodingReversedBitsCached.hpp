@@ -111,6 +111,6 @@ public:
     }
 
 private:
-    alignas(8) std::array<std::pair</* length */ uint8_t, Symbol>, ( 1UL << CACHED_BIT_COUNT )> m_codeCache{};
+    alignas( 8 ) std::array<std::pair</* length */ uint8_t, Symbol>, ( 1UL << CACHED_BIT_COUNT )> m_codeCache{};
 };
 }  // namespace pragzip

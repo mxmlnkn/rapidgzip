@@ -303,8 +303,8 @@ Block::readBlockHeader()
 
     if ( ( bwdata.origPtr = getBits<24>() ) > bwdata.dbuf.size() ) {
         std::stringstream msg;
-        msg << "[BZip2 block header] origPtr " << bwdata.origPtr << " is larger than buffer size: " <<
-        bwdata.dbuf.size();
+        msg << "[BZip2 block header] origPtr " << bwdata.origPtr << " is larger than buffer size: "
+            << bwdata.dbuf.size();
         throw std::logic_error( std::move( msg ).str() );
     }
 
@@ -409,7 +409,7 @@ Block::readBlockHeader()
                 if ( MAX_HUFCODE_BITS - 1 < hh - 1 ) {
                     std::stringstream msg;
                     msg << "[BZip2 block header]  start_huffman_length " << hh
-                    << " is larger than " << MAX_HUFCODE_BITS << " or zero\n";
+                        << " is larger than " << MAX_HUFCODE_BITS << " or zero\n";
                     throw std::logic_error( std::move( msg ).str() );
                 }
 
@@ -576,7 +576,7 @@ Block::readBlockData()
             if ( dbufCount + hh > bwdata.dbuf.size() ) {
                 std::stringstream msg;
                 msg << "[BZip2 block data] dbufCount + hh " << dbufCount + hh
-                << " > " << bwdata.dbuf.size() << " dbufSize";
+                    << " > " << bwdata.dbuf.size() << " dbufSize";
                 throw std::domain_error( std::move( msg ).str() );
             }
 

@@ -114,7 +114,7 @@ createDistanceLUT() noexcept
 }
 
 
-alignas(8) static inline const DistanceLUT
+alignas( 8 ) static inline const DistanceLUT
 distanceLUT = createDistanceLUT();
 
 
@@ -140,7 +140,7 @@ createLengthLUT() noexcept
 }
 
 
-alignas(8) static constexpr LengthLUT
+alignas( 8 ) static constexpr LengthLUT
 lengthLUT = createLengthLUT();
 
 
@@ -443,7 +443,7 @@ private:
      * double caching for this because that would mean merging the cache with ne next literal/length Huffman code! */
     HuffmanCodingReversedBitsCached<uint16_t, MAX_CODE_LENGTH, uint8_t, MAX_DISTANCE_SYMBOL_COUNT> m_distanceHC;
 
-    alignas(64) PreDecodedBuffer m_window16{ initializeMarkedWindowBuffer() };
+    alignas( 64 ) PreDecodedBuffer m_window16{ initializeMarkedWindowBuffer() };
 
     DecodedBuffer m_window{ reinterpret_cast<std::uint8_t*>( m_window16.data() ) };
 

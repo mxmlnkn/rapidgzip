@@ -62,7 +62,7 @@ testSeek( size_t                            decodedFileSize,
      * As soon as you request one more byte than the file contains, both, the failbit and eofbit are set
      * but only the eofbit will be cleared by seekg since C++11.
      * @see https://en.cppreference.com/w/cpp/io/basic_istream/seekg
-     * > Before doing anything else, seekg clears eofbit. 	(since C++11)
+     * > Before doing anything else, seekg clears eofbit. (since C++11)
      */
     if ( decodedFile.fail() ) {
         decodedFile.clear();

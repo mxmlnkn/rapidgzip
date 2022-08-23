@@ -126,6 +126,6 @@ private:
      *  - any pair < 64-bit probably has to use some bit shifts anyway so not much more work
      *  - using 8-bit length and 16-bit symbol yields non-aligned access quite frequently
      *  - the space reduction by 33% might improve L1 cache hit rates or cache line utilization. */
-    alignas(8) std::array<Symbol, ( 1UL << CACHED_BIT_COUNT )> m_codeCache{};
+    alignas( 8 ) std::array<Symbol, ( 1UL << CACHED_BIT_COUNT )> m_codeCache{};
 };
 }  // namespace pragzip

@@ -43,12 +43,12 @@ testCalculateDistance()
     //REQUIRE( calculateDistance( 1  ) == 2 );  // returns 1 instead of 2! But unused anyway ...
     //REQUIRE( calculateDistance( 2  ) == 3 );
     //REQUIRE( calculateDistance( 3  ) == 4 );
-    REQUIRE( calculateDistance( 4  ) == 5 );
-    REQUIRE( calculateDistance( 5  ) == 7 );
-    REQUIRE( calculateDistance( 6  ) == 9 );
-    REQUIRE( calculateDistance( 7  ) == 13 );
-    REQUIRE( calculateDistance( 8  ) == 17 );
-    REQUIRE( calculateDistance( 9  ) == 25 );
+    REQUIRE( calculateDistance( 4 ) == 5 );
+    REQUIRE( calculateDistance( 5 ) == 7 );
+    REQUIRE( calculateDistance( 6 ) == 9 );
+    REQUIRE( calculateDistance( 7 ) == 13 );
+    REQUIRE( calculateDistance( 8 ) == 17 );
+    REQUIRE( calculateDistance( 9 ) == 25 );
     REQUIRE( calculateDistance( 10 ) == 33 );
     REQUIRE( calculateDistance( 11 ) == 49 );
 
@@ -64,6 +64,7 @@ testCalculateLength()
     using namespace deflate;
 
     /* These 4 do not require special bits and therefore are specially treated anyway. */
+    // *INDENT-OFF*
     REQUIRE( calculateLength( 261 - 261 ) == 7   );
     REQUIRE( calculateLength( 262 - 261 ) == 8   );
     REQUIRE( calculateLength( 263 - 261 ) == 9   );
@@ -93,6 +94,7 @@ testCalculateLength()
     REQUIRE( calculateLength( 282 - 261 ) == 163 );
     REQUIRE( calculateLength( 283 - 261 ) == 195 );
     REQUIRE( calculateLength( 284 - 261 ) == 227 );
+    // *INDENT-ON*
 }
 
 

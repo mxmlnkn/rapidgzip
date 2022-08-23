@@ -48,7 +48,7 @@ stdinHasInput()
     pollfd fds{};
     fds.fd = STDIN_FILENO;
     fds.events = POLLIN;
-    return poll(&fds, 1, /* timeout in ms */ 0 ) == 1;
+    return poll( &fds, 1, /* timeout in ms */ 0 ) == 1;
 }
 
 
@@ -82,7 +82,7 @@ fileSize( const std::string& filePath )
 }
 
 
-using unique_file_ptr = std::unique_ptr<std::FILE, std::function<void( std::FILE* )> >;
+using unique_file_ptr = std::unique_ptr<std::FILE, std::function<void ( std::FILE* )> >;
 
 inline unique_file_ptr
 make_unique_file_ptr( std::FILE* file )

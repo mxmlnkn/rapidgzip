@@ -352,14 +352,16 @@ printBandwidths( const std::vector<double>& durations,
     std::vector<double> encodedBandwidths( durations.size() );
     std::transform( durations.begin(), durations.end(), encodedBandwidths.begin(),
                     [nBytesEncoded] ( auto duration ) {
-                        return static_cast<double>( nBytesEncoded ) / 1e6 / duration; } );
+                        return static_cast<double>( nBytesEncoded ) / 1e6 / duration;
+                    } );
     std::cout << "    Bandwidth on Encoded Data / (MB/s): "
               << Statistics<double>( encodedBandwidths ).formatAverageWithUncertainty( true ) << "\n";
 
     std::vector<double> decodedBandwidths( durations.size() );
     std::transform( durations.begin(), durations.end(), decodedBandwidths.begin(),
                     [nBytesDecoded] ( auto duration ) {
-                        return static_cast<double>( nBytesDecoded ) / 1e6 / duration; } );
+                        return static_cast<double>( nBytesDecoded ) / 1e6 / duration;
+                    } );
     std::cout << "    Bandwidth on Decoded Data / (MB/s): "
               << Statistics<double>( decodedBandwidths ).formatAverageWithUncertainty( true ) << "\n";
 };
@@ -409,8 +411,8 @@ benchmarkDecompression( const std::string& fileName )
 
     const auto expectedSize = sizeLibArchive;
 
-    const auto [sizeZlib, durationsZlib] = benchmarkFunction<3>( [&fileContents] () {
-        return decompressWithZlib( fileContents ); } );
+    const auto [sizeZlib, durationsZlib] = benchmarkFunction<3>(
+        [&fileContents] () { return decompressWithZlib( fileContents ); } );
     if ( sizeZlib == expectedSize ) {
         std::cout << "Decompressed " << fileContents.size() << " B to " << sizeZlib << " B with zlib:\n";
         printBandwidths( durationsZlib, fileContents.size(), sizeZlib );

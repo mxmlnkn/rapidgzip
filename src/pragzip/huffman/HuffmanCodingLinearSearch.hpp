@@ -54,7 +54,7 @@ public:
         m_minCodeLength = getMinPositive( m_codeLengths );
         m_maxCodeLength = getMax( m_codeLengths );
 
-        static_assert( std::is_unsigned_v<HuffmanCode>, "Huffman code type must be unsigned");
+        static_assert( std::is_unsigned_v<HuffmanCode>, "Huffman code type must be unsigned" );
 
         /* Huffman tree give variable-length binary codes for each leaf node representing a symbol
          * Maximum code length: ???
@@ -75,7 +75,7 @@ public:
         /* It's important for the check to know the highest non-zero value. */
         const auto lastNonZero = std::find_if( bitLengthFrequencies.rbegin(), bitLengthFrequencies.rend(),
                                                [] ( const auto value ) { return value != 0; } );
-        bitLengthFrequencies.resize( bitLengthFrequencies.rend() - lastNonZero  );
+        bitLengthFrequencies.resize( bitLengthFrequencies.rend() - lastNonZero );
 
         if ( bitLengthFrequencies.empty() ) {
             return Error::EMPTY_INPUT;

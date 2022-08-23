@@ -587,7 +587,7 @@ private:
                 m_bitBuffer |= static_cast<BitBuffer>( m_inputBuffer[m_inputBufferPosition++] );
             } else {
                 m_bitBuffer |= ( static_cast<BitBuffer>( m_inputBuffer[m_inputBufferPosition++] )
-                               << m_originalBitBufferSize );
+                                 << m_originalBitBufferSize );
                 /**
                  * Avoiding the single shift before and after the loop for LSB by modifying how the bits are
                  * appended slows it down by ~10%, probably because one additional shift per loop iteration
@@ -780,11 +780,11 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
         if ( m_file->eof() || m_file->fail() ) {
             std::stringstream msg;
             msg << "[BitReader] Could not seek to specified byte " << bytesToSeek
-            << " subbit " << static_cast<int>( subBitsToSeek )
-            << ", size: " << m_file->size()
-            << ", feof: " << m_file->eof()
-            << ", ferror: " << m_file->fail()
-            << ", newPosition: " << newPosition;
+                << " subbit " << static_cast<int>( subBitsToSeek )
+                << ", size: " << m_file->size()
+                << ", feof: " << m_file->eof()
+                << ", ferror: " << m_file->fail()
+                << ", newPosition: " << newPosition;
             throw std::invalid_argument( std::move( msg ).str() );
         }
     } else if ( static_cast<size_t>( offsetBits ) < tell() ) {

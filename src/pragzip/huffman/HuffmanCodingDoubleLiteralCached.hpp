@@ -151,11 +151,8 @@ public:
              *        represented by mergedCode. This is used to avoid reinserting the same symbol
              *        vector for all garbage bits for further Huffman codes not fitting inside CACHED_BIT_COUNT
              */
-            [&]
-            (
-                uint16_t  mergedCode,
-                uint8_t   mergedCodeLength
-            )
+            [&] ( uint16_t mergedCode,
+                  uint8_t  mergedCodeLength )
             {
                 assert( mergedCodeLength <= CACHED_BIT_COUNT );
 
@@ -183,7 +180,7 @@ public:
 
                         /* Reverse bits so that lookup is does not have to reverse. */
                         HuffmanCode reversedCode;
-                        if constexpr ( sizeof(HuffmanCode) <= sizeof(reversedBitsLUT16[0]) ) {
+                        if constexpr ( sizeof( HuffmanCode ) <= sizeof( reversedBitsLUT16[0] ) ) {
                             reversedCode = reversedBitsLUT16[code];
                         } else {
                             reversedCode = reverseBits( code );
@@ -278,6 +275,6 @@ private:
      * to store the code length sum for both symbols in only one of the symbols.
      * Using std::array<std::array<Symbol, 2>, ( 1UL << CACHED_BIT_COUNT )> instead of a one-dimensional array
      * with the same size reduces speed for base64.gz by 10%! */
-    alignas(8) std::array<Symbol, 2 * ( 1UL << CACHED_BIT_COUNT )> m_doubleCodeCache{};
+    alignas( 8 ) std::array<Symbol, 2 * ( 1UL << CACHED_BIT_COUNT )> m_doubleCodeCache{};
 };
 }  // namespace pragzip
