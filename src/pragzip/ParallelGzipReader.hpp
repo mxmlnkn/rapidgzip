@@ -58,43 +58,53 @@ public:
      * @verbatim
      * base64 /dev/urandom | head -c $(( 4 * 1024 * 1024 * 1024 )) > 4GiB-base64
      * gzip 4GiB-base64
-     * m pragzip && time src/tools/pragzip -P 0 -d -c 4GiB-base64.gz | wc -c
+     * m pragzip && time src/tools/pragzip -P 0 -d -c 4GiB-base64.gz | wc -l
      *
-     * spacing = 128 KiB : ~840  MB/s   read the file 2.05124 times
-     * spacing = 1 MiB   : ~1435 MB/s   read the file 1.12958 times
-     * spacing = 4 MiB   : ~1650 MB/s   read the file 1.03353 times
-     * spacing = 8 MiB   : ~1850 MB/s   read the file 1.01654 times
-     * spacing = 16 MiB  : ~1740 MB/s   read the file 1.00795 times
-     * spacing = 64 MiB  : ~1300 MB/s   read the file 1.00208 times
+     * spacing | bandwidth / (MB/s) | file read multiplier
+     * --------+--------------------+----------------------
+     * 128 KiB | ~ 850              | 2.08337
+     *   1 MiB | ~1750              | 1.13272
+     *   2 MiB | ~2000              | 1.06601
+     *   4 MiB | ~2000              | 1.03457
+     *   8 MiB | ~2000              | 1.0169
+     *  16 MiB | ~1900              | 1.00799
+     *  32 MiB | ~1800              | 1.00429
      * @endverbatim
      *
-     * For 64 MiB, the bandwidths become very uncertain, probably because even work division
-     * becomes a problem.
+     * For higher chunk sizes, the bandwidths become very uncertain,
+     * probably because even work division becomes a problem realtive to the file size.
      *
      * @verbatim
      * head -c $(( 2 * 1024 * 1024 * 1024 )) /dev/urandom > random.bin
      * gzip random.bin
-     * m pragzip && time src/tools/pragzip -P 0 -d -c 4GiB-base64.gz | wc -c
+     * m pragzip && time src/tools/pragzip -P 0 -d -c 4GiB-base64.gz | wc -l
      *
-     * spacing = 128 KiB : ~1150     MB/s   read the file 2.00037 times
-     * spacing = 1 MiB   : 1500-1900 MB/s   read the file 1.12502 times
-     * spacing = 4 MiB   : 1500-1900 MB/s   read the file 1.03129 times
-     * spacing = 8 MiB   : 1950-2050 MB/s   read the file 1.01567 times
-     * spacing = 16 MiB  : 1900-1970 MB/s   read the file 1.00786 times
-     * spacing = 64 MiB  : 1560-1580 MB/s   read the file 1.00201 times
+     * spacing | bandwidth / (MB/s) | file read multiplier
+     * --------+--------------------+----------------------
+     * 128 KiB | ~1200              | 2.00049
+     *   1 MiB | ~2150              | 1.12502
+     *   2 MiB | ~2250              | 1.06253
+     *   4 MiB | ~2350              | 1.03129
+     *   8 MiB | ~2350              | 1.01567
+     *  16 MiB | ~2350              | 1.00786
+     *  32 MiB | ~2150              | 1.00396
      * @endverbatim
      *
-     * The case with 1 MiB spacing has an unexpectedly high deviation
      * The factor 2 amount of read data can be explained with the BitReader always buffering 128 KiB!
      * Therefore if the work chunk is too small, it leads to this problem.
      * @todo We might be able to reduce this overhead by buffering up to untilOffset and then
      *       only increase the buffer in much smaller steps, e.g., 8 KiB.
      *       This might actually be easy to implement by making the BitReader chunk size adjustable.
+     * @todo Possibly increase the chunk size to 4 or 8 MiB again after implementing an out of memory
+     *       guard for high compression ratios so that CTU-13-Dataset.tar.gz can be decompressed with
+     *       less than 30 GB of RAM!
+     *       Rebenchmark of course whether it makes sense or not anymore. E.g., speeding up the block
+     *       finder might enable smaller chunk sizes.
      */
     explicit
     ParallelGzipReader( std::unique_ptr<FileReader> fileReader,
                         size_t                      parallelization = 0,
-                        uint64_t                    chunkSize = 8ULL * 1024ULL * 1024ULL ) :
+                        uint64_t                    chunkSize = 2ULL * 1024ULL * 1024ULL ) :
         m_bitReader( std::move( fileReader ) ),
         m_fetcherParallelization(
             parallelization == 0
