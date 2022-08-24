@@ -123,26 +123,18 @@ findZeroBytes64Bit( const std::unique_ptr<FileReader>& file )
     /* Looking for 0x00 0x00 0xFF 0xFF in memory. Using little endian uint64_t, reverses the apparent byte order. */
     uint64_t constexpr TEST_STRING = 0xFF'FF'00'00ULL;
     uint64_t constexpr TEST_MASK   = 0xFF'FF'FF'FFULL;
-    //uint64_t constexpr TEST_STRING = 0x61'D3'87'C8'08'08'8B'1FULL;
-    //uint64_t constexpr TEST_MASK   = 0xFF'FF'FF'FF'FF'FF'FF'FFULL;
 
     size_t count{ 0 };
     uint64_t bitBuffer = static_cast<uint8_t>( buffer[0] );
     while ( !file->eof() ) {
         const auto nBytesRead = file->read( buffer.data(), buffer.size() );
         for ( size_t i = 0; i < nBytesRead / sizeof( std::uint32_t ); ++i ) {
-            //if ( i > 4 ) {
-            //    return 333;
-            //}
             bitBuffer >>= 32U;
             bitBuffer |= static_cast<uint64_t>( buffer32[i] ) << 32U;
             for ( size_t j = 0; j < sizeof( std::uint32_t ); ++j ) {
                 const auto testMask = TEST_MASK << ( 8U * j );
                 const auto testString = TEST_STRING << ( 8U * j );
                 auto const doesMatch = ( bitBuffer & testMask ) == testString;
-
-                //std::cerr << "Test bit buffer: 0x" << std::hex << bitBuffer << " masked with 0x"
-                //          << testMask << " == 0x" << testString << " -> " << doesMatch << std::dec << "\n";
 
                 if ( doesMatch ) {
                     ++count;
@@ -174,6 +166,7 @@ findZeroBytes64BitLUT( const std::unique_ptr<FileReader>& file )
     /* Looking for 0x00 0x00 0xFF 0xFF in memory. Using little endian uint64_t, reverses the apparent byte order. */
     uint64_t constexpr TEST_STRING = 0xFF'FF'00'00ULL;
     uint64_t constexpr TEST_MASK   = 0xFF'FF'FF'FFULL;
+    /* Alternate test string for gzip stream header. */
     //uint64_t constexpr TEST_STRING = 0x61'D3'87'C8'08'08'8B'1FULL;
     //uint64_t constexpr TEST_MASK   = 0xFF'FF'FF'FF'FF'FF'FF'FFULL;
 
@@ -198,13 +191,9 @@ findZeroBytes64BitLUT( const std::unique_ptr<FileReader>& file )
                 const auto testMask = testStrings[2U * j + 1U];
                 auto const doesMatch = ( bitBuffer & testMask ) == testString;
 
-                //std::cerr << "Test bit buffer: 0x" << std::hex << bitBuffer << " masked with 0x"
-                //          << testMask << " == 0x" << testString << " -> " << doesMatch << std::dec << "\n";
-
                 /* We want branching here because it happens rarely and when executing it always,
                  * it would introduce a data dependency to the last loop. */
                 if ( doesMatch ) {
-                    //std::cerr << "Found at i: " << i << ", j: " << j << "\n";
                     ++count;
                 }
             }
@@ -337,9 +326,6 @@ measureBlockFinderTime( const std::string& fileName )
     size_t blockCount = 0;
     size_t blockOffset = 0;
     while ( ( blockOffset = blockFinder.find() ) != std::numeric_limits<size_t>::max() ) {
-        //if ( blockCount < 4 ) {
-        //    std::cerr << "  " << blockOffset << " B\n";
-        //}
         ++blockCount;
     }
 
@@ -404,16 +390,6 @@ createRandomBase64( const std::string& filePath,
 }
 
 
-[[nodiscard]] TemporaryDirectory
-createTemporaryDirectory()
-{
-    const std::filesystem::path tmpFolderName = "indexed_bzip2.benchmarkPigzBlockFinder."
-                                                + std::to_string( unixTime() );
-    std::filesystem::create_directory( tmpFolderName );
-    return TemporaryDirectory( tmpFolderName );
-}
-
-
 int
 main( int    argc,
       char** argv )
@@ -423,7 +399,7 @@ main( int    argc,
     if ( ( argc > 1 ) && ( std::filesystem::exists( argv[1] ) ) ) {
         fileName = argv[1];
     } else {
-        tmpFolder.emplace( createTemporaryDirectory() );
+        tmpFolder.emplace( createTemporaryDirectory( "indexed_bzip2.benchmarkPigzBlockFinder" ) );
         fileName = tmpFolder->path() / "random-base64";
         createRandomBase64( fileName, 512UL * 1024UL * 1024UL );
 

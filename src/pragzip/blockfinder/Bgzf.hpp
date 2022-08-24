@@ -158,16 +158,16 @@ public:
     [[nodiscard]] static bool
     isBgzfHeader( const HeaderBytes& header )
     {
-        return     ( header[ 0] == 0x1F )
-                && ( header[ 1] == 0x8B )
-                && ( header[ 2] == 0x08 )
-                && ( ( header[3] & ( 1U << 2 ) ) != 0 )
-                && ( header[10] == 0x06 )  // length of extra field is 6B
-                && ( header[11] == 0x00 )
-                && ( header[12] == 'B'  )  // subfield ID "BC"
-                && ( header[13] == 'C'  )
-                && ( header[14] == 0x02 )  // subfield length is 2B
-                && ( header[15] == 0x00 );
+        return    ( header[ 0] == 0x1F )
+               && ( header[ 1] == 0x8B )
+               && ( header[ 2] == 0x08 )
+               && ( ( header[3] & ( 1U << 2 ) ) != 0 )
+               && ( header[10] == 0x06 )   // length of extra field is 6B
+               && ( header[11] == 0x00 )
+               && ( header[12] == 'B'  )   // subfield ID "BC"
+               && ( header[13] == 'C'  )
+               && ( header[14] == 0x02 )   // subfield length is 2B
+               && ( header[15] == 0x00 );
     }
 
     /**

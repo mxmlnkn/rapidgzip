@@ -7,6 +7,7 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <stdexcept>
 #include <utility>
 
@@ -43,6 +44,7 @@ class GzipReader :
 {
 public:
     using DeflateBlock = typename deflate::Block<CALCULATE_CRC32>;
+    using WriteFunctor = std::function<void ( const void*, uint64_t )>;
 
 public:
     explicit
@@ -149,7 +151,7 @@ public:
     read( char*  outputBuffer,
           size_t nBytesToRead ) final
     {
-        return read( -1,  outputBuffer, nBytesToRead );
+        return read( -1, outputBuffer, nBytesToRead );
     }
 
 
@@ -188,6 +190,24 @@ public:
           const size_t  nBytesToRead         = std::numeric_limits<size_t>::max(),
           StoppingPoint stoppingPoint        = StoppingPoint::NONE )
     {
+        const auto writeFunctor =
+            [nBytesDecoded = uint64_t( 0 ), outputFileDescriptor, outputBuffer]
+            ( const void* const buffer,
+              uint64_t    const size ) mutable
+            {
+                auto* const currentBufferPosition = outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded;
+                writeAll( outputFileDescriptor, currentBufferPosition, buffer, size );
+                nBytesDecoded += size;
+            };
+
+        return read( writeFunctor, nBytesToRead, stoppingPoint );
+    }
+
+    size_t
+    read( const WriteFunctor& writeFunctor,
+          const size_t        nBytesToRead = std::numeric_limits<size_t>::max(),
+          const StoppingPoint stoppingPoint = StoppingPoint::NONE )
+    {
         size_t nBytesDecoded = 0;
 
         /* This loop is basically a state machine over m_currentPoint and will process different things
@@ -195,10 +215,7 @@ public:
          * First read metadata so that even with nBytesToRead == 0, the position can be advanced over those. */
         while ( !m_bitReader.eof() && !eof() ) {
             if ( !m_currentPoint.has_value() || ( *m_currentPoint == StoppingPoint::END_OF_BLOCK_HEADER ) ) {
-                const auto nBytesDecodedInStep = readBlock(
-                    outputFileDescriptor,
-                    outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded,
-                    nBytesToRead - nBytesDecoded );
+                const auto nBytesDecodedInStep = readBlock( writeFunctor, nBytesToRead - nBytesDecoded );
 
                 nBytesDecoded += nBytesDecodedInStep;
                 m_streamBytesCount += nBytesDecodedInStep;
@@ -259,15 +276,12 @@ public:
 private:
     /**
      * @note Only to be used by readBlock!
-     * @param  outputBuffer A char* to which the data is written.
-     *                      You should ensure that at least @p maxBytesToFlush bytes can fit there!
      * @return The number of actually flushed bytes, which might be hindered,
      *         e.g., if the output file descriptor can't be written to!
      */
     size_t
-    flushOutputBuffer( int    outputFileDescriptor = -1,
-                       char*  outputBuffer         = nullptr,
-                       size_t maxBytesToFlush      = std::numeric_limits<size_t>::max() );
+    flushOutputBuffer( const WriteFunctor& writeFunctor,
+                       size_t              maxBytesToFlush  );
 
     void
     readBlockHeader()
@@ -289,9 +303,8 @@ private:
      * It will either return when the whole block has been read or when the requested amount of bytes has been read.
      */
     [[nodiscard]] size_t
-    readBlock( int    outputFileDescriptor,
-               char*  outputBuffer,
-               size_t nMaxBytesToDecode );
+    readBlock( const WriteFunctor& writeFunctor,
+               size_t              nMaxBytesToDecode );
 
     void
     readGzipHeader()
@@ -362,9 +375,8 @@ private:
 
 template<bool CALCULATE_CRC32>
 inline size_t
-GzipReader<CALCULATE_CRC32>::flushOutputBuffer( int    const outputFileDescriptor,
-                                                char*  const outputBuffer,
-                                                size_t const maxBytesToFlush )
+GzipReader<CALCULATE_CRC32>::flushOutputBuffer( const WriteFunctor& writeFunctor,
+                                                const size_t        maxBytesToFlush )
 {
     if ( !m_offsetInLastBuffers.has_value()
          || !m_currentDeflateBlock.has_value()
@@ -378,25 +390,13 @@ GzipReader<CALCULATE_CRC32>::flushOutputBuffer( int    const outputFileDescripto
         if ( ( *m_offsetInLastBuffers >= bufferOffset ) && ( *m_offsetInLastBuffers < bufferOffset + buffer.size() ) ) {
             const auto offsetInBuffer = *m_offsetInLastBuffers - bufferOffset;
             const auto nBytesToWrite = std::min( buffer.size() - offsetInBuffer, maxBytesToFlush - totalBytesFlushed );
-            const auto* const bufferStart = buffer.data() + offsetInBuffer;
 
-            size_t nBytesFlushed = nBytesToWrite;  // default when there is neither output buffer nor file device given
-
-            if ( outputFileDescriptor >= 0 ) {
-                const auto nBytesWritten = write( outputFileDescriptor, bufferStart, nBytesToWrite );
-                nBytesFlushed = std::max<decltype( nBytesWritten )>( 0, nBytesWritten );
+            if ( writeFunctor ) {
+                writeFunctor( buffer.data() + offsetInBuffer, nBytesToWrite );
             }
 
-            if ( outputBuffer != nullptr ) {
-                std::memcpy( outputBuffer + totalBytesFlushed, bufferStart, nBytesFlushed );
-            }
-
-            *m_offsetInLastBuffers += nBytesFlushed;
-            totalBytesFlushed += nBytesFlushed;
-
-            if ( nBytesFlushed != nBytesToWrite ) {
-                break;
-            }
+            *m_offsetInLastBuffers += nBytesToWrite;
+            totalBytesFlushed += nBytesToWrite;
         }
 
         bufferOffset += buffer.size();
@@ -417,16 +417,15 @@ GzipReader<CALCULATE_CRC32>::flushOutputBuffer( int    const outputFileDescripto
 
 template<bool CALCULATE_CRC32>
 inline size_t
-GzipReader<CALCULATE_CRC32>::readBlock( int    const outputFileDescriptor,
-                                        char*  const outputBuffer,
-                                        size_t const nMaxBytesToDecode )
+GzipReader<CALCULATE_CRC32>::readBlock( const WriteFunctor& writeFunctor,
+                                        const size_t        nMaxBytesToDecode )
 {
     if ( eof() || ( nMaxBytesToDecode == 0 ) ) {
         return 0;
     }
 
     /* Try to flush remnants in output buffer from interrupted last call. */
-    size_t nBytesDecoded = flushOutputBuffer( outputFileDescriptor, outputBuffer, nMaxBytesToDecode );
+    size_t nBytesDecoded = flushOutputBuffer( writeFunctor, nMaxBytesToDecode );
     if ( !bufferHasBeenFlushed() ) {
         return nBytesDecoded;
     }
@@ -464,10 +463,7 @@ GzipReader<CALCULATE_CRC32>::readBlock( int    const outputFileDescriptor,
 
         m_currentPoint = {};
 
-        const auto flushedCount = flushOutputBuffer(
-            outputFileDescriptor,
-            outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded,
-            nMaxBytesToDecode - nBytesDecoded );
+        const auto flushedCount = flushOutputBuffer( writeFunctor, nMaxBytesToDecode - nBytesDecoded );
 
         if ( ( flushedCount == 0 ) && !bufferHasBeenFlushed() ) {
             /* Something went wrong with flushing and this would lead to an infinite loop. */
@@ -516,6 +512,7 @@ GzipReader<CALCULATE_CRC32>::readGzipFooter()
 [[nodiscard]] std::string
 toString( StoppingPoint stoppingPoint )
 {
+    // *INDENT-OFF*
     switch ( stoppingPoint )
     {
     case StoppingPoint::NONE                 : return "None";
@@ -526,5 +523,6 @@ toString( StoppingPoint stoppingPoint )
     case StoppingPoint::ALL                  : return "All";
     };
     return "Unknown";
+    // *INDENT-ON*
 }
 }  // namespace pragzip

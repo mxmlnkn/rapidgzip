@@ -54,7 +54,7 @@ public:
         m_minCodeLength = getMinPositive( m_codeLengths );
         m_maxCodeLength = getMax( m_codeLengths );
 
-        static_assert( std::is_unsigned_v<HuffmanCode>, "Huffman code type must be unsigned");
+        static_assert( std::is_unsigned_v<HuffmanCode>, "Huffman code type must be unsigned" );
 
         /* Huffman tree give variable-length binary codes for each leaf node representing a symbol
          * Maximum code length: ???
@@ -75,7 +75,7 @@ public:
         /* It's important for the check to know the highest non-zero value. */
         const auto lastNonZero = std::find_if( bitLengthFrequencies.rbegin(), bitLengthFrequencies.rend(),
                                                [] ( const auto value ) { return value != 0; } );
-        bitLengthFrequencies.resize( bitLengthFrequencies.rend() - lastNonZero  );
+        bitLengthFrequencies.resize( bitLengthFrequencies.rend() - lastNonZero );
 
         if ( bitLengthFrequencies.empty() ) {
             return Error::EMPTY_INPUT;
@@ -94,9 +94,7 @@ public:
          * the next level. */
         auto maxSymbolsPossible = uint8_t( 1 ) << bitLengthFrequencies.size();
         for ( int bitLength = bitLengthFrequencies.size() - 1; bitLength > 0; --bitLength ) {
-        //for ( auto frequency = bitLengthFrequencies.rbegin(); frequency != bitLengthFrequencies.rend(); ++frequency ) {
             const auto frequency = bitLengthFrequencies.begin() + bitLength;
-            //std::cerr << "bitLength: " << bitLength << ", maxSymbolsPossible: " << maxSymbolsPossible << ", frequency: " << (int)*frequency << "\n";
             if ( *frequency > maxSymbolsPossible ) {
                 return Error::EXCEEDED_CL_LIMIT;
             }
@@ -188,9 +186,9 @@ public:
              * @todo faster lookup than simple linear search, e.g., binning by length and binary search inbetween.
              *       -> then again binary search is not even necessary because the values in each bin are given
              *          sequentially. Might be possible to simply add the lookup value to the minimumValueCode or so! */
-            for ( Symbol j = 0; j < m_codeLengths.size(); ++j ) {
+            for ( size_t j = 0; j < m_codeLengths.size(); ++j ) {
                 if ( ( m_codeLengths[j] == bitLength ) && ( m_codes[j] == code ) ) {
-                    return j;
+                    return static_cast<Symbol>( j );
                 }
             }
 
@@ -198,7 +196,7 @@ public:
             code |= bitReader.read<1>();
         }
 
-        return {};
+        return std::nullopt;
     }
 
 private:

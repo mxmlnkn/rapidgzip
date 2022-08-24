@@ -8,6 +8,7 @@
 #include <common.hpp>
 #include <filereader/Standard.hpp>
 #include <ParallelBZ2Reader.hpp>
+#include <TestHelpers.hpp>
 
 
 namespace
@@ -76,7 +77,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
              * As soon as you request one more byte than the file contains, both, the failbit and eofbit are set
              * but only the eofbit will be cleared by seekg since C++11.
              * @see https://en.cppreference.com/w/cpp/io/basic_istream/seekg
-             * > Before doing anything else, seekg clears eofbit. 	(since C++11)
+             * > Before doing anything else, seekg clears eofbit. (since C++11)
              */
             if ( decodedFile.fail() ) {
                 decodedFile.clear();
@@ -265,19 +266,10 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
 }
 
 
-[[nodiscard]] TemporaryDirectory
-createTemporaryDirectory()
-{
-    const std::filesystem::path tmpFolderName = "indexed_bzip2.testParellelBZ2Reader." + std::to_string( unixTime() );
-    std::filesystem::create_directory( tmpFolderName );
-    return TemporaryDirectory( tmpFolderName );
-}
-
-
 int
 main()
 {
-    const auto tmpFolder = createTemporaryDirectory();
+    const auto tmpFolder = createTemporaryDirectory( "indexed_bzip2.testParallelBZ2Reader" );
 
     const auto decodedTestFilePath = tmpFolder.path() / "decoded";
     createRandomTextFile( decodedTestFilePath, 2UL * 1024UL * 1024UL );

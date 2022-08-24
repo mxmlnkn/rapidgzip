@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 
@@ -45,20 +46,75 @@ public:
     using BlockFetcher = pragzip::GzipBlockFetcher<FetchingStrategy::FetchNextMulti>;
     using BlockFinder = typename BlockFetcher::BlockFinder;
     using BitReader = pragzip::BitReader;
+    using WriteFunctor = std::function<void ( const void*, uint64_t )>;
+
+private:
+    static constexpr bool SHOW_PROFILE{ false };
 
 public:
+    /**
+     * Quick benchmarks for spacing:
+     *
+     * @verbatim
+     * base64 /dev/urandom | head -c $(( 4 * 1024 * 1024 * 1024 )) > 4GiB-base64
+     * gzip 4GiB-base64
+     * m pragzip && time src/tools/pragzip -P 0 -d -c 4GiB-base64.gz | wc -l
+     *
+     * spacing | bandwidth / (MB/s) | file read multiplier
+     * --------+--------------------+----------------------
+     * 128 KiB | ~ 850              | 2.08337
+     *   1 MiB | ~1750              | 1.13272
+     *   2 MiB | ~2000              | 1.06601
+     *   4 MiB | ~2000              | 1.03457
+     *   8 MiB | ~2000              | 1.0169
+     *  16 MiB | ~1900              | 1.00799
+     *  32 MiB | ~1800              | 1.00429
+     * @endverbatim
+     *
+     * For higher chunk sizes, the bandwidths become very uncertain,
+     * probably because even work division becomes a problem realtive to the file size.
+     *
+     * @verbatim
+     * head -c $(( 2 * 1024 * 1024 * 1024 )) /dev/urandom > random.bin
+     * gzip random.bin
+     * m pragzip && time src/tools/pragzip -P 0 -d -c 4GiB-base64.gz | wc -l
+     *
+     * spacing | bandwidth / (MB/s) | file read multiplier
+     * --------+--------------------+----------------------
+     * 128 KiB | ~1200              | 2.00049
+     *   1 MiB | ~2150              | 1.12502
+     *   2 MiB | ~2250              | 1.06253
+     *   4 MiB | ~2350              | 1.03129
+     *   8 MiB | ~2350              | 1.01567
+     *  16 MiB | ~2350              | 1.00786
+     *  32 MiB | ~2150              | 1.00396
+     * @endverbatim
+     *
+     * The factor 2 amount of read data can be explained with the BitReader always buffering 128 KiB!
+     * Therefore if the work chunk is too small, it leads to this problem.
+     * @todo We might be able to reduce this overhead by buffering up to untilOffset and then
+     *       only increase the buffer in much smaller steps, e.g., 8 KiB.
+     *       This might actually be easy to implement by making the BitReader chunk size adjustable.
+     * @todo Possibly increase the chunk size to 4 or 8 MiB again after implementing an out of memory
+     *       guard for high compression ratios so that CTU-13-Dataset.tar.gz can be decompressed with
+     *       less than 30 GB of RAM!
+     *       Rebenchmark of course whether it makes sense or not anymore. E.g., speeding up the block
+     *       finder might enable smaller chunk sizes.
+     */
     explicit
     ParallelGzipReader( std::unique_ptr<FileReader> fileReader,
-                        size_t                      parallelization = 0 ) :
+                        size_t                      parallelization = 0,
+                        uint64_t                    chunkSize = 2ULL * 1024ULL * 1024ULL ) :
         m_bitReader( std::move( fileReader ) ),
         m_fetcherParallelization(
             parallelization == 0
             ? std::max<size_t>( 1U, std::thread::hardware_concurrency() )
             : parallelization ),
         m_startBlockFinder(
-            [&] () {
-                return std::make_unique<BlockFinder>( m_bitReader.cloneSharedFileReader(),
-                                                     /* spacing */ 1024 * 1024 );
+            [this, chunkSize] () {
+                return std::make_unique<BlockFinder>(
+                    m_bitReader.cloneSharedFileReader(),
+                    /* spacing in bytes */ std::max<uint64_t>( 32 * 1024, chunkSize ) );
             }
         )
     {
@@ -66,29 +122,6 @@ public:
             throw std::invalid_argument( "Parallel BZ2 Reader will not work on non-seekable input like stdin (yet)!" );
         }
     }
-
-#ifdef BENCHMARK_CHUNKING
-    explicit
-    ParallelGzipReader( std::unique_ptr<FileReader> fileReader,
-                        size_t                      parallelization,
-                        size_t                      nBlocksToSkip ) :
-        m_bitReader( std::move( fileReader ) ),
-        m_fetcherParallelization(
-            parallelization == 0
-            ? std::max<size_t>( 1U, std::thread::hardware_concurrency() )
-            : parallelization ),
-        m_startBlockFinder(
-            [this, nBlocksToSkip] () {
-                return std::make_unique<BlockFinder>( m_bitReader.cloneSharedFileReader(),
-                                                      ( nBlocksToSkip + 1 ) * 32 * 1024 );
-            }
-        )
-    {
-        if ( !m_bitReader.seekable() ) {
-            throw std::invalid_argument( "Parallel BZ2 Reader will not work on non-seekable input like stdin (yet)!" );
-        }
-    }
-#endif
 
 #ifdef WITH_PYTHON_SUPPORT
     /* These constructor overloads are for easier construction in the Cython-interface.
@@ -112,6 +145,15 @@ public:
         ParallelGzipReader( std::make_unique<PythonFileReader>( pythonObject ), parallelization )
     {}
 #endif
+
+    ~ParallelGzipReader()
+    {
+        if constexpr ( SHOW_PROFILE ) {
+            std::cerr << "[ParallelGzipReader] Time spent:";
+            std::cerr << "\n    Writing to output: " << m_writeOutputTime << " s";
+            std::cerr << std::endl;
+        }
+    }
 
     /* FileReader overrides */
 
@@ -189,7 +231,7 @@ public:
     read( char*  outputBuffer,
           size_t nBytesToRead ) override
     {
-        return read( -1,  outputBuffer, nBytesToRead );
+        return read( -1, outputBuffer, nBytesToRead );
     }
 
     /* Simpler file reader interface for Python-interfacing */
@@ -198,6 +240,23 @@ public:
     read( const int    outputFileDescriptor = -1,
           char* const  outputBuffer = nullptr,
           const size_t nBytesToRead = std::numeric_limits<size_t>::max() )
+    {
+        const auto writeFunctor =
+            [nBytesDecoded = uint64_t( 0 ), outputFileDescriptor, outputBuffer]
+            ( const void* const buffer,
+              uint64_t    const size ) mutable
+            {
+                auto* const currentBufferPosition = outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded;
+                writeAll( outputFileDescriptor, currentBufferPosition, buffer, size );
+                nBytesDecoded += size;
+            };
+
+        return read( writeFunctor, nBytesToRead );
+    }
+
+    size_t
+    read( const WriteFunctor& writeFunctor,
+          const size_t        nBytesToRead = std::numeric_limits<size_t>::max() )
     {
         if ( closed() ) {
             throw std::invalid_argument( "You may not call read on closed ParallelGzipReader!" );
@@ -244,20 +303,15 @@ public:
                     continue;
                 }
 
-                const auto nBytesToDecode = std::min( chunk.size() - offsetInChunk, nBytesToRead - nBytesDecoded );
-                const auto nBytesWritten = writeResult(
-                    outputFileDescriptor,
-                    outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded,
-                    reinterpret_cast<const char*>( chunk.data() + offsetInChunk ),
-                    nBytesToDecode
-                );
+                const auto t0 = now();
 
-                if ( nBytesWritten != nBytesToDecode ) {
-                    std::stringstream msg;
-                    msg << "Less (" << nBytesWritten << ") than the requested number of bytes (" << nBytesToDecode
-                        << ") were written to the output!";
-                    throw std::logic_error( std::move( msg ).str() );
+                const auto nBytesToDecode = std::min( chunk.size() - offsetInChunk, nBytesToRead - nBytesDecoded );
+                if ( writeFunctor ) {
+                    writeFunctor( chunk.data() + offsetInChunk, nBytesToDecode );
                 }
+
+                const auto t1 = now();
+                m_writeOutputTime += duration( t0, t1 );
 
                 nBytesDecoded += nBytesToDecode;
                 m_currentPosition += nBytesToDecode;
@@ -586,44 +640,15 @@ private:
         blockFinder().setBlockOffsets( std::move( encodedBlockOffsets ) );
     }
 
-    size_t
-    writeResult( int         const outputFileDescriptor,
-                 char*       const outputBuffer,
-                 char const* const dataToWrite,
-                 size_t      const dataToWriteSize )
-    {
-        size_t nBytesFlushed = dataToWriteSize; // default then there is neither output buffer nor file device given
-
-        if ( outputFileDescriptor >= 0 ) {
-            /* Avoid running into errors because Linux syscall write only writes up to 0x7ffff000 (2'147'479'552) B */
-            constexpr size_t CHUNK_SIZE = 128ULL * 1024ULL * 1024ULL;
-            for ( nBytesFlushed = 0; nBytesFlushed < dataToWriteSize; )
-            {
-                const auto nBytesWritten = ::write( outputFileDescriptor,
-                                                    dataToWrite + nBytesFlushed,
-                                                    std::min( CHUNK_SIZE, dataToWriteSize - nBytesFlushed ) );
-
-                if ( nBytesWritten <= 0 ) {
-                    break;
-                }
-                nBytesFlushed += static_cast<size_t>( nBytesWritten );
-            }
-        }
-
-        if ( outputBuffer != nullptr ) {
-            std::memcpy( outputBuffer, dataToWrite, nBytesFlushed );
-        }
-
-        return nBytesFlushed;
-    }
-
 private:
     BitReader m_bitReader;
 
     size_t m_currentPosition = 0; /**< the current position as can only be modified with read or seek calls. */
     bool m_atEndOfFile = false;
 
-private:
+    /** Benchmarking */
+    double m_writeOutputTime{ 0 };
+
     size_t const m_fetcherParallelization;
     /** The block finder is much faster than the fetcher and therefore does not require es much parallelization! */
     size_t const m_finderParallelization{ ceilDiv( m_fetcherParallelization, 8U ) };

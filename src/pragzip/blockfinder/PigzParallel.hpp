@@ -108,10 +108,10 @@ public:
     ~PigzParallel()
     {
         std::cerr << "[BlockFetcher::~BlockFetcher]"
-        << "\n   Time spent in:"
-        << "\n       refillBuffer                   : " << m_refillDuration << " s"
-        << "\n       time spent waiting for futures : " << m_futureWaitDuration << " s"
-        << "\n";
+                  << "\n   Time spent in:"
+                  << "\n       refillBuffer                   : " << m_refillDuration << " s"
+                  << "\n       time spent waiting for futures : " << m_futureWaitDuration << " s"
+                  << "\n";
     }
     #endif
 

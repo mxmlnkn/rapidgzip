@@ -78,7 +78,7 @@ struct Header
     uint8_t extraFlags{ 0 };
 
     bool isLikelyASCII{ false };
-    std::optional<std::vector<uint8_t>> extra;
+    std::optional<std::vector<uint8_t> > extra;
     std::optional<std::string> fileName;
     std::optional<std::string> comment;
     std::optional<uint16_t> crc16;

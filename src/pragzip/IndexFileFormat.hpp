@@ -52,9 +52,11 @@ struct Checkpoint
     [[nodiscard]] constexpr bool
     operator==( const Checkpoint& other ) const noexcept
     {
+        // *INDENT-OFF*
         return ( compressedOffsetInBits    == other.compressedOffsetInBits    ) &&
                ( uncompressedOffsetInBytes == other.uncompressedOffsetInBytes ) &&
                ( window                    == other.window                    );
+        // *INDENT-ON*
     }
 };
 
@@ -75,11 +77,13 @@ struct GzipIndex
     [[nodiscard]] constexpr bool
     operator==( const GzipIndex& other ) const noexcept
     {
+        // *INDENT-OFF*
         return ( compressedSizeInBytes   == other.compressedSizeInBytes   ) &&
                ( uncompressedSizeInBytes == other.uncompressedSizeInBytes ) &&
                ( checkpointSpacing       == other.checkpointSpacing       ) &&
                ( windowSizeInBytes       == other.windowSizeInBytes       ) &&
                ( checkpoints             == other.checkpoints             );
+        // *INDENT-ON*
     }
 };
 

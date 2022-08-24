@@ -4,8 +4,9 @@
 
 #include <unistd.h>
 
-#include "BitStringFinder.hpp"
-#include "common.hpp"
+#include <BitStringFinder.hpp>
+#include <common.hpp>
+#include <TestHelpers.hpp>
 
 
 template<class TemplatedBitStringFinder>

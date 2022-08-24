@@ -146,7 +146,7 @@ cdef class _IndexedBzip2File():
 
         return bytes_count
 
-    def seek(self, offset, whence):
+    def seek(self, offset, whence = io.SEEK_SET):
         if not self.bz2reader:
             raise Exception("Invalid file object!")
         return self.bz2reader.seek(offset, whence)
@@ -252,7 +252,7 @@ cdef class _IndexedBzip2FileParallel():
 
         return bytes_count
 
-    def seek(self, offset, whence):
+    def seek(self, offset, whence = io.SEEK_SET):
         if not self.bz2reader:
             raise Exception("Invalid file object!")
         return self.bz2reader.seek(offset, whence)

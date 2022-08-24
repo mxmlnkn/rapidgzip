@@ -53,16 +53,20 @@
     }
 
     #define S_ISFIFO(m) testFileType( m, S_IFIFO )
+
+    #define CONSTEXPR_EXCEPT_MSVC
 #else
     #include <unistd.h>
+
+    #define CONSTEXPR_EXCEPT_MSVC constexpr
 #endif
 
 
 #if defined( _MSC_VER )
     #define forceinline __forceinline
-#elif defined(__clang__) || defined(__GNUC__)
-    /* https://stackoverflow.com/questions/38499462/how-to-tell-clang-to-stop-pretending-to-be-other-compilers */
-    #define forceinline __attribute__((always_inline))
+#elif defined( __clang__ ) || defined( __GNUC__ )
+/* https://stackoverflow.com/questions/38499462/how-to-tell-clang-to-stop-pretending-to-be-other-compilers */
+    #define forceinline __attribute__(( always_inline ))
 #endif
 
 template<typename I1,
@@ -81,8 +85,8 @@ ceilDiv( I1 dividend,
 
 template<typename S, typename T>
 std::ostream&
-operator<<( std::ostream&  out,
-            std::pair<S,T> pair )
+operator<<( std::ostream&   out,
+            std::pair<S, T> pair )
 {
     out << "(" << pair.first << "," << pair.second << ")";
     return out;
@@ -182,7 +186,10 @@ unixTime() noexcept
 
 
 /**
- * Use like this: std::cerr << ( ThreadSafeOutput() << "Hello" << i << "there" ).str();
+ * Use like this:
+ * @verbatim
+ * std::cerr << ( ThreadSafeOutput() << "Hello" << i << "there" ).str();
+ * @endverbatim
  */
 class ThreadSafeOutput
 {
@@ -269,41 +276,6 @@ private:
 };
 
 
-/* Minimal Testing Helpers. */
-
-int gnTests = 0;  // NOLINT
-int gnTestErrors = 0;  // NOLINT
-
-
-template<typename T>
-void
-requireEqual( const T& a, const T& b, int line )
-{
-    ++gnTests;
-    if ( a != b ) {
-        ++gnTestErrors;
-        std::cerr << "[FAIL on line " << line << "] " << a << " != " << b << "\n";
-    }
-}
-
-
-void
-require( bool               condition,
-         std::string const& conditionString,
-         int                line )
-{
-    ++gnTests;
-    if ( !condition ) {
-        ++gnTestErrors;
-        std::cerr << "[FAIL on line " << line << "] " << conditionString << "\n";
-    }
-}
-
-
-#define REQUIRE_EQUAL( a, b ) requireEqual( a, b, __LINE__ ) // NOLINT
-#define REQUIRE( condition ) require( condition, #condition, __LINE__ ) // NOLINT
-
-
 template<typename T>
 [[nodiscard]] constexpr typename T::value_type
 getMinPositive( const T& container )
@@ -349,12 +321,12 @@ contains( const Container& container,
 
 
 template<typename Iterator,
-         typename T = const decltype( *std::declval<Iterator>() )&>
+         typename T = const decltype( *std::declval<Iterator>() ) &>
 [[nodiscard]] constexpr size_t
-countAdjacentIf( const Iterator rangeBegin,
-                 const Iterator rangeEnd,
+countAdjacentIf( const Iterator                                                              rangeBegin,
+                 const Iterator                                                              rangeEnd,
                  const std::function<bool( const decltype( *std::declval<Iterator>() )&,
-                                           const decltype( *std::declval<Iterator>() )& )>& equal )
+                                           const decltype( *std::declval<Iterator>() ) & )>& equal )
 {
     size_t result{ 0 };
     if ( rangeBegin != rangeEnd ) {
@@ -373,10 +345,10 @@ countAdjacentIf( const Iterator rangeBegin,
  */
 template<typename Iterator>
 [[nodiscard]] constexpr std::pair<Iterator, Iterator>
-findAdjacentIf( const Iterator rangeBegin,
-                const Iterator rangeEnd,
+findAdjacentIf( const Iterator                                                              rangeBegin,
+                const Iterator                                                              rangeEnd,
                 const std::function<bool( const decltype( *std::declval<Iterator>() )&,
-                                          const decltype( *std::declval<Iterator>() )& )>& equal  )
+                                          const decltype( *std::declval<Iterator>() ) & )>& equal )
 {
     auto sequenceBegin = rangeEnd;
     if ( rangeBegin != rangeEnd ) {
@@ -423,7 +395,7 @@ testFlags( const uint64_t value,
 
 /* error: 'std::filesystem::path' is unavailable: introduced in macOS 10.15.
  * Fortunately, this is only needed for the tests, so the incomplete std::filesystem support
- * is not a problem for building the manylinux wheels on the pre 10.15 macos kernel. */
+ * is not a problem for building the manylinux wheels on the pre 10.15 macOS kernel. */
 #ifndef __APPLE_CC__
 void
 createRandomTextFile( std::filesystem::path path,
@@ -471,15 +443,24 @@ public:
 private:
     std::filesystem::path m_path;
 };
+
+
+[[nodiscard]] TemporaryDirectory
+createTemporaryDirectory( const std::string& title = "tmpTest" )
+{
+    const std::filesystem::path tmpFolderName = title + "." + std::to_string( unixTime() );
+    std::filesystem::create_directory( tmpFolderName );
+    return TemporaryDirectory( tmpFolderName );
+}
 #endif
 
 
-#if defined(__GNUC__)
-    #define LIKELY(x) (__builtin_expect(static_cast<bool>(x),1))
-    #define UNLIKELY(x) (__builtin_expect(static_cast<bool>(x),0))
+#if defined( __GNUC__ )
+    #define LIKELY( x ) ( __builtin_expect( static_cast<bool>( x ), 1 ))
+    #define UNLIKELY( x ) ( __builtin_expect( static_cast<bool>( x ), 0 ))
 #else
-    #define LIKELY(x) (x)
-    #define UNLIKELY(x) (x)
+    #define LIKELY( x ) ( x )
+    #define UNLIKELY( x ) ( x )
 #endif
 
 
@@ -498,7 +479,7 @@ enum class Endian
  * > #define __BYTE_ORDER__ __ORDER_LITTLE_ENDIAN__
  */
 constexpr Endian ENDIAN =
-#if defined(__BYTE_ORDER__) && defined( __ORDER_LITTLE_ENDIAN__ ) && ( __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ )
+#if defined( __BYTE_ORDER__ ) && defined( __ORDER_LITTLE_ENDIAN__ ) && ( __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ )
     Endian::LITTLE
 #else
     Endian::UNKNOWN
@@ -515,7 +496,25 @@ template<typename T>
 [[nodiscard]] constexpr T
 loadUnaligned( const void* data )
 {
-	T result{ 0 };
-	std::memcpy( &result, data, sizeof( result ) );
-	return result;
+    T result{ 0 };
+    std::memcpy( &result, data, sizeof( result ) );
+    return result;
+}
+
+
+[[nodiscard]] constexpr size_t
+countNewlines( const std::string_view& view )
+{
+    constexpr char NEWLINE = '\n';
+    const std::string_view toFind( std::addressof( NEWLINE ), 1 );
+
+    size_t matches{ 0 };
+    for ( auto position = view.find( toFind, 0 );
+          position != std::string_view::npos;
+          position = view.find( toFind, position + 1 ) )
+    {
+        ++matches;
+    }
+
+    return matches;
 }

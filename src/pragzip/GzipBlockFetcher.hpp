@@ -279,63 +279,123 @@ public:
             return decodeBlockWithPragzip( &bitReader, untilOffset, initialWindow );
         }
 
-        /*
-         * @todo Use faster pigz block finder to possibly speed up block finding. But, if I then had to recheck
-         *       in all offsets before that for a gzip block for correct boundary conditions, it wouldn't mean
-         *       anything. Therefore, I would need a complete special case for pigz files similarly to bgzf files.
-         *       But, it might not even amount to much because on average it should only seek block size / 2
-         *       which can be 8-32 KiB from what I found, except if there are many uncompressed blocks!
-         *       Large uncompressed chunks will not profit from parallel gzip decoding but might not be necessary
-         *       in the first place because it only seeks anyway but they would be nice to create index points!
-         *       When applying multiple block finders (pigz, uncompressed, dynamic) it would be best to avoid
-         *       BitReader buffer refills. Maybe only test up to BitReader::IOBUF_SIZE bytes?
+        const auto tryToDecode =
+            [&] ( const std::pair<size_t, size_t>& offset ) -> std::optional<BlockData>
+            {
+                try {
+                    /* For decoding, it does not matter whether we seek to offset.first or offset.second but it DOES
+                     * matter a lot for interpreting and correcting the encodedSizeInBits in GzipBlockFetcer::get! */
+                    bitReader.seek( offset.second );
+                    auto result = decodeBlockWithPragzip( &bitReader, untilOffset, initialWindow );
+                    result.encodedOffsetInBits = offset.first;
+                    result.maxEncodedOffsetInBits = offset.second;
+                    /** @todo Avoid out of memory issues for very large compression ratios by using a simple runtime
+                     *        length encoding or by only undoing the Huffman coding in parallel and the LZ77 serially,
+                     *        or by stopping decoding at a threshold and fall back to serial decoding in that case? */
+                    return result;
+                } catch ( const std::exception& exception ) {
+                    /* Ignore errors and try next block candidate. This is very likely to happen if @ref blockOffset
+                     * is only an estimated offset! If it happens because decodeBlockWithPragzip has a bug, then it
+                     * might indirectly trigger an exception when the next required block offset cannot be found. */
+                }
+                return std::nullopt;
+            };
+
+        /* First simply try to decode at the current position to avoid expensive block finders in the case
+         * that for some reason the @ref blockOffset guess was perfect. Note that this has to be added as
+         * a separate stop condition for decoding the previous block! */
+        if ( auto result = tryToDecode( { blockOffset, blockOffset } ); result ) {
+            return *std::move( result );
+        }
+
+        /**
+         * Performance when looking for dynamic and uncompressed blocks:
+         * @verbatim
+         * m pragzip && time src/tools/pragzip -P 0 -d -c 4GiB-base64.gz | wc -c
+         *    read in total 5.25998e+09 B out of 3263906195 B, i.e., read the file 1.61156 times
+         *    Decompressed in total 4294967296 B in 4.35718 s -> 985.722 MB/s
+         *
+         * m pragzip && time src/tools/pragzip -P 0 -d -c random.bin.gz | wc -c
+         *    read in total 2.41669e+09 B out of 2148139037 B, i.e., read the file 1.12502 times
+         *    Decompressed in total 2147483648 B in 1.40283 s -> 1530.82 MB/s
+         * @endverbatim
+         *
+         * Performance when looking only for dynamic blocks:
+         * @verbatim
+         * m pragzip && time src/tools/pragzip -P 0 -d -c 4GiB-base64.gz | wc -c
+         *    read in total 3.67191e+09 B out of 3263906195 B, i.e., read the file 1.12501 times
+         *    Decompressed in total 4294967296 B in 3.0489 s -> 1408.69 MB/s
+         *  -> Almost 50% faster! And only 12% file read overhead instead of 61%!
+         *
+         * m pragzip && time src/tools/pragzip -P 0 -d -c random.bin.gz | wc -c
+         *   -> LONGER THAN 3 MIN!
+         * @endverbatim
+         *
+         * Performance after implementing the chunked alternating search:
+         * @verbatim
+         * m pragzip && time src/tools/pragzip -P 0 -d -c 4GiB-base64.gz | wc -c
+         *    read in total 3.68686e+09 B out of 3263906195 B, i.e., read the file 1.12958 times
+         *    Decompressed in total 4294967296 B in 3.06287 s -> 1402.27 MB/s
+         *
+         * m pragzip && time src/tools/pragzip -P 0 -d -c random.bin.gz | wc -c
+         *    read in total 2.41669e+09 B out of 2148139037 B, i.e., read the file 1.12502 times
+         *    Decompressed in total 2147483648 B in 1.31924 s -> 1627.82 MB/s
+         * @endverbatim
          */
-        std::optional<std::pair<size_t, size_t> > uncompressedOffsetRange;
-        size_t dynamicHuffmanOffset{ std::numeric_limits<size_t>::max() };
-        for ( std::pair<size_t, size_t> offset = { blockOffset, blockOffset };
-              ( offset.first < untilOffset ) && !cancelThreads; ) {
-            try {
-                /* For decoding, it does not matter whether we seek to offset.first or offset.second but it DOES
-                 * matter a lot for interpreting and correcting the encodedSizeInBits in GzipBlockFetcer::get! */
-                bitReader.seek( offset.second );
-                auto result = decodeBlockWithPragzip( &bitReader, untilOffset, initialWindow );
-                result.encodedOffsetInBits = offset.first;
-                result.maxEncodedOffsetInBits = offset.second;
-                /** @todo Avoid out of memory issues for very large compression ratios by using a simple runtime
-                 *        length encoding or by only undoing the Huffman coding in parallel and the LZ77 serially,
-                 *        or by stopping decoding at a threshold and fall back to serial decoding in that case? */
-                return result;
-            } catch ( const std::exception& exception ) {
-                /* Ignore errors and try next block candidate. This is very likely to happen if @ref blockOffset
-                 * is only an estimated offset! If it happens because decodeBlockWithPragzip has a bug, then it
-                 * might indirectly trigger an exception when the next required block offset cannot be found. */
-                if ( !uncompressedOffsetRange && ( dynamicHuffmanOffset >= untilOffset ) ) {
-                    bitReader.seek( offset.second + 1 );
-                    uncompressedOffsetRange = blockfinder::seekToNonFinalUncompressedDeflateBlock(
-                        bitReader, untilOffset, &cancelThreads );
 
-                    bitReader.seek( offset.second + 1 );
-                    /* Note that it should not matter whether we limit the search uncompressedOffsetRange.first or
-                     * uncompressedOffsetRange.second because after both offsets there should be at least 3 0-bits,
-                     * which should make a positive match for a dynamic huffman block impossible. */
-                    const auto checkUntilOffset = uncompressedOffsetRange
-                                                  && ( uncompressedOffsetRange->second < untilOffset )
-                                                  ? uncompressedOffsetRange->second
-                                                  : untilOffset;
-                    dynamicHuffmanOffset = blockfinder::seekToNonFinalDynamicDeflateBlock<14>(
-                        bitReader, checkUntilOffset, &cancelThreads );
+        const auto findNextDynamic =
+            [&] ( size_t beginOffset, size_t endOffset ) {
+                if ( beginOffset >= endOffset ) {
+                    return std::numeric_limits<size_t>::max();
+                }
+                bitReader.seek( beginOffset );
+                return blockfinder::seekToNonFinalDynamicDeflateBlock<16>( bitReader, endOffset );
+            };
+
+        const auto findNextUncompressed =
+            [&] ( size_t beginOffset, size_t endOffset ) {
+                if ( beginOffset >= endOffset ) {
+                    return std::make_pair( std::numeric_limits<size_t>::max(), std::numeric_limits<size_t>::max() );
+                }
+                bitReader.seek( beginOffset );
+                return blockfinder::seekToNonFinalUncompressedDeflateBlock( bitReader, endOffset );
+            };
+
+        /**
+         * 1. Repeat for each chunk:
+         *    1. Initialize both offsets with possible matches inside the current chunk.
+         *    2. Repeat until both offsets are invalid because no further matches were found in the chunk:
+         *       1. Try decoding the earlier offset.
+         *       2. Update the used offset by searching from last position + 1 until the chunk end.
+         */
+        static constexpr size_t CHUNK_SIZE = 8ULL * 1024ULL * BYTE_SIZE;
+        for ( auto chunkBegin = blockOffset; chunkBegin < untilOffset; chunkBegin += CHUNK_SIZE ) {
+            if ( cancelThreads ) {
+                break;
+            }
+
+            const auto chunkEnd = std::min( chunkBegin + CHUNK_SIZE, untilOffset );
+
+            auto uncompressedOffsetRange = findNextUncompressed( chunkBegin, chunkEnd );
+            auto dynamicHuffmanOffset = findNextDynamic( chunkBegin, chunkEnd );
+
+            while ( ( uncompressedOffsetRange.first < chunkEnd ) || ( dynamicHuffmanOffset < chunkEnd ) ) {
+                if ( cancelThreads ) {
+                    break;
                 }
 
-                if ( uncompressedOffsetRange
-                     && ( uncompressedOffsetRange->first < dynamicHuffmanOffset )
-                     && ( uncompressedOffsetRange->first < untilOffset ) ) {
-                    offset = *uncompressedOffsetRange;
-                    uncompressedOffsetRange = std::nullopt;
-                    continue;
+                std::pair<size_t, size_t> offsetToTest;
+                if ( dynamicHuffmanOffset < uncompressedOffsetRange.first ) {
+                    offsetToTest = { dynamicHuffmanOffset, dynamicHuffmanOffset };
+                    dynamicHuffmanOffset = findNextDynamic( dynamicHuffmanOffset + 1, chunkEnd );
+                } else {
+                    offsetToTest = uncompressedOffsetRange;
+                    uncompressedOffsetRange = findNextUncompressed( uncompressedOffsetRange.second + 1, chunkEnd );
                 }
 
-                offset = { dynamicHuffmanOffset, dynamicHuffmanOffset };
-                dynamicHuffmanOffset = std::numeric_limits<size_t>::max();
+                if ( auto result = tryToDecode( offsetToTest ); result ) {
+                    return *std::move( result );
+                }
             }
         }
 
@@ -545,7 +605,7 @@ private:
                 if ( error != Error::NONE ) {
                     std::stringstream message;
                     message << "Failed to read gzip header at offset " << formatBits( headerOffset )
-                               << " because of error: " << toString( error );
+                            << " because of error: " << toString( error );
                     throw std::domain_error( std::move( message ).str() );
                 }
 

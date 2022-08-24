@@ -1,3 +1,5 @@
+<div align="center">
+
 # indexed_bzip2
 
 [![PyPI version](https://badge.fury.io/py/indexed-bzip2.svg)](https://badge.fury.io/py/indexed-bzip2)
@@ -10,6 +12,7 @@
 [![codecov](https://codecov.io/gh/mxmlnkn/indexed_bzip2/branch/master/graph/badge.svg?token=94ZD4UTZQW)](https://codecov.io/gh/mxmlnkn/indexed_bzip2)
 ![C++17](https://img.shields.io/badge/C++-17-blue.svg?style=flat-square)
 
+</div>
 
 This module provides an IndexedBzip2File class, which can be used to seek inside bzip2 files without having to decompress them first.
 Alternatively, you can use this simply as a **parallelized** bzip2 decoder as a replacement for Python's builtin `bz2` module in order to fully utilize all your cores.

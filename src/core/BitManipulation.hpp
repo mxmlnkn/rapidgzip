@@ -60,13 +60,13 @@ nLowestBitsSet( uint8_t nBitsSet )
 {
     static_assert( std::is_unsigned_v<T>, "Type must be unsigned!" );
     if ( nBitsSet == 0 ) {
-        return T(0);
+        return T( 0 );
     }
     if ( nBitsSet >= std::numeric_limits<T>::digits ) {
-        return static_cast<T>( ~T(0) );
+        return static_cast<T>( ~T( 0 ) );
     }
     const auto nZeroBits = std::max( 0, std::numeric_limits<T>::digits - nBitsSet );
-    return static_cast<T>( static_cast<T>( ~T(0) ) >> nZeroBits );
+    return static_cast<T>( static_cast<T>( ~T( 0 ) ) >> nZeroBits );
 }
 
 
@@ -76,12 +76,12 @@ nLowestBitsSet()
 {
     static_assert( std::is_unsigned_v<T>, "Type must be unsigned!" );
     if constexpr ( nBitsSet == 0 ) {
-        return T(0);
+        return T( 0 );
     } else if constexpr ( nBitsSet >= std::numeric_limits<T>::digits ) {
-        return static_cast<T>( ~T(0) );
+        return static_cast<T>( ~T( 0 ) );
     } else {
         const auto nZeroBits = std::max( 0, std::numeric_limits<T>::digits - nBitsSet );
-        return static_cast<T>( static_cast<T>( ~T(0) ) >> nZeroBits );
+        return static_cast<T>( static_cast<T>( ~T( 0 ) ) >> nZeroBits );
     }
 }
 
@@ -92,13 +92,13 @@ nHighestBitsSet( uint8_t nBitsSet )
 {
     static_assert( std::is_unsigned_v<T>, "Type must be unsigned!" );
     if ( nBitsSet == 0 ) {
-        return T(0);
+        return T( 0 );
     }
     if ( nBitsSet >= std::numeric_limits<T>::digits ) {
-        return static_cast<T>( ~T(0) );
+        return static_cast<T>( ~T( 0 ) );
     }
     const auto nZeroBits = std::max( 0, std::numeric_limits<T>::digits - nBitsSet );
-    return static_cast<T>( static_cast<T>( ~T(0) ) << nZeroBits );
+    return static_cast<T>( static_cast<T>( ~T( 0 ) ) << nZeroBits );
 }
 
 
@@ -108,12 +108,12 @@ nHighestBitsSet()
 {
     static_assert( std::is_unsigned_v<T>, "Type must be unsigned!" );
     if constexpr ( nBitsSet == 0 ) {
-        return T(0);
+        return T( 0 );
     } else if constexpr ( nBitsSet >= std::numeric_limits<T>::digits ) {
-        return static_cast<T>( ~T(0) );
+        return static_cast<T>( ~T( 0 ) );
     } else {
         const auto nZeroBits = std::max( 0, std::numeric_limits<T>::digits - nBitsSet );
-        return static_cast<T>( static_cast<T>( ~T(0) ) << nZeroBits );
+        return static_cast<T>( static_cast<T>( ~T( 0 ) ) << nZeroBits );
     }
 }
 
@@ -209,5 +209,5 @@ createReversedBitsLUT()
 }
 
 
-alignas(8) static constexpr std::array<uint16_t, std::numeric_limits<uint16_t>::max() >
+alignas( 8 ) static constexpr std::array<uint16_t, std::numeric_limits<uint16_t>::max() >
 reversedBitsLUT16 = createReversedBitsLUT<uint16_t>();

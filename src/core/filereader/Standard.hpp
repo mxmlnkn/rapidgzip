@@ -152,18 +152,18 @@ public:
              * instead of manually transforming the offset and doing some preemptive returns, so maybe it was that. */
             std::stringstream message;
             message
-            << "[StandardFileReader] Read call failed (" << nBytesRead << " B read)!\n"
-            << "  Buffer: " << (void*)buffer << "\n"
-            << "  nMaxBytesToRead: " << nMaxBytesToRead << " B\n"
-            << "  File pointer: " << (void*)m_file.get() << "\n"
-            << "  File size: " << m_fileSizeBytes << " B\n"
-            << "  EOF: " << std::feof( m_file.get() ) << "\n"
-            << "  ferror: " << std::ferror( m_file.get() ) << "\n"
-            << "  fileno: " << m_fileDescriptor << "\n"
-            << "  file path: " << m_filePath << "\n"
-            << "  m_currentPosition: " << m_currentPosition << "\n"
-            << "  ftell: " << std::ftell( m_file.get() ) << "\n"
-            << "\n";
+                << "[StandardFileReader] Read call failed (" << nBytesRead << " B read)!\n"
+                << "  Buffer: " << (void*)buffer << "\n"
+                << "  nMaxBytesToRead: " << nMaxBytesToRead << " B\n"
+                << "  File pointer: " << (void*)m_file.get() << "\n"
+                << "  File size: " << m_fileSizeBytes << " B\n"
+                << "  EOF: " << std::feof( m_file.get() ) << "\n"
+                << "  ferror: " << std::ferror( m_file.get() ) << "\n"
+                << "  fileno: " << m_fileDescriptor << "\n"
+                << "  file path: " << m_filePath << "\n"
+                << "  m_currentPosition: " << m_currentPosition << "\n"
+                << "  ftell: " << std::ftell( m_file.get() ) << "\n"
+                << "\n";
             throw std::domain_error( std::move( message ).str() );
         #endif
         }

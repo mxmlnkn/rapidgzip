@@ -1,0 +1,53 @@
+name: "CodeQL"
+
+on:
+  push:
+    branches: [ "master", "code-scanning" ]
+  pull_request:
+    # The branches below must be a subset of the branches above
+    branches: [ "master", "code-scanning" ]
+    paths:
+    - "**/*pp"
+  schedule:
+    # Cron: minute (0-59), hour (0-23), day of month (1-31), month (1-12), day of the week (Sunday to Saturday, 0-6)
+    # Run once per month
+    - cron: '32 9 13 * *'
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'cpp' ]
+        # https://aka.ms/codeql-docs/language-support
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v2
+      with:
+        languages: ${{ matrix.language }}
+        # If you wish to specify custom queries, you can do so here or in a config file.
+        # By default, queries listed here will override any specified in a config file.
+        # Prefix the list here with "+" to use these queries and those in the config file.
+
+        # Details on CodeQL's query packs refer to : https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
+        queries: security-extended,security-and-quality
+
+    - name: Build Project
+      run: |
+        cmake -DUSE_SYSTEM_ZLIB=ON .
+        cmake --build .
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v2

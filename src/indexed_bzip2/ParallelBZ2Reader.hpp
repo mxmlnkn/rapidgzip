@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 
@@ -38,6 +39,7 @@ public:
     using BlockFetcher = ::BZ2BlockFetcher<FetchingStrategy::FetchNextSmart>;
     using BlockFinder = typename BlockFetcher::BlockFinder;
     using BitReader = bzip2::BitReader;
+    using WriteFunctor = std::function<void ( const void*, uint64_t )>;
 
 public:
     /* Constructors */
@@ -50,14 +52,15 @@ public:
             parallelization == 0
             ? std::max<size_t>( 1U, std::thread::hardware_concurrency() )
             : parallelization ),
-        m_startBlockFinder( [&] ()
+        m_startBlockFinder(
+            [&] ()
             {
                 return std::make_shared<BlockFinder>(
                     std::make_unique<ParallelBitStringFinder<bzip2::MAGIC_BITS_SIZE> >(
                         m_bitReader.cloneSharedFileReader(),
                         bzip2::MAGIC_BITS_BLOCK,
                         m_finderParallelization
-                    ) );
+                ) );
             } )
     {
         if ( !m_bitReader.seekable() ) {
@@ -164,6 +167,24 @@ public:
           char* const  outputBuffer = nullptr,
           const size_t nBytesToRead = std::numeric_limits<size_t>::max() ) override
     {
+        const auto writeFunctor =
+            [nBytesDecoded = uint64_t( 0 ), outputFileDescriptor, outputBuffer]
+            ( const void* const buffer,
+              uint64_t    const size ) mutable
+            {
+                auto* const currentBufferPosition = outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded;
+                writeAll( outputFileDescriptor, currentBufferPosition, buffer, size );
+                nBytesDecoded += size;
+            };
+
+        return read( writeFunctor, nBytesToRead );
+    }
+
+
+    size_t
+    read( const WriteFunctor& writeFunctor,
+          const size_t        nBytesToRead = std::numeric_limits<size_t>::max() )
+    {
         if ( closed() ) {
             throw std::invalid_argument( "You may not call read on closed ParallelBZ2Reader!" );
         }
@@ -248,18 +269,8 @@ public:
 
             const auto nBytesToDecode = std::min( blockData->data.size() - offsetInBlock,
                                                   nBytesToRead - nBytesDecoded );
-            const auto nBytesWritten = writeResult(
-                outputFileDescriptor,
-                outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded,
-                reinterpret_cast<const char*>( blockData->data.data() + offsetInBlock ),
-                nBytesToDecode
-            );
-
-            if ( nBytesWritten != nBytesToDecode ) {
-                std::stringstream msg;
-                msg << "Less (" << nBytesWritten << ") than the requested number of bytes (" << nBytesToDecode
-                    << ") were written to the output!";
-                throw std::logic_error( std::move( msg ).str() );
+            if ( writeFunctor ) {
+                writeFunctor( blockData->data.data() + offsetInBlock, nBytesToDecode );
             }
 
             nBytesDecoded += nBytesToDecode;
@@ -487,38 +498,6 @@ private:
          * or else BlockMap will not work correctly because the implied size of that last block is 0! */
 
         blockFinder().setBlockOffsets( std::move( encodedBlockOffsets ) );
-    }
-
-
-    size_t
-    writeResult( int         const outputFileDescriptor,
-                 char*       const outputBuffer,
-                 char const* const dataToWrite,
-                 size_t      const dataToWriteSize )
-    {
-        size_t nBytesFlushed = dataToWriteSize; // default then there is neither output buffer nor file device given
-
-        if ( outputFileDescriptor >= 0 ) {
-            /* Avoid running into errors because Linux syscall write only writes up to 0x7ffff000 (2'147'479'552) B */
-            constexpr size_t CHUNK_SIZE = 128ULL * 1024ULL * 1024ULL;
-            for ( nBytesFlushed = 0; nBytesFlushed < dataToWriteSize; )
-            {
-                const auto nBytesWritten = ::write( outputFileDescriptor,
-                                                    dataToWrite + nBytesFlushed,
-                                                    std::min( CHUNK_SIZE, dataToWriteSize - nBytesFlushed ) );
-
-                if ( nBytesWritten <= 0 ) {
-                    break;
-                }
-                nBytesFlushed += static_cast<size_t>( nBytesWritten );
-            }
-        }
-
-        if ( outputBuffer != nullptr ) {
-            std::memcpy( outputBuffer, dataToWrite, nBytesFlushed );
-        }
-
-        return nBytesFlushed;
     }
 
 private:

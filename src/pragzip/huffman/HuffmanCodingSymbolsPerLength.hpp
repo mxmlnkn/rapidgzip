@@ -43,10 +43,10 @@ protected:
 
         /* Fill the code-length-sorted alphabet vector. */
         auto sizes = m_offsets;
-        for ( Symbol symbol = 0; symbol < codeLengths.size(); ++symbol ) {
+        for ( size_t symbol = 0; symbol < codeLengths.size(); ++symbol ) {
             if ( codeLengths[symbol] != 0 ) {
                 const auto k = codeLengths[symbol] - this->m_minCodeLength;
-                m_symbolsPerLength[sizes[k]++] = symbol;
+                m_symbolsPerLength[sizes[k]++] = static_cast<Symbol>( symbol );
             }
         }
     }
@@ -103,7 +103,7 @@ public:
             code |= bitReader.read<1>();
         }
 
-        return {};
+        return std::nullopt;
     }
 
 protected:

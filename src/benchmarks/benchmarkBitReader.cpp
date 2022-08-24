@@ -67,6 +67,7 @@ template<bool     MOST_SIGNIFICANT_BITS_FIRST,
 benchmarkBitReaderTemplatedRead( const std::vector<char>& data,
                                  const uint8_t            nBits )
 {
+    // *INDENT-OFF*
     switch ( nBits )
     {
     case  1: return benchmarkBitReaderTemplatedReadBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer,  1>( data );
@@ -142,6 +143,7 @@ benchmarkBitReaderTemplatedRead( const std::vector<char>& data,
         default: break;
         }
     }
+    // *INDENT-ON*
 
     throw std::logic_error( "Template redirction for specified bits not implemented!" );
 }
@@ -178,6 +180,7 @@ template<bool     MOST_SIGNIFICANT_BITS_FIRST,
 benchmarkBitReaderTemplatedPeek( const std::vector<char>& data,
                                  const uint8_t            nBits )
 {
+    // *INDENT-OFF*
     switch ( nBits )
     {
     case  1: return benchmarkBitReaderTemplatedPeekBits<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer,  1>( data );
@@ -253,6 +256,7 @@ benchmarkBitReaderTemplatedPeek( const std::vector<char>& data,
         default: break;
         }
     }
+    // *INDENT-ON*
 
     throw std::logic_error( "Template redirction for specified bits not implemented!" );
 }
@@ -400,36 +404,36 @@ benchmarkBitReaders( const std::vector<char>& data,
     const auto measureTimes =
         [&] ( const BenchmarkType benchmarkType,
               const auto&         toMeasure )
-    {
-        std::vector<double> times( 6 );
-        for ( auto& time : times ) {
-            const auto [measuredTime, calculatedChecksum] = toMeasure();
-            time = measuredTime;
+        {
+            std::vector<double> times( 6 );
+            for ( auto& time : times ) {
+                const auto [measuredTime, calculatedChecksum] = toMeasure();
+                time = measuredTime;
 
-            if ( !checksum ) {
-                checksum = calculatedChecksum;
-            } else if ( *checksum != calculatedChecksum ) {
-                throw std::runtime_error( "Indeterministic or wrong result observed!" );
+                if ( !checksum ) {
+                    checksum = calculatedChecksum;
+                } else if ( *checksum != calculatedChecksum ) {
+                    throw std::runtime_error( "Indeterministic or wrong result observed!" );
+                }
             }
-        }
 
-        /* Remove two (arbitrary) outliers. */
-        times.erase( std::min_element( times.begin(), times.end() ) );
-        times.erase( std::max_element( times.begin(), times.end() ) );
+            /* Remove two (arbitrary) outliers. */
+            times.erase( std::min_element( times.begin(), times.end() ) );
+            times.erase( std::max_element( times.begin(), times.end() ) );
 
-        results.emplace(
-            std::make_tuple(
-                benchmarkType,
-                MOST_SIGNIFICANT_BITS_FIRST,
-                static_cast<uint8_t>( sizeof( BitBuffer ) * CHAR_BIT ),
-                nBits
-            ),
-            Statistics<double>( times )
-        );
+            results.emplace(
+                std::make_tuple(
+                    benchmarkType,
+                    MOST_SIGNIFICANT_BITS_FIRST,
+                    static_cast<uint8_t>( sizeof( BitBuffer ) * CHAR_BIT ),
+                    nBits
+                ),
+                Statistics<double>( times )
+            );
 
-        std::cout << "[" << std::setw( LABEL_WIDTH ) << toString( benchmarkType ) << "] ";
-        std::cout << "Decoded with " << formatBandwidth( times ) << "\n";
-    };
+            std::cout << "[" << std::setw( LABEL_WIDTH ) << toString( benchmarkType ) << "] ";
+            std::cout << "Decoded with " << formatBandwidth( times ) << "\n";
+        };
 
     measureTimes( BenchmarkType::SIMPLE_LOOP, [&] () {
         return benchmarkBitReading<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>( data, nBits );

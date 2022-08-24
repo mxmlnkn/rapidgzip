@@ -255,6 +255,9 @@ pragzipCLI( int argc, char** argv )
                            "This tool will not delete anything automatically!" )
         ( "analyze"      , "Print output about the internal file format structure like the block types." )
 
+        ( "chunk-size"   , "The chunk size decoded by the parallel workers in KiB.",
+          cxxopts::value<unsigned int>()->default_value( "0" ) )
+
         ( "P,decoder-parallelism",
           "Use the parallel decoder. "
           "If an optional integer >= 1 is given, then that is the number of decoder threads to use. "
@@ -267,6 +270,11 @@ pragzipCLI( int argc, char** argv )
         ( "q,quiet"  , "Suppress noncritical error messages." )
         ( "v,verbose", "Be verbose. A second -v (or shorthand -vv) gives even more verbosity." )
         ( "V,version", "Display software version." );
+
+    /* These options are offered because just piping to other tools can already bottleneck everything! */
+    options.add_options( "Processing" )
+        ( "count"      , "Prints the decompressed size." )
+        ( "count-lines", "Prints the number of newline characters in the decompressed data." );
 
     options.parse_positional( { "input" } );
 
@@ -302,7 +310,7 @@ pragzipCLI( int argc, char** argv )
 
     if ( parsedArgs.count( "version" ) > 0 ) {
         std::cout << "pragzip, CLI to the parallelized, indexed, and seekable gzip decoding library pragzip "
-                  << "version 0.2.2.\n";
+                  << "version 0.3.0.\n";
         return 0;
     }
 
@@ -349,19 +357,21 @@ pragzipCLI( int argc, char** argv )
         }
     }
 
-    if ( ( outputFilePath != "/dev/null" ) && fileExists( outputFilePath ) && !force ) {
+    /* Parse other arguments. */
+
+    const auto countBytes = ( parsedArgs.count( "count" ) > 0 );
+    const auto countLines = ( parsedArgs.count( "count-lines" ) > 0 );
+    const auto decompress = ( parsedArgs.count( "decompress" ) > 0 ) || ( !countBytes && !countLines );
+
+    if ( decompress && ( outputFilePath != "/dev/null" ) && fileExists( outputFilePath ) && !force ) {
         std::cerr << "Output file '" << outputFilePath << "' already exists! Use --force to overwrite.\n";
         return 1;
     }
 
-    /* Parse other arguments. */
-
-    const auto decompress = ( parsedArgs.count( "decompress" ) > 0 ) || force;
-
     /* Actually do things as requested. */
 
-    if ( decompress ) {
-        if ( verbose ) {
+    if ( decompress || countBytes || countLines ) {
+        if ( decompress && verbose ) {
             std::cerr << "Decompress " << ( inputFilePath.empty() ? "<stdin>" : inputFilePath.c_str() )
                       << " -> " << ( outputFilePath.empty() ? "<stdout>" : outputFilePath.c_str() ) << "\n";
         }
@@ -371,42 +381,79 @@ pragzipCLI( int argc, char** argv )
             return 1;
         }
 
-    #ifdef _MSC_VER
-        auto outputFileDescriptor = _fileno( stdout );
-        if ( outputFilePath.empty() ) {
-            _setmode( outputFileDescriptor, _O_BINARY );
-        }
-    #else
-        auto outputFileDescriptor = ::fileno( stdout );
-    #endif
-
+        /* Open either stdout, the given file, or nothing as necessary. */
+        int outputFileDescriptor{ -1 };
         unique_file_ptr outputFile;
-        if ( !outputFilePath.empty() ) {
-            outputFile = make_unique_file_ptr( outputFilePath.c_str(), "wb" );
-            if ( !outputFile ) {
-                std::cerr << "Could not open output file: " << outputFilePath << " for writing!\n";
-                return 1;
+        bool writingToStdout{ false };
+        if ( decompress ) {
+            if ( outputFilePath.empty() ) {
+                if ( !stdoutIsDevNull() ) {
+                    writingToStdout = true;
+
+                #ifdef _MSC_VER
+                    outputFileDescriptor = _fileno( stdout );
+                    if ( outputFilePath.empty() ) {
+                        _setmode( outputFileDescriptor, _O_BINARY );
+                    }
+                #else
+                    outputFileDescriptor = ::fileno( stdout );
+                #endif
+                }
+            } else {
+                if ( outputFilePath == "/dev/null" ) {
+                    outputFileDescriptor = -1;
+                } else {
+                    outputFile = make_unique_file_ptr( outputFilePath.c_str(), "wb" );
+                    if ( !outputFile ) {
+                        std::cerr << "Could not open output file: " << outputFilePath << " for writing!\n";
+                        return 1;
+                    }
+                    outputFileDescriptor = ::fileno( outputFile.get() );
+                }
             }
-            outputFileDescriptor = ::fileno( outputFile.get() );
         }
+
+        uint64_t newlineCount{ 0 };
+        const auto writeAndCount =
+            [outputFileDescriptor, countLines, &newlineCount]
+            ( const void* const buffer,
+              uint64_t    const size )
+            {
+                if ( outputFileDescriptor >= 0 ) {
+                    writeAll( outputFileDescriptor, buffer, size );
+                }
+                if ( countLines ) {
+                    newlineCount += countNewlines( { reinterpret_cast<const char*>( buffer ),
+                                                     static_cast<size_t>( size ) } );
+                }
+            };
 
         const auto t0 = now();
 
         size_t totalBytesRead{ 0 };
         if ( decoderParallelism == 1 ) {
             pragzip::GzipReader</* CRC32 */ false> gzipReader{ std::move( inputFile ) };
-            totalBytesRead = gzipReader.read( outputFileDescriptor );
+            totalBytesRead = gzipReader.read( writeAndCount );
         } else {
-            ParallelGzipReader reader( std::move( inputFile ), decoderParallelism );
-            totalBytesRead = reader.read( outputFileDescriptor );
+            const auto chunkSize = parsedArgs["chunk-size"].as<unsigned int>();
+            const auto reader =
+                chunkSize > 0
+                ? std::make_unique<ParallelGzipReader>( std::move( inputFile ), decoderParallelism, chunkSize * 1024 )
+                : std::make_unique<ParallelGzipReader>( std::move( inputFile ), decoderParallelism );
+            totalBytesRead = reader->read( writeAndCount );
         }
 
         const auto t1 = now();
         std::cerr << "Decompressed in total " << totalBytesRead << " B in " << duration( t0, t1 ) << " s -> "
                   << static_cast<double>( totalBytesRead ) / 1e6 / duration( t0, t1 ) << " MB/s\n";
 
-
-        /** @todo need to write out block offsets here, see ibzip2 */
+        auto& out = writingToStdout ? std::cerr : std::cout;
+        if ( countBytes != countLines ) {
+            out << ( countBytes ? totalBytesRead : newlineCount );
+        } else if ( countBytes && countLines ) {
+            out << "Size: " << totalBytesRead << "\n";
+            out << "Lines: " << newlineCount << "\n";
+        }
 
         return 0;
     }

@@ -76,7 +76,7 @@ public:
                 const auto fillerBitCount = CACHED_BIT_COUNT - length;
                 const auto symbolAndLength = static_cast<Symbol>( symbol | ( static_cast<Symbol>( length ) << LENGTH_SHIFT ) );
 
-                for ( HuffmanCode fillerBits = 0; fillerBits < ( 1UL << fillerBitCount ); ++fillerBits ) {
+                for ( uint32_t fillerBits = 0; fillerBits < ( uint32_t( 1 ) << fillerBitCount ); ++fillerBits ) {
                     const auto paddedCode = static_cast<HuffmanCode>( fillerBits << length ) | reversedCode;
                     m_doubleCodeCache[paddedCode * 2] = symbolAndLength;
                     //m_doubleCodeCache[paddedCode * 2 + 1] = NONE_SYMBOL;
@@ -107,7 +107,9 @@ public:
 
                         /* Using SIMD for this loop actually worsens timings. Probably too short or because of the
                          * necessary code rearrangement for the while condition for the required canonical form. */
-                        for ( HuffmanCode fillerBits = 0; fillerBits < ( 1UL << fillerBitCount ); ++fillerBits ) {
+                        static_assert( CACHED_BIT_COUNT < sizeof( uint32_t ) * CHAR_BIT,
+                                       "We need a larger data type for correct comparison." );
+                        for ( uint32_t fillerBits = 0; fillerBits < ( 1U << fillerBitCount ); ++fillerBits ) {
                             const auto paddedCode = static_cast<HuffmanCode>( fillerBits << totalLength ) | mergedCode;
                             m_doubleCodeCache[paddedCode * 2] = symbolAndLength;
                             m_doubleCodeCache[paddedCode * 2 + 1] = symbol2;
@@ -149,11 +151,8 @@ public:
              *        represented by mergedCode. This is used to avoid reinserting the same symbol
              *        vector for all garbage bits for further Huffman codes not fitting inside CACHED_BIT_COUNT
              */
-            [&]
-            (
-                uint16_t  mergedCode,
-                uint8_t   mergedCodeLength
-            )
+            [&] ( uint16_t mergedCode,
+                  uint8_t  mergedCodeLength )
             {
                 assert( mergedCodeLength <= CACHED_BIT_COUNT );
 
@@ -181,7 +180,7 @@ public:
 
                         /* Reverse bits so that lookup is does not have to reverse. */
                         HuffmanCode reversedCode;
-                        if constexpr ( sizeof(HuffmanCode) <= sizeof(reversedBitsLUT16[0]) ) {
+                        if constexpr ( sizeof( HuffmanCode ) <= sizeof( reversedBitsLUT16[0] ) ) {
                             reversedCode = reversedBitsLUT16[code];
                         } else {
                             reversedCode = reverseBits( code );
@@ -276,6 +275,6 @@ private:
      * to store the code length sum for both symbols in only one of the symbols.
      * Using std::array<std::array<Symbol, 2>, ( 1UL << CACHED_BIT_COUNT )> instead of a one-dimensional array
      * with the same size reduces speed for base64.gz by 10%! */
-    alignas(8) std::array<Symbol, 2 * ( 1UL << CACHED_BIT_COUNT )> m_doubleCodeCache{};
+    alignas( 8 ) std::array<Symbol, 2 * ( 1UL << CACHED_BIT_COUNT )> m_doubleCodeCache{};
 };
 }  // namespace pragzip

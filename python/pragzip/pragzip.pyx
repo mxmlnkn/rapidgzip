@@ -130,7 +130,7 @@ cdef class _PragzipFile():
 
         return bytes_count
 
-    def seek(self, offset, whence):
+    def seek(self, offset, whence = io.SEEK_SET):
         if not self.gzipReader:
             raise Exception("Invalid file object!")
         return self.gzipReader.seek(offset, whence)

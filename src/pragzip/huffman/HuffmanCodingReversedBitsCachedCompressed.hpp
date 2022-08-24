@@ -58,7 +58,7 @@ public:
          * So, theoretically it shouldn't exceed the L1 cache size but who knows. */
         //const auto t0 = now();
         auto codeValues = this->m_minimumCodeValuesPerLevel;
-        for ( Symbol symbol = 0; symbol < codeLengths.size(); ++symbol ) {
+        for ( size_t symbol = 0; static_cast<size_t>( symbol ) < codeLengths.size(); ++symbol ) {
             const auto length = codeLengths[symbol];
             if ( length == 0 ) {
                 continue;
@@ -75,11 +75,13 @@ public:
             }
             reversedCode >>= ( std::numeric_limits<decltype( code )>::digits - length );
 
+            static_assert( CACHED_BIT_COUNT < sizeof( uint32_t ) * CHAR_BIT,
+                           "We need a larger data type for correct comparison." );
             const auto fillerBitCount = CACHED_BIT_COUNT - length;
-            for ( HuffmanCode fillerBits = 0; fillerBits < ( 1UL << fillerBitCount ); ++fillerBits ) {
+            for ( uint32_t fillerBits = 0; fillerBits < ( 1U << fillerBitCount ); ++fillerBits ) {
                 const auto paddedCode = static_cast<HuffmanCode>( ( fillerBits << length ) | reversedCode );
                 assert( paddedCode < m_codeCache.size() );
-                m_codeCache[paddedCode] = symbol | ( static_cast<Symbol>( length ) << LENGTH_SHIFT );
+                m_codeCache[paddedCode] = static_cast<Symbol>( symbol | ( length << LENGTH_SHIFT ) );
                 assert( ( m_codeCache[paddedCode] >> LENGTH_SHIFT ) == length );
                 assert( ( m_codeCache[paddedCode] & nLowestBitsSet<Symbol, LENGTH_SHIFT>() ) == symbol );
             }
@@ -124,6 +126,6 @@ private:
      *  - any pair < 64-bit probably has to use some bit shifts anyway so not much more work
      *  - using 8-bit length and 16-bit symbol yields non-aligned access quite frequently
      *  - the space reduction by 33% might improve L1 cache hit rates or cache line utilization. */
-    alignas(8) std::array<Symbol, ( 1UL << CACHED_BIT_COUNT )> m_codeCache{};
+    alignas( 8 ) std::array<Symbol, ( 1UL << CACHED_BIT_COUNT )> m_codeCache{};
 };
 }  // namespace pragzip

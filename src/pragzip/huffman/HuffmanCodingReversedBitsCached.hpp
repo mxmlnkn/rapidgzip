@@ -52,7 +52,7 @@ public:
          * So, theoretically it shouldn't exceed the L1 cache size but who knows. */
         //const auto t0 = now();
         auto codeValues = this->m_minimumCodeValuesPerLevel;
-        for ( Symbol symbol = 0; symbol < codeLengths.size(); ++symbol ) {
+        for ( size_t symbol = 0; symbol < codeLengths.size(); ++symbol ) {
             const auto length = codeLengths[symbol];
             if ( length == 0 ) {
                 continue;
@@ -69,12 +69,14 @@ public:
             }
             reversedCode >>= ( std::numeric_limits<decltype( code )>::digits - length );
 
+            static_assert( CACHED_BIT_COUNT < sizeof( uint32_t ) * CHAR_BIT,
+                           "We need a larger data type for correct comparison." );
             const auto fillerBitCount = CACHED_BIT_COUNT - length;
-            for ( HuffmanCode fillerBits = 0; fillerBits < ( 1UL << fillerBitCount ); ++fillerBits ) {
+            for ( uint32_t fillerBits = 0; fillerBits < ( uint32_t( 1 ) << fillerBitCount ); ++fillerBits ) {
                 const auto paddedCode = static_cast<HuffmanCode>( ( fillerBits << length ) | reversedCode );
                 assert( paddedCode < m_codeCache.size() );
                 m_codeCache[paddedCode].first = length;
-                m_codeCache[paddedCode].second = symbol;
+                m_codeCache[paddedCode].second = static_cast<Symbol>( symbol );
             }
         }
         //const auto t1 = now();
@@ -109,6 +111,6 @@ public:
     }
 
 private:
-    alignas(8) std::array<std::pair</* length */ uint8_t, Symbol>, ( 1UL << CACHED_BIT_COUNT )> m_codeCache{};
+    alignas( 8 ) std::array<std::pair</* length */ uint8_t, Symbol>, ( 1UL << CACHED_BIT_COUNT )> m_codeCache{};
 };
 }  // namespace pragzip

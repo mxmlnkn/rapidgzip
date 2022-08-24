@@ -10,6 +10,7 @@
 #include <Cache.hpp>
 #include <common.hpp>
 #include <Prefetcher.hpp>
+#include <TestHelpers.hpp>
 
 
 using namespace FetchingStrategy;
@@ -71,6 +72,7 @@ using namespace FetchingStrategy;
  * One access stream is much more prevalent than the other, which might make it hard to detect the smaller one.
  */
 constexpr std::array<int, 1586> REAL_ACCESS_PATTERN_1 = {
+    // *INDENT-OFF*
       1,   6,  60,  61,   6,  61,  62,   6,  62,  63,  64,   6,  64,  65,   6,  65,  66,   6,  66,  67,   6,  67,
      68,  69,   6,   7,   8,   6,  69,  70,   6,  70,  71,   6,  71,  72,  73,   6,  73,  74,   6,  74,  75,   6,
       7,  75,  76,   7,  76,  77,   7,  77,  78,   7,  78,  79,  80, 107,   8,   9,  83,  80,  81,  83,  81,  82,
@@ -144,6 +146,7 @@ constexpr std::array<int, 1586> REAL_ACCESS_PATTERN_1 = {
     613, 606, 607, 608, 613, 608, 609, 613, 609, 610, 613, 610, 611, 613, 611, 612, 613, 614, 600, 601, 602, 614,
     615, 614, 615, 616, 614, 616, 617, 618, 614, 618, 619, 614, 619, 620, 614, 620, 621, 614, 621, 622, 614, 622,
     623, 624
+    // *INDENT-ON*
 };
 
 
@@ -641,7 +644,7 @@ private:
     {
         auto match = std::find( m_prefetching.begin(), m_prefetching.end(), dataBlockIndex );
         if ( match == m_prefetching.end() ) {
-            return {};
+            return std::nullopt;
         }
 
         ++m_statistics.prefetchDirectHits;
@@ -975,7 +978,7 @@ benchmarkFetchNextSmart()
     }
 }
 
-using CheckStatistics = std::function<void( BlockFetcherStatistics, /* fetching strategy */ const std::string& )>;
+using CheckStatistics = std::function<void ( BlockFetcherStatistics, /* fetching strategy */ const std::string& )>;
 
 void
 benchmarkAccessPattern( const VectorView<int>  pattern,

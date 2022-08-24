@@ -57,7 +57,7 @@ add_custom_target(run-benchmarkPigzBlockFinder
 add_dependencies(run-benchmarks run-benchmarkPigzBlockFinder)
 
 
-if(LibArchive_FOUND)
+if(TARGET LibArchive::LibArchive)
 
 add_executable(benchmarkGzip)
 target_sources(benchmarkGzip PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkGzip.cpp)
@@ -82,3 +82,7 @@ add_custom_target(run-benchmarkGzipBlockFinder
 add_dependencies(run-benchmarks run-benchmarkGzipBlockFinder)
 
 endif()
+
+add_executable(benchmarkCalculations)
+target_sources(benchmarkCalculations PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkCalculations.cpp)
+target_link_libraries(benchmarkCalculations PRIVATE libpragzip)

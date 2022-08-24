@@ -7,6 +7,7 @@
 #include <common.hpp>
 #include <BitReader.hpp>
 #include <filereader/Buffered.hpp>
+#include <TestHelpers.hpp>
 
 
 template<uint8_t bitsSet>
@@ -386,11 +387,12 @@ testLSBBitReaderPeek()
 void
 testLowestBitsSet()
 {
-    REQUIRE( nLowestBitsSet<uint16_t>( 0  ) == uint16_t( 0b0000U ) );
-    REQUIRE( nLowestBitsSet<uint16_t>( 1  ) == uint16_t( 0b0001U ) );
-    REQUIRE( nLowestBitsSet<uint16_t>( 2  ) == uint16_t( 0b0011U ) );
-    REQUIRE( nLowestBitsSet<uint16_t>( 3  ) == uint16_t( 0b0111U ) );
-    REQUIRE( nLowestBitsSet<uint16_t>( 8  ) == uint16_t( 0x00FFU ) );
+    // *INDENT-OFF*
+    REQUIRE( nLowestBitsSet<uint16_t>(  0 ) == uint16_t( 0b0000U ) );
+    REQUIRE( nLowestBitsSet<uint16_t>(  1 ) == uint16_t( 0b0001U ) );
+    REQUIRE( nLowestBitsSet<uint16_t>(  2 ) == uint16_t( 0b0011U ) );
+    REQUIRE( nLowestBitsSet<uint16_t>(  3 ) == uint16_t( 0b0111U ) );
+    REQUIRE( nLowestBitsSet<uint16_t>(  8 ) == uint16_t( 0x00FFU ) );
     REQUIRE( nLowestBitsSet<uint16_t>( 15 ) == uint16_t( 0x7FFFU ) );
     REQUIRE( nLowestBitsSet<uint16_t>( 16 ) == uint16_t( 0xFFFFU ) );
 
@@ -402,11 +404,11 @@ testLowestBitsSet()
     REQUIRE( nLowestBitsSet16<15>() == uint16_t( 0x7FFFU ) );
     REQUIRE( nLowestBitsSet16<16>() == uint16_t( 0xFFFFU ) );
 
-    REQUIRE( nLowestBitsSet<uint32_t>( 0  ) == uint32_t( 0b0000'0000U ) );
-    REQUIRE( nLowestBitsSet<uint32_t>( 1  ) == uint32_t( 0b0000'0001U ) );
-    REQUIRE( nLowestBitsSet<uint32_t>( 2  ) == uint32_t( 0b0000'0011U ) );
-    REQUIRE( nLowestBitsSet<uint32_t>( 3  ) == uint32_t( 0b0000'0111U ) );
-    REQUIRE( nLowestBitsSet<uint32_t>( 8  ) == uint32_t( 0b1111'1111U ) );
+    REQUIRE( nLowestBitsSet<uint32_t>(  0 ) == uint32_t( 0b0000'0000U ) );
+    REQUIRE( nLowestBitsSet<uint32_t>(  1 ) == uint32_t( 0b0000'0001U ) );
+    REQUIRE( nLowestBitsSet<uint32_t>(  2 ) == uint32_t( 0b0000'0011U ) );
+    REQUIRE( nLowestBitsSet<uint32_t>(  3 ) == uint32_t( 0b0000'0111U ) );
+    REQUIRE( nLowestBitsSet<uint32_t>(  8 ) == uint32_t( 0b1111'1111U ) );
     REQUIRE( nLowestBitsSet<uint32_t>( 31 ) == uint32_t( 0x7FFF'FFFFU ) );
     REQUIRE( nLowestBitsSet<uint32_t>( 32 ) == uint32_t( 0xFFFF'FFFFU ) );
 
@@ -418,11 +420,11 @@ testLowestBitsSet()
     REQUIRE( nLowestBitsSet32<31>() == uint32_t( 0x7FFF'FFFFU ) );
     REQUIRE( nLowestBitsSet32<32>() == uint32_t( 0xFFFF'FFFFU ) );
 
-    REQUIRE( nLowestBitsSet<uint64_t>( 0  ) == uint64_t( 0b0000'0000U ) );
-    REQUIRE( nLowestBitsSet<uint64_t>( 1  ) == uint64_t( 0b0000'0001U ) );
-    REQUIRE( nLowestBitsSet<uint64_t>( 2  ) == uint64_t( 0b0000'0011U ) );
-    REQUIRE( nLowestBitsSet<uint64_t>( 3  ) == uint64_t( 0b0000'0111U ) );
-    REQUIRE( nLowestBitsSet<uint64_t>( 8  ) == uint64_t( 0b1111'1111U ) );
+    REQUIRE( nLowestBitsSet<uint64_t>(  0 ) == uint64_t( 0b0000'0000U ) );
+    REQUIRE( nLowestBitsSet<uint64_t>(  1 ) == uint64_t( 0b0000'0001U ) );
+    REQUIRE( nLowestBitsSet<uint64_t>(  2 ) == uint64_t( 0b0000'0011U ) );
+    REQUIRE( nLowestBitsSet<uint64_t>(  3 ) == uint64_t( 0b0000'0111U ) );
+    REQUIRE( nLowestBitsSet<uint64_t>(  8 ) == uint64_t( 0b1111'1111U ) );
     REQUIRE( nLowestBitsSet<uint64_t>( 63 ) == uint64_t( 0x7FFF'FFFF'FFFF'FFFFULL ) );
     REQUIRE( nLowestBitsSet<uint64_t>( 64 ) == uint64_t( 0xFFFF'FFFF'FFFF'FFFFULL ) );
 
@@ -433,17 +435,19 @@ testLowestBitsSet()
     REQUIRE( nLowestBitsSet64<8 >() == uint64_t( 0b1111'1111U ) );
     REQUIRE( nLowestBitsSet64<63>() == uint64_t( 0x7FFF'FFFF'FFFF'FFFFULL ) );
     REQUIRE( nLowestBitsSet64<64>() == uint64_t( 0xFFFF'FFFF'FFFF'FFFFULL ) );
+    // *INDENT-ON*
 }
 
 
 void
 testHighestBitsSet()
 {
-    REQUIRE( nHighestBitsSet<uint16_t>( 0  ) == uint16_t( 0x0000UL ) );
-    REQUIRE( nHighestBitsSet<uint16_t>( 1  ) == uint16_t( 0x8000UL ) );
-    REQUIRE( nHighestBitsSet<uint16_t>( 2  ) == uint16_t( 0xC000UL ) );
-    REQUIRE( nHighestBitsSet<uint16_t>( 3  ) == uint16_t( 0xE000UL ) );
-    REQUIRE( nHighestBitsSet<uint16_t>( 8  ) == uint16_t( 0xFF00UL ) );
+    // *INDENT-OFF*
+    REQUIRE( nHighestBitsSet<uint16_t>(  0 ) == uint16_t( 0x0000UL ) );
+    REQUIRE( nHighestBitsSet<uint16_t>(  1 ) == uint16_t( 0x8000UL ) );
+    REQUIRE( nHighestBitsSet<uint16_t>(  2 ) == uint16_t( 0xC000UL ) );
+    REQUIRE( nHighestBitsSet<uint16_t>(  3 ) == uint16_t( 0xE000UL ) );
+    REQUIRE( nHighestBitsSet<uint16_t>(  8 ) == uint16_t( 0xFF00UL ) );
     REQUIRE( nHighestBitsSet<uint16_t>( 15 ) == uint16_t( 0xFFFEUL ) );
     REQUIRE( nHighestBitsSet<uint16_t>( 16 ) == uint16_t( 0xFFFFUL ) );
 
@@ -455,11 +459,11 @@ testHighestBitsSet()
     REQUIRE( nHighestBitsSet16<15>() == uint16_t( 0xFFFEUL ) );
     REQUIRE( nHighestBitsSet16<16>() == uint16_t( 0xFFFFUL ) );
 
-    REQUIRE( nHighestBitsSet<uint32_t>( 0  ) == uint32_t( 0x0000'0000UL ) );
-    REQUIRE( nHighestBitsSet<uint32_t>( 1  ) == uint32_t( 0x8000'0000UL ) );
-    REQUIRE( nHighestBitsSet<uint32_t>( 2  ) == uint32_t( 0xC000'0000UL ) );
-    REQUIRE( nHighestBitsSet<uint32_t>( 3  ) == uint32_t( 0xE000'0000UL ) );
-    REQUIRE( nHighestBitsSet<uint32_t>( 8  ) == uint32_t( 0xFF00'0000UL ) );
+    REQUIRE( nHighestBitsSet<uint32_t>(  0 ) == uint32_t( 0x0000'0000UL ) );
+    REQUIRE( nHighestBitsSet<uint32_t>(  1 ) == uint32_t( 0x8000'0000UL ) );
+    REQUIRE( nHighestBitsSet<uint32_t>(  2 ) == uint32_t( 0xC000'0000UL ) );
+    REQUIRE( nHighestBitsSet<uint32_t>(  3 ) == uint32_t( 0xE000'0000UL ) );
+    REQUIRE( nHighestBitsSet<uint32_t>(  8 ) == uint32_t( 0xFF00'0000UL ) );
     REQUIRE( nHighestBitsSet<uint32_t>( 31 ) == uint32_t( 0xFFFF'FFFEUL ) );
     REQUIRE( nHighestBitsSet<uint32_t>( 32 ) == uint32_t( 0xFFFF'FFFFUL ) );
 
@@ -471,11 +475,11 @@ testHighestBitsSet()
     REQUIRE( nHighestBitsSet32<31>() == uint32_t( 0xFFFF'FFFEUL ) );
     REQUIRE( nHighestBitsSet32<32>() == uint32_t( 0xFFFF'FFFFUL ) );
 
-    REQUIRE( nHighestBitsSet<uint64_t>( 0  ) == uint64_t( 0x0000'0000'0000'0000ULL ) );
-    REQUIRE( nHighestBitsSet<uint64_t>( 1  ) == uint64_t( 0x8000'0000'0000'0000ULL ) );
-    REQUIRE( nHighestBitsSet<uint64_t>( 2  ) == uint64_t( 0xC000'0000'0000'0000ULL ) );
-    REQUIRE( nHighestBitsSet<uint64_t>( 3  ) == uint64_t( 0xE000'0000'0000'0000ULL ) );
-    REQUIRE( nHighestBitsSet<uint64_t>( 8  ) == uint64_t( 0xFF00'0000'0000'0000ULL ) );
+    REQUIRE( nHighestBitsSet<uint64_t>(  0 ) == uint64_t( 0x0000'0000'0000'0000ULL ) );
+    REQUIRE( nHighestBitsSet<uint64_t>(  1 ) == uint64_t( 0x8000'0000'0000'0000ULL ) );
+    REQUIRE( nHighestBitsSet<uint64_t>(  2 ) == uint64_t( 0xC000'0000'0000'0000ULL ) );
+    REQUIRE( nHighestBitsSet<uint64_t>(  3 ) == uint64_t( 0xE000'0000'0000'0000ULL ) );
+    REQUIRE( nHighestBitsSet<uint64_t>(  8 ) == uint64_t( 0xFF00'0000'0000'0000ULL ) );
     REQUIRE( nHighestBitsSet<uint64_t>( 63 ) == uint64_t( 0xFFFF'FFFF'FFFF'FFFEULL ) );
     REQUIRE( nHighestBitsSet<uint64_t>( 64 ) == uint64_t( 0xFFFF'FFFF'FFFF'FFFFULL ) );
 
@@ -486,6 +490,7 @@ testHighestBitsSet()
     REQUIRE( nHighestBitsSet64<8 >() == uint64_t( 0xFF00'0000'0000'0000ULL ) );
     REQUIRE( nHighestBitsSet64<63>() == uint64_t( 0xFFFF'FFFF'FFFF'FFFEULL ) );
     REQUIRE( nHighestBitsSet64<64>() == uint64_t( 0xFFFF'FFFF'FFFF'FFFFULL ) );
+    // *INDENT-ON*
 }
 
 

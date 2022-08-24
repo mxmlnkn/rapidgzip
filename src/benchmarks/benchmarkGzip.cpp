@@ -11,8 +11,6 @@
 #include <archive.h>
 #include <zlib.h>
 
-#define BENCHMARK_CHUNKING
-
 #include <BitReader.hpp>
 #include <common.hpp>
 #include <filereader/Memory.hpp>
@@ -20,6 +18,7 @@
 #include <FileUtils.hpp>
 #include <pragzip.hpp>
 #include <Statistics.hpp>
+#include <TestHelpers.hpp>
 
 
 class GzipWrapper
@@ -143,49 +142,6 @@ private:
     std::vector<unsigned char> m_outputBuffer = std::vector<unsigned char>( 64UL * 1024UL * 1024UL );
 };
 
-
-template<typename Functor>
-[[nodiscard]] std::pair<size_t, std::vector<double> >
-benchmarkFunction( Functor functor )
-{
-    decltype(functor()) result{};
-    std::vector<double> durations;
-    for ( size_t i = 0; i < 3; ++i ) {
-        const auto t0 = now();
-        result = functor();
-        const auto t1 = now();
-        durations.push_back( duration( t0, t1 ) );
-    }
-
-    return { result, durations };
-}
-
-
-template<typename Functor,
-         typename SetupFunctor>
-[[nodiscard]] std::pair<size_t, std::vector<double> >
-benchmarkFunction( SetupFunctor setup,
-                   Functor      functor )
-{
-    decltype(setup()) setupResult;
-    try {
-        setupResult = setup();
-    } catch ( const std::exception& e ) {
-        std::cerr << "Failed to run setup with exception: " << e.what() << "\n";
-        return {};
-    }
-
-    decltype(functor( setupResult )) result{};
-    std::vector<double> durations;
-    for ( size_t i = 0; i < 3; ++i ) {
-        const auto t0 = now();
-        result = functor( setupResult );
-        const auto t1 = now();
-        durations.push_back( duration( t0, t1 ) );
-    }
-
-    return { result, durations };
-}
 
 
 [[nodiscard]] std::vector<uint8_t>
@@ -320,7 +276,8 @@ decompressWithPragzipParallelChunked( const std::string& fileName,
 {
     size_t totalDecodedBytes = 0;
 
-    ParallelGzipReader gzipReader( std::make_unique<StandardFileReader>( fileName ), 0, nBlocksToSkip );
+    const auto spacing = ( nBlocksToSkip + 1 ) * 32 * 1024;
+    ParallelGzipReader gzipReader( std::make_unique<StandardFileReader>( fileName ), 0, spacing );
     std::vector<uint8_t> outputBuffer( 64UL * 1024UL * 1024UL );
     while ( true ) {
         const auto nBytesRead = gzipReader.read( -1,
@@ -394,14 +351,16 @@ printBandwidths( const std::vector<double>& durations,
     std::vector<double> encodedBandwidths( durations.size() );
     std::transform( durations.begin(), durations.end(), encodedBandwidths.begin(),
                     [nBytesEncoded] ( auto duration ) {
-                        return static_cast<double>( nBytesEncoded ) / 1e6 / duration; } );
+                        return static_cast<double>( nBytesEncoded ) / 1e6 / duration;
+                    } );
     std::cout << "    Bandwidth on Encoded Data / (MB/s): "
               << Statistics<double>( encodedBandwidths ).formatAverageWithUncertainty( true ) << "\n";
 
     std::vector<double> decodedBandwidths( durations.size() );
     std::transform( durations.begin(), durations.end(), decodedBandwidths.begin(),
                     [nBytesDecoded] ( auto duration ) {
-                        return static_cast<double>( nBytesDecoded ) / 1e6 / duration; } );
+                        return static_cast<double>( nBytesDecoded ) / 1e6 / duration;
+                    } );
     std::cout << "    Bandwidth on Decoded Data / (MB/s): "
               << Statistics<double>( decodedBandwidths ).formatAverageWithUncertainty( true ) << "\n";
 };
@@ -414,7 +373,7 @@ benchmarkChunkedParallelDecompression( const std::string& fileName )
 
     std::cout << "\n== Benchmarking with pragzip in parallel with different decoding chunk sizes ==\n\n";
 
-    const auto [sizeLibArchive, durationsLibArchive] = benchmarkFunction(
+    const auto [sizeLibArchive, durationsLibArchive] = benchmarkFunction<3>(
         [&fileContents] () { return decompressWithLibArchive( fileContents ); } );
     //std::cout << "Decompressed " << fileContents.size() << " B to " << sizeLibArchive << " B with libarchive:\n";
     //printBandwidths( durationsLibArchive, fileContents.size(), sizeLibArchive );
@@ -422,7 +381,7 @@ benchmarkChunkedParallelDecompression( const std::string& fileName )
     const auto expectedSize = sizeLibArchive;
 
     for ( size_t nBlocksToSkip : { 0, 1, 2, 4, 8, 16, 24, 32, 64, 128 } ) {
-        const auto [sizePragzipParallel, durationsPragzipParallel] = benchmarkFunction(
+        const auto [sizePragzipParallel, durationsPragzipParallel] = benchmarkFunction<3>(
             [&fileName, nBlocksToSkip] () { return decompressWithPragzipParallelChunked( fileName, nBlocksToSkip ); } );
         if ( sizePragzipParallel == expectedSize ) {
             std::cout << "Decompressed " << fileContents.size() << " B to " << sizePragzipParallel << " B "
@@ -444,15 +403,15 @@ benchmarkDecompression( const std::string& fileName )
 {
     const auto fileContents = readFile( fileName );
 
-    const auto [sizeLibArchive, durationsLibArchive] = benchmarkFunction(
+    const auto [sizeLibArchive, durationsLibArchive] = benchmarkFunction<3>(
         [&fileContents] () { return decompressWithLibArchive( fileContents ); } );
     std::cout << "Decompressed " << fileContents.size() << " B to " << sizeLibArchive << " B with libarchive:\n";
     printBandwidths( durationsLibArchive, fileContents.size(), sizeLibArchive );
 
     const auto expectedSize = sizeLibArchive;
 
-    const auto [sizeZlib, durationsZlib] = benchmarkFunction( [&fileContents] () {
-        return decompressWithZlib( fileContents ); } );
+    const auto [sizeZlib, durationsZlib] = benchmarkFunction<3>(
+        [&fileContents] () { return decompressWithZlib( fileContents ); } );
     if ( sizeZlib == expectedSize ) {
         std::cout << "Decompressed " << fileContents.size() << " B to " << sizeZlib << " B with zlib:\n";
         printBandwidths( durationsZlib, fileContents.size(), sizeZlib );
@@ -460,7 +419,7 @@ benchmarkDecompression( const std::string& fileName )
         std::cerr << "Decompressing with zlib decoded a different amount than libarchive!\n";
     }
 
-    const auto [sizePragzip, durationsPragzip] = benchmarkFunction(
+    const auto [sizePragzip, durationsPragzip] = benchmarkFunction<3>(
         [&fileName] () { return decompressWithPragzip( fileName ); } );
     if ( sizePragzip == expectedSize ) {
         std::cout << "Decompressed " << fileContents.size() << " B to " << sizePragzip << " B "
@@ -470,7 +429,7 @@ benchmarkDecompression( const std::string& fileName )
         std::cerr << "Decompressing with pragzip (serial) decoded a different amount than libarchive!\n";
     }
 
-    const auto [sizePragzipParallel, durationsPragzipParallel] = benchmarkFunction(
+    const auto [sizePragzipParallel, durationsPragzipParallel] = benchmarkFunction<3>(
         [&fileName] () { return decompressWithPragzipParallel( fileName ); } );
     if ( sizePragzipParallel == expectedSize ) {
         std::cout << "Decompressed " << fileContents.size() << " B to " << sizePragzipParallel << " B "
@@ -482,7 +441,7 @@ benchmarkDecompression( const std::string& fileName )
                                 + std::to_string( expectedSize ) + ")!" );
     }
 
-    const auto [sizePragzipParallelIndex, durationsPragzipParallelIndex] = benchmarkFunction(
+    const auto [sizePragzipParallelIndex, durationsPragzipParallelIndex] = benchmarkFunction<3>(
         [&fileName] () { return createGzipIndex( fileName ); }, decompressWithPragzipParallelIndex );
     if ( sizePragzipParallelIndex == expectedSize ) {
         std::cout << "Decompressed " << fileContents.size() << " B to " << sizePragzipParallelIndex << " B "

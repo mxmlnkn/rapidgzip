@@ -240,16 +240,18 @@ ParallelBitStringFinder<bitStringSize>::find()
             //          << "buffer size: " << this->m_buffer.size() << " B\n";
 
             auto& result = m_threadResults.emplace_back();
-            result.future = m_threadPool.submitTask( [=, &result] () {
-                workerMain(
-                    /* sub chunk buffer */ this->m_buffer.data() + bufferOffsetInBytes,
-                    subChunkSizeInBytes,
-                    subChunkOffsetInBits,
-                    this->m_bitStringToFind,
-                    ( this->m_nTotalBytesRead + bufferOffsetInBytes ) * CHAR_BIT,
-                    &result
-                );
-            } );
+            result.future = m_threadPool.submitTask(
+                [=, &result] ()
+                {
+                    workerMain(
+                        /* sub chunk buffer */ this->m_buffer.data() + bufferOffsetInBytes,
+                        subChunkSizeInBytes,
+                        subChunkOffsetInBits,
+                        this->m_bitStringToFind,
+                        ( this->m_nTotalBytesRead + bufferOffsetInBytes ) * CHAR_BIT,
+                        &result
+                    );
+                } );
         }
     }
 

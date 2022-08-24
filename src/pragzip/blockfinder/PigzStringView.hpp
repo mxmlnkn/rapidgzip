@@ -156,7 +156,7 @@ private:
     const std::unique_ptr<FileReader> m_fileReader;
     const std::size_t m_fileSize;
 
-    alignas(64) std::array<char, BUFFER_SIZE> m_buffer;
+    alignas( 64 ) std::array<char, BUFFER_SIZE> m_buffer;
     size_t m_bufferSize{ 0 };
 
     bool foundFirstBlock{ false };

@@ -1,4 +1,6 @@
-<p align="center"><a href=#><img src="https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/python/pragzip/pragzip.svg"/></a></p>
+<div align="center">
+
+![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/python/pragzip/pragzip.svg)
 
 # Parallel Random Access Gzip (pragzip)
 
@@ -11,6 +13,7 @@
 [![codecov](https://codecov.io/gh/mxmlnkn/indexed_bzip2/branch/master/graph/badge.svg?token=94ZD4UTZQW)](https://codecov.io/gh/mxmlnkn/pragzip)
 ![C++17](https://img.shields.io/badge/C++-17-blue.svg?style=flat-square)
 
+</div>
 
 This module provides a PragzipFile class, which can be used to seek inside gzip files without having to decompress them first.
 Alternatively, you can use this simply as a **parallelized** gzip decoder as a replacement for Python's builtin `gzip` module in order to fully utilize all your cores.
@@ -126,8 +129,8 @@ with pragzip.open( in_memory_file, parallelization = os.cpu_count() ) as file:
 
 ## Via Ratarmount
 
-Because `pragzip` can be used as a backend in ratarmount, you can use [ratarmount](https://github.com/mxmlnkn/ratarmount) to mount single gzip files easily.
-Furthermore, since ratarmount 0.11.0, parallelization is the default and does not have to be specified explicitly with `-P`.
+`pragzip` is **planned** to be used as a backend inside ratarmount with version 0.12.
+Then, you can use [ratarmount](https://github.com/mxmlnkn/ratarmount) to mount single gzip files easily.
 
 ```bash
 base64 /dev/urandom | head -c $(( 4 * 1024 * 1024 * 1024 )) | gzip > sample.gz

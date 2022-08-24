@@ -8,6 +8,7 @@
 #include <ParallelBitStringFinder.hpp>
 #include <filereader/Memory.hpp>
 #include <common.hpp>
+#include <TestHelpers.hpp>
 
 
 template<class TemplatedBitStringFinder>

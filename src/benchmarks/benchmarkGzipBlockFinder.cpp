@@ -28,6 +28,7 @@ https://www.ietf.org/rfc/rfc1952.txt
 #include <filereader/Buffered.hpp>
 #include <pragzip.hpp>
 #include <Statistics.hpp>
+#include <TestHelpers.hpp>
 
 
 std::ostream&
@@ -72,7 +73,7 @@ findGzipStreams( const std::string& fileName )
                  && ( buffer[i + 7] == (char)0x00 )
                  && ( buffer[i + 8] == (char)0x00 ) ) {
                 //std::cerr << "Found possible candidate for a gzip stream at offset: " << totalBytesRead + i << " B\n";
-                streamOffsets.push_back(totalBytesRead + i);
+                streamOffsets.push_back( totalBytesRead + i );
             }
         }
 
@@ -111,7 +112,7 @@ findBgzStreams( const std::string& fileName )
  * @see https://github.com/madler/zlib/blob/master/examples/zran.c
  */
 [[nodiscard]] std::pair<std::vector<size_t>, std::vector<size_t> >
-parseWithZlib(const std::string& fileName)
+parseWithZlib( const std::string& fileName )
 {
     const auto file = throwingOpen( fileName, "rb" );
 
@@ -146,7 +147,7 @@ parseWithZlib(const std::string& fileName)
 
     /* Second argument is window bits. log2 base of window size. Adding 32 to that (setting the 5-th bit),
      * means that automatic zlib or gzip decoding is detected. */
-    auto ret = inflateInit2(&stream, 32 + 15);
+    auto ret = inflateInit2( &stream, 32 + 15 );
     if ( ret != Z_OK ) {
         throwCode( ret );
     }
@@ -161,7 +162,7 @@ parseWithZlib(const std::string& fileName)
     header.done = 0;
 
     bool readHeader = true;
-    ret = inflateGetHeader(&stream, &header);
+    ret = inflateGetHeader( &stream, &header );
     if ( ret != Z_OK ) {
         throwCode( ret );
     }
@@ -359,8 +360,7 @@ public:
         }
 
         auto errorCode = inflateSetDictionary( &m_stream, m_window.data(), m_window.size() );
-        if ( errorCode != Z_OK ) {
-        }
+        if ( errorCode != Z_OK ) {}
 
         errorCode = inflate( &m_stream, Z_BLOCK );
         if ( ( errorCode != Z_OK ) && ( errorCode != Z_STREAM_END ) ) {
@@ -619,15 +619,7 @@ findDeflateBlocksPragzipLUT( BufferedFileReader::AlignedBuffer data )
     std::vector<size_t> bitOffsets;
 
     using namespace pragzip::blockfinder;
-    static constexpr auto nextDeflateCandidateLUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
-    if ( nextDeflateCandidate<0>( 0b0 ) != 0 ) { throw std::logic_error( "" ); }
-    if ( nextDeflateCandidate<1>( 0b1 ) != 1 ) { throw std::logic_error( "" ); }
-    if ( nextDeflateCandidate<1>( 0b0 ) != 0 ) { throw std::logic_error( "" ); }
-
-    if ( nextDeflateCandidate<2>( 0b01 ) != 1 ) { throw std::logic_error( "" ); }
-    if ( nextDeflateCandidate<2>( 0b00 ) != 0 ) { throw std::logic_error( "" ); }
-    if ( nextDeflateCandidate<2>( 0b11 ) != 2 ) { throw std::logic_error( "" ); }
-    if ( nextDeflateCandidate<2>( 0b10 ) != 2 ) { throw std::logic_error( "" ); }
+    static const auto nextDeflateCandidateLUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
 
     pragzip::deflate::Block block;
     for ( size_t offset = 0; offset <= nBitsToTest; ) {
@@ -649,7 +641,14 @@ findDeflateBlocksPragzipLUT( BufferedFileReader::AlignedBuffer data )
                 continue;
             }
 
-            bitReader.seekAfterPeek( 3 );
+            static_assert( CACHED_BIT_COUNT >= 13, "This implementation is optimized for LUTs with at least 13 bits!" );
+            bitReader.seekAfterPeek( 13 );
+            if ( checkPrecode( bitReader ) != pragzip::Error::NONE ) {
+                ++offset;
+                continue;
+            }
+
+            bitReader.seek( static_cast<long long int>( offset ) + 3 );
             auto error = block.readDynamicHuffmanCoding( bitReader );
             if ( error != pragzip::Error::NONE ) {
                 ++offset;
@@ -672,6 +671,137 @@ findDeflateBlocksPragzipLUT( BufferedFileReader::AlignedBuffer data )
 }
 
 
+[[nodiscard]] std::vector<size_t>
+countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
+{
+    const size_t nBitsToTest = data.size() * CHAR_BIT;
+    pragzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( data ) ) );
+
+    std::vector<size_t> bitOffsets;
+
+    using namespace pragzip::blockfinder;
+    static constexpr auto CACHED_BIT_COUNT = 14;
+    static const auto nextDeflateCandidateLUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
+
+    size_t offsetsTestedMoreInDepth{ 0 };
+    std::unordered_map<pragzip::Error, uint64_t> errorCounts;
+    pragzip::deflate::Block</* CRC32 */ false, /* enable analysis */ true> block;
+    for ( size_t offset = 0; offset <= nBitsToTest; ) {
+        bitReader.seek( static_cast<long long int>( offset ) );
+
+        try
+        {
+            const auto peeked = bitReader.peek<CACHED_BIT_COUNT>();
+            const auto nextPosition = nextDeflateCandidateLUT[peeked];
+
+            if ( nextPosition > 0 ) {
+                bitReader.seekAfterPeek( nextPosition );
+                offset += nextPosition;
+                continue;
+            }
+
+            offsetsTestedMoreInDepth++;
+            bitReader.seekAfterPeek( 3 );
+            auto error = block.readDynamicHuffmanCoding( bitReader );
+
+            const auto [count, wasInserted] = errorCounts.try_emplace( error, 1 );
+            if ( !wasInserted ) {
+                count->second++;
+            }
+
+            if ( error != pragzip::Error::NONE ) {
+                ++offset;
+                continue;
+            }
+
+            bitOffsets.push_back( offset );
+            ++offset;
+        } catch ( const pragzip::BitReader::EndOfFileReached& ) {
+            /* This might happen when calling readDynamicHuffmanCoding quite some bytes before the end! */
+            break;
+        }
+    }
+
+    /* From 101984512 bits to test, found 10793213 (10.5832 %) candidates and reduced them down further to 494. */
+    std::cerr << "From " << nBitsToTest << " bits to test, found " << offsetsTestedMoreInDepth << " ("
+              << static_cast<double>( offsetsTestedMoreInDepth ) / static_cast<double>( nBitsToTest ) * 100
+              << " %) candidates and reduced them down further to " << bitOffsets.size() << ".\n";
+
+    /**
+     * @verbatim
+     * Invalid Precode  HC: 10750093
+     * Invalid Distance HC: 8171
+     * Invalid Symbol   HC: 76
+     * @endverbatim
+     * This signifies a LOT of optimization potential! We might be able to handle precode checks faster!
+     * Note that the maximum size of the precode coding can only be 3*19 bits = 57 bits!
+     *  -> Note that BitReader::peek should be able to peek all of these on a 64-bit system even when only able to
+     *     append full bytes to the 64-bit buffer because 64-57=7! I.e., 57 is the first case for which it wouldn't
+     *     be able to further add to the bit buffer but anything smaller and it is able to insert a full byte!
+     *     Using peek can avoid costly buffer-refilling seeks back!
+     *     -> Unfortunately, we also have to seek back the 17 bits for the deflate block header and the three
+     *        code lengths. So yeah, using peek probably will do nothing.
+     */
+    std::cerr << "Reading dynamic Huffman Code (HC) deflate block failed because the code lengths were invalid:\n"
+              << "    Invalid Precode  HC: " << block.failedPrecodeInit   << "\n"
+              << "    Invalid Distance HC: " << block.failedDistanceInit << "\n"
+              << "    Invalid Symbol   HC: " << block.failedLengthInit   << "\n";
+
+    /**
+     * @verbatim
+     *  4 : 657613
+     *  5 : 658794
+     *  6 : 655429
+     *  7 : 667649
+     *  8 : 656510
+     *  9 : 656661
+     * 10 : 649638
+     * 11 : 705194
+     * 12 : 663376
+     * 13 : 662213
+     * 14 : 659557
+     * 15 : 678194
+     * 16 : 670387
+     * 17 : 681204
+     * 18 : 699319
+     * 19 : 771475
+     * @endverbatim
+     * Because well compressed data is quasirandom, the distribution of the precode code lengths is also pretty even.
+     * It is weird, that exactly the longest case appears much more often than the others, same for 7. This means
+     * that runs of 1s seem to be more frequent than other things.
+     * Unfortunately, this means that a catch-all LUT does not seem feasible.
+     */
+    std::cerr << "Precode CL count:\n";
+    for ( size_t i = 0; i < block.precodeCLHistogram.size(); ++i ) {
+        std::cerr << "    " << std::setw( 2 ) << 4 + i << " : " << block.precodeCLHistogram[i] << "\n";
+    }
+
+    /**
+     * Encountered errors:
+     * @verbatim
+     * 7114740 Constructing a Huffman coding from the given code length sequence failed!
+     * 3643601 The Huffman coding is not optimal!
+     *   28976 Invalid number of literal/length codes!
+     *    5403 Cannot copy last length because this is the first one!
+     *     494 No error.
+     * @endverbatim
+     * -> 7M downright invalid Huffman codes but *also* ~4M non-optimal Huffman codes.
+     *    The latter is kind of a strong criterium that I'm not even sure that all gzip encoders follow!
+     */
+    std::multimap<uint64_t, pragzip::Error, std::greater<> > sortedErrorTypes;
+    for ( const auto [error, count] : errorCounts ) {
+        sortedErrorTypes.emplace( count, error );
+    }
+    std::cerr << "Encountered errors:\n";
+    for ( const auto& [count, error] : sortedErrorTypes ) {
+        std::cerr << "    " << std::setw( 8 ) << count << " " << toString( error ) << "\n";
+    }
+    std::cerr << "\n";
+
+    return bitOffsets;
+}
+
+
 /**
  * Same as findDeflateBlocksPragzipLUT but tries to improve pipelining by going over the data twice.
  * Once, doing simple Boyer-Moore-like string search tests and skips forward and the second time doing
@@ -681,13 +811,17 @@ template<uint8_t CACHED_BIT_COUNT>
 [[nodiscard]] std::vector<size_t>
 findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
 {
+    static_assert( CACHED_BIT_COUNT >= 13,
+                   "The LUT must check at least 13-bits, i.e., up to including the distance "
+                   "code length check, to avoid duplicate checks in the precode check!" );
+
     const size_t nBitsToTest = data.size() * CHAR_BIT;
     pragzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( data ) ) );
 
     std::vector<size_t> bitOffsetCandidates;
 
     using namespace pragzip::blockfinder;
-    static constexpr auto nextDeflateCandidateLUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
+    static const auto nextDeflateCandidateLUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
 
     for ( size_t offset = 0; offset <= nBitsToTest; ) {
         try {
@@ -706,10 +840,24 @@ findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
     }
 
     std::vector<size_t> bitOffsets;
+
     pragzip::deflate::Block block;
 
     const auto checkOffset =
-        [&block, &bitReader] ( const auto offset ) {
+        [&] ( const auto offset )
+        {
+            /* Check the precode Huffman coding. We can skip a lot of the generic tests done in deflate::Block
+             * because this is only called for offsets prefiltered by the LUT. But, this also means that the
+             * LUT size must be at least 13-bit! */
+            try {
+                bitReader.seek( static_cast<long long int>( offset ) + 13 );
+                const auto error = checkPrecode( bitReader );
+
+                if ( error != pragzip::Error::NONE ) {
+                    return false;
+                }
+            } catch ( const pragzip::BitReader::EndOfFileReached& ) {}
+
             try {
                 bitReader.seek( static_cast<long long int>( offset ) + 3 );
                 return block.readDynamicHuffmanCoding( bitReader ) == pragzip::Error::NONE;
@@ -719,10 +867,6 @@ findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
 
     std::copy_if( bitOffsetCandidates.begin(), bitOffsetCandidates.end(),
                   std::back_inserter( bitOffsets ), checkOffset );
-
-    /* From 134'217'728 bits to test, found 14'220'922 candidates and reduced them down further to 652 */
-    //std::cerr << "From " << nBitsToTest << " bits to test, found " << bitOffsetCandidates.size()
-    //          << " candidates and reduced them down further to " << bitOffsets.size() << "\n";
 
     return bitOffsets;
 }
@@ -735,20 +879,20 @@ findUncompressedDeflateBlocksNestedBranches( const BufferedFileReader::AlignedBu
 
     for ( size_t i = 2; i + 2 < buffer.size(); ++i ) {
         if ( LIKELY( static_cast<uint8_t>( static_cast<uint8_t>( buffer[i] )
-                                           ^ static_cast<uint8_t>( buffer[i+2] ) ) != 0xFFU ) ) [[likely]] {
+                                           ^ static_cast<uint8_t>( buffer[i + 2] ) ) != 0xFFU ) ) [[likely]] {
             continue;
         }
 
-        if ( LIKELY( static_cast<uint8_t>( static_cast<uint8_t>( buffer[i-1] )
-                                           ^ static_cast<uint8_t>( buffer[i+1] ) ) != 0xFFU ) ) [[likely]] {
+        if ( LIKELY( static_cast<uint8_t>( static_cast<uint8_t>( buffer[i - 1] )
+                                           ^ static_cast<uint8_t>( buffer[i + 1] ) ) != 0xFFU ) ) [[likely]] {
             continue;
         }
 
-        if ( LIKELY( ( static_cast<uint8_t>( buffer[i-2] ) & 0b111U ) != 0 ) ) [[likely]] {
+        if ( LIKELY( ( static_cast<uint8_t>( buffer[i - 2] ) & 0b111U ) != 0 ) ) [[likely]] {
             continue;
         }
 
-        if ( UNLIKELY( ( buffer[i] == 0 ) && ( buffer[i-1] == 0 ) ) ) [[unlikely]] {
+        if ( UNLIKELY( ( buffer[i] == 0 ) && ( buffer[i - 1] == 0 ) ) ) [[unlikely]] {
             continue;
         }
 
@@ -760,7 +904,7 @@ findUncompressedDeflateBlocksNestedBranches( const BufferedFileReader::AlignedBu
          * @todo I might need an interface to determine what blocks could have been found and what not :/ */
         uint8_t trailingZeros = 3;
         for ( uint8_t j = trailingZeros + 1; j <= 8U; ++j ) {
-            if ( ( static_cast<uint8_t>( buffer[i-1] ) & ( 1U << static_cast<uint8_t>( j - 1U ) ) ) == 0 ) {
+            if ( ( static_cast<uint8_t>( buffer[i - 1] ) & ( 1U << static_cast<uint8_t>( j - 1U ) ) ) == 0 ) {
                 trailingZeros = j;
             }
         }
@@ -783,7 +927,7 @@ findUncompressedDeflateBlocks( const BufferedFileReader::AlignedBuffer& buffer )
             continue;
         }
 
-        if ( LIKELY( ( static_cast<uint8_t>( buffer[i-1] ) & 0b111U ) != 0 ) ) [[likely]] {
+        if ( LIKELY( ( static_cast<uint8_t>( buffer[i - 1] ) & 0b111U ) != 0 ) ) [[likely]] {
             continue;
         }
 
@@ -793,7 +937,7 @@ findUncompressedDeflateBlocks( const BufferedFileReader::AlignedBuffer& buffer )
 
         uint8_t trailingZeros = 3;
         for ( uint8_t j = trailingZeros + 1; j <= 8; ++j ) {
-            if ( ( static_cast<uint8_t>( buffer[i-1] ) & ( 1U << static_cast<uint8_t>( j - 1U ) ) ) == 0 ) {
+            if ( ( static_cast<uint8_t>( buffer[i - 1] ) & ( 1U << static_cast<uint8_t>( j - 1U ) ) ) == 0 ) {
                 trailingZeros = j;
             }
         }
@@ -818,79 +962,12 @@ createRandomBase64( const std::string& filePath,
 }
 
 
-[[nodiscard]] TemporaryDirectory
-createTemporaryDirectory()
-{
-    const std::filesystem::path tmpFolderName = "pragzip.benchmarkGzipBlockFinder." + std::to_string( unixTime() );
-    std::filesystem::create_directory( tmpFolderName );
-    return TemporaryDirectory( tmpFolderName );
-}
-
-
-template<typename Functor,
-         typename FunctorResult = std::invoke_result_t<Functor> >
-[[nodiscard]] std::pair<FunctorResult, std::vector<double> >
-benchmarkFunction( Functor functor )
-{
-    std::optional<FunctorResult> result;
-    std::vector<double> durations;
-    for ( size_t i = 0; i < 3; ++i ) {
-        const auto t0 = now();
-        const auto currentResult = functor();
-        const auto t1 = now();
-        durations.push_back( duration( t0, t1 ) );
-
-        if ( !result ) {
-            result = std::move( currentResult );
-        } else if ( *result != currentResult ) {
-            throw std::logic_error( "Function to benchmark returns indeterministic results!" );
-        }
-    }
-
-    return { *result, durations };
-}
-
-
-template<typename Functor,
-         typename SetupFunctor,
-         typename FunctorResult = std::invoke_result_t<Functor, std::invoke_result_t<SetupFunctor> > >
-[[nodiscard]] std::pair<FunctorResult, std::vector<double> >
-benchmarkFunction( SetupFunctor setup,
-                   Functor      functor )
-{
-    decltype( setup() ) setupResult;
-    try {
-        setupResult = setup();
-    } catch ( const std::exception& e ) {
-        std::cerr << "Failed to run setup with exception: " << e.what() << "\n";
-        return {};
-    }
-
-    std::optional<FunctorResult> result;
-    std::vector<double> durations;
-    for ( size_t i = 0; i < 10; ++i ) {
-        const auto t0 = now();
-        auto currentResult = functor( setupResult );
-        const auto t1 = now();
-        durations.push_back( duration( t0, t1 ) );
-
-        if ( !result ) {
-            result = std::move( currentResult );
-        } else if ( *result != currentResult ) {
-            throw std::logic_error( "Function to benchmark returns indeterministic results!" );
-        }
-    }
-
-    return { *result, durations };
-}
-
-
 [[nodiscard]] BufferedFileReader::AlignedBuffer
 bufferFile( const std::string& fileName,
             size_t             bytesToBuffer = std::numeric_limits<size_t>::max() )
 {
     const auto file = throwingOpen( fileName, "rb" );
-    BufferedFileReader::AlignedBuffer buffer( std::min( fileSize( fileName), bytesToBuffer ), 0 );
+    BufferedFileReader::AlignedBuffer buffer( std::min( fileSize( fileName ), bytesToBuffer ), 0 );
     const auto nElementsReadFromFile = std::fread( buffer.data(), sizeof( buffer[0] ), buffer.size(), file.get() );
     buffer.resize( nElementsReadFromFile );
     return buffer;
@@ -920,7 +997,7 @@ benchmarkGzip( const std::string& fileName )
 {
     {
         const auto buffer = bufferFile( fileName, 128ULL * 1024ULL * 1024ULL );
-        const auto [blockCandidates, durations] = benchmarkFunction(
+        const auto [blockCandidates, durations] = benchmarkFunction<10>(
             [&buffer] () { return findUncompressedDeflateBlocks( buffer ); } );
 
         std::cout << "[findUncompressedDeflateBlocks] " << formatBandwidth( durations, buffer.size() ) << "\n";
@@ -930,7 +1007,7 @@ benchmarkGzip( const std::string& fileName )
 
     {
         const auto buffer = bufferFile( fileName, 128ULL * 1024ULL * 1024ULL );
-        const auto [blockCandidates, durations] = benchmarkFunction(
+        const auto [blockCandidates, durations] = benchmarkFunction<10>(
             [&buffer] () { return findUncompressedDeflateBlocksNestedBranches( buffer ); } );
 
         std::cout << "[findUncompressedDeflateBlocksNestedBranches] " << formatBandwidth( durations, buffer.size() ) << "\n";
@@ -996,7 +1073,7 @@ benchmarkGzip( const std::string& fileName )
 
     {
         const auto buffer = bufferFile( fileName, 256ULL * 1024ULL );
-        const auto [blockCandidates, durations] = benchmarkFunction(
+        const auto [blockCandidates, durations] = benchmarkFunction<10>(
             [&buffer] () { return findDeflateBlocksZlib( buffer ); } );
 
         std::cout << "[findDeflateBlocksZlib] " << formatBandwidth( durations, buffer.size() ) << "\n";
@@ -1009,7 +1086,7 @@ benchmarkGzip( const std::string& fileName )
     const auto isBgzfFile = pragzip::blockfinder::Bgzf::isBgzfFile( std::make_unique<StandardFileReader>( fileName ) );
     if ( !isBgzfFile ) {
         const auto buffer = bufferFile( fileName, 256ULL * 1024ULL );
-        const auto [blockCandidates, durations] = benchmarkFunction(
+        const auto [blockCandidates, durations] = benchmarkFunction<10>(
             [&buffer] () { return findDeflateBlocksZlibOptimized( buffer ); } );
 
         std::cout << "[findDeflateBlocksZlibOptimized] " << formatBandwidth( durations, buffer.size() ) << "\n";
@@ -1020,49 +1097,66 @@ benchmarkGzip( const std::string& fileName )
     /* Benchmarks with own implementation (pragzip). */
     {
         const auto buffer = bufferFile( fileName, 16ULL * 1024ULL * 1024ULL );
-        const auto [blockCandidates, durations] = benchmarkFunction(
+
+        const auto blockCandidates = countFilterEfficiencies( buffer );
+        std::cout << "Block candidates (" << blockCandidates.size() << "): " << blockCandidates << "\n\n";
+
+        const auto [blockCandidatesPragzip, durations] = benchmarkFunction<10>(
             [&buffer] () { return findDeflateBlocksPragzip( buffer ); } );
 
-        std::cout << "[findDeflateBlocksPragzip] " << formatBandwidth( durations, buffer.size() ) << "\n";
-        std::cout << "    Block candidates (" << blockCandidates.size() << "): "
-                  << blockCandidates << "\n\n";
+        if ( blockCandidates != blockCandidatesPragzip ) {
+            std::stringstream msg;
+            msg << "Results with findDeflateBlocksPragzip differ! Block candidates ("
+                << blockCandidatesPragzip.size() << "): " << blockCandidatesPragzip;
+            throw std::logic_error( std::move( msg ).str() );
+        }
+        std::cout << "[findDeflateBlocksPragzipLUT] " << formatBandwidth( durations, buffer.size() ) << "\n";
 
         /* Same as above but with a LUT that can skip bits similar to the Boyer–Moore string-search algorithm. */
 
-        const auto [blockCandidatesLUT, durationsLUT] = benchmarkFunction(
+        /* Call findDeflateBlocksPragzipLUT once to initialize the static variables! */
+        if ( const auto blockCandidatesLUT = findDeflateBlocksPragzipLUT<17>( buffer );
+             blockCandidatesLUT != blockCandidates ) {
+            std::stringstream msg;
+            msg << "Results with findDeflateBlocksPragzipLUT differ! Block candidates ("
+                << blockCandidatesLUT.size() << "): " << blockCandidatesLUT;
+            throw std::logic_error( std::move( msg ).str() );
+        }
+
+        const auto [blockCandidatesLUT, durationsLUT] = benchmarkFunction<10>(
             /* As for choosing CACHED_BIT_COUNT == 13, see the output of the results at the end of the file.
              * 13 is the last for which it significantly improves over less bits and 14 bits produce reproducibly
              * slower bandwidths! 13 bits is the best configuration as far as I know. */
-            [&buffer] () { return findDeflateBlocksPragzipLUT<13>( buffer ); } );
-
-        std::cout << "[findDeflateBlocksPragzipLUT] " << formatBandwidth( durationsLUT, buffer.size() ) << "\n";
-        std::cout << "    Block candidates (" << blockCandidatesLUT.size() << "): "
-                  << blockCandidatesLUT << "\n\n";
+            [&buffer] () { return findDeflateBlocksPragzipLUT<17>( buffer ); } );
 
         if ( blockCandidates != blockCandidatesLUT ) {
-            throw std::logic_error( "Results with and without LUT differ!" );
+            std::stringstream msg;
+            msg << "Results with findDeflateBlocksPragzipLUT differ! Block candidates ("
+                << blockCandidatesLUT.size() << "): " << blockCandidatesLUT;
+            throw std::logic_error( std::move( msg ).str() );
         }
+        std::cout << "[findDeflateBlocksPragzipLUT] " << formatBandwidth( durationsLUT, buffer.size() ) << "\n";
 
         /* Same as above but with a LUT and two-pass. */
 
-        const auto [blockCandidatesLUT2P, durationsLUT2P] = benchmarkFunction(
+        const auto [blockCandidatesLUT2P, durationsLUT2P] = benchmarkFunction<10>(
             /* As for choosing CACHED_BIT_COUNT == 13, see the output of the results at the end of the file.
              * 13 is the last for which it significantly improves over less bits and 14 bits produce reproducibly
              * slower bandwidths! 13 bits is the best configuration as far as I know. */
-            [&buffer] () { return findDeflateBlocksPragzipLUTTwoPass<13>( buffer ); } );
-
-        std::cout << "[findDeflateBlocksPragzipLUTTwoPass] " << formatBandwidth( durationsLUT2P, buffer.size() ) << "\n";
-        std::cout << "    Block candidates (" << blockCandidatesLUT2P.size() << "): "
-                  << blockCandidatesLUT2P << "\n\n";
+            [&buffer] () { return findDeflateBlocksPragzipLUTTwoPass<17>( buffer ); } );
 
         if ( blockCandidates != blockCandidatesLUT2P ) {
-            throw std::logic_error( "Results with and without LUT + 2-pass differ!" );
+            std::stringstream msg;
+            msg << "Results with findDeflateBlocksPragzipLUTTwoPass differ! Block candidates ("
+                << blockCandidatesLUT2P.size() << "): " << blockCandidatesLUT2P;
+            throw std::logic_error( std::move( msg ).str() );
         }
+        std::cout << "[findDeflateBlocksPragzipLUTTwoPass] " << formatBandwidth( durationsLUT2P, buffer.size() ) << "\n";
     }
 
     if ( isBgzfFile ) {
         const auto [blockCandidates, durations] =
-            benchmarkFunction( [fileName] () { return findBgzStreams( fileName ); } );
+            benchmarkFunction<10>( [fileName] () { return findBgzStreams( fileName ); } );
 
         std::cout << "[findBgzStreams] " << formatBandwidth( durations, fileSize( fileName ) ) << "\n";
         std::cout << "    Block candidates (" << blockCandidates.size() << "): "
@@ -1085,11 +1179,11 @@ std::vector<size_t>
 benchmarkLUTSize( const BufferedFileReader::AlignedBuffer& buffer )
 {
     std::optional<std::vector<size_t> > blockCandidatesWithLessBits;
-    if constexpr ( CACHED_BIT_COUNT > 1 ) {
+    if constexpr ( CACHED_BIT_COUNT > 13 ) {
         blockCandidatesWithLessBits = benchmarkLUTSize<CACHED_BIT_COUNT - 1>( buffer );
     }
 
-    const auto [blockCandidates, durations] = benchmarkFunction(
+    const auto [blockCandidates, durations] = benchmarkFunction<10>(
         [&buffer] () { return findDeflateBlocksPragzipLUT<CACHED_BIT_COUNT>( buffer ); } );
 
     std::cout << "[findDeflateBlocksPragzipLUT with " << static_cast<int>( CACHED_BIT_COUNT ) << " bits] "
@@ -1115,7 +1209,7 @@ main( int    argc,
         }
     }
 
-    const auto tmpFolder = createTemporaryDirectory();
+    const auto tmpFolder = createTemporaryDirectory( "pragzip.benchmarkGzipBlockFinder" );
     const std::string fileName = std::filesystem::absolute( tmpFolder.path() / "random-base64" );
 
     const std::vector<std::tuple<std::string, std::string, std::string, std::string > > testEncoders = {
@@ -1165,8 +1259,9 @@ main( int    argc,
             if ( name == "gzip" ) {
                 std::cout << "=== Testing different Pragzip + LUT table sizes ===\n\n";
                 /* CACHED_BIT_COUNT == 19 fails on GCC because it requires > 99 M constexpr steps.
-                 * CACHED_BIT_COUNT == 18 fail on clang because it requires > 99 M constexpr steps. */
-                benchmarkLUTSize<16>( bufferFile( newFileName ) );
+                 * CACHED_BIT_COUNT == 18 fail on clang because it requires > 99 M constexpr steps.
+                 * It works when using simple const instead of constexpr */
+                benchmarkLUTSize<18>( bufferFile( newFileName ) );
                 std::cout << "\n\n";
             }
 
@@ -1193,36 +1288,16 @@ main( int    argc,
 
 
 /*
-cmake --build . -- benchmarkGzipBlockFinder && benchmarks/benchmarkGzipBlockFinder random.gz
-
-[findUncompressedDeflateBlocks] ( 2052 <= 2072 +- 18 <= 2084 ) MB/s
-    Block candidates (4356):  80 262304 524560 786800 1049120 1311392 1573784 1836072 2098344 2360744 2623032 2791488 2885360 3147648 3409952 ...
-
-[findUncompressedDeflateBlocksNestedBranches] ( 1969 <= 1974 +- 5 <= 1978 ) MB/s
-    Block candidates (4356):  88 262312 524568 786808 1049128 1311400 1573792 1836080 2098352 2360752 2623040 2791501 2885368 3147656 3409960 ...
-
-
-cmake --build . -- benchmarkGzipBlockFinder && benchmarks/benchmarkGzipBlockFinder
-
+cmake --build . -- benchmarkGzipBlockFinder && taskset 0x08 src/benchmarks/benchmarkGzipBlockFinder random.gz
 
 === Testing different Pragzip + LUT table sizes ===
 
-[findDeflateBlocksPragzipLUT with 1 bits] ( 2.018 <= 2.043 +- 0.022 <= 2.058 ) MB/s
-[findDeflateBlocksPragzipLUT with 2 bits] ( 3.72 <= 3.75 +- 0.06 <= 3.83 ) MB/s
-[findDeflateBlocksPragzipLUT with 3 bits] ( 7.113 <= 7.122 +- 0.013 <= 7.137 ) MB/s
-[findDeflateBlocksPragzipLUT with 4 bits] ( 7.534 <= 7.545 +- 0.015 <= 7.562 ) MB/s
-[findDeflateBlocksPragzipLUT with 5 bits] ( 7.45 <= 7.57 +- 0.17 <= 7.77 ) MB/s
-[findDeflateBlocksPragzipLUT with 6 bits] ( 7.861 <= 7.875 +- 0.013 <= 7.885 ) MB/s
-[findDeflateBlocksPragzipLUT with 7 bits] ( 8.12 <= 8.26 +- 0.13 <= 8.37 ) MB/s
-[findDeflateBlocksPragzipLUT with 8 bits] ( 8.502 <= 8.521 +- 0.019 <= 8.54 ) MB/s
-[findDeflateBlocksPragzipLUT with 9 bits] ( 8.31 <= 8.36 +- 0.05 <= 8.4 ) MB/s
-[findDeflateBlocksPragzipLUT with 10 bits] ( 8.3 <= 8.38 +- 0.13 <= 8.53 ) MB/s
-[findDeflateBlocksPragzipLUT with 11 bits] ( 8.49 <= 8.6 +- 0.11 <= 8.71 ) MB/s
-[findDeflateBlocksPragzipLUT with 12 bits] ( 8.781 <= 8.805 +- 0.025 <= 8.831 ) MB/s
-[findDeflateBlocksPragzipLUT with 13 bits] ( 8.866 <= 8.876 +- 0.009 <= 8.884 ) MB/s
-[findDeflateBlocksPragzipLUT with 14 bits] ( 8.927 <= 8.936 +- 0.008 <= 8.942 ) MB/s
-[findDeflateBlocksPragzipLUT with 15 bits] ( 8.96 <= 8.99 +- 0.04 <= 9.03 ) MB/s
-[findDeflateBlocksPragzipLUT with 16 bits] ( 9.001 <= 9.015 +- 0.013 <= 9.028 ) MB/s
+[findDeflateBlocksPragzipLUT with 13 bits] ( 25.5 <= 27.5 +- 0.7 <= 27.9 ) MB/s
+[findDeflateBlocksPragzipLUT with 14 bits] ( 27 <= 28 +- 0.4 <= 28.3 ) MB/s
+[findDeflateBlocksPragzipLUT with 15 bits] ( 27.5 <= 28.19 +- 0.3 <= 28.49 ) MB/s
+[findDeflateBlocksPragzipLUT with 16 bits] ( 27.2 <= 28.5 +- 0.5 <= 28.9 ) MB/s
+[findDeflateBlocksPragzipLUT with 17 bits] ( 27.98 <= 28.32 +- 0.16 <= 28.5 ) MB/s
+[findDeflateBlocksPragzipLUT with 18 bits] ( 24.65 <= 25.38 +- 0.28 <= 25.63 ) MB/s
 
 
 === Testing with encoder: gzip ===
@@ -1237,10 +1312,10 @@ There is NO WARRANTY, to the extent permitted by law.
 
 Written by Jean-loup Gailly.
 
-[findUncompressedDeflateBlocks] ( 1366 <= 1368 +- 5 <= 1374 ) MB/s
+[findUncompressedDeflateBlocks] ( 2105 <= 2124 +- 9 <= 2134 ) MB/s
     Block candidates (33):  1641849 14802352 16084952 18358560 19055164 23166984 28247616 32673280 32778929 34162050 37006712 37488520 38504569 43578016 43755016 ...
 
-[findUncompressedDeflateBlocksNestedBranches] ( 1329.5 <= 1331.9 +- 2.2 <= 1333.8 ) MB/s
+[findUncompressedDeflateBlocksNestedBranches] ( 2017 <= 2032 +- 8 <= 2040 ) MB/s
     Block candidates (33):  1641857 14802362 16084963 18358568 19055168 23166992 28247625 32673288 32778936 34162056 37006720 37488528 38504576 43578025 43755024 ...
 
 Gzip streams (2):  0 12748064
@@ -1256,31 +1331,56 @@ Block Size Distribution (small to large):
 207110 b |==================== (494)
 
 
-[findDeflateBlocksZlib] ( 0.181 <= 0.184 +- 0.003 <= 0.187 ) MB/s
+[findDeflateBlocksZlib] ( 0.1932 <= 0.1947 +- 0.0007 <= 0.1956 ) MB/s
     Block candidates (20):  192 205414 411532 617749 824122 1028344 1028348 1028349 1029728 1236300 1442840 1572611 1572612 1641846 1641847 ...
 
-[findDeflateBlocksZlibOptimized] ( 0.661 <= 0.667 +- 0.006 <= 0.673 ) MB/s
+[findDeflateBlocksZlibOptimized] ( 0.662 <= 0.678 +- 0.006 <= 0.684 ) MB/s
     Block candidates (11):  192 205414 411532 617749 824122 1029728 1236300 1442840 1649318 1855554 2094939
 
-[findDeflateBlocksPragzip] ( 4.255 <= 4.27 +- 0.015 <= 4.284 ) MB/s
-    Block candidates (494):  192 205414 411532 617749 824122 1029728 1236300 1442840 1649318 1855554 2061582 2267643 2473676 2679825 2886058 ...
+From 101984512 bits to test, found 10793215 (10.5832 %) candidates and reduced them down further to 494.
+Reading dynamic Huffman Code (HC) deflate block failed because the code lengths were invalid:
+    Invalid Precode  HC: 10750095
+    Invalid Distance HC: 8171
+    Invalid Symbol   HC: 76
+Precode CL count:
+     4 : 657613
+     5 : 658795
+     6 : 655429
+     7 : 667649
+     8 : 656510
+     9 : 656660
+    10 : 649639
+    11 : 705194
+    12 : 663377
+    13 : 662213
+    14 : 659557
+    15 : 678195
+    16 : 670387
+    17 : 681204
+    18 : 699319
+    19 : 771474
+Encountered errors:
+     7114742 Constructing a Huffman coding from the given code length sequence failed!
+     3643600 The Huffman coding is not optimal!
+       28976 Invalid number of literal/length codes!
+        5403 Cannot copy last length because this is the first one!
+         494 No error.
 
-[findDeflateBlocksPragzipLUT] ( 9.02 <= 9.1 +- 0.07 <= 9.15 ) MB/s
-    Block candidates (494):  192 205414 411532 617749 824122 1029728 1236300 1442840 1649318 1855554 2061582 2267643 2473676 2679825 2886058 ...
+Block candidates (494):  192 205414 411532 617749 824122 1029728 1236300 1442840 1649318 1855554 2061582 2267643 2473676 2679825 2886058 ...
 
-[findDeflateBlocksPragzipLUTTwoPass] ( 9.12 <= 9.17 +- 0.05 <= 9.21 ) MB/s
-    Block candidates (494):  192 205414 411532 617749 824122 1029728 1236300 1442840 1649318 1855554 2061582 2267643 2473676 2679825 2886058 ...
-
+[findDeflateBlocksPragzipLUT] ( 4.16 <= 4.27 +- 0.04 <= 4.3 ) MB/s
+[findDeflateBlocksPragzipLUT] ( 27.5 <= 28.2 +- 0.3 <= 28.5 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass] ( 26.72 <= 27.08 +- 0.16 <= 27.27 ) MB/s
 
 === Testing with encoder: pigz ===
 
 > pigz --version
 pigz 2.6
 
-[findUncompressedDeflateBlocks] ( 1386 <= 1390 +- 4 <= 1394 ) MB/s
+[findUncompressedDeflateBlocks] ( 2093 <= 2130 +- 21 <= 2165 ) MB/s
     Block candidates (26):  9115355 15453880 17626256 20230960 20959049 32956072 33043921 36063152 36741288 38098897 42646161 44588288 47241200 51683920 53144346 ...
 
-[findUncompressedDeflateBlocksNestedBranches] ( 1357.6 <= 1360.8 +- 2.9 <= 1363.2 ) MB/s
+[findUncompressedDeflateBlocksNestedBranches] ( 2020 <= 2037 +- 8 <= 2049 ) MB/s
     Block candidates (26):  9115363 15453888 17626265 20230970 20959057 32956081 33043930 36063160 36741296 38098906 42646169 44588300 47241208 51683930 53144353 ...
 
 Gzip streams (2):  0 12761091
@@ -1296,31 +1396,56 @@ Block Size Distribution (small to large):
 103838 b |==================== (896)
 
 
-[findDeflateBlocksZlib] ( 0.1947 <= 0.1952 +- 0.0005 <= 0.1956 ) MB/s
+[findDeflateBlocksZlib] ( 0.187 <= 0.196 +- 0.003 <= 0.197 ) MB/s
     Block candidates (31):  192 102374 205527 234702 234703 234706 234707 308631 411790 515077 618182 721566 797472 900531 1003441 ...
 
-[findDeflateBlocksZlibOptimized] ( 0.665 <= 0.669 +- 0.004 <= 0.672 ) MB/s
+[findDeflateBlocksZlibOptimized] ( 0.6704 <= 0.6751 +- 0.0026 <= 0.6788 ) MB/s
     Block candidates (22):  192 102374 205527 308631 411790 515077 618182 721566 797472 900531 1003441 1106502 1209841 1313251 1416637 ...
 
-[findDeflateBlocksPragzip] ( 4.173 <= 4.195 +- 0.019 <= 4.206 ) MB/s
-    Block candidates (1023):  192 102374 205527 308631 411790 515077 618182 721566 797472 900531 1003441 1106502 1209841 1313251 1416637 ...
+From 102088728 bits to test, found 10825715 (10.6042 %) candidates and reduced them down further to 1023.
+Reading dynamic Huffman Code (HC) deflate block failed because the code lengths were invalid:
+    Invalid Precode  HC: 10782517
+    Invalid Distance HC: 8095
+    Invalid Symbol   HC: 97
+Precode CL count:
+     4 : 654362
+     5 : 659851
+     6 : 657378
+     7 : 672068
+     8 : 656228
+     9 : 660807
+    10 : 653347
+    11 : 707917
+    12 : 662677
+    13 : 666890
+    14 : 660750
+    15 : 680791
+    16 : 675077
+    17 : 683831
+    18 : 702215
+    19 : 771526
+Encountered errors:
+     7143922 Constructing a Huffman coding from the given code length sequence failed!
+     3646787 The Huffman coding is not optimal!
+       28695 Invalid number of literal/length codes!
+        5287 Cannot copy last length because this is the first one!
+        1023 No error.
 
-[findDeflateBlocksPragzipLUT] ( 8.706 <= 8.738 +- 0.028 <= 8.758 ) MB/s
-    Block candidates (1023):  192 102374 205527 308631 411790 515077 618182 721566 797472 900531 1003441 1106502 1209841 1313251 1416637 ...
+Block candidates (1023):  192 102374 205527 308631 411790 515077 618182 721566 797472 900531 1003441 1106502 1209841 1313251 1416637 ...
 
-[findDeflateBlocksPragzipLUTTwoPass] ( 8.66 <= 8.7 +- 0.06 <= 8.77 ) MB/s
-    Block candidates (1023):  192 102374 205527 308631 411790 515077 618182 721566 797472 900531 1003441 1106502 1209841 1313251 1416637 ...
-
+[findDeflateBlocksPragzipLUT] ( 4.175 <= 4.198 +- 0.016 <= 4.224 ) MB/s
+[findDeflateBlocksPragzipLUT] ( 24.76 <= 25.07 +- 0.19 <= 25.34 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass] ( 22.5 <= 23.8 +- 0.5 <= 24.2 ) MB/s
 
 === Testing with encoder: igzip ===
 
 > igzip --version
 igzip command line interface 2.30.0
 
-[findUncompressedDeflateBlocks] ( 1369 <= 1372 +- 5 <= 1378 ) MB/s
+[findUncompressedDeflateBlocks] ( 2065 <= 2100 +- 22 <= 2125 ) MB/s
     Block candidates (25):  9264928 9787856 11847658 25696321 26896376 30346740 32737457 32800465 34399866 36035720 44696189 48931825 49145872 52556250 53613251 ...
 
-[findUncompressedDeflateBlocksNestedBranches] ( 1080 <= 1250 +- 140 <= 1330 ) MB/s
+[findUncompressedDeflateBlocksNestedBranches] ( 1986 <= 2022 +- 25 <= 2054 ) MB/s
     Block candidates (25):  9264940 9787864 11847666 25696328 26896384 30346744 32737464 32800472 34399872 36035728 44696192 48931835 49145880 52556258 53613256 ...
 
 Gzip streams (2):  0 12669134
@@ -1336,21 +1461,46 @@ Block Size Distribution (small to large):
 791606 b |==================== (128)
 
 
-[findDeflateBlocksZlib] ( 0.1884 <= 0.1891 +- 0.0006 <= 0.1894 ) MB/s
+[findDeflateBlocksZlib] ( 0.1914 <= 0.1953 +- 0.0016 <= 0.1968 ) MB/s
     Block candidates (8):  1136 790905 1139766 1173134 1580736 1702286 1702289 1702290
 
-[findDeflateBlocksZlibOptimized] ( 0.6621 <= 0.6644 +- 0.0022 <= 0.6664 ) MB/s
+[findDeflateBlocksZlibOptimized] ( 0.671 <= 0.682 +- 0.006 <= 0.688 ) MB/s
     Block candidates (3):  1136 790905 1580736
 
-[findDeflateBlocksPragzip] ( 4.228 <= 4.238 +- 0.01 <= 4.247 ) MB/s
-    Block candidates (128):  1136 790905 1580736 2370674 3160686 3950671 4740448 5530378 6321349 7112718 7903168 8692985 9482887 10274151 11065651 ...
+From 101353072 bits to test, found 10586580 (10.4452 %) candidates and reduced them down further to 128.
+Reading dynamic Huffman Code (HC) deflate block failed because the code lengths were invalid:
+    Invalid Precode  HC: 10545141
+    Invalid Distance HC: 7810
+    Invalid Symbol   HC: 67
+Precode CL count:
+     4 : 642652
+     5 : 642717
+     6 : 643007
+     7 : 649979
+     8 : 642713
+     9 : 643131
+    10 : 643993
+    11 : 667509
+    12 : 648787
+    13 : 648830
+    14 : 648330
+    15 : 653030
+    16 : 658402
+    17 : 661059
+    18 : 685711
+    19 : 806730
+Encountered errors:
+     6971628 Constructing a Huffman coding from the given code length sequence failed!
+     3581390 The Huffman coding is not optimal!
+       28226 Invalid number of literal/length codes!
+        5208 Cannot copy last length because this is the first one!
+         128 No error.
 
-[findDeflateBlocksPragzipLUT] ( 9.12 <= 9.141 +- 0.023 <= 9.166 ) MB/s
-    Block candidates (128):  1136 790905 1580736 2370674 3160686 3950671 4740448 5530378 6321349 7112718 7903168 8692985 9482887 10274151 11065651 ...
+Block candidates (128):  1136 790905 1580736 2370674 3160686 3950671 4740448 5530378 6321349 7112718 7903168 8692985 9482887 10274151 11065651 ...
 
-[findDeflateBlocksPragzipLUTTwoPass] ( 9.32 <= 9.41 +- 0.11 <= 9.54 ) MB/s
-    Block candidates (128):  1136 790905 1580736 2370674 3160686 3950671 4740448 5530378 6321349 7112718 7903168 8692985 9482887 10274151 11065651 ...
-
+[findDeflateBlocksPragzipLUT] ( 4.329 <= 4.365 +- 0.019 <= 4.39 ) MB/s
+[findDeflateBlocksPragzipLUT] ( 31.3 <= 31.66 +- 0.19 <= 31.9 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass] ( 29.22 <= 29.49 +- 0.13 <= 29.67 ) MB/s
 
 === Testing with encoder: bgzip ===
 
@@ -1358,10 +1508,10 @@ Block Size Distribution (small to large):
 bgzip (htslib) 1.13+ds
 Copyright (C) 2021 Genome Research Ltd.
 
-[findUncompressedDeflateBlocks] ( 1351 <= 1368 +- 28 <= 1400 ) MB/s
+[findUncompressedDeflateBlocks] ( 2036 <= 2059 +- 18 <= 2082 ) MB/s
     Block candidates (32):  2959288 3061001 3075096 6140777 11709712 12621274 12934273 13868528 22428648 27137769 30108368 30328864 34426556 35504328 43584170 ...
 
-[findUncompressedDeflateBlocksNestedBranches] ( 1328 <= 1344 +- 14 <= 1356 ) MB/s
+[findUncompressedDeflateBlocksNestedBranches] ( 1914 <= 1953 +- 18 <= 1977 ) MB/s
     Block candidates (32):  2959296 3061008 3075104 6140784 11709720 12621280 12934282 13868536 22428661 27137776 30108376 30328875 34426562 35504336 43584176 ...
 
 Got 6 B of FEXTRA field!
@@ -1378,19 +1528,43 @@ Block Size Distribution (small to large):
 394776 b |==================== (257)
 
 
-[findDeflateBlocksZlib] ( 0.1913 <= 0.1927 +- 0.0016 <= 0.1944 ) MB/s
+[findDeflateBlocksZlib] ( 0.1929 <= 0.1949 +- 0.0008 <= 0.1956 ) MB/s
     Block candidates (6):  144 394784 789352 1183976 1578632 1973304
 
-[findDeflateBlocksPragzip] ( 4.36 <= 4.371 +- 0.01 <= 4.379 ) MB/s
-    Block candidates (0):
+From 101426648 bits to test, found 10685794 (10.5355 %) candidates and reduced them down further to 0.
+Reading dynamic Huffman Code (HC) deflate block failed because the code lengths were invalid:
+    Invalid Precode  HC: 10643875
+    Invalid Distance HC: 7994
+    Invalid Symbol   HC: 86
+Precode CL count:
+     4 : 649877
+     5 : 652413
+     6 : 649876
+     7 : 656779
+     8 : 649155
+     9 : 653706
+    10 : 649399
+    11 : 685360
+    12 : 654690
+    13 : 655229
+    14 : 653321
+    15 : 671557
+    16 : 664263
+    17 : 670322
+    18 : 689720
+    19 : 780127
+Encountered errors:
+     7043469 Constructing a Huffman coding from the given code length sequence failed!
+     3608486 The Huffman coding is not optimal!
+       28615 Invalid number of literal/length codes!
+        5224 Cannot copy last length because this is the first one!
 
-[findDeflateBlocksPragzipLUT] ( 9.42 <= 9.47 +- 0.07 <= 9.55 ) MB/s
-    Block candidates (0):
+Block candidates (0):
 
-[findDeflateBlocksPragzipLUTTwoPass] ( 9.33 <= 9.49 +- 0.14 <= 9.59 ) MB/s
-    Block candidates (0):
-
-[findBgzStreams] ( 20000 <= 31000 +- 10000 <= 37000 ) MB/s
+[findDeflateBlocksPragzipLUT] ( 4.303 <= 4.348 +- 0.03 <= 4.387 ) MB/s
+[findDeflateBlocksPragzipLUT] ( 31 <= 32 +- 0.5 <= 32.7 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass] ( 29 <= 30 +- 0.5 <= 30.5 ) MB/s
+[findBgzStreams] ( 16000 <= 36000 +- 7000 <= 41000 ) MB/s
     Block candidates (259):  144 394784 789352 1183976 1578632 1973304 2367992 2762640 3157376 3552080 3946784 4341448 4735984 5130704 5525304 ...
 
 Found 259 gzip stream candidates!
@@ -1402,10 +1576,10 @@ Found 259 gzip stream candidates!
 > python3 --version
 Python 3.10.4
 
-[findUncompressedDeflateBlocks] ( 1389 <= 1401 +- 12 <= 1413 ) MB/s
+[findUncompressedDeflateBlocks] ( 2020 <= 2070 +- 30 <= 2110 ) MB/s
     Block candidates (27):  194240 942224 2600937 4563939 7237456 9078080 14882897 16489920 23810345 29007536 30927412 33606996 47122649 49244473 49721738 ...
 
-[findUncompressedDeflateBlocksNestedBranches] ( 1352 <= 1361 +- 12 <= 1374 ) MB/s
+[findUncompressedDeflateBlocksNestedBranches] ( 1972 <= 1995 +- 16 <= 2021 ) MB/s
     Block candidates (27):  194248 942233 2600944 4563944 7237464 9078091 14882904 16489928 23810352 29007546 30927416 33607004 47122656 49244480 49721745 ...
 
 Got 6 B of FEXTRA field!
@@ -1422,21 +1596,46 @@ Block Size Distribution (small to large):
 103999 b |==================== (988)
 
 
-[findDeflateBlocksZlib] ( 0.1936 <= 0.1942 +- 0.0005 <= 0.1946 ) MB/s
+[findDeflateBlocksZlib] ( 0.185 <= 0.193 +- 0.003 <= 0.195 ) MB/s
     Block candidates (29):  192 102672 194239 194240 194241 194242 194245 205833 308639 411748 515132 618285 721612 824892 928415 ...
 
-[findDeflateBlocksZlibOptimized] ( 0.6633 <= 0.6659 +- 0.0023 <= 0.6673 ) MB/s
+[findDeflateBlocksZlibOptimized] ( 0.637 <= 0.66 +- 0.011 <= 0.669 ) MB/s
     Block candidates (20):  192 102672 205833 308639 411748 515132 618285 721612 824892 928415 1031456 1134888 1238197 1341253 1444122 ...
 
-[findDeflateBlocksPragzip] ( 4.173 <= 4.18 +- 0.007 <= 4.187 ) MB/s
-    Block candidates (988):  192 102672 205833 308639 411748 515132 618285 721612 824892 928415 1031456 1134888 1238197 1341253 1444122 ...
+From 102076376 bits to test, found 10826052 (10.6058 %) candidates and reduced them down further to 988.
+Reading dynamic Huffman Code (HC) deflate block failed because the code lengths were invalid:
+    Invalid Precode  HC: 10782746
+    Invalid Distance HC: 8056
+    Invalid Symbol   HC: 92
+Precode CL count:
+     4 : 651279
+     5 : 660953
+     6 : 658117
+     7 : 672607
+     8 : 657614
+     9 : 659431
+    10 : 652932
+    11 : 708769
+    12 : 661425
+    13 : 667119
+    14 : 661341
+    15 : 682005
+    16 : 676819
+    17 : 682065
+    18 : 702720
+    19 : 770856
+Encountered errors:
+     7144252 Constructing a Huffman coding from the given code length sequence failed!
+     3646642 The Huffman coding is not optimal!
+       28850 Invalid number of literal/length codes!
+        5320 Cannot copy last length because this is the first one!
+         988 No error.
 
-[findDeflateBlocksPragzipLUT] ( 8.746 <= 8.763 +- 0.018 <= 8.783 ) MB/s
-    Block candidates (988):  192 102672 205833 308639 411748 515132 618285 721612 824892 928415 1031456 1134888 1238197 1341253 1444122 ...
+Block candidates (988):  192 102672 205833 308639 411748 515132 618285 721612 824892 928415 1031456 1134888 1238197 1341253 1444122 ...
 
-[findDeflateBlocksPragzipLUTTwoPass] ( 8.53 <= 8.76 +- 0.2 <= 8.88 ) MB/s
-    Block candidates (988):  192 102672 205833 308639 411748 515132 618285 721612 824892 928415 1031456 1134888 1238197 1341253 1444122 ...
-
+[findDeflateBlocksPragzipLUT] ( 4.1 <= 4.19 +- 0.04 <= 4.22 ) MB/s
+[findDeflateBlocksPragzipLUT] ( 25.15 <= 25.31 +- 0.11 <= 25.47 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass] ( 23.9 <= 24.09 +- 0.13 <= 24.29 ) MB/s
 
 === Testing with encoder: Python3 pgzip ===
 
@@ -1452,10 +1651,10 @@ Location: /home/hypatia/.local/lib/python3.10/site-packages
 Requires:
 Required-by:
 
-[findUncompressedDeflateBlocks] ( 1180 <= 1290 +- 90 <= 1350 ) MB/s
+[findUncompressedDeflateBlocks] ( 2102 <= 2131 +- 14 <= 2158 ) MB/s
     Block candidates (23):  2311842 13547514 17302848 21375988 29568384 38396442 40876281 45811441 46230384 50735041 50861242 51689824 52966512 56154593 62322161 ...
 
-[findUncompressedDeflateBlocksNestedBranches] ( 1317 <= 1322 +- 5 <= 1327 ) MB/s
+[findUncompressedDeflateBlocksNestedBranches] ( 1981 <= 2023 +- 18 <= 2043 ) MB/s
     Block candidates (23):  2311849 13547520 17302857 21375992 29568395 38396449 40876289 45811448 46230393 50735049 50861248 51689833 52966520 56154600 62322168 ...
 
 Got 8 B of FEXTRA field!
@@ -1472,18 +1671,44 @@ Block Size Distribution (small to large):
 207124 b |==================== (494)
 
 
-[findDeflateBlocksZlib] ( 0.1825 <= 0.1831 +- 0.0007 <= 0.1838 ) MB/s
+[findDeflateBlocksZlib] ( 0.192 <= 0.1941 +- 0.0009 <= 0.1952 ) MB/s
     Block candidates (12):  272 205800 411533 617885 824269 1030628 1164656 1237131 1442923 1649106 1771228 1855109
 
-[findDeflateBlocksZlibOptimized] ( 0.633 <= 0.637 +- 0.004 <= 0.641 ) MB/s
+[findDeflateBlocksZlibOptimized] ( 0.665 <= 0.671 +- 0.004 <= 0.676 ) MB/s
     Block candidates (10):  272 205800 411533 617885 824269 1030628 1237131 1442923 1649106 1855109
 
-[findDeflateBlocksPragzip] ( 4.098 <= 4.111 +- 0.011 <= 4.119 ) MB/s
-    Block candidates (494):  272 205800 411533 617885 824269 1030628 1237131 1442923 1649106 1855109 2061199 2267938 2473926 2680186 2886437 ...
+From 101982400 bits to test, found 10792871 (10.5831 %) candidates and reduced them down further to 494.
+Reading dynamic Huffman Code (HC) deflate block failed because the code lengths were invalid:
+    Invalid Precode  HC: 10750237
+    Invalid Distance HC: 8081
+    Invalid Symbol   HC: 74
+Precode CL count:
+     4 : 656512
+     5 : 660445
+     6 : 654292
+     7 : 669369
+     8 : 656014
+     9 : 657507
+    10 : 647620
+    11 : 707401
+    12 : 661996
+    13 : 660533
+    14 : 659181
+    15 : 677181
+    16 : 671809
+    17 : 679677
+    18 : 699874
+    19 : 773460
+Encountered errors:
+     7114233 Constructing a Huffman coding from the given code length sequence failed!
+     3644159 The Huffman coding is not optimal!
+       28689 Invalid number of literal/length codes!
+        5296 Cannot copy last length because this is the first one!
+         494 No error.
 
-[findDeflateBlocksPragzipLUT] ( 8.725 <= 8.73 +- 0.005 <= 8.736 ) MB/s
-    Block candidates (494):  272 205800 411533 617885 824269 1030628 1237131 1442923 1649106 1855109 2061199 2267938 2473926 2680186 2886437 ...
+Block candidates (494):  272 205800 411533 617885 824269 1030628 1237131 1442923 1649106 1855109 2061199 2267938 2473926 2680186 2886437 ...
 
-[findDeflateBlocksPragzipLUTTwoPass] ( 8.77 <= 8.85 +- 0.07 <= 8.9 ) MB/s
-    Block candidates (494):  272 205800 411533 617885 824269 1030628 1237131 1442923 1649106 1855109 2061199 2267938 2473926 2680186 2886437 ...
+[findDeflateBlocksPragzipLUT] ( 4.222 <= 4.273 +- 0.023 <= 4.296 ) MB/s
+[findDeflateBlocksPragzipLUT] ( 28.06 <= 28.41 +- 0.16 <= 28.63 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass] ( 26.3 <= 26.62 +- 0.22 <= 26.93 ) MB/s
 */

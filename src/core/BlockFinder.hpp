@@ -37,7 +37,7 @@ public:
 public:
     explicit
     BlockFinder( std::unique_ptr<RawBlockFinder> rawBlockFinder ) :
-        m_rawBlockFinder( std::move(rawBlockFinder ) )
+        m_rawBlockFinder( std::move( rawBlockFinder ) )
     {}
 
     ~BlockFinder()
