@@ -107,14 +107,27 @@ testUncompressedBlockFinder( std::string const&                             path
             break;
         }
 
-        std::cerr << "Found range: " << foundRange.first << ", " << foundRange.second << "\n";
-
         foundRanges.emplace_back( foundRange );
         bitReader.seek( static_cast<long long int>( foundRange.second ) + 1 );
     }
 
+    const auto printRanges =
+        [&bitReader] ( const auto& offsetRanges ) {
+            std::stringstream message;
+            for ( const auto& [start, stop] : offsetRanges ) {
+                bitReader.seek( stop + 3 );
+                message << std::dec << "    [" << start << ", " << stop << "] -> size: 0x"
+                        << std::hex << bitReader.peek<32>() << "\n";
+            }
+            return std::move( message ).str();
+        };
+
     REQUIRE_EQUAL( foundRanges.size(), expected.size() );
     REQUIRE( foundRanges == expected );
+    if ( foundRanges != expected ) {
+        std::cerr << "Found ranges:\n" << printRanges( foundRanges );
+        std::cerr << "Expected ranges:\n" << printRanges( expected );
+    }
 }
 
 
@@ -138,15 +151,27 @@ main( int    argc,
             findParentFolderContaining( binaryFolder, "src/tests/data/random-128KiB.bgz" )
         ) / "src" / "tests" / "data";
 
+    /* Note that pragzip --analyze shows the real offset to be 199507 but depending on the preceding bits
+     * the range can go all the way back to the last byte boundary. In this case it goes back 1 bit. */
+    testUncompressedBlockFinder( testsFolder / "base64-64KiB.pgz", { { 199506, 199509 } } );
+
+    /* Note that pragzip --analyze shows the real offset to be 24942 * BYTE_SIZE + 7 but depending on the preceding bits
+     * the range can go all the way back to the last byte boundary. In this case it goes back 1 bit. */
+    testUncompressedBlockFinder( testsFolder / "base64-64KiB-7b-offset-uncompressed.pgz",
+                                 { { 24942 * BYTE_SIZE + 6, 24944 * BYTE_SIZE - 3 } } );
+
     /* Because the whole file consists of compressed blocks, the +5 can be easily explained.
      * After a compressed block, the next one will begin at byte-boundary but the latest it might begin is at
      * the next byte boundary minus 3 0-bits (non-final block + block type 0b00). */
     const std::vector<std::pair<size_t, size_t> > expectedOffsetRanges = {
-        { 24ULL    * BYTE_SIZE, 24ULL    * BYTE_SIZE + 5ULL },
-        { 32806ULL * BYTE_SIZE, 32806ULL * BYTE_SIZE + 5ULL },
-        { 65604ULL * BYTE_SIZE, 65604ULL * BYTE_SIZE + 5ULL },
-        /* The Uncompressed block finder only looks for non-final blocks! */
-        /* { 98386ULL * BYTE_SIZE, 98386ULL * BYTE_SIZE + 5ULL }, */
+        { 24ULL    * BYTE_SIZE - 2ULL, 24ULL    * BYTE_SIZE + 5ULL },
+        { 32806ULL * BYTE_SIZE       , 32806ULL * BYTE_SIZE + 5ULL },
+        { 65604ULL * BYTE_SIZE       , 65604ULL * BYTE_SIZE + 5ULL },
+        /* The Uncompressed block finder only looks for non-final blocks. However, because of the byte-alignment
+         * and the zero-padding it might give a false positive range even for a final uncompressed block!
+         * In this case, the real offset is at exactly 98386 B. But this means that there 5 zero-padded bits
+         * following that might get interpreted as the non-final uncompressed block signature 0b000! */
+        { 98386ULL * BYTE_SIZE + 1ULL, 98386ULL * BYTE_SIZE + 5ULL },
     };
     testUncompressedBlockFinder( testsFolder / "random-128KiB.gz", expectedOffsetRanges );
 

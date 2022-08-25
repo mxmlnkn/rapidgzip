@@ -195,6 +195,16 @@ public:
             if ( !blockData
                  || ( !blockData->matchesEncodedOffset( *nextBlockOffset )
                       && ( partitionOffset != *nextBlockOffset ) ) ) {
+                if ( blockData ) {
+                    std::cerr << "[Info] Detected a performance problem. YOUR DATA IS FINE! However, decoding might "
+                              << "take longer than necessary. Please consider opening a performance bug report with "
+                              << "a reproducing compressed file. Detailed information:\n"
+                              << "[Info] Found mismatching block. Need offset " << formatBits( *nextBlockOffset )
+                              << ". Look in partition offset: " << formatBits( partitionOffset )
+                              << ". Found possible range: ["
+                              << formatBits( blockData->encodedOffsetInBits ) << ", "
+                              << formatBits( blockData->maxEncodedOffsetInBits ) << "]\n";
+                }
                 blockData = BaseType::get( *nextBlockOffset, m_nextUnprocessedBlockIndex );
             }
 

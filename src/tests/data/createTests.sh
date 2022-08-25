@@ -33,3 +33,8 @@ fname='random-128KiB'; head -c $(( 128*1024 )) /dev/urandom > "$fname"; allgzip 
 
 # Test with exactly one deflate window size of data
 fname='base64-32KiB'; base64 /dev/urandom | head -c $(( 32*1024 )) > "$fname" && allgzip "$fname"
+
+# Create a compressed file with one pigz flush block (uncompressed block of size 0).
+# 32KiB between flush blocks is the minimum.
+fname='base64-64KiB'; base64 /dev/urandom | head -c $(( 64*1024 )) > "$fname" &&
+pigz -c --blocksize 32 -- "$fname" > "${fname}.pgz"
