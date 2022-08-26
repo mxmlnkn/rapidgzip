@@ -78,6 +78,7 @@ public:
                     << " ) B (" << m_statistics->seekForward.count << "calls)\n"
                     << "   reads         : (" << m_statistics->read.formatAverageWithUncertainty( true )
                     << " ) B (" << m_statistics->read.count << "calls)\n"
+                    << "   locks         :" << m_statistics->locks << "\n"
                     << "   read in total" << m_statistics->read.sum << "B out of" << m_fileSizeBytes << "B,"
                     << "i.e., read the file" << m_statistics->read.sum / m_fileSizeBytes << "times\n"
                     << "   time spent seeking and reading:" << m_statistics->readingTime << "s\n"
@@ -114,14 +115,14 @@ public:
         /* This is a shared file. Closing the underlying file while it might be used by another process,
          * seems like a bug-prone functionality. If you really want to close a file, delete all SharedFileReader
          * classes using it. It will be closed by the last destructor @see deleter set in the constructor. */
-        std::scoped_lock lock( *m_mutex );
+        const auto lock = getLock();
         m_sharedFile.reset();
     }
 
     [[nodiscard]] bool
     closed() const override
     {
-        std::scoped_lock lock( *m_mutex );
+        const auto lock = getLock();
         return !m_sharedFile || m_sharedFile->closed();
     }
 
@@ -135,14 +136,14 @@ public:
     [[nodiscard]] bool
     fail() const override
     {
-        std::scoped_lock lock( *m_mutex );
+        const auto lock = getLock();
         return !m_sharedFile || m_sharedFile->fail();
     }
 
     [[nodiscard]] int
     fileno() const override
     {
-        std::scoped_lock lock( *m_mutex );
+        const auto lock = getLock();
         if ( m_sharedFile ) {
             return m_sharedFile->fileno();
         }
@@ -165,7 +166,7 @@ public:
     seek( long long int offset,
           int           origin = SEEK_SET ) override
     {
-        std::scoped_lock lock( *m_mutex );
+        const auto lock = getLock();
 
         if ( !m_sharedFile || m_sharedFile->closed() ) {
             throw std::invalid_argument( "Invalid or closed SharedFileReader can't be seeked!" );
@@ -199,7 +200,7 @@ public:
             return 0;
         }
 
-        std::scoped_lock lock( *m_mutex );
+        const auto lock = getLock();
 
         const auto t0 = now();
 
@@ -248,11 +249,22 @@ public:
     }
 
 private:
+    [[nodiscard]] std::scoped_lock<std::mutex>
+    getLock() const
+    {
+        if constexpr ( SHOW_PROFILE ) {
+            ++m_statistics->locks;
+        }
+        return std::scoped_lock( *m_mutex );
+    }
+
+private:
     struct AccessStatistics {
         Statistics<uint64_t> read;
         Statistics<uint64_t> seekBack;
         Statistics<uint64_t> seekForward;
         double readingTime{ 0 };
+        uint64_t locks{ 0 };
     };
 
 private:
