@@ -276,7 +276,7 @@ public:
 
         if ( UNLIKELY( outputBuffer == nullptr ) ) [[unlikely]] {
             seek( nBytesToRead, SEEK_CUR );
-        } else if ( oldTell % CHAR_BIT != 0 ) {
+        } else if ( UNLIKELY( oldTell % CHAR_BIT != 0 ) ) [[unlikely]] {
             for ( size_t i = 0; i < nBytesToRead; ++i ) {
                 outputBuffer[i] = static_cast<char>( read( CHAR_BIT ) );
             }

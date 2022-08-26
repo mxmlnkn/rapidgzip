@@ -813,15 +813,28 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readInternal( BitReader& bitReader,
          * Therefore, this routine is safe to call in respect of "buffer overflows" before returning the view to
          * the buffer.
          * @note This does not take into account nMaxToDecode to avoid further state to keep track off.
+         * Timings for different buffer sizes in MB/s for 2GiB-random.gz:
+         * @verbatim
+         *    8 B : 398.55  411.779 409.841
+         *   16 B : 386.543 385.621 385.567
+         *   32 B : 412.783 407.354 402.352 402.129
+         *   64 B : 397.71  412.952 413.265 416.339
+         *  128 B : 379.629 380.691 387.439 377.22
+         *  256 B : 380.17  389.722 387.635 405.699
+         *  512 B : 382.466 379.642 390.317 381.801
+         * 1024 B : 384.92  386.544 381.748 388.71
+         * 2048 B : 378.362 394.002 391.357 389.728
+         * 4096 B : 380.87  379.09  386.711 395.955
+         * @endverbatim
          * @todo Use memcpy? Would have to do m_distanceToLastMarkerByte += m_uncompressedSize and calculate CRC32.
          */
         uint32_t totalBytesRead{ 0 };
-        for ( ; totalBytesRead + 4 <= m_uncompressedSize; totalBytesRead += 4 ) {
-            const auto bits = bitReader.read<4 * BYTE_SIZE>();
-            appendToWindow( window, static_cast<uint8_t>( bits ) );
-            appendToWindow( window, static_cast<uint8_t>( bits >> BYTE_SIZE ) );
-            appendToWindow( window, static_cast<uint8_t>( bits >> ( 2U * BYTE_SIZE ) ) );
-            appendToWindow( window, static_cast<uint8_t>( bits >> ( 3U * BYTE_SIZE ) ) );
+        std::array<uint8_t, 64> buffer;
+        for ( ; totalBytesRead + buffer.size() <= m_uncompressedSize; totalBytesRead += buffer.size() ) {
+            const auto nBytesRead = bitReader.read( reinterpret_cast<char*>( buffer.data() ), buffer.size() );
+            for ( size_t i = 0; i < nBytesRead; ++i ) {
+                appendToWindow( window, buffer[i] );
+            }
         }
         for ( ; totalBytesRead < m_uncompressedSize; ++totalBytesRead ) {
             appendToWindow( window, static_cast<uint8_t>( bitReader.read<BYTE_SIZE>() ) );
