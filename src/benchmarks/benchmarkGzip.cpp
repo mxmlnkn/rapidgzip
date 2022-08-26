@@ -1070,66 +1070,163 @@ cd indexed_bzip2 && mkdir build && cd build && cmake ..
 sudo apt install pigz isal tabix
 
 # Create a compressible random file
-base64 /dev/urandom | head -c $(( 4 * 1024 * 1024 * 1024 )) > 4GB
-pigz  -k -c 4GB > 4GB.pigz
-bgzip    -c 4GB > 4GB.bgz
-gzip  -k -c 4GB > 4GB.gz
-igzip -k -c 4GB > 4GB.igz
+fname=4GB
+base64 /dev/urandom | head -c $(( 4 * 1024 * 1024 * 1024 )) > "$fname"
+pigz  -k -c "$fname" > "$fname.pigz"
+bgzip    -c "$fname" > "$fname.bgz"
+gzip  -k -c "$fname" > "$fname.gz"
+igzip -k -c "$fname" > "$fname.igz"
 
-fileSize=$( stat --format=%s 4GB )
+printf '\n| %6s | %19s | %10s | %18s |\n' Format Decoder 'Runtime / s' 'Bandwidth / (MB/s)'
+printf -- '|--------|---------------------|-------------|--------------------|\n'
+for tool in cat fcat; do
+    runtime=$( ( time $tool "$fname" | wc -c ) 2>&1 | sed -n -E 's|real[ \t]*0m||p' | sed 's|[ \ts]||' )
+    bandwidth=$( python3 -c "print( int( round( $fileSize / 1e6 / $runtime ) ) )" )
+    printf '| %6s | %19s | %11s | %18s |\n' "" "$tool" "$runtime" "$bandwidth"
+done
+
+fname=4GB
+fileSize=$( stat --format=%s "$fname" )
 for format in gz bgz pigz igz; do
-    crc32 "4GB.$format" &>/dev/null  # Make my QLC SSD cache the file into the SLC cache
-    printf '\n| %6s | %13s | %10s | %18s |\n' Format Decoder 'Runtime / s' 'Bandwidth / (MB/s)'
-    printf -- '|--------|---------------|-------------|--------------------|\n'
-    for tool in gzip bgzip "bgzip -@ $( nproc )" pigz igzip "igzip -T $( nproc )" src/tools/pragzip "src/tools/pragzip -P $( nproc )"; do
-        runtime=$( ( time $tool -d -c "4GB.$format" | wc -c ) 2>&1 | sed -n -E 's|real[ \t]*0m||p' | sed 's|[ \ts]||' )
+    printf '\n| %6s | %19s | %10s | %18s |\n' Format Decoder 'Runtime / s' 'Bandwidth / (MB/s)'
+    printf -- '|--------|---------------------|-------------|--------------------|\n'
+    crc32 "$fname.$format" &>/dev/null  # Make my QLC SSD cache the file into the SLC cache
+
+    for tool in gzip bgzip "bgzip -@ $( nproc )" pigz igzip "igzip -T $( nproc )" "src/tools/pragzip -P 1" "src/tools/pragzip -P $( nproc )"; do
+        runtime=$( ( time $tool -d -c "$fname.$format" | wc -c ) 2>&1 | sed -n -E 's|real[ \t]*0m||p' | sed 's|[ \ts]||' )
         bandwidth=$( python3 -c "print( int( round( $fileSize / 1e6 / $runtime ) ) )" )
-        printf '| %6s | %13s | %11s | %18s |\n' "$format" "${tool//*\//}" "$runtime" "$bandwidth"
+        printf '| %6s | %19s | %11s | %18s |\n' "$format" "$tool" "$runtime" "$bandwidth"
     done
 done
 
+| Format |       Decoder | Runtime / s | Bandwidth / (MB/s) |
+|--------|---------------|-------------|--------------------|
+|        |           cat |       1.355 |               3170 |
+|        |          fcat |       0.511 |               8405 |
 
 | Format |       Decoder | Runtime / s | Bandwidth / (MB/s) |
 |--------|---------------|-------------|--------------------|
-|     gz |          gzip |      23.084 |                186 |
-|     gz |         bgzip |      16.413 |                262 |
-|     gz |   bgzip -@ 24 |      16.441 |                261 |
-|     gz |          pigz |      13.414 |                320 |
-|     gz |         igzip |       9.150 |                469 |
-|     gz |   igzip -T 24 |       9.190 |                467 |
-|     gz |       pragzip |      29.168 |                147 |
-|     gz | pragzip -P 24 |       3.032 |               1417 |
+|     gz |          gzip |      22.467 |                191 |
+|     gz |         bgzip |      16.279 |                264 |
+|     gz |   bgzip -@ 24 |      16.299 |                264 |
+|     gz |          pigz |      13.330 |                322 |
+|     gz |         igzip |       9.033 |                475 |
+|     gz |   igzip -T 24 |       8.995 |                477 |
+|     gz |  pragzip -P 1 |      30.229 |                142 |
+|     gz | pragzip -P 24 |       2.079 |               2066 |
 
 | Format |       Decoder | Runtime / s | Bandwidth / (MB/s) |
 |--------|---------------|-------------|--------------------|
-|    bgz |          gzip |      25.434 |                169 |
-|    bgz |         bgzip |      12.250 |                351 |
-|    bgz |   bgzip -@ 24 |       1.873 |               2293 |
-|    bgz |          pigz |      20.331 |                211 |
-|    bgz |         igzip |       9.297 |                462 |
-|    bgz |   igzip -T 24 |       9.389 |                457 |
-|    bgz |       pragzip |      28.648 |                150 |
-|    bgz | pragzip -P 24 |       2.568 |               1672 |
+|    bgz |          gzip |      28.009 |                153 |
+|    bgz |         bgzip |      12.345 |                348 |
+|    bgz |   bgzip -@ 24 |       1.639 |               2620 |
+|    bgz |          pigz |      20.249 |                212 |
+|    bgz |         igzip |       9.319 |                461 |
+|    bgz |   igzip -T 24 |       9.416 |                456 |
+|    bgz |  pragzip -P 1 |      26.712 |                161 |
+|    bgz | pragzip -P 24 |       1.980 |               2169 |
 
 | Format |       Decoder | Runtime / s | Bandwidth / (MB/s) |
 |--------|---------------|-------------|--------------------|
-|   pigz |          gzip |      23.042 |                186 |
-|   pigz |         bgzip |      16.211 |                265 |
-|   pigz |   bgzip -@ 24 |      16.395 |                262 |
-|   pigz |          pigz |      13.750 |                312 |
-|   pigz |         igzip |       9.840 |                436 |
-|   pigz |   igzip -T 24 |       9.904 |                434 |
-|   pigz |       pragzip |      42.370 |                101 |
-|   pigz | pragzip -P 24 |       3.324 |               1292 |
+|   pigz |          gzip |      23.275 |                185 |
+|   pigz |         bgzip |      16.501 |                260 |
+|   pigz |   bgzip -@ 24 |      16.456 |                261 |
+|   pigz |          pigz |      13.605 |                316 |
+|   pigz |         igzip |      10.122 |                424 |
+|   pigz |   igzip -T 24 |       9.730 |                441 |
+|   pigz |  pragzip -P 1 |      45.896 |                 94 |
+|   pigz | pragzip -P 24 |       2.718 |               1580 |
 
 | Format |       Decoder | Runtime / s | Bandwidth / (MB/s) |
 |--------|---------------|-------------|--------------------|
-|    igz |          gzip |      21.020 |                204 |
-|    igz |         bgzip |      14.964 |                287 |
-|    igz |   bgzip -@ 24 |      15.094 |                285 |
-|    igz |          pigz |      12.137 |                354 |
-|    igz |         igzip |       7.700 |                558 |
-|    igz |   igzip -T 24 |       7.797 |                551 |
-|    igz |       pragzip |      18.825 |                228 |
-|    igz | pragzip -P 24 |       3.044 |               1411 |
+|    igz |          gzip |      21.317 |                201 |
+|    igz |         bgzip |      14.769 |                291 |
+|    igz |   bgzip -@ 24 |      15.061 |                285 |
+|    igz |          pigz |      12.190 |                352 |
+|    igz |         igzip |       7.666 |                560 |
+|    igz |   igzip -T 24 |       7.737 |                555 |
+|    igz |  pragzip -P 1 |      18.183 |                236 |
+|    igz | pragzip -P 24 |       1.910 |               2249 |
+
+
+# Create an incompressible random file
+fileSize=$(( 4 * 1024 * 1024 * 1024 ))
+fname=4GiB-random
+head -c $fileSize /dev/urandom > $fname
+pigz  -k -c "$fname" > "$fname.pigz"
+bgzip    -c "$fname" > "$fname.bgz"
+gzip  -k -c "$fname" > "$fname.gz"
+igzip -k -c "$fname" > "$fname.igz"
+
+printf '\n| %6s | %19s | %10s | %18s |\n' Format Decoder 'Runtime / s' 'Bandwidth / (MB/s)'
+printf -- '|--------|---------------------|-------------|--------------------|\n'
+for tool in cat fcat; do
+    runtime=$( ( time $tool "$fname" | wc -c ) 2>&1 | sed -n -E 's|real[ \t]*0m||p' | sed 's|[ \ts]||' )
+    bandwidth=$( python3 -c "print( int( round( $fileSize / 1e6 / $runtime ) ) )" )
+    printf '| %6s | %19s | %11s | %18s |\n' "" "$tool" "$runtime" "$bandwidth"
+done
+
+fname=4GiB-random
+fileSize=$( stat --format=%s -- "$fname" )
+
+for format in gz bgz pigz igz; do
+    printf '\n| %6s | %19s | %10s | %18s |\n' Format Decoder 'Runtime / s' 'Bandwidth / (MB/s)'
+    printf -- '|--------|---------------------|-------------|--------------------|\n'
+    crc32 "$fname.$format" &>/dev/null  # Make my QLC SSD cache the file into the SLC cache
+
+    for tool in gzip bgzip "bgzip -@ $( nproc )" pigz igzip "igzip -T $( nproc )" "src/tools/pragzip -P 1" "src/tools/pragzip -P $( nproc )"; do
+        runtime=$( ( time $tool -d -c "$fname.$format" | wc -c ) 2>&1 | sed -n -E 's|real[ \t]*0m||p' | sed 's|[ \ts]||' )
+        bandwidth=$( python3 -c "print( int( round( $fileSize / 1e6 / $runtime ) ) )" )
+        printf '| %6s | %19s | %11s | %18s |\n' "$format" "$tool" "$runtime" "$bandwidth"
+    done
+done
+
+| Format |       Decoder | Runtime / s | Bandwidth / (MB/s) |
+|--------|---------------|-------------|--------------------|
+|        |           cat |       1.287 |               3337 |
+|        |          fcat |       0.480 |               8948 |
+
+| Format |       Decoder | Runtime / s | Bandwidth / (MB/s) |
+|--------|---------------|-------------|--------------------|
+|     gz |          gzip |      18.806 |                228 |
+|     gz |         bgzip |       4.170 |               1030 |
+|     gz |   bgzip -@ 24 |       4.087 |               1051 |
+|     gz |          pigz |       4.391 |                978 |
+|     gz |         igzip |       2.635 |               1630 |
+|     gz |   igzip -T 24 |       2.573 |               1669 |
+|     gz |  pragzip -P 1 |       1.244 |               3453 |
+|     gz | pragzip -P 24 |       1.618 |               2654 |
+
+| Format |       Decoder | Runtime / s | Bandwidth / (MB/s) |
+|--------|---------------|-------------|--------------------|
+|    bgz |          gzip |      20.119 |                213 |
+|    bgz |         bgzip |       1.792 |               2397 |
+|    bgz |   bgzip -@ 24 |       1.919 |               2238 |
+|    bgz |          pigz |       9.072 |                473 |
+|    bgz |         igzip |       1.775 |               2420 |
+|    bgz |   igzip -T 24 |       1.733 |               2478 |
+|    bgz |  pragzip -P 1 |       1.932 |               2223 |
+|    bgz | pragzip -P 24 |       1.589 |               2703 |
+
+| Format |       Decoder | Runtime / s | Bandwidth / (MB/s) |
+|--------|---------------|-------------|--------------------|
+|   pigz |          gzip |      19.810 |                217 |
+|   pigz |         bgzip |       4.005 |               1072 |
+|   pigz |   bgzip -@ 24 |       4.038 |               1064 |
+|   pigz |          pigz |       4.062 |               1057 |
+|   pigz |         igzip |       2.500 |               1718 |
+|   pigz |   igzip -T 24 |       2.335 |               1839 |
+|   pigz |  pragzip -P 1 |       1.027 |               4182 |
+|   pigz | pragzip -P 24 |       1.618 |               2654 |
+
+| Format |       Decoder | Runtime / s | Bandwidth / (MB/s) |
+|--------|---------------|-------------|--------------------|
+|    igz |          gzip |      26.927 |                160 |
+|    igz |         bgzip |       5.601 |                767 |
+|    igz |   bgzip -@ 24 |       5.446 |                789 |
+|    igz |          pigz |       5.194 |                827 |
+|    igz |         igzip |       3.839 |               1119 |
+|    igz |   igzip -T 24 |       3.888 |               1105 |
+|    igz |  pragzip -P 1 |       4.548 |                944 |
+|    igz | pragzip -P 24 |       1.479 |               2904 |
 */
