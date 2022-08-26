@@ -292,21 +292,25 @@ public:
             }
 
             /* 2. Empty byte buffer */
-            const auto nBytesReadFromBuffer = std::min( nBytesToRead - nBytesRead,
-                                                        m_inputBuffer.size() - m_inputBufferPosition );
-            if ( nBytesReadFromBuffer > 0 ) {
-                std::memcpy( outputBuffer + nBytesRead, m_inputBuffer.data() + m_inputBufferPosition,
-                             nBytesReadFromBuffer );
-                nBytesRead += nBytesReadFromBuffer;
-                m_inputBufferPosition += nBytesReadFromBuffer;
-            }
+            nBytesRead += readFromBuffer( outputBuffer + nBytesRead, nBytesToRead - nBytesRead );
 
-            /* 3. Read directly from underlying file */
+            /* 3. a) Read directly from underlying file or
+             *    b) Refill byte buffer and read from it to avoid many small calls to FileReader::read. */
             const auto nBytesToReadFromFile = nBytesToRead - nBytesRead;
-            if ( ( nBytesToReadFromFile > 0 ) && m_file ) {
-                /* We don't need the return value because we are using tell! */
-                [[maybe_unused]] const auto nBytesReadFromFile =
-                    m_file->read( outputBuffer + nBytesRead, nBytesToReadFromFile );
+            if ( UNLIKELY( ( nBytesToReadFromFile > 0 ) && m_file ) ) [[unlikely]] {
+                assert( m_inputBufferPosition == m_inputBuffer.size() );
+                if ( nBytesToRead < std::min( size_t( 1024 ), IOBUF_SIZE ) ) {
+                    /* Because nBytesToRead < IOBUF_SIZE, refilling the buffer once will suffice to read the
+                     * requested amount of bytes or else we have reached EOF. */
+                    refillBuffer();
+                    readFromBuffer( outputBuffer + nBytesRead, nBytesToRead - nBytesRead );
+                } else {
+                    if ( ( nBytesToReadFromFile > 0 ) && m_file ) {
+                        /* We don't need the return value because we are using tell! */
+                        [[maybe_unused]] const auto nBytesReadFromFile =
+                            m_file->read( outputBuffer + nBytesRead, nBytesToReadFromFile );
+                    }
+                }
             }
         }
 
@@ -518,6 +522,18 @@ private:
         } else {
             m_bitBuffer &= nHighestBitsSet<BitBuffer>( m_originalBitBufferSize );
         }
+    }
+
+    size_t
+    readFromBuffer( void* const  outputBuffer,
+                    size_t const nBytesToRead )
+    {
+        const auto nBytesReadFromBuffer = std::min( nBytesToRead, m_inputBuffer.size() - m_inputBufferPosition );
+        if ( nBytesReadFromBuffer > 0 ) {
+            std::memcpy( outputBuffer, m_inputBuffer.data() + m_inputBufferPosition, nBytesReadFromBuffer );
+            m_inputBufferPosition += nBytesReadFromBuffer;
+        }
+        return nBytesReadFromBuffer;
     }
 
     void
