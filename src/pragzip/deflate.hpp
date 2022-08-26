@@ -421,7 +421,7 @@ private:
     static constexpr FixedHuffmanCoding m_fixedHC = createFixedHC();
     LiteralOrLengthHuffmanCoding m_literalHC;
 
-    /* HuffmanCodingReversedBitsCached is definitely faster for siles.tar.gz which has more back-references than
+    /* HuffmanCodingReversedBitsCached is definitely faster for silesia.tar.gz which has more back-references than
      * base64.gz for which the difference in changing this Huffman coding is negligible. Note that we can't use
      * double caching for this because that would mean merging the cache with ne next literal/length Huffman code! */
     HuffmanCodingReversedBitsCached<uint16_t, MAX_CODE_LENGTH, uint8_t, MAX_DISTANCE_SYMBOL_COUNT> m_distanceHC;
@@ -810,13 +810,21 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readInternal( BitReader& bitReader,
         /**
          * Because the non-compressed deflate block size is 16-bit, the uncompressed data is limited to 65535 B!
          * The buffer can hold MAX_WINDOW_SIZE 16-bit values (for markers) or twice the amount of decoded bytes.
-         * Therefore, this routine is safe to call.
-         * @todo This does not take into account nMaxToDecode nor the buffer size!
+         * Therefore, this routine is safe to call in respect of "buffer overflows" before returning the view to
+         * the buffer.
+         * @note This does not take into account nMaxToDecode to avoid further state to keep track off.
          * @todo Use memcpy? Would have to do m_distanceToLastMarkerByte += m_uncompressedSize and calculate CRC32.
          */
-        for ( uint16_t i = 0; i < m_uncompressedSize; ++i ) {
-            const auto literal = bitReader.read<BYTE_SIZE>();
-            appendToWindow( window, literal );
+        uint32_t totalBytesRead{ 0 };
+        for ( ; totalBytesRead + 4 <= m_uncompressedSize; totalBytesRead += 4 ) {
+            const auto bits = bitReader.read<4 * BYTE_SIZE>();
+            appendToWindow( window, static_cast<uint8_t>( bits ) );
+            appendToWindow( window, static_cast<uint8_t>( bits >> BYTE_SIZE ) );
+            appendToWindow( window, static_cast<uint8_t>( bits >> ( 2U * BYTE_SIZE ) ) );
+            appendToWindow( window, static_cast<uint8_t>( bits >> ( 3U * BYTE_SIZE ) ) );
+        }
+        for ( ; totalBytesRead < m_uncompressedSize; ++totalBytesRead ) {
+            appendToWindow( window, static_cast<uint8_t>( bitReader.read<BYTE_SIZE>() ) );
         }
         m_atEndOfBlock = true;
         m_decodedBytes += m_uncompressedSize;
