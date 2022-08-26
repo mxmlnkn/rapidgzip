@@ -244,7 +244,9 @@ public:
             std::stringstream binLabel;
             binLabel << std::setw( maxLabelLength ) << std::right << binLabels[i];
 
-            const auto binVisualSize = static_cast<size_t>( static_cast<double>( bin ) / *maxBin * m_barWidth );
+            const auto binVisualSize = *maxBin == 0
+                                       ? size_t( 0 )
+                                       : static_cast<size_t>( static_cast<double>( bin ) / *maxBin * m_barWidth );
             std::stringstream histogramBar;
             histogramBar << std::setw( m_barWidth ) << std::left << std::string( binVisualSize, '=' );
 

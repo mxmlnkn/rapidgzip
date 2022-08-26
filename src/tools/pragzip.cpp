@@ -43,6 +43,8 @@ analyze( std::unique_ptr<FileReader> inputFile )
 
     std::vector<size_t> encodedBlockSizes;
     std::vector<size_t> decodedBlockSizes;
+    std::vector<double> compressionRatios;
+    std::map<deflate::CompressionType, size_t> compressionTypes;
 
     while ( true ) {
         if ( !gzipHeader ) {
@@ -136,9 +138,19 @@ analyze( std::unique_ptr<FileReader> inputFile )
         streamBlockCount += 1;
         totalBlockCount += 1;
 
+        const auto compressedSizeInBits = bitReader.tell() - blockOffset;
+        const auto compressionRatio = static_cast<double>( uncompressedBlockSize ) /
+                                      static_cast<double>( compressedSizeInBits ) * BYTE_SIZE;
+        compressionRatios.emplace_back( compressionRatio );
+
+        const auto [compressionTypeCount, wasInserted] = compressionTypes.try_emplace( block.compressionType(), 1 );
+        if ( !wasInserted ) {
+            compressionTypeCount->second++;
+        }
+
         std::cout << "Found deflate block:\n";
         std::cout << "    Final Block             : " << ( block.isLastBlock() ? "True" : "False" ) << "\n";
-        std::cout << "    Compression Type        : " << Block::toString( block.compressionType() ) << "\n";
+        std::cout << "    Compression Type        : " << toString( block.compressionType() ) << "\n";
         std::cout << "    File Statistics:\n";
         std::cout << "        Total Block Count   : " << totalBlockCount << "\n";
         std::cout << "        Compressed Offset   : " << formatBits( blockOffset ) << "\n";
@@ -147,8 +159,9 @@ analyze( std::unique_ptr<FileReader> inputFile )
         std::cout << "        Block Count         : " << streamBlockCount << "\n";
         std::cout << "        Compressed Offset   : " << formatBits( blockOffset - headerOffset ) << "\n";
         std::cout << "        Uncompressed Offset : " << uncompressedBlockOffsetInStream << " B\n";
-        std::cout << "    Compressed Size         : " << formatBits( bitReader.tell() - blockOffset ) << "\n";
+        std::cout << "    Compressed Size         : " << formatBits( compressedSizeInBits ) << "\n";
         std::cout << "    Uncompressed Size       : " << uncompressedBlockSize << " B\n";
+        std::cout << "    Compression Ratio       : " << compressionRatio << "\n";
         std::cout << "\n";
 
 
@@ -188,6 +201,16 @@ analyze( std::unique_ptr<FileReader> inputFile )
 
     std::cout << "\n== Decoded Block Size Distribution ==\n\n";
     std::cout << Histogram<size_t>{ decodedBlockSizes, 8, "Bytes" }.plot();
+
+    std::cout << "\n== Compression Ratio Distribution ==\n\n";
+    std::cout << Histogram<double>{ compressionRatios, 8, "Bytes" }.plot();
+
+    std::cout << "\n== Deflate Block Compression Types ==\n\n";
+    for ( const auto& [compressionType, count] : compressionTypes ) {
+        std::cout << std::setw( 10 ) << toString( compressionType ) << " : " << count << "\n";
+    }
+
+    std::cout << std::endl;
 
     return Error::NONE;
 }

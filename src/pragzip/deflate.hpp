@@ -184,23 +184,6 @@ class Block :
 public:
     using CompressionType = deflate::CompressionType;
 
-    [[nodiscard]] static std::string
-    toString( CompressionType compressionType ) noexcept
-    {
-        switch ( compressionType )
-        {
-        case CompressionType::UNCOMPRESSED:
-            return "Uncompressed";
-        case CompressionType::FIXED_HUFFMAN:
-            return "Fixed Huffman";
-        case CompressionType::DYNAMIC_HUFFMAN:
-            return "Dynamic Huffman";
-        case CompressionType::RESERVED:
-            return "Reserved";
-        }
-        return "Unknown";
-    }
-
 public:
     [[nodiscard]] bool
     eob() const noexcept

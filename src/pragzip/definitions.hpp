@@ -40,5 +40,23 @@ enum class CompressionType : uint8_t
     DYNAMIC_HUFFMAN = 0b10,
     RESERVED        = 0b11,
 };
+
+
+[[nodiscard]] inline std::string
+toString( CompressionType compressionType ) noexcept
+{
+    switch ( compressionType )
+    {
+    case CompressionType::UNCOMPRESSED:
+        return "Uncompressed";
+    case CompressionType::FIXED_HUFFMAN:
+        return "Fixed Huffman";
+    case CompressionType::DYNAMIC_HUFFMAN:
+        return "Dynamic Huffman";
+    case CompressionType::RESERVED:
+        return "Reserved";
+    }
+    return "Unknown";
+}
 }  // namespace deflate
 }  // namespace pragzip
