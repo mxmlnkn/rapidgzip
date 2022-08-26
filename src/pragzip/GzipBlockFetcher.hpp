@@ -87,6 +87,10 @@ public:
      * block offset. Such a range might happen for finding uncompressed deflate blocks because of the byte-padding. */
     size_t maxEncodedOffsetInBits{ std::numeric_limits<size_t>::max() };
     size_t encodedSizeInBits{ 0 };
+
+    /* Benchmark results */
+    double blockFinderDuration{ 0 };
+    double decodeDuration{ 0 };
 };
 
 
@@ -99,6 +103,9 @@ public:
     using BitReader = pragzip::BitReader;
     using WindowView = VectorView<uint8_t>;
     using BlockFinder = typename BaseType::BlockFinder;
+
+private:
+    static constexpr bool SHOW_PROFILE{ false };
 
 public:
     GzipBlockFetcher( BitReader                    bitReader,
@@ -134,6 +141,16 @@ public:
     {
         m_cancelThreads = true;
         this->stopThreadPool();
+
+        if constexpr ( SHOW_PROFILE ) {
+            std::stringstream out;
+            out << "[GzipBlockFetcher::GzipBlockFetcher] First block access statistics:\n";
+            out << "    Time spent in block finder          : " << m_blockFinderTime << " s\n";
+            out << "    Time spent decoding                 : " << m_decodeTime << " s\n";
+            out << "    Time spent applying the last window : " << m_applyWindowTime << " s\n";
+            out << "    Replaced marker bytes               : " << formatBytes( m_markerCount ) << "\n";
+            std::cerr << std::move( out ).str();
+        }
     }
 
     /**
@@ -227,7 +244,18 @@ public:
                 throw std::logic_error( std::move( message ).str() );
             }
 
+            [[maybe_unused]] const auto markerCount = blockData->dataWithMarkersSize();
+            [[maybe_unused]] const auto tApplyStart = now();
             blockData->applyWindow( *lastWindow );
+            if constexpr ( SHOW_PROFILE ) {
+                if ( markerCount > 0 ) {
+                    m_applyWindowTime += duration( tApplyStart );
+                }
+                m_markerCount += markerCount;
+                m_blockFinderTime += blockData->blockFinderDuration;
+                m_decodeTime += blockData->decodeDuration;
+            }
+
             const auto nextWindow = blockData->getLastWindow( *lastWindow );
             m_windowMap->emplace( blockOffsetAfterNext, { nextWindow.begin(), nextWindow.end() } );
         }
@@ -368,6 +396,7 @@ public:
          *       1. Try decoding the earlier offset.
          *       2. Update the used offset by searching from last position + 1 until the chunk end.
          */
+        const auto tBlockFinderStart = now();
         static constexpr size_t CHUNK_SIZE = 8ULL * 1024ULL * BYTE_SIZE;
         for ( auto chunkBegin = blockOffset; chunkBegin < untilOffset; chunkBegin += CHUNK_SIZE ) {
             if ( cancelThreads ) {
@@ -393,7 +422,10 @@ public:
                     uncompressedOffsetRange = findNextUncompressed( uncompressedOffsetRange.second + 1, chunkEnd );
                 }
 
+                const auto tBlockFinderStop = now();
                 if ( auto result = tryToDecode( offsetToTest ); result ) {
+                    result->blockFinderDuration = duration( tBlockFinderStart, tBlockFinderStop );
+                    result->decodeDuration = duration( tBlockFinderStop );
                     return *std::move( result );
                 }
             }
@@ -693,6 +725,12 @@ private:
     }
 
 private:
+    /* Members for benchmark statistics */
+    double m_applyWindowTime{ 0 };
+    double m_blockFinderTime{ 0 };
+    double m_decodeTime{ 0 };
+    uint64_t m_markerCount{ 0 };
+
     std::atomic<bool> m_cancelThreads{ false };
 
     /* Variables required by decodeBlock and which therefore should be either const or locked. */

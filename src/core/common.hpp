@@ -158,6 +158,35 @@ formatBits( const uint64_t value )
 }
 
 
+[[nodiscard]] std::string
+formatBytes( const uint64_t value )
+{
+    const std::array<std::pair<std::string_view, uint64_t>, 4> UNITS{ {
+        { "GiB", 1024ULL * 1024ULL * 1024ULL },
+        { "MiB", 1024ULL * 1024ULL },
+        { "KiB", 1024ULL },
+        { "B", 1ULL },
+    } };
+
+    std::stringstream result;
+    for ( const auto& [unit, multiplier] : UNITS ) {
+        const auto remainder = ( value / multiplier ) % 1024;
+        if ( remainder != 0 ) {
+            if ( result.tellp() > 0 ) {
+                result << " ";
+            }
+            result << remainder << " " << unit;
+        }
+    }
+
+    if ( result.tellp() == 0 ) {
+        return "0 B";
+    }
+
+    return std::move( result ).str();
+}
+
+
 [[nodiscard]] std::chrono::time_point<std::chrono::high_resolution_clock>
 now() noexcept
 {
