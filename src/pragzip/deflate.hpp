@@ -336,17 +336,18 @@ private:
      *         are returned and both are non-empty in the case of the last written data wrapping around.
      */
     template<typename Window,
-             typename Symbol = typename Window::value_type>
-    [[nodiscard]] static std::array<VectorView<Symbol>, 2>
-    lastBuffers( const Window& window,
-                 size_t        position,
-                 size_t        size )
+             typename Symbol = typename Window::value_type,
+             typename View = VectorView<Symbol> >
+    [[nodiscard]] static std::array<View, 2>
+    lastBuffers( Window& window,
+                 size_t  position,
+                 size_t  size )
     {
         if ( size > window.size() ) {
             throw std::invalid_argument( "Requested more bytes than fit in the buffer. Data is missing!" );
         }
 
-        std::array<VectorView<Symbol>, 2> result;
+        std::array<View, 2> result;
         if ( size == 0 ) {
             return result;
         }
@@ -354,12 +355,12 @@ private:
         /* Calculate wrapped around begin without unsigned underflow during the difference. */
         const auto begin = ( position + window.size() - ( size % window.size() ) ) % window.size();
         if ( begin < position ) {
-            result[0] = VectorView<Symbol>( window.data() + begin, position - begin );
+            result[0] = View( window.data() + begin, position - begin );
             return result;
         }
 
-        result[0] = VectorView<Symbol>( window.data() + begin, window.size() - begin );  // up to end of window
-        result[1] = VectorView<Symbol>( window.data(), position );  // wrapped around part at start of window
+        result[0] = View( window.data() + begin, window.size() - begin );  // up to end of window
+        result[1] = View( window.data(), position );  // wrapped around part at start of window
         return result;
     }
 
@@ -728,6 +729,19 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::read( BitReader& bitReader,
             std::memcpy( m_window.data(), remainingData.data(), remainingData.size() );
             nBytesRead = bitReader.read( reinterpret_cast<char*>( m_window.data() + remainingData.size() ),
                                          m_uncompressedSize );
+        } else if ( !m_containsMarkerBytes ) {
+            /* When there are no markers, it means we can simply memcpy into the uint8_t window.
+             * This speeds things up from ~400 MB/s to ~ 6 GB/s compared to calling appendToWindow for each byte!
+             * We can use @ref lastBuffers, which are also returned, to determine where to copy to. */
+            m_windowPosition = ( m_windowPosition + m_uncompressedSize ) % m_window.size();
+            size_t totalBytesRead{ 0 };
+            auto buffers =
+                lastBuffers<DecodedBuffer, uint8_t, WeakVector<uint8_t> >(
+                    m_window, m_windowPosition, m_uncompressedSize );
+            for ( auto& buffer : buffers ) {
+                totalBytesRead += bitReader.read( reinterpret_cast<char*>( buffer.data() ), buffer.size() );
+            }
+            nBytesRead = totalBytesRead;
         }
 
         if ( nBytesRead ) {
@@ -735,13 +749,16 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::read( BitReader& bitReader,
             m_atEndOfBlock = true;
             m_decodedBytes += *nBytesRead;
 
+            result.data = lastBuffers( m_window, m_windowPosition, *nBytesRead );
+
             if constexpr ( CALCULATE_CRC32 ) {
-                for ( size_t i = 0; i < *nBytesRead; ++i ) {
-                    m_crc32 = updateCRC32( m_crc32, m_window[i] );
+                for ( const auto& buffer : result.data ) {
+                    for ( size_t i = 0; i < buffer.size(); ++i ) {
+                        m_crc32 = updateCRC32( m_crc32, buffer[i] );
+                    }
                 }
             }
 
-            result.data = lastBuffers( m_window, m_windowPosition, *nBytesRead );
             return { result, *nBytesRead == m_uncompressedSize ? Error::NONE : Error::EOF_UNCOMPRESSED };
         }
     }
@@ -826,7 +843,6 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readInternal( BitReader& bitReader,
          * 2048 B : 378.362 394.002 391.357 389.728
          * 4096 B : 380.87  379.09  386.711 395.955
          * @endverbatim
-         * @todo Use memcpy? Would have to do m_distanceToLastMarkerByte += m_uncompressedSize and calculate CRC32.
          */
         uint32_t totalBytesRead{ 0 };
         std::array<uint8_t, 64> buffer;
