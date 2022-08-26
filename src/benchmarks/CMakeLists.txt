@@ -87,3 +87,8 @@ add_dependencies(run-benchmarks run-benchmarkGzipBlockFinder)
 add_executable(benchmarkCalculations)
 target_sources(benchmarkCalculations PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkCalculations.cpp)
 target_link_libraries(benchmarkCalculations PRIVATE libpragzip)
+
+
+add_executable(benchmarkIORead)
+target_sources(benchmarkIORead PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkIORead.cpp)
+target_link_libraries(benchmarkIORead PRIVATE libpragzip)
