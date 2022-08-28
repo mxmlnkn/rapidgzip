@@ -171,7 +171,7 @@ analyzeValidPrecodeFrequencies()
 
     const auto sizeInBytes = frequencyLUT.size() * sizeof( frequencyLUT[0] );
     std::cerr << "Precode frequency LUT containing " << static_cast<int>( FREQUENCY_COUNT ) << " bins is sized: ";
-    if ( sizeInBytes > 32 * 1024 ) {
+    if ( sizeInBytes > 32_Ki ) {
         std::cerr << sizeInBytes / 1024 << " KiB";
     } else {
         std::cerr << sizeInBytes << " B";

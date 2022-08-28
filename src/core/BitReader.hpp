@@ -50,7 +50,7 @@ public:
      * Any power of 2 larger than 4096 (4k blocks) should be safe bet.
      * 4K is too few, and will lead to a 2x slowdown in some test because of the frequent buffer refills.
      */
-    static constexpr size_t IOBUF_SIZE = 128 * 1024;
+    static constexpr size_t IOBUF_SIZE = 128_Ki;
     static constexpr int NO_FILE = -1;
     static constexpr auto MAX_BIT_BUFFER_SIZE = std::numeric_limits<BitBuffer>::digits;
 
@@ -299,7 +299,7 @@ public:
             const auto nBytesToReadFromFile = nBytesToRead - nBytesRead;
             if ( UNLIKELY( ( nBytesToReadFromFile > 0 ) && m_file ) ) [[unlikely]] {
                 assert( m_inputBufferPosition == m_inputBuffer.size() );
-                if ( nBytesToRead < std::min( size_t( 1024 ), IOBUF_SIZE ) ) {
+                if ( nBytesToRead < std::min<size_t>( 1_Ki, IOBUF_SIZE ) ) {
                     /* Because nBytesToRead < IOBUF_SIZE, refilling the buffer once will suffice to read the
                      * requested amount of bytes or else we have reached EOF. */
                     refillBuffer();

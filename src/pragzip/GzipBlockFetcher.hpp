@@ -429,13 +429,13 @@ public:
          *       2. Update the used offset by searching from last position + 1 until the chunk end.
          */
         const auto tBlockFinderStart = now();
-        static constexpr size_t CHUNK_SIZE = 8ULL * 1024ULL * BYTE_SIZE;
+        static constexpr auto CHUNK_SIZE = 8_Ki * BYTE_SIZE;
         for ( auto chunkBegin = blockOffset; chunkBegin < untilOffset; chunkBegin += CHUNK_SIZE ) {
             if ( cancelThreads ) {
                 break;
             }
 
-            const auto chunkEnd = std::min( chunkBegin + CHUNK_SIZE, untilOffset );
+            const auto chunkEnd = std::min( static_cast<size_t>( chunkBegin + CHUNK_SIZE ), untilOffset );
 
             auto uncompressedOffsetRange = findNextUncompressed( chunkBegin, chunkEnd );
             auto dynamicHuffmanOffset = findNextDynamic( chunkBegin, chunkEnd );
@@ -600,7 +600,7 @@ private:
         z_stream m_stream{};
         /* Loading the whole encoded data (multiple MiB) into memory first and then
          * decoding it in one go is 4x slower than processing it in chunks of 128 KiB! */
-        std::array<char, 128 * 1024> m_buffer;
+        std::array<char, 128_Ki> m_buffer;
     };
 
 private:

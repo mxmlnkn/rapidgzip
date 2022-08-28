@@ -790,7 +790,7 @@ findBitStringsParallel( const std::vector<char>& data )
     const auto parallelization = std::thread::hardware_concurrency();
     ParallelBitStringFinder<bitStringToFindSize> bitStringFinder(
         std::make_unique<BufferViewFileReader>( data ),
-        bitStringToFind, parallelization, 0, parallelization * 1024ULL * 1024ULL
+        bitStringToFind, parallelization, 0, parallelization * 1_Mi
     );
     while( true )  {
         matches.push_back( bitStringFinder.find() );
@@ -937,7 +937,7 @@ main( int    argc,
     } else {
         std::cerr << "Using a random buffer for testing. Because this will rarely result in positives, "
                   << "the correctness of the bit string find algorithms should already have been verified!\n";
-        data.resize( 256ULL * 1024ULL * 1024ULL );
+        data.resize( 256_Mi );
         for ( size_t i = 0; i + 3 < data.size(); i += 4 ) {
             const auto randomNumber = static_cast<uint32_t>( rand() );
             data[i + 0] = static_cast<char>( ( randomNumber >>  0U ) & 0xFFU );

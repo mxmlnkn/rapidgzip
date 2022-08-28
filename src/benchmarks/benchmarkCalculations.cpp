@@ -46,7 +46,7 @@ main( int    /* argc */,
       char** /* argv */ )
 {
     std::cout << "Creating random data..." << std::flush;
-    const auto buffer = createRandomBase64( 1024ULL * 1024ULL * 1024ULL );
+    const auto buffer = createRandomBase64( 1_Gi );
     std::cout << "OK" << std::endl;
 
     size_t newLines{ 0 };

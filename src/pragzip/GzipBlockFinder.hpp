@@ -42,7 +42,7 @@ public:
                            ? std::make_unique<blockfinder::Bgzf>( std::unique_ptr<FileReader>( fileReader->clone() ) )
                            : std::unique_ptr<blockfinder::Bgzf>() )
     {
-        if ( m_spacingInBits < 32UL * 1024UL ) {
+        if ( m_spacingInBits < 32_Ki ) {
             /* Well, actually, it could make sense because this is about the spacing in the compressed data but
              * then even more! A spacing of 32 KiB in uncompressed data can lead to index sizes up to the
              * decompressed file. A spacing of 32 KiB in the compressed data can only lead to an index equal that

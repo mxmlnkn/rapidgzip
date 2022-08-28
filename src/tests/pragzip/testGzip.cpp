@@ -219,7 +219,7 @@ testTwoStagedDecoding( std::string_view encodedFilePath,
 {
     /* Read first deflate block so that we can try decoding from the second one. */
     GzipReader gzipReader{ std::make_unique<StandardFileReader>( encodedFilePath.data() ) };
-    std::vector<char> decompressed( 1024ULL * 1024ULL );
+    std::vector<char> decompressed( 1_Mi );
     const auto firstBlockSize = gzipReader.read( -1, decompressed.data(), decompressed.size(),
                                                  StoppingPoint::END_OF_BLOCK );
     decompressed.resize( firstBlockSize );
@@ -292,7 +292,7 @@ testTwoStagedDecoding( std::string_view encodedFilePath,
     }
 
     /* Compare concatenated result. */
-    std::vector<uint8_t> decodedBuffer( 1024ULL * 1024ULL );
+    std::vector<uint8_t> decodedBuffer( 1_Mi );
     REQUIRE( decodedBuffer.size() >= concatenated.size() );
     decodedFile.seekg( static_cast<long long int>( firstBlockSize ) );
     decodedFile.read( reinterpret_cast<char*>( decodedBuffer.data() ),
@@ -327,7 +327,7 @@ main( int    argc,
     testSerialDecoderNanoSampleStoppingPoints();
     testSerialDecoderNanoSample();
     for ( const auto multiples : { 1, 2, 3, 10 } ) {
-        for ( const auto bufferSize : { 1, 2, 3, 4, 12, 32, 300, 1024, 1024 * 1024 } ) {
+        for ( const auto bufferSize : std::vector<size_t>{ 1, 2, 3, 4, 12, 32, 300, 1_Ki, 1_Mi } ) {
             std::cerr << "Try to decode " << multiples << " nano samples with buffer size: " << bufferSize << "\n";
             testSerialDecoderNanoSample( multiples, bufferSize );
         }
@@ -362,7 +362,7 @@ main( int    argc,
             continue;
         }
 
-        for ( const auto bufferSize : { 1, 2, 12, 32, 1000, 1024, 128 * 1024, 1024 * 1024, 64 * 1024 * 1024 } ) {
+        for ( const auto bufferSize : std::vector<size_t>{ 1, 2, 12, 32, 1000, 1_Ki, 128_Ki, 1_Mi, 64_Mi } ) {
             try {
                 testSerialDecoder( decodedFilePath.string(), encodedFilePath.string(), bufferSize );
             } catch ( const std::exception& e ) {

@@ -28,7 +28,7 @@ public:
      * Not fitting into L1 cache isn't as bad as thought but increasing the size past 16 kiB also does not improve
      * the timings anymore on my Ryzen 3900X.
      */
-    static constexpr size_t BUFFER_SIZE = 16 * 1024;
+    static constexpr size_t BUFFER_SIZE = 16_Ki;
     static constexpr uint8_t MAGIC_BIT_STRING_SIZE = 35;
 
 public:

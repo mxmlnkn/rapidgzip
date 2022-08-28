@@ -439,7 +439,7 @@ ibzip2CLI( int argc, char** argv )
         findCompressedBlocks( inputFilePath,
                               parsedArgs["list-compressed-offsets"].as<std::string>(),
                               blockFinderParallelism,
-                              bufferSize > 0 ? bufferSize : 32 * 1024,
+                              bufferSize > 0 ? bufferSize : 32_Ki,
                               test,
                               parsedArgs.count( "verbose" ) > 0 );
         return 0;

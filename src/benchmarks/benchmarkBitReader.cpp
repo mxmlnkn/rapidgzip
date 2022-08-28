@@ -462,7 +462,7 @@ main()
     AllResults results;
 
     try {
-        std::vector<char> dataToRead( 16ULL * 1024ULL * 1024ULL );
+        std::vector<char> dataToRead( 16_Mi );
         for ( auto& x : dataToRead ) {
             x = static_cast<char>( rand() );
         }

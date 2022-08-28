@@ -547,3 +547,22 @@ countNewlines( const std::string_view& view )
 
     return matches;
 }
+
+
+[[nodiscard]] constexpr uint64_t
+operator "" _Ki( unsigned long long int value )
+{
+    return value * 1024ULL;
+}
+
+[[nodiscard]] constexpr uint64_t
+operator "" _Mi( unsigned long long int value )
+{
+    return value * 1024ULL * 1024ULL;
+}
+
+[[nodiscard]] constexpr uint64_t
+operator "" _Gi( unsigned long long int value )
+{
+    return value * 1024ULL * 1024ULL * 1024ULL;
+}

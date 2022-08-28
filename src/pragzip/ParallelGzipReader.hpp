@@ -107,7 +107,7 @@ public:
     explicit
     ParallelGzipReader( std::unique_ptr<FileReader> fileReader,
                         size_t                      parallelization = 0,
-                        uint64_t                    chunkSize = 2ULL * 1024ULL * 1024ULL ) :
+                        uint64_t                    chunkSize = 2_Mi ) :
         m_bitReader( std::move( fileReader ) ),
         m_fetcherParallelization(
             parallelization == 0
@@ -117,7 +117,7 @@ public:
             [this, chunkSize] () {
                 return std::make_unique<BlockFinder>(
                     m_bitReader.cloneSharedFileReader(),
-                    /* spacing in bytes */ std::max<uint64_t>( 32 * 1024, chunkSize ) );
+                    /* spacing in bytes */ std::max( 32_Ki, chunkSize ) );
             }
         )
     {
@@ -429,7 +429,7 @@ public:
         GzipIndex index;
         index.compressedSizeInBytes = ceilDiv( offsets.rbegin()->first, 8U );
         index.uncompressedSizeInBytes = offsets.rbegin()->second;
-        index.windowSizeInBytes = 32ULL * 1024ULL;
+        index.windowSizeInBytes = 32_Ki;
 
         /* Heuristically determine a checkpoint spacing from the existing checkpoints. */
         std::vector<size_t> uncompressedSpacings;
@@ -438,7 +438,7 @@ public:
         }
         index.checkpointSpacing = ceilDiv(
             *std::max_element( uncompressedSpacings.begin(), uncompressedSpacings.end() ),
-            32ULL * 1024ULL ) * 32ULL * 1024ULL;
+            32_Ki ) * 32_Ki;
 
         for ( const auto& [compressedOffsetInBits, uncompressedOffsetInBytes] : offsets ) {
             Checkpoint checkpoint;

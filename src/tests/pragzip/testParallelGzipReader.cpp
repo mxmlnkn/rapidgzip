@@ -147,7 +147,7 @@ testParallelDecodingWithIndex( const TemporaryDirectory& tmpFolder )
     const auto decodedFile = tmpFolder.path() / "decoded";
     const auto encodedFile = tmpFolder.path() / "decoded.gz";
     const auto indexFile = tmpFolder.path() / "decoded.gz.index";
-    createRandomTextFile( decodedFile, 64ULL * 1024ULL );
+    createRandomTextFile( decodedFile, 64_Ki );
 
     {
         const auto command = "gzip -k " + std::string( decodedFile );
@@ -187,7 +187,7 @@ testParallelDecodingWithIndex( const TemporaryDirectory& tmpFolder )
     const auto reconstructedIndex = reader.gzipIndex();
     REQUIRE_EQUAL( reconstructedIndex.compressedSizeInBytes, realIndex.compressedSizeInBytes );
     REQUIRE_EQUAL( reconstructedIndex.uncompressedSizeInBytes, realIndex.uncompressedSizeInBytes);
-    REQUIRE_EQUAL( reconstructedIndex.windowSizeInBytes, uint32_t( 32 ) * uint32_t( 1024 ) );
+    REQUIRE_EQUAL( reconstructedIndex.windowSizeInBytes, 32_Ki );
     REQUIRE( reconstructedIndex.checkpointSpacing >= reconstructedIndex.windowSizeInBytes );
     REQUIRE_EQUAL( reconstructedIndex.checkpoints.size(), realIndex.checkpoints.size() );
     if ( reconstructedIndex.checkpoints.size() == realIndex.checkpoints.size() ) {
@@ -221,7 +221,7 @@ testParallelDecodingWithIndex( const TemporaryDirectory& tmpFolder )
 
     REQUIRE_EQUAL( rewrittenIndex.compressedSizeInBytes, realIndex.compressedSizeInBytes );
     REQUIRE_EQUAL( rewrittenIndex.uncompressedSizeInBytes, realIndex.uncompressedSizeInBytes);
-    REQUIRE_EQUAL( rewrittenIndex.windowSizeInBytes, uint32_t( 32 ) * uint32_t( 1024 ) );
+    REQUIRE_EQUAL( rewrittenIndex.windowSizeInBytes, 32_Ki );
     REQUIRE( rewrittenIndex.checkpointSpacing >= rewrittenIndex.windowSizeInBytes );
     REQUIRE_EQUAL( rewrittenIndex.checkpoints.size(), realIndex.checkpoints.size() );
     REQUIRE( rewrittenIndex.checkpoints == realIndex.checkpoints );
@@ -297,7 +297,7 @@ void
 testWithLargeFiles( const TemporaryDirectory& tmpFolder )
 {
     const std::string fileName = std::filesystem::absolute( tmpFolder.path() / "random-base64" );
-    createRandomBase64( fileName, 8UL * 1024UL * 1024UL );
+    createRandomBase64( fileName, 8_Mi );
 
     try {
         for ( const auto& [name, getVersion, command, extension] : TEST_ENCODERS ) {
@@ -327,13 +327,13 @@ void
 testPerformance( const TemporaryDirectory& tmpFolder )
 {
     const std::string fileName = std::filesystem::absolute( tmpFolder.path() / "random-base64" );
-    createRandomBase64( fileName, 64UL * 1024UL * 1024UL );
+    createRandomBase64( fileName, 64_Mi );
 
     try {
         const auto& [name, getVersion, command, extension] = TEST_ENCODERS.front();
         const auto encodedFilePath = encodeTestFile( fileName, tmpFolder, command );
 
-        for ( const auto bufferSize : { 64ULL * 1024ULL * 1024ULL, 4ULL * 1024ULL * 1024ULL, 32ULL * 1024ULL } ) {
+        for ( const auto bufferSize : { 64_Mi, 4_Mi, 32_Ki } ) {
             pragzip::ParallelGzipReader</* ENABLE_STATISTICS */ true> reader(
                 std::make_unique<StandardFileReader>( encodedFilePath ) );
 

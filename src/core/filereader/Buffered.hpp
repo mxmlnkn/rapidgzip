@@ -22,28 +22,28 @@ public:
 public:
     explicit
     BufferedFileReader( std::unique_ptr<FileReader> fileReader,
-                        size_t                      bufferSize = 128 * 1024 ) :
+                        size_t                      bufferSize = 128_Ki ) :
         m_maxBufferSize( bufferSize ),
         m_file( std::move( fileReader ) )
     {}
 
     explicit
     BufferedFileReader( const std::vector<char>& inMemoryFileContents,
-                        size_t                   bufferSize = 128 * 1024 ) :
+                        size_t                   bufferSize = 128_Ki ) :
         m_maxBufferSize( bufferSize ),
         m_buffer( inMemoryFileContents.begin(), inMemoryFileContents.end() )
     {}
 
     explicit
     BufferedFileReader( const VectorView<char>& inMemoryFileContents,
-                        size_t                  bufferSize = 128 * 1024 ) :
+                        size_t                  bufferSize = 128_Ki ) :
         m_maxBufferSize( bufferSize ),
         m_buffer( inMemoryFileContents.begin(), inMemoryFileContents.end() )
     {}
 
     explicit
     BufferedFileReader( AlignedBuffer inMemoryFileContents,
-                        size_t        bufferSize = 128 * 1024 ) :
+                        size_t        bufferSize = 128_Ki ) :
         m_maxBufferSize( bufferSize ),
         m_buffer( std::move( inMemoryFileContents ) )
     {}

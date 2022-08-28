@@ -50,7 +50,7 @@ findGzipStreams( const std::string& fileName )
 {
     const auto file = throwingOpen( fileName, "rb" );
 
-    static constexpr auto bufferSize = 4 * 1024 * 1024;
+    static constexpr auto bufferSize = 4_Mi;
     std::vector<char> buffer( bufferSize, 0 );
 
     std::vector<size_t> streamOffsets;
@@ -119,8 +119,8 @@ parseWithZlib( const std::string& fileName )
     std::vector<size_t> streamOffsets;
     std::vector<size_t> blockOffsets;
 
-    static constexpr int BUFFER_SIZE = 1024 * 1024;
-    static constexpr int WINDOW_SIZE = 32 * 1024;
+    static constexpr auto BUFFER_SIZE = 1_Mi;
+    static constexpr auto WINDOW_SIZE = 32_Ki;
 
     /**
      * Make one entire pass through the compressed stream and build an index, with
@@ -152,7 +152,7 @@ parseWithZlib( const std::string& fileName )
         throwCode( ret );
     }
 
-    std::vector<unsigned char> extraBuffer( 1024 );
+    std::vector<unsigned char> extraBuffer( 1_Ki );
 
     gz_header header;
     header.extra = extraBuffer.data();
@@ -260,7 +260,7 @@ parseWithZlib( const std::string& fileName )
 class GzipWrapper
 {
 public:
-    static constexpr int WINDOW_SIZE = 32 * 1024;
+    static constexpr auto WINDOW_SIZE = 32_Ki;
 
     enum class Format
     {
@@ -339,7 +339,7 @@ public:
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
         m_stream.next_in = const_cast<unsigned char*>( compressed ) + byteOffset;
 
-        const auto outputPreviouslyAvailable = std::min( size_t( 8 * 1024 ), m_outputBuffer.size() );
+        const auto outputPreviouslyAvailable = std::min( 8_Ki, m_outputBuffer.size() );
         m_stream.avail_out = outputPreviouslyAvailable;
         m_stream.next_out = m_outputBuffer.data();
 
@@ -380,8 +380,8 @@ public:
 
 private:
     z_stream m_stream{};
-    std::vector<unsigned char> m_window = std::vector<unsigned char>( 32ULL * 1024ULL, '\0' );
-    std::vector<unsigned char> m_outputBuffer = std::vector<unsigned char>( 64ULL * 1024ULL * 1024ULL );
+    std::vector<unsigned char> m_window = std::vector<unsigned char>( 32_Ki, '\0' );
+    std::vector<unsigned char> m_outputBuffer = std::vector<unsigned char>( 64_Mi );
 };
 
 
@@ -483,14 +483,14 @@ findDeflateBlocksZlibOptimized( BufferedFileReader::AlignedBuffer buffer )
         if ( ( ( nextThreeBits >> 1U ) & 0b11ULL ) == 0b000ULL ) {
             /* Do not use CHAR_BIT because this is a deflate constant defining a byte as 8 bits. */
             const auto nextByteOffset = ceilDiv( offset + 3, 8U );
-            const auto length = ( static_cast<uint16_t>( cBuffer[nextByteOffset + 1] )
-                                  << static_cast<uint8_t>( CHAR_BIT ) )
-                                + cBuffer[nextByteOffset];
+            const auto length = static_cast<uint16_t>(
+                ( static_cast<uint16_t>( cBuffer[nextByteOffset + 1] ) << static_cast<uint8_t>( CHAR_BIT ) )
+                + cBuffer[nextByteOffset] );
             const auto negatedLength = static_cast<uint16_t>(
                 ( static_cast<uint16_t>( cBuffer[nextByteOffset + 3] )
                   << static_cast<uint8_t>( CHAR_BIT ) )
                 + cBuffer[nextByteOffset + 2] );
-            if ( ( length != static_cast<uint16_t>( ~negatedLength ) ) || ( length < 8 * 1024 ) ) {
+            if ( ( length != static_cast<uint16_t>( ~negatedLength ) ) || ( length < 8_Ki ) ) {
                 continue;
             }
 
@@ -996,7 +996,7 @@ void
 benchmarkGzip( const std::string& fileName )
 {
     {
-        const auto buffer = bufferFile( fileName, 128ULL * 1024ULL * 1024ULL );
+        const auto buffer = bufferFile( fileName, 128_Mi );
         const auto [blockCandidates, durations] = benchmarkFunction<10>(
             [&buffer] () { return findUncompressedDeflateBlocks( buffer ); } );
 
@@ -1006,7 +1006,7 @@ benchmarkGzip( const std::string& fileName )
     }
 
     {
-        const auto buffer = bufferFile( fileName, 128ULL * 1024ULL * 1024ULL );
+        const auto buffer = bufferFile( fileName, 128_Mi );
         const auto [blockCandidates, durations] = benchmarkFunction<10>(
             [&buffer] () { return findUncompressedDeflateBlocksNestedBranches( buffer ); } );
 
@@ -1055,7 +1055,7 @@ benchmarkGzip( const std::string& fileName )
                 /* Especially for the naive zlib finder up to one deflate block might be missing,
                  * i.e., up to ~64 KiB! */
                 const auto offset = blockOffsets[i];
-                if ( offset >= nBytesToTest * CHAR_BIT - 128ULL * 1024ULL * CHAR_BIT ) {
+                if ( offset >= nBytesToTest * CHAR_BIT - 128_Ki * CHAR_BIT ) {
                     break;
                 }
 
@@ -1072,7 +1072,7 @@ benchmarkGzip( const std::string& fileName )
         };
 
     {
-        const auto buffer = bufferFile( fileName, 256ULL * 1024ULL );
+        const auto buffer = bufferFile( fileName, 256_Ki );
         const auto [blockCandidates, durations] = benchmarkFunction<10>(
             [&buffer] () { return findDeflateBlocksZlib( buffer ); } );
 
@@ -1085,7 +1085,7 @@ benchmarkGzip( const std::string& fileName )
     /* Because final blocks are skipped, it won't find anything for BGZ files! */
     const auto isBgzfFile = pragzip::blockfinder::Bgzf::isBgzfFile( std::make_unique<StandardFileReader>( fileName ) );
     if ( !isBgzfFile ) {
-        const auto buffer = bufferFile( fileName, 256ULL * 1024ULL );
+        const auto buffer = bufferFile( fileName, 256_Ki );
         const auto [blockCandidates, durations] = benchmarkFunction<10>(
             [&buffer] () { return findDeflateBlocksZlibOptimized( buffer ); } );
 
@@ -1096,7 +1096,7 @@ benchmarkGzip( const std::string& fileName )
 
     /* Benchmarks with own implementation (pragzip). */
     {
-        const auto buffer = bufferFile( fileName, 16ULL * 1024ULL * 1024ULL );
+        const auto buffer = bufferFile( fileName, 16_Mi );
 
         const auto blockCandidates = countFilterEfficiencies( buffer );
         std::cout << "Block candidates (" << blockCandidates.size() << "): " << blockCandidates << "\n\n";
@@ -1227,7 +1227,7 @@ main( int    argc,
             /* Check for the uncompressed file inside the loop because "bgzip" does not have a --keep option!
              * https://github.com/samtools/htslib/pull/1331 */
             if ( !std::filesystem::exists( fileName ) ) {
-                createRandomBase64( fileName, 16UL * 1024UL * 1024UL );
+                createRandomBase64( fileName, 16_Mi );
             }
 
             /* Python3 module pgzip does not create the .gz file beside the input file but in the current directory,

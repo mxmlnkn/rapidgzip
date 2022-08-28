@@ -80,7 +80,7 @@ testZeroBytesToChar( const std::unique_ptr<FileReader>& file )
 size_t
 findZeroBytesBuffers( const std::unique_ptr<FileReader>& file )
 {
-    static constexpr size_t BUFFER_SIZE = 4ULL * 1024ULL;
+    static constexpr size_t BUFFER_SIZE = 4_Ki;
     alignas( 64 ) std::array<char, BUFFER_SIZE> buffer{};
     alignas( 64 ) std::array<uint8_t, BUFFER_SIZE> zeroBytes{};
     alignas( 64 ) std::array<uint8_t, BUFFER_SIZE> ffBytes{};
@@ -107,7 +107,7 @@ findZeroBytesBuffers( const std::unique_ptr<FileReader>& file )
 size_t
 findZeroBytes64Bit( const std::unique_ptr<FileReader>& file )
 {
-    static constexpr size_t BUFFER_SIZE = 4ULL * 1024ULL;
+    static constexpr size_t BUFFER_SIZE = 4_Ki;
     alignas( 64 ) std::array<char, BUFFER_SIZE> buffer{};
 
     auto const* const buffer32 = reinterpret_cast<std::uint32_t*>( buffer.data() );
@@ -150,7 +150,7 @@ findZeroBytes64Bit( const std::unique_ptr<FileReader>& file )
 size_t
 findZeroBytes64BitLUT( const std::unique_ptr<FileReader>& file )
 {
-    static constexpr size_t BUFFER_SIZE = 128ULL * 1024ULL;
+    static constexpr size_t BUFFER_SIZE = 128_Ki;
     alignas( 64 ) std::array<char, BUFFER_SIZE> buffer{};
 
     auto const* const buffer32 = reinterpret_cast<std::uint32_t*>( buffer.data() );
@@ -401,7 +401,7 @@ main( int    argc,
     } else {
         tmpFolder.emplace( createTemporaryDirectory( "indexed_bzip2.benchmarkPigzBlockFinder" ) );
         fileName = tmpFolder->path() / "random-base64";
-        createRandomBase64( fileName, 512UL * 1024UL * 1024UL );
+        createRandomBase64( fileName, 512_Mi );
 
         const auto command = "pigz -k " + fileName;
         const auto returnCode = std::system( command.c_str() );
