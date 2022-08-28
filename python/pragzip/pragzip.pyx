@@ -195,7 +195,7 @@ cdef class _PragzipFile():
 class PragzipFile(io.RawIOBase):
     def __init__(self, filename, parallelization = 0):
         self.gzipReader = _PragzipFile(filename, parallelization)
-        self.name = filename
+        self.name = filename if isinstance(filename, str) else ""
         self.mode = 'rb'
 
         self.readinto = self.gzipReader.readinto
