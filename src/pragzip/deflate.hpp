@@ -100,10 +100,10 @@ calculateDistance( uint16_t distance ) noexcept
 
 using DistanceLUT = std::array<uint16_t, 30>;
 
-[[nodiscard]] DistanceLUT
+[[nodiscard]] constexpr DistanceLUT
 createDistanceLUT() noexcept
 {
-    DistanceLUT result;
+    DistanceLUT result{};
     for ( uint16_t i = 0; i < 4; ++i ) {
         result[i] = i + 1;
     }
@@ -114,7 +114,7 @@ createDistanceLUT() noexcept
 }
 
 
-alignas( 8 ) static inline const DistanceLUT
+alignas( 8 ) static constexpr DistanceLUT
 distanceLUT = createDistanceLUT();
 
 
@@ -673,7 +673,7 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::getDistance( BitReader& bitReader ) c
     } else if ( distance <= 29U ) {
         const auto extraBitsCount = ( distance - 2U ) / 2U;
         const auto extraBits = bitReader.read( extraBitsCount );
-        distance = calculateDistance( distance ) + extraBits;
+        distance = distanceLUT[distance] + extraBits;
     } else {
         throw std::logic_error( "Invalid distance codes encountered!" );
     }
@@ -900,12 +900,12 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readInternalCompressed( BitReader&   
             continue;
         }
 
-        if ( code == 256 ) {
+        if ( UNLIKELY( code == 256 ) ) [[unlikely]] {
             m_atEndOfBlock = true;
             break;
         }
 
-        if ( code > 285 ) {
+        if ( UNLIKELY( code > 285 ) ) [[unlikely]] {
             return { nBytesRead, Error::INVALID_HUFFMAN_CODE };
         }
 
