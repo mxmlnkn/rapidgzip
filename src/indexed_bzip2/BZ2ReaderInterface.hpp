@@ -13,6 +13,9 @@ class BZ2ReaderInterface :
     public FileReader
 {
 public:
+    using WriteFunctor = std::function<void ( const void*, uint64_t )>;
+
+public:
     virtual ~BZ2ReaderInterface() = default;
 
     [[nodiscard]] size_t
@@ -26,10 +29,28 @@ public:
      * @param[out] outputBuffer should at least be large enough to hold @p nBytesToRead bytes
      * @return number of bytes written
      */
+    size_t
+    read( const int     outputFileDescriptor = -1,
+          char* const   outputBuffer         = nullptr,
+          const size_t  nBytesToRead         = std::numeric_limits<size_t>::max() )
+    {
+        const auto writeFunctor =
+            [nBytesDecoded = uint64_t( 0 ), outputFileDescriptor, outputBuffer]
+            ( const void* const buffer,
+              uint64_t    const size ) mutable
+            {
+                auto* const currentBufferPosition = outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded;
+                writeAll( outputFileDescriptor, currentBufferPosition, buffer, size );
+                nBytesDecoded += size;
+            };
+
+        return read( writeFunctor, nBytesToRead );
+    }
+
+
     virtual size_t
-    read( const int    outputFileDescriptor = -1,
-          char* const  outputBuffer = nullptr,
-          const size_t nBytesToRead = std::numeric_limits<size_t>::max() ) = 0;
+    read( const WriteFunctor& writeFunctor,
+          const size_t        nBytesToRead = std::numeric_limits<size_t>::max() ) = 0;
 
     /* BZip2 specific methods */
 

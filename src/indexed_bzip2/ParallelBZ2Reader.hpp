@@ -39,7 +39,6 @@ public:
     using BlockFetcher = ::BZ2BlockFetcher<FetchingStrategy::FetchNextSmart>;
     using BlockFinder = typename BlockFetcher::BlockFinder;
     using BitReader = bzip2::BitReader;
-    using WriteFunctor = std::function<void ( const void*, uint64_t )>;
 
 public:
     /* Constructors */
@@ -162,28 +161,11 @@ public:
 
     /* BZ2ReaderInterface overrides */
 
-    size_t
-    read( const int    outputFileDescriptor = -1,
-          char* const  outputBuffer = nullptr,
-          const size_t nBytesToRead = std::numeric_limits<size_t>::max() ) override
-    {
-        const auto writeFunctor =
-            [nBytesDecoded = uint64_t( 0 ), outputFileDescriptor, outputBuffer]
-            ( const void* const buffer,
-              uint64_t    const size ) mutable
-            {
-                auto* const currentBufferPosition = outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded;
-                writeAll( outputFileDescriptor, currentBufferPosition, buffer, size );
-                nBytesDecoded += size;
-            };
-
-        return read( writeFunctor, nBytesToRead );
-    }
-
+    using BZ2ReaderInterface::read;
 
     size_t
     read( const WriteFunctor& writeFunctor,
-          const size_t        nBytesToRead = std::numeric_limits<size_t>::max() )
+          const size_t        nBytesToRead = std::numeric_limits<size_t>::max() ) override
     {
         if ( closed() ) {
             throw std::invalid_argument( "You may not call read on closed ParallelBZ2Reader!" );
