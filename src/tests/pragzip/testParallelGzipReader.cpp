@@ -142,10 +142,8 @@ testParallelDecoderNano()
 
 
 void
-testParallelDecodingWithIndex()
+testParallelDecodingWithIndex( const TemporaryDirectory& tmpFolder )
 {
-    const auto tmpFolder = createTemporaryDirectory( "pragzip.testParallelGzipReader" );
-
     const auto decodedFile = tmpFolder.path() / "decoded";
     const auto encodedFile = tmpFolder.path() / "decoded.gz";
     const auto indexFile = tmpFolder.path() / "decoded.gz.index";
@@ -296,9 +294,8 @@ createRandomBase64( const std::string& filePath,
 
 
 void
-testWithLargeFiles()
+testWithLargeFiles( const TemporaryDirectory& tmpFolder )
 {
-    const auto tmpFolder = createTemporaryDirectory( "pragzip.testParallelGzipReader" );
     const std::string fileName = std::filesystem::absolute( tmpFolder.path() / "random-base64" );
     createRandomBase64( fileName, 8UL * 1024UL * 1024UL );
 
@@ -316,6 +313,41 @@ testWithLargeFiles()
             std::cout << "\n";
 
             testParallelDecoder( newFileName );
+        }
+    } catch ( const std::exception& exception ) {
+        /* Note that the destructor for TemporaryDirectory might not be called for uncaught exceptions!
+         * @see https://stackoverflow.com/questions/222175/why-destructor-is-not-called-on-exception */
+        std::cerr << "Caught exception: " << exception.what() << "\n";
+        REQUIRE( false );
+    }
+}
+
+
+void
+testPerformance( const TemporaryDirectory& tmpFolder )
+{
+    const std::string fileName = std::filesystem::absolute( tmpFolder.path() / "random-base64" );
+    createRandomBase64( fileName, 64UL * 1024UL * 1024UL );
+
+    try {
+        const auto& [name, getVersion, command, extension] = TEST_ENCODERS.front();
+        const auto encodedFilePath = encodeTestFile( fileName, tmpFolder, command );
+
+        for ( const auto bufferSize : { 64ULL * 1024ULL * 1024ULL, 4ULL * 1024ULL * 1024ULL, 32ULL * 1024ULL } ) {
+            pragzip::ParallelGzipReader</* ENABLE_STATISTICS */ true> reader(
+                std::make_unique<StandardFileReader>( encodedFilePath ) );
+
+            std::vector<char> result( bufferSize );
+            while ( true ) {
+                const auto nBytesRead = reader.read( result.data(), result.size() );
+                if ( nBytesRead == 0 ) {
+                    break;
+                }
+            }
+
+            const auto statistics = reader.statistics();
+            REQUIRE( statistics.blockCountFinalized );
+            REQUIRE_EQUAL( statistics.blockCount, statistics.prefetchCount + statistics.onDemandFetchCount );
         }
     } catch ( const std::exception& exception ) {
         /* Note that the destructor for TemporaryDirectory might not be called for uncaught exceptions!
@@ -346,6 +378,10 @@ main( int    argc,
             findParentFolderContaining( binaryFolder, "src/tests/data/base64-256KiB.bgz" )
         ) / "src" / "tests" / "data";
 
+    const auto tmpFolder = createTemporaryDirectory( "pragzip.testParallelGzipReader" );
+
+    testPerformance( tmpFolder );
+
     testParallelDecoderNano();
 
     testParallelDecoder( rootFolder / "base64-256KiB.pgz" );
@@ -367,7 +403,7 @@ main( int    argc,
 
     try
     {
-        testParallelDecodingWithIndex();
+        testParallelDecodingWithIndex( tmpFolder );
     } catch ( const std::exception& exception ) {
         /* Note that the destructor for TemporaryDirectory might not be called for uncaught exceptions!
          * @see https://stackoverflow.com/questions/222175/why-destructor-is-not-called-on-exception */
@@ -375,7 +411,7 @@ main( int    argc,
         REQUIRE( false );
     }
 
-    testWithLargeFiles();
+    testWithLargeFiles( tmpFolder );
 
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
 
