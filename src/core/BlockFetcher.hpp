@@ -29,7 +29,8 @@
  */
 template<typename T_BlockFinder,
          typename T_BlockData,
-         typename FetchingStrategy>
+         typename FetchingStrategy,
+         bool     ENABLE_STATISTICS = false>
 class BlockFetcher
 {
 public:
@@ -204,7 +205,7 @@ public:
         const auto validDataBlockIndex = dataBlockIndex ? *dataBlockIndex : m_blockFinder->find( blockOffset );
         const auto nextBlockOffset = m_blockFinder->get( validDataBlockIndex + 1 );
 
-        if constexpr ( SHOW_PROFILE ) {
+        if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
             m_statistics.recordBlockIndexGet( validDataBlockIndex );
         }
 
@@ -235,7 +236,7 @@ public:
         if ( result ) {
             assert( !resultFuture.valid() );
 
-            if constexpr ( SHOW_PROFILE ) {
+            if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
                 std::scoped_lock lock( m_analyticsMutex );
                 m_statistics.getTotalTime += duration( tGetStart );
             }
@@ -249,7 +250,7 @@ public:
 
         m_cache.insert( blockOffset, *result );
 
-        if constexpr ( SHOW_PROFILE ) {
+        if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
             std::scoped_lock lock( m_analyticsMutex );
             m_statistics.futureWaitTotalTime += futureGetDuration;
             m_statistics.getTotalTime += duration( tGetStart );
@@ -294,7 +295,7 @@ private:
             m_prefetching.erase( match );
             assert( resultFuture.valid() );
 
-            if constexpr ( SHOW_PROFILE ) {
+            if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
                 ++m_statistics.prefetchDirectHits;
             }
         }
@@ -393,7 +394,7 @@ private:
             }
             while ( !prefetchBlockOffset && !nextPrefetchBlockOffset && !stopPrefetching() );
 
-            if constexpr ( SHOW_PROFILE ) {
+            if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
                 if ( !prefetchBlockOffset.has_value() ) {
                     m_statistics.waitOnBlockFinderCount++;
                 }
@@ -461,7 +462,7 @@ private:
     {
         [[maybe_unused]] const auto tDecodeStart = now();
         auto blockData = decodeBlock( blockOffset, nextBlockOffset );
-        if constexpr ( SHOW_PROFILE ) {
+        if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
             std::scoped_lock lock( this->m_analyticsMutex );
             this->m_statistics.decodeBlockTotalTime += duration( tDecodeStart );
         }

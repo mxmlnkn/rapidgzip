@@ -23,7 +23,7 @@ cdef extern from "tools/pragzip.cpp":
     int pragzipCLI(int, char**) except +
 
 cdef extern from "pragzip/ParallelGzipReader.hpp" namespace "pragzip":
-    cppclass ParallelGzipReader:
+    cppclass ParallelGzipReader[ENABLE_STATISTICS=*]:
         ParallelGzipReader(string, size_t) except +
         ParallelGzipReader(int, size_t) except +
         ParallelGzipReader(PyObject*, size_t) except +

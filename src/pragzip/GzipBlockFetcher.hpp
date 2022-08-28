@@ -94,12 +94,13 @@ public:
 };
 
 
-template<typename FetchingStrategy>
+template<typename FetchingStrategy,
+         bool     ENABLE_STATISTICS = false>
 class GzipBlockFetcher :
-    public BlockFetcher<GzipBlockFinder, BlockData, FetchingStrategy>
+    public BlockFetcher<GzipBlockFinder, BlockData, FetchingStrategy, ENABLE_STATISTICS>
 {
 public:
-    using BaseType = BlockFetcher<GzipBlockFinder, BlockData, FetchingStrategy>;
+    using BaseType = BlockFetcher<GzipBlockFinder, BlockData, FetchingStrategy, ENABLE_STATISTICS>;
     using BitReader = pragzip::BitReader;
     using WindowView = VectorView<uint8_t>;
     using BlockFinder = typename BaseType::BlockFinder;
@@ -257,7 +258,7 @@ public:
             [[maybe_unused]] const auto markerCount = blockData->dataWithMarkersSize();
             [[maybe_unused]] const auto tApplyStart = now();
             blockData->applyWindow( *lastWindow );
-            if constexpr ( SHOW_PROFILE ) {
+            if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
                 if ( markerCount > 0 ) {
                     m_applyWindowTime += duration( tApplyStart );
                 }

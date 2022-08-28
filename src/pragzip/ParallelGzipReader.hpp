@@ -33,6 +33,7 @@ namespace pragzip
 /**
  * @note Calls to this class are not thread-safe! Even though they use threads to evaluate them in parallel.
  */
+template<bool ENABLE_STATISTICS = false>
 class ParallelGzipReader final :
     public FileReader
 {
@@ -45,7 +46,7 @@ public:
      * because the prefetch and cache units are very large and striding or backward accessing over multiple
      * megabytes should be extremely rare.
      */
-    using BlockFetcher = pragzip::GzipBlockFetcher<FetchingStrategy::FetchNextMulti>;
+    using BlockFetcher = pragzip::GzipBlockFetcher<FetchingStrategy::FetchNextMulti, ENABLE_STATISTICS>;
     using BlockFinder = typename BlockFetcher::BlockFinder;
     using BitReader = pragzip::BitReader;
     using WriteFunctor = std::function<void ( const void*, uint64_t )>;
@@ -305,15 +306,16 @@ public:
                     continue;
                 }
 
-                const auto t0 = now();
+                [[maybe_unused]] const auto tWriteStart = now();
 
                 const auto nBytesToDecode = std::min( chunk.size() - offsetInChunk, nBytesToRead - nBytesDecoded );
                 if ( writeFunctor ) {
                     writeFunctor( chunk.data() + offsetInChunk, nBytesToDecode );
                 }
 
-                const auto t1 = now();
-                m_writeOutputTime += duration( t0, t1 );
+                if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+                    m_writeOutputTime += duration( tWriteStart );
+                }
 
                 nBytesDecoded += nBytesToDecode;
                 m_currentPosition += nBytesToDecode;
@@ -464,6 +466,15 @@ public:
     availableBlockOffsets() const
     {
         return m_blockMap->blockOffsets();
+    }
+
+    [[nodiscard]] const auto
+    statistics() const
+    {
+        if ( !m_blockFetcher ) {
+            throw std::invalid_argument( "No BlockFetcher initialized!" );
+        }
+        return m_blockFetcher->statistics();
     }
 
 private:
@@ -628,7 +639,7 @@ private:
             throw std::invalid_argument( "A non-empty list of block offsets is required!" );
         }
 
-        BlockFinder::BlockOffsets encodedBlockOffsets;
+        typename BlockFinder::BlockOffsets encodedBlockOffsets;
         for ( auto it = offsets.begin(), nit = std::next( offsets.begin() ); nit != offsets.end(); ++it, ++nit )
         {
             /* Ignore blocks with no data, i.e., EOS blocks. */
