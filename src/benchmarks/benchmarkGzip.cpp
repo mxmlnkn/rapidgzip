@@ -253,7 +253,7 @@ decompressWithPragzipParallel( const std::string& fileName )
 {
     size_t totalDecodedBytes = 0;
 
-    ParallelGzipReader gzipReader( std::make_unique<StandardFileReader>( fileName ) );
+    pragzip::ParallelGzipReader gzipReader( std::make_unique<StandardFileReader>( fileName ) );
     std::vector<uint8_t> outputBuffer( 64UL * 1024UL * 1024UL );
     while ( true ) {
         const auto nBytesRead = gzipReader.read( -1,
@@ -277,7 +277,7 @@ decompressWithPragzipParallelChunked( const std::string& fileName,
     size_t totalDecodedBytes = 0;
 
     const auto spacing = ( nBlocksToSkip + 1 ) * 32 * 1024;
-    ParallelGzipReader gzipReader( std::make_unique<StandardFileReader>( fileName ), 0, spacing );
+    pragzip::ParallelGzipReader gzipReader( std::make_unique<StandardFileReader>( fileName ), 0, spacing );
     std::vector<uint8_t> outputBuffer( 64UL * 1024UL * 1024UL );
     while ( true ) {
         const auto nBytesRead = gzipReader.read( -1,
@@ -323,7 +323,7 @@ decompressWithPragzipParallelIndex( const std::pair<std::string, GzipIndex>& fil
 
     size_t totalDecodedBytes = 0;
 
-    ParallelGzipReader gzipReader( std::make_unique<StandardFileReader>( fileName ) );
+    pragzip::ParallelGzipReader gzipReader( std::make_unique<StandardFileReader>( fileName ) );
     gzipReader.setBlockOffsets( index );
     std::vector<uint8_t> outputBuffer( 64UL * 1024UL * 1024UL );
     while ( true ) {

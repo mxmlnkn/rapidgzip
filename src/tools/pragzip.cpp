@@ -459,10 +459,11 @@ pragzipCLI( int argc, char** argv )
             totalBytesRead = gzipReader.read( writeAndCount );
         } else {
             const auto chunkSize = parsedArgs["chunk-size"].as<unsigned int>();
+            using GzipReader = pragzip::ParallelGzipReader<>;
             const auto reader =
                 chunkSize > 0
-                ? std::make_unique<ParallelGzipReader>( std::move( inputFile ), decoderParallelism, chunkSize * 1024 )
-                : std::make_unique<ParallelGzipReader>( std::move( inputFile ), decoderParallelism );
+                ? std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism, chunkSize * 1024 )
+                : std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism );
             totalBytesRead = reader->read( writeAndCount );
         }
 

@@ -28,6 +28,8 @@
 #include "IndexFileFormat.hpp"
 
 
+namespace pragzip
+{
 /**
  * @note Calls to this class are not thread-safe! Even though they use threads to evaluate them in parallel.
  */
@@ -668,3 +670,4 @@ private:
     std::shared_ptr<WindowMap> const m_windowMap{ std::make_shared<WindowMap>() };
     std::unique_ptr<BlockFetcher>    m_blockFetcher;
 };
+}  // namespace pragzip

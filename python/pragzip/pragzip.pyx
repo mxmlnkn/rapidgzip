@@ -22,7 +22,7 @@ ctypedef (long long int) lli
 cdef extern from "tools/pragzip.cpp":
     int pragzipCLI(int, char**) except +
 
-cdef extern from "pragzip/ParallelGzipReader.hpp":
+cdef extern from "pragzip/ParallelGzipReader.hpp" namespace "pragzip":
     cppclass ParallelGzipReader:
         ParallelGzipReader(string, size_t) except +
         ParallelGzipReader(int, size_t) except +
