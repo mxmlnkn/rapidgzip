@@ -163,7 +163,7 @@ public:
         /* In case we already have decoded the block once, we can simply query it from the block map and the fetcher. */
         auto blockInfo = m_blockMap->findDataOffset( offset );
         if ( blockInfo.contains( offset ) ) {
-            return std::make_pair( blockInfo, BaseType::get( blockInfo.encodedOffsetInBits ) );
+            return std::make_pair( blockInfo, getBlock( blockInfo.encodedOffsetInBits, blockInfo.blockIndex ) );
         }
 
         if ( m_blockMap->finalized() ) {
@@ -181,51 +181,8 @@ public:
                 return std::nullopt;
             }
 
-            const auto partitionOffset = m_blockFinder->partitionOffsetContaining( *nextBlockOffset );
-            try {
-                blockData = BaseType::get( partitionOffset, m_nextUnprocessedBlockIndex, /* only check caches */ true );
-            } catch ( const NoBlockInRange& ) {
-                /* Trying to get the next block based on the partition offset is only a performance optimization.
-                 * It should succeed most of the time for good performance but is not required to and also might
-                 * sometimes not, e.g., when the deflate block finder failed to find any valid block inside the
-                 * partition, e.g., because it only contains fixed Huffman blocks. */
-            }
+            blockData = getBlock( *nextBlockOffset, m_nextUnprocessedBlockIndex );
 
-            /* If we got no block or one with the wrong data, then try again with the real offset, not the
-             * speculatively prefetched one. */
-            if ( !blockData
-                 || ( !blockData->matchesEncodedOffset( *nextBlockOffset )
-                      && ( partitionOffset != *nextBlockOffset ) ) ) {
-                if ( blockData ) {
-                    std::cerr << "[Info] Detected a performance problem. YOUR DATA IS FINE! However, decoding might "
-                              << "take longer than necessary. Please consider opening a performance bug report with "
-                              << "a reproducing compressed file. Detailed information:\n"
-                              << "[Info] Found mismatching block. Need offset " << formatBits( *nextBlockOffset )
-                              << ". Look in partition offset: " << formatBits( partitionOffset )
-                              << ". Found possible range: ["
-                              << formatBits( blockData->encodedOffsetInBits ) << ", "
-                              << formatBits( blockData->maxEncodedOffsetInBits ) << "]\n";
-                }
-                blockData = BaseType::get( *nextBlockOffset, m_nextUnprocessedBlockIndex );
-            }
-
-            if ( blockData->encodedOffsetInBits == std::numeric_limits<size_t>::max() ) {
-                std::stringstream message;
-                message << "Decoding failed at block offset " << formatBits( *nextBlockOffset ) << "!";
-                throw std::domain_error( std::move( message ).str() );
-            }
-
-            if ( !blockData->matchesEncodedOffset( *nextBlockOffset ) ) {
-                std::stringstream message;
-                message << "Got wrong block to searched offset! Looked for " << std::to_string( *nextBlockOffset )
-                        << " and looked up cache successively for estimated offset "
-                        << std::to_string( partitionOffset ) << " but got block with actual offset "
-                        << std::to_string( *nextBlockOffset );
-                throw std::logic_error( std::move( message ).str() );
-            }
-
-            /* Care has to be taken that we store the correct block offset not the speculative possible range! */
-            blockData->setEncodedOffset( *nextBlockOffset );
             m_blockMap->push( *nextBlockOffset, blockData->encodedSizeInBits, blockData->size() );
             const auto blockOffsetAfterNext = *nextBlockOffset + blockData->encodedSizeInBits;
             m_blockFinder->insert( blockOffsetAfterNext );
@@ -275,6 +232,70 @@ public:
     }
 
 private:
+    /**
+     * First, tries to look up the given block offset by its partition offset and then by its real offset.
+     *
+     * @param blockOffset The real block offset, not a guessed one, i.e., also no partition offset!
+     *        This is important because this offset is stored in the returned BlockData as the real one.
+     */
+    [[nodiscard]] std::shared_ptr<BlockData>
+    getBlock( const size_t blockOffset,
+              const size_t blockIndex )
+    {
+        const auto getPartitionOffset =
+            [this] ( auto offet ) { return m_blockFinder->partitionOffsetContaining( offet ); };
+        const auto partitionOffset = getPartitionOffset( blockOffset );
+
+        std::shared_ptr<BlockData> blockData;
+        try {
+            blockData = BaseType::get( partitionOffset, blockIndex, /* only check caches */ true, getPartitionOffset );
+        } catch ( const NoBlockInRange& ) {
+            /* Trying to get the next block based on the partition offset is only a performance optimization.
+             * It should succeed most of the time for good performance but is not required to and also might
+             * sometimes not, e.g., when the deflate block finder failed to find any valid block inside the
+             * partition, e.g., because it only contains fixed Huffman blocks. */
+        }
+
+        /* If we got no block or one with the wrong data, then try again with the real offset, not the
+         * speculatively prefetched one. */
+        if ( !blockData
+             || ( !blockData->matchesEncodedOffset( blockOffset )
+                  && ( partitionOffset != blockOffset ) ) ) {
+            if ( blockData ) {
+                std::cerr << "[Info] Detected a performance problem. YOUR DATA IS FINE! However, decoding might "
+                          << "take longer than necessary. Please consider opening a performance bug report with "
+                          << "a reproducing compressed file. Detailed information:\n"
+                          << "[Info] Found mismatching block. Need offset " << formatBits( blockOffset )
+                          << ". Look in partition offset: " << formatBits( partitionOffset )
+                          << ". Found possible range: ["
+                          << formatBits( blockData->encodedOffsetInBits ) << ", "
+                          << formatBits( blockData->maxEncodedOffsetInBits ) << "]\n";
+            }
+            /* This call given the exact block offset must always yield the correct data and should be equivalent
+             * to directly call @ref decodeBlock with that offset. */
+            blockData = BaseType::get( blockOffset, blockIndex, /* only check caches */ false, getPartitionOffset );
+        }
+
+        if ( !blockData || ( blockData->encodedOffsetInBits == std::numeric_limits<size_t>::max() ) ) {
+            std::stringstream message;
+            message << "Decoding failed at block offset " << formatBits( blockOffset ) << "!";
+            throw std::domain_error( std::move( message ).str() );
+        }
+
+        if ( !blockData->matchesEncodedOffset( blockOffset ) ) {
+            std::stringstream message;
+            message << "Got wrong block to searched offset! Looked for " << std::to_string( blockOffset )
+                    << " and looked up cache successively for estimated offset "
+                    << std::to_string( partitionOffset ) << " but got block with actual offset "
+                    << std::to_string( blockOffset );
+            throw std::logic_error( std::move( message ).str() );
+        }
+
+        /* Care has to be taken that we store the correct block offset not the speculative possible range! */
+        blockData->setEncodedOffset( blockOffset );
+        return blockData;
+    }
+
     [[nodiscard]] BlockData
     decodeBlock( size_t blockOffset,
                  size_t nextBlockOffset ) const override

@@ -162,7 +162,7 @@ public:
         }
 
         throw std::out_of_range( "No block with the specified offset " + std::to_string( encodedBlockOffsetInBits )
-                                 + " exists in the block map!" );
+                                 + " exists in the block finder map!" );
     }
 
     void

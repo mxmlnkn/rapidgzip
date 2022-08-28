@@ -130,7 +130,7 @@ public:
         /* Find in sorted vector by bisection. */
         const auto match = std::lower_bound( blockOffsets.begin(), blockOffsets.end(), encodedBlockOffsetInBits );
         if ( ( match == blockOffsets.end() ) || ( *match != encodedBlockOffsetInBits ) ) {
-            throw std::out_of_range( "No block with the specified offset exists in the block map!" );
+            throw std::out_of_range( "No block with the specified offset exists in the gzip block finder map!" );
         }
 
         return std::distance( blockOffsets.begin(), match );
