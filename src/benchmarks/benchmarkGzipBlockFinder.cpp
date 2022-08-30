@@ -1096,6 +1096,7 @@ benchmarkGzip( const std::string& fileName )
 
     /* Benchmarks with own implementation (pragzip). */
     {
+        static constexpr auto OPTIMAL_NEXT_DEFLATE_LUT_SIZE = pragzip::blockfinder::OPTIMAL_NEXT_DEFLATE_LUT_SIZE;
         const auto buffer = bufferFile( fileName, 16_Mi );
 
         const auto blockCandidates = countFilterEfficiencies( buffer );
@@ -1110,12 +1111,13 @@ benchmarkGzip( const std::string& fileName )
                 << blockCandidatesPragzip.size() << "): " << blockCandidatesPragzip;
             throw std::logic_error( std::move( msg ).str() );
         }
-        std::cout << "[findDeflateBlocksPragzipLUT] " << formatBandwidth( durations, buffer.size() ) << "\n";
+        std::cout << std::setw( 37 ) << std::left << "[findDeflateBlocksPragzip] " << std::right
+                  << formatBandwidth( durations, buffer.size() ) << "\n";
 
         /* Same as above but with a LUT that can skip bits similar to the Boyer–Moore string-search algorithm. */
 
         /* Call findDeflateBlocksPragzipLUT once to initialize the static variables! */
-        if ( const auto blockCandidatesLUT = findDeflateBlocksPragzipLUT<17>( buffer );
+        if ( const auto blockCandidatesLUT = findDeflateBlocksPragzipLUT<OPTIMAL_NEXT_DEFLATE_LUT_SIZE>( buffer );
              blockCandidatesLUT != blockCandidates ) {
             std::stringstream msg;
             msg << "Results with findDeflateBlocksPragzipLUT differ! Block candidates ("
@@ -1127,7 +1129,7 @@ benchmarkGzip( const std::string& fileName )
             /* As for choosing CACHED_BIT_COUNT == 13, see the output of the results at the end of the file.
              * 13 is the last for which it significantly improves over less bits and 14 bits produce reproducibly
              * slower bandwidths! 13 bits is the best configuration as far as I know. */
-            [&buffer] () { return findDeflateBlocksPragzipLUT<17>( buffer ); } );
+            [&buffer] () { return findDeflateBlocksPragzipLUT<OPTIMAL_NEXT_DEFLATE_LUT_SIZE>( buffer ); } );
 
         if ( blockCandidates != blockCandidatesLUT ) {
             std::stringstream msg;
@@ -1135,7 +1137,8 @@ benchmarkGzip( const std::string& fileName )
                 << blockCandidatesLUT.size() << "): " << blockCandidatesLUT;
             throw std::logic_error( std::move( msg ).str() );
         }
-        std::cout << "[findDeflateBlocksPragzipLUT] " << formatBandwidth( durationsLUT, buffer.size() ) << "\n";
+        std::cout << std::setw( 37 ) << std::left << "[findDeflateBlocksPragzipLUT] " << std::right
+                  << formatBandwidth( durationsLUT, buffer.size() ) << "\n";
 
         /* Same as above but with a LUT and two-pass. */
 
@@ -1143,7 +1146,7 @@ benchmarkGzip( const std::string& fileName )
             /* As for choosing CACHED_BIT_COUNT == 13, see the output of the results at the end of the file.
              * 13 is the last for which it significantly improves over less bits and 14 bits produce reproducibly
              * slower bandwidths! 13 bits is the best configuration as far as I know. */
-            [&buffer] () { return findDeflateBlocksPragzipLUTTwoPass<17>( buffer ); } );
+            [&buffer] () { return findDeflateBlocksPragzipLUTTwoPass<OPTIMAL_NEXT_DEFLATE_LUT_SIZE>( buffer ); } );
 
         if ( blockCandidates != blockCandidatesLUT2P ) {
             std::stringstream msg;
@@ -1197,6 +1200,35 @@ benchmarkLUTSize( const BufferedFileReader::AlignedBuffer& buffer )
 }
 
 
+template<uint8_t MIN_CACHED_BIT_COUNT,
+         uint8_t MAX_CACHED_BIT_COUNT,
+         uint8_t CACHED_BIT_COUNT = MIN_CACHED_BIT_COUNT>
+void
+analyzeDeflateJumpLUT()
+{
+    using namespace pragzip::blockfinder;
+    static const auto LUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
+
+    std::cerr << "Deflate Jump LUT for " << static_cast<int>( CACHED_BIT_COUNT ) << " bits is sized: "
+              << formatBytes( LUT.size() * sizeof( LUT[0] ) ) << " with the following jump distance distribution:\n";
+    std::map<uint32_t, uint64_t> jumpFrequencies;
+    for ( const auto x : LUT ) {
+        jumpFrequencies[x]++;
+    }
+    for ( const auto& [distance, count] : jumpFrequencies ) {
+        if ( count > 0 ) {
+            std::cerr << "    " << std::setw( 2 ) << distance << " : " << std::setw( 5 ) << count << " ("
+                      << static_cast<double>( count ) / static_cast<double>( LUT.size() ) * 100 << " %)\n";
+        }
+    }
+    std::cerr << "\n";
+
+    if constexpr ( CACHED_BIT_COUNT < MAX_CACHED_BIT_COUNT ) {
+        analyzeDeflateJumpLUT<MIN_CACHED_BIT_COUNT, MAX_CACHED_BIT_COUNT, CACHED_BIT_COUNT + 1>();
+    }
+}
+
+
 int
 main( int    argc,
       char** argv )
@@ -1208,6 +1240,8 @@ main( int    argc,
             }
         }
     }
+
+    analyzeDeflateJumpLUT<13, 18>();
 
     const auto tmpFolder = createTemporaryDirectory( "pragzip.benchmarkGzipBlockFinder" );
     const std::string fileName = std::filesystem::absolute( tmpFolder.path() / "random-base64" );
@@ -1288,16 +1322,127 @@ main( int    argc,
 
 
 /*
-cmake --build . -- benchmarkGzipBlockFinder && taskset 0x08 src/benchmarks/benchmarkGzipBlockFinder random.gz
+cmake --build . -- benchmarkGzipBlockFinder && taskset 0x08 src/benchmarks/benchmarkGzipBlockFinder 4GiB-random.gz
+
+Deflate Jump LUT for 13 bits is sized: 8 KiB with the following jump distance distribution:
+     0 :   900 (10.9863 %)
+     1 :   960 (11.7188 %)
+     2 :   960 (11.7188 %)
+     3 :   846 (10.3271 %)
+     4 :   724 (8.83789 %)
+     5 :   600 (7.32422 %)
+     6 :   535 (6.53076 %)
+     7 :   444 (5.41992 %)
+     8 :   360 (4.39453 %)
+     9 :   302 (3.68652 %)
+    10 :   256 (3.125 %)
+    11 :   436 (5.32227 %)
+    12 :   309 (3.77197 %)
+    13 :   560 (6.83594 %)
+
+Deflate Jump LUT for 14 bits is sized: 16 KiB with the following jump distance distribution:
+     0 :  1800 (10.9863 %)
+     1 :  1800 (10.9863 %)
+     2 :  1920 (11.7188 %)
+     3 :  1692 (10.3271 %)
+     4 :  1460 (8.91113 %)
+     5 :  1208 (7.37305 %)
+     6 :   997 (6.08521 %)
+     7 :   902 (5.50537 %)
+     8 :   744 (4.54102 %)
+     9 :   604 (3.68652 %)
+    10 :   512 (3.125 %)
+    11 :   436 (2.66113 %)
+    12 :   745 (4.54712 %)
+    13 :   560 (3.41797 %)
+    14 :  1004 (6.12793 %)
+
+Deflate Jump LUT for 15 bits is sized: 32 KiB with the following jump distance distribution:
+     0 :  3600 (10.9863 %)
+     1 :  3600 (10.9863 %)
+     2 :  3600 (10.9863 %)
+     3 :  3384 (10.3271 %)
+     4 :  2920 (8.91113 %)
+     5 :  2440 (7.44629 %)
+     6 :  2010 (6.13403 %)
+     7 :  1670 (5.09644 %)
+     8 :  1516 (4.62646 %)
+     9 :  1256 (3.83301 %)
+    10 :  1024 (3.125 %)
+    11 :   872 (2.66113 %)
+    12 :   745 (2.27356 %)
+    13 :  1305 (3.98254 %)
+    14 :  1004 (3.06396 %)
+    15 :  1822 (5.5603 %)
+
+Deflate Jump LUT for 16 bits is sized: 64 KiB with the following jump distance distribution:
+     0 :  7200 (10.9863 %)
+     1 :  7200 (10.9863 %)
+     2 :  7200 (10.9863 %)
+     3 :  6342 (9.67712 %)
+     4 :  5840 (8.91113 %)
+     5 :  4880 (7.44629 %)
+     6 :  4062 (6.19812 %)
+     7 :  3368 (5.13916 %)
+     8 :  2800 (4.27246 %)
+     9 :  2561 (3.90778 %)
+    10 :  2132 (3.25317 %)
+    11 :  1744 (2.66113 %)
+    12 :  1490 (2.27356 %)
+    13 :  1305 (1.99127 %)
+    14 :  2309 (3.52325 %)
+    15 :  1822 (2.78015 %)
+    16 :  3281 (5.00641 %)
+
+Deflate Jump LUT for 17 bits is sized: 128 KiB with the following jump distance distribution:
+     0 : 14400 (10.9863 %)
+     1 : 14400 (10.9863 %)
+     2 : 14400 (10.9863 %)
+     3 : 12684 (9.67712 %)
+     4 : 10944 (8.34961 %)
+     5 :  9760 (7.44629 %)
+     6 :  8124 (6.19812 %)
+     7 :  6808 (5.19409 %)
+     8 :  5648 (4.30908 %)
+     9 :  4723 (3.60336 %)
+    10 :  4348 (3.31726 %)
+    11 :  3632 (2.771 %)
+    12 :  2980 (2.27356 %)
+    13 :  2610 (1.99127 %)
+    14 :  2309 (1.76163 %)
+    15 :  4131 (3.1517 %)
+    16 :  3281 (2.5032 %)
+    17 :  5890 (4.49371 %)
+
+Deflate Jump LUT for 18 bits is sized: 256 KiB with the following jump distance distribution:
+     0 : 28800 (10.9863 %)
+     1 : 28800 (10.9863 %)
+     2 : 28800 (10.9863 %)
+     3 : 25368 (9.67712 %)
+     4 : 21888 (8.34961 %)
+     5 : 18288 (6.97632 %)
+     6 : 16248 (6.19812 %)
+     7 : 13616 (5.19409 %)
+     8 : 11416 (4.35486 %)
+     9 :  9526 (3.63388 %)
+    10 :  8016 (3.05786 %)
+    11 :  7404 (2.8244 %)
+    12 :  6200 (2.36511 %)
+    13 :  5220 (1.99127 %)
+    14 :  4618 (1.76163 %)
+    15 :  4131 (1.57585 %)
+    16 :  7412 (2.82745 %)
+    17 :  5890 (2.24686 %)
+    18 : 10503 (4.00658 %)
 
 === Testing different Pragzip + LUT table sizes ===
 
-[findDeflateBlocksPragzipLUT with 13 bits] ( 25.5 <= 27.5 +- 0.7 <= 27.9 ) MB/s
-[findDeflateBlocksPragzipLUT with 14 bits] ( 27 <= 28 +- 0.4 <= 28.3 ) MB/s
-[findDeflateBlocksPragzipLUT with 15 bits] ( 27.5 <= 28.19 +- 0.3 <= 28.49 ) MB/s
-[findDeflateBlocksPragzipLUT with 16 bits] ( 27.2 <= 28.5 +- 0.5 <= 28.9 ) MB/s
-[findDeflateBlocksPragzipLUT with 17 bits] ( 27.98 <= 28.32 +- 0.16 <= 28.5 ) MB/s
-[findDeflateBlocksPragzipLUT with 18 bits] ( 24.65 <= 25.38 +- 0.28 <= 25.63 ) MB/s
+[findDeflateBlocksPragzipLUT with 13 bits] ( 26.3 <= 29.2 +- 1.1 <= 30 ) MB/s
+[findDeflateBlocksPragzipLUT with 14 bits] ( 29.1 <= 29.6 +- 0.4 <= 30 ) MB/s
+[findDeflateBlocksPragzipLUT with 15 bits] ( 29.42 <= 29.89 +- 0.29 <= 30.21 ) MB/s
+[findDeflateBlocksPragzipLUT with 16 bits] ( 29.51 <= 30.15 +- 0.25 <= 30.4 ) MB/s
+[findDeflateBlocksPragzipLUT with 17 bits] ( 29.43 <= 29.57 +- 0.11 <= 29.71 ) MB/s
+[findDeflateBlocksPragzipLUT with 18 bits] ( 28.62 <= 29.23 +- 0.28 <= 29.48 ) MB/s
 
 
 === Testing with encoder: gzip ===
@@ -1368,9 +1513,9 @@ Encountered errors:
 
 Block candidates (494):  192 205414 411532 617749 824122 1029728 1236300 1442840 1649318 1855554 2061582 2267643 2473676 2679825 2886058 ...
 
-[findDeflateBlocksPragzipLUT] ( 4.16 <= 4.27 +- 0.04 <= 4.3 ) MB/s
-[findDeflateBlocksPragzipLUT] ( 27.5 <= 28.2 +- 0.3 <= 28.5 ) MB/s
-[findDeflateBlocksPragzipLUTTwoPass] ( 26.72 <= 27.08 +- 0.16 <= 27.27 ) MB/s
+[findDeflateBlocksPragzip]           ( 4.438 <= 4.493 +- 0.024 <= 4.517 ) MB/s
+[findDeflateBlocksPragzipLUT]        ( 28.5 <= 29.9 +- 0.5 <= 30.3 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass] ( 26.5 <= 27.6 +- 0.5 <= 28 ) MB/s
 
 === Testing with encoder: pigz ===
 
@@ -1433,9 +1578,9 @@ Encountered errors:
 
 Block candidates (1023):  192 102374 205527 308631 411790 515077 618182 721566 797472 900531 1003441 1106502 1209841 1313251 1416637 ...
 
-[findDeflateBlocksPragzipLUT] ( 4.175 <= 4.198 +- 0.016 <= 4.224 ) MB/s
-[findDeflateBlocksPragzipLUT] ( 24.76 <= 25.07 +- 0.19 <= 25.34 ) MB/s
-[findDeflateBlocksPragzipLUTTwoPass] ( 22.5 <= 23.8 +- 0.5 <= 24.2 ) MB/s
+[findDeflateBlocksPragzip]           ( 4.367 <= 4.412 +- 0.025 <= 4.445 ) MB/s
+[findDeflateBlocksPragzipLUT]        ( 25.7 <= 26.3 +- 0.3 <= 26.6 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass] ( 24.73 <= 24.97 +- 0.19 <= 25.19 ) MB/s
 
 === Testing with encoder: igzip ===
 
@@ -1498,9 +1643,9 @@ Encountered errors:
 
 Block candidates (128):  1136 790905 1580736 2370674 3160686 3950671 4740448 5530378 6321349 7112718 7903168 8692985 9482887 10274151 11065651 ...
 
-[findDeflateBlocksPragzipLUT] ( 4.329 <= 4.365 +- 0.019 <= 4.39 ) MB/s
-[findDeflateBlocksPragzipLUT] ( 31.3 <= 31.66 +- 0.19 <= 31.9 ) MB/s
-[findDeflateBlocksPragzipLUTTwoPass] ( 29.22 <= 29.49 +- 0.13 <= 29.67 ) MB/s
+[findDeflateBlocksPragzip]           ( 4.52 <= 4.58 +- 0.04 <= 4.62 ) MB/s
+[findDeflateBlocksPragzipLUT]        ( 32.6 <= 33.6 +- 0.4 <= 33.9 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass] ( 30.1 <= 30.9 +- 0.4 <= 31.3 ) MB/s
 
 === Testing with encoder: bgzip ===
 
@@ -1561,9 +1706,9 @@ Encountered errors:
 
 Block candidates (0):
 
-[findDeflateBlocksPragzipLUT] ( 4.303 <= 4.348 +- 0.03 <= 4.387 ) MB/s
-[findDeflateBlocksPragzipLUT] ( 31 <= 32 +- 0.5 <= 32.7 ) MB/s
-[findDeflateBlocksPragzipLUTTwoPass] ( 29 <= 30 +- 0.5 <= 30.5 ) MB/s
+[findDeflateBlocksPragzip]           ( 4.564 <= 4.598 +- 0.018 <= 4.625 ) MB/s
+[findDeflateBlocksPragzipLUT]        ( 33.74 <= 34.36 +- 0.29 <= 34.82 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass] ( 27.3 <= 30.5 +- 1.2 <= 31.3 ) MB/s
 [findBgzStreams] ( 16000 <= 36000 +- 7000 <= 41000 ) MB/s
     Block candidates (259):  144 394784 789352 1183976 1578632 1973304 2367992 2762640 3157376 3552080 3946784 4341448 4735984 5130704 5525304 ...
 
@@ -1633,9 +1778,9 @@ Encountered errors:
 
 Block candidates (988):  192 102672 205833 308639 411748 515132 618285 721612 824892 928415 1031456 1134888 1238197 1341253 1444122 ...
 
-[findDeflateBlocksPragzipLUT] ( 4.1 <= 4.19 +- 0.04 <= 4.22 ) MB/s
-[findDeflateBlocksPragzipLUT] ( 25.15 <= 25.31 +- 0.11 <= 25.47 ) MB/s
-[findDeflateBlocksPragzipLUTTwoPass] ( 23.9 <= 24.09 +- 0.13 <= 24.29 ) MB/s
+[findDeflateBlocksPragzip]           ( 4.375 <= 4.416 +- 0.018 <= 4.436 ) MB/s
+[findDeflateBlocksPragzipLUT]        ( 24.5 <= 26.5 +- 0.7 <= 26.9 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass] ( 24.42 <= 24.55 +- 0.11 <= 24.75 ) MB/s
 
 === Testing with encoder: Python3 pgzip ===
 
@@ -1708,7 +1853,7 @@ Encountered errors:
 
 Block candidates (494):  272 205800 411533 617885 824269 1030628 1237131 1442923 1649106 1855109 2061199 2267938 2473926 2680186 2886437 ...
 
-[findDeflateBlocksPragzipLUT] ( 4.222 <= 4.273 +- 0.023 <= 4.296 ) MB/s
-[findDeflateBlocksPragzipLUT] ( 28.06 <= 28.41 +- 0.16 <= 28.63 ) MB/s
-[findDeflateBlocksPragzipLUTTwoPass] ( 26.3 <= 26.62 +- 0.22 <= 26.93 ) MB/s
+[findDeflateBlocksPragzip]           ( 4.4 <= 4.47 +- 0.03 <= 4.52 ) MB/s
+[findDeflateBlocksPragzipLUT]        ( 28.2 <= 29.9 +- 0.7 <= 30.5 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass] ( 27.31 <= 27.98 +- 0.27 <= 28.25 ) MB/s
 */

@@ -24,6 +24,9 @@ namespace pragzip::blockfinder
  * - (Anything but 0b1111) + 1 bit
  *   Distance Code Count 1 + (5-bits) <= 30 <=> (5-bits) <= 29 -> filters out 6.25%
  * The returned position is only 0 if all of the above holds for a bitCount of 13
+ * Next would be the 3-bit precode code lengths. One or two alone does not allow any filtering at all.
+ * I think starting from three, it might become possible, e.g., if any two are 1, then all others must
+ * be of 0-length because the tree is filled already.
  */
 template<uint8_t bitCount>
 constexpr uint8_t
@@ -118,7 +121,7 @@ using CompressedHistogram = uint64_t;
 template<uint8_t FREQUENCY_BITS,
          uint8_t FREQUENCY_COUNT,
          uint8_t DEPTH = 1,
-         typename LUT = std::array<uint64_t, ( 1ULL << ( FREQUENCY_BITS * FREQUENCY_COUNT ) ) / 64U>>
+         typename LUT = std::array<uint64_t, ( 1ULL << ( FREQUENCY_BITS * FREQUENCY_COUNT ) ) / 64U> >
 constexpr void
 createPrecodeFrequenciesValidLUTHelper( LUT&                      result,
                                         uint32_t const            remainingCount,
@@ -355,6 +358,9 @@ checkPrecode( pragzip::BitReader& bitReaderAtPrecode )
 
     return pragzip::Error::NONE;
 }
+
+
+static constexpr uint8_t OPTIMAL_NEXT_DEFLATE_LUT_SIZE = 16;  /** @see benchmarkLUTSize */
 
 
 /**
