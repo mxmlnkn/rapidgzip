@@ -133,14 +133,14 @@ createPrecodeFrequenciesValidLUTHelper( LUT&                      result,
         throw std::invalid_argument( "Only frequency of bit-lengths less than the depth may be set!" );
     }
 
-    const auto setValid =
+    const auto processValidHistogram =
         [&result] ( CompressedHistogram histogramToSetValid ) constexpr {
             result[histogramToSetValid / 64U] |= CompressedHistogram( 1 ) << ( histogramToSetValid % 64U );
         };
 
     const auto histogramWithCount =
-        [histogram] ( uint32_t count ) constexpr {
-            return histogram | ( count << ( ( DEPTH - 1 ) * FREQUENCY_BITS ) );
+        [histogram] ( auto count ) constexpr {
+            return histogram | ( static_cast<uint64_t>( count ) << ( ( DEPTH - 1 ) * FREQUENCY_BITS ) );
         };
 
     /* The for loop maximum is given by the invalid Huffman code check, i.e.,
@@ -149,15 +149,28 @@ createPrecodeFrequenciesValidLUTHelper( LUT&                      result,
         const auto newFreeBits = ( freeBits - count ) * 2;
         const auto newRemainingCount = remainingCount - count;
 
+        /* The first layer may not be fully filled or even empty. This does not fit any of the general tests. */
+        if constexpr ( DEPTH == 1 ) {
+            if ( count < freeBits ) {
+                processValidHistogram( histogramWithCount( count ) );
+            }
+        }
+
         if constexpr ( DEPTH == FREQUENCY_COUNT ) {
-            /* This filters out bloating Huffman codes, i.e., when the number of free nodes in the tree
-             * is larger than the maximum possible remaining (precode) symbols to fit into the tree. */
-            if ( newFreeBits <= newRemainingCount ) {
-                setValid( histogramWithCount( count ) );
+            if constexpr ( DEPTH == 7 ) {
+                if ( newFreeBits == 0 ) {
+                    processValidHistogram( histogramWithCount( count ) );
+                }
+            } else {
+                /* This filters out bloating Huffman codes, i.e., when the number of free nodes in the tree
+                 * is larger than the maximum possible remaining (precode) symbols to fit into the tree. */
+                if ( newFreeBits <= newRemainingCount ) {
+                    processValidHistogram( histogramWithCount( count ) );
+                }
             }
         } else {
             if ( count == freeBits ) {
-                setValid( histogramWithCount( freeBits ) );
+                processValidHistogram( histogramWithCount( count ) );
             } else {
                 createPrecodeFrequenciesValidLUTHelper<FREQUENCY_BITS, FREQUENCY_COUNT, DEPTH + 1>(
                     result, newRemainingCount, histogramWithCount( count ), newFreeBits );
