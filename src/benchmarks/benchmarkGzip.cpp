@@ -1086,7 +1086,7 @@ for tool in cat fcat; do
 done
 
 fname=4GB
-fileSize=$( stat --format=%s "$fname" )
+fileSize=$( stat -L --format=%s "$fname" )
 for format in gz bgz pigz igz; do
     printf '\n| %6s | %19s | %10s | %18s |\n' Format Decoder 'Runtime / s' 'Bandwidth / (MB/s)'
     printf -- '|--------|---------------------|-------------|--------------------|\n'
@@ -1167,7 +1167,7 @@ for tool in cat fcat; do
 done
 
 fname=4GiB-random
-fileSize=$( stat --format=%s -- "$fname" )
+fileSize=$( stat -L --format=%s -- "$fname" )
 
 for format in gz bgz pigz igz; do
     printf '\n| %6s | %19s | %10s | %18s |\n' Format Decoder 'Runtime / s' 'Bandwidth / (MB/s)'
@@ -1229,4 +1229,33 @@ done
 |    igz |   igzip -T 24 |       3.888 |               1105 |
 |    igz |  pragzip -P 1 |       4.548 |                944 |
 |    igz | pragzip -P 24 |       1.479 |               2904 |
+
+
+
+for fname in 4GiB-base64 4GiB-random; do
+    fileSize=$( stat -L --format=%s -- "$fname" )
+    format=gz
+    printf '\n| %14s | %13s | %10s | %18s |\n' File Decoder 'Runtime / s' 'Bandwidth / (MB/s)'
+    printf -- '|----------------|----------------|-------------|--------------------|\n'
+    crc32 "$fname.$format" &>/dev/null  # Make my QLC SSD cache the file into the SLC cache
+
+    for parallelization in 1 2 4 8 12 16 24 32; do
+        tool="src/tools/pragzip -P $parallelization"
+        visibleTool="pragzip -P $parallelization"
+        runtime=$( ( time $tool -d -c "$fname.$format" | wc -c ) 2>&1 | sed -n -E 's|real[ \t]*0m||p' | sed 's|[ \ts]||' )
+        bandwidth=$( python3 -c "print( int( round( $fileSize / 1e6 / $runtime ) ) )" )
+        printf '| %14s | %13s | %11s | %18s |\n' "$fname.$format" "$visibleTool" "$runtime" "$bandwidth"
+    done
+done
+
+|           File |       Decoder | Runtime / s | Bandwidth / (MB/s) |
+|----------------|---------------|-------------|--------------------|
+| 4GiB-random.gz |  pragzip -P 1 |       1.272 |               3377 |
+| 4GiB-random.gz |  pragzip -P 2 |       2.659 |               1615 |
+| 4GiB-random.gz |  pragzip -P 4 |       1.728 |               2486 |
+| 4GiB-random.gz |  pragzip -P 8 |       1.582 |               2715 |
+| 4GiB-random.gz | pragzip -P 12 |       1.505 |               2854 |
+| 4GiB-random.gz | pragzip -P 16 |       1.677 |               2561 |
+| 4GiB-random.gz | pragzip -P 24 |       1.656 |               2594 |
+| 4GiB-random.gz | pragzip -P 32 |       1.630 |               2635 |
 */
