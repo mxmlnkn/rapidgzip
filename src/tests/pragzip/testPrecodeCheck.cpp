@@ -15,74 +15,6 @@
 #include <Error.hpp>
 
 
-[[nodiscard]] pragzip::Error
-checkPrecode( const uint64_t precodeBits )
-{
-    using namespace pragzip::blockfinder;
-
-    const auto codeLengthCount = 4 + ( precodeBits & nLowestBitsSet<uint64_t, 4>() );
-
-    constexpr auto CL_CODE_LENGTH_BIT_COUNT = 3U;
-    using HuffmanCode = uint8_t;
-
-    const auto bits = ( precodeBits >> 4U ) & nLowestBitsSet<uint64_t>( codeLengthCount * CL_CODE_LENGTH_BIT_COUNT );
-    using Bits = std::decay_t<decltype( bits )>;
-
-    constexpr auto FREQUENCY_BITS = 5U;
-    /* Max values to cache in LUT (4 * 3 bits = 12 bits LUT key -> 2^12 * 8B = 32 KiB LUT size) */
-    constexpr auto MAX_CACHED_PRECODE_VALUES = 4U;
-    static auto PRECODE_FREQUENCIES_LUT =
-        createCompressedHistogramLUT<FREQUENCY_BITS, CL_CODE_LENGTH_BIT_COUNT, MAX_CACHED_PRECODE_VALUES>();
-
-    constexpr auto CACHED_BITS = CL_CODE_LENGTH_BIT_COUNT * MAX_CACHED_PRECODE_VALUES;  // 12
-    const auto bitLengthFrequencies =
-        PRECODE_FREQUENCIES_LUT[bits & nLowestBitsSet<Bits, CACHED_BITS>()]
-        + PRECODE_FREQUENCIES_LUT[( bits >> ( 1U * CACHED_BITS ) ) & nLowestBitsSet<Bits, CACHED_BITS>()]
-        + PRECODE_FREQUENCIES_LUT[( bits >> ( 2U * CACHED_BITS ) ) & nLowestBitsSet<Bits, CACHED_BITS>()]
-        + PRECODE_FREQUENCIES_LUT[( bits >> ( 3U * CACHED_BITS ) ) & nLowestBitsSet<Bits, CACHED_BITS>()]
-        /* The last requires no bit masking because BitReader::read already has masked to the lowest 57 bits
-         * and this shifts 48 bits to the right, leaving only 9 (<12) bits set anyways. */
-        + PRECODE_FREQUENCIES_LUT[( bits >> ( 4U * CACHED_BITS ) )];
-
-    static const auto PRECODE_FREQUENCIES_VALID_LUT = createPrecodeFrequenciesValidLUT<5, 5>();
-    static constexpr auto INDEX_BIT_COUNT = 5 * 5 - 6 /* log2 64 = 6 */;
-    const auto valueToLookUp = bitLengthFrequencies >> FREQUENCY_BITS;
-    const auto bitIndex = valueToLookUp % 64;
-    const auto elementIndex = ( valueToLookUp / 64 ) & nLowestBitsSet<CompressedHistogram, INDEX_BIT_COUNT>();
-    if ( ( PRECODE_FREQUENCIES_VALID_LUT[elementIndex] & ( 1ULL << bitIndex ) ) == 0 ) {
-        /* Might also be bloating not only invalid. */
-        return pragzip::Error::INVALID_CODE_LENGTHS;
-    }
-
-    const auto zeroCounts = bitLengthFrequencies & nLowestBitsSet<CompressedHistogram, FREQUENCY_BITS>();
-    const auto nonZeroCount = 5UL * MAX_CACHED_PRECODE_VALUES - zeroCounts;
-
-    /* Note that bitLengthFrequencies[0] must not be checked because multiple symbols may have code length
-     * 0 simply when they do not appear in the text at all! And this may very well happen because the
-     * order for the code lengths per symbol in the bit stream is fixed. */
-
-    bool invalidCodeLength{ false };
-    HuffmanCode unusedSymbolCount{ 2 };
-    for ( size_t bitLength = 1; bitLength < ( 1U << CL_CODE_LENGTH_BIT_COUNT ); ++bitLength ) {
-        const auto frequency = ( bitLengthFrequencies >> ( bitLength * FREQUENCY_BITS ) )
-                               & nLowestBitsSet<CompressedHistogram, FREQUENCY_BITS>();
-        invalidCodeLength |= frequency > unusedSymbolCount;
-        unusedSymbolCount -= frequency;
-        unusedSymbolCount *= 2;  /* Because we go down one more level for all unused tree nodes! */
-    }
-    if ( invalidCodeLength ) {
-        return pragzip::Error::INVALID_CODE_LENGTHS;
-    }
-
-    if ( ( ( nonZeroCount == 1 ) && ( unusedSymbolCount >  1 ) ) ||
-         ( ( nonZeroCount >  1 ) && ( unusedSymbolCount != 0 ) ) ) {
-        return pragzip::Error::BLOATING_HUFFMAN_CODING;
-    }
-
-    return pragzip::Error::NONE;
-}
-
-
 using CompressedHistogram = pragzip::blockfinder::CompressedHistogram;
 
 
@@ -196,8 +128,11 @@ analyzeValidPrecodes()
     uint64_t validPrecodeCount{ 0 };
     std::unordered_map<pragzip::Error, uint64_t> errorCounts;
     for ( uint64_t i = 0; i < MONTE_CARLO_TEST_COUNT; ++i ) {
+        using namespace pragzip::deflate;
         const auto precodeBits = randomEngine();
-        const auto error = checkPrecode( precodeBits );
+        const auto error = pragzip::blockfinder::checkPrecode(
+            precodeBits & nLowestBitsSet<uint64_t, 4>(),
+            ( precodeBits >> 4U ) & nLowestBitsSet<uint64_t>( MAX_PRECODE_COUNT * PRECODE_BITS ) );
         const auto [count, wasInserted] = errorCounts.try_emplace( error, 1 );
         if ( !wasInserted ) {
             count->second++;
