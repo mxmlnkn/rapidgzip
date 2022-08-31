@@ -691,6 +691,8 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
     size_t offsetsTestedMoreInDepth{ 0 };
     std::unordered_map<pragzip::Error, uint64_t> errorCounts;
     pragzip::deflate::Block</* CRC32 */ false, /* enable analysis */ true> block;
+    size_t checkPrecodeFails{ 0 };
+    size_t passedDeflateHeaderTest{ 0 };
     for ( size_t offset = 0; offset <= nBitsToTest; ) {
         bitReader.seek( static_cast<long long int>( offset ) );
 
@@ -704,9 +706,20 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
                 offset += nextPosition;
                 continue;
             }
+            ++passedDeflateHeaderTest;
+
+            bitReader.seek( static_cast<long long int>( offset ) + 13 );
+            const auto next4Bits = bitReader.read( pragzip::deflate::PRECODE_COUNT_BITS );
+            const auto next57Bits = bitReader.peek( pragzip::deflate::MAX_PRECODE_COUNT * PRECODE_BITS );
+            static_assert( pragzip::deflate::MAX_PRECODE_COUNT * PRECODE_BITS
+                           <= pragzip::BitReader::MAX_BIT_BUFFER_SIZE,
+                           "This optimization requires a larger BitBuffer inside BitReader!" );
+            if ( checkPrecode( next4Bits, next57Bits ) != pragzip::Error::NONE ) {
+                ++checkPrecodeFails;
+            }
 
             offsetsTestedMoreInDepth++;
-            bitReader.seekAfterPeek( 3 );
+            bitReader.seek( static_cast<long long int>( offset + 3 ) );
             auto error = block.readDynamicHuffmanCoding( bitReader );
 
             const auto [count, wasInserted] = errorCounts.try_emplace( error, 1 );
@@ -748,9 +761,34 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
      *        code lengths. So yeah, using peek probably will do nothing.
      */
     std::cerr << "Reading dynamic Huffman Code (HC) deflate block failed because the code lengths were invalid:\n"
-              << "    Invalid Precode  HC: " << block.failedPrecodeInit   << "\n"
-              << "    Invalid Distance HC: " << block.failedDistanceInit << "\n"
-              << "    Invalid Symbol   HC: " << block.failedLengthInit   << "\n";
+              << "    Total number of test locations (including those skipped with the jump LUT): " << nBitsToTest
+              << "\n"
+              << "    Invalid Precode  HC: " << block.failedPrecodeInit  << " ("
+              << static_cast<double>( block.failedPrecodeInit  ) / static_cast<double>( nBitsToTest ) * 100 << " %)\n"
+              << "    Invalid Distance HC: " << block.failedDistanceInit << " ("
+              << static_cast<double>( block.failedDistanceInit ) / static_cast<double>( nBitsToTest ) * 100 << " %)\n"
+              << "    Invalid Symbol   HC: " << block.failedLengthInit   << " ("
+              << static_cast<double>( block.failedLengthInit   ) / static_cast<double>( nBitsToTest ) * 100 << " %)\n"
+              << "    Failed checkPrecode calls: " << checkPrecodeFails << "\n\n";
+
+    std::cerr << "Filtering cascade:\n"
+              << "+-> Total number of test locations: " << nBitsToTest
+              << "\n"
+              << "    Filtered by deflate header test jump LUT: " << ( nBitsToTest - passedDeflateHeaderTest ) << " ("
+              << static_cast<double>( nBitsToTest - passedDeflateHeaderTest ) / static_cast<double>( nBitsToTest ) * 100
+              << " %)\n"
+              << "    Remaining locations to test: " << passedDeflateHeaderTest << "\n"
+              << "    +-> Failed checkPrecode calls: " << checkPrecodeFails << " ("
+              << static_cast<double>( checkPrecodeFails ) / static_cast<double>( passedDeflateHeaderTest ) * 100
+              << " %)\n"
+              << "        Remaining locations to test: " << ( passedDeflateHeaderTest - checkPrecodeFails ) << "\n"
+              << "        +-> Invalid Distance Huffman Coding: " << block.failedDistanceInit << " ("
+              << static_cast<double>( block.failedDistanceInit )
+                 / static_cast<double>( passedDeflateHeaderTest - checkPrecodeFails ) * 100 << " %)\n"
+              << "            Remaining locations (these will fail when trying to apply the precode or construct the "
+              << "literal or distance Huffman codings): "
+              << ( passedDeflateHeaderTest - checkPrecodeFails - block.failedDistanceInit ) << "\n"
+              << "            +-> Location candidates: " << bitOffsets.size() << "\n\n";
 
     /**
      * @verbatim
@@ -780,6 +818,7 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
     for ( size_t i = 0; i < block.precodeCLHistogram.size(); ++i ) {
         std::cerr << "    " << std::setw( 2 ) << 4 + i << " : " << block.precodeCLHistogram[i] << "\n";
     }
+    std::cerr << "\n";
 
     /**
      * Encountered errors:
@@ -1251,8 +1290,6 @@ main( int    argc,
         }
     }
 
-    analyzeDeflateJumpLUT<13, 18>();
-
     const auto tmpFolder = createTemporaryDirectory( "pragzip.benchmarkGzipBlockFinder" );
     const std::string fileName = std::filesystem::absolute( tmpFolder.path() / "random-base64" );
 
@@ -1327,12 +1364,14 @@ main( int    argc,
         return 1;
     }
 
+    analyzeDeflateJumpLUT<13, 18>();
+
     return 0;
 }
 
 
 /*
-cmake --build . -- benchmarkGzipBlockFinder && taskset 0x08 src/benchmarks/benchmarkGzipBlockFinder 4GiB-random.gz
+cmake --build . -- benchmarkGzipBlockFinder && taskset 0x08 src/benchmarks/benchmarkGzipBlockFinder 4GiB-base64.gz
 
 Deflate Jump LUT for 13 bits is sized: 8 KiB with the following jump distance distribution:
      0 :   900 (10.9863 %)

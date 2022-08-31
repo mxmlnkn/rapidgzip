@@ -40,8 +40,7 @@ checkPrecodeFrequenciesAlternative( CompressedHistogram frequencies )
      * Similarly, the special case of only a single symbol encoded in 1-bit is also valid because there is no
      * valid (non-bloating) way to encode it! */
     constexpr auto bitsToProcessMask = nLowestBitsSet<CompressedHistogram, FREQUENCY_BITS * FREQUENCY_COUNT>();
-    if ( UNLIKELY( ( ( frequencies & bitsToProcessMask ) == 0 )
-                     || ( frequencies & bitsToProcessMask ) == 1 ) ) [[unlikely]] {
+    if ( UNLIKELY( ( frequencies & bitsToProcessMask ) == 1 ) ) [[unlikely]] {
         return pragzip::Error::NONE;
     }
 
@@ -85,6 +84,10 @@ checkPrecodeFrequenciesAlternative( CompressedHistogram frequencies )
         if ( ( ( nonZeroCount == 1 ) && ( unusedSymbolCount >  1 ) ) ||
              ( ( nonZeroCount >  1 ) && ( unusedSymbolCount != 0 ) ) ) {
             return pragzip::Error::BLOATING_HUFFMAN_CODING;
+        }
+
+        if ( nonZeroCount == 0 ) {
+            return pragzip::Error::EMPTY_ALPHABET;
         }
     }
 
@@ -218,7 +221,7 @@ analyzeMaxValidPrecodeFrequenciesHelper( std::function<void( uint64_t )> process
 
         /* The first layer may not be fully filled or even empty. This does not fit any of the general tests. */
         if constexpr ( DEPTH == 1 ) {
-            if ( count < freeBits ) {
+            if ( count == 1 ) {
                 processValidHistogram( histogramWithCount( count ) );
             }
         }
@@ -376,7 +379,7 @@ analyzeMaxValidPrecodeFrequencies()
                     }
                 }
             }
-            std::cerr << "...\n\n";
+            std::cerr << "   ...\n\n";
         }
 
         {
@@ -391,7 +394,7 @@ analyzeMaxValidPrecodeFrequencies()
                     }
                 }
             }
-            std::cerr << "...\n\n";
+            std::cerr << "   ...\n\n";
         }
     }
 
@@ -486,19 +489,19 @@ Maximum length frequencies of valid histograms:
     Code Length 6 : 16
     Code Length 7 : 16
 
-Found in total 1527 valid histograms (corresponding to the maximum of 7 bins) equaling 11 KiB 952 B
-Valid precodes 402535 out of 100000000 tested -> 0.402535 %
+Found in total 1526 valid histograms (corresponding to the maximum of 7 bins) equaling 11 KiB 944 B
+Valid precodes 400814 out of 100000000 tested -> 0.400814 %
 Encountered errors:
-    89813152 Constructing a Huffman coding from the given code length sequence failed!
-     9784313 The Huffman coding is not optimal!
-      402535 No error.
+    90010469 Constructing a Huffman coding from the given code length sequence failed!
+     9588717 The Huffman coding is not optimal!
+      400814 No error.
 
 Precode frequency LUT containing 2 bins is sized: 128 B. There are 9 valid entries out of 1024 -> 0.878906 %
 Precode frequency LUT containing 3 bins is sized: 4 KiB. There are 35 valid entries out of 32768 -> 0.106812 %
-Precode frequency LUT containing 4 bins is sized: 128 KiB. There are 158 valid entries out of 1048576 -> 0.0150681 %
-Precode frequency LUT containing 5 bins is sized: 4 MiB. There are 562 valid entries out of 33554432 -> 0.00167489 %
-Precode frequency LUT containing 6 bins is sized: 128 MiB. There are 1527 valid entries out of 1073741824 -> 0.000142213 %
-Precode frequency LUT containing 7 bins is sized: 4 GiB. There are 1527 valid entries out of 34359738368 -> 0.000142213 %
+Precode frequency LUT containing 4 bins is sized: 128 KiB. There are 157 valid entries out of 1048576 -> 0.0149727 %
+Precode frequency LUT containing 5 bins is sized: 4 MiB. There are 561 valid entries out of 33554432 -> 0.00167191 %
+Precode frequency LUT containing 6 bins is sized: 128 MiB. There are 1526 valid entries out of 1073741824 -> 0.000142212 %
+Precode frequency LUT containing 7 bins is sized: 4 GiB. There are 1526 valid entries out of 34359738368 -> 0.000004441 %
 
 Tests successful: 10 / 10
 */

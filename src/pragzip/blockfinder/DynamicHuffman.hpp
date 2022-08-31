@@ -151,7 +151,7 @@ createPrecodeFrequenciesValidLUTHelper( LUT&                      result,
 
         /* The first layer may not be fully filled or even empty. This does not fit any of the general tests. */
         if constexpr ( DEPTH == 1 ) {
-            if ( count < freeBits ) {
+            if ( count == 1 ) {
                 processValidHistogram( histogramWithCount( count ) );
             }
         }
@@ -195,15 +195,7 @@ createPrecodeFrequenciesValidLUT()
     static_assert( ( 1ULL << ( FREQUENCY_BITS * FREQUENCY_COUNT ) ) % 64U == 0,
                    "LUT size must be a multiple of 64-bit for the implemented bit-packing!" );
     std::array<uint64_t, ( 1ULL << ( FREQUENCY_BITS * FREQUENCY_COUNT ) ) / 64U> result{};
-
-    constexpr auto MAX_CL_SYMBOL_COUNT = 19U;
-    createPrecodeFrequenciesValidLUTHelper<FREQUENCY_BITS, FREQUENCY_COUNT>( result, MAX_CL_SYMBOL_COUNT );
-
-    /* Set the special cases for zero counts and only one 1-bit lengths to valid even though they are not based
-     * on the generic algorithm test because the tree is not full but there is no other valid way to represent
-     * a one-symbol tree. */
-    result[0] |= 0b11ULL;
-
+    createPrecodeFrequenciesValidLUTHelper<FREQUENCY_BITS, FREQUENCY_COUNT>( result, deflate::MAX_PRECODE_COUNT );
     return result;
 }
 
@@ -214,7 +206,7 @@ template<uint8_t FREQUENCY_BITS,
 [[nodiscard]] constexpr CompressedHistogram
 calculateCompressedHistogram( uint64_t values )
 {
-    static_assert( VALUE_BITS * VALUE_COUNT < std::numeric_limits<decltype( values ) >::digits,
+    static_assert( VALUE_BITS * VALUE_COUNT <= std::numeric_limits<decltype( values )>::digits,
                    "Values type does not fit the requested amount of values and bits per value!" );
     static_assert( VALUE_COUNT < ( 1U << FREQUENCY_BITS ),
                    "The number of values might overflow the frequency type!" );
@@ -233,13 +225,13 @@ calculateCompressedHistogram( uint64_t values )
 
 template<uint8_t FREQUENCY_BITS,
          uint8_t VALUE_BITS,
-         uint8_t MAX_VALUE_COUNT>
+         uint8_t VALUE_COUNT>
 [[nodiscard]] constexpr auto
 createCompressedHistogramLUT()
 {
-    std::array<CompressedHistogram, 1ULL << ( MAX_VALUE_COUNT * VALUE_BITS )> result{};
+    std::array<CompressedHistogram, 1ULL << ( VALUE_COUNT * VALUE_BITS )> result{};
     for ( size_t i = 0; i < result.size(); ++i ) {
-        result[i] = calculateCompressedHistogram<FREQUENCY_BITS, VALUE_BITS, MAX_VALUE_COUNT>( i );
+        result[i] = calculateCompressedHistogram<FREQUENCY_BITS, VALUE_BITS, VALUE_COUNT>( i );
     }
     return result;
 }
@@ -372,6 +364,10 @@ checkPrecode( const uint64_t next4Bits,
     if ( ( ( nonZeroCount == 1 ) && ( unusedSymbolCount >  1 ) ) ||
          ( ( nonZeroCount >  1 ) && ( unusedSymbolCount != 0 ) ) ) {
         return pragzip::Error::BLOATING_HUFFMAN_CODING;
+    }
+
+    if ( nonZeroCount == 0 ) {
+        return pragzip::Error::EMPTY_ALPHABET;
     }
 
     return pragzip::Error::NONE;
