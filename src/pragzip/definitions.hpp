@@ -26,9 +26,9 @@ constexpr size_t MAX_UNCOMPRESSED_SIZE = std::numeric_limits<uint16_t>::max();
 /** This is because the code length alphabet can't encode any higher value and because length 0 is ignored! */
 constexpr uint8_t MAX_CODE_LENGTH = 15;
 
-constexpr auto PRECODE_BITS = 3;        // The number of bits per precode (code length)
-constexpr auto PRECODE_COUNT_BITS = 4;  // The number of bits to encode the precode count
-constexpr auto MAX_PRECODE_COUNT = 19;  // The maximum precode count
+constexpr uint32_t PRECODE_BITS = 3;        // The number of bits per precode (code length)
+constexpr uint32_t PRECODE_COUNT_BITS = 4;  // The number of bits to encode the precode count
+constexpr uint32_t MAX_PRECODE_COUNT = 19;  // The maximum precode count
 
 constexpr size_t MAX_LITERAL_OR_LENGTH_SYMBOLS = 286;
 constexpr uint8_t MAX_DISTANCE_SYMBOL_COUNT = 30;

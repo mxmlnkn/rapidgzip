@@ -374,7 +374,16 @@ checkPrecode( const uint64_t next4Bits,
 }
 
 
-static constexpr uint8_t OPTIMAL_NEXT_DEFLATE_LUT_SIZE = 16;  /** @see benchmarkLUTSize */
+/**
+ * @see benchmarkLUTSize
+ * This highly depends on the implementation of the for loop over the bitReader.
+ * Earliest versions withouth checkPrecode showed best results for 18 bits for this LUT.
+ * Versions with checkPrecode showed best results for 16 bits.
+ * The current version that keeps two bit buffers to avoid back-seeks is optimal with 13 bits probably
+ * because that saves an additional shift when moving bits from one bit buffer to the other while avoiding
+ * duplicated bits because there is no duplication for 13 bits.
+ */
+static constexpr uint8_t OPTIMAL_NEXT_DEFLATE_LUT_SIZE = 13;
 
 
 /**
@@ -385,58 +394,95 @@ static constexpr uint8_t OPTIMAL_NEXT_DEFLATE_LUT_SIZE = 16;  /** @see benchmark
  *
  * @param untilOffset All returned matches will be smaller than this offset or `std::numeric_limits<size_t>::max()`.
  */
-template<uint8_t CACHED_BIT_COUNT>
+template<uint8_t CACHED_BIT_COUNT = OPTIMAL_NEXT_DEFLATE_LUT_SIZE>
 [[nodiscard]] size_t
 seekToNonFinalDynamicDeflateBlock( BitReader&   bitReader,
                                    size_t const untilOffset = std::numeric_limits<size_t>::max() )
 {
     static const auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
+    const auto oldOffset = bitReader.tell();
 
     try
     {
-        deflate::Block block;
-        for ( size_t offset = bitReader.tell(); offset < untilOffset; ) {
-            bitReader.seek( static_cast<long long int>( offset ) );
+        using namespace pragzip::deflate;  /* For the definitions of deflate-specific number of bits. */
 
-            const auto peeked = bitReader.peek<CACHED_BIT_COUNT>();
-            const auto nextPosition = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT[peeked];
+        /**
+         * For LUT we need at CACHED_BIT_COUNT bits and for the precode check we would need in total
+         * 13 + 4 + 57 = 74 bits. Because this does not fit into 64-bit we need to keep two sliding bit buffers.
+         * The first can simply have length CACHED_BIT_COUNT and the other one can even keep duplicated bits to
+         * have length of 61 bits required for the precode. Updating three different buffers would require more
+         * instructions but might not be worth it.
+         */
+        auto bitBufferForLUT = bitReader.peek<CACHED_BIT_COUNT>();
+        bitReader.seek( oldOffset + 13 );
+        constexpr auto ALL_PRECODE_BITS = PRECODE_COUNT_BITS + MAX_PRECODE_COUNT * PRECODE_BITS;
+        static_assert( ( ALL_PRECODE_BITS == 61 ) && ( ALL_PRECODE_BITS >= CACHED_BIT_COUNT )
+                       && ( ALL_PRECODE_BITS <= std::numeric_limits<uint64_t>::digits )
+                       && ( ALL_PRECODE_BITS <= pragzip::BitReader::MAX_BIT_BUFFER_SIZE ),
+                       "It must fit into 64-bit and it also must fit the largest possible jump in the LUT." );
+        auto bitBufferPrecodeBits = bitReader.read<ALL_PRECODE_BITS>();
+
+        Block block;
+        for ( size_t offset = oldOffset; offset < untilOffset; ) {
+            auto nextPosition = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT[bitBufferForLUT];
 
             /* If we can skip forward, then that means that the new position only has been partially checked.
              * Therefore, rechecking the LUT for non-zero skips not only ensures that we aren't wasting time in
              * readHeader but it also ensures that we can avoid checking the first three bits again inside readHeader
              * and instead start reading and checking the dynamic Huffman code directly! */
-            if ( nextPosition > 0 ) {
-                bitReader.seekAfterPeek( nextPosition );
-                offset += nextPosition;
-                continue;
+            if ( nextPosition == 0 ) {
+                nextPosition = 1;
+
+                const auto next4Bits = bitBufferPrecodeBits & nLowestBitsSet<uint64_t, PRECODE_COUNT_BITS>();
+                const auto next57Bits = ( bitBufferPrecodeBits >> PRECODE_COUNT_BITS )
+                                        & nLowestBitsSet<uint64_t, MAX_PRECODE_COUNT * PRECODE_BITS>();
+                const auto precodeError = pragzip::blockfinder::checkPrecode( next4Bits, next57Bits );
+                if ( UNLIKELY( precodeError == pragzip::Error::NONE ) ) [[unlikely]] {
+                #ifndef NDEBUG
+                    const auto oldTell = bitReader.tell();
+                #endif
+
+                    bitReader.seek( static_cast<long long int>( offset ) + 3 );
+                    auto error = block.readDynamicHuffmanCoding( bitReader );
+                    if ( UNLIKELY( error == pragzip::Error::NONE ) ) [[unlikely]] {
+                        /* Testing decoding is not necessary because the Huffman canonical check is already very strong!
+                         * Decoding up to 8 KiB like in pugz only impedes performance and it is harder to reuse that
+                         * already decoded data if we do decide that it is a valid block. The number of checks during
+                         * reading is also pretty few because there almost are no wasted / invalid symbols. */
+                        return offset;
+                    }
+                    /* Using this derivable position avoids a possibly costly call to tell() to save the old offet. */
+                    bitReader.seek( static_cast<long long int>( offset ) + 13 + ALL_PRECODE_BITS );
+
+                #ifndef NDEBUG
+                    if ( oldTell != bitReader.tell() ) {
+                        std::cerr << "Previous position: " << oldTell << " new position: " << bitReader.tell() << "\n";
+                        throw std::logic_error( "Did not seek back correctly!" );
+                    }
+                #endif
+                }
             }
 
-            /* Ignore 13 bits of deflate format data and huffman coding lengths other than the precode coding.
-             * Note that this is only a prefiltering. It can be removed without any effects on correctness. */
-            static_assert( CACHED_BIT_COUNT >= 13, "This implementation is optimized for LUTs with at least 13 bits!" );
-            bitReader.seekAfterPeek( 13 );
-            const auto next4Bits = bitReader.read( deflate::PRECODE_COUNT_BITS );
-            const auto next57Bits = bitReader.peek( deflate::MAX_PRECODE_COUNT * PRECODE_BITS );
-            static_assert( deflate::MAX_PRECODE_COUNT * PRECODE_BITS <= pragzip::BitReader::MAX_BIT_BUFFER_SIZE,
-                           "This optimization requires a larger BitBuffer inside BitReader!" );
-            if ( checkPrecode( next4Bits, next57Bits ) != pragzip::Error::NONE ) {
-                ++offset;
-                continue;
+            const auto bitsToLoad = nextPosition;
+
+            /* Refill bit buffer for LUT using the bits from the higher precode bit buffer. */
+            bitBufferForLUT >>= bitsToLoad;
+            if constexpr ( CACHED_BIT_COUNT > 13 ) {
+                constexpr uint8_t DUPLICATED_BITS = CACHED_BIT_COUNT - 13;
+                bitBufferForLUT |= ( ( bitBufferPrecodeBits >> DUPLICATED_BITS )
+                                     & nLowestBitsSet<uint64_t>( bitsToLoad ) )
+                                   << static_cast<uint8_t>( CACHED_BIT_COUNT - bitsToLoad );
+            } else {
+                bitBufferForLUT |= ( bitBufferPrecodeBits & nLowestBitsSet<uint64_t>( bitsToLoad ) )
+                                   << static_cast<uint8_t>( CACHED_BIT_COUNT - bitsToLoad );
             }
 
-            /* Ignore 3 bits of deflate format data for final block and compression type flags. */
-            bitReader.seek( static_cast<long long int>( offset ) + 3 );
-            auto error = block.readDynamicHuffmanCoding( bitReader );
-            if ( error != Error::NONE ) {
-                ++offset;
-                continue;
-            }
+            /* Refill the precode bit buffer directly from the bit reader. */
+            bitBufferPrecodeBits >>= bitsToLoad;
+            bitBufferPrecodeBits |= bitReader.read( bitsToLoad )
+                                    << static_cast<uint8_t>( ALL_PRECODE_BITS - bitsToLoad );
 
-            /* Testing decoding is not necessary because the Huffman canonical check is already very strong!
-             * Decoding up to 8 kiB like in pugz only impedes performance and it is harder to reuse that already
-             * decoded data if we do decide that it is a valid block. The number of checks during reading is also
-             * pretty few because there almost are no wasted / invalid symbols. */
-            return offset;
+            offset += nextPosition;
         }
     } catch ( const BitReader::EndOfFileReached& ) {
         /* This might happen when calling readDynamicHuffmanCoding quite some bytes before the end! */

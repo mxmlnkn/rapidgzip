@@ -538,6 +538,8 @@ main()
 
 
 /*
+cmake --build . -- benchmarkBitReader && taskset 0x08 src/benchmarks/benchmarkBitReader
+
 = MSB (bzip2) =
 
 == Benchmarking by reading 1 bits ==
