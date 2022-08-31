@@ -12,111 +12,220 @@
 #include <unordered_set>
 
 #include <blockfinder/DynamicHuffman.hpp>
+#include <blockfinder/precodecheck/BruteForceLUT.hpp>
+#include <blockfinder/precodecheck/SingleLUT.hpp>
 #include <TestHelpers.hpp>
 #include <Error.hpp>
+
+
+/**
+ * Use like this: dummyPrintValue<uint32_t, 1234>() and then check for an unused warning:
+ * @verbatim
+ * testPrecodeCheck.cpp: In instantiation of ‘void dummyPrintValue() [with T = unsigned int; T <anonymous> = 1234]’:
+ * testPrecodeCheck.cpp:43:36:   required from here
+ * testPrecodeCheck.cpp:31:9: warning: unused variable ‘a’ [-Wunused-variable]
+ * @endverbatim
+ */
+template<typename T, T>
+void
+dummyPrintValue()
+{
+    int a = 0;
+}
 
 
 using CompressedHistogram = pragzip::blockfinder::CompressedHistogram;
 
 
-/**
- * @note This check was pulled from HuffmanCodingBase::checkCodeLengthFrequencies
- * @param frequencies Stores FREQUENCY_COUNT FREQUENCY_BITS-bit-sized values starting with the counts for length 1.
- *                           The zero-counts are omitted in the histogram!
- */
-template<uint8_t FREQUENCY_BITS,
-         uint8_t FREQUENCY_COUNT>
-[[nodiscard]] pragzip::Error
-checkPrecodeFrequenciesAlternative( CompressedHistogram frequencies )
+void
+testVLPHImplementation()
 {
-    static_assert( FREQUENCY_COUNT <= 7, "Precode code lengths go only up to 7!" );
-    static_assert( FREQUENCY_COUNT * FREQUENCY_BITS <= std::numeric_limits<CompressedHistogram>::digits,
-                   "Argument type does not fit as many values as to be processed!" );
+    using namespace pragzip::PrecodeCheck::SingleLUT::VariableLengthPackedHistogram;
 
-    /* If all counts are zero, then either it is a valid frequency distribution for an empty code or we are
-     * missing some higher counts and cannot determine whether the code is bloating because all missing counts
-     * might be zero, which is a valid special case. It is also not invalid because counts are the smallest they
-     * can be.
-     * Similarly, the special case of only a single symbol encoded in 1-bit is also valid because there is no
-     * valid (non-bloating) way to encode it! */
-    constexpr auto bitsToProcessMask = nLowestBitsSet<CompressedHistogram, FREQUENCY_BITS * FREQUENCY_COUNT>();
-    if ( UNLIKELY( ( frequencies & bitsToProcessMask ) == 1 ) ) [[unlikely]] {
-        return pragzip::Error::NONE;
-    }
+    static_assert( getCount( 0b1101'10001'10101'0101'100'10'1'01010UL, 0 ) == 0b01010 );
+    static_assert( getCount( 0b1101'10001'10101'0101'100'10'1'01010UL, 1 ) == 0b1     );
+    static_assert( getCount( 0b1101'10001'10101'0101'100'10'1'01010UL, 2 ) == 0b10    );
+    static_assert( getCount( 0b1101'10001'10101'0101'100'10'1'01010UL, 3 ) == 0b100   );
+    static_assert( getCount( 0b1101'10001'10101'0101'100'10'1'01010UL, 4 ) == 0b0101  );
+    static_assert( getCount( 0b1101'10001'10101'0101'100'10'1'01010UL, 5 ) == 0b10101 );
+    static_assert( getCount( 0b1101'10001'10101'0101'100'10'1'01010UL, 6 ) == 0b10001 );
+    static_assert( getCount( 0b1101'10001'10101'0101'100'10'1'01010UL, 7 ) == 0b1101  );
 
-    const auto getCount =
-        [] ( const CompressedHistogram histogram,
-             const uint8_t             bitLength )
-        {
-            return ( histogram >> ( ( bitLength - 1U ) * FREQUENCY_BITS ) )
-                   & nLowestBitsSet<CompressedHistogram, FREQUENCY_BITS>();
-        };
+    static_assert( setCount( 0b1101'10001'10101'0101'100'10'1'01010UL, 4, 0b1111 )
+                   == 0b1101'10001'10101'1111'100'10'1'01010UL );
+    static_assert( setCount( 0b1111'11111'11111'1111'111'11'1'11111UL, 4, 0b1111 )
+                   == 0b1111'11111'11111'1111'111'11'1'11111UL );
+    static_assert( setCount( 0b0000'00000'00000'0000'000'00'0'00000UL, 4, 0b1111 )
+                   == 0b0000'00000'00000'1111'000'00'0'00000UL );
 
-    /* Because we do not know actual total count, we have to assume the most relaxed check for the bloating check. */
-    constexpr auto MAX_CL_SYMBOL_COUNT = 19U;
-    auto remainingCount = MAX_CL_SYMBOL_COUNT;
+    static_assert( incrementCount( 0b0'1101'10001'10101'0101'100'10'1'01010UL, 0 )
+                   ==              0b0'1101'10001'10101'0101'100'10'1'01011UL );
+    static_assert( incrementCount( 0b0'1101'10001'10101'0101'100'10'1'01010UL, 1 )
+                   ==              0b1'1101'10001'10101'0101'100'11'0'01010UL );
+    static_assert( incrementCount( 0b0'1101'10001'10101'0101'100'10'1'01010UL, 2 )
+                   ==              0b0'1101'10001'10101'0101'100'11'1'01010UL );
+    static_assert( incrementCount( 0b0'1101'10001'10101'0101'100'10'1'01010UL, 3 )
+                   ==              0b0'1101'10001'10101'0101'101'10'1'01010UL );
+    static_assert( incrementCount( 0b0'1101'10001'10101'0101'100'10'1'01010UL, 4 )
+                   ==              0b0'1101'10001'10101'0110'100'10'1'01010UL );
+    static_assert( incrementCount( 0b0'1101'10001'10101'0101'100'10'1'01010UL, 5 )
+                   ==              0b0'1101'10001'10110'0101'100'10'1'01010UL );
+    static_assert( incrementCount( 0b0'1101'10001'10101'0101'100'10'1'01010UL, 6 )
+                   ==              0b0'1101'10010'10101'0101'100'10'1'01010UL );
+    static_assert( incrementCount( 0b0'1101'10001'10101'0101'100'10'1'01010UL, 7 )
+                   ==              0b0'1110'10001'10101'0101'100'10'1'01010UL );
 
-    uint8_t unusedSymbolCount{ 2 };
-    for ( size_t bitLength = 1; bitLength <= FREQUENCY_COUNT; ++bitLength ) {
-        const auto frequency = getCount( frequencies, bitLength );
-        if ( frequency > unusedSymbolCount ) {
-            return pragzip::Error::INVALID_CODE_LENGTHS;
-        }
+    const auto getHistogram =
+        [] ( const auto values ) { return calculateHistogram</* VALUE_BITS */ 3, /* VALUE_COUNT */ 4>( values ); };
 
-        unusedSymbolCount -= frequency;
-        unusedSymbolCount *= 2;  /* Because we go down one more level for all unused tree nodes! */
+    static_assert( getHistogram( 0b000'000'000'000 ) == 0b0'0000'00000'00000'0000'000'00'0'00000UL );
+    static_assert( getHistogram( 0b111'111'111'111 ) == 0b0'0100'00000'00000'0000'000'00'0'00100UL );
+    static_assert( getHistogram( 0b111'001'000'111 ) == 0b0'0010'00000'00000'0000'000'00'1'00011UL );
+    static_assert( getHistogram( 0b111'001'001'111 ) == 0b1'0010'00000'00000'0000'000'01'0'00100UL );
+    static_assert( getHistogram( 0b010'010'010'010 ) == 0b1'0000'00000'00000'0000'001'00'0'00100UL );
+    static_assert( getHistogram( 0b001'010'001'001 ) == 0b1'0000'00000'00000'0000'000'10'1'00100UL );
+    /* @note calculateHistogram allows to overflow the individual counts to keep associativity for the part
+     *       without overflow bits. */
 
-        remainingCount -= frequency;
-
-        if ( unusedSymbolCount > remainingCount ) {
-            return pragzip::Error::BLOATING_HUFFMAN_CODING;
-        }
-    }
-
-    /* In the deepest possible layer, we can do a more rigorous check against non-optimal huffman codes. */
-    if constexpr ( FREQUENCY_COUNT == 7 ) {
-        uint64_t nonZeroCount{ 0 };
-        for ( size_t bitLength = 1; bitLength <= FREQUENCY_COUNT; ++bitLength ) {
-            const auto frequency = getCount( frequencies, bitLength );
-            nonZeroCount += frequency;
-        }
-
-        if ( ( ( nonZeroCount == 1 ) && ( unusedSymbolCount >  1 ) ) ||
-             ( ( nonZeroCount >  1 ) && ( unusedSymbolCount != 0 ) ) ) {
-            return pragzip::Error::BLOATING_HUFFMAN_CODING;
-        }
-
-        if ( nonZeroCount == 0 ) {
-            return pragzip::Error::EMPTY_ALPHABET;
-        }
-    }
-
-    return pragzip::Error::NONE;
+    /* In C++20 we could have used static_assert because it has constexpr == and std::equal. */
+    const std::array<uint8_t, 8> EXPECTED_MEMBER_OFFSETS = { 0, 5, 6, 8, 11, 15, 20, 25 };
+    REQUIRE( MEMBER_OFFSETS == EXPECTED_MEMBER_OFFSETS );
 }
 
 
-/**
- * This older, alternative precode frequency check LUT creation is thousands of times slower and requires much
- * more heap space during compilation than the newer one when made constexpr! Therefore, use the newer better
- * constexpr version and keep this test to check at test runtime whether the newer and alternative LUT creation
- * functions yield identical results.
- */
-template<uint32_t FREQUENCY_BITS,
-         uint32_t FREQUENCY_COUNT>
-[[nodiscard]] auto
-createPrecodeFrequenciesValidLUTAlternative()
+void
+testSingleLUTImplementation4Precodes()
 {
-    static_assert( ( 1ULL << ( FREQUENCY_BITS * FREQUENCY_COUNT ) ) % 64U == 0,
-                   "LUT size must be a multiple of 64-bit for the implemented bit-packing!" );
-    std::array<uint64_t, ( 1ULL << ( FREQUENCY_BITS * FREQUENCY_COUNT ) ) / 64U> result{};
-    for ( size_t i = 0; i < result.size(); ++i ) {
-        for ( size_t j = 0; j < 64U; ++j ) {
-            const auto isValid = checkPrecodeFrequenciesAlternative<FREQUENCY_BITS, FREQUENCY_COUNT>( i * 64U + j )
-                                 == pragzip::Error::NONE;
-            result[i] |= static_cast<uint64_t>( isValid ) << j;
-        }
-    }
-    return result;
+    /* With only 4 precodes, there will be no overflow issues when adding partial histograms because only the
+     * first one will be non-zero. */
+
+    const auto check4Precodes =
+        [] ( const auto values ) { return pragzip::PrecodeCheck::SingleLUT::checkPrecode( 0, values ); };
+
+    static_assert( check4Precodes( 0 ) != pragzip::Error::NONE );
+
+    /* Only one non-zero value that is not 1 leads to a non-optimal tree. */
+    static_assert( check4Precodes( 0b000'000'000'010 ) != pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b000'000'000'011 ) != pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b000'000'000'100 ) != pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b000'000'010'000 ) != pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b000'000'011'000 ) != pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b000'000'100'000 ) != pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b000'010'000'000 ) != pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b000'011'000'000 ) != pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b000'100'000'000 ) != pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b010'000'000'000 ) != pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b011'000'000'000 ) != pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b100'000'000'000 ) != pragzip::Error::NONE );
+
+    static_assert( check4Precodes( 0b000'000'001'000 ) == pragzip::Error::NONE );
+    static_assert( pragzip::blockfinder::checkPrecode( 0, 0b000'000'001'000 ) == pragzip::Error::NONE );
+
+    /* A single code length with 1 bit is valid. */
+    static_assert( check4Precodes( 0b000'000'000'001 ) == pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b000'000'001'000 ) == pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b000'001'000'000 ) == pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b001'000'000'000 ) == pragzip::Error::NONE );
+
+    /* Two non-zero values are only valid if both of them are of length 1. */
+    static_assert( check4Precodes( 0b001'001'000'000 ) == pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b001'000'001'000 ) == pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b001'000'000'001 ) == pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b000'001'001'000 ) == pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b000'001'000'001 ) == pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b000'000'001'001 ) == pragzip::Error::NONE );
+
+    /* If there is a code length longer than one out of the two, then the tree will be non-optimal. */
+    static_assert( check4Precodes( 0b001'011'000'000 ) != pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b001'000'011'000 ) != pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b001'000'000'011 ) != pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b000'001'011'000 ) != pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b000'001'000'011 ) != pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b000'000'011'001 ) != pragzip::Error::NONE );
+
+    /* Even with 3 values, there is still only one tree that is valid: code lengths: 1, 2, 2. */
+    static_assert( check4Precodes( 0b001'010'010'000 ) == pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b001'010'000'010 ) == pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b001'010'000'010 ) == pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b010'001'010'000 ) == pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b000'001'010'010 ) == pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b000'010'010'001 ) == pragzip::Error::NONE );
+
+    static_assert( check4Precodes( 0b001'010'011'000 ) != pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b011'010'000'010 ) != pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b001'110'000'010 ) != pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b010'001'011'000 ) != pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b000'001'010'110 ) != pragzip::Error::NONE );
+    static_assert( check4Precodes( 0b000'010'010'101 ) != pragzip::Error::NONE );
+
+    /* And even with 4 values, there is still only one tree that is valid: code lengths: 2, 2, 2, 2. */
+    static_assert( check4Precodes( 0b010'010'010'010 ) == pragzip::Error::NONE );
+
+    /* Too many of the same value overflows the variable-length bit-packed histogram,
+     * which should be detected and yield an error. */
+    static_assert( check4Precodes( 0b001'010'001'001 ) != pragzip::Error::NONE );
+}
+
+
+void
+testSingleLUTImplementation8Precodes()
+{
+    /* Starting with these tests there is more than one valid tree configuration and addition of partial histograms
+     * comes into play and can be tested. */
+
+    const auto check8Precodes =
+        [] ( const auto values ) { return pragzip::PrecodeCheck::SingleLUT::checkPrecode( 4, values ); };
+
+    /**
+     * For 5 non-zero precodes, there can be multiple tree configurations:
+     * @verbatim
+     *    /\                /\
+     *   o  \      CL 1    o  \
+     *      /\                /\
+     *     o  \    CL 2      /  \
+     *        /\            /\  /\
+     *       o  o  CL 3    o  oo  o
+     * @endverbatim
+     */
+    static_assert( check8Precodes( 0b000'000'000'100'100'011'010'001 ) == pragzip::Error::NONE );
+    static_assert( check8Precodes( 0b000'000'100'100'011'010'001'000 ) == pragzip::Error::NONE );
+    static_assert( check8Precodes( 0b000'100'100'011'010'001'000'000 ) == pragzip::Error::NONE );
+    static_assert( check8Precodes( 0b100'100'011'010'001'000'000'000 ) == pragzip::Error::NONE );
+
+    using namespace pragzip::PrecodeCheck::SingleLUT;
+
+    static_assert( PRECODE_X4_TO_HISTOGRAM_LUT.at( 0b011'011'011'011 ) == 0b0'0000'00000'00000'0000'100'00'0'00100UL );
+    static_assert( PRECODE_X4_TO_HISTOGRAM_LUT.at( 0b000'000'000'001 ) == 0b0'0000'00000'00000'0000'000'00'1'00001UL );
+    static_assert( PRECODE_X4_TO_HISTOGRAM_LUT.at( 0b011'011'011'011 ) +
+                   PRECODE_X4_TO_HISTOGRAM_LUT.at( 0b000'000'000'001 ) == 0b0'0000'00000'00000'0000'100'00'1'00101UL );
+    static_assert( ( PRECODE_HISTOGRAM_VALID_LUT.at( 0b0000'00000'00000'0000 ) & ( 1ULL << 0b100'00'1 ) ) != 0 );
+
+    static_assert( check8Precodes( 0b000'000'000'001'011'011'011'011 ) == pragzip::Error::NONE );
+    static_assert( check8Precodes( 0b000'000'000'011'011'011'011'001 ) == pragzip::Error::NONE );
+    static_assert( check8Precodes( 0b000'000'011'011'011'011'001'000 ) == pragzip::Error::NONE );
+    static_assert( check8Precodes( 0b000'011'011'011'011'001'000'000 ) == pragzip::Error::NONE );
+    static_assert( check8Precodes( 0b011'011'011'011'001'000'000'000 ) == pragzip::Error::NONE );
+
+    /* With 4 non-zero precodes, we can now check the overflow algorithm. */
+}
+
+
+void
+testSingleLUTImplementation()
+{
+    using namespace pragzip::PrecodeCheck::SingleLUT;
+
+    static_assert( PRECODE_X4_TO_HISTOGRAM_LUT.at( 0b000'000'000'000 ) == 0b0'0000'00000'00000'0000'000'00'0'00000UL );
+    static_assert( PRECODE_X4_TO_HISTOGRAM_LUT.at( 0b111'111'111'111 ) == 0b0'0100'00000'00000'0000'000'00'0'00100UL );
+    static_assert( PRECODE_X4_TO_HISTOGRAM_LUT.at( 0b111'001'000'111 ) == 0b0'0010'00000'00000'0000'000'00'1'00011UL );
+    static_assert( PRECODE_X4_TO_HISTOGRAM_LUT.at( 0b111'001'001'111 ) == 0b1'0010'00000'00000'0000'000'01'0'00100UL );
+    static_assert( PRECODE_X4_TO_HISTOGRAM_LUT.at( 0b010'010'010'010 ) == 0b1'0000'00000'00000'0000'001'00'0'00100UL );
+
+    testSingleLUTImplementation4Precodes();
+    testSingleLUTImplementation8Precodes();
+
+
+    testVLPHImplementation();
 }
 
 
@@ -127,7 +236,8 @@ analyzeValidPrecodeFrequencies()
     /* Without static, I'm getting SIGSEV! It might be that this results in a classical stack overflow because
      * those std::array LUTs are allocated on the insufficiently-sized stack when not static. */
     static const auto frequencyLUT = pragzip::blockfinder::createPrecodeFrequenciesValidLUT<5, FREQUENCY_COUNT>();
-    static const auto frequencyLUTAlternative = createPrecodeFrequenciesValidLUTAlternative<5, FREQUENCY_COUNT>();
+    static const auto frequencyLUTAlternative =
+        pragzip::PrecodeCheck::BruteForceLUT::createPrecodeFrequenciesValidLUT<5, FREQUENCY_COUNT>();
     REQUIRE_EQUAL( frequencyLUT.size(), frequencyLUTAlternative.size() );
     REQUIRE( frequencyLUT == frequencyLUTAlternative );
 
@@ -149,21 +259,37 @@ analyzeValidPrecodes()
 {
     std::mt19937_64 randomEngine;
 
+    /* Because we can not exhaustively search all 2^61 possible configurations, use Monte-Carlo sampling.
+     * Actually, the search space is a bit smaller because the 57 bits are the maximum and the actual length
+     * depends on the 4 bits. */
     static constexpr uint64_t MONTE_CARLO_TEST_COUNT = 100'000'000;
     uint64_t validPrecodeCount{ 0 };
     std::unordered_map<pragzip::Error, uint64_t> errorCounts;
     for ( uint64_t i = 0; i < MONTE_CARLO_TEST_COUNT; ++i ) {
         using namespace pragzip::deflate;
         const auto precodeBits = randomEngine();
-        const auto error = pragzip::blockfinder::checkPrecode(
-            precodeBits & nLowestBitsSet<uint64_t, 4>(),
-            ( precodeBits >> 4U ) & nLowestBitsSet<uint64_t>( MAX_PRECODE_COUNT * PRECODE_BITS ) );
+        const auto next4Bits = precodeBits & nLowestBitsSet<uint64_t, 4>();
+        const auto next57Bits = ( precodeBits >> 4U ) & nLowestBitsSet<uint64_t>( MAX_PRECODE_COUNT * PRECODE_BITS );
+
+        const auto error = pragzip::blockfinder::checkPrecode( next4Bits, next57Bits );
+
         const auto [count, wasInserted] = errorCounts.try_emplace( error, 1 );
         if ( !wasInserted ) {
             count->second++;
         }
 
-        validPrecodeCount += ( error == pragzip::Error::NONE ) ? 1 : 0;
+        const auto isValid = error == pragzip::Error::NONE;
+        validPrecodeCount += isValid ? 1 : 0;
+
+        /* Compare with alternative checkPrecode functions. */
+        const auto alternativeIsValid = pragzip::PrecodeCheck::SingleLUT::checkPrecode( next4Bits, next57Bits )
+                                        == pragzip::Error::NONE;
+        REQUIRE_EQUAL( isValid, alternativeIsValid );
+        if ( isValid != alternativeIsValid ) {
+            const auto codeLengthCount = 4 + next4Bits;
+            std::cerr << "    next 4 bits: " << next4Bits << ", next 57 bits: "
+                      << ( next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS ) ) << "\n";
+        }
     }
 
     {
@@ -330,8 +456,8 @@ analyzeMaxValidPrecodeFrequencies()
     std::unordered_set<uint64_t> alternativeValidHistogramsWithout7Counts;
     static constexpr auto HISTOGRAM_COUNT_WITHOUT_7_COUNTS = 1ULL << ( FREQUENCY_BITS * ( FREQUENCY_COUNT - 1 ) );
     for ( uint64_t histogram = 0; histogram < HISTOGRAM_COUNT_WITHOUT_7_COUNTS; ++histogram ) {
-        if ( checkPrecodeFrequenciesAlternative<FREQUENCY_BITS, ( FREQUENCY_COUNT - 1 ) >( histogram )
-             != pragzip::Error::NONE ) {
+        if ( pragzip::PrecodeCheck::BruteForceLUT::checkPrecodeFrequencies<FREQUENCY_BITS, ( FREQUENCY_COUNT - 1 ) >(
+                 histogram ) != pragzip::Error::NONE ) {
             continue;
         }
 
@@ -406,7 +532,7 @@ analyzeMaxValidPrecodeFrequencies()
     std::unordered_set<uint64_t> alternativeValidHistograms;
     static constexpr auto HISTOGRAM_COUNT = 1ULL << ( FREQUENCY_BITS * FREQUENCY_COUNT );
     for ( uint64_t histogram = 0; histogram < HISTOGRAM_COUNT; ++histogram ) {
-        if ( checkPrecodeFrequenciesAlternative<FREQUENCY_BITS, FREQUENCY_COUNT>( histogram )
+        if ( pragzip::PrecodeCheck::BruteForceLUT::checkPrecodeFrequencies<FREQUENCY_BITS, FREQUENCY_COUNT>( histogram )
              != pragzip::Error::NONE ) {
             continue;
         }
@@ -452,6 +578,8 @@ analyzeMaxValidPrecodeFrequencies()
 int
 main()
 {
+    testSingleLUTImplementation();
+
     analyzeMaxValidPrecodeFrequencies</* COMPARE_WITH_ALTERNATIVE_METHOD (quite slow and changes rarely) */ false>();
     analyzeValidPrecodes();
 

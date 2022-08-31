@@ -24,6 +24,7 @@ https://www.ietf.org/rfc/rfc1952.txt
 #include <blockfinder/Bgzf.hpp>
 #include <blockfinder/DynamicHuffman.hpp>
 #include <blockfinder/PigzParallel.hpp>
+#include <blockfinder/precodecheck/SingleLUT.hpp>
 #include <common.hpp>
 #include <filereader/Buffered.hpp>
 #include <pragzip.hpp>
@@ -746,7 +747,33 @@ findDeflateBlocksPragzipLUT( BufferedFileReader::AlignedBuffer data )
                 const auto next4Bits = bitBufferPrecodeBits & nLowestBitsSet<uint64_t, PRECODE_COUNT_BITS>();
                 const auto next57Bits = ( bitBufferPrecodeBits >> PRECODE_COUNT_BITS )
                                         & nLowestBitsSet<uint64_t, MAX_PRECODE_COUNT * PRECODE_BITS>();
+
+            #if 0
+                /**
+                 * @verbatim
+                 * [findDeflateBlocksPragzipLUT with 13 bits] ( 44.2 <= 44.7 +- 0.4 <= 45.3 ) MB/s
+                 * [findDeflateBlocksPragzipLUT with 14 bits] ( 44.4 <= 45.1 +- 0.4 <= 45.7 ) MB/s
+                 * [findDeflateBlocksPragzipLUT with 15 bits] ( 44.01 <= 44.36 +- 0.26 <= 44.83 ) MB/s
+                 * [findDeflateBlocksPragzipLUT with 16 bits] ( 43.7 <= 44.3 +- 0.3 <= 44.7 ) MB/s
+                 * [findDeflateBlocksPragzipLUT with 17 bits] ( 44.1 <= 44.7 +- 0.3 <= 45 ) MB/s
+                 * [findDeflateBlocksPragzipLUT with 18 bits] ( 43.4 <= 43.8 +- 0.3 <= 44.3 ) MB/s
+                 * @endverbatim
+                 */
+                const auto precodeError = pragzip::PrecodeCheck::SingleLUT::checkPrecode( next4Bits, next57Bits );
+            #else
+                /**
+                 * @verbatim
+                 * [findDeflateBlocksPragzipLUT with 13 bits] ( 48.95 <= 49.38 +- 0.28 <= 49.85 ) MB/s
+                 * [findDeflateBlocksPragzipLUT with 14 bits] ( 49.5 <= 50.7 +- 0.7 <= 51.4 ) MB/s
+                 * [findDeflateBlocksPragzipLUT with 15 bits] ( 49.9 <= 50.7 +- 0.4 <= 51.2 ) MB/s
+                 * [findDeflateBlocksPragzipLUT with 16 bits] ( 50.3 <= 50.8 +- 0.3 <= 51.4 ) MB/s
+                 * [findDeflateBlocksPragzipLUT with 17 bits] ( 49.9 <= 51.2 +- 0.6 <= 52 ) MB/s
+                 * [findDeflateBlocksPragzipLUT with 18 bits] ( 46.5 <= 49 +- 0.9 <= 49.8 ) MB/s
+                 * @endverbatim
+                 */
                 const auto precodeError = pragzip::blockfinder::checkPrecode( next4Bits, next57Bits );
+            #endif
+
                 if ( UNLIKELY( precodeError == pragzip::Error::NONE ) ) [[unlikely]] {
                 #ifndef NDEBUG
                     const auto oldTell = bitReader.tell();
