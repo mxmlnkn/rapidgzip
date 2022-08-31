@@ -490,11 +490,11 @@ Maximum length frequencies of valid histograms:
     Code Length 7 : 16
 
 Found in total 1526 valid histograms (corresponding to the maximum of 7 bins) equaling 11 KiB 944 B
-Valid precodes 400814 out of 100000000 tested -> 0.400814 %
+Valid precodes 408185 out of 100000000 tested -> 0.408185 %
 Encountered errors:
     90010469 Constructing a Huffman coding from the given code length sequence failed!
-     9588717 The Huffman coding is not optimal!
-      400814 No error.
+     9581346 The Huffman coding is not optimal!
+      408185 No error.
 
 Precode frequency LUT containing 2 bins is sized: 128 B. There are 9 valid entries out of 1024 -> 0.878906 %
 Precode frequency LUT containing 3 bins is sized: 4 KiB. There are 35 valid entries out of 32768 -> 0.106812 %

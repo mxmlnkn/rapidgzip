@@ -97,7 +97,7 @@ protected:
             unusedSymbolCount *= 2;  /* Because we go down one more level for all unused tree nodes! */
         }
 
-        if ( ( ( nonZeroCount == 1 ) && ( unusedSymbolCount >  1 ) ) ||
+        if ( ( ( nonZeroCount == 1 ) && ( unusedSymbolCount != ( 1U << m_maxCodeLength ) ) ) ||
              ( ( nonZeroCount >  1 ) && ( unusedSymbolCount != 0 ) ) ) {
             return Error::BLOATING_HUFFMAN_CODING;
         }

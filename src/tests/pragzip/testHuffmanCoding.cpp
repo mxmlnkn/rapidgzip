@@ -54,6 +54,9 @@ template<typename HuffmanCoding>
 void
 testHuffmanCoding()
 {
+    /* A single symbol with code length 1 should also be a valid Huffman Coding. */
+    decodeHuffmanAndCompare<HuffmanCoding>( /* code lengths */ { 1 }, /* encoded */ { 0 }, /* decoded */ { 0 } );
+
     /* codeLengths, encoded, decoded */
     decodeHuffmanAndCompare<HuffmanCoding>( { 1, 1 }, { 0 }, { 0 } );
     decodeHuffmanAndCompare<HuffmanCoding>( { 1, 1 }, { 0 }, { 0, 0, 0, 0, 0, 0, 0, 0 } );

@@ -346,7 +346,8 @@ checkPrecode( const uint64_t next4Bits,
      * order for the code lengths per symbol in the bit stream is fixed. */
     bool invalidCodeLength{ false };
     uint32_t unusedSymbolCount{ 2 };
-    for ( size_t bitLength = 1; bitLength < ( 1U << PRECODE_BITS ); ++bitLength ) {
+    constexpr auto MAX_LENGTH = ( 1U << PRECODE_BITS );
+    for ( size_t bitLength = 1; bitLength < MAX_LENGTH; ++bitLength ) {
         const auto frequency = ( bitLengthFrequencies >> ( bitLength * UNIFORM_FREQUENCY_BITS ) )
                                & nLowestBitsSet<CompressedHistogram, UNIFORM_FREQUENCY_BITS>();
         invalidCodeLength |= frequency > unusedSymbolCount;
@@ -361,7 +362,7 @@ checkPrecode( const uint64_t next4Bits,
      * It is likely that GCC 11 already does the same optimization because it can deduce that the branched
      * comparison have no side-effects. Therefore, keep using logical operations because they are more
      * readable. Note that the standard defines bool to int conversion as true->1, false->0. */
-    if ( ( ( nonZeroCount == 1 ) && ( unusedSymbolCount >  1 ) ) ||
+    if ( ( ( nonZeroCount == 1 ) && ( unusedSymbolCount != ( 1U << ( MAX_LENGTH - 1U ) ) ) ) ||
          ( ( nonZeroCount >  1 ) && ( unusedSymbolCount != 0 ) ) ) {
         return pragzip::Error::BLOATING_HUFFMAN_CODING;
     }

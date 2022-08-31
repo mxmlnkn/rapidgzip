@@ -95,13 +95,13 @@ public:
             assert( value < m_codeCache.size() );
             const auto [length, symbol] = m_codeCache[(int)value];
 
-            /* Unfortunately, read is much faster than a simple seek forward,
-             * probably because of inlining and extraneous checks. For some reason read seems even faster than
-             * the newly introduced and trimmed down seekAfterPeek ... */
-            bitReader.read( length );
             if ( length == 0 ) {
-                throw std::logic_error( "Invalid Huffman code encountered!" );
+                /* This might happen for non-optimal Huffman trees out of which all except the case of a single
+                 * symbol with bit length 1 are forbidden! */
+                return std::nullopt;
             }
+
+            bitReader.seekAfterPeek( length );
             return symbol;
         } catch ( const BitReader::EndOfFileReached& ) {
             /* Should only happen at the end of the file and probably not even there
