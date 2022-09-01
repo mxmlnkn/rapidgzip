@@ -225,7 +225,9 @@ private:
         }
 
         const auto nBytesToReadFromBuffer = std::min( m_buffer.size() - m_bufferPosition, nMaxBytesToRead );
-        std::memcpy( buffer, m_buffer.data() + m_bufferPosition, nBytesToReadFromBuffer );
+        if ( buffer != nullptr ) {
+            std::memcpy( buffer, m_buffer.data() + m_bufferPosition, nBytesToReadFromBuffer );
+        }
         m_bufferPosition += nBytesToReadFromBuffer;
         return nBytesToReadFromBuffer;
     }

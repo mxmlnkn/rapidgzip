@@ -15,10 +15,10 @@ public:
 
 public:
     constexpr VectorView() noexcept = default;
-    constexpr VectorView( const VectorView& ) noexcept = default;
-    constexpr VectorView( VectorView&& ) noexcept = default;
-    constexpr VectorView& operator=( const VectorView& ) noexcept = default;
-    constexpr VectorView& operator=( VectorView&& ) noexcept = default;
+    constexpr VectorView( const VectorView<T>& ) noexcept = default;
+    constexpr VectorView( VectorView<T>&& ) noexcept = default;
+    constexpr VectorView<T>& operator=( const VectorView<T>& ) noexcept = default;
+    constexpr VectorView<T>& operator=( VectorView<T>&& ) noexcept = default;
 
     constexpr
     VectorView( const std::vector<T>& vector ) noexcept :

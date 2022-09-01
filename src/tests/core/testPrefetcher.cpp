@@ -657,8 +657,8 @@ private:
     processReadyPrefetches()
     {
         for ( const auto dataBlockIndex : m_prefetching ) {
-            auto& cache = m_prefetchCache.capacity() > 0 ? m_prefetchCache : m_cache;
-            cache.insert( dataBlockIndex, dataBlockIndex );
+            auto& cacheToUse = m_prefetchCache.capacity() > 0 ? m_prefetchCache : m_cache;
+            cacheToUse.insert( dataBlockIndex, dataBlockIndex );
         }
         m_prefetching.clear();
     }
