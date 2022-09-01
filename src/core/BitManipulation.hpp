@@ -211,3 +211,36 @@ createReversedBitsLUT()
 
 alignas( 8 ) static constexpr std::array<uint16_t, std::numeric_limits<uint16_t>::max() >
 reversedBitsLUT16 = createReversedBitsLUT<uint16_t>();
+
+
+/**
+ * Basically ceil(log2(stateCount)) with an exception for 0.
+ */
+[[nodiscard]] constexpr uint8_t
+requiredBits( const uint64_t stateCount )
+{
+    if ( stateCount == 0 ) {
+        return 0;
+    }
+    if ( stateCount == 1 ) {
+        return 1;
+    }
+
+    uint8_t result{ 0 };
+    for ( auto maxValue = stateCount - 1; maxValue != 0; maxValue >>= 1U ) {
+        ++result;
+    }
+    return result;
+}
+
+static_assert( requiredBits( 0 ) == 0 );
+static_assert( requiredBits( 1 ) == 1 );
+static_assert( requiredBits( 2 ) == 1 );
+static_assert( requiredBits( 3 ) == 2 );
+static_assert( requiredBits( 4 ) == 2 );
+static_assert( requiredBits( 5 ) == 3 );
+static_assert( requiredBits( 6 ) == 3 );
+static_assert( requiredBits( 7 ) == 3 );
+static_assert( requiredBits( 8 ) == 3 );
+static_assert( requiredBits( 64 ) == 6 );
+static_assert( requiredBits( 256 ) == 8 );

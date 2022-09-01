@@ -7,13 +7,18 @@
 #include <limits>
 #include <map>
 #include <random>
+#include <set>
 #include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 
 #include <blockfinder/DynamicHuffman.hpp>
 #include <blockfinder/precodecheck/BruteForceLUT.hpp>
+#include <blockfinder/precodecheck/SingleCompressedLUT.hpp>
 #include <blockfinder/precodecheck/SingleLUT.hpp>
+#include <blockfinder/precodecheck/WalkTreeCompressedLUT.hpp>
+#include <blockfinder/precodecheck/WalkTreeLUT.hpp>
+#include <blockfinder/precodecheck/WithoutLUT.hpp>
 #include <TestHelpers.hpp>
 #include <Error.hpp>
 
@@ -30,11 +35,12 @@ template<typename T, T>
 void
 dummyPrintValue()
 {
+    // NOLINTNEXTLINE(clang-diagnostic-unused-variable)
     int a = 0;
 }
 
 
-using CompressedHistogram = pragzip::blockfinder::CompressedHistogram;
+using CompressedHistogram = pragzip::PrecodeCheck::WalkTreeLUT::CompressedHistogram;
 
 
 void
@@ -119,7 +125,7 @@ testSingleLUTImplementation4Precodes()
     static_assert( check4Precodes( 0b100'000'000'000 ) != pragzip::Error::NONE );
 
     static_assert( check4Precodes( 0b000'000'001'000 ) == pragzip::Error::NONE );
-    static_assert( pragzip::blockfinder::checkPrecode( 0, 0b000'000'001'000 ) == pragzip::Error::NONE );
+    static_assert( pragzip::PrecodeCheck::WalkTreeLUT::checkPrecode( 0, 0b000'000'001'000 ) == pragzip::Error::NONE );
 
     /* A single code length with 1 bit is valid. */
     static_assert( check4Precodes( 0b000'000'000'001 ) == pragzip::Error::NONE );
@@ -198,7 +204,6 @@ testSingleLUTImplementation8Precodes()
     static_assert( PRECODE_X4_TO_HISTOGRAM_LUT.at( 0b000'000'000'001 ) == 0b0'0000'00000'00000'0000'000'00'1'00001UL );
     static_assert( PRECODE_X4_TO_HISTOGRAM_LUT.at( 0b011'011'011'011 ) +
                    PRECODE_X4_TO_HISTOGRAM_LUT.at( 0b000'000'000'001 ) == 0b0'0000'00000'00000'0000'100'00'1'00101UL );
-    static_assert( ( PRECODE_HISTOGRAM_VALID_LUT.at( 0b0000'00000'00000'0000 ) & ( 1ULL << 0b100'00'1 ) ) != 0 );
 
     static_assert( check8Precodes( 0b000'000'000'001'011'011'011'011 ) == pragzip::Error::NONE );
     static_assert( check8Precodes( 0b000'000'000'011'011'011'011'001 ) == pragzip::Error::NONE );
@@ -210,10 +215,131 @@ testSingleLUTImplementation8Precodes()
 }
 
 
+template<uint32_t CHUNKED_NEIGHBORS,
+         typename LUT>
+[[nodiscard]] size_t
+countUniqueValues( const LUT& lut )
+{
+    std::set<std::array<uint64_t, CHUNKED_NEIGHBORS> > uniqueValues;
+    for ( size_t i = 0; i < lut.size(); i += CHUNKED_NEIGHBORS ) {
+        std::array<uint64_t, CHUNKED_NEIGHBORS> valueChunk{};
+        for ( size_t j = 0; j < CHUNKED_NEIGHBORS; ++j ) {
+            valueChunk[j] = lut[i + j];
+        }
+        uniqueValues.emplace( valueChunk );
+    }
+    return uniqueValues.size();
+}
+
+
+template<uint32_t UINT64_COUNT,
+         typename LUT>
+[[nodiscard]] std::string
+printLUTStats( const LUT& lut )
+{
+    const auto uniqueValues = countUniqueValues<UINT64_COUNT>( lut );
+
+    std::stringstream result;
+    result << "64-bit chunks: " << UINT64_COUNT << ", unique values: " << uniqueValues;
+
+    /* When directly addressing uint64_t values in a generic std::array<uint64_t>, we need more addresses
+     * when chunking. */
+    const auto uniqueValueAddresses = uniqueValues * UINT64_COUNT;
+    /* Round up to 8 bits per byte because bit-packing is arithmetically expensive. */
+    const auto requiredBytes = static_cast<int>( std::ceil( std::log2( uniqueValueAddresses ) / 8 ) );
+    result << ", address size: " << formatBytes( requiredBytes ) << "\n        ";
+
+    const auto reducedLUTSize = lut.size() / UINT64_COUNT * requiredBytes;
+    const auto valueLUTSize = uniqueValues * UINT64_COUNT * sizeof( uint64_t );
+
+    result << "LUT: " << std::setw( 7 ) << formatBytes( reducedLUTSize ) << "\n"
+           << "            value LUT (bits) : " << formatBytes( valueLUTSize )
+           << " -> SUM: " << formatBytes( reducedLUTSize + valueLUTSize ) << "\n"
+           << "            value LUT (bytes): " << formatBytes( valueLUTSize * CHAR_BIT )
+           << " -> SUM: " << formatBytes( reducedLUTSize + valueLUTSize * CHAR_BIT );
+
+    return std::move( result ).str();
+}
+
+
+template<typename LUT>
+void
+analyzeSingleLUTCompression( const LUT& precodeHistogramValidLUT )
+{
+    std::set<uint64_t> uniqueBitMasks;
+    for ( const auto bitMask : precodeHistogramValidLUT ) {
+        uniqueBitMasks.emplace( bitMask );
+    }
+
+    std::cerr << "Unique precode histogram lookup 64-bit compressed results:";
+    for ( const auto bitMask : uniqueBitMasks ) {
+        std::cerr << " " << bitMask;
+    }
+    std::cerr << "\n";
+
+    /**
+     * The histogram LUT is sized: 2 MiB and contains 25 unique values
+     * -> We could compress the LUT values by storing the unique value ID in a second LUT.
+     *    The unique value ID could be stored in 5 bits but 8-bits is probably better and the size of
+     *    the second LUT is 25 * sizeof( uint64_t ) = 200 B, while the first LUT shrink from 64-bit values down to
+     *    8-bit values, i.e., 2 MiB -> 256 KiB.
+     *    -> We might even explode the 200 B values up by 8x (1600 B) to store the truth flags in bytes instead
+     *       of bits to save some bit fiddling.
+     * - It would look like this (assuming CHUNKED_NEIGHBORS is a power of 2):
+     *   testValid(DICT[LUT[histogram >> ( CHUNKED_NEIGHBORS - 1 )] + ( histogram % CHUNKED_NEIGHBORS ) * CHUNK_SIZE])
+     */
+    std::cerr << "The histogram LUT is sized: "
+              << formatBytes( precodeHistogramValidLUT.size() * sizeof( precodeHistogramValidLUT[0] ) ) << "\n"
+              << "By adding another layer of indirection to compress duplicate values in a dictionary (LUT), we can\n"
+              << "save further bytes. Calculations are done for different value sizes in chunks of one 64-bit value\n"
+              << "up to multiple 64-bit values mapped to a single dictionary (LUT) entry:\n"
+              << "\n"
+              << "    " << printLUTStats< 1>( precodeHistogramValidLUT ) << "\n"
+              << "    " << printLUTStats< 2>( precodeHistogramValidLUT ) << "\n"
+              << "    " << printLUTStats< 4>( precodeHistogramValidLUT ) << "\n"
+              << "    " << printLUTStats< 8>( precodeHistogramValidLUT ) << "\n"
+              << "    " << printLUTStats<16>( precodeHistogramValidLUT ) << "\n"
+              << "    " << printLUTStats<32>( precodeHistogramValidLUT ) << "\n"
+              << "\n";
+}
+
+
+void
+analyzeActualLUTCompression()
+{
+    const auto printRealCompressedLUTStatistics =
+        [] ( const auto&        compressedLUT,
+             const size_t       chunkCount,
+             const std::string& label )
+        {
+            const auto& [validLUT, validBitMasks] = compressedLUT;
+            std::cerr << "    " << label << ":\n"
+                      << "        Chunks     : " << chunkCount << "\n"
+                      << "        LUT        : " << formatBytes( validLUT.size() * sizeof( validLUT[0] ) ) << "\n"
+                      << "        Dictionary : "
+                      << formatBytes( validBitMasks.size() * sizeof( validBitMasks[0] ) ) << "\n"
+                      << "        -> Sum : "
+                      << formatBytes( validLUT.size() * sizeof( validLUT[0] )
+                                      + validBitMasks.size() * sizeof( validBitMasks[0] ) ) << "\n\n";
+        };
+
+    std::cerr << "\n== Sizes for actual implementations ==\n\n";
+    using namespace pragzip::PrecodeCheck;
+    printRealCompressedLUTStatistics( SingleCompressedLUT::COMPRESSED_PRECODE_HISTOGRAM_VALID_LUT_DICT,
+                                      SingleCompressedLUT::COMPRESSED_PRECODE_HISTOGRAM_CHUNK_COUNT,
+                                      "Whole LUT for variable-length bit-packed histogram" );
+    printRealCompressedLUTStatistics( WalkTreeCompressedLUT::COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_VALID_LUT_DICT,
+                                      WalkTreeCompressedLUT::COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_CHUNK_COUNT,
+                                      "LUT for frequencies 1 to 5 for uniformly bit-packed histogram" );
+}
+
+
 void
 testSingleLUTImplementation()
 {
     using namespace pragzip::PrecodeCheck::SingleLUT;
+
+    testVLPHImplementation();
 
     static_assert( PRECODE_X4_TO_HISTOGRAM_LUT.at( 0b000'000'000'000 ) == 0b0'0000'00000'00000'0000'000'00'0'00000UL );
     static_assert( PRECODE_X4_TO_HISTOGRAM_LUT.at( 0b111'111'111'111 ) == 0b0'0100'00000'00000'0000'000'00'0'00100UL );
@@ -223,9 +349,6 @@ testSingleLUTImplementation()
 
     testSingleLUTImplementation4Precodes();
     testSingleLUTImplementation8Precodes();
-
-
-    testVLPHImplementation();
 }
 
 
@@ -235,9 +358,9 @@ analyzeValidPrecodeFrequencies()
 {
     /* Without static, I'm getting SIGSEV! It might be that this results in a classical stack overflow because
      * those std::array LUTs are allocated on the insufficiently-sized stack when not static. */
-    static const auto frequencyLUT = pragzip::blockfinder::createPrecodeFrequenciesValidLUT<5, FREQUENCY_COUNT>();
-    static const auto frequencyLUTAlternative =
-        pragzip::PrecodeCheck::BruteForceLUT::createPrecodeFrequenciesValidLUT<5, FREQUENCY_COUNT>();
+    using namespace pragzip::PrecodeCheck;
+    static const auto frequencyLUT = WalkTreeLUT::createPrecodeFrequenciesValidLUT<5, FREQUENCY_COUNT>();
+    static const auto frequencyLUTAlternative = BruteForceLUT::createPrecodeFrequenciesValidLUT<5, FREQUENCY_COUNT>();
     REQUIRE_EQUAL( frequencyLUT.size(), frequencyLUTAlternative.size() );
     REQUIRE( frequencyLUT == frequencyLUTAlternative );
 
@@ -271,7 +394,7 @@ analyzeValidPrecodes()
         const auto next4Bits = precodeBits & nLowestBitsSet<uint64_t, 4>();
         const auto next57Bits = ( precodeBits >> 4U ) & nLowestBitsSet<uint64_t>( MAX_PRECODE_COUNT * PRECODE_BITS );
 
-        const auto error = pragzip::blockfinder::checkPrecode( next4Bits, next57Bits );
+        const auto error = pragzip::PrecodeCheck::WalkTreeLUT::checkPrecode( next4Bits, next57Bits );
 
         const auto [count, wasInserted] = errorCounts.try_emplace( error, 1 );
         if ( !wasInserted ) {
@@ -282,14 +405,23 @@ analyzeValidPrecodes()
         validPrecodeCount += isValid ? 1 : 0;
 
         /* Compare with alternative checkPrecode functions. */
-        const auto alternativeIsValid = pragzip::PrecodeCheck::SingleLUT::checkPrecode( next4Bits, next57Bits )
-                                        == pragzip::Error::NONE;
-        REQUIRE_EQUAL( isValid, alternativeIsValid );
-        if ( isValid != alternativeIsValid ) {
-            const auto codeLengthCount = 4 + next4Bits;
-            std::cerr << "    next 4 bits: " << next4Bits << ", next 57 bits: "
-                      << ( next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS ) ) << "\n";
-        }
+        const auto checkAlternative =
+            [&] ( const auto& checkPrecode )
+            {
+                const auto alternativeIsValid = checkPrecode( next4Bits, next57Bits ) == pragzip::Error::NONE;
+                REQUIRE_EQUAL( isValid, alternativeIsValid );
+                if ( isValid != alternativeIsValid ) {
+                    const auto codeLengthCount = 4 + next4Bits;
+                    std::cerr << "    next 4 bits: " << next4Bits << ", next 57 bits: "
+                              << ( next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS ) ) << "\n";
+                }
+            };
+
+        checkAlternative( pragzip::PrecodeCheck::WithoutLUT::checkPrecodeUsingArray );
+        checkAlternative( pragzip::PrecodeCheck::WithoutLUT::checkPrecode );
+        checkAlternative( pragzip::PrecodeCheck::SingleLUT::checkPrecode );
+        checkAlternative( pragzip::PrecodeCheck::SingleCompressedLUT::checkPrecode );
+        checkAlternative( pragzip::PrecodeCheck::WalkTreeCompressedLUT::checkPrecode );
     }
 
     {
@@ -590,6 +722,14 @@ main()
     //analyzeValidPrecodeFrequencies<6>();  // Creates 128 MiB LUT and 137 MiB binary!
     //analyzeValidPrecodeFrequencies<7>();  // Does not compile / link. I think the binary becomes too large
 
+    std::cerr << "\n\n== Complete LUT for variable length packed precode histograms ==\n\n";
+    analyzeSingleLUTCompression( pragzip::PrecodeCheck::SingleLUT::PRECODE_HISTOGRAM_VALID_LUT );
+
+    std::cerr << "\n== LUT for fixed 5-bit length precode histograms for counts 1 to 5 ==\n\n";
+    analyzeSingleLUTCompression( pragzip::PrecodeCheck::WalkTreeLUT::PRECODE_FREQUENCIES_1_TO_5_VALID_LUT );
+
+    analyzeActualLUTCompression();
+
     std::cout << "\nTests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
 
     return gnTestErrors == 0 ? 0 : 1;
@@ -630,6 +770,89 @@ Precode frequency LUT containing 4 bins is sized: 128 KiB. There are 157 valid e
 Precode frequency LUT containing 5 bins is sized: 4 MiB. There are 561 valid entries out of 33554432 -> 0.00167191 %
 Precode frequency LUT containing 6 bins is sized: 128 MiB. There are 1526 valid entries out of 1073741824 -> 0.000142212 %
 Precode frequency LUT containing 7 bins is sized: 4 GiB. There are 1526 valid entries out of 34359738368 -> 0.000004441 %
+
+
+== Complete LUT for variable length packed precode histograms ==
+
+Unique precode histogram lookup 64-bit compressed results: 0 1 2 4 8 18 256 512 1024 4608 65540 131144 262162 1179720 16778240 33572864 67113472 302008320 4295229458 17181048904 1099578741248 4398348519424 281492157759560 1125977220972578 72061992386447360
+The histogram LUT is sized: 2 MiB
+By adding another layer of indirection to compress duplicate values in a dictionary (LUT), we can
+save further bytes. Calculations are done for different value sizes in chunks of one 64-bit value
+up to multiple 64-bit values mapped to a single dictionary (LUT) entry:
+
+    64-bit chunks: 1, unique values: 25, address size: 1 B
+        LUT: 256 KiB
+            value LUT (bits) : 200 B -> SUM: 256 KiB 200 B
+            value LUT (bytes): 1 KiB 576 B -> SUM: 257 KiB 576 B
+    64-bit chunks: 2, unique values: 45, address size: 1 B
+        LUT: 128 KiB
+            value LUT (bits) : 720 B -> SUM: 128 KiB 720 B
+            value LUT (bytes): 5 KiB 640 B -> SUM: 133 KiB 640 B
+    64-bit chunks: 4, unique values: 57, address size: 1 B
+        LUT:  64 KiB
+            value LUT (bits) : 1 KiB 800 B -> SUM: 65 KiB 800 B
+            value LUT (bytes): 14 KiB 256 B -> SUM: 78 KiB 256 B
+    64-bit chunks: 8, unique values: 64, address size: 2 B
+        LUT:  64 KiB
+            value LUT (bits) : 4 KiB -> SUM: 68 KiB
+            value LUT (bytes): 32 KiB -> SUM: 96 KiB
+    64-bit chunks: 16, unique values: 59, address size: 2 B
+        LUT:  32 KiB
+            value LUT (bits) : 7 KiB 384 B -> SUM: 39 KiB 384 B
+            value LUT (bytes): 59 KiB -> SUM: 91 KiB
+    64-bit chunks: 32, unique values: 99, address size: 2 B
+        LUT:  16 KiB
+            value LUT (bits) : 24 KiB 768 B -> SUM: 40 KiB 768 B
+            value LUT (bytes): 198 KiB -> SUM: 214 KiB
+
+
+== LUT for fixed 5-bit length precode histograms for counts 1 to 5 ==
+
+Unique precode histogram lookup 64-bit compressed results: 0 1 2 4294967296 4294967298 8589934592 8589934594 8589934598
+The histogram LUT is sized: 4 MiB
+By adding another layer of indirection to compress duplicate values in a dictionary (LUT), we can
+save further bytes. Calculations are done for different value sizes in chunks of one 64-bit value
+up to multiple 64-bit values mapped to a single dictionary (LUT) entry:
+
+    64-bit chunks: 1, unique values: 8, address size: 1 B
+        LUT: 512 KiB
+            value LUT (bits) : 64 B -> SUM: 512 KiB 64 B
+            value LUT (bytes): 512 B -> SUM: 512 KiB 512 B
+    64-bit chunks: 2, unique values: 8, address size: 1 B
+        LUT: 256 KiB
+            value LUT (bits) : 128 B -> SUM: 256 KiB 128 B
+            value LUT (bytes): 1 KiB -> SUM: 257 KiB
+    64-bit chunks: 4, unique values: 8, address size: 1 B
+        LUT: 128 KiB
+            value LUT (bits) : 256 B -> SUM: 128 KiB 256 B
+            value LUT (bytes): 2 KiB -> SUM: 130 KiB
+    64-bit chunks: 8, unique values: 8, address size: 1 B
+        LUT:  64 KiB
+            value LUT (bits) : 512 B -> SUM: 64 KiB 512 B
+            value LUT (bytes): 4 KiB -> SUM: 68 KiB
+    64-bit chunks: 16, unique values: 8, address size: 1 B
+        LUT:  32 KiB
+            value LUT (bits) : 1 KiB -> SUM: 33 KiB
+            value LUT (bytes): 8 KiB -> SUM: 40 KiB
+    64-bit chunks: 32, unique values: 20, address size: 2 B
+        LUT:  32 KiB
+            value LUT (bits) : 5 KiB -> SUM: 37 KiB
+            value LUT (bytes): 40 KiB -> SUM: 72 KiB
+
+== Sizes for actual implementations ==
+
+    Whole LUT for variable-length bit-packed histogram:
+        Chunks     : 4
+        LUT        : 64 KiB
+        Dictionary : 14 KiB 256 B
+        -> Sum : 78 KiB 256 B
+
+    LUT for frequencies 1 to 5 for uniformly bit-packed histogram:
+        Chunks     : 16
+        LUT        : 32 KiB
+        Dictionary : 8 KiB
+        -> Sum : 40 KiB
+
 
 Tests successful: 10 / 10
 */

@@ -468,7 +468,7 @@ public:
         return m_blockMap->blockOffsets();
     }
 
-    [[nodiscard]] const auto
+    [[nodiscard]] auto
     statistics() const
     {
         if ( !m_blockFetcher ) {

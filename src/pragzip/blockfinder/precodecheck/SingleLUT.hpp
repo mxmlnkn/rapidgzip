@@ -13,6 +13,8 @@
 #include <limits>
 #include <stdexcept>
 
+#include <BitManipulation.hpp>
+
 
 namespace pragzip::PrecodeCheck::SingleLUT
 {

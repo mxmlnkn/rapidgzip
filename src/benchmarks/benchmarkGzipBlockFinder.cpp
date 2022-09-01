@@ -24,7 +24,10 @@ https://www.ietf.org/rfc/rfc1952.txt
 #include <blockfinder/Bgzf.hpp>
 #include <blockfinder/DynamicHuffman.hpp>
 #include <blockfinder/PigzParallel.hpp>
+#include <blockfinder/precodecheck/SingleCompressedLUT.hpp>
 #include <blockfinder/precodecheck/SingleLUT.hpp>
+#include <blockfinder/precodecheck/WalkTreeCompressedLUT.hpp>
+#include <blockfinder/precodecheck/WalkTreeLUT.hpp>
 #include <blockfinder/precodecheck/WithoutLUT.hpp>
 #include <common.hpp>
 #include <filereader/Buffered.hpp>
@@ -693,6 +696,142 @@ countDeflateBlocksPreselectionManualSlidingBuffer( BufferedFileReader::AlignedBu
 }
 
 
+enum class CheckPrecodeMethod
+{
+    WITHOUT_LUT,
+    WITHOUT_LUT_USING_ARRAY,
+    WALK_TREE_LUT,
+    WALK_TREE_COMPRESSED_LUT,
+    SINGLE_LUT,
+    SINGLE_COMPRESSED_LUT,
+};
+
+
+[[nodiscard]] std::string
+toString( CheckPrecodeMethod method )
+{
+    switch ( method )
+    {
+    case CheckPrecodeMethod::WITHOUT_LUT             : return "Without LUT";
+    case CheckPrecodeMethod::WITHOUT_LUT_USING_ARRAY : return "Without LUT Using Array";
+    case CheckPrecodeMethod::WALK_TREE_LUT           : return "Walk Tree LUT";
+    case CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT: return "Walk Tree Compressed LUT";
+    case CheckPrecodeMethod::SINGLE_LUT              : return "Single LUT";
+    case CheckPrecodeMethod::SINGLE_COMPRESSED_LUT   : return "Single Compressed LUT";
+    }
+    throw std::invalid_argument( "Unknown check precode method!" );
+}
+
+
+template<CheckPrecodeMethod CHECK_PRECODE_METHOD>
+constexpr pragzip::Error
+checkPrecode( const uint64_t next4Bits,
+              const uint64_t next57Bits )
+{
+    using namespace pragzip::PrecodeCheck;
+
+    if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_COMPRESSED_LUT ) {
+        /**
+         * I'm completely baffled that there is no performance gain for this one, which requires
+         * only 78 KiB 256 B LUT as opposed to SingleLUT, which requires a 2 MiB LUT.
+         * The lookup itself also isn't more expensive because the same bits are now stored in bytes,
+         * which avoids a third stage of bit-shifting and masking.
+         * @verbatim
+         * [13 bits] ( 43.67 <= 44.28 +- 0.26 <= 44.6 ) MB/s
+         * [14 bits] ( 44.46 <= 44.69 +- 0.14 <= 44.92 ) MB/s
+         * [15 bits] ( 44.07 <= 44.38 +- 0.14 <= 44.61 ) MB/s
+         * [16 bits] ( 44.09 <= 44.38 +- 0.2 <= 44.59 ) MB/s
+         * [17 bits] ( 44.4 <= 45.2 +- 0.5 <= 45.6 ) MB/s
+         * [18 bits] ( 42.6 <= 44.1 +- 0.6 <= 44.5 ) MB/s
+         * @endverbatim
+         */
+        return SingleCompressedLUT::checkPrecode( next4Bits, next57Bits );
+    }
+
+    if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_LUT ) {
+        /**
+         * I thought this would be faster than the WalkTreeLUT, it even save the whole branch
+         * in case the precode might be valid judging from the first 5 frequency counts.
+         * But the overflow checking might add too much more instructions in all cases.
+         * @verbatim
+         * [13 bits] ( 39.1 <= 43.5 +- 1.6 <= 44.5 ) MB/s
+         * [14 bits] ( 44.6 <= 45.3 +- 0.4 <= 45.7 ) MB/s
+         * [15 bits] ( 43.5 <= 44.2 +- 0.3 <= 44.6 ) MB/s
+         * [16 bits] ( 43.2 <= 44.1 +- 0.4 <= 44.6 ) MB/s
+         * [17 bits] ( 44.4 <= 45 +- 0.4 <= 45.6 ) MB/s
+         * [18 bits] ( 43.09 <= 43.38 +- 0.24 <= 43.78 ) MB/s
+         * @endverbatim
+         */
+        return SingleLUT::checkPrecode( next4Bits, next57Bits );
+    }
+
+    if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT ) {
+         /*
+         * @verbatim
+         * [13 bits] ( 48.9 <= 49.9 +- 0.6 <= 50.9 ) MB/s
+         * [14 bits] ( 49.8 <= 51.2 +- 0.7 <= 52.1 ) MB/s
+         * [15 bits] ( 48.5 <= 50.2 +- 0.8 <= 51 ) MB/s
+         * [16 bits] ( 46.6 <= 49.4 +- 1.1 <= 50.6 ) MB/s
+         * [17 bits] ( 49.7 <= 50.7 +- 0.4 <= 51.1 ) MB/s
+         * [18 bits] ( 47.2 <= 47.9 +- 0.4 <= 48.3 ) MB/s
+         * @endverbatim
+         */
+        return WalkTreeCompressedLUT::checkPrecode( next4Bits, next57Bits );
+    }
+
+    if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_LUT ) {
+        /**
+         * Even this version with 40 KiB is not faster than the version with 4 MiB.
+         * It's actually a tad slower, especially for the minimum measured bandwidths.
+         * I'm baffled.
+         * @todo Compressing the LUT might have an actual benefit when including one more count.
+         *       The uncompressed LUT for that is 128 MiB! But, theoretically, the upper bound for
+         *       the compressed LUT would be 32 * 40 KiB = 1280 KiB but I need to fix the creation
+         *       algorithm to skip a temporary creation of the 128 MiB table, especially if I want
+         *       to have it constexpr.
+         * @verbatim
+         * [13 bits] ( 48.95 <= 49.38 +- 0.28 <= 49.85 ) MB/s
+         * [14 bits] ( 49.5 <= 50.7 +- 0.7 <= 51.4 ) MB/s
+         * [15 bits] ( 49.9 <= 50.7 +- 0.4 <= 51.2 ) MB/s
+         * [16 bits] ( 50.3 <= 50.8 +- 0.3 <= 51.4 ) MB/s
+         * [17 bits] ( 49.9 <= 51.2 +- 0.6 <= 52 ) MB/s
+         * [18 bits] ( 46.5 <= 49 +- 0.9 <= 49.8 ) MB/s
+         * @endverbatim
+         */
+        return WalkTreeLUT::checkPrecode( next4Bits, next57Bits );
+    }
+
+    if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WITHOUT_LUT_USING_ARRAY ) {
+        /**
+         * @verbatim
+         * [13 bits] ( 35.08 <= 35.43 +- 0.21 <= 35.74 ) MB/s
+         * [14 bits] ( 33.74 <= 34 +- 0.15 <= 34.21 ) MB/s
+         * [15 bits] ( 34.1 <= 34.49 +- 0.23 <= 34.8 ) MB/s
+         * [16 bits] ( 33.85 <= 34.09 +- 0.16 <= 34.32 ) MB/s
+         * [17 bits] ( 33.3 <= 34 +- 0.4 <= 34.6 ) MB/s
+         * [18 bits] ( 34.41 <= 34.89 +- 0.25 <= 35.22 ) MB/s
+         * @endverbatim
+         */
+        return WithoutLUT::checkPrecodeUsingArray( next4Bits, next57Bits );
+    }
+
+    if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WITHOUT_LUT ) {
+        /**
+         * @verbatim
+         * [13 bits] ( 33.1 <= 33.28 +- 0.13 <= 33.46 ) MB/s
+         * [14 bits] ( 32.93 <= 33.39 +- 0.26 <= 33.79 ) MB/s
+         * [15 bits] ( 33.32 <= 33.48 +- 0.12 <= 33.64 ) MB/s
+         * [16 bits] ( 32.96 <= 33.2 +- 0.25 <= 33.58 ) MB/s
+         * [17 bits] ( 32.9 <= 33.27 +- 0.24 <= 33.61 ) MB/s
+         * [18 bits] ( 31.7 <= 32.3 +- 0.3 <= 32.7 ) MB/s
+         * @endverbatim
+         */
+        return WithoutLUT::checkPrecode( next4Bits, next57Bits );
+    }
+
+    throw std::invalid_argument( "Unknown check precode method!" );
+}
+
 
 /**
  * Same as findDeflateBlocksPragzip but prefilters calling pragzip using a lookup table and even skips multiple bits.
@@ -700,7 +839,8 @@ countDeflateBlocksPreselectionManualSlidingBuffer( BufferedFileReader::AlignedBu
  * The idea is that fixed huffman blocks should be very rare and uncompressed blocks can be found very fast in a
  * separate run over the data (to be implemented).
  */
-template<uint8_t CACHED_BIT_COUNT>
+template<uint8_t            CACHED_BIT_COUNT,
+         CheckPrecodeMethod CHECK_PRECODE_METHOD = CheckPrecodeMethod::WALK_TREE_LUT>
 [[nodiscard]] std::vector<size_t>
 findDeflateBlocksPragzipLUT( BufferedFileReader::AlignedBuffer data )
 {
@@ -748,60 +888,7 @@ findDeflateBlocksPragzipLUT( BufferedFileReader::AlignedBuffer data )
                 const auto next4Bits = bitBufferPrecodeBits & nLowestBitsSet<uint64_t, PRECODE_COUNT_BITS>();
                 const auto next57Bits = ( bitBufferPrecodeBits >> PRECODE_COUNT_BITS )
                                         & nLowestBitsSet<uint64_t, MAX_PRECODE_COUNT * PRECODE_BITS>();
-
-            #define CHECK_PRECODE_VERSION 3
-            #if CHECK_PRECODE_VERSION == 4
-                /**
-                 * @verbatim
-                 * [findDeflateBlocksPragzipLUT with 13 bits] ( 44.2 <= 44.7 +- 0.4 <= 45.3 ) MB/s
-                 * [findDeflateBlocksPragzipLUT with 14 bits] ( 44.4 <= 45.1 +- 0.4 <= 45.7 ) MB/s
-                 * [findDeflateBlocksPragzipLUT with 15 bits] ( 44.01 <= 44.36 +- 0.26 <= 44.83 ) MB/s
-                 * [findDeflateBlocksPragzipLUT with 16 bits] ( 43.7 <= 44.3 +- 0.3 <= 44.7 ) MB/s
-                 * [findDeflateBlocksPragzipLUT with 17 bits] ( 44.1 <= 44.7 +- 0.3 <= 45 ) MB/s
-                 * [findDeflateBlocksPragzipLUT with 18 bits] ( 43.4 <= 43.8 +- 0.3 <= 44.3 ) MB/s
-                 * @endverbatim
-                 */
-                const auto precodeError = pragzip::PrecodeCheck::SingleLUT::checkPrecode(
-                    next4Bits, next57Bits );
-            #elif CHECK_PRECODE_VERSION == 3
-                /**
-                 * @verbatim
-                 * [findDeflateBlocksPragzipLUT with 13 bits] ( 48.95 <= 49.38 +- 0.28 <= 49.85 ) MB/s
-                 * [findDeflateBlocksPragzipLUT with 14 bits] ( 49.5 <= 50.7 +- 0.7 <= 51.4 ) MB/s
-                 * [findDeflateBlocksPragzipLUT with 15 bits] ( 49.9 <= 50.7 +- 0.4 <= 51.2 ) MB/s
-                 * [findDeflateBlocksPragzipLUT with 16 bits] ( 50.3 <= 50.8 +- 0.3 <= 51.4 ) MB/s
-                 * [findDeflateBlocksPragzipLUT with 17 bits] ( 49.9 <= 51.2 +- 0.6 <= 52 ) MB/s
-                 * [findDeflateBlocksPragzipLUT with 18 bits] ( 46.5 <= 49 +- 0.9 <= 49.8 ) MB/s
-                 * @endverbatim
-                 */
-                const auto precodeError = pragzip::blockfinder::checkPrecode( next4Bits, next57Bits );
-            #elif CHECK_PRECODE_VERSION == 2
-                /**
-                 * @verbatim
-                 * [findDeflateBlocksPragzipLUT with 13 bits] ( 35.08 <= 35.43 +- 0.21 <= 35.74 ) MB/s
-                 * [findDeflateBlocksPragzipLUT with 14 bits] ( 33.74 <= 34 +- 0.15 <= 34.21 ) MB/s
-                 * [findDeflateBlocksPragzipLUT with 15 bits] ( 34.1 <= 34.49 +- 0.23 <= 34.8 ) MB/s
-                 * [findDeflateBlocksPragzipLUT with 16 bits] ( 33.85 <= 34.09 +- 0.16 <= 34.32 ) MB/s
-                 * [findDeflateBlocksPragzipLUT with 17 bits] ( 33.3 <= 34 +- 0.4 <= 34.6 ) MB/s
-                 * [findDeflateBlocksPragzipLUT with 18 bits] ( 34.41 <= 34.89 +- 0.25 <= 35.22 ) MB/s
-                 * @endverbatim
-                 */
-                const auto precodeError = pragzip::PrecodeCheck::WithoutLUT::checkPrecodeUsingArray(
-                    next4Bits, next57Bits );
-            #elif CHECK_PRECODE_VERSION == 1
-                /**
-                 * @verbatim
-                 * [findDeflateBlocksPragzipLUT with 13 bits] ( 33.1 <= 33.28 +- 0.13 <= 33.46 ) MB/s
-                 * [findDeflateBlocksPragzipLUT with 14 bits] ( 32.93 <= 33.39 +- 0.26 <= 33.79 ) MB/s
-                 * [findDeflateBlocksPragzipLUT with 15 bits] ( 33.32 <= 33.48 +- 0.12 <= 33.64 ) MB/s
-                 * [findDeflateBlocksPragzipLUT with 16 bits] ( 32.96 <= 33.2 +- 0.25 <= 33.58 ) MB/s
-                 * [findDeflateBlocksPragzipLUT with 17 bits] ( 32.9 <= 33.27 +- 0.24 <= 33.61 ) MB/s
-                 * [findDeflateBlocksPragzipLUT with 18 bits] ( 31.7 <= 32.3 +- 0.3 <= 32.7 ) MB/s
-                 * @endverbatim
-                 */
-                const auto precodeError = pragzip::PrecodeCheck::WithoutLUT::checkPrecode( next4Bits, next57Bits );
-            #endif
-            #undef CHECK_PRECODE_VERSION
+                const auto precodeError = checkPrecode<CHECK_PRECODE_METHOD>( next4Bits, next57Bits );
 
                 if ( UNLIKELY( precodeError == pragzip::Error::NONE ) ) [[unlikely]] {
                 #ifndef NDEBUG
@@ -892,10 +979,12 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
 
             bitReader.seek( static_cast<long long int>( offset ) + 13 );
             const auto next4Bits = bitReader.read( pragzip::deflate::PRECODE_COUNT_BITS );
-            const auto next57Bits = bitReader.peek( pragzip::deflate::MAX_PRECODE_COUNT * PRECODE_BITS );
-            static_assert( pragzip::deflate::MAX_PRECODE_COUNT * PRECODE_BITS
+            const auto next57Bits = bitReader.peek( pragzip::deflate::MAX_PRECODE_COUNT
+                                                    * pragzip::deflate::PRECODE_BITS );
+            static_assert( pragzip::deflate::MAX_PRECODE_COUNT * pragzip::deflate::PRECODE_BITS
                            <= pragzip::BitReader::MAX_BIT_BUFFER_SIZE,
                            "This optimization requires a larger BitBuffer inside BitReader!" );
+            using pragzip::PrecodeCheck::WalkTreeLUT::checkPrecode;
             if ( checkPrecode( next4Bits, next57Bits ) != pragzip::Error::NONE ) {
                 ++checkPrecodeFails;
             }
@@ -1034,7 +1123,8 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
  * Once, doing simple Boyer-Moore-like string search tests and skips forward and the second time doing
  * extensive tests by loading and checking the dynamic Huffman trees, which might require seeking back.
  */
-template<uint8_t CACHED_BIT_COUNT>
+template<uint8_t            CACHED_BIT_COUNT,
+         CheckPrecodeMethod CHECK_PRECODE_METHOD = CheckPrecodeMethod::WALK_TREE_LUT>
 [[nodiscard]] std::vector<size_t>
 findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
 {
@@ -1050,6 +1140,7 @@ findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
     using namespace pragzip::blockfinder;
     static const auto nextDeflateCandidateLUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
 
+    //const auto t0 = now();
     for ( size_t offset = 0; offset <= nBitsToTest; ) {
         try {
             const auto nextPosition = nextDeflateCandidateLUT[bitReader.peek<CACHED_BIT_COUNT>()];
@@ -1066,6 +1157,10 @@ findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
         }
     }
 
+    //const auto t1 = now();
+    //std::cerr << "    Candidates after first pass: " << bitOffsetCandidates.size()
+    //          << ", pass took " << duration( t0, t1 ) << " s\n";
+
     std::vector<size_t> bitOffsets;
 
     pragzip::deflate::Block block;
@@ -1079,10 +1174,172 @@ findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
             try {
                 bitReader.seek( static_cast<long long int>( offset ) + 13 );
                 const auto next4Bits = bitReader.read( pragzip::deflate::PRECODE_COUNT_BITS );
-                const auto next57Bits = bitReader.peek( pragzip::deflate::MAX_PRECODE_COUNT * PRECODE_BITS );
-                static_assert( pragzip::deflate::MAX_PRECODE_COUNT * PRECODE_BITS
+                const auto next57Bits = bitReader.peek( pragzip::deflate::MAX_PRECODE_COUNT
+                                                        * pragzip::deflate::PRECODE_BITS );
+                static_assert( pragzip::deflate::MAX_PRECODE_COUNT * pragzip::deflate::PRECODE_BITS
                                <= pragzip::BitReader::MAX_BIT_BUFFER_SIZE,
                                "This optimization requires a larger BitBuffer inside BitReader!" );
+
+                auto error = pragzip::Error::NONE;
+                if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_COMPRESSED_LUT ) {
+                    error = pragzip::PrecodeCheck::SingleCompressedLUT::checkPrecode( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_LUT ) {
+                    error = pragzip::PrecodeCheck::SingleLUT::checkPrecode( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_LUT ) {
+                    error = pragzip::PrecodeCheck::WalkTreeLUT::checkPrecode( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT ) {
+                    error = pragzip::PrecodeCheck::WalkTreeCompressedLUT::checkPrecode( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WITHOUT_LUT_USING_ARRAY ) {
+                    error = pragzip::PrecodeCheck::WithoutLUT::checkPrecodeUsingArray( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WITHOUT_LUT ) {
+                    error = pragzip::PrecodeCheck::WithoutLUT::checkPrecode( next4Bits, next57Bits );
+                }
+
+                if ( error != pragzip::Error::NONE ) {
+                    return false;
+                }
+            } catch ( const pragzip::BitReader::EndOfFileReached& ) {}
+
+            try {
+                bitReader.seek( static_cast<long long int>( offset ) + 3 );
+                return block.readDynamicHuffmanCoding( bitReader ) == pragzip::Error::NONE;
+            } catch ( const pragzip::BitReader::EndOfFileReached& ) {}
+            return false;
+        };
+
+    std::copy_if( bitOffsetCandidates.begin(), bitOffsetCandidates.end(),
+                  std::back_inserter( bitOffsets ), checkOffset );
+
+    //std::cerr << "    Candidates after second pass: " << bitOffsets.size()
+    //          << ", pass took " << duration( t1 ) << " s\n";
+
+    /**
+     * Tested with WalkTreeLUT:
+     * Candidates after first pass: 10793212, pass took 0.158863 s
+     * Candidates after second pass: 494, pass took 0.318314 s
+     */
+
+    return bitOffsets;
+}
+
+
+template<uint8_t            CACHED_BIT_COUNT,
+         CheckPrecodeMethod CHECK_PRECODE_METHOD = CheckPrecodeMethod::WALK_TREE_LUT>
+[[nodiscard]] std::vector<size_t>
+findDeflateBlocksPragzipLUTTwoPassWithPrecode( BufferedFileReader::AlignedBuffer data )
+{
+    static_assert( CACHED_BIT_COUNT >= 13,
+                   "The LUT must check at least 13-bits, i.e., up to including the distance "
+                   "code length check, to avoid duplicate checks in the precode check!" );
+
+    const size_t nBitsToTest = data.size() * CHAR_BIT;
+    pragzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( data ) ) );
+
+    std::vector<size_t> bitOffsetCandidates;
+
+    using namespace pragzip::blockfinder;
+    static const auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
+
+    using namespace pragzip::deflate;  /* For the definitions of deflate-specific number of bits. */
+
+    const auto oldOffset = bitReader.tell();
+
+    /**
+     * For LUT we need at CACHED_BIT_COUNT bits and for the precode check we would need in total
+     * 13 + 4 + 57 = 74 bits. Because this does not fit into 64-bit we need to keep two sliding bit buffers.
+     * The first can simply have length CACHED_BIT_COUNT and the other one can even keep duplicated bits to
+     * have length of 61 bits required for the precode. Updating three different buffers would require more
+     * instructions but might not be worth it.
+     */
+    auto bitBufferForLUT = bitReader.peek<CACHED_BIT_COUNT>();
+    bitReader.seek( static_cast<long long int>( oldOffset ) + 13 );
+    constexpr auto ALL_PRECODE_BITS = PRECODE_COUNT_BITS + MAX_PRECODE_COUNT * PRECODE_BITS;
+    static_assert( ( ALL_PRECODE_BITS == 61 ) && ( ALL_PRECODE_BITS >= CACHED_BIT_COUNT )
+                   && ( ALL_PRECODE_BITS <= std::numeric_limits<uint64_t>::digits )
+                   && ( ALL_PRECODE_BITS <= pragzip::BitReader::MAX_BIT_BUFFER_SIZE ),
+                   "It must fit into 64-bit and it also must fit the largest possible jump in the LUT." );
+    auto bitBufferPrecodeBits = bitReader.read<ALL_PRECODE_BITS>();
+
+    //const auto t0 = now();
+    try {
+        for ( size_t offset = oldOffset; offset <= nBitsToTest; ) {
+            auto nextPosition = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT[bitBufferForLUT];
+            if ( nextPosition == 0 ) {
+                nextPosition = 1;
+
+                const auto next4Bits = bitBufferPrecodeBits & nLowestBitsSet<uint64_t, PRECODE_COUNT_BITS>();
+                const auto next57Bits = ( bitBufferPrecodeBits >> PRECODE_COUNT_BITS )
+                                        & nLowestBitsSet<uint64_t, MAX_PRECODE_COUNT * PRECODE_BITS>();
+
+                auto precodeError = pragzip::Error::NONE;
+                if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_COMPRESSED_LUT ) {
+                    precodeError = pragzip::PrecodeCheck::SingleCompressedLUT::checkPrecode( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_LUT ) {
+                    precodeError = pragzip::PrecodeCheck::SingleLUT::checkPrecode( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_LUT ) {
+                    precodeError = pragzip::PrecodeCheck::WalkTreeLUT::checkPrecode( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT ) {
+                    precodeError = pragzip::PrecodeCheck::WalkTreeCompressedLUT::checkPrecode( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WITHOUT_LUT_USING_ARRAY ) {
+                    precodeError = pragzip::PrecodeCheck::WithoutLUT::checkPrecodeUsingArray( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WITHOUT_LUT ) {
+                    precodeError = pragzip::PrecodeCheck::WithoutLUT::checkPrecode( next4Bits, next57Bits );
+                }
+
+                if ( UNLIKELY( precodeError == pragzip::Error::NONE ) ) [[unlikely]] {
+                    bitOffsetCandidates.push_back( offset );
+                }
+            }
+
+            const auto bitsToLoad = nextPosition;
+
+            /* Refill bit buffer for LUT using the bits from the higher precode bit buffer. */
+            bitBufferForLUT >>= bitsToLoad;
+            if constexpr ( CACHED_BIT_COUNT > 13 ) {
+                constexpr uint8_t DUPLICATED_BITS = CACHED_BIT_COUNT - 13;
+                bitBufferForLUT |= ( ( bitBufferPrecodeBits >> DUPLICATED_BITS )
+                                     & nLowestBitsSet<uint64_t>( bitsToLoad ) )
+                                   << static_cast<uint8_t>( CACHED_BIT_COUNT - bitsToLoad );
+            } else {
+                bitBufferForLUT |= ( bitBufferPrecodeBits & nLowestBitsSet<uint64_t>( bitsToLoad ) )
+                                   << static_cast<uint8_t>( CACHED_BIT_COUNT - bitsToLoad );
+            }
+
+            /* Refill the precode bit buffer directly from the bit reader. */
+            bitBufferPrecodeBits >>= bitsToLoad;
+            bitBufferPrecodeBits |= bitReader.read( bitsToLoad )
+                                    << static_cast<uint8_t>( ALL_PRECODE_BITS - bitsToLoad );
+
+            offset += nextPosition;
+        }
+    } catch ( const pragzip::BitReader::EndOfFileReached& ) {
+        /* Might happen when testing close to the end. */
+    }
+
+    //const auto t1 = now();
+    //std::cerr << "    Candidates after first pass: " << bitOffsetCandidates.size()
+    //          << ", pass took " << duration( t0, t1 ) << " s\n";
+
+    std::vector<size_t> bitOffsets;
+
+    pragzip::deflate::Block block;
+
+    const auto checkOffset =
+        [&] ( const auto offset )
+        {
+            /* Check the precode Huffman coding. We can skip a lot of the generic tests done in deflate::Block
+             * because this is only called for offsets prefiltered by the LUT. But, this also means that the
+             * LUT size must be at least 13-bit! */
+            try {
+                bitReader.seek( static_cast<long long int>( offset ) + 13 );
+                const auto next4Bits = bitReader.read( pragzip::deflate::PRECODE_COUNT_BITS );
+                const auto next57Bits = bitReader.peek( pragzip::deflate::MAX_PRECODE_COUNT
+                                                        * pragzip::deflate::PRECODE_BITS );
+                static_assert( pragzip::deflate::MAX_PRECODE_COUNT * pragzip::deflate::PRECODE_BITS
+                               <= pragzip::BitReader::MAX_BIT_BUFFER_SIZE,
+                               "This optimization requires a larger BitBuffer inside BitReader!" );
+
+                using pragzip::PrecodeCheck::WalkTreeLUT::checkPrecode;
                 const auto error = checkPrecode( next4Bits, next57Bits );
 
                 if ( error != pragzip::Error::NONE ) {
@@ -1100,6 +1357,14 @@ findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
     std::copy_if( bitOffsetCandidates.begin(), bitOffsetCandidates.end(),
                   std::back_inserter( bitOffsets ), checkOffset );
 
+    //std::cerr << "    Candidates after second pass: " << bitOffsets.size()
+    //          << ", pass took " << duration( t1 ) << " s\n";
+
+    /**
+     * Tested with WalkTreeLUT:
+     * Candidates after first pass: 43801, pass took 0.167773 s
+     * Candidates after second pass: 494, pass took 0.105629 s
+     */
     return bitOffsets;
 }
 
@@ -1460,19 +1725,52 @@ benchmarkLUTSizeOnlySkipLUT( const BufferedFileReader::AlignedBuffer& buffer )
 }
 
 
-template<uint8_t CACHED_BIT_COUNT>
+enum class FindDeflateMethod
+{
+    FULL_CHECK,
+    TWO_PASS,
+    TWO_PASS_WITH_PRECODE,
+};
+
+
+[[nodiscard]] std::string
+toString( FindDeflateMethod method )
+{
+    switch ( method )
+    {
+    case FindDeflateMethod::FULL_CHECK            : return "findDeflateBlocksPragzipLUT";
+    case FindDeflateMethod::TWO_PASS              : return "findDeflateBlocksPragzipLUTTwoPass";
+    case FindDeflateMethod::TWO_PASS_WITH_PRECODE : return "findDeflateBlocksPragzipLUTTwoPassAndPrecode";
+    }
+    throw std::invalid_argument( "Unknown find deflate method!" );
+}
+
+
+template<uint8_t            CACHED_BIT_COUNT,
+         FindDeflateMethod  FIND_DEFLATE_METHOD,
+         CheckPrecodeMethod CHECK_PRECODE_METHOD>
 std::vector<size_t>
 benchmarkLUTSize( const BufferedFileReader::AlignedBuffer& buffer )
 {
     std::optional<std::vector<size_t> > blockCandidatesWithLessBits;
     if constexpr ( CACHED_BIT_COUNT > 13 ) {
-        blockCandidatesWithLessBits = benchmarkLUTSize<CACHED_BIT_COUNT - 1>( buffer );
+        blockCandidatesWithLessBits =
+            benchmarkLUTSize<CACHED_BIT_COUNT - 1, FIND_DEFLATE_METHOD, CHECK_PRECODE_METHOD>( buffer );
     }
 
     const auto [blockCandidates, durations] = benchmarkFunction<10>(
-        [&buffer] () { return findDeflateBlocksPragzipLUT<CACHED_BIT_COUNT>( buffer ); } );
+        [&buffer] () {
+            if constexpr ( FIND_DEFLATE_METHOD == FindDeflateMethod::FULL_CHECK ) {
+                return findDeflateBlocksPragzipLUT<CACHED_BIT_COUNT, CHECK_PRECODE_METHOD>( buffer );
+            } else if constexpr ( FIND_DEFLATE_METHOD == FindDeflateMethod::TWO_PASS ) {
+                return findDeflateBlocksPragzipLUTTwoPass<CACHED_BIT_COUNT, CHECK_PRECODE_METHOD>( buffer );
+            } else if constexpr ( FIND_DEFLATE_METHOD == FindDeflateMethod::TWO_PASS_WITH_PRECODE ) {
+                return findDeflateBlocksPragzipLUTTwoPassWithPrecode<CACHED_BIT_COUNT, CHECK_PRECODE_METHOD>( buffer );
+            }
+        } );
 
-    std::cout << "[findDeflateBlocksPragzipLUT with " << static_cast<int>( CACHED_BIT_COUNT ) << " bits] "
+    std::cout << "[" << toString( FIND_DEFLATE_METHOD ) << " with " << static_cast<int>( CACHED_BIT_COUNT ) << " bits, "
+              << toString( CHECK_PRECODE_METHOD ) << "] "
               << formatBandwidth( durations, buffer.size() ) << "\n";
 
     if ( blockCandidatesWithLessBits && ( *blockCandidatesWithLessBits != blockCandidates ) ) {
@@ -1576,24 +1874,84 @@ main( int    argc,
             /* Benchmark Pragzip LUT version with different LUT sizes. */
 
             if ( name == "gzip" ) {
-                std::cout << "=== Testing different Pragzip + LUT table sizes (only using the skip LUT and manual "
-                          << "sliding bit buffer) ===\n\n";
+                const auto data = bufferFile( newFileName );
+
+                /* CACHED_BIT_COUNT == 19 fails on GCC because it requires > 99 M constexpr steps.
+                 * CACHED_BIT_COUNT == 18 fail on clang because it requires > 99 M constexpr steps.
+                 * It works when using simple const instead of constexpr.
+                 * This is a maximum cached bit count. It will benchmark all the way down to 13. */
+                constexpr auto CACHED_BIT_COUNT = 18U;
+
+            /* Do not always compile and run all tests because it increases compile-time and runtime a lot. */
+            //#define BENCHMARK_ALL_VERSIONS_WITH_DIFFERENT_JUMP_LUT_SIZES
+            #ifdef BENCHMARK_ALL_VERSIONS_WITH_DIFFERENT_JUMP_LUT_SIZES
+
+                std::cout << "== Testing different pragzip deflate header jump LUT table sizes ==\n\n";
+                std::cout << "=== Only using the skip LUT (many false positives) and manual sliding bit buffer ===\n\n";
                 const auto candidateCountManualSkipping =
-                    benchmarkLUTSizeOnlySkipManualSlidingBufferLUT<18>( bufferFile( newFileName ) );
+                    benchmarkLUTSizeOnlySkipManualSlidingBufferLUT<CACHED_BIT_COUNT>( data );
                 std::cout << "\n\n";
 
-                std::cout << "=== Testing different Pragzip + LUT table sizes (only using the skip LUT) ===\n\n";
-                const auto candidateCountSkipLUTOnly = benchmarkLUTSizeOnlySkipLUT<18>( bufferFile( newFileName ) );
+                std::cout << "=== Only using the skip LUT (many false positives) ===\n\n";
+                const auto candidateCountSkipLUTOnly = benchmarkLUTSizeOnlySkipLUT<CACHED_BIT_COUNT>( data );
                 std::cout << "\n\n";
 
                 REQUIRE_EQUAL( candidateCountManualSkipping, candidateCountSkipLUTOnly );
 
-                std::cout << "=== Testing different Pragzip + LUT table sizes ===\n\n";
-                /* CACHED_BIT_COUNT == 19 fails on GCC because it requires > 99 M constexpr steps.
-                 * CACHED_BIT_COUNT == 18 fail on clang because it requires > 99 M constexpr steps.
-                 * It works when using simple const instead of constexpr */
-                benchmarkLUTSize<18>( bufferFile( newFileName ) );
+                std::cout << "=== Full test and precode check ===\n\n";
+                constexpr auto FULL_CHECK = FindDeflateMethod::FULL_CHECK;
+                benchmarkLUTSize<CACHED_BIT_COUNT, FULL_CHECK, CheckPrecodeMethod::WITHOUT_LUT>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, FULL_CHECK, CheckPrecodeMethod::WITHOUT_LUT_USING_ARRAY>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, FULL_CHECK, CheckPrecodeMethod::WALK_TREE_LUT>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, FULL_CHECK, CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, FULL_CHECK, CheckPrecodeMethod::SINGLE_LUT>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, FULL_CHECK, CheckPrecodeMethod::SINGLE_COMPRESSED_LUT>( data );
                 std::cout << "\n\n";
+
+                std::cout << "=== Full test and precode check in two passes ===\n\n";
+                constexpr auto TWO_PASS = FindDeflateMethod::TWO_PASS;
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS, CheckPrecodeMethod::WITHOUT_LUT>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS, CheckPrecodeMethod::WITHOUT_LUT_USING_ARRAY>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS, CheckPrecodeMethod::WALK_TREE_LUT>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS, CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS, CheckPrecodeMethod::SINGLE_LUT>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS, CheckPrecodeMethod::SINGLE_COMPRESSED_LUT>( data );
+                std::cout << "\n\n";
+
+                std::cout << "=== Full test and precode check in two passes and precode check in first pass ===\n\n";
+                constexpr auto TWO_PASS_PRE = FindDeflateMethod::TWO_PASS_WITH_PRECODE;
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS_PRE, CheckPrecodeMethod::WITHOUT_LUT>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS_PRE, CheckPrecodeMethod::WITHOUT_LUT_USING_ARRAY>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS_PRE, CheckPrecodeMethod::WALK_TREE_LUT>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS_PRE, CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS_PRE, CheckPrecodeMethod::SINGLE_LUT>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS_PRE, CheckPrecodeMethod::SINGLE_COMPRESSED_LUT>( data );
+                std::cout << "\n\n";
+            #else
+                std::cout << "=== Full test and precode check ===\n\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT,
+                                 FindDeflateMethod::FULL_CHECK,
+                                 CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT>( data );
+                benchmarkLUTSize<CACHED_BIT_COUNT,
+                                 FindDeflateMethod::FULL_CHECK,
+                                 CheckPrecodeMethod::WALK_TREE_LUT>( data );
+            #endif
+            #undef BENCHMARK_ALL_VERSIONS_WITH_DIFFERENT_JUMP_LUT_SIZES
             }
 
             /* Benchmark all different blockfinder implementations with the current encoded file. */
@@ -1621,7 +1979,8 @@ main( int    argc,
 
 
 /*
-cmake --build . -- benchmarkGzipBlockFinder && taskset 0x08 src/benchmarks/benchmarkGzipBlockFinder
+( set -o pipefail; cmake --build . -- benchmarkGzipBlockFinder 2>&1 | stdbuf -o0 tee build.log ) &&
+stdbuf -o0 -e0 taskset 0x08 src/benchmarks/benchmarkGzipBlockFinder | stdbuf -o0 tee benchmark.log
 
 Deflate Jump LUT for 13 bits is sized: 8 KiB with the following jump distance distribution:
      0 :   900 (10.9863 %)
@@ -1734,34 +2093,162 @@ Deflate Jump LUT for 18 bits is sized: 256 KiB with the following jump distance 
     17 :  5890 (2.24686 %)
     18 : 10503 (4.00658 %)
 
-=== Testing different Pragzip + LUT table sizes (only using the skip LUT and manual sliding bit buffer) ===
 
-[findDeflateBlocksPragzipLUT with 13 bits] ( 148.3 <= 151.6 +- 2.7 <= 156.9 ) MB/s (10793214 candidates)
-[findDeflateBlocksPragzipLUT with 14 bits] ( 155.2 <= 158.9 +- 1.7 <= 160.8 ) MB/s (10793214 candidates)
-[findDeflateBlocksPragzipLUT with 15 bits] ( 164.3 <= 166.9 +- 1.4 <= 168.1 ) MB/s (10793214 candidates)
-[findDeflateBlocksPragzipLUT with 16 bits] ( 148.9 <= 152.3 +- 1.6 <= 154.1 ) MB/s (10793214 candidates)
-[findDeflateBlocksPragzipLUT with 17 bits] ( 139.3 <= 142.5 +- 1.6 <= 144.3 ) MB/s (10793214 candidates)
-[findDeflateBlocksPragzipLUT with 18 bits] ( 138 <= 140.2 +- 0.8 <= 140.8 ) MB/s (10793214 candidates)
+== Testing different pragzip deflate header jump LUT table sizes ==
 
+=== Only using the skip LUT (many false positives) and manual sliding bit buffer ===
 
-=== Testing different Pragzip + LUT table sizes (only using the skip LUT) ===
-
-[findDeflateBlocksPragzipLUT with 13 bits] ( 56 <= 56.8 +- 0.5 <= 57.5 ) MB/s (10793214 candidates)
-[findDeflateBlocksPragzipLUT with 14 bits] ( 57.8 <= 58.8 +- 0.5 <= 59.4 ) MB/s (10793214 candidates)
-[findDeflateBlocksPragzipLUT with 15 bits] ( 58.5 <= 59.8 +- 0.7 <= 60.8 ) MB/s (10793214 candidates)
-[findDeflateBlocksPragzipLUT with 16 bits] ( 60.1 <= 61 +- 0.6 <= 61.6 ) MB/s (10793214 candidates)
-[findDeflateBlocksPragzipLUT with 17 bits] ( 61.5 <= 62.2 +- 0.3 <= 62.5 ) MB/s (10793214 candidates)
-[findDeflateBlocksPragzipLUT with 18 bits] ( 60.7 <= 61.7 +- 0.5 <= 62.3 ) MB/s (10793214 candidates)
+[findDeflateBlocksPragzipLUT with 13 bits] ( 121 <= 139 +- 8 <= 150 ) MB/s (10793215 candidates)
+[findDeflateBlocksPragzipLUT with 14 bits] ( 154.8 <= 157.1 +- 1.7 <= 159.4 ) MB/s (10793215 candidates)
+[findDeflateBlocksPragzipLUT with 15 bits] ( 143 <= 161 +- 7 <= 166 ) MB/s (10793215 candidates)
+[findDeflateBlocksPragzipLUT with 16 bits] ( 136 <= 144 +- 4 <= 147 ) MB/s (10793215 candidates)
+[findDeflateBlocksPragzipLUT with 17 bits] ( 133.7 <= 138 +- 2.4 <= 141.3 ) MB/s (10793215 candidates)
+[findDeflateBlocksPragzipLUT with 18 bits] ( 119 <= 130 +- 5 <= 135 ) MB/s (10793215 candidates)
 
 
-=== Testing different Pragzip + LUT table sizes ===
+=== Only using the skip LUT (many false positives) ===
 
-[findDeflateBlocksPragzipLUT with 13 bits] ( 51.02 <= 51.39 +- 0.3 <= 51.85 ) MB/s
-[findDeflateBlocksPragzipLUT with 14 bits] ( 49.9 <= 51.7 +- 0.7 <= 52.1 ) MB/s
-[findDeflateBlocksPragzipLUT with 15 bits] ( 50.8 <= 51.7 +- 0.3 <= 52 ) MB/s
-[findDeflateBlocksPragzipLUT with 16 bits] ( 50.1 <= 51.4 +- 0.5 <= 51.7 ) MB/s
-[findDeflateBlocksPragzipLUT with 17 bits] ( 50 <= 51.1 +- 0.7 <= 51.8 ) MB/s
-[findDeflateBlocksPragzipLUT with 18 bits] ( 48.9 <= 49.9 +- 0.5 <= 50.4 ) MB/s
+[findDeflateBlocksPragzipLUT with 13 bits] ( 44.9 <= 47.2 +- 1 <= 48.1 ) MB/s (10793215 candidates)
+[findDeflateBlocksPragzipLUT with 14 bits] ( 50.9 <= 52.1 +- 0.6 <= 52.7 ) MB/s (10793215 candidates)
+[findDeflateBlocksPragzipLUT with 15 bits] ( 53.19 <= 53.69 +- 0.27 <= 54 ) MB/s (10793215 candidates)
+[findDeflateBlocksPragzipLUT with 16 bits] ( 50.4 <= 52.6 +- 1.1 <= 53.8 ) MB/s (10793215 candidates)
+[findDeflateBlocksPragzipLUT with 17 bits] ( 52.1 <= 53.8 +- 0.7 <= 54.4 ) MB/s (10793215 candidates)
+[findDeflateBlocksPragzipLUT with 18 bits] ( 49.7 <= 52 +- 1.1 <= 52.8 ) MB/s (10793215 candidates)
+
+
+=== Full test and precode check ===
+
+[findDeflateBlocksPragzipLUT with 13 bits, Without LUT] ( 32.65 <= 33.1 +- 0.27 <= 33.58 ) MB/s
+[findDeflateBlocksPragzipLUT with 14 bits, Without LUT] ( 32.54 <= 33.1 +- 0.22 <= 33.3 ) MB/s
+[findDeflateBlocksPragzipLUT with 15 bits, Without LUT] ( 32.3 <= 33.2 +- 0.4 <= 33.6 ) MB/s
+[findDeflateBlocksPragzipLUT with 16 bits, Without LUT] ( 32.2 <= 32.9 +- 0.3 <= 33.2 ) MB/s
+[findDeflateBlocksPragzipLUT with 17 bits, Without LUT] ( 32.61 <= 33.16 +- 0.21 <= 33.38 ) MB/s
+[findDeflateBlocksPragzipLUT with 18 bits, Without LUT] ( 32.1 <= 32.5 +- 0.17 <= 32.68 ) MB/s
+
+[findDeflateBlocksPragzipLUT with 13 bits, Without LUT Using Array] ( 33.71 <= 34.1 +- 0.21 <= 34.41 ) MB/s
+[findDeflateBlocksPragzipLUT with 14 bits, Without LUT Using Array] ( 33.54 <= 33.99 +- 0.22 <= 34.28 ) MB/s
+[findDeflateBlocksPragzipLUT with 15 bits, Without LUT Using Array] ( 33.78 <= 34.16 +- 0.21 <= 34.36 ) MB/s
+[findDeflateBlocksPragzipLUT with 16 bits, Without LUT Using Array] ( 34.94 <= 35.28 +- 0.19 <= 35.6 ) MB/s
+[findDeflateBlocksPragzipLUT with 17 bits, Without LUT Using Array] ( 35.12 <= 35.36 +- 0.15 <= 35.59 ) MB/s
+[findDeflateBlocksPragzipLUT with 18 bits, Without LUT Using Array] ( 32.05 <= 32.54 +- 0.25 <= 32.77 ) MB/s
+
+[findDeflateBlocksPragzipLUT with 13 bits, Walk Tree LUT] ( 49 <= 49.7 +- 0.4 <= 50.4 ) MB/s
+[findDeflateBlocksPragzipLUT with 14 bits, Walk Tree LUT] ( 48.3 <= 49.5 +- 0.7 <= 50.6 ) MB/s
+[findDeflateBlocksPragzipLUT with 15 bits, Walk Tree LUT] ( 46.9 <= 48.4 +- 1.2 <= 49.9 ) MB/s
+[findDeflateBlocksPragzipLUT with 16 bits, Walk Tree LUT] ( 47.8 <= 49.1 +- 0.7 <= 50.4 ) MB/s
+[findDeflateBlocksPragzipLUT with 17 bits, Walk Tree LUT] ( 49.1 <= 50 +- 0.4 <= 50.4 ) MB/s
+[findDeflateBlocksPragzipLUT with 18 bits, Walk Tree LUT] ( 45.8 <= 47.6 +- 0.7 <= 48.1 ) MB/s
+
+[findDeflateBlocksPragzipLUT with 13 bits, Walk Tree Compressed LUT] ( 47.6 <= 49.3 +- 0.7 <= 50 ) MB/s
+[findDeflateBlocksPragzipLUT with 14 bits, Walk Tree Compressed LUT] ( 47.3 <= 49.5 +- 0.8 <= 50.1 ) MB/s
+[findDeflateBlocksPragzipLUT with 15 bits, Walk Tree Compressed LUT] ( 46.8 <= 49 +- 1.1 <= 50.1 ) MB/s
+[findDeflateBlocksPragzipLUT with 16 bits, Walk Tree Compressed LUT] ( 47 <= 48.6 +- 0.8 <= 49.8 ) MB/s
+[findDeflateBlocksPragzipLUT with 17 bits, Walk Tree Compressed LUT] ( 46.8 <= 48.7 +- 1.1 <= 49.7 ) MB/s
+[findDeflateBlocksPragzipLUT with 18 bits, Walk Tree Compressed LUT] ( 47.7 <= 48.4 +- 0.5 <= 49.1 ) MB/s
+
+[findDeflateBlocksPragzipLUT with 13 bits, Single LUT] ( 43.4 <= 44.2 +- 0.4 <= 44.6 ) MB/s
+[findDeflateBlocksPragzipLUT with 14 bits, Single LUT] ( 43.7 <= 44.3 +- 0.5 <= 45.1 ) MB/s
+[findDeflateBlocksPragzipLUT with 15 bits, Single LUT] ( 42.8 <= 43.9 +- 0.7 <= 44.7 ) MB/s
+[findDeflateBlocksPragzipLUT with 16 bits, Single LUT] ( 41.6 <= 43 +- 0.7 <= 43.8 ) MB/s
+[findDeflateBlocksPragzipLUT with 17 bits, Single LUT] ( 44.1 <= 44.6 +- 0.3 <= 45 ) MB/s
+[findDeflateBlocksPragzipLUT with 18 bits, Single LUT] ( 44.03 <= 44.46 +- 0.24 <= 44.82 ) MB/s
+
+[findDeflateBlocksPragzipLUT with 13 bits, Single Compressed LUT] ( 44.2 <= 44.6 +- 0.3 <= 45.1 ) MB/s
+[findDeflateBlocksPragzipLUT with 14 bits, Single Compressed LUT] ( 43.7 <= 44.5 +- 0.3 <= 44.9 ) MB/s
+[findDeflateBlocksPragzipLUT with 15 bits, Single Compressed LUT] ( 43.72 <= 44.03 +- 0.2 <= 44.52 ) MB/s
+[findDeflateBlocksPragzipLUT with 16 bits, Single Compressed LUT] ( 43.7 <= 44.4 +- 0.3 <= 44.8 ) MB/s
+[findDeflateBlocksPragzipLUT with 17 bits, Single Compressed LUT] ( 41.5 <= 44.4 +- 1 <= 45.1 ) MB/s
+[findDeflateBlocksPragzipLUT with 18 bits, Single Compressed LUT] ( 43.3 <= 43.8 +- 0.3 <= 44.1 ) MB/s
+
+
+=== Full test and precode check in two passes ===
+
+[findDeflateBlocksPragzipLUTTwoPass with 13 bits, Without LUT] ( 20.05 <= 20.24 +- 0.13 <= 20.47 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 14 bits, Without LUT] ( 19.81 <= 20.36 +- 0.23 <= 20.59 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 15 bits, Without LUT] ( 20.33 <= 20.43 +- 0.08 <= 20.56 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 16 bits, Without LUT] ( 20.02 <= 20.2 +- 0.13 <= 20.4 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 17 bits, Without LUT] ( 19.88 <= 20.06 +- 0.15 <= 20.33 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 18 bits, Without LUT] ( 19.69 <= 20.05 +- 0.14 <= 20.16 ) MB/s
+
+[findDeflateBlocksPragzipLUTTwoPass with 13 bits, Without LUT Using Array] ( 20.5 <= 20.59 +- 0.06 <= 20.67 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 14 bits, Without LUT Using Array] ( 20.19 <= 20.37 +- 0.1 <= 20.52 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 15 bits, Without LUT Using Array] ( 20.76 <= 20.89 +- 0.07 <= 20.96 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 16 bits, Without LUT Using Array] ( 19.76 <= 19.95 +- 0.13 <= 20.13 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 17 bits, Without LUT Using Array] ( 19.65 <= 19.84 +- 0.1 <= 20.01 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 18 bits, Without LUT Using Array] ( 19.56 <= 19.71 +- 0.1 <= 19.86 ) MB/s
+
+[findDeflateBlocksPragzipLUTTwoPass with 13 bits, Walk Tree LUT] ( 25.59 <= 25.91 +- 0.15 <= 26.1 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 14 bits, Walk Tree LUT] ( 25.52 <= 25.94 +- 0.18 <= 26.12 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 15 bits, Walk Tree LUT] ( 25.39 <= 26 +- 0.26 <= 26.24 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 16 bits, Walk Tree LUT] ( 25.43 <= 25.63 +- 0.13 <= 25.82 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 17 bits, Walk Tree LUT] ( 25.24 <= 25.62 +- 0.18 <= 25.9 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 18 bits, Walk Tree LUT] ( 24.1 <= 25.1 +- 0.4 <= 25.4 ) MB/s
+
+[findDeflateBlocksPragzipLUTTwoPass with 13 bits, Walk Tree Compressed LUT] ( 25.83 <= 26.04 +- 0.13 <= 26.26 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 14 bits, Walk Tree Compressed LUT] ( 25.89 <= 26.21 +- 0.17 <= 26.54 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 15 bits, Walk Tree Compressed LUT] ( 25.55 <= 25.96 +- 0.18 <= 26.2 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 16 bits, Walk Tree Compressed LUT] ( 25.76 <= 25.89 +- 0.08 <= 26.02 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 17 bits, Walk Tree Compressed LUT] ( 25.42 <= 25.65 +- 0.12 <= 25.78 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 18 bits, Walk Tree Compressed LUT] ( 24.62 <= 24.91 +- 0.12 <= 25.04 ) MB/s
+
+[findDeflateBlocksPragzipLUTTwoPass with 13 bits, Single LUT] ( 24.21 <= 24.34 +- 0.09 <= 24.46 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 14 bits, Single LUT] ( 24.26 <= 24.5 +- 0.11 <= 24.67 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 15 bits, Single LUT] ( 23.92 <= 24.18 +- 0.16 <= 24.45 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 16 bits, Single LUT] ( 23.9 <= 24.18 +- 0.14 <= 24.31 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 17 bits, Single LUT] ( 23.71 <= 23.86 +- 0.08 <= 23.97 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 18 bits, Single LUT] ( 23.65 <= 23.79 +- 0.09 <= 23.91 ) MB/s
+
+[findDeflateBlocksPragzipLUTTwoPass with 13 bits, Single Compressed LUT] ( 23.44 <= 24.21 +- 0.28 <= 24.41 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 14 bits, Single Compressed LUT] ( 24.31 <= 24.68 +- 0.16 <= 24.87 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 15 bits, Single Compressed LUT] ( 23.1 <= 24.1 +- 0.6 <= 24.6 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 16 bits, Single Compressed LUT] ( 21.5 <= 23 +- 0.6 <= 23.6 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 17 bits, Single Compressed LUT] ( 22.77 <= 23.19 +- 0.24 <= 23.48 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPass with 18 bits, Single Compressed LUT] ( 23.02 <= 23.32 +- 0.17 <= 23.49 ) MB/s
+
+
+=== Full test and precode check in two passes and precode check in first pass ===
+
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 13 bits, Without LUT] ( 32.2 <= 32.49 +- 0.13 <= 32.62 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 14 bits, Without LUT] ( 33.32 <= 33.49 +- 0.15 <= 33.83 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 15 bits, Without LUT] ( 32.4 <= 32.7 +- 0.17 <= 32.87 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 16 bits, Without LUT] ( 32.23 <= 32.56 +- 0.19 <= 32.78 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 17 bits, Without LUT] ( 31.82 <= 32.15 +- 0.21 <= 32.44 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 18 bits, Without LUT] ( 31.3 <= 32 +- 0.4 <= 32.5 ) MB/s
+
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 13 bits, Without LUT Using Array] ( 32.2 <= 33.1 +- 0.4 <= 33.5 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 14 bits, Without LUT Using Array] ( 33.3 <= 34.2 +- 0.4 <= 34.7 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 15 bits, Without LUT Using Array] ( 33.4 <= 34 +- 0.3 <= 34.4 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 16 bits, Without LUT Using Array] ( 32.87 <= 33.3 +- 0.24 <= 33.53 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 17 bits, Without LUT Using Array] ( 32.82 <= 33.28 +- 0.23 <= 33.6 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 18 bits, Without LUT Using Array] ( 32.7 <= 33.1 +- 0.3 <= 33.6 ) MB/s
+
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 13 bits, Walk Tree LUT] ( 36 <= 46 +- 5 <= 50 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 14 bits, Walk Tree LUT] ( 49.84 <= 50.21 +- 0.19 <= 50.46 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 15 bits, Walk Tree LUT] ( 49.05 <= 49.33 +- 0.2 <= 49.72 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 16 bits, Walk Tree LUT] ( 49.39 <= 49.67 +- 0.14 <= 49.91 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 17 bits, Walk Tree LUT] ( 49.1 <= 49.8 +- 0.4 <= 50.2 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 18 bits, Walk Tree LUT] ( 47.7 <= 48.6 +- 0.4 <= 49.2 ) MB/s
+
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 13 bits, Walk Tree Compressed LUT] ( 47.9 <= 48.6 +- 0.3 <= 49.1 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 14 bits, Walk Tree Compressed LUT] ( 48.3 <= 49.1 +- 0.5 <= 49.6 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 15 bits, Walk Tree Compressed LUT] ( 47 <= 47.9 +- 0.5 <= 48.7 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 16 bits, Walk Tree Compressed LUT] ( 48.1 <= 48.6 +- 0.4 <= 49.3 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 17 bits, Walk Tree Compressed LUT] ( 47.9 <= 48.9 +- 0.8 <= 49.8 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 18 bits, Walk Tree Compressed LUT] ( 47.8 <= 48.7 +- 0.5 <= 49.2 ) MB/s
+
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 13 bits, Single LUT] ( 43.21 <= 43.61 +- 0.2 <= 43.81 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 14 bits, Single LUT] ( 43.4 <= 43.8 +- 0.4 <= 44.4 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 15 bits, Single LUT] ( 42.3 <= 43.2 +- 0.4 <= 43.9 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 16 bits, Single LUT] ( 43.4 <= 43.8 +- 0.3 <= 44.3 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 17 bits, Single LUT] ( 42.2 <= 43.3 +- 0.8 <= 44.4 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 18 bits, Single LUT] ( 41.6 <= 43.2 +- 0.6 <= 43.7 ) MB/s
+
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 13 bits, Single Compressed LUT] ( 41.8 <= 43.1 +- 0.7 <= 43.8 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 14 bits, Single Compressed LUT] ( 42.6 <= 44.1 +- 0.7 <= 44.7 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 15 bits, Single Compressed LUT] ( 41.8 <= 43 +- 0.6 <= 43.6 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 16 bits, Single Compressed LUT] ( 43.25 <= 43.6 +- 0.21 <= 43.85 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 17 bits, Single Compressed LUT] ( 42.6 <= 43.7 +- 0.6 <= 44.7 ) MB/s
+[findDeflateBlocksPragzipLUTTwoPassAndPrecode with 18 bits, Single Compressed LUT] ( 43.31 <= 43.62 +- 0.18 <= 43.9 ) MB/s
 
 
 === Testing with encoder: gzip ===
