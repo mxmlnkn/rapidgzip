@@ -26,6 +26,8 @@ public:
     using Symbol = T_Symbol;
     using BitCount = uint8_t;
 
+    static constexpr auto MAX_CODE_LENGTH = std::numeric_limits<HuffmanCode>::digits;
+
     [[nodiscard]] bool
     isValid() const
     {

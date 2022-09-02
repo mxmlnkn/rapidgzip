@@ -179,19 +179,14 @@ public:
                         const auto length = this->m_minCodeLength + k;
 
                         /* Reverse bits so that lookup is does not have to reverse. */
-                        HuffmanCode reversedCode;
-                        if constexpr ( sizeof( HuffmanCode ) <= sizeof( reversedBitsLUT16[0] ) ) {
-                            reversedCode = reversedBitsLUT16[code];
-                        } else {
-                            reversedCode = reverseBits( code );
-                        }
-                        reversedCode >>= ( std::numeric_limits<decltype( code )>::digits - length );
+                        const auto reversedCode = reverseBits( code, length );
 
                         assert( ( reversedCode & nLowestBitsSet<decltype( reversedCode )>( length ) ) == reversedCode );
                         assert( ( mergedCode & nLowestBitsSet<decltype( mergedCode )>( mergedCodeLength ) ) == mergedCode );
 
                         /* Add to cache or append further Huffman codes recursively. */
-                        const auto newMergedCode = static_cast<HuffmanCode>( ( reversedCode << mergedCodeLength ) | mergedCode )
+                        const auto newMergedCode = static_cast<HuffmanCode>( ( reversedCode << mergedCodeLength )
+                                                                             | mergedCode )
                                                    & nLowestBitsSet<HuffmanCode, CACHED_BIT_COUNT>();
                         if ( mergedCodeLength + length <= CACHED_BIT_COUNT ) {
                             symbols[symbolSize - 1] = symbol;

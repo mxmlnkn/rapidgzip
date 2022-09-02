@@ -52,16 +52,8 @@ protected:
                 const auto code = codeValuesPerLevel[k];
                 codeValuesPerLevel[k]++;
 
-                HuffmanCode reversedCode{ 0 };
-                if constexpr ( sizeof( HuffmanCode ) <= sizeof( reversedBitsLUT16[0] ) ) {
-                    reversedCode = reversedBitsLUT16[code];
-                } else {
-                    reversedCode = reverseBits( code );
-                }
-                reversedCode >>= ( std::numeric_limits<decltype( code )>::digits - length );
-
                 m_symbolsPerLength[sizes[k]] = static_cast<Symbol>( symbol );
-                m_codesPerLength[sizes[k]] = reversedCode;
+                m_codesPerLength[sizes[k]] = reverseBits( code, length );
                 sizes[k]++;
             }
         }

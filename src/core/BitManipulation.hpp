@@ -119,7 +119,7 @@ nHighestBitsSet()
 
 
 [[nodiscard]] constexpr uint8_t
-reverseBits( uint8_t data )
+reverseBitsWithoutLUT( uint8_t data )
 {
     /* Reverse bits using bit-parallelism in a recursive fashion, i.e., first swap every bit with its neighbor,
      * then swap each half nibble with its neighbor, then each nibble. */
@@ -133,7 +133,7 @@ reverseBits( uint8_t data )
 
 
 [[nodiscard]] constexpr uint16_t
-reverseBits( uint16_t data )
+reverseBitsWithoutLUT( uint16_t data )
 {
     /* Reverse bits using bit-parallelism in a recursive fashion, i.e., first swap every bit with its neighbor,
      * then swap each half nibble with its neighbor, then each nibble, then each byte. */
@@ -152,7 +152,7 @@ reverseBits( uint16_t data )
 
 
 [[nodiscard]] constexpr uint32_t
-reverseBits( uint32_t data )
+reverseBitsWithoutLUT( uint32_t data )
 {
     /* Reverse bits using bit-parallelism in a recursive fashion, i.e., first swap every bit with its neighbor,
      * then swap each half nibble with its neighbor, then each nibble, then each byte, then each word. */
@@ -172,7 +172,7 @@ reverseBits( uint32_t data )
 
 
 [[nodiscard]] constexpr uint64_t
-reverseBits( uint64_t data )
+reverseBitsWithoutLUT( uint64_t data )
 {
     /* Reverse bits using bit-parallelism in a recursive fashion, i.e., first swap every bit with its neighbor,
      * then swap each half nibble with its neighbor, then each nibble, then each byte, then each word, then each
@@ -197,20 +197,64 @@ reverseBits( uint64_t data )
 
 
 template<typename T>
-[[nodiscard]] constexpr std::array<T, std::numeric_limits<T>::max()>
+[[nodiscard]] constexpr auto
 createReversedBitsLUT()
 {
-    static_assert( std::is_unsigned_v<T>, "Type must be unsigned!" );
-    std::array<T, std::numeric_limits<T>::max()> result{};
-    for ( T i = 0; i < result.size(); ++i ) {
-        result[i] = reverseBits( i );
+    static_assert( std::is_unsigned_v<T> && std::is_integral_v<T> );
+
+    std::array<T, 1ULL << std::numeric_limits<T>::digits> result{};
+    for ( size_t i = 0; i < result.size(); ++i ) {
+        result[i] = reverseBitsWithoutLUT( static_cast<T>( i ) );
     }
     return result;
 }
 
 
-alignas( 8 ) static constexpr std::array<uint16_t, std::numeric_limits<uint16_t>::max() >
-reversedBitsLUT16 = createReversedBitsLUT<uint16_t>();
+template<typename T>
+alignas( 8 ) static constexpr auto REVERSED_BITS_LUT = createReversedBitsLUT<T>();
+
+
+template<typename T>
+[[nodiscard]] constexpr T
+reverseBits( T value )
+{
+    static_assert( std::is_unsigned_v<T> && std::is_integral_v<T> );
+
+    if constexpr ( sizeof( T ) <= 2 ) {
+        return REVERSED_BITS_LUT<T>[value];
+    } else {
+        return reverseBitsWithoutLUT( value );
+    }
+}
+
+static_assert( REVERSED_BITS_LUT<uint8_t>.size() == 256 );
+
+static_assert( REVERSED_BITS_LUT<uint8_t>[0b1111'0000U] == 0b0000'1111U );
+static_assert( REVERSED_BITS_LUT<uint8_t>[0b1010'1010U] == 0b0101'0101U );
+static_assert( reverseBitsWithoutLUT( uint8_t( 0b1111'0000 ) ) == 0b0000'1111U );
+static_assert( reverseBitsWithoutLUT( uint8_t( 0b1010'1010 ) ) == 0b0101'0101U );
+static_assert( reverseBits( uint8_t( 0b1111'0000 ) ) == 0b0000'1111U );
+static_assert( reverseBits( uint8_t( 0b1010'1010 ) ) == 0b0101'0101U );
+
+static_assert( REVERSED_BITS_LUT<uint16_t>[0b1111'0000'1111'0000U] == 0b0000'1111'0000'1111U );
+static_assert( REVERSED_BITS_LUT<uint16_t>[0b1010'1010'1010'1010U] == 0b0101'0101'0101'0101U );
+static_assert( reverseBitsWithoutLUT( uint16_t( 0b1111'0000'1111'0000 ) ) == 0b0000'1111'0000'1111U );
+static_assert( reverseBitsWithoutLUT( uint16_t( 0b1010'1010'1010'1010 ) ) == 0b0101'0101'0101'0101U );
+static_assert( reverseBits( uint16_t( 0b1111'0000'1111'0000 ) ) == 0b0000'1111'0000'1111U );
+static_assert( reverseBits( uint16_t( 0b1010'1010'1010'1010 ) ) == 0b0101'0101'0101'0101U );
+
+
+/**
+ * Reverses the lowest @p bitCount bits. The highest bits are set to 0 and are assumed to be zero in the input.
+ * @param bitCount Must be greater than zero or else the applied bitshift is undefined behavior as per C++ standard.
+ */
+template<typename T>
+[[nodiscard]] constexpr T
+reverseBits( T       value,
+             uint8_t bitCount )
+{
+    return reverseBits<T>( value ) >> static_cast<uint8_t>( std::numeric_limits<T>::digits - bitCount );
+}
 
 
 /**

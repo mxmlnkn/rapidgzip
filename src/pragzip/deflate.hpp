@@ -1,7 +1,7 @@
 /**
  * @file
  *
- * - Note that this implementation avoids C++ exceptions because invalid data is assumed happen rather often,
+ * - Note that this implementation avoids C++ exceptions because invalid data is assumed to happen rather often,
  *   which is the case when searching for deflate blocks without knowing the exact offsets! Exceptions are too
  *   slow for that!
  * - In the same manner as exceptions, it turns out that using std::array with a maximum possible size instead of
@@ -44,7 +44,7 @@ using LiteralOrLengthHuffmanCoding =
 /**
  * Because the fixed Huffman coding is used by different threads it HAS TO BE immutable. It is constant anyway
  * but it also MUST NOT have mutable members. This means that HuffmanCodingDoubleLiteralCached does NOT work
- * because it internally safes the second symbol.
+ * because it internally saves the second symbol.
  * @todo Make it such that the implementations can handle the case that the construction might result in
  *       larger symbol values than are allowed to appear in the first place! I.e., cut-off construction there.
  *       Note that changing this from 286 to 512, lead to an increase of the runtime! We need to reduce it again! */

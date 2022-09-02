@@ -66,14 +66,7 @@ public:
 
             const auto k = length - this->m_minCodeLength;
             const auto code = codeValues[k]++;
-
-            HuffmanCode reversedCode{ 0 };
-            if constexpr ( sizeof( HuffmanCode ) <= sizeof( reversedBitsLUT16[0] ) ) {
-                reversedCode = reversedBitsLUT16[code];
-            } else {
-                reversedCode = reverseBits( code );
-            }
-            reversedCode >>= ( std::numeric_limits<decltype( code )>::digits - length );
+            const auto reversedCode = reverseBits( code, length );
 
             static_assert( CACHED_BIT_COUNT < sizeof( uint32_t ) * CHAR_BIT,
                            "We need a larger data type for correct comparison." );
