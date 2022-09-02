@@ -21,6 +21,7 @@
 #include <blockfinder/precodecheck/WalkTreeCompressedLUT.hpp>
 #include <blockfinder/precodecheck/WalkTreeLUT.hpp>
 #include <blockfinder/precodecheck/WithoutLUT.hpp>
+#include <precode.hpp>
 #include <TestHelpers.hpp>
 #include <Error.hpp>
 
@@ -709,9 +710,87 @@ analyzeMaxValidPrecodeFrequencies()
 }
 
 
+void
+printValidHistograms()
+{
+    using pragzip::deflate::precode::VALID_HISTOGRAMS;
+    std::cerr << "== Valid histograms (" << VALID_HISTOGRAMS.size() << ") shown as \"code length: count\" ==\n\n";
+    for ( const auto& histogram : VALID_HISTOGRAMS ) {
+        std::cerr << "   ";
+        for ( size_t i = 0; i < histogram.size(); ++i ) {
+            if ( histogram[i] > 0 ) {
+                std::cerr << " " << ( i + 1 ) << ":" << static_cast<int>( histogram[i] );
+            }
+        }
+        std::cerr << "\n";
+    }
+    std::cerr << "\n";
+}
+
+
+void
+analyzeCompressedLUT()
+{
+    /** Size is in number bits, i.e., actual size is 2^SUBTABLE_SIZE elements. */
+    constexpr auto SUBTABLE_SIZE = 4;
+    using SUBTABLE_ELEMENT = uint16_t;  /* Must be able to store IDs for each of the 1527 valid histogram. */
+
+    using pragzip::deflate::precode::VALID_HISTOGRAMS;
+    using pragzip::PrecodeCheck::SingleLUT::HISTOGRAM_TO_LOOK_UP_BITS;
+    using pragzip::PrecodeCheck::SingleLUT::VariableLengthPackedHistogram::MEMBER_BIT_WIDTHS;
+    using pragzip::PrecodeCheck::SingleLUT::VariableLengthPackedHistogram::Histogram;
+    using pragzip::PrecodeCheck::SingleLUT::VariableLengthPackedHistogram::packHistogram;
+
+    std::array<std::pair</* truncated address */ uint32_t,
+                          /* number of valid histograms in same truncated address */uint16_t>,
+               VALID_HISTOGRAMS.size()> counts;
+    for ( const auto& histogram : VALID_HISTOGRAMS ) {
+        const auto packedHistogram = packHistogram( histogram );
+        if ( !packedHistogram ) {
+            continue;
+        }
+
+        const auto histogramToLookUp = *packedHistogram >> MEMBER_BIT_WIDTHS.front();
+    #if 0
+        const auto histogramToTakeAddress =
+            reverseBits( histogramToLookUp ) >> ( std::numeric_limits<Histogram>::digits - HISTOGRAM_TO_LOOK_UP_BITS );
+    #else
+        const auto histogramToTakeAddress = histogramToLookUp;
+    #endif
+        const auto truncatedAddress = histogramToTakeAddress >> SUBTABLE_SIZE;
+
+        for ( auto& [address, count] : counts ) {
+            if ( address == truncatedAddress ) {
+                ++count;
+                break;
+            }
+            if ( count == 0 ) {
+                address = truncatedAddress;
+                ++count;
+                break;
+            }
+        }
+    }
+
+    size_t uniqueAddresses{ 0 };
+    for ( const auto& [address, count] : counts ) {
+        ++uniqueAddresses;
+        if ( count == 0 ) {
+            break;
+        }
+    }
+    std::cerr << "Unique Subtables: " << uniqueAddresses + 1 /* Empty subtable (no valid histograms) */ << "\n";
+}
+
+
 int
 main()
 {
+    //analyzeCompressedLUT();
+
+    /** @see results/deflate/valid-precode-histograms.txt */
+    //printValidHistograms();
+
     testSingleLUTImplementation();
 
     analyzeMaxValidPrecodeFrequencies</* COMPARE_WITH_ALTERNATIVE_METHOD (quite slow and changes rarely) */ false>();

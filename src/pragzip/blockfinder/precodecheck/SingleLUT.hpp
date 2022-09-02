@@ -14,6 +14,7 @@
 #include <stdexcept>
 
 #include <BitManipulation.hpp>
+#include <precode.hpp>
 
 
 namespace pragzip::PrecodeCheck::SingleLUT
@@ -192,6 +193,31 @@ createHistogramLUT()
     }
     return result;
 }
+
+
+[[nodiscard]] constexpr std::optional<Histogram>
+packHistogram( const pragzip::deflate::precode::Histogram& histogram )
+{
+    Histogram packedHistogram{ 0 };
+    uint8_t nonZeroCount{ 0 };
+    for ( size_t i = 0; i < histogram.size(); ++i ) {
+        const auto depth = i + 1;
+        const auto count = histogram[i];
+        nonZeroCount += count;
+
+        /* The rare histograms that are valid and have overflows in the highly compressed format
+         * are handled differently with the POWER_OF_TWO_SPECIAL_CASES LUT. */
+        if ( count >= ( uint32_t( 1 ) << MEMBER_BIT_WIDTHS.at( depth ) ) ) {
+            return std::nullopt;
+        }
+        packedHistogram = setCount( packedHistogram, depth, count );
+    }
+
+    if ( nonZeroCount >= ( uint32_t( 1 ) << MEMBER_BIT_WIDTHS.at( 0 ) ) ) {
+        throw std::invalid_argument( "More total non-zero counts than permitted!" );
+    }
+    return setCount( packedHistogram, 0, nonZeroCount );
+}
 }  // namespace VariableLengthPackedHistogram
 
 
@@ -209,86 +235,23 @@ static_assert( HISTOGRAM_TO_LOOK_UP_BITS == 24,
                "This is only to document the actual bit count. It might change when further pruning the members." );
 
 using PrecodeHistogramValidLUT = std::array<uint64_t, ( 1ULL << HISTOGRAM_TO_LOOK_UP_BITS ) / 64U>;
+static_assert( ( 1ULL << HISTOGRAM_TO_LOOK_UP_BITS ) % 64U == 0,
+               "LUT size must be a multiple of 64-bit for the implemented bit-packing!" );
 
 
-/**
- * @param depth A depth of 1 means that we should iterate over 1-bit codes, which can only be 0,1,2.
- * @param freeBits This can be calculated from the histogram but it saves constexpr instructions when
- *        the caller updates this value outside.
- */
-template<uint8_t DEPTH = 1>
-constexpr void
-createPrecodeFrequenciesValidLUTHelper( PrecodeHistogramValidLUT& result,
-                                        uint32_t const            remainingCount,
-                                        Histogram const           histogram = 0,
-                                        uint32_t const            freeBits = 2 )
-{
-    constexpr uint8_t MAX_DEPTH = 7;
-    static_assert( DEPTH <= MAX_DEPTH, "Cannot descend deeper than the frequency counts!" );
-    if ( ( histogram & nLowestBitsSet<uint64_t>( VariableLengthPackedHistogram::MEMBER_OFFSETS[DEPTH] ) ) != histogram ) {
-        throw std::invalid_argument( "Only frequency of bit-lengths less than the depth may be set!" );
-    }
-
-    const auto processValidHistogram =
-        [&] ( uint32_t count ) constexpr
-        {
-            using namespace VariableLengthPackedHistogram;
-
-            /* The rare histograms that are valid and have overflows in the highly compressed format are handled
-             * differently with the POWER_OF_TWO_SPECIAL_CASES LUT. */
-            if ( count < ( uint32_t( 1 ) << MEMBER_BIT_WIDTHS.at( DEPTH ) ) ) {
-                const auto histogramToSetValid =
-                    ( VariableLengthPackedHistogram::setCount( histogram, DEPTH, count ) >> MEMBER_BIT_WIDTHS.front() )
-                    & nLowestBitsSet<Histogram, HISTOGRAM_TO_LOOK_UP_BITS>();
-                result[histogramToSetValid / 64U] |= uint64_t( 1 ) << ( histogramToSetValid % 64U );
-            }
-        };
-
-    /* The for loop maximum is given by the invalid Huffman code check, i.e.,
-     * when there are more code lengths on a tree level than there are nodes. */
-    for ( uint32_t count = 0; count <= std::min( remainingCount, freeBits ); ++count ) {
-        const auto newFreeBits = ( freeBits - count ) * 2;
-        const auto newRemainingCount = remainingCount - count;
-
-        using namespace VariableLengthPackedHistogram;
-
-        /* The first layer may not be fully filled or even empty. This does not fit any of the general tests. */
-        if constexpr ( DEPTH == 1 ) {
-            if ( count == 1 ) {
-                processValidHistogram( count );
-            }
-        }
-
-        if constexpr ( DEPTH == MAX_DEPTH ) {
-            if ( newFreeBits == 0 ) {
-                processValidHistogram( count );
-            }
-        } else {
-            if ( count == freeBits ) {
-                processValidHistogram( count );
-            } else {
-                createPrecodeFrequenciesValidLUTHelper<DEPTH + 1>(
-                    result, newRemainingCount, setCount( histogram, DEPTH, count ), newFreeBits );
-            }
-        }
-    }
-}
-
-
-/**
- * This alternative version tries to reduce the number of instructions required for creation so that it can be
- * used with MSVC, which is the worst in evaluating @ref createPrecodeFrequenciesValidLUT constexpr and runs into
- * internal compiler errors or out-of-heap-space errors.
- * This alternative implementation uses the fact only very few of the LUT entries are actually valid, meaning
- * we can reduce instructions by initializing to invalid and then iterating only over the valid possibilities.
- */
 static constexpr auto PRECODE_HISTOGRAM_VALID_LUT =
     [] ()
     {
-        static_assert( ( 1ULL << HISTOGRAM_TO_LOOK_UP_BITS ) % 64U == 0,
-                       "LUT size must be a multiple of 64-bit for the implemented bit-packing!" );
         PrecodeHistogramValidLUT result{};
-        createPrecodeFrequenciesValidLUTHelper<>( result, pragzip::deflate::MAX_PRECODE_COUNT );
+        for ( const auto& histogram : pragzip::deflate::precode::VALID_HISTOGRAMS ) {
+            if ( const auto packedHistogram = VariableLengthPackedHistogram::packHistogram( histogram );
+                 packedHistogram.has_value() )
+            {
+               const auto histogramToSetValid =
+                    *packedHistogram >> VariableLengthPackedHistogram::MEMBER_BIT_WIDTHS.front();
+                result[histogramToSetValid / 64U] |= uint64_t( 1 ) << ( histogramToSetValid % 64U );
+            }
+        }
         return result;
     }();
 
