@@ -13,6 +13,17 @@
 
 namespace pragzip
 {
+/**
+ * This is an iterative improvement over HuffmanCodingSymbolsPerLength.
+ * - During initialization, it stores all symbols (for each code) sorted by length in an array and also stores
+ *   offsets to jump to subarrays of symbols with a given code length. The subarray size is given by the next offset.
+ *   This avoids going over all elements all the time and also already implements usage of maximum-sized and
+ *   manually managed memory chunks by using std::array to avoid heap allocations.
+ *   IN ADDITION to HuffmanCodingSymbolsPerLength it also stores precalcualted reversed codes per length similar
+ *   to the symbols. This avoids having to read bit-by-bit up to m_minCodeLength.
+ * - During decoding, it reads m_minCodeLength at once and after that one by one and for each intermediary,
+ *   checks whether there is a matching code with the current length in the corresponding subarray.
+ */
 template<typename HuffmanCode,
          uint8_t  MAX_CODE_LENGTH,
          typename Symbol,

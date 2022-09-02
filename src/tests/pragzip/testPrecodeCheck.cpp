@@ -732,7 +732,7 @@ void
 analyzeCompressedLUT()
 {
     /** Size is in number bits, i.e., actual size is 2^SUBTABLE_SIZE elements. */
-    constexpr auto SUBTABLE_SIZE = 4;
+    constexpr auto SUBTABLE_SIZE = 4U;
     using SUBTABLE_ELEMENT = uint16_t;  /* Must be able to store IDs for each of the 1527 valid histogram. */
 
     using pragzip::deflate::precode::VALID_HISTOGRAMS;
@@ -779,7 +779,11 @@ analyzeCompressedLUT()
             break;
         }
     }
-    std::cerr << "Unique Subtables: " << uniqueAddresses + 1 /* Empty subtable (no valid histograms) */ << "\n";
+
+    const auto subtableCount = uniqueAddresses + 1 /* Empty subtable (no valid histograms) */;
+    const auto subtablesSize = formatBytes( subtableCount * SUBTABLE_SIZE * sizeof( SUBTABLE_ELEMENT ) );
+    std::cerr << "Unique Subtables: " << subtableCount << "\n";
+    std::cerr << "Subtables size: " << subtablesSize << "\n";
 }
 
 

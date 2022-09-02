@@ -13,6 +13,17 @@
 
 namespace pragzip
 {
+/**
+ * This version uses a large lookup table (LUT) to avoid loops over the BitReader to speed things up a lot.
+ * The problem is that the LUT creation can take a while depending on the code lengths.
+ * - During initialization, it creates a LUT. The index of that array are a fixed number of bits read from BitReader.
+ *   To simplify things, the fixed bits must be larger or equal than the maximum code length.
+ *   To fill the LUT, the higher bits the actual codes with shorter lengths are filled with all possible values
+ *   and the LUT table result is duplicated for all those values. This process is slow.
+ * - During decoding, it reads MAX_CODE_LENGTH bits from the BitReader and uses that value to access the LUT,
+ *   which contains the symbol and the actual code length, which is <= MAX_CODE_LENGTH. The BitReader will be seeked
+ *   by the actual code length.
+ */
 template<typename HuffmanCode,
          uint8_t  MAX_CODE_LENGTH,
          typename Symbol,

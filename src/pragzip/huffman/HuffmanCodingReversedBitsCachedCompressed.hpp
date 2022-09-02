@@ -13,6 +13,21 @@
 
 namespace pragzip
 {
+/**
+ * This version uses a large lookup table (LUT) to avoid loops over the BitReader to speed things up a lot.
+ * The problem is that the LUT creation can take a while depending on the code lengths.
+ * - During initialization, it creates a LUT. The index of that array are a fixed number of bits read from BitReader.
+ *   To simplify things, the fixed bits must be larger or equal than the maximum code length.
+ *   To fill the LUT, the higher bits the actual codes with shorter lengths are filled with all possible values
+ *   and the LUT table result is duplicated for all those values. This process is slow.
+ * - During decoding, it reads MAX_CODE_LENGTH bits from the BitReader and uses that value to access the LUT,
+ *   which contains the symbol and the actual code length, which is <= MAX_CODE_LENGTH. The BitReader will be seeked
+ *   by the actual code length.
+ * The "compressed" part of the name references the fact that the symbol and code length are stored not as a pair
+ * but in a bit-packed manner in the LUT. This reduces the LUT size by 50% for Symbol = uint16_t
+ * (value is uint16_t instead of std::pair<uint8_t, uint16_t> and uint16_t aligns to 2 B, which effectively increases
+ * the pair size to 4 B inside the array).
+ */
 template<typename HuffmanCode,
          uint8_t  MAX_CODE_LENGTH,
          typename Symbol,
@@ -26,11 +41,7 @@ public:
     using CodeLengthFrequencies = typename BaseType::CodeLengthFrequencies;
 
     static constexpr auto CACHED_BIT_COUNT = MAX_CODE_LENGTH;
-
-    /* Either ceil(log2(MAX_SYMBOL_COUNT)) or std::numeric_limits<Symbol>::digits - ceil(log2(MAX_CODE_LENGTH)),
-     * but the ceil o log2 composition is hard to calculate at compile-time. */
-    static constexpr auto LENGTH_SHIFT = 12;
-    static_assert( std::is_same_v<HuffmanCode, uint16_t>, "Length compression shift is hardcoded for uint16_t!" );
+    static constexpr auto LENGTH_SHIFT = requiredBits( MAX_SYMBOL_COUNT );
     static_assert( MAX_SYMBOL_COUNT <= ( 1UL << LENGTH_SHIFT ), "Not enough free bits to pack length into Symbol!" );
 
 public:

@@ -17,6 +17,13 @@
 
 namespace pragzip
 {
+/**
+ * This was the first and is the most straight-forward implementation.
+ * - During initialization, it stores all codes and their lengths in two vectors.
+ * - During decoding, it reads the bits one by one and for each intermediary, checks whether
+ *   there is a matching code with the current length in the vectors.
+ * Note that reading the bits one by one is also necessary to reverse the codes.
+ */
 template<typename T_HuffmanCode,
          typename T_Symbol>
 class HuffmanCodingLinearSearch
