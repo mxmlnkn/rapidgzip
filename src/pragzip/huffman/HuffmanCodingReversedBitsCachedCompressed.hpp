@@ -82,12 +82,15 @@ public:
             static_assert( CACHED_BIT_COUNT < sizeof( uint32_t ) * CHAR_BIT,
                            "We need a larger data type for correct comparison." );
             const auto fillerBitCount = CACHED_BIT_COUNT - length;
-            for ( uint32_t fillerBits = 0; fillerBits < ( 1U << fillerBitCount ); ++fillerBits ) {
-                const auto paddedCode = static_cast<HuffmanCode>( ( fillerBits << length ) | reversedCode );
-                assert( paddedCode < m_codeCache.size() );
-                m_codeCache[paddedCode] = static_cast<Symbol>( symbol | ( length << LENGTH_SHIFT ) );
-                assert( ( m_codeCache[paddedCode] >> LENGTH_SHIFT ) == length );
-                assert( ( m_codeCache[paddedCode] & nLowestBitsSet<Symbol, LENGTH_SHIFT>() ) == symbol );
+            const auto maximumPaddedCode = static_cast<HuffmanCode>(
+                reversedCode | ( nLowestBitsSet<HuffmanCode>( fillerBitCount ) << length ) );
+            assert( maximumPaddedCode < m_codeCache.size() );
+            const auto increment = static_cast<HuffmanCode>( HuffmanCode( 1 ) << length );
+            const auto value = static_cast<Symbol>( symbol | ( length << LENGTH_SHIFT ) );
+            assert( ( value >> LENGTH_SHIFT ) == length );
+            assert( ( value & nLowestBitsSet<Symbol, LENGTH_SHIFT>() ) == symbol );
+            for ( auto paddedCode = reversedCode; paddedCode <= maximumPaddedCode; paddedCode += increment ) {
+                m_codeCache[paddedCode] = value;
             }
         }
         //const auto t1 = now();

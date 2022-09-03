@@ -485,7 +485,7 @@ main( int    argc,
 base64 /dev/urandom | head -c $(( 512*1024*1024 )) > small
 gzip -k small
 
-cmake --build -- benchmarkGzip && src/benchmarks/benchmarkGzip small.gz
+cmake --build . -- benchmarkGzip && src/benchmarks/benchmarkGzip small.gz
 
     Decompressed 407988639 B to 536870912 B with libarchive:
         Runtime / s: 1.597 <= 1.603 +- 0.006 <= 1.607
@@ -519,7 +519,7 @@ time gzip -d -k -c small.gz | wc -c
   -> pragzip is ~28% slower than gzip 1.10. Maybe slower than the above benchmarks because of I/O?
 
 pigz -c small > small.pigz
-cmake --build -- benchmarkGzip && src/benchmarks/benchmarkGzip small.pigz
+cmake --build . -- benchmarkGzip && src/benchmarks/benchmarkGzip small.pigz
 
     Decompressed 408430549 B to 536870912 B with pragzip (parallel, nBlocksToSkip=0):
         Runtime / s: 1.369 <= 1.395 +- 0.023 <= 1.412
@@ -600,7 +600,7 @@ cmake --build -- benchmarkGzip && src/benchmarks/benchmarkGzip small.pigz
 
 
 bgzip -c small > small.bgz
-cmake --build -- benchmarkGzip && src/benchmarks/benchmarkGzip small.bgz
+cmake --build . -- benchmarkGzip && src/benchmarks/benchmarkGzip small.bgz
 
     Decompressed 415096389 B to 536870912 B with pragzip (parallel, nBlocksToSkip=0):
         Runtime / s: 0.46 <= 0.49 +- 0.04 <= 0.54
@@ -695,7 +695,7 @@ ls -la small.*gz
 base64 /dev/urandom | head -c $(( 4*1024*1024*1024 )) > large
 gzip -k large
 bgzip -c large > large.bgz
-cmake --build -- benchmarkGzip && src/benchmarks/benchmarkGzip large.bgz
+cmake --build . -- benchmarkGzip && src/benchmarks/benchmarkGzip large.bgz
 
     Decompressed 3320779389 B to 4294967296 B with pragzip (parallel, nBlocksToSkip=0):
         Runtime / s: 3.6 <= 4.9 +- 2.2 <= 7.5
@@ -775,7 +775,7 @@ time bgzip --threads $( nproc ) -d -c large.bgz | wc -c
 
 base64 /dev/urandom | head -c $(( 1024*1024*1024 )) > large
 pigz -k -c large > large.pigz
-cmake --build -- benchmarkGzip && src/benchmarks/benchmarkGzip large.pigz
+cmake --build . -- benchmarkGzip && src/benchmarks/benchmarkGzip large.pigz
 
     Decompressed 816860634 B to 1073741824 B with pragzip (parallel, nBlocksToSkip=0):
         Runtime / s: 2.74 <= 2.77 +- 0.03 <= 2.8
