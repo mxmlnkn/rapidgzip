@@ -133,8 +133,12 @@ calculateCompressedHistogram( uint64_t values )
     CompressedHistogram frequencies{ 0 };
     for ( size_t i = 0; i < static_cast<size_t>( VALUE_COUNT ); ++i ) {
         const auto value = ( values >> ( i * VALUE_BITS ) ) & nLowestBitsSet<CompressedHistogram, VALUE_BITS>();
+        if ( value == 0 ) {
+            continue;
+        }
         /* The frequencies are calculated in a SIMD like fashion assuming that there are no overflows! */
         frequencies += CompressedHistogram( 1 ) << ( value * FREQUENCY_BITS );
+        frequencies++;  /* increment non-zero count in lowest FREQUENCY_BITS */
     }
     return frequencies;
 }
@@ -198,7 +202,7 @@ checkPrecode( const uint64_t next4Bits,
          * and this shifts 48 bits to the right, leaving only 9 (<12) bits set anyways. */
         + PRECODE_X4_TO_FREQUENCIES_LUT[( precodeBits >> ( 4U * CACHED_BITS ) )];
 
-    const auto valueToLookUp = bitLengthFrequencies >> UNIFORM_FREQUENCY_BITS;  // ignore zero-counts
+    const auto valueToLookUp = bitLengthFrequencies >> UNIFORM_FREQUENCY_BITS;  // ignore non-zero-counts
     const auto bitToLookUp = 1ULL << ( valueToLookUp % 64 );
     constexpr auto INDEX_BIT_COUNT = UNIFORM_FREQUENCY_BITS * 5 - 6 /* log2 64 = 6 */;
     const auto elementIndex = ( valueToLookUp / 64 ) & nLowestBitsSet<CompressedHistogram, INDEX_BIT_COUNT>();
@@ -207,8 +211,7 @@ checkPrecode( const uint64_t next4Bits,
         return pragzip::Error::INVALID_CODE_LENGTHS;
     }
 
-    const auto zeroCounts = bitLengthFrequencies & nLowestBitsSet<CompressedHistogram, UNIFORM_FREQUENCY_BITS>();
-    const auto nonZeroCount = 5U * MAX_CACHED_PRECODE_VALUES - zeroCounts;
+    const auto nonZeroCount = bitLengthFrequencies & nLowestBitsSet<CompressedHistogram, UNIFORM_FREQUENCY_BITS>();
 
     /* Note that bitLengthFrequencies[0] must not be checked because multiple symbols may have code length
      * 0 simply when they do not appear in the text at all! And this may very well happen because the

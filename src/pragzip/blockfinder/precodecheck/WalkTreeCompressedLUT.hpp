@@ -98,7 +98,7 @@ checkPrecode( const uint64_t next4Bits,
          * and this shifts 48 bits to the right, leaving only 9 (<12) bits set anyways. */
         + PRECODE_X4_TO_FREQUENCIES_LUT[( precodeBits >> ( 4U * CACHED_BITS ) )];
 
-    const auto histogramToLookUp = bitLengthFrequencies >> UNIFORM_FREQUENCY_BITS;  // ignore zero-counts
+    const auto histogramToLookUp = bitLengthFrequencies >> UNIFORM_FREQUENCY_BITS;  // ignore non-zero-counts
     constexpr auto HISTOGRAM_TO_LOOK_UP_BITS = 5U * UNIFORM_FREQUENCY_BITS;
 
     const auto& [histogramLUT, validLUT] = COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_VALID_LUT_DICT;
@@ -112,8 +112,7 @@ checkPrecode( const uint64_t next4Bits,
         return pragzip::Error::INVALID_CODE_LENGTHS;
     }
 
-    const auto zeroCounts = bitLengthFrequencies & nLowestBitsSet<CompressedHistogram, UNIFORM_FREQUENCY_BITS>();
-    const auto nonZeroCount = 5U * MAX_CACHED_PRECODE_VALUES - zeroCounts;
+    const auto nonZeroCount = bitLengthFrequencies & nLowestBitsSet<CompressedHistogram, UNIFORM_FREQUENCY_BITS>();
 
     /* Note that bitLengthFrequencies[0] must not be checked because multiple symbols may have code length
      * 0 simply when they do not appear in the text at all! And this may very well happen because the
