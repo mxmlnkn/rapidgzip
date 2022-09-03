@@ -21,13 +21,6 @@
 
 namespace pragzip::PrecodeCheck::WalkTreeCompressedLUT
 {
-using pragzip::PrecodeCheck::WalkTreeLUT::CompressedHistogram;
-using pragzip::PrecodeCheck::WalkTreeLUT::PRECODE_BITS;
-using pragzip::PrecodeCheck::WalkTreeLUT::UNIFORM_FREQUENCY_BITS;
-using pragzip::PrecodeCheck::WalkTreeLUT::PRECODE_X4_TO_FREQUENCIES_LUT;
-using pragzip::PrecodeCheck::WalkTreeLUT::PRECODE_FREQUENCIES_1_TO_5_VALID_LUT;
-
-
 constexpr auto COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_CHUNK_COUNT = 16U;
 constexpr auto COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_INDEX_BITS =
     requiredBits( COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_CHUNK_COUNT * sizeof( uint64_t ) * CHAR_BIT );
@@ -35,8 +28,9 @@ constexpr auto COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_INDEX_BITS =
 static const auto COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_VALID_LUT_DICT =
     [] ()
     {
+        constexpr auto& LUT = PrecodeCheck::WalkTreeLUT::PRECODE_FREQUENCIES_1_TO_5_VALID_LUT;
         constexpr auto CHUNK_COUNT = COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_CHUNK_COUNT;
-        constexpr auto LUT_SIZE = PRECODE_FREQUENCIES_1_TO_5_VALID_LUT.size();
+        constexpr auto LUT_SIZE = LUT.size();
         using ChunkedValues = std::array<uint64_t, CHUNK_COUNT>;
         static_assert( sizeof( ChunkedValues ) == sizeof( ChunkedValues::value_type ) * CHUNK_COUNT );
 
@@ -50,7 +44,7 @@ static const auto COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_VALID_LUT_DICT =
         for ( size_t i = 0; i < LUT_SIZE; i += CHUNK_COUNT ) {
             ChunkedValues chunkedValues{};
             for ( size_t j = 0; j < CHUNK_COUNT; ++j ) {
-                chunkedValues[j] = PRECODE_FREQUENCIES_1_TO_5_VALID_LUT[i + j];
+                chunkedValues[j] = LUT[i + j];
             }
 
             const auto [match, wasInserted] = valueToKey.try_emplace( chunkedValues, valueToKey.size() );
@@ -81,35 +75,26 @@ static const auto COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_VALID_LUT_DICT =
 checkPrecode( const uint64_t next4Bits,
               const uint64_t next57Bits )
 {
+    using namespace pragzip::PrecodeCheck::WalkTreeLUT;
+
     const auto codeLengthCount = 4 + next4Bits;
     const auto precodeBits = next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS );
+    const auto bitLengthFrequencies = precodesToHistogram<4>( precodeBits );
 
-    constexpr auto MAX_CACHED_PRECODE_VALUES = 4U;
-    constexpr auto CACHED_BITS = PRECODE_BITS * MAX_CACHED_PRECODE_VALUES;  // 12
-    const auto bitLengthFrequencies =
-        PRECODE_X4_TO_FREQUENCIES_LUT[precodeBits & nLowestBitsSet<uint64_t, CACHED_BITS>()]
-        + PRECODE_X4_TO_FREQUENCIES_LUT[( precodeBits >> ( 1U * CACHED_BITS ) )
-                                        & nLowestBitsSet<uint64_t, CACHED_BITS>()]
-        + PRECODE_X4_TO_FREQUENCIES_LUT[( precodeBits >> ( 2U * CACHED_BITS ) )
-                                        & nLowestBitsSet<uint64_t, CACHED_BITS>()]
-        + PRECODE_X4_TO_FREQUENCIES_LUT[( precodeBits >> ( 3U * CACHED_BITS ) )
-                                        & nLowestBitsSet<uint64_t, CACHED_BITS>()]
-        /* The last requires no bit masking because BitReader::read already has masked to the lowest 57 bits
-         * and this shifts 48 bits to the right, leaving only 9 (<12) bits set anyways. */
-        + PRECODE_X4_TO_FREQUENCIES_LUT[( precodeBits >> ( 4U * CACHED_BITS ) )];
-
-    const auto histogramToLookUp = bitLengthFrequencies >> UNIFORM_FREQUENCY_BITS;  // ignore non-zero-counts
-    constexpr auto HISTOGRAM_TO_LOOK_UP_BITS = 5U * UNIFORM_FREQUENCY_BITS;
-
-    const auto& [histogramLUT, validLUT] = COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_VALID_LUT_DICT;
-    constexpr auto INDEX_BITS = COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_INDEX_BITS;
-    const auto elementIndex = ( histogramToLookUp >> INDEX_BITS )
-                              & nLowestBitsSet<CompressedHistogram>( HISTOGRAM_TO_LOOK_UP_BITS - INDEX_BITS );
-    const auto validIndex = ( histogramLUT[elementIndex] << INDEX_BITS )
-                            + ( histogramToLookUp & nLowestBitsSet<uint64_t>( INDEX_BITS ) );
-    if ( LIKELY( ( validLUT[validIndex] ) == 0 ) ) [[unlikely]] {
-        /* Might also be bloating not only invalid. */
-        return pragzip::Error::INVALID_CODE_LENGTHS;
+    const auto valueToLookUp = bitLengthFrequencies >> UNIFORM_FREQUENCY_BITS;  // ignore non-zero-counts
+    /* Lookup in LUT and subtable */
+    {
+        constexpr auto HISTOGRAM_TO_LOOK_UP_BITS = 5U * UNIFORM_FREQUENCY_BITS;
+        const auto& [histogramLUT, validLUT] = COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_VALID_LUT_DICT;
+        constexpr auto INDEX_BITS = COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_INDEX_BITS;
+        const auto elementIndex = ( valueToLookUp >> INDEX_BITS )
+                                  & nLowestBitsSet<CompressedHistogram>( HISTOGRAM_TO_LOOK_UP_BITS - INDEX_BITS );
+        const auto validIndex = ( histogramLUT[elementIndex] << INDEX_BITS )
+                                + ( valueToLookUp & nLowestBitsSet<uint64_t>( INDEX_BITS ) );
+        if ( LIKELY( ( validLUT[validIndex] ) == 0 ) ) [[unlikely]] {
+            /* Might also be bloating not only invalid. */
+            return pragzip::Error::INVALID_CODE_LENGTHS;
+        }
     }
 
     const auto nonZeroCount = bitLengthFrequencies & nLowestBitsSet<CompressedHistogram, UNIFORM_FREQUENCY_BITS>();

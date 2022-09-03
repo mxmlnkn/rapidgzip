@@ -218,6 +218,27 @@ packHistogram( const pragzip::deflate::precode::Histogram& histogram )
     }
     return setCount( packedHistogram, 0, nonZeroCount );
 }
+
+
+/**
+ * @param histogram It is assumed to begin with counts for 1 in the lowest @p FREQUENCY_BITS bits.
+ */
+template<uint8_t  FREQUENCY_BITS,
+         typename T>
+[[nodiscard]] constexpr Histogram
+packUniformlyBitPackedHistogramUnsafe( T histogram )
+{
+    Histogram packedHistogram{ 0 };
+    for ( size_t i = 1; i < MEMBER_BIT_WIDTHS.size(); ++i ) {
+        const auto value = ( histogram >> ( ( i - 1 ) * FREQUENCY_BITS ) )
+                           & nLowestBitsSet<Histogram>( MEMBER_BIT_WIDTHS[i] );
+        packedHistogram = setCount( packedHistogram, i, value );
+    }
+    return packedHistogram >> MEMBER_BIT_WIDTHS.front();
+}
+
+static_assert( packUniformlyBitPackedHistogramUnsafe<5>( 0b01111'10001'10101'01001'00101'00011'00001ULL )
+               == 0b1111'10001'10101'1001'101'11'1ULL );
 }  // namespace VariableLengthPackedHistogram
 
 
@@ -267,7 +288,7 @@ static constexpr auto PRECODE_HISTOGRAM_VALID_LUT =
 constexpr std::array<Histogram, /* Round up MAX_PRECODE_COUNT (19) */ 32> POWER_OF_TWO_SPECIAL_CASES = {
     /*  0 */ ~Histogram( 0 ),  /* An empty alphabet is not legal for the precode! */
     /*  1 */ 0b0000'00000'00000'0000'000'00'1ULL,
-    /*  2 */ 0b0000'00000'00000'0000'000'01'0ULL, /* 1 is an overflow of the 0-length bin. */
+    /*  2 */ 0b0000'00000'00000'0000'000'01'0ULL, /* 1 (0b10) is an overflow of the 1-length bin. */
     /*  3 */ ~Histogram( 0 ),
     /*  4 */ 0b0000'00000'00000'0000'001'00'0ULL,  /* setCount( 0, 2, 4 ) >> MEMBER_BIT_WIDTHS.front() */
     /*  5 */ ~Histogram( 0 ),
@@ -282,6 +303,21 @@ constexpr std::array<Histogram, /* Round up MAX_PRECODE_COUNT (19) */ 32> POWER_
     /* 14 */ ~Histogram( 0 ),
     /* 15 */ ~Histogram( 0 ),
     /* 16 */ 0b0000'00000'00001'0000'000'00'0ULL,  /* setCount( 0, 4, 16 ) >> MEMBER_BIT_WIDTHS.front() */
+    /* 17 */ ~Histogram( 0 ),
+    /* 18 */ ~Histogram( 0 ),
+    /* 19 */ ~Histogram( 0 ),
+    /* 20 */ ~Histogram( 0 ),
+    /* 21 */ ~Histogram( 0 ),
+    /* 22 */ ~Histogram( 0 ),
+    /* 23 */ ~Histogram( 0 ),
+    /* 24 */ ~Histogram( 0 ),
+    /* 25 */ ~Histogram( 0 ),
+    /* 26 */ ~Histogram( 0 ),
+    /* 27 */ ~Histogram( 0 ),
+    /* 28 */ ~Histogram( 0 ),
+    /* 29 */ ~Histogram( 0 ),
+    /* 30 */ ~Histogram( 0 ),
+    /* 31 */ ~Histogram( 0 ),
 };
 
 
@@ -336,14 +372,14 @@ checkPrecode( const uint64_t next4Bits,
     }
 
     /* Ignore non-zero and overflow counts for lookup. */
-    const auto histogramToLookUp = ( bitLengthFrequencies >> 5 )
+    using namespace VariableLengthPackedHistogram;
+    const auto histogramToLookUp = ( bitLengthFrequencies >> MEMBER_BIT_WIDTHS.front() )
                                    & nLowestBitsSet<Histogram>( HISTOGRAM_TO_LOOK_UP_BITS );
-    const auto nonZeroCount = bitLengthFrequencies & nLowestBitsSet<Histogram>( 5 );
+    const auto nonZeroCount = bitLengthFrequencies & nLowestBitsSet<Histogram>( MEMBER_BIT_WIDTHS.front() );
     if ( UNLIKELY( POWER_OF_TWO_SPECIAL_CASES[nonZeroCount] == histogramToLookUp ) ) [[unlikely]] {
         return pragzip::Error::NONE;
     }
 
-    using namespace VariableLengthPackedHistogram;
     if ( ( ( overflowsInSum & OVERFLOW_BITS_MASK ) != 0 )
          || ( ( overflowsInLUT & ( ~Histogram( 0 ) << OVERFLOW_MEMBER_OFFSET ) ) != 0 ) ) {
         return pragzip::Error::INVALID_CODE_LENGTHS;

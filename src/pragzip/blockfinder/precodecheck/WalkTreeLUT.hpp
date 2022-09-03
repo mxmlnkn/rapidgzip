@@ -166,8 +166,26 @@ constexpr auto UNIFORM_FREQUENCY_BITS = 5U;
 constexpr auto PRECODE_BITS = pragzip::deflate::PRECODE_BITS;
 
 /* Max values to cache in LUT (4 * 3 bits = 12 bits LUT key -> 2^12 * 8B = 32 KiB LUT size) */
-static constexpr auto PRECODE_X4_TO_FREQUENCIES_LUT =
-    createCompressedHistogramLUT<UNIFORM_FREQUENCY_BITS, PRECODE_BITS, 4>();
+template<uint8_t PRECODE_CHUNK_SIZE>
+static constexpr auto PRECODE_TO_FREQUENCIES_LUT =
+    createCompressedHistogramLUT<UNIFORM_FREQUENCY_BITS, PRECODE_BITS, PRECODE_CHUNK_SIZE>();
+
+
+template<uint8_t PRECODE_CHUNK_SIZE>
+[[nodiscard]] constexpr CompressedHistogram
+precodesToHistogram( uint64_t precodeBits )
+{
+    constexpr auto& LUT = PRECODE_TO_FREQUENCIES_LUT<PRECODE_CHUNK_SIZE>;
+    constexpr auto CACHED_BITS = PRECODE_BITS * PRECODE_CHUNK_SIZE;  // 12
+    return LUT[precodeBits & nLowestBitsSet<uint64_t, CACHED_BITS>()]
+           + LUT[( precodeBits >> ( 1U * CACHED_BITS ) ) & nLowestBitsSet<uint64_t, CACHED_BITS>()]
+           + LUT[( precodeBits >> ( 2U * CACHED_BITS ) ) & nLowestBitsSet<uint64_t, CACHED_BITS>()]
+           + LUT[( precodeBits >> ( 3U * CACHED_BITS ) ) & nLowestBitsSet<uint64_t, CACHED_BITS>()]
+           /* The last requires no bit masking because BitReader::read already has masked to the lowest 57 bits
+            * and this shifts 48 bits to the right, leaving only 9 (<12) bits set anyways. */
+           + LUT[( precodeBits >> ( 4U * CACHED_BITS ) )];
+}
+
 
 /* 5 * 5 = 25 bits LUT map to bool, i.e., 2^22 B = 4 MiB! */
 static constexpr auto PRECODE_FREQUENCIES_1_TO_5_VALID_LUT =
@@ -187,28 +205,18 @@ checkPrecode( const uint64_t next4Bits,
 {
     const auto codeLengthCount = 4 + next4Bits;
     const auto precodeBits = next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS );
+    const auto bitLengthFrequencies = precodesToHistogram<4>( precodeBits );
 
-    constexpr auto MAX_CACHED_PRECODE_VALUES = 4U;
-    constexpr auto CACHED_BITS = PRECODE_BITS * MAX_CACHED_PRECODE_VALUES;  // 12
-    const auto bitLengthFrequencies =
-        PRECODE_X4_TO_FREQUENCIES_LUT[precodeBits & nLowestBitsSet<uint64_t, CACHED_BITS>()]
-        + PRECODE_X4_TO_FREQUENCIES_LUT[( precodeBits >> ( 1U * CACHED_BITS ) )
-                                        & nLowestBitsSet<uint64_t, CACHED_BITS>()]
-        + PRECODE_X4_TO_FREQUENCIES_LUT[( precodeBits >> ( 2U * CACHED_BITS ) )
-                                        & nLowestBitsSet<uint64_t, CACHED_BITS>()]
-        + PRECODE_X4_TO_FREQUENCIES_LUT[( precodeBits >> ( 3U * CACHED_BITS ) )
-                                        & nLowestBitsSet<uint64_t, CACHED_BITS>()]
-        /* The last requires no bit masking because BitReader::read already has masked to the lowest 57 bits
-         * and this shifts 48 bits to the right, leaving only 9 (<12) bits set anyways. */
-        + PRECODE_X4_TO_FREQUENCIES_LUT[( precodeBits >> ( 4U * CACHED_BITS ) )];
-
-    const auto valueToLookUp = bitLengthFrequencies >> UNIFORM_FREQUENCY_BITS;  // ignore non-zero-counts
-    const auto bitToLookUp = 1ULL << ( valueToLookUp % 64 );
-    constexpr auto INDEX_BIT_COUNT = UNIFORM_FREQUENCY_BITS * 5 - 6 /* log2 64 = 6 */;
-    const auto elementIndex = ( valueToLookUp / 64 ) & nLowestBitsSet<CompressedHistogram, INDEX_BIT_COUNT>();
-    if ( ( PRECODE_FREQUENCIES_1_TO_5_VALID_LUT[elementIndex] & bitToLookUp ) == 0 ) {
-        /* Might also be bloating not only invalid. */
-        return pragzip::Error::INVALID_CODE_LENGTHS;
+    /* Lookup in LUT and subtable (64 values in uint64_t) */
+    const auto valueToLookUp = bitLengthFrequencies >> UNIFORM_FREQUENCY_BITS;  // ignore non-zero-counts;
+    {
+        const auto bitToLookUp = 1ULL << ( valueToLookUp % 64 );
+        constexpr auto INDEX_BIT_COUNT = UNIFORM_FREQUENCY_BITS * 5 - 6 /* log2 64 = 6 */;
+        const auto elementIndex = ( valueToLookUp / 64 ) & nLowestBitsSet<CompressedHistogram, INDEX_BIT_COUNT>();
+        if ( ( PRECODE_FREQUENCIES_1_TO_5_VALID_LUT[elementIndex] & bitToLookUp ) == 0 ) {
+            /* Might also be bloating not only invalid. */
+            return pragzip::Error::INVALID_CODE_LENGTHS;
+        }
     }
 
     const auto nonZeroCount = bitLengthFrequencies & nLowestBitsSet<CompressedHistogram, UNIFORM_FREQUENCY_BITS>();

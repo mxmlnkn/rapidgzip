@@ -108,8 +108,10 @@ testSingleLUTImplementation4Precodes()
     /* With only 4 precodes, there will be no overflow issues when adding partial histograms because only the
      * first one will be non-zero. */
 
+    using namespace pragzip::PrecodeCheck;
+
     const auto check4Precodes =
-        [] ( const auto values ) { return pragzip::PrecodeCheck::SingleLUT::checkPrecode( 0, values ); };
+        [] ( const auto values ) { return SingleLUT::checkPrecode( 0, values ); };
 
     static_assert( check4Precodes( 0 ) != pragzip::Error::NONE );
 
@@ -128,7 +130,12 @@ testSingleLUTImplementation4Precodes()
     static_assert( check4Precodes( 0b100'000'000'000 ) != pragzip::Error::NONE );
 
     static_assert( check4Precodes( 0b000'000'001'000 ) == pragzip::Error::NONE );
-    static_assert( pragzip::PrecodeCheck::WalkTreeLUT::checkPrecode( 0, 0b000'000'001'000 ) == pragzip::Error::NONE );
+
+    static_assert( WithoutLUT::checkPrecodeUsingArray ( 0, 0b000'000'001'000 ) == pragzip::Error::NONE );
+    static_assert( WithoutLUT           ::checkPrecode( 0, 0b000'000'001'000 ) == pragzip::Error::NONE );
+    static_assert( SingleLUT            ::checkPrecode( 0, 0b000'000'001'000 ) == pragzip::Error::NONE );
+    static_assert( SingleCompressedLUT  ::checkPrecode( 0, 0b000'000'001'000 ) == pragzip::Error::NONE );
+    static_assert( WalkTreeLUT          ::checkPrecode( 0, 0b000'000'001'000 ) == pragzip::Error::NONE );
 
     /* A single code length with 1 bit is valid. */
     static_assert( check4Precodes( 0b000'000'000'001 ) == pragzip::Error::NONE );
@@ -143,6 +150,12 @@ testSingleLUTImplementation4Precodes()
     static_assert( check4Precodes( 0b000'001'001'000 ) == pragzip::Error::NONE );
     static_assert( check4Precodes( 0b000'001'000'001 ) == pragzip::Error::NONE );
     static_assert( check4Precodes( 0b000'000'001'001 ) == pragzip::Error::NONE );
+
+    static_assert( WithoutLUT::checkPrecodeUsingArray ( 0, 0b000'000'001'001 ) == pragzip::Error::NONE );
+    static_assert( WithoutLUT           ::checkPrecode( 0, 0b000'000'001'001 ) == pragzip::Error::NONE );
+    static_assert( SingleLUT            ::checkPrecode( 0, 0b000'000'001'001 ) == pragzip::Error::NONE );
+    static_assert( SingleCompressedLUT  ::checkPrecode( 0, 0b000'000'001'001 ) == pragzip::Error::NONE );
+    static_assert( WalkTreeLUT          ::checkPrecode( 0, 0b000'000'001'001 ) == pragzip::Error::NONE );
 
     /* If there is a code length longer than one out of the two, then the tree will be non-optimal. */
     static_assert( check4Precodes( 0b001'011'000'000 ) != pragzip::Error::NONE );
