@@ -285,7 +285,8 @@ static constexpr auto PRECODE_HISTOGRAM_VALID_LUT =
  * positive rate but that is no error because after checkPrecode there will be a much more involved correct check.
  * However, this must not result in false negatives!
  */
-constexpr std::array<Histogram, /* Round up MAX_PRECODE_COUNT (19) */ 32> POWER_OF_TWO_SPECIAL_CASES = {
+constexpr std::array<Histogram, 1U << VariableLengthPackedHistogram::MEMBER_BIT_WIDTHS.front()>
+POWER_OF_TWO_SPECIAL_CASES = {
     /*  0 */ ~Histogram( 0 ),  /* An empty alphabet is not legal for the precode! */
     /*  1 */ 0b0000'00000'00000'0000'000'00'1ULL,
     /*  2 */ 0b0000'00000'00000'0000'000'01'0ULL, /* 1 (0b10) is an overflow of the 1-length bin. */
@@ -397,4 +398,191 @@ checkPrecode( const uint64_t next4Bits,
 
     return pragzip::Error::NONE;
 }
+
+
+namespace ValidHistogramID
+{
+using HistogramID = uint16_t;
+static_assert( deflate::precode::VALID_HISTOGRAMS_COUNT + 1 <= ( 1ULL << std::numeric_limits<HistogramID>::digits ),
+               "Must be able to store IDs for each of valid histogram and a non-valid ID." );
+
+
+/**
+ * @tparam SUBTABLE_INDEX_BIT_WIDTH Size is in number bits, i.e., actual size is 2^SUBTABLE_INDEX_BIT_WIDTH elements.
+ */
+template<uint8_t SUBTABLE_INDEX_BIT_WIDTH>
+static constexpr auto REQUIRED_SUBTABLES_COUNT =
+    [] ()
+    {
+        using pragzip::deflate::precode::VALID_HISTOGRAMS;
+        std::array<std::pair</* truncated address */ uint32_t,
+                              /* number of valid histograms in same truncated address */uint16_t>,
+                   VALID_HISTOGRAMS.size()> counts;
+        for ( const auto& histogram : VALID_HISTOGRAMS ) {
+            using namespace pragzip::PrecodeCheck::SingleLUT;
+            const auto packedHistogram = VariableLengthPackedHistogram::packHistogram( histogram );
+            if ( !packedHistogram ) {
+                continue;
+            }
+
+            const auto truncatedAddress = *packedHistogram >> ( VariableLengthPackedHistogram::MEMBER_BIT_WIDTHS.front()
+                                                                + SUBTABLE_INDEX_BIT_WIDTH );
+
+            for ( auto& [address, count] : counts ) {
+                if ( address == truncatedAddress ) {
+                    ++count;
+                    break;
+                }
+                if ( count == 0 ) {
+                    address = truncatedAddress;
+                    ++count;
+                    break;
+                }
+            }
+        }
+
+        size_t uniqueAddresses{ 0 };
+        for ( const auto& [address, count] : counts ) {
+            ++uniqueAddresses;
+            if ( count == 0 ) {
+                break;
+            }
+        }
+        return uniqueAddresses + 1 /* additional invalid address for invalid histograms */;
+    }();
+
+static_assert( REQUIRED_SUBTABLES_COUNT<9> == 184 );
+
+
+constexpr auto SUBTABLES_BIT_WIDTH = 9U;
+constexpr auto SUBTABLE_SIZE = 1ULL << SUBTABLES_BIT_WIDTH;
+constexpr auto SUBTABLES_COUNT = REQUIRED_SUBTABLES_COUNT<SUBTABLES_BIT_WIDTH>;
+/**
+ * This is a two-staged LUT helper to lookup the index in VALID_HISTOGRAMS for a given histogram.
+ * For invalid LUTs, it returns an out-of-range index.
+ * The outer LUT contains values to a corresponding subtable.
+ */
+static constexpr auto HISTOGRAM_TO_ID_LUT =
+    [] ()
+    {
+        using SubtableID = uint8_t;
+        std::array<SubtableID, ( 1ULL << ( HISTOGRAM_TO_LOOK_UP_BITS - SUBTABLES_BIT_WIDTH ) )> lut{};
+        std::array<HistogramID, SUBTABLE_SIZE * SUBTABLES_COUNT> subtables{};
+        static_assert( SUBTABLES_COUNT < std::numeric_limits<SubtableID>::max() );
+
+        /* Initialize subtables with invalid indexes. Using 0 as invalid index by convention would require
+         * further post-processing and a branch after the lookup, so avoid it. */
+        for ( auto& x : subtables ) {
+            x = std::numeric_limits<HistogramID>::max();
+        }
+        /* Skip the first table, which shall contain only invalid values. @ref lut is already initialized with zeros,
+         * i.e., it points to this table, so that is perfect to avoid further initialization of @ref lut. */
+        size_t subtablesCount{ 1 };
+
+        using pragzip::deflate::precode::VALID_HISTOGRAMS;
+        std::array<std::pair<uint32_t, SubtableID>, VALID_HISTOGRAMS.size()> truncatedAddressToSubtable{};
+        const auto getSubtableId =
+            [&truncatedAddressToSubtable, &subtablesCount] ( const uint32_t truncatedAddress )
+            {
+                for ( auto& [address, subtableId] : truncatedAddressToSubtable ) {
+                    if ( address == truncatedAddress ) {
+                        return subtableId;
+                    }
+                    /* Subtable IDs are initialized to zero by default but as this function is only used
+                     * for valid histograms and we have reserved the zeroth subtable for invalid ranges,
+                     * we can simply test like this whether the map entry is unused. */
+                    if ( subtableId == 0 ) {
+                        address = truncatedAddress;
+                        subtableId = subtablesCount++;
+                        return subtableId;
+                    }
+                }
+                throw std::logic_error( "Should only happen when we run out of subtable space, i.e., never." );
+            };
+
+        for ( size_t i = 0; i < VALID_HISTOGRAMS.size(); ++i ) {
+            const auto& histogram = VALID_HISTOGRAMS[i];
+
+            using namespace pragzip::PrecodeCheck::SingleLUT;
+            const auto packedHistogram = VariableLengthPackedHistogram::packHistogram( histogram );
+            if ( !packedHistogram ) {
+                continue;
+            }
+
+            const auto histogramWithoutZero =
+                *packedHistogram >> VariableLengthPackedHistogram::MEMBER_BIT_WIDTHS.front();
+            const auto truncatedAddress = histogramWithoutZero >> SUBTABLES_BIT_WIDTH;
+            const auto subtableId = getSubtableId( truncatedAddress );
+            lut[truncatedAddress] = subtableId;
+
+            /* It should not be possible to get colliding subtable entries because for any given @ref truncatedAddress
+             * there are no duplicate @ref lowParts values because @ref truncatedAddress contains the high bits that
+             * do not wrap around. */
+            const auto lowParts = histogramWithoutZero & nLowestBitsSet<uint32_t>( SUBTABLES_BIT_WIDTH );
+            subtables[subtableId * SUBTABLE_SIZE + lowParts] = i;
+        }
+
+        return std::make_tuple( lut, subtables );
+    }();
+
+
+constexpr std::array<HistogramID, 1U << VariableLengthPackedHistogram::MEMBER_BIT_WIDTHS.front()>
+POWER_OF_TWO_SPECIAL_CASES_TO_ID = {
+    /*  0 */ std::numeric_limits<HistogramID>::max(),
+    /*  1 */ 1031,
+    /*  2 */ 1525,
+    /*  3 */ std::numeric_limits<HistogramID>::max(),
+    /*  4 */ 1030,
+    /*  5 */ std::numeric_limits<HistogramID>::max(),
+    /*  6 */ std::numeric_limits<HistogramID>::max(),
+    /*  7 */ std::numeric_limits<HistogramID>::max(),
+    /*  8 */ 276,
+    /*  9 */ std::numeric_limits<HistogramID>::max(),
+    /* 10 */ std::numeric_limits<HistogramID>::max(),
+    /* 11 */ std::numeric_limits<HistogramID>::max(),
+    /* 12 */ std::numeric_limits<HistogramID>::max(),
+    /* 13 */ std::numeric_limits<HistogramID>::max(),
+    /* 14 */ std::numeric_limits<HistogramID>::max(),
+    /* 15 */ std::numeric_limits<HistogramID>::max(),
+    /* 16 */ 7,
+    /* 17 */ std::numeric_limits<HistogramID>::max(),
+    /* 18 */ std::numeric_limits<HistogramID>::max(),
+    /* 19 */ std::numeric_limits<HistogramID>::max(),
+    /* 20 */ std::numeric_limits<HistogramID>::max(),
+    /* 21 */ std::numeric_limits<HistogramID>::max(),
+    /* 22 */ std::numeric_limits<HistogramID>::max(),
+    /* 23 */ std::numeric_limits<HistogramID>::max(),
+    /* 24 */ std::numeric_limits<HistogramID>::max(),
+    /* 25 */ std::numeric_limits<HistogramID>::max(),
+    /* 26 */ std::numeric_limits<HistogramID>::max(),
+    /* 27 */ std::numeric_limits<HistogramID>::max(),
+    /* 28 */ std::numeric_limits<HistogramID>::max(),
+    /* 29 */ std::numeric_limits<HistogramID>::max(),
+    /* 30 */ std::numeric_limits<HistogramID>::max(),
+    /* 31 */ std::numeric_limits<HistogramID>::max(),
+};
+
+
+[[nodiscard]] constexpr size_t
+getHistogramId( const uint64_t& histogram5BitCounts )
+{
+    const auto nonZeroCount = histogram5BitCounts & nLowestBitsSet<Histogram>( 5 );
+    const auto specialID = POWER_OF_TWO_SPECIAL_CASES_TO_ID[nonZeroCount];
+    if ( specialID < pragzip::deflate::precode::VALID_HISTOGRAMS.size() ) {
+        return specialID;
+    }
+
+    const auto histogramWithoutZero = histogram5BitCounts >> 5U;
+    if ( ( histogramWithoutZero & 0b10000'00000'00000'00000'10000'11000'11100'11110ULL ) != 0 ) {
+        return std::numeric_limits<size_t>::max();
+    }
+    const auto packedHistogramWithoutZero =
+        VariableLengthPackedHistogram::packUniformlyBitPackedHistogramUnsafe<5>( histogramWithoutZero );
+
+    const auto& [LUT, SUBTABLES] = HISTOGRAM_TO_ID_LUT;
+    const auto subtableId = LUT[packedHistogramWithoutZero >> SUBTABLES_BIT_WIDTH];
+    const auto lowParts = packedHistogramWithoutZero & nLowestBitsSet<Histogram>( SUBTABLES_BIT_WIDTH );
+    return SUBTABLES[subtableId * SUBTABLE_SIZE + lowParts];
+}
+}  // namspace ValidHistogramID
 }  // namespace pragzip::PrecodeCheck::SingleLUT

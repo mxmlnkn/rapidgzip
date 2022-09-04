@@ -30,6 +30,19 @@ namespace pragzip::PrecodeCheck::WalkTreeLUT
 using CompressedHistogram = uint64_t;
 
 
+template<uint8_t FREQUENCY_BITS>
+[[nodiscard]] constexpr CompressedHistogram
+packHistogramWithNonZeroCount( const std::array<uint8_t, 7>& histogram )
+{
+    CompressedHistogram result{ 0 };
+    for ( size_t i = 0; i < histogram.size(); ++i ) {
+        result += static_cast<uint64_t>( histogram[i] ) << ( ( i + 1 ) * FREQUENCY_BITS );
+        result += histogram[i];
+    }
+    return result;
+}
+
+
 /**
  * @param depth A depth of 1 means that we should iterate over 1-bit codes, which can only be 0,1,2.
  * @param freeBits This can be calculated from the histogram but it saves constexpr instructions when

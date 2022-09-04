@@ -1819,7 +1819,7 @@ benchmarkLUTSize( const BufferedFileReader::AlignedBuffer& buffer )
 
     std::cout << "[" << toString( FIND_DEFLATE_METHOD ) << " with " << static_cast<int>( CACHED_BIT_COUNT ) << " bits, "
               << toString( CHECK_PRECODE_METHOD ) << "] "
-              << formatBandwidth( durations, buffer.size() ) << "\n";
+              << formatBandwidth( durations, buffer.size() ) << " (candidates: " << blockCandidates.size() << ")\n";
 
     if ( blockCandidatesWithLessBits && ( *blockCandidatesWithLessBits != blockCandidates ) ) {
         std::cerr << "blockCandidatesWithLessBits (" << blockCandidatesWithLessBits->size() << "):"

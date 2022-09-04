@@ -21,6 +21,7 @@
 #include <blockfinder/precodecheck/WalkTreeCompressedLUT.hpp>
 #include <blockfinder/precodecheck/WalkTreeLUT.hpp>
 #include <blockfinder/precodecheck/WithoutLUT.hpp>
+#include <filereader/Buffered.hpp>
 #include <precode.hpp>
 #include <TestHelpers.hpp>
 #include <Error.hpp>
@@ -741,22 +742,24 @@ printValidHistograms()
 }
 
 
+/**
+ * @tparam SUBTABLE_SIZE Size is in number bits, i.e., actual size is 2^SUBTABLE_SIZE elements.
+ */
+template<uint8_t SUBTABLE_SIZE>
 void
 analyzeCompressedLUT()
 {
-    /** Size is in number bits, i.e., actual size is 2^SUBTABLE_SIZE elements. */
-    constexpr auto SUBTABLE_SIZE = 4U;
     using SUBTABLE_ELEMENT = uint16_t;  /* Must be able to store IDs for each of the 1527 valid histogram. */
 
     using pragzip::deflate::precode::VALID_HISTOGRAMS;
-    using pragzip::PrecodeCheck::SingleLUT::HISTOGRAM_TO_LOOK_UP_BITS;
-    using pragzip::PrecodeCheck::SingleLUT::VariableLengthPackedHistogram::MEMBER_BIT_WIDTHS;
-    using pragzip::PrecodeCheck::SingleLUT::VariableLengthPackedHistogram::Histogram;
-    using pragzip::PrecodeCheck::SingleLUT::VariableLengthPackedHistogram::packHistogram;
+    using namespace pragzip::PrecodeCheck::SingleLUT;
+    using VariableLengthPackedHistogram::MEMBER_BIT_WIDTHS;
+    using VariableLengthPackedHistogram::Histogram;
+    using VariableLengthPackedHistogram::packHistogram;
 
     std::array<std::pair</* truncated address */ uint32_t,
                           /* number of valid histograms in same truncated address */uint16_t>,
-               VALID_HISTOGRAMS.size()> counts;
+               VALID_HISTOGRAMS.size()> counts{};
     for ( const auto& histogram : VALID_HISTOGRAMS ) {
         const auto packedHistogram = packHistogram( histogram );
         if ( !packedHistogram ) {
@@ -765,6 +768,7 @@ analyzeCompressedLUT()
 
         const auto histogramToLookUp = *packedHistogram >> MEMBER_BIT_WIDTHS.front();
     #if 0
+        /* Worse result, twice as many unique addresses. */
         const auto histogramToTakeAddress =
             reverseBits( histogramToLookUp ) >> ( std::numeric_limits<Histogram>::digits - HISTOGRAM_TO_LOOK_UP_BITS );
     #else
@@ -793,17 +797,224 @@ analyzeCompressedLUT()
         }
     }
 
+    using AddressType = uint16_t;  /* Must be able to store addresses to all subtables */
+    REQUIRE( requiredBits( uniqueAddresses ) <= std::numeric_limits<AddressType>::digits );
+    const auto addressTypeSize = uniqueAddresses + 1 <= 256 ? /* uint8_t suffices! */ 1 : sizeof( AddressType );
+
+    const auto lutSize = ( 1ULL << static_cast<uint8_t>( HISTOGRAM_TO_LOOK_UP_BITS - SUBTABLE_SIZE ) )
+                         * addressTypeSize;
     const auto subtableCount = uniqueAddresses + 1 /* Empty subtable (no valid histograms) */;
-    const auto subtablesSize = formatBytes( subtableCount * SUBTABLE_SIZE * sizeof( SUBTABLE_ELEMENT ) );
-    std::cerr << "Unique Subtables: " << subtableCount << "\n";
-    std::cerr << "Subtables size: " << subtablesSize << "\n";
+    const auto subtableSize = ( 1U << SUBTABLE_SIZE ) * sizeof( SUBTABLE_ELEMENT );
+    std::cerr << "Subtable size in number of bits: " << static_cast<int>( SUBTABLE_SIZE ) << "\n"
+              << "    LUT size: " << formatBytes( lutSize ) << "\n"
+              << "    Unique Subtables: " << subtableCount << "\n"
+              << "    Subtable size: " << formatBytes( subtableSize ) << "\n"
+              << "    Subtables size: " << formatBytes( subtableCount * subtableSize )<< "\n"
+              << "    Total size: " << formatBytes( lutSize + subtableCount * subtableSize ) << "\n"
+              << "\n";
+}
+
+
+void
+testGetHistogramId( size_t validId )
+{
+    using pragzip::deflate::precode::VALID_HISTOGRAMS;
+    using namespace pragzip::PrecodeCheck;
+
+    const auto& histogram = VALID_HISTOGRAMS.at( validId );
+    const auto packedHistogram = WalkTreeLUT::packHistogramWithNonZeroCount<5>( histogram );
+    REQUIRE_EQUAL( SingleLUT::ValidHistogramID::getHistogramId( packedHistogram ), validId );
+
+#if 0
+    std::cerr << "histogram:";
+    for ( const auto count : histogram ) {
+        std::cerr << " " << (int)count;
+    }
+    std::cerr << "\n";
+    std::cerr << "packed histogram with non-zero count: " << packedHistogram << "\n"
+              << "    0b";
+    for ( size_t i = 0; i < 8 * 5; ++i ) {
+        if ( ( i % 5 == 0 ) && ( i > 0 ) ) {
+            std::cerr << "'";
+        }
+        std::cerr << ( ( packedHistogram >> ( 8 * 5 - 1 - i ) ) & 1U );
+    }
+    std::cerr << "\n";
+    std::cerr << "\n";
+#endif
+}
+
+
+template<typename HuffmanCoding>
+void
+testHuffmanCoding( HuffmanCoding&              coding,
+                   const std::vector<char>&    encoded,
+                   const std::vector<uint8_t>& decoded )
+{
+    pragzip::BitReader bitReader( std::make_unique<BufferedFileReader>( encoded ) );
+    for ( const auto expectedSymbol : decoded ) {
+        const auto decodedSymbol = coding.decode( bitReader );
+        REQUIRE( decodedSymbol.has_value() );
+        REQUIRE_EQUAL( static_cast<int>( *decodedSymbol ), static_cast<int>( expectedSymbol ) );
+    }
+}
+
+
+void
+testValidHuffmanCoding( const size_t                validId,
+                        const std::vector<char>&    encoded,
+                        const std::vector<uint8_t>& decoded )
+{
+    testHuffmanCoding( pragzip::deflate::precode::VALID_HUFFMAN_CODINGS.at( validId ), encoded, decoded );
+}
+
+
+void
+testCachedCodingFromHistogram( const std::array<uint8_t, 7>& histogram,
+                               const std::vector<char>&      encoded,
+                               const std::vector<uint8_t>&   decoded )
+{
+    using pragzip::PrecodeCheck::SingleLUT::ValidHistogramID::getHistogramId;
+    using pragzip::PrecodeCheck::WalkTreeLUT::packHistogramWithNonZeroCount;
+
+    testValidHuffmanCoding( getHistogramId( packHistogramWithNonZeroCount<5>( histogram ) ), encoded, decoded );
+}
+
+
+void
+testCachedCodingFromPrecodes( const uint64_t              precodeBits,
+                              const std::vector<char>&    encoded,
+                              const std::vector<uint8_t>& decoded )
+{
+    using namespace pragzip::deflate;
+    using namespace pragzip::PrecodeCheck;
+
+    /* Get code lengths (CL) for alphabet P. */
+    std::array<uint8_t, MAX_PRECODE_COUNT> codeLengthCL{};
+    for ( size_t i = 0; i < MAX_PRECODE_COUNT; ++i ) {
+        const auto codeLength = ( precodeBits >> ( i * PRECODE_BITS ) ) & nLowestBitsSet<uint64_t, PRECODE_BITS>();
+        codeLengthCL[PRECODE_ALPHABET[i]] = codeLength;
+    }
+
+    pragzip::deflate::PrecodeHuffmanCoding precodeHC;
+    auto error = precodeHC.initializeFromLengths( VectorView<uint8_t>( codeLengthCL.data(), codeLengthCL.size() ) );
+    REQUIRE( error == pragzip::Error::NONE );
+
+    testHuffmanCoding( precodeHC, encoded, decoded );
+
+    /* Alternative method using precached Huffman codings and alphabet translation in post. */
+
+    /* This part is done inside checkPrecode and given as input to readDynamicHuffman. */
+    const auto histogram = WalkTreeLUT::precodesToHistogram<PRECODE_BITS>( precodeBits );
+
+    std::array<uint8_t, 8> offsets{};
+    for ( size_t codeLength = 1; codeLength <= 7; ++codeLength ) {
+        const auto count = ( ( histogram >> ( codeLength * 5 ) ) & nLowestBitsSet<uint64_t, 5>() );
+        offsets[codeLength] = offsets[codeLength - 1] + count;
+    }
+    const auto oldOffsets = offsets;
+
+    std::array<uint8_t, MAX_PRECODE_COUNT> alphabet{};
+    for ( size_t symbol = 0; symbol < codeLengthCL.size(); ++symbol ) {
+        const auto codeLength = codeLengthCL[symbol];
+        if ( codeLength > 0 ) {
+            const auto offset = offsets[codeLength - 1]++;
+            alphabet[offset] = symbol;
+        }
+    }
+
+    /* Check whether the partial sums / offsets were used correctly to distribute the alphabet symbols. */
+    for ( size_t i = 0; i + 1 < offsets.size(); ++i ) {
+        if ( offsets[i + 1] < offsets[i] ) {
+            break;
+        }
+
+        REQUIRE_EQUAL( offsets[i], oldOffsets[i + 1] );
+        if ( offsets[i] != oldOffsets[i + 1] ) {
+            std::cerr << "old offsets:\n   ";
+            for ( const auto o : oldOffsets ) {
+                std::cerr << " " << static_cast<int>( o );
+            }
+            std::cerr << "\n -> offsets after creating alphabet:\n   ";
+            for ( const auto o : offsets ) {
+                std::cerr << " " << static_cast<int>( o );
+            }
+            std::cerr << "\n";
+        }
+    }
+
+    const auto validId = SingleLUT::ValidHistogramID::getHistogramId( histogram );
+    if ( validId >= precode::VALID_HUFFMAN_CODINGS.size() ) {
+        throw std::logic_error( "Only valid histograms should be specified in the optional argument!" );
+    }
+    const auto& cachedCoding = precode::VALID_HUFFMAN_CODINGS[validId];
+
+    /* Check with Huffman coding. */
+    {
+        pragzip::BitReader bitReader( std::make_unique<BufferedFileReader>( encoded ) );
+        for ( const auto expectedSymbol : decoded ) {
+            const auto decodedSymbol = cachedCoding.decode( bitReader );
+            REQUIRE( decodedSymbol.has_value() );
+            REQUIRE_EQUAL( static_cast<int>( alphabet[*decodedSymbol] ), static_cast<int>( expectedSymbol ) );
+        }
+    }
+}
+
+
+void
+testValidHistograms()
+{
+    using namespace pragzip::deflate::precode;
+    const auto codingsSize = VALID_HUFFMAN_CODINGS.size() * sizeof( VALID_HUFFMAN_CODINGS[0] );
+    std::cerr << "Size of valid precomputed precode huffman codings: " << formatBytes( codingsSize ) << "\n";
+
+    using namespace pragzip::PrecodeCheck::SingleLUT;
+    REQUIRE( ValidHistogramID::getHistogramId( 0 ) >= VALID_HISTOGRAMS.size() );
+
+    testGetHistogramId( 0 );
+    testGetHistogramId( 1 );
+    testGetHistogramId( 2 );
+    testGetHistogramId( 4 );
+    testGetHistogramId( 7 );
+    testGetHistogramId( 8 );
+    testGetHistogramId( 16 );
+    testGetHistogramId( 32 );
+    testGetHistogramId( 123 );
+
+    std::cerr << "\n";
+}
+
+
+void
+testCachedHuffmanCodings()
+{
+    using namespace pragzip::deflate::precode;
+    using pragzip::deflate::precode::Histogram;
+
+    testValidHuffmanCoding( VALID_HISTOGRAMS.size() - 1, { char( 0b0110'0101 ) }, { 1, 0 } );
+    testCachedCodingFromHistogram( Histogram{ { /* code length 1 */ 2, } }, { char( 0b0110'0101 ) }, { 1, 0 } );
+    testCachedCodingFromHistogram( Histogram{ { 1, 2 } }, { char( 0b0110'0101 ) }, { 1, 1, 0, 2, 0 } );
+    /* Precode code lengths:        0    18  17  16 */
+    testCachedCodingFromPrecodes( 0b010'010'000'001, { char( 0b0110'0101 ) }, { 0, 0, 16, 18, 16 } );
 }
 
 
 int
 main()
 {
-    //analyzeCompressedLUT();
+    testCachedHuffmanCodings();
+
+    testValidHistograms();
+
+    analyzeCompressedLUT<4>();
+    analyzeCompressedLUT<5>();
+    analyzeCompressedLUT<6>();
+    analyzeCompressedLUT<7>();
+    analyzeCompressedLUT<8>();
+    analyzeCompressedLUT<9>();
+    analyzeCompressedLUT<10>();
+    analyzeCompressedLUT<11>();
+    analyzeCompressedLUT<12>();
 
     /** @see results/deflate/valid-precode-histograms.txt */
     //printValidHistograms();

@@ -5,6 +5,7 @@
 #include <cstdint>
 
 #include "definitions.hpp"
+#include "huffman/HuffmanCodingReversedBitsCachedCompressed.hpp"
 
 
 namespace pragzip::deflate::precode
@@ -108,4 +109,65 @@ static constexpr auto VALID_HISTOGRAMS =
     }();
 
 static_assert( VALID_HISTOGRAMS.back() == Histogram{ { /* code length 1 */ 2, } } );
+
+
+using PrecodeHuffmanCoding = HuffmanCodingReversedBitsCachedCompressed<uint8_t, MAX_PRECODE_LENGTH,
+                                                                       uint8_t, MAX_PRECODE_COUNT>;
+
+
+static constexpr auto VALID_HUFFMAN_CODINGS =
+    [] ()
+    {
+        std::array<PrecodeHuffmanCoding, VALID_HISTOGRAMS_COUNT> huffmanCodings{};
+        for ( size_t i = 0; i < VALID_HISTOGRAMS.size(); ++i ) {
+            const auto& histogram = VALID_HISTOGRAMS[i];
+
+            std::array<uint8_t, MAX_PRECODE_COUNT> precodeCLs{};
+            uint8_t symbol{ 0 };
+            for ( size_t codeLength = 0; codeLength < histogram.size(); ++codeLength ) {
+                /* actually code length + 1 because 0 is not included */
+                const auto count = histogram[codeLength];
+                for ( uint8_t j = 0; j < count; ++j ) {
+                    precodeCLs[symbol++] = codeLength + 1;
+                }
+            }
+
+            const auto error = huffmanCodings[i].initializeFromLengths( {
+                precodeCLs.data(), symbol /* also acts as non-zero size. */ } );
+            if ( error != pragzip::Error::NONE ) {
+                throw std::logic_error( "Cannot construct Huffman tree from supposedly valid code length histogram!" );
+            }
+        }
+        return huffmanCodings;
+    }();
+
+
+[[nodiscard]] auto constexpr
+getAlphabetFromCodeLengths( const uint64_t precodeBits,
+                            const uint64_t histogramWith5BitCounts )
+{
+    /* Get code lengths (CL) for alphabet P. */
+    std::array<uint8_t, MAX_PRECODE_COUNT> codeLengthCL{};
+    for ( size_t i = 0; i < MAX_PRECODE_COUNT; ++i ) {
+        const auto codeLength = ( precodeBits >> ( i * PRECODE_BITS ) ) & nLowestBitsSet<uint64_t, PRECODE_BITS>();;
+        codeLengthCL[PRECODE_ALPHABET[i]] = codeLength;
+    }
+
+    std::array<uint8_t, 8> offsets{};
+    for ( size_t codeLength = 1; codeLength <= 7; ++codeLength ) {
+        const auto count = ( histogramWith5BitCounts >> ( codeLength * 5 ) ) & nLowestBitsSet<uint64_t, 5>();
+        offsets[codeLength] = offsets[codeLength - 1] + count;
+    }
+
+    std::array<uint8_t, MAX_PRECODE_COUNT> alphabet{};
+    for ( size_t symbol = 0; symbol < codeLengthCL.size(); ++symbol ) {
+        const auto codeLength = codeLengthCL[symbol];
+        if ( codeLength > 0 ) {
+            const auto offset = offsets[codeLength - 1]++;
+            alphabet[offset] = symbol;
+        }
+    }
+
+    return alphabet;
+}
 }  // namespace pragzip::deflate::precode
