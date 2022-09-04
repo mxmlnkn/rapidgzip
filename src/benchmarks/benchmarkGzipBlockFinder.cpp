@@ -889,7 +889,14 @@ findDeflateBlocksPragzipLUT( BufferedFileReader::AlignedBuffer data )
                 const auto next4Bits = bitBufferPrecodeBits & nLowestBitsSet<uint64_t, PRECODE_COUNT_BITS>();
                 const auto next57Bits = ( bitBufferPrecodeBits >> PRECODE_COUNT_BITS )
                                         & nLowestBitsSet<uint64_t, MAX_PRECODE_COUNT * PRECODE_BITS>();
-                const auto precodeError = checkPrecode<CHECK_PRECODE_METHOD>( next4Bits, next57Bits );
+
+                uint64_t histogram{ 0 };
+                auto precodeError = pragzip::Error::NONE;
+                if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_LUT ) {
+                    precodeError = PrecodeCheck::WalkTreeLUT::checkPrecode( next4Bits, next57Bits, &histogram );
+                } else {
+                    precodeError = checkPrecode<CHECK_PRECODE_METHOD>( next4Bits, next57Bits );
+                }
 
                 if ( UNLIKELY( precodeError == Error::NONE ) ) [[unlikely]] {
                 #ifndef NDEBUG
@@ -901,28 +908,49 @@ findDeflateBlocksPragzipLUT( BufferedFileReader::AlignedBuffer data )
                     const auto codeLengthCount = 4 + next4Bits;
                     const auto precodeBits = next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS );
 
-                    /* Get code lengths (CL) for alphabet P. */
-                    std::array<uint8_t, MAX_PRECODE_COUNT> codeLengthCL{};
-                    for ( size_t i = 0; i < codeLengthCount; ++i ) {
-                        const auto codeLength = ( precodeBits >> ( i * PRECODE_BITS ) )
-                                                & nLowestBitsSet<uint64_t, PRECODE_BITS>();
-                        codeLengthCL[PRECODE_ALPHABET[i]] = codeLength;
-                    }
-
-                    PrecodeHuffmanCoding precodeHC;
-                    auto error = precodeHC.initializeFromLengths( { codeLengthCL.data(), codeLengthCL.size() } );
-
-                    /* Note that the precode should never fail to initialize because checkPrecode
-                     * already returned successful! */
+                    auto error = Error::NONE;
                     LiteralAndDistanceCLBuffer literalCL{};
-                    if ( LIKELY( error == Error::NONE ) ) [[likely]] {
-                        const auto distanceCodeOffset = offset + 13 + 4 + codeLengthCount * PRECODE_BITS;
-                        bitReader.seek( static_cast<long long int>( distanceCodeOffset ) );
+                    const auto distanceCodesOffset = offset + 13 + 4 + ( codeLengthCount * PRECODE_BITS );
+                    const auto bitReaderOffset = offset + 13 + ALL_PRECODE_BITS;
+                    if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_LUT ) {
+                        using PrecodeCheck::SingleLUT::ValidHistogramID::getHistogramId;
+                        const auto validId = getHistogramId( histogram );
+                        if ( validId >= precode::VALID_HUFFMAN_CODINGS.size() ) {
+                            throw std::logic_error( "Histograms should have been valid at this point!" );
+                        }
+                        const auto& precodeHC = precode::VALID_HUFFMAN_CODINGS[validId];
+
+                        bitReader.seek( static_cast<long long int>( distanceCodesOffset ) );
+                        const auto alphabet = precode::getAlphabetFromCodeLengths( precodeBits, histogram );
                         error = Block<>::readDistanceAndLiteralCodeLengths(
-                            literalCL, bitReader, precodeHC, literalCodeCount + distanceCodeCount );
+                            literalCL, bitReader, precodeHC, literalCodeCount + distanceCodeCount,
+                            [&alphabet] ( auto symbol ) { return alphabet[symbol]; } );
                         /* Using this theoretically derivable position avoids a possibly costly call to tell()
                          * to save the old offset. */
-                        bitReader.seek( static_cast<long long int>( offset ) + 13 + ALL_PRECODE_BITS );
+                        bitReader.seek( static_cast<long long int>( bitReaderOffset ) );
+
+                    } else {
+                        /* Get code lengths (CL) for alphabet P. */
+                        std::array<uint8_t, MAX_PRECODE_COUNT> codeLengthCL{};
+                        for ( size_t i = 0; i < codeLengthCount; ++i ) {
+                            const auto codeLength = ( precodeBits >> ( i * PRECODE_BITS ) )
+                                                    & nLowestBitsSet<uint64_t, PRECODE_BITS>();
+                            codeLengthCL[PRECODE_ALPHABET[i]] = codeLength;
+                        }
+
+                        PrecodeHuffmanCoding precodeHC;
+                        error = precodeHC.initializeFromLengths( { codeLengthCL.data(), codeLengthCL.size() } );
+
+                        /* Note that the precode should never fail to initialize because checkPrecode
+                         * already returned successful! */
+                        if ( LIKELY( error == Error::NONE ) ) [[likely]] {
+                            bitReader.seek( static_cast<long long int>( distanceCodesOffset ) );
+                            error = Block<>::readDistanceAndLiteralCodeLengths(
+                                literalCL, bitReader, precodeHC, literalCodeCount + distanceCodeCount );
+                            /* Using this theoretically derivable position avoids a possibly costly call to tell()
+                             * to save the old offset. */
+                            bitReader.seek( static_cast<long long int>( bitReaderOffset ) );
+                        }
                     }
 
                     /* Check distance code lengths. */
@@ -1026,13 +1054,17 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
                            <= pragzip::BitReader::MAX_BIT_BUFFER_SIZE,
                            "This optimization requires a larger BitBuffer inside BitReader!" );
             using pragzip::PrecodeCheck::WalkTreeLUT::checkPrecode;
-            if ( checkPrecode( next4Bits, next57Bits ) != pragzip::Error::NONE ) {
+            const auto precodeError = checkPrecode( next4Bits, next57Bits );
+            if ( precodeError != pragzip::Error::NONE ) {
                 ++checkPrecodeFails;
             }
 
             offsetsTestedMoreInDepth++;
             bitReader.seek( static_cast<long long int>( offset ) + 3 );
-            auto error = block.readDynamicHuffmanCoding( bitReader );
+            auto error = precodeError;
+            if ( precodeError == pragzip::Error::NONE ) {
+                error = block.readDynamicHuffmanCoding( bitReader );
+            }
 
             const auto [count, wasInserted] = errorCounts.try_emplace( error, 1 );
             if ( !wasInserted ) {

@@ -91,7 +91,7 @@ static constexpr std::array<uint8_t, 8> MEMBER_OFFSETS = [] () constexpr {
     return result;
 }();
 
-static constexpr auto OVERFLOW_MEMBER_OFFSET = MEMBER_OFFSETS.back() + MEMBER_BIT_WIDTHS.back();
+static constexpr uint8_t OVERFLOW_MEMBER_OFFSET = MEMBER_OFFSETS.back() + MEMBER_BIT_WIDTHS.back();
 /* 7 = 2^3 - 1 is the maximum number we can simply add histograms up without having to check the overflow counter. */
 static_assert( OVERFLOW_MEMBER_OFFSET + 3 <= std::numeric_limits<Histogram>::digits,
                "Data type is not wide enough to allow for up to 7 overflows." );

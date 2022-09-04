@@ -36,12 +36,12 @@
 [findDeflateBlocksPragzipLUT with 17 bits, Without LUT Using Array] ( 40.6 <= 42.1 +- 0.6 <= 42.5 ) MB/s
 [findDeflateBlocksPragzipLUT with 18 bits, Without LUT Using Array] ( 42.93 <= 43.12 +- 0.15 <= 43.33 ) MB/s
 
-[findDeflateBlocksPragzipLUT with 13 bits, Walk Tree LUT] ( 70.28 <= 70.9 +- 0.3 <= 71.32 ) MB/s
-[findDeflateBlocksPragzipLUT with 14 bits, Walk Tree LUT] ( 70.4 <= 71.2 +- 0.3 <= 71.6 ) MB/s
-[findDeflateBlocksPragzipLUT with 15 bits, Walk Tree LUT] ( 63.1 <= 68.7 +- 2.8 <= 70.3 ) MB/s
-[findDeflateBlocksPragzipLUT with 16 bits, Walk Tree LUT] ( 70.1 <= 70.9 +- 0.3 <= 71.1 ) MB/s
-[findDeflateBlocksPragzipLUT with 17 bits, Walk Tree LUT] ( 65.8 <= 69.4 +- 1.5 <= 70.6 ) MB/s
-[findDeflateBlocksPragzipLUT with 18 bits, Walk Tree LUT] ( 66.8 <= 67.22 +- 0.29 <= 67.6 ) MB/s
+[findDeflateBlocksPragzipLUT with 13 bits, Walk Tree LUT] ( 73.9 <= 74.6 +- 0.6 <= 75.7 ) MB/s (candidates: 494)
+[findDeflateBlocksPragzipLUT with 14 bits, Walk Tree LUT] ( 66.5 <= 73.6 +- 2.8 <= 75.3 ) MB/s (candidates: 494)
+[findDeflateBlocksPragzipLUT with 15 bits, Walk Tree LUT] ( 72.1 <= 72.8 +- 0.4 <= 73.2 ) MB/s (candidates: 494)
+[findDeflateBlocksPragzipLUT with 16 bits, Walk Tree LUT] ( 71.8 <= 73.5 +- 0.8 <= 74.2 ) MB/s (candidates: 494)
+[findDeflateBlocksPragzipLUT with 17 bits, Walk Tree LUT] ( 71.7 <= 73.5 +- 0.7 <= 74.2 ) MB/s (candidates: 494)
+[findDeflateBlocksPragzipLUT with 18 bits, Walk Tree LUT] ( 71 <= 72 +- 0.4 <= 72.3 ) MB/s (candidates: 494)
 
 [findDeflateBlocksPragzipLUT with 13 bits, Walk Tree Compressed LUT] ( 68.6 <= 69.5 +- 0.4 <= 70 ) MB/s
 [findDeflateBlocksPragzipLUT with 14 bits, Walk Tree Compressed LUT] ( 67.2 <= 69 +- 0.7 <= 69.5 ) MB/s

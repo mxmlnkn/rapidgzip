@@ -10,6 +10,7 @@
 #include "deflate.hpp"
 #include "Error.hpp"
 #include "precodecheck/WalkTreeLUT.hpp"
+#include "precodecheck/SingleLUT.hpp"
 
 
 namespace pragzip::blockfinder
@@ -187,8 +188,9 @@ static constexpr auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT =
  *   is fastest with 15 bits.
  * - The version with manual bit buffers and no call to Block::readDynamicHuffmanCoding, which uses
  *   HuffmanCodingCheckOnly is fastest with 14 bits.
+ * - The version as above but which uses precalculcated precode Huffman codings is fastest for 13 bits.
  */
-static constexpr uint8_t OPTIMAL_NEXT_DEFLATE_LUT_SIZE = 14;
+static constexpr uint8_t OPTIMAL_NEXT_DEFLATE_LUT_SIZE = 13;
 
 
 /**
@@ -242,9 +244,10 @@ seekToNonFinalDynamicDeflateBlock( BitReader&   bitReader,
                                         & nLowestBitsSet<uint64_t, MAX_PRECODE_COUNT * PRECODE_BITS>();
 
                 using pragzip::PrecodeCheck::WalkTreeLUT::checkPrecode;
-                const auto precodeError = checkPrecode( next4Bits, next57Bits );
+                uint64_t histogram{ 0 };
+                auto error = checkPrecode( next4Bits, next57Bits, &histogram );
 
-                if ( UNLIKELY( precodeError == Error::NONE ) ) [[unlikely]] {
+                if ( UNLIKELY( error == Error::NONE ) ) [[unlikely]] {
                 #ifndef NDEBUG
                     const auto oldTell = bitReader.tell();
                 #endif
@@ -254,25 +257,22 @@ seekToNonFinalDynamicDeflateBlock( BitReader&   bitReader,
                     const auto codeLengthCount = 4 + next4Bits;
                     const auto precodeBits = next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS );
 
-                    /* Get code lengths (CL) for alphabet P. */
-                    std::array<uint8_t, MAX_PRECODE_COUNT> codeLengthCL{};
-                    for ( size_t i = 0; i < codeLengthCount; ++i ) {
-                        const auto codeLength = ( precodeBits >> ( i * PRECODE_BITS ) )
-                                                & nLowestBitsSet<uint64_t, PRECODE_BITS>();
-                        codeLengthCL[PRECODE_ALPHABET[i]] = codeLength;
-                    }
-
-                    PrecodeHuffmanCoding precodeHC;
-                    auto error = precodeHC.initializeFromLengths( { codeLengthCL.data(), codeLengthCL.size() } );
+                    /* Precode from histogram and corresponding alphabet translation with non-default symbols. */
+                    using PrecodeCheck::SingleLUT::ValidHistogramID::getHistogramIdFromUniformlyPackedHistogram;
+                    const auto validId = getHistogramIdFromUniformlyPackedHistogram( histogram );
 
                     /* Note that the precode should never fail to initialize because checkPrecode
                      * already returned successful! */
                     LiteralAndDistanceCLBuffer literalCL{};
-                    if ( LIKELY( error == Error::NONE ) ) [[likely]] {
+                    if ( LIKELY( validId < precode::VALID_HUFFMAN_CODINGS.size() ) ) [[likely]] {
+                        const auto& precodeHC = precode::VALID_HUFFMAN_CODINGS[validId];
+                        const auto alphabet = precode::getAlphabetFromCodeLengths( precodeBits, histogram );
+
                         bitReader.seek( static_cast<long long int>( offset )
                                         + 13 + 4 + ( codeLengthCount * PRECODE_BITS ) );
                         error = Block<>::readDistanceAndLiteralCodeLengths(
-                            literalCL, bitReader, precodeHC, literalCodeCount + distanceCodeCount );
+                            literalCL, bitReader, precodeHC, literalCodeCount + distanceCodeCount,
+                            [&alphabet] ( auto symbol ) { return alphabet[symbol]; } );
                         /* Using this theoretically derivable position avoids a possibly costly call to tell()
                          * to save the old offset. */
                         bitReader.seek( static_cast<long long int>( offset ) + 13 + ALL_PRECODE_BITS );

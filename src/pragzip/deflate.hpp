@@ -14,6 +14,7 @@
 #include <array>
 #include <cassert>
 #include <cstring>
+#include <functional>
 #include <limits>
 #include <map>
 #include <optional>
@@ -372,10 +373,12 @@ public:
     readHeader( BitReader& bitReader );
 
     [[nodiscard]] forceinline static Error
-    readDistanceAndLiteralCodeLengths( LiteralAndDistanceCLBuffer& literalCL,
-                                       BitReader&                  bitReader,
-                                       const PrecodeHuffmanCoding& precodeCoding,
-                                       const size_t                literalCLSize );
+    readDistanceAndLiteralCodeLengths( LiteralAndDistanceCLBuffer&              literalCL,
+                                       BitReader&                               bitReader,
+                                       const PrecodeHuffmanCoding&              precodeCoding,
+                                       const size_t                             literalCLSize,
+                                       const std::function<uint8_t( uint8_t )>& translateSymbol
+                                           = [] ( uint8_t symbol ) { return symbol; } );
 
     /**
      * Reads the dynamic Huffman code. This is called by @ref readHeader after reading the first three header bits
@@ -655,10 +658,11 @@ template<bool CALCULATE_CRC32,
          bool ENABLE_STATISTICS>
 Error
 Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDistanceAndLiteralCodeLengths(
-    LiteralAndDistanceCLBuffer& literalCL,
-    BitReader&                  bitReader,
-    const PrecodeHuffmanCoding& precodeCoding,
-    const size_t                literalCLSize )
+    LiteralAndDistanceCLBuffer&              literalCL,
+    BitReader&                               bitReader,
+    const PrecodeHuffmanCoding&              precodeCoding,
+    const size_t                             literalCLSize,
+    const std::function<uint8_t( uint8_t )>& translateSymbol )
 {
     size_t i = 0;
     for ( ; i < literalCLSize; ) {
@@ -666,7 +670,7 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDistanceAndLiteralCodeLengths(
         if ( !decoded ) {
             return Error::INVALID_HUFFMAN_CODE;
         }
-        const auto code = *decoded;
+        const auto code = translateSymbol( *decoded );
 
         /* Note that this interpretation of the alphabet results in the maximum code length being 15! */
         if ( code <= 15 ) {

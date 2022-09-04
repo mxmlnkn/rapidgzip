@@ -213,8 +213,9 @@ static constexpr auto PRECODE_FREQUENCIES_1_TO_5_VALID_LUT =
  *       Note that such very small blocks would normally be Fixed Huffman decoding anyway.
  */
 [[nodiscard]] constexpr pragzip::Error
-checkPrecode( const uint64_t next4Bits,
-              const uint64_t next57Bits )
+checkPrecode( const uint64_t             next4Bits,
+              const uint64_t             next57Bits,
+              CompressedHistogram* const histogram = nullptr )
 {
     const auto codeLengthCount = 4 + next4Bits;
     const auto precodeBits = next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS );
@@ -264,6 +265,9 @@ checkPrecode( const uint64_t next4Bits,
         return pragzip::Error::EMPTY_ALPHABET;
     }
 
+    if ( histogram != nullptr ) {
+        *histogram = bitLengthFrequencies;
+    }
     return pragzip::Error::NONE;
 }
 }  // namespace pragzip::PrecodeCheck::WalkTreeLUT
