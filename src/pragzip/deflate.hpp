@@ -154,6 +154,14 @@ using FixedHuffmanCoding =
 using PrecodeHuffmanCoding = HuffmanCodingReversedBitsCachedCompressed<uint8_t, MAX_PRECODE_LENGTH,
                                                                        uint8_t, MAX_PRECODE_COUNT>;
 
+/* HuffmanCodingReversedBitsCached is definitely faster for silesia.tar.gz which has more back-references than
+ * base64.gz for which the difference in changing this Huffman coding is negligible. Note that we can't use
+ * double caching for this because that would mean merging the cache with ne next literal/length Huffman code! */
+using DistanceHuffmanCoding = HuffmanCodingReversedBitsCached<uint16_t, MAX_CODE_LENGTH,
+                                                              uint8_t, MAX_DISTANCE_SYMBOL_COUNT>;
+
+using LiteralAndDistanceCLBuffer = std::array<uint8_t, MAX_LITERAL_OR_LENGTH_SYMBOLS + MAX_DISTANCE_SYMBOL_COUNT>;
+
 
 [[nodiscard]] constexpr FixedHuffmanCoding
 createFixedHC()
@@ -363,6 +371,12 @@ public:
     [[nodiscard]] Error
     readHeader( BitReader& bitReader );
 
+    [[nodiscard]] forceinline static Error
+    readDistanceAndLiteralCodeLengths( LiteralAndDistanceCLBuffer& literalCL,
+                                       BitReader&                  bitReader,
+                                       const PrecodeHuffmanCoding& precodeCoding,
+                                       const size_t                literalCLSize );
+
     /**
      * Reads the dynamic Huffman code. This is called by @ref readHeader after reading the first three header bits
      * and determining that it is a dynamic Huffman encoded block.
@@ -545,10 +559,7 @@ private:
     static constexpr FixedHuffmanCoding m_fixedHC = createFixedHC();
     LiteralOrLengthHuffmanCoding m_literalHC;
 
-    /* HuffmanCodingReversedBitsCached is definitely faster for silesia.tar.gz which has more back-references than
-     * base64.gz for which the difference in changing this Huffman coding is negligible. Note that we can't use
-     * double caching for this because that would mean merging the cache with ne next literal/length Huffman code! */
-    HuffmanCodingReversedBitsCached<uint16_t, MAX_CODE_LENGTH, uint8_t, MAX_DISTANCE_SYMBOL_COUNT> m_distanceHC;
+    DistanceHuffmanCoding m_distanceHC;
 
     alignas( 64 ) PreDecodedBuffer m_window16{ initializeMarkedWindowBuffer() };
 
@@ -635,6 +646,58 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readHeader( BitReader& bitReader )
 }
 
 
+/**
+ * Decode the code lengths for the literal/length and distance alphabets.
+ * @param BitReader Should be positioned after the precode code length bits, i.e., at deflate start + 3 (header bits)
+ *        + 5 + 5 + 3 (code length bits) + precode codes * 3.
+ */
+template<bool CALCULATE_CRC32,
+         bool ENABLE_STATISTICS>
+Error
+Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDistanceAndLiteralCodeLengths(
+    LiteralAndDistanceCLBuffer& literalCL,
+    BitReader&                  bitReader,
+    const PrecodeHuffmanCoding& precodeCoding,
+    const size_t                literalCLSize )
+{
+    size_t i = 0;
+    for ( ; i < literalCLSize; ) {
+        const auto decoded = precodeCoding.decode( bitReader );
+        if ( !decoded ) {
+            return Error::INVALID_HUFFMAN_CODE;
+        }
+        const auto code = *decoded;
+
+        /* Note that this interpretation of the alphabet results in the maximum code length being 15! */
+        if ( code <= 15 ) {
+            literalCL[i] = code;
+            ++i;
+        } else if ( code == 16 ) {
+            if ( i == 0 ) {
+                return Error::INVALID_CL_BACKREFERENCE;
+            }
+            const auto lastValue = literalCL[i - 1];
+            const auto repeatCount = bitReader.read<2>() + 3;
+            const auto nextI = i + repeatCount;
+            if ( nextI > literalCLSize ) {
+                return Error::EXCEEDED_LITERAL_RANGE;
+            }
+            for ( ; i < nextI; ++i ) {
+                literalCL[i] = lastValue;
+            }
+        } else if ( code == 17 ) {
+            /* Decode fixed number of zeros. The vector is initialized to zeros, so we can simply skip these. */
+            i += bitReader.read<3>() + 3;
+        } else if ( code == 18 ) {
+            /* Decode fixed number of zeros. The vector is initialized to zeros, so we can simply skip these. */
+            i += bitReader.read<7>() + 11;
+        }
+    }
+
+    return i == literalCLSize ? Error::NONE : Error::EXCEEDED_LITERAL_RANGE;
+}
+
+
 template<bool CALCULATE_CRC32,
          bool ENABLE_STATISTICS>
 Error
@@ -705,50 +768,9 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& 
     }
 
     /* Decode the code lengths for the literal/length and distance alphabets. */
-    std::array<uint8_t, MAX_LITERAL_OR_LENGTH_SYMBOLS + MAX_DISTANCE_SYMBOL_COUNT> literalCL = {};
-    auto precodeApplyError = Error::NONE;
-    const auto literalCLSize = literalCodeCount + distanceCodeCount;
-    for ( size_t i = 0; i < literalCLSize; ) {
-        const auto decoded = codeLengthHC.decode( bitReader );
-        if ( !decoded ) {
-            precodeApplyError = Error::INVALID_HUFFMAN_CODE;
-            break;
-        }
-        const auto code = *decoded;
-
-        /* Note that this interpretation of the alphabet results in the maximum code length being 15! */
-        if ( code <= 15 ) {
-            literalCL[i] = code;
-            ++i;
-        } else if ( code == 16 ) {
-            if ( i == 0 ) {
-                precodeApplyError = Error::INVALID_CL_BACKREFERENCE;
-                break;
-            }
-            const auto lastValue = literalCL[i - 1];
-            const auto repeatCount = bitReader.read<2>() + 3;
-            if ( i + repeatCount > literalCLSize ) {
-                precodeApplyError = Error::EXCEEDED_LITERAL_RANGE;
-                break;
-            }
-            for ( uint32_t j = 0; j < repeatCount; ++j, ++i ) {
-                literalCL[i] = lastValue;
-            }
-        } else if ( code == 17 ) {
-            /* Decode fixed number of zeros. The vector is initialized to zeros, so we can simply skip these. */
-            i += bitReader.read<3>() + 3;
-        } else if ( code == 18 ) {
-            /* Decode fixed number of zeros. The vector is initialized to zeros, so we can simply skip these. */
-            i += bitReader.read<7>() + 11;
-        } else {
-            throw std::logic_error( "No such value should have been in the alphabet!" );
-        }
-
-        if ( i > literalCLSize ) {
-            precodeApplyError = Error::EXCEEDED_LITERAL_RANGE;
-            break;
-        }
-    }
+    LiteralAndDistanceCLBuffer literalCL{};
+    auto precodeApplyError = readDistanceAndLiteralCodeLengths(
+        literalCL, bitReader, codeLengthHC, literalCodeCount + distanceCodeCount );
 
     if constexpr ( ENABLE_STATISTICS ) {
         times.appliedPrecodeHC = now();

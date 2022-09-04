@@ -5,6 +5,7 @@
 #include <limits>
 
 #include <BitReader.hpp>
+#include <HuffmanCodingCheckOnly.hpp>
 
 #include "deflate.hpp"
 #include "Error.hpp"
@@ -104,10 +105,12 @@ createNextDeflateCandidateLUT()
  * - The version that keeps two bit buffers to avoid back-seeks was optimal with 13 bits probably
  *   because that saves an additional shift when moving bits from one bit buffer to the other while avoiding
  *   duplicated bits because there is no duplication for 13 bits.
- * - The current version with manul bit buffers and HuffmanCodingReversedCodesPerLength for the precode
+ * - The version with manual bit buffers and HuffmanCodingReversedCodesPerLength for the precode
  *   is fastest with 15 bits.
+ * - The version with manual bit buffers and no call to Block::readDynamicHuffmanCoding, which uses
+ *   HuffmanCodingCheckOnly is fastest with 14 bits.
  */
-static constexpr uint8_t OPTIMAL_NEXT_DEFLATE_LUT_SIZE = 15;
+static constexpr uint8_t OPTIMAL_NEXT_DEFLATE_LUT_SIZE = 14;
 
 
 /**
@@ -163,22 +166,64 @@ seekToNonFinalDynamicDeflateBlock( BitReader&   bitReader,
 
                 using pragzip::PrecodeCheck::WalkTreeLUT::checkPrecode;
                 const auto precodeError = checkPrecode( next4Bits, next57Bits );
-                if ( UNLIKELY( precodeError == pragzip::Error::NONE ) ) [[unlikely]] {
+
+                if ( UNLIKELY( precodeError == Error::NONE ) ) [[unlikely]] {
                 #ifndef NDEBUG
                     const auto oldTell = bitReader.tell();
                 #endif
 
-                    bitReader.seek( static_cast<long long int>( offset ) + 3 );
-                    auto error = block.readDynamicHuffmanCoding( bitReader );
-                    if ( UNLIKELY( error == pragzip::Error::NONE ) ) [[unlikely]] {
+                    const auto literalCodeCount = 257 + ( ( bitBufferForLUT >> 3 ) & nLowestBitsSet<uint64_t, 5>() );
+                    const auto distanceCodeCount = 1 + ( ( bitBufferForLUT >> 8 ) & nLowestBitsSet<uint64_t, 5>() );
+                    const auto codeLengthCount = 4 + next4Bits;
+                    const auto precodeBits = next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS );
+
+                    /* Get code lengths (CL) for alphabet P. */
+                    std::array<uint8_t, MAX_PRECODE_COUNT> codeLengthCL{};
+                    for ( size_t i = 0; i < codeLengthCount; ++i ) {
+                        const auto codeLength = ( precodeBits >> ( i * PRECODE_BITS ) )
+                                                & nLowestBitsSet<uint64_t, PRECODE_BITS>();
+                        codeLengthCL[PRECODE_ALPHABET[i]] = codeLength;
+                    }
+
+                    PrecodeHuffmanCoding precodeHC;
+                    auto error = precodeHC.initializeFromLengths( { codeLengthCL.data(), codeLengthCL.size() } );
+
+                    /* Note that the precode should never fail to initialize because checkPrecode
+                     * already returned successful! */
+                    LiteralAndDistanceCLBuffer literalCL{};
+                    if ( LIKELY( error == Error::NONE ) ) [[likely]] {
+                        bitReader.seek( static_cast<long long int>( offset )
+                                        + 13 + 4 + ( codeLengthCount * PRECODE_BITS ) );
+                        error = Block<>::readDistanceAndLiteralCodeLengths(
+                            literalCL, bitReader, precodeHC, literalCodeCount + distanceCodeCount );
+                        /* Using this theoretically derivable position avoids a possibly costly call to tell()
+                         * to save the old offset. */
+                        bitReader.seek( static_cast<long long int>( offset ) + 13 + ALL_PRECODE_BITS );
+                    }
+
+                    /* Check distance code lengths. */
+                    if ( UNLIKELY( error == Error::NONE ) ) [[unlikely]] {
+                        HuffmanCodingCheckOnly<uint16_t, MAX_CODE_LENGTH,
+                                               uint8_t, MAX_DISTANCE_SYMBOL_COUNT> distanceHC;
+                        error = distanceHC.initializeFromLengths(
+                            VectorView<uint8_t>( literalCL.data() + literalCodeCount, distanceCodeCount ) );
+                    }
+
+                    /* Check literal code lengths. */
+                    if ( UNLIKELY( error == Error::NONE ) ) [[unlikely]] {
+                        HuffmanCodingCheckOnly<uint16_t, MAX_CODE_LENGTH,
+                                               uint16_t, MAX_LITERAL_HUFFMAN_CODE_COUNT> literalHC;
+                        error = literalHC.initializeFromLengths(
+                            VectorView<uint8_t>( literalCL.data(), literalCodeCount ) );
+                    }
+
+                    if ( UNLIKELY( error == Error::NONE ) ) [[unlikely]] {
                         /* Testing decoding is not necessary because the Huffman canonical check is already very strong!
                          * Decoding up to 8 KiB like in pugz only impedes performance and it is harder to reuse that
                          * already decoded data if we do decide that it is a valid block. The number of checks during
                          * reading is also pretty few because there almost are no wasted / invalid symbols. */
                         return offset;
                     }
-                    /* Using this derivable position avoids a possibly costly call to tell() to save the old offet. */
-                    bitReader.seek( static_cast<long long int>( offset ) + 13 + ALL_PRECODE_BITS );
 
                 #ifndef NDEBUG
                     if ( oldTell != bitReader.tell() ) {
