@@ -8,6 +8,7 @@
 #include <optional>
 #include <thread>
 #include <utility>
+#include <vector>
 
 #include "blockfinder/Bgzf.hpp"
 #include "common.hpp"

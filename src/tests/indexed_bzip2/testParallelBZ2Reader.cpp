@@ -1,8 +1,14 @@
+#include <algorithm>
 #include <cassert>
+#include <chrono>
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
+#include <memory>
 #include <stdexcept>
+#include <string>
 
 #include <BitStringFinder.hpp>
 #include <common.hpp>

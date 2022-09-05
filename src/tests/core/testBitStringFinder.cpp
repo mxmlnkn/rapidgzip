@@ -1,6 +1,9 @@
 #include <cassert>
 #include <cstdio>
 #include <iostream>
+#include <limits>
+#include <utility>
+#include <vector>
 
 #include <unistd.h>
 

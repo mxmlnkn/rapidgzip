@@ -2,7 +2,11 @@
 #include <cstdint>
 #include <iomanip>
 #include <iostream>
+#include <sstream>
+#include <stdexcept>
+#include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <common.hpp>  // countNewlines

@@ -1,11 +1,14 @@
 #pragma once
 
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 #include <sys/stat.h>
 

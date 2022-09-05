@@ -1,5 +1,6 @@
 #include "bzip2.hpp"
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdlib>
@@ -7,9 +8,12 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <stdexcept>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include <BitStringFinder.hpp>
 #include <filereader/BufferView.hpp>

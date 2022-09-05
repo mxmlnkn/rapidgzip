@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <limits>
 #include <stdexcept>
+#include <vector>
 
 #include <BitManipulation.hpp>
 

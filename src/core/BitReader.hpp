@@ -6,12 +6,14 @@
 
 #include <cassert>
 #include <cstddef>
+#include <cstring>
 #include <limits>
 #include <optional>
 #include <stdexcept>
 #include <sstream>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include <sys/stat.h>

@@ -7,15 +7,19 @@ https://www.ietf.org/rfc/rfc1952.txt
 */
 
 
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <iomanip>
 #include <iostream>
+#include <limits>
+#include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include <zlib.h>

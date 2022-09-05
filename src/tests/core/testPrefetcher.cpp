@@ -1,4 +1,5 @@
 
+#include <array>
 #include <cassert>
 #include <cstdio>
 #include <fstream>
@@ -6,6 +7,7 @@
 #include <numeric>
 #include <stdexcept>
 #include <unordered_map>
+#include <vector>
 
 #include <Cache.hpp>
 #include <common.hpp>

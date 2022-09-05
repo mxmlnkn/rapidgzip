@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cstring>
 #include <functional>
 #include <sstream>
 #include <stdexcept>

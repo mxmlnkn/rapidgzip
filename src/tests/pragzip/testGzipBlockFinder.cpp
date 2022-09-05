@@ -4,6 +4,7 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <BitManipulation.hpp>

@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include <common.hpp>
 #include <filereader/Buffered.hpp>

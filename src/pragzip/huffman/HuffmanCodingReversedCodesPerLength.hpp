@@ -6,6 +6,7 @@
 #include <optional>
 #include <stdexcept>
 #include <type_traits>
+#include <vector>
 
 #include "HuffmanCodingBase.hpp"
 

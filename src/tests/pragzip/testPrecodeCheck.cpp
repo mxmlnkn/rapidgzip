@@ -11,6 +11,8 @@
 #include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
+#include <vector>
 
 #include <blockfinder/DynamicHuffman.hpp>
 #include <blockfinder/precodecheck/BruteForceLUT.hpp>

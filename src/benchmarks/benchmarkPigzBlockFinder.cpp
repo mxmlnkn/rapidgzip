@@ -1,9 +1,16 @@
+#include <array>
 #include <bitset>
+#include <cstdio>
 #include <iostream>
 #include <filesystem>
 #include <fstream>
+#include <limits>
+#include <memory>
+#include <optional>
+#include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <blockfinder/PigzParallel.hpp>

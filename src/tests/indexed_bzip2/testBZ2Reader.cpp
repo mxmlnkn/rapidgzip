@@ -1,10 +1,17 @@
+#include <algorithm>
 #include <cassert>
+#include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
+#include <memory>
 #include <stdexcept>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include <BitStringFinder.hpp>
 #include <BZ2Reader.hpp>
