@@ -564,7 +564,17 @@ POWER_OF_TWO_SPECIAL_CASES_TO_ID = {
 
 
 [[nodiscard]] constexpr size_t
-getHistogramId( const uint64_t& histogram5BitCounts )
+getHistogramIdFromVLPHWithoutZero( const uint32_t& packedHistogramWithoutZero )
+{
+    const auto& [LUT, SUBTABLES] = HISTOGRAM_TO_ID_LUT;
+    const auto subtableId = LUT[packedHistogramWithoutZero >> SUBTABLES_BIT_WIDTH];
+    const auto lowParts = packedHistogramWithoutZero & nLowestBitsSet<Histogram>( SUBTABLES_BIT_WIDTH );
+    return SUBTABLES[subtableId * SUBTABLE_SIZE + lowParts];
+}
+
+
+[[nodiscard]] constexpr size_t
+getHistogramIdFromUniformlyPackedHistogram( const uint64_t& histogram5BitCounts )
 {
     const auto nonZeroCount = histogram5BitCounts & nLowestBitsSet<Histogram>( 5 );
     const auto specialID = POWER_OF_TWO_SPECIAL_CASES_TO_ID[nonZeroCount];
@@ -578,11 +588,7 @@ getHistogramId( const uint64_t& histogram5BitCounts )
     }
     const auto packedHistogramWithoutZero =
         VariableLengthPackedHistogram::packUniformlyBitPackedHistogramUnsafe<5>( histogramWithoutZero );
-
-    const auto& [LUT, SUBTABLES] = HISTOGRAM_TO_ID_LUT;
-    const auto subtableId = LUT[packedHistogramWithoutZero >> SUBTABLES_BIT_WIDTH];
-    const auto lowParts = packedHistogramWithoutZero & nLowestBitsSet<Histogram>( SUBTABLES_BIT_WIDTH );
-    return SUBTABLES[subtableId * SUBTABLE_SIZE + lowParts];
+    return getHistogramIdFromVLPHWithoutZero( packedHistogramWithoutZero );
 }
 }  // namspace ValidHistogramID
 }  // namespace pragzip::PrecodeCheck::SingleLUT

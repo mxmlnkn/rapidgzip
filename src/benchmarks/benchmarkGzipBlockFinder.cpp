@@ -877,8 +877,8 @@ checkDeflateBlock( const uint64_t      bitBufferForLUT,
     const auto bitReaderOffset = offset + 13 + ALL_PRECODE_BITS;
 
     if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_LUT ) {
-        using PrecodeCheck::SingleLUT::ValidHistogramID::getHistogramId;
-        const auto validId = getHistogramId( histogram );
+        using PrecodeCheck::SingleLUT::ValidHistogramID::getHistogramIdFromUniformlyPackedHistogram;
+        const auto validId = getHistogramIdFromUniformlyPackedHistogram( histogram );
         if ( validId >= precode::VALID_HUFFMAN_CODINGS.size() ) {
             throw std::logic_error( "Histograms should have been valid at this point!" );
         }
@@ -944,6 +944,153 @@ checkDeflateBlock( const uint64_t      bitBufferForLUT,
         throw std::logic_error( "Did not seek back correctly!" );
     }
 #endif
+
+    return error;
+}
+
+
+[[nodiscard]] std::optional<std::pair<size_t, uint64_t> >
+checkAndGetValidHistogramID( const uint64_t precodeBits )
+{
+    using namespace pragzip;
+    using namespace deflate;
+    using namespace PrecodeCheck::SingleCompressedLUT;
+    using pragzip::PrecodeCheck::SingleLUT::Histogram;
+
+    constexpr auto PRECODES_PER_CHUNK = 4U;
+    constexpr auto CACHED_BITS = PRECODE_BITS * PRECODES_PER_CHUNK;
+    constexpr auto CHUNK_COUNT = ceilDiv( pragzip::deflate::MAX_PRECODE_COUNT, PRECODES_PER_CHUNK );
+    static_assert( CACHED_BITS == 12 );
+    static_assert( CHUNK_COUNT == 5 );
+
+    Histogram bitLengthFrequencies{ 0 };
+    Histogram overflowsInSum{ 0 };
+    Histogram overflowsInLUT{ 0 };
+
+    for ( size_t chunk = 0; chunk < CHUNK_COUNT; ++chunk ) {
+        auto precodeChunk = precodeBits >> ( chunk * CACHED_BITS );
+        /* The last requires no bit masking because @ref next57Bits is already sufficiently masked.
+         * This branch will hopefully get unrolled, else it could hinder performance. */
+        if ( chunk != CHUNK_COUNT - 1 ) {
+            precodeChunk &= nLowestBitsSet<uint64_t, CACHED_BITS>();
+        }
+
+        const auto partialHistogram = PRECODE_X4_TO_HISTOGRAM_LUT[precodeChunk];
+
+        /**
+         * Account for overflows over the storage boundaries during addition.
+         *  - Addition in lowest bits: 0+0 -> 0, 0+1 -> 1, 1+0 -> 1, 1+1 -> 0 (+ carry bit)
+         *                             <=> bitwise xor ^ (also sometimes called carryless addition)
+         *  - If there is a carry-over (overflow) from a lower bit, then these results will be inverted.
+         *    We can check for that with another xor, wich also acts as a bit-wise inequality comparison,
+         *    setting the resulting bit only to 1 if both source bits are different.
+         *    This result needs to be masked to the bits of interest but that can be done last to reduce instructions.
+         */
+        const auto carrylessSum = bitLengthFrequencies ^ partialHistogram;
+        bitLengthFrequencies = bitLengthFrequencies + partialHistogram;
+        overflowsInSum |= carrylessSum ^ bitLengthFrequencies;
+        overflowsInLUT |= partialHistogram;
+    }
+
+    /* Ignore non-zero and overflow counts for lookup. */
+    const auto histogramToLookUp = ( bitLengthFrequencies >> 5U )
+                                   & nLowestBitsSet<Histogram>( HISTOGRAM_TO_LOOK_UP_BITS );
+    const auto nonZeroCount = bitLengthFrequencies & nLowestBitsSet<Histogram>( 5 );
+    if ( LIKELY( POWER_OF_TWO_SPECIAL_CASES[nonZeroCount] != histogramToLookUp ) ) [[likely]] {
+        if ( ( ( overflowsInSum & OVERFLOW_BITS_MASK ) != 0 )
+             || ( ( overflowsInLUT & ( ~Histogram( 0 ) << OVERFLOW_MEMBER_OFFSET ) ) != 0 ) ) {
+            return std::nullopt;
+        }
+
+        const auto& [histogramLUT, validLUT] = COMPRESSED_PRECODE_HISTOGRAM_VALID_LUT_DICT;
+        constexpr auto INDEX_BITS = COMPRESSED_PRECODE_HISTOGRAM_INDEX_BITS;
+        const auto elementIndex = ( histogramToLookUp >> INDEX_BITS )
+                                  & nLowestBitsSet<Histogram>( HISTOGRAM_TO_LOOK_UP_BITS - INDEX_BITS );
+        const auto subIndex = histogramLUT[elementIndex];
+        const auto validIndex = ( subIndex << INDEX_BITS ) + ( histogramToLookUp & nLowestBitsSet<uint64_t>( INDEX_BITS ) );
+        if ( LIKELY( ( validLUT[validIndex] ) == 0 ) ) [[unlikely]] {
+            /* This also handles the case of all being zero, which in the other version returns EMPTY_ALPHABET!
+             * Some might also not be bloating but simply invalid, we cannot differentiate that but it can be
+             * helpful for tests to have different errors. For actual usage comparison with NONE is sufficient. */
+            return std::nullopt;
+        }
+    }
+
+    using PrecodeCheck::SingleLUT::ValidHistogramID::getHistogramIdFromVLPHWithoutZero;
+    const auto validId = getHistogramIdFromVLPHWithoutZero( histogramToLookUp );
+    return std::make_pair( validId, histogramToLookUp );
+}
+
+
+template<>
+[[nodiscard]] forceinline pragzip::Error
+checkDeflateBlock<CheckPrecodeMethod::SINGLE_COMPRESSED_LUT>( const uint64_t      bitBufferForLUT,
+                                                              const uint64_t      bitBufferPrecodeBits,
+                                                              const size_t        offset,
+                                                              pragzip::BitReader& bitReader )
+{
+    using namespace pragzip;
+    using namespace deflate;
+
+    const auto next4Bits = bitBufferPrecodeBits & nLowestBitsSet<uint64_t, PRECODE_COUNT_BITS>();
+    const auto next57Bits = ( bitBufferPrecodeBits >> PRECODE_COUNT_BITS )
+                            & nLowestBitsSet<uint64_t, MAX_PRECODE_COUNT * PRECODE_BITS>();
+
+    const auto codeLengthCount = 4 + next4Bits;
+    const auto precodeBits = next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS );
+
+    const auto result = checkAndGetValidHistogramID( precodeBits );
+    if ( !result ) {
+        return Error::INVALID_CODE_LENGTHS;
+    }
+    const auto& [validId, bitLengthFrequencies] = *result;
+    if ( validId >= precode::VALID_HUFFMAN_CODINGS.size() ) {
+        return Error::INVALID_CODE_LENGTHS;
+    }
+
+    constexpr auto ALL_PRECODE_BITS = PRECODE_COUNT_BITS + MAX_PRECODE_COUNT * PRECODE_BITS;
+    const auto distanceCodesOffset = offset + 13 + 4 + ( codeLengthCount * PRECODE_BITS );
+    const auto bitReaderOffset = offset + 13 + ALL_PRECODE_BITS;
+
+    const auto& precodeHC = precode::VALID_HUFFMAN_CODINGS[validId];
+
+    //using pragzip::PrecodeCheck::SingleLUT::getAlphabetFromCodeLengths;
+    /* I would need a *another* POWER_OF_TWO_SPECIAL_CASES LUT to get alphabets for those cases :/ */
+    //const auto alphabet = getAlphabetFromCodeLengths( precodeBits, bitLengthFrequencies );
+    const auto histogram = PrecodeCheck::WalkTreeLUT::precodesToHistogram<5>( precodeBits );
+    const auto alphabet = precode::getAlphabetFromCodeLengths( precodeBits, histogram );
+
+    bitReader.seek( static_cast<long long int>( distanceCodesOffset ) );
+
+    LiteralAndDistanceCLBuffer literalCL{};
+    const auto literalCodeCount = 257 + ( ( bitBufferForLUT >> 3U ) & nLowestBitsSet<uint64_t, 5>() );
+    const auto distanceCodeCount = 1 + ( ( bitBufferForLUT >> 8U ) & nLowestBitsSet<uint64_t, 5>() );
+    auto error = Block<>::readDistanceAndLiteralCodeLengths(
+        literalCL, bitReader, precodeHC, literalCodeCount + distanceCodeCount,
+        [&alphabet] ( auto symbol ) { return alphabet[symbol]; } );
+
+    /* Using this theoretically derivable position avoids a possibly costly call to tell()
+     * to save the old offset. */
+    bitReader.seek( static_cast<long long int>( bitReaderOffset ) );
+
+    if ( LIKELY( error != Error::NONE ) ) [[likely]] {
+        return error;
+    }
+
+    /* Check distance code lengths. */
+    HuffmanCodingCheckOnly<uint16_t, MAX_CODE_LENGTH,
+                           uint8_t, MAX_DISTANCE_SYMBOL_COUNT> distanceHC;
+    error = distanceHC.initializeFromLengths(
+        VectorView<uint8_t>( literalCL.data() + literalCodeCount, distanceCodeCount ) );
+
+    if ( LIKELY( error != Error::NONE ) ) [[likely]] {
+        return error;
+    }
+
+    /* Check literal code lengths. */
+    HuffmanCodingCheckOnly<uint16_t, MAX_CODE_LENGTH,
+                           uint16_t, MAX_LITERAL_HUFFMAN_CODE_COUNT> literalHC;
+    error = literalHC.initializeFromLengths( VectorView<uint8_t>( literalCL.data(), literalCodeCount ) );
 
     return error;
 }

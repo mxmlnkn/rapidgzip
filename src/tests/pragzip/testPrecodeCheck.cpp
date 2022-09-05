@@ -823,7 +823,8 @@ testGetHistogramId( size_t validId )
 
     const auto& histogram = VALID_HISTOGRAMS.at( validId );
     const auto packedHistogram = WalkTreeLUT::packHistogramWithNonZeroCount<5>( histogram );
-    REQUIRE_EQUAL( SingleLUT::ValidHistogramID::getHistogramId( packedHistogram ), validId );
+    using pragzip::PrecodeCheck::SingleLUT::ValidHistogramID::getHistogramIdFromUniformlyPackedHistogram;
+    REQUIRE_EQUAL( getHistogramIdFromUniformlyPackedHistogram( packedHistogram ), validId );
 
 #if 0
     std::cerr << "histogram:";
@@ -874,10 +875,11 @@ testCachedCodingFromHistogram( const std::array<uint8_t, 7>& histogram,
                                const std::vector<char>&      encoded,
                                const std::vector<uint8_t>&   decoded )
 {
-    using pragzip::PrecodeCheck::SingleLUT::ValidHistogramID::getHistogramId;
+    using pragzip::PrecodeCheck::SingleLUT::ValidHistogramID::getHistogramIdFromUniformlyPackedHistogram;
     using pragzip::PrecodeCheck::WalkTreeLUT::packHistogramWithNonZeroCount;
 
-    testValidHuffmanCoding( getHistogramId( packHistogramWithNonZeroCount<5>( histogram ) ), encoded, decoded );
+    testValidHuffmanCoding( getHistogramIdFromUniformlyPackedHistogram( packHistogramWithNonZeroCount<5>( histogram ) ),
+                            encoded, decoded );
 }
 
 
@@ -943,7 +945,7 @@ testCachedCodingFromPrecodes( const uint64_t              precodeBits,
         }
     }
 
-    const auto validId = SingleLUT::ValidHistogramID::getHistogramId( histogram );
+    const auto validId = SingleLUT::ValidHistogramID::getHistogramIdFromUniformlyPackedHistogram( histogram );
     if ( validId >= precode::VALID_HUFFMAN_CODINGS.size() ) {
         throw std::logic_error( "Only valid histograms should be specified in the optional argument!" );
     }
@@ -969,7 +971,7 @@ testValidHistograms()
     std::cerr << "Size of valid precomputed precode huffman codings: " << formatBytes( codingsSize ) << "\n";
 
     using namespace pragzip::PrecodeCheck::SingleLUT;
-    REQUIRE( ValidHistogramID::getHistogramId( 0 ) >= VALID_HISTOGRAMS.size() );
+    REQUIRE( ValidHistogramID::getHistogramIdFromUniformlyPackedHistogram( 0 ) >= VALID_HISTOGRAMS.size() );
 
     testGetHistogramId( 0 );
     testGetHistogramId( 1 );
