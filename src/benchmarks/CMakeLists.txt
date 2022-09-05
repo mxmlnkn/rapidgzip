@@ -70,6 +70,8 @@ target_link_libraries(benchmarkGzip PRIVATE zlibstatic LibArchive::LibArchive li
 #)
 #add_dependencies(run-benchmarks run-benchmarkGzip)
 
+endif()
+
 
 add_executable(benchmarkGzipBlockFinder)
 target_sources(benchmarkGzipBlockFinder PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkGzipBlockFinder.cpp)
@@ -81,7 +83,6 @@ add_custom_target(run-benchmarkGzipBlockFinder
 )
 add_dependencies(run-benchmarks run-benchmarkGzipBlockFinder)
 
-endif()
 
 add_executable(benchmarkCalculations)
 target_sources(benchmarkCalculations PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkCalculations.cpp)
