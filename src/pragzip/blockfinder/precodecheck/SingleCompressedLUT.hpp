@@ -42,8 +42,8 @@ static const auto COMPRESSED_PRECODE_HISTOGRAM_VALID_LUT_DICT =
         using ChunkedValues = std::array<uint64_t, CHUNK_COUNT>;
         static_assert( sizeof( ChunkedValues ) == sizeof( ChunkedValues::value_type ) * CHUNK_COUNT );
 
-        std::map<ChunkedValues, uint16_t> valueToKey;
-        std::vector<uint8_t> dictionary;
+        std::map<ChunkedValues, uint16_t> valueToKey{ { ChunkedValues{}, 0 } };
+        std::vector<uint8_t> dictionary( sizeof( ChunkedValues ) * CHAR_BIT, 0 );
 
         using Address = uint8_t;
         using CompressedLUT = std::array<Address, LUT_SIZE / CHUNK_COUNT>;
@@ -139,8 +139,11 @@ checkPrecode( const uint64_t next4Bits,
     constexpr auto INDEX_BITS = COMPRESSED_PRECODE_HISTOGRAM_INDEX_BITS;
     const auto elementIndex = ( histogramToLookUp >> INDEX_BITS )
                               & nLowestBitsSet<Histogram>( HISTOGRAM_TO_LOOK_UP_BITS - INDEX_BITS );
-    const auto validIndex = ( histogramLUT[elementIndex] << INDEX_BITS )
-                            + ( histogramToLookUp & nLowestBitsSet<uint64_t>( INDEX_BITS ) );
+    const auto subIndex = histogramLUT[elementIndex];
+
+    /* We could do a preemptive return here for subIndex == 0 but it degrades performance by ~3%. */
+
+    const auto validIndex = ( subIndex << INDEX_BITS ) + ( histogramToLookUp & nLowestBitsSet<uint64_t>( INDEX_BITS ) );
     if ( LIKELY( ( validLUT[validIndex] ) == 0 ) ) [[unlikely]] {
         /* This also handles the case of all being zero, which in the other version returns EMPTY_ALPHABET!
          * Some might also not be bloating but simply invalid, we cannot differentiate that but it can be

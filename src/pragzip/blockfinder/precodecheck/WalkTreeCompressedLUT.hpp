@@ -34,8 +34,10 @@ static const auto COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_VALID_LUT_DICT =
         using ChunkedValues = std::array<uint64_t, CHUNK_COUNT>;
         static_assert( sizeof( ChunkedValues ) == sizeof( ChunkedValues::value_type ) * CHUNK_COUNT );
 
-        std::map<ChunkedValues, size_t> valueToKey;
-        std::vector<uint8_t> dictionary;
+        /* Initialize with full zero values subtable at dictionary entry 0 to possible save a lookup.
+         * Also, it is the most frequent case, so having it in the beginning keeps the linear search short. */
+        std::map<ChunkedValues, size_t> valueToKey{ { ChunkedValues{}, 0 } };
+        std::vector<uint8_t> dictionary( sizeof( ChunkedValues ) * CHAR_BIT, 0 );
 
         using Address = uint8_t;
         using CompressedLUT = std::array<Address, LUT_SIZE / CHUNK_COUNT>;
@@ -89,8 +91,11 @@ checkPrecode( const uint64_t next4Bits,
         constexpr auto INDEX_BITS = COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_INDEX_BITS;
         const auto elementIndex = ( valueToLookUp >> INDEX_BITS )
                                   & nLowestBitsSet<CompressedHistogram>( HISTOGRAM_TO_LOOK_UP_BITS - INDEX_BITS );
-        const auto validIndex = ( histogramLUT[elementIndex] << INDEX_BITS )
-                                + ( valueToLookUp & nLowestBitsSet<uint64_t>( INDEX_BITS ) );
+        const auto subIndex = histogramLUT[elementIndex];
+
+        /* We could do a preemptive return here for subIndex == 0 but it degrades performance by ~3%. */
+
+        const auto validIndex = ( subIndex << INDEX_BITS ) + ( valueToLookUp & nLowestBitsSet<uint64_t>( INDEX_BITS ) );
         if ( LIKELY( ( validLUT[validIndex] ) == 0 ) ) [[unlikely]] {
             /* Might also be bloating not only invalid. */
             return pragzip::Error::INVALID_CODE_LENGTHS;
