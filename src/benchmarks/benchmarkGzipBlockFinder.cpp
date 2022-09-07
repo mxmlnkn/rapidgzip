@@ -623,7 +623,6 @@ countDeflateBlocksPreselection( BufferedFileReader::AlignedBuffer data )
     uint64_t candidateCount{ 0 };
 
     using namespace pragzip::blockfinder;
-    static const auto nextDeflateCandidateLUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
 
     pragzip::deflate::Block block;
     for ( size_t offset = 0; offset <= nBitsToTest; ) {
@@ -632,8 +631,7 @@ countDeflateBlocksPreselection( BufferedFileReader::AlignedBuffer data )
         try
         {
             const auto peeked = bitReader.peek<CACHED_BIT_COUNT>();
-            const auto nextPosition = nextDeflateCandidateLUT[peeked];  // ~8 MB/s
-            //const auto nextPosition = nextDeflateCandidate<CACHED_BIT_COUNT>( peeked );  // ~6 MB/s (slower than LUT!)
+            const auto nextPosition = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<CACHED_BIT_COUNT>[peeked];
 
             /* If we can skip forward, then that means that the new position only has been partially checked.
              * Therefore, rechecking the LUT for non-zero skips not only ensures that we aren't wasting time in
@@ -667,7 +665,6 @@ countDeflateBlocksPreselectionManualSlidingBuffer( BufferedFileReader::AlignedBu
     uint64_t candidateCount{ 0 };
 
     using namespace pragzip::blockfinder;
-    static const auto nextDeflateCandidateLUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
 
     /* For this test, CACHED_BIT_COUNT (<=18) would be sufficient but for the precode check we would need in total
      * 13 + 4 + 57 = 74 bits. We might split this into two buffers of length CACHED_BIT_COUNT and 74 -CACHED_BIT_COUNT
@@ -677,7 +674,7 @@ countDeflateBlocksPreselectionManualSlidingBuffer( BufferedFileReader::AlignedBu
     pragzip::deflate::Block block;
     try {
         for ( size_t offset = 0; offset <= nBitsToTest; ) {
-            auto nextPosition = nextDeflateCandidateLUT[bitBufferForLUT];
+            auto nextPosition = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<CACHED_BIT_COUNT>[bitBufferForLUT];
 
             /* If we can skip forward, then that means that the new position only has been partially checked.
              * Therefore, rechecking the LUT for non-zero skips not only ensures that we aren't wasting time in
@@ -854,9 +851,6 @@ findDeflateBlocksPragzipLUT( BufferedFileReader::AlignedBuffer data )
 
     std::vector<size_t> bitOffsets;
 
-    /* Using the constexpr function directly instead of the LUT was found to be slower: ~6 MB/s (vs. 8 MB/s with LUT) */
-    static const auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT =
-        pragzip::blockfinder::createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
     const auto oldOffset = bitReader.tell();
 
     try
@@ -880,9 +874,10 @@ findDeflateBlocksPragzipLUT( BufferedFileReader::AlignedBuffer data )
                        "It must fit into 64-bit and it also must fit the largest possible jump in the LUT." );
         auto bitBufferPrecodeBits = bitReader.read<ALL_PRECODE_BITS>();
 
+        const auto& LUT = pragzip::blockfinder::NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<CACHED_BIT_COUNT>;
         Block block;
         for ( size_t offset = oldOffset; offset <= nBitsToTest; ) {
-            auto nextPosition = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT[bitBufferForLUT];  // ~8 MB/s
+            auto nextPosition = LUT[bitBufferForLUT];  // ~8 MB/s
 
             /* If we can skip forward, then that means that the new position only has been partially checked.
              * Therefore, rechecking the LUT for non-zero skips not only ensures that we aren't wasting time in
@@ -1002,7 +997,6 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
 
     using namespace pragzip::blockfinder;
     static constexpr auto CACHED_BIT_COUNT = 14;
-    static const auto nextDeflateCandidateLUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
 
     size_t offsetsTestedMoreInDepth{ 0 };
     std::unordered_map<pragzip::Error, uint64_t> errorCounts;
@@ -1015,7 +1009,7 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
         try
         {
             const auto peeked = bitReader.peek<CACHED_BIT_COUNT>();
-            const auto nextPosition = nextDeflateCandidateLUT[peeked];
+            const auto nextPosition = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<CACHED_BIT_COUNT>[peeked];
 
             if ( nextPosition > 0 ) {
                 bitReader.seekAfterPeek( nextPosition );
@@ -1194,12 +1188,12 @@ findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
     std::vector<size_t> bitOffsetCandidates;
 
     using namespace pragzip::blockfinder;
-    static const auto nextDeflateCandidateLUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
+    const auto& LUT = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<CACHED_BIT_COUNT>;
 
     //const auto t0 = now();
     for ( size_t offset = 0; offset <= nBitsToTest; ) {
         try {
-            const auto nextPosition = nextDeflateCandidateLUT[bitReader.peek<CACHED_BIT_COUNT>()];
+            const auto nextPosition = LUT[bitReader.peek<CACHED_BIT_COUNT>()];
             if ( nextPosition == 0 ) {
                 bitOffsetCandidates.push_back( offset );
                 ++offset;
@@ -1294,8 +1288,6 @@ findDeflateBlocksPragzipLUTTwoPassWithPrecode( BufferedFileReader::AlignedBuffer
     std::vector<size_t> bitOffsetCandidates;
 
     using namespace pragzip::blockfinder;
-    static const auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
-
     using namespace pragzip::deflate;  /* For the definitions of deflate-specific number of bits. */
 
     const auto oldOffset = bitReader.tell();
@@ -1319,7 +1311,7 @@ findDeflateBlocksPragzipLUTTwoPassWithPrecode( BufferedFileReader::AlignedBuffer
     //const auto t0 = now();
     try {
         for ( size_t offset = oldOffset; offset <= nBitsToTest; ) {
-            auto nextPosition = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT[bitBufferForLUT];
+            auto nextPosition = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<CACHED_BIT_COUNT>[bitBufferForLUT];
             if ( nextPosition == 0 ) {
                 nextPosition = 1;
 
@@ -1848,7 +1840,7 @@ void
 analyzeDeflateJumpLUT()
 {
     using namespace pragzip::blockfinder;
-    static const auto LUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
+    static const auto LUT = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<CACHED_BIT_COUNT>;
 
     std::cerr << "Deflate Jump LUT for " << static_cast<int>( CACHED_BIT_COUNT ) << " bits is sized: "
               << formatBytes( LUT.size() * sizeof( LUT[0] ) ) << " with the following jump distance distribution:\n";

@@ -138,42 +138,41 @@ static constexpr auto NEXT_DEFLATE_CANDIDATE_LUTS_UP_TO_13_BITS =
  * @endverbatim
  */
 template<uint8_t CACHED_BIT_COUNT>
-CONSTEXPR_EXCEPT_MSVC std::array<uint8_t, 1U << CACHED_BIT_COUNT>
-createNextDeflateCandidateLUT()
-{
-    const auto& SMALL_LUT = NEXT_DEFLATE_CANDIDATE_LUTS_UP_TO_13_BITS;
+static constexpr auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT =
+    [] ()
+    {
+        const auto& SMALL_LUT = NEXT_DEFLATE_CANDIDATE_LUTS_UP_TO_13_BITS;
 
-    std::array<uint8_t, 1U << CACHED_BIT_COUNT> result{};
+        std::array<uint8_t, 1U << CACHED_BIT_COUNT> result{};
 
-    /* nextDeflateCandidate only actually checks the first 13 bits, we can composite anything longer by looking
-     * up 13-bits successively in the partial LUT to reduce constexpr instructions! */
-    if constexpr ( CACHED_BIT_COUNT <= MAX_EVALUATED_BITS ) {
-        for ( uint32_t i = 0; i < result.size(); ++i ) {
-            result[i] = SMALL_LUT[result.size() + i];
-        }
-    } else {
-        for ( size_t i = 0; i < result.size(); ++i ) {
-            auto nextPosition = 0;
-            for ( uint32_t bitsSkipped = 0; bitsSkipped < CACHED_BIT_COUNT - MAX_EVALUATED_BITS; ) {
-                const auto bitsToLookUpCount = std::min( MAX_EVALUATED_BITS, CACHED_BIT_COUNT - bitsSkipped );
-                const auto bitsToLookUp = ( i >> bitsSkipped ) & nLowestBitsSet<uint32_t>( bitsToLookUpCount );
-                auto possibleNextPosition = SMALL_LUT[( 1U << bitsToLookUpCount ) + bitsToLookUp];
-
-                nextPosition = possibleNextPosition + bitsSkipped;
-
-                if ( possibleNextPosition == 0 ) {
-                    break;
-                }
-                bitsSkipped += nextPosition;
+        /* nextDeflateCandidate only actually checks the first 13 bits, we can composite anything longer by looking
+         * up 13-bits successively in the partial LUT to reduce constexpr instructions! */
+        if constexpr ( CACHED_BIT_COUNT <= MAX_EVALUATED_BITS ) {
+            for ( uint32_t i = 0; i < result.size(); ++i ) {
+                result[i] = SMALL_LUT[result.size() + i];
             }
+        } else {
+            for ( size_t i = 0; i < result.size(); ++i ) {
+                auto nextPosition = 0;
+                for ( uint32_t bitsSkipped = 0; bitsSkipped < CACHED_BIT_COUNT - MAX_EVALUATED_BITS; ) {
+                    const auto bitsToLookUpCount = std::min( MAX_EVALUATED_BITS, CACHED_BIT_COUNT - bitsSkipped );
+                    const auto bitsToLookUp = ( i >> bitsSkipped ) & nLowestBitsSet<uint32_t>( bitsToLookUpCount );
+                    auto possibleNextPosition = SMALL_LUT[( 1U << bitsToLookUpCount ) + bitsToLookUp];
 
-            result[i] = nextPosition;
+                    nextPosition = possibleNextPosition + bitsSkipped;
+
+                    if ( possibleNextPosition == 0 ) {
+                        break;
+                    }
+                    bitsSkipped += nextPosition;
+                }
+
+                result[i] = nextPosition;
+            }
         }
 
-    }
-
-    return result;
-}
+        return result;
+    }();
 
 
 /**
@@ -205,7 +204,6 @@ template<uint8_t CACHED_BIT_COUNT = OPTIMAL_NEXT_DEFLATE_LUT_SIZE>
 seekToNonFinalDynamicDeflateBlock( BitReader&   bitReader,
                                    size_t const untilOffset = std::numeric_limits<size_t>::max() )
 {
-    static const auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
     const auto oldOffset = bitReader.tell();
 
     try
@@ -230,7 +228,7 @@ seekToNonFinalDynamicDeflateBlock( BitReader&   bitReader,
 
         Block block;
         for ( size_t offset = oldOffset; offset < untilOffset; ) {
-            auto nextPosition = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT[bitBufferForLUT];
+            auto nextPosition = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<CACHED_BIT_COUNT>[bitBufferForLUT];
 
             /* If we can skip forward, then that means that the new position only has been partially checked.
              * Therefore, rechecking the LUT for non-zero skips not only ensures that we aren't wasting time in
