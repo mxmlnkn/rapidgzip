@@ -77,7 +77,7 @@ testDynamicHuffmanBlockFinder()
     REQUIRE( nextDeflateCandidate<10>( 0x7CU ) == 0 );
     REQUIRE( nextDeflateCandidate<14>( 0x7CU ) == 0 );
 
-    static constexpr auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT = createNextDeflateCandidateLUT<14>();
+    static constexpr auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT = createNextDeflateCandidateLUT<18>();
     for ( uint32_t bits = 0; bits < NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT.size(); ++bits ) {
         REQUIRE( isValidDynamicHuffmanBlock( bits ) == ( NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT[bits] == 0 ) );
         if ( isValidDynamicHuffmanBlock( bits ) != ( NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT[bits] == 0 ) ) {

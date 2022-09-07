@@ -31,20 +31,18 @@ namespace pragzip::blockfinder
  * be of 0-length because the tree is filled already.
  */
 template<uint8_t bitCount>
-constexpr uint8_t
-nextDeflateCandidate( uint32_t bits )
+constexpr bool
+isDeflateCandidate( uint32_t bits )
 {
     if constexpr ( bitCount == 0 ) {
-        return 0;
+        return false;
     } else {
-        const auto nextBlock = 1U + nextDeflateCandidate<bitCount - 1U>( bits >> 1U );
-
         /* Bit 0: final block flag */
         const auto isLastBlock = ( bits & 1U ) != 0;
         bits >>= 1U;
         bool matches = !isLastBlock;
         if constexpr ( bitCount <= 1U ) {
-            return matches ? 0 : nextBlock;
+            return matches;
         }
 
         /* Bits 1-2: compression type */
@@ -52,13 +50,13 @@ nextDeflateCandidate( uint32_t bits )
         bits >>= 2U;
         matches &= ( compressionType & 1U ) == 0;
         if constexpr ( bitCount <= 2U ) {
-            return matches ? 0 : nextBlock;
+            return matches;
         }
         matches &= compressionType == 0b10;
 
         /* Bits 3-7: code count */
         if constexpr ( bitCount < 1U + 2U + 5U ) {
-            return matches ? 0 : nextBlock;
+            return matches;
         }
         const auto codeCount = bits & nLowestBitsSet<uint32_t, 5U>();
         bits >>= 5U;
@@ -66,13 +64,67 @@ nextDeflateCandidate( uint32_t bits )
 
         /* Bits 8-12: distance count */
         if constexpr ( bitCount < 1U + 2U + 5U + 5U ) {
-            return matches ? 0 : nextBlock;
+            return matches;
         }
         const auto distanceCodeCount = bits & nLowestBitsSet<uint32_t, 5U>();
         matches &= distanceCodeCount <= 29;
-        return matches ? 0 : nextBlock;
+        return matches;
     }
 }
+
+
+constexpr uint32_t MAX_EVALUATED_BITS = 13;
+
+
+template<uint8_t bitCount>
+constexpr uint8_t
+nextDeflateCandidate( uint32_t bits )
+{
+    if ( isDeflateCandidate<bitCount>( bits ) ) {
+        return 0;
+    }
+
+    if constexpr ( bitCount == 0 ) {
+        return 0;
+    } else {
+        return 1U + nextDeflateCandidate<bitCount - 1U>( bits >> 1U );
+    }
+}
+
+
+template<uint8_t CACHED_BIT_COUNT,
+         uint8_t MAX_CACHED_BIT_COUNT = CACHED_BIT_COUNT>
+constexpr void
+initializeMergedNextDeflateLUTs( std::array<uint8_t, ( 1U << MAX_CACHED_BIT_COUNT ) * 2U>& lut )
+{
+    constexpr auto size = 1U << CACHED_BIT_COUNT;
+    constexpr auto offset = size;
+    for ( uint32_t i = 0; i < size; ++i ) {
+        lut[offset + i] = nextDeflateCandidate<CACHED_BIT_COUNT>( i );
+    }
+
+    if constexpr ( CACHED_BIT_COUNT > 1 ) {
+        initializeMergedNextDeflateLUTs<CACHED_BIT_COUNT - 1, MAX_CACHED_BIT_COUNT>( lut );
+    }
+}
+
+
+/**
+ * Contains LUTs for all CACHED_BIT_COUNT in [1,13].
+ * They are packed into the array like this: [+ ++ ++++ ++++++++], i.e.,
+ * - at offset 2 is a the 2-element LUT for CACHED_BIT_COUNT == 1
+ * - at offset 4 is a the 4-element LUT for CACHED_BIT_COUNT == 2
+ * - at offset 8 is a the 8-element LUT for CACHED_BIT_COUNT == 3
+ * - ...
+ * - at offset 2^CACHED_BIT_COUNT is a the 2^CACHED_BIT_COUNT-element LUT for CACHED_BIT_COUNT
+ */
+static constexpr auto NEXT_DEFLATE_CANDIDATE_LUTS_UP_TO_13_BITS =
+    [] ()
+    {
+        std::array<uint8_t, ( 1U << MAX_EVALUATED_BITS ) * 2U> result{};
+        initializeMergedNextDeflateLUTs<MAX_EVALUATED_BITS>( result );
+        return result;
+    }();
 
 
 /**
@@ -85,14 +137,41 @@ nextDeflateCandidate( uint32_t bits )
  * 64-bit  [findDeflateBlocksPragzipLUT] ( 8.618 <= 8.65 +- 0.02 <= 8.691 ) MB/s
  * @endverbatim
  */
-template<uint16_t CACHED_BIT_COUNT>
+template<uint8_t CACHED_BIT_COUNT>
 CONSTEXPR_EXCEPT_MSVC std::array<uint8_t, 1U << CACHED_BIT_COUNT>
 createNextDeflateCandidateLUT()
 {
+    const auto& SMALL_LUT = NEXT_DEFLATE_CANDIDATE_LUTS_UP_TO_13_BITS;
+
     std::array<uint8_t, 1U << CACHED_BIT_COUNT> result{};
-    for ( uint32_t i = 0; i < result.size(); ++i ) {
-        result[i] = nextDeflateCandidate<CACHED_BIT_COUNT>( i );
+
+    /* nextDeflateCandidate only actually checks the first 13 bits, we can composite anything longer by looking
+     * up 13-bits successively in the partial LUT to reduce constexpr instructions! */
+    if constexpr ( CACHED_BIT_COUNT <= MAX_EVALUATED_BITS ) {
+        for ( uint32_t i = 0; i < result.size(); ++i ) {
+            result[i] = SMALL_LUT[result.size() + i];
+        }
+    } else {
+        for ( size_t i = 0; i < result.size(); ++i ) {
+            auto nextPosition = 0;
+            for ( uint32_t bitsSkipped = 0; bitsSkipped < CACHED_BIT_COUNT - MAX_EVALUATED_BITS; ) {
+                const auto bitsToLookUpCount = std::min( MAX_EVALUATED_BITS, CACHED_BIT_COUNT - bitsSkipped );
+                const auto bitsToLookUp = ( i >> bitsSkipped ) & nLowestBitsSet<uint32_t>( bitsToLookUpCount );
+                auto possibleNextPosition = SMALL_LUT[( 1U << bitsToLookUpCount ) + bitsToLookUp];
+
+                nextPosition = possibleNextPosition + bitsSkipped;
+
+                if ( possibleNextPosition == 0 ) {
+                    break;
+                }
+                bitsSkipped += nextPosition;
+            }
+
+            result[i] = nextPosition;
+        }
+
     }
+
     return result;
 }
 
