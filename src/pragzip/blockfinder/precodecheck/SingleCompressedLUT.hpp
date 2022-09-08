@@ -123,7 +123,7 @@ checkPrecode( const uint64_t next4Bits,
     }
 
     /* Ignore non-zero and overflow counts for lookup. */
-    const auto histogramToLookUp = ( bitLengthFrequencies >> 5 )
+    const auto histogramToLookUp = ( bitLengthFrequencies >> 5U )
                                    & nLowestBitsSet<Histogram>( HISTOGRAM_TO_LOOK_UP_BITS );
     const auto nonZeroCount = bitLengthFrequencies & nLowestBitsSet<Histogram>( 5 );
     if ( UNLIKELY( POWER_OF_TWO_SPECIAL_CASES[nonZeroCount] == histogramToLookUp ) ) [[unlikely]] {

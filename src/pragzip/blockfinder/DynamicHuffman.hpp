@@ -172,8 +172,8 @@ seekToNonFinalDynamicDeflateBlock( BitReader&   bitReader,
                     const auto oldTell = bitReader.tell();
                 #endif
 
-                    const auto literalCodeCount = 257 + ( ( bitBufferForLUT >> 3 ) & nLowestBitsSet<uint64_t, 5>() );
-                    const auto distanceCodeCount = 1 + ( ( bitBufferForLUT >> 8 ) & nLowestBitsSet<uint64_t, 5>() );
+                    const auto literalCodeCount = 257 + ( ( bitBufferForLUT >> 3U ) & nLowestBitsSet<uint64_t, 5>() );
+                    const auto distanceCodeCount = 1 + ( ( bitBufferForLUT >> 8U ) & nLowestBitsSet<uint64_t, 5>() );
                     const auto codeLengthCount = 4 + next4Bits;
                     const auto precodeBits = next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS );
 

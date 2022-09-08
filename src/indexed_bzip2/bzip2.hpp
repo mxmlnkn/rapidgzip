@@ -30,12 +30,12 @@ createCRC32LookupTable( bool littleEndian = false )
 {
     std::array<uint32_t, CRC32_LOOKUP_TABLE_SIZE> table;
     for ( uint32_t i = 0; i < table.size(); ++i ) {
-        uint32_t c = littleEndian ? i : i << 24;
+        uint32_t c = littleEndian ? i : i << 24U;
         for ( int j = 0; j < 8; ++j ) {
             if ( littleEndian ) {
-                c = ( c & 1 ) ? ( c >> 1 ) ^ 0xEDB88320 : c >> 1;
+                c = ( c & 1 ) ? ( c >> 1U ) ^ 0xEDB88320 : c >> 1U;
             } else {
-                c = ( c & 0x80000000 ) ? ( c << 1 ) ^ 0x04c11db7 : ( c << 1 );
+                c = ( c & 0x80000000 ) ? ( c << 1U ) ^ 0x04c11db7 : ( c << 1U );
             }
         }
         table[i] = c;
@@ -275,7 +275,7 @@ Block::readBlockHeader()
     encodedOffsetInBits = bitReader().tell();
     encodedSizeInBits = 0;
 
-    magicBytes = ( (uint64_t)getBits<24>() << 24 ) | (uint64_t)getBits<24>();
+    magicBytes = ( (uint64_t)getBits<24>() << 24U ) | (uint64_t)getBits<24>();
     bwdata.headerCRC = getBits( 32 );
     m_atEndOfStream = magicBytes == MAGIC_BITS_EOS;
     if ( m_atEndOfStream ) {
@@ -416,7 +416,7 @@ Block::readBlockHeader()
                 // Stop if first bit is 0, otherwise second bit says whether to
                 // increment or decrement.
                 if ( getBits<1>() != 0 ) {
-                    hh += 1 - ( getBits<1>() << 1 );
+                    hh += 1 - ( getBits<1>() << 1U );
                 } else {
                     break;
                 }
@@ -527,7 +527,7 @@ Block::readBlockData()
         jj = getBits( ii );
         while ( ( ii <= hufGroup->maxLen ) && ( jj > limit[ii] ) ) {
             ii++;
-            jj = ( jj << 1 ) | getBits<1>();
+            jj = ( jj << 1U ) | getBits<1>();
         }
 
         if ( ii > hufGroup->maxLen ) {
@@ -648,7 +648,7 @@ Block::BurrowsWheelerTransformData::prepare()
     // and uc as run count.
     for ( int i = 0; i < writeCount; i++ ) {
         const auto uc = static_cast<uint8_t>( dbuf[i] );
-        dbuf[byteCount[uc]] |= ( i << 8 );
+        dbuf[byteCount[uc]] |= ( i << 8U );
         byteCount[uc]++;
     }
 
@@ -686,7 +686,7 @@ Block::BurrowsWheelerTransformData::decodeBlock( const size_t nMaxBytesToDecode,
         /* Whenever we see 3 consecutive copies of the same byte, the 4th is a repeat count */
         if ( writeRun < 3 ) {
             outputBuffer[nBytesDecoded++] = writeCurrent;
-            dataCRC = ( dataCRC << 8 ) ^ CRC32_TABLE[( dataCRC >> 24 ) ^ writeCurrent];
+            dataCRC = ( dataCRC << 8U ) ^ CRC32_TABLE[( dataCRC >> 24U ) ^ writeCurrent];
             if ( writeCurrent != previous ) {
                 writeRun = 0;
             } else {
@@ -696,7 +696,7 @@ Block::BurrowsWheelerTransformData::decodeBlock( const size_t nMaxBytesToDecode,
             int copies = writeCurrent;
             while ( copies-- ) {
                 outputBuffer[nBytesDecoded++] = previous;
-                dataCRC = ( dataCRC << 8 ) ^ CRC32_TABLE[( dataCRC >> 24 ) ^ previous];
+                dataCRC = ( dataCRC << 8U ) ^ CRC32_TABLE[( dataCRC >> 24U ) ^ previous];
             }
             writeCurrent = -1;
             writeRun = 0;

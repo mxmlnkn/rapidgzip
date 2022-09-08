@@ -70,16 +70,16 @@ findBitString( const char* buffer,
     const auto minBytesForSearchString = ( (size_t)bitStringSize + 8U - 1U ) / 8U;
     uint64_t bytes = 0;
     for ( size_t i = 0; i < std::min( minBytesForSearchString, bufferSize ); ++i ) {
-        bytes = ( bytes << 8 ) | static_cast<uint8_t>( buffer[i] );
+        bytes = ( bytes << 8U ) | static_cast<uint8_t>( buffer[i] );
     }
 
     assert( bitStringSize == 48 ); /* this allows us to fixedly load always two bytes (16 bits) */
     for ( size_t i = 0; i < bufferSize; ++i ) {
-        bytes = ( bytes << 8 ) | static_cast<uint8_t>( buffer[i] );
+        bytes = ( bytes << 8U ) | static_cast<uint8_t>( buffer[i] );
         if ( ++i >= bufferSize ) {
             break;
         }
-        bytes = ( bytes << 8 ) | static_cast<uint8_t>( buffer[i] );
+        bytes = ( bytes << 8U ) | static_cast<uint8_t>( buffer[i] );
 
         for ( size_t j = 0; j < shiftedBitStrings.size(); ++j ) {
             if ( ( bytes & shiftedBitMasks[j] ) == shiftedBitStrings[j] ) {

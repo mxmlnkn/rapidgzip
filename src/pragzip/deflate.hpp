@@ -847,7 +847,7 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::getDistance( BitReader& bitReader ) c
 {
     uint16_t distance = 0;
     if ( m_compressionType == CompressionType::FIXED_HUFFMAN ) {
-        distance = reverseBits( static_cast<uint8_t>( bitReader.read<5>() ) ) >> 3;
+        distance = reverseBits( static_cast<uint8_t>( bitReader.read<5>() ) ) >> 3U;
         if ( UNLIKELY( distance >= MAX_DISTANCE_SYMBOL_COUNT ) ) [[unlikely]] {
             return { 0, Error::EXCEEDED_DISTANCE_RANGE };
         }

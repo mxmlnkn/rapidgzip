@@ -18,7 +18,7 @@ createCRC32LookupTable() noexcept
         auto c = static_cast<unsigned long>( n );
         for ( int j = 0; j < 8; ++j ) {
             if ( c & 1UL ) {
-                c = 0xEDB88320UL ^ ( c >> 1 );
+                c = 0xEDB88320UL ^ ( c >> 1U );
             } else {
                 c >>= 1;
             }

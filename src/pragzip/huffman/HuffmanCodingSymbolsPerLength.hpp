@@ -98,7 +98,7 @@ public:
          * would be inversed. @todo Reverse the Huffman codes and prepend bits instead of appending, so that this
          * first step can be conflated and still have the correct order for comparison! */
         for ( BitCount i = 0; i < this->m_minCodeLength; ++i ) {
-            code = ( code << 1 ) | ( bitReader.read<1>() );
+            code = ( code << 1U ) | ( bitReader.read<1>() );
         }
 
         for ( BitCount k = 0; k <= this->m_maxCodeLength - this->m_minCodeLength; ++k ) {

@@ -451,7 +451,7 @@ BZ2Reader::decodeStream( WriteFunctor const& writeFunctor,
         m_decodedBufferPos = m_lastHeader.bwdata.decodeBlock( nBytesToDecode, m_decodedBuffer.data() );
 
         if ( ( m_lastHeader.bwdata.writeCount == 0 ) && !m_blockToDataOffsetsComplete ) {
-            m_calculatedStreamCRC = ( ( m_calculatedStreamCRC << 1 ) | ( m_calculatedStreamCRC >> 31 ) )
+            m_calculatedStreamCRC = ( ( m_calculatedStreamCRC << 1U ) | ( m_calculatedStreamCRC >> 31U ) )
                                     ^ m_lastHeader.bwdata.dataCRC;
         }
 
