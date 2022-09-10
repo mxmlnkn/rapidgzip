@@ -40,7 +40,6 @@ public:
     using BitCount = typename BaseType::BitCount;
     using CodeLengthFrequencies = typename BaseType::CodeLengthFrequencies;
 
-    static constexpr auto CACHED_BIT_COUNT = MAX_CODE_LENGTH;
     static constexpr auto LENGTH_SHIFT = requiredBits( MAX_SYMBOL_COUNT );
     static_assert( MAX_SYMBOL_COUNT <= ( 1UL << LENGTH_SHIFT ), "Not enough free bits to pack length into Symbol!" );
 
@@ -79,9 +78,7 @@ public:
             const auto code = codeValues[k]++;
             const auto reversedCode = reverseBits( code, length );
 
-            static_assert( CACHED_BIT_COUNT < sizeof( uint32_t ) * CHAR_BIT,
-                           "We need a larger data type for correct comparison." );
-            const auto fillerBitCount = CACHED_BIT_COUNT - length;
+            const auto fillerBitCount = this->m_maxCodeLength - length;
             const auto maximumPaddedCode = static_cast<HuffmanCode>(
                 reversedCode | ( nLowestBitsSet<HuffmanCode>( fillerBitCount ) << length ) );
             assert( maximumPaddedCode < m_codeCache.size() );
@@ -104,7 +101,7 @@ public:
     decode( BitReader& bitReader ) const
     {
         try {
-            const auto value = bitReader.peek<CACHED_BIT_COUNT>();
+            const auto value = bitReader.peek( this->m_maxCodeLength );
 
             assert( value < m_codeCache.size() );
             auto symbol = m_codeCache[(int)value];
@@ -133,6 +130,6 @@ private:
      *  - any pair < 64-bit probably has to use some bit shifts anyway so not much more work
      *  - using 8-bit length and 16-bit symbol yields non-aligned access quite frequently
      *  - the space reduction by 33% might improve L1 cache hit rates or cache line utilization. */
-    alignas( 8 ) std::array<Symbol, ( 1UL << CACHED_BIT_COUNT )> m_codeCache{};
+    alignas( 8 ) std::array<Symbol, ( 1UL << MAX_CODE_LENGTH )> m_codeCache{};
 };
 }  // namespace pragzip

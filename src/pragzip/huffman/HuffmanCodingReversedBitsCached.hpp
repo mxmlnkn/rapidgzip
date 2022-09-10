@@ -36,8 +36,6 @@ public:
     using BitCount = typename BaseType::BitCount;
     using CodeLengthFrequencies = typename BaseType::CodeLengthFrequencies;
 
-    static constexpr auto CACHED_BIT_COUNT = MAX_CODE_LENGTH;
-
 public:
     [[nodiscard]] constexpr Error
     initializeFromLengths( const VectorView<BitCount>& codeLengths )
@@ -73,9 +71,7 @@ public:
             const auto code = codeValues[k]++;
             const auto reversedCode = reverseBits( code, length );
 
-            static_assert( CACHED_BIT_COUNT < sizeof( uint32_t ) * CHAR_BIT,
-                           "We need a larger data type for correct comparison." );
-            const auto fillerBitCount = CACHED_BIT_COUNT - length;
+            const auto fillerBitCount = this->m_maxCodeLength - length;
             const auto maximumPaddedCode = static_cast<HuffmanCode>(
                 reversedCode | ( nLowestBitsSet<HuffmanCode>( fillerBitCount ) << length ) );
             assert( maximumPaddedCode < m_codeCache.size() );
@@ -96,7 +92,7 @@ public:
     decode( BitReader& bitReader ) const
     {
         try {
-            const auto value = bitReader.peek<CACHED_BIT_COUNT>();
+            const auto value = bitReader.peek( this->m_maxCodeLength );
 
             assert( value < m_codeCache.size() );
             const auto [length, symbol] = m_codeCache[(int)value];
@@ -117,6 +113,6 @@ public:
     }
 
 private:
-    alignas( 8 ) std::array<std::pair</* length */ uint8_t, Symbol>, ( 1UL << CACHED_BIT_COUNT )> m_codeCache{};
+    alignas( 8 ) std::array<std::pair</* length */ uint8_t, Symbol>, ( 1UL << MAX_CODE_LENGTH )> m_codeCache{};
 };
 }  // namespace pragzip
