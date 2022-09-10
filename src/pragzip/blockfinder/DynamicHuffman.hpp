@@ -141,9 +141,16 @@ template<uint8_t CACHED_BIT_COUNT>
 static constexpr auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT =
     [] ()
     {
-        const auto& SMALL_LUT = NEXT_DEFLATE_CANDIDATE_LUTS_UP_TO_13_BITS;
-
         std::array<uint8_t, 1U << CACHED_BIT_COUNT> result{};
+
+    /* The recursive-like version that uses previous LUTs to calculate larger ones saves a tad of compile-time
+     * but it yields to out-of-memory errors on the CI. Therefore, disable it for now. */
+    #if 1
+        for ( uint32_t i = 0; i < result.size(); ++i ) {
+            result[i] = nextDeflateCandidate<CACHED_BIT_COUNT>( i );
+        }
+    #else
+        const auto& SMALL_LUT = NEXT_DEFLATE_CANDIDATE_LUTS_UP_TO_13_BITS;
 
         /* nextDeflateCandidate only actually checks the first 13 bits, we can composite anything longer by looking
          * up 13-bits successively in the partial LUT to reduce constexpr instructions! */
@@ -170,6 +177,7 @@ static constexpr auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT =
                 result[i] = nextPosition;
             }
         }
+    #endif
 
         return result;
     }();
