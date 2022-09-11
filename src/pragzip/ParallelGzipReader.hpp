@@ -66,32 +66,32 @@ public:
      *
      * spacing | bandwidth / (MB/s) | file read multiplier
      * --------+--------------------+----------------------
-     * 128 KiB | ~ 850              | 2.08337
-     *   1 MiB | ~1750              | 1.13272
-     *   2 MiB | ~2000              | 1.06601
-     *   4 MiB | ~2000              | 1.03457
-     *   8 MiB | ~2000              | 1.0169
-     *  16 MiB | ~1900              | 1.00799
-     *  32 MiB | ~1800              | 1.00429
+     * 128 KiB | ~1300              | 2.08337
+     *   1 MiB | ~2300              | 1.13272
+     *   2 MiB | ~2350              | 1.06601
+     *   4 MiB | ~2450              | 1.03457
+     *   8 MiB | ~2400              | 1.0169
+     *  16 MiB | ~2250              | 1.00799
+     *  32 MiB | ~2100              | 1.00429
      * @endverbatim
      *
      * For higher chunk sizes, the bandwidths become very uncertain,
      * probably because even work division becomes a problem realtive to the file size.
      *
      * @verbatim
-     * head -c $(( 2 * 1024 * 1024 * 1024 )) /dev/urandom > random.bin
-     * gzip random.bin
-     * m pragzip && time src/tools/pragzip -P 0 -d -c 4GiB-base64.gz | wc -l
+     * head -c $(( 4 * 1024 * 1024 * 1024 )) /dev/urandom > 4GiB-random
+     * gzip 4GiB-random.gz
+     * m pragzip && time src/tools/pragzip -P 0 -d -c 4GiB-random.gz | wc -l
      *
      * spacing | bandwidth / (MB/s) | file read multiplier
      * --------+--------------------+----------------------
-     * 128 KiB | ~1200              | 2.00049
-     *   1 MiB | ~2150              | 1.12502
-     *   2 MiB | ~2250              | 1.06253
-     *   4 MiB | ~2350              | 1.03129
-     *   8 MiB | ~2350              | 1.01567
-     *  16 MiB | ~2350              | 1.00786
-     *  32 MiB | ~2150              | 1.00396
+     * 128 KiB | ~1550              | 2.00049
+     *   1 MiB | ~2550              | 1.12502
+     *   2 MiB | ~2650              | 1.06253
+     *   4 MiB | ~2850              | 1.03129
+     *   8 MiB | ~2850              | 1.01567
+     *  16 MiB | ~2850              | 1.00786
+     *  32 MiB | ~2650              | 1.00396
      * @endverbatim
      *
      * The factor 2 amount of read data can be explained with the BitReader always buffering 128 KiB!
@@ -108,7 +108,7 @@ public:
     explicit
     ParallelGzipReader( std::unique_ptr<FileReader> fileReader,
                         size_t                      parallelization = 0,
-                        uint64_t                    chunkSize = 2_Mi ) :
+                        uint64_t                    chunkSize = 4_Mi ) :
         m_bitReader( std::move( fileReader ) ),
         m_fetcherParallelization(
             parallelization == 0

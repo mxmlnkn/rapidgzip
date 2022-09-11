@@ -1088,65 +1088,65 @@ done
 fname=4GB
 fileSize=$( stat -L --format=%s "$fname" )
 for format in gz bgz pigz igz; do
-    printf '\n| %6s | %19s | %10s | %18s |\n' Format Decoder 'Runtime / s' 'Bandwidth / (MB/s)'
-    printf -- '|--------|---------------------|-------------|--------------------|\n'
+    printf '\n| %6s | %13s | %10s | %18s |\n' Format Decoder 'Runtime / s' 'Bandwidth / (MB/s)'
+    printf -- '|--------|---------------|-------------|--------------------|\n'
     crc32 "$fname.$format" &>/dev/null  # Make my QLC SSD cache the file into the SLC cache
 
     for tool in gzip bgzip "bgzip -@ $( nproc )" pigz igzip "igzip -T $( nproc )" "src/tools/pragzip -P 1" "src/tools/pragzip -P $( nproc )"; do
         runtime=$( ( time $tool -d -c "$fname.$format" | wc -c ) 2>&1 | sed -n -E 's|real[ \t]*0m||p' | sed 's|[ \ts]||' )
         bandwidth=$( python3 -c "print( int( round( $fileSize / 1e6 / $runtime ) ) )" )
-        printf '| %6s | %19s | %11s | %18s |\n' "$format" "$tool" "$runtime" "$bandwidth"
+        printf '| %6s | %13s | %11s | %18s |\n' "$format" "${tool#src/tools/}" "$runtime" "$bandwidth"
     done
 done
 
-| Format |       Decoder | Runtime / s | Bandwidth / (MB/s) |
-|--------|---------------|-------------|--------------------|
-|        |           cat |       1.355 |               3170 |
-|        |          fcat |       0.511 |               8405 |
+    | Format |       Decoder | Runtime / s | Bandwidth / (MB/s) |
+    |--------|---------------|-------------|--------------------|
+    |        |           cat |       1.273 |               3374 |
+    |        |          fcat |       0.503 |               8539 |
 
-| Format |       Decoder | Runtime / s | Bandwidth / (MB/s) |
-|--------|---------------|-------------|--------------------|
-|     gz |          gzip |      22.467 |                191 |
-|     gz |         bgzip |      16.279 |                264 |
-|     gz |   bgzip -@ 24 |      16.299 |                264 |
-|     gz |          pigz |      13.330 |                322 |
-|     gz |         igzip |       9.033 |                475 |
-|     gz |   igzip -T 24 |       8.995 |                477 |
-|     gz |  pragzip -P 1 |      30.229 |                142 |
-|     gz | pragzip -P 24 |       2.079 |               2066 |
+    | Format |       Decoder | Runtime / s | Bandwidth / (MB/s) |
+    |--------|---------------|-------------|--------------------|
+    |     gz |          gzip |      22.171 |                194 |
+    |     gz |         bgzip |      16.127 |                266 |
+    |     gz |   bgzip -@ 24 |      16.131 |                266 |
+    |     gz |          pigz |      13.120 |                327 |
+    |     gz |         igzip |       9.533 |                451 |
+    |     gz |   igzip -T 24 |       8.767 |                490 |
+    |     gz | pragzip -P 1  |      17.224 |                249 |
+    |     gz | pragzip -P 24 |       1.705 |               2519 |
 
-| Format |       Decoder | Runtime / s | Bandwidth / (MB/s) |
-|--------|---------------|-------------|--------------------|
-|    bgz |          gzip |      28.009 |                153 |
-|    bgz |         bgzip |      12.345 |                348 |
-|    bgz |   bgzip -@ 24 |       1.639 |               2620 |
-|    bgz |          pigz |      20.249 |                212 |
-|    bgz |         igzip |       9.319 |                461 |
-|    bgz |   igzip -T 24 |       9.416 |                456 |
-|    bgz |  pragzip -P 1 |      26.712 |                161 |
-|    bgz | pragzip -P 24 |       1.980 |               2169 |
+    | Format |       Decoder | Runtime / s | Bandwidth / (MB/s) |
+    |--------|---------------|-------------|--------------------|
+    |    bgz |          gzip |      24.716 |                174 |
+    |    bgz |         bgzip |      11.914 |                360 |
+    |    bgz |   bgzip -@ 24 |       1.600 |               2684 |
+    |    bgz |          pigz |      20.156 |                213 |
+    |    bgz |         igzip |       9.372 |                458 |
+    |    bgz |   igzip -T 24 |       9.321 |                461 |
+    |    bgz | pragzip -P 1  |      26.686 |                161 |
+    |    bgz | pragzip -P 24 |       1.915 |               2243 |
 
-| Format |       Decoder | Runtime / s | Bandwidth / (MB/s) |
-|--------|---------------|-------------|--------------------|
-|   pigz |          gzip |      23.275 |                185 |
-|   pigz |         bgzip |      16.501 |                260 |
-|   pigz |   bgzip -@ 24 |      16.456 |                261 |
-|   pigz |          pigz |      13.605 |                316 |
-|   pigz |         igzip |      10.122 |                424 |
-|   pigz |   igzip -T 24 |       9.730 |                441 |
-|   pigz |  pragzip -P 1 |      45.896 |                 94 |
-|   pigz | pragzip -P 24 |       2.718 |               1580 |
+    | Format |       Decoder | Runtime / s | Bandwidth / (MB/s) |
+    |--------|---------------|-------------|--------------------|
+    |   pigz |          gzip |      22.726 |                189 |
+    |   pigz |         bgzip |      16.191 |                265 |
+    |   pigz |   bgzip -@ 24 |      16.075 |                267 |
+    |   pigz |          pigz |      13.652 |                315 |
+    |   pigz |         igzip |       9.482 |                453 |
+    |   pigz |   igzip -T 24 |       9.584 |                448 |
+    |   pigz | pragzip -P 1  |      21.573 |                199 |
+    |   pigz | pragzip -P 24 |       1.760 |               2440 |
 
-| Format |       Decoder | Runtime / s | Bandwidth / (MB/s) |
-|--------|---------------|-------------|--------------------|
-|    igz |          gzip |      21.317 |                201 |
-|    igz |         bgzip |      14.769 |                291 |
-|    igz |   bgzip -@ 24 |      15.061 |                285 |
-|    igz |          pigz |      12.190 |                352 |
-|    igz |         igzip |       7.666 |                560 |
-|    igz |   igzip -T 24 |       7.737 |                555 |
-|    igz |  pragzip -P 1 |      18.183 |                236 |
-|    igz | pragzip -P 24 |       1.910 |               2249 |
+    | Format |       Decoder | Runtime / s | Bandwidth / (MB/s) |
+    |--------|---------------|-------------|--------------------|
+    |    igz |          gzip |      22.669 |                189 |
+    |    igz |         bgzip |      14.741 |                291 |
+    |    igz |   bgzip -@ 24 |      14.693 |                292 |
+    |    igz |          pigz |      12.215 |                352 |
+    |    igz |         igzip |       7.714 |                557 |
+    |    igz |   igzip -T 24 |       7.725 |                556 |
+    |    igz | pragzip -P 1  |      16.501 |                260 |
+    |    igz | pragzip -P 24 |       1.653 |               2598 |
 
 
 # Create an incompressible random file
@@ -1232,11 +1232,13 @@ done
 
 
 
+# Benchmark pragzip scaling over threads
+
 for fname in 4GiB-base64 4GiB-random; do
     fileSize=$( stat -L --format=%s -- "$fname" )
     format=gz
     printf '\n| %14s | %13s | %10s | %18s |\n' File Decoder 'Runtime / s' 'Bandwidth / (MB/s)'
-    printf -- '|----------------|----------------|-------------|--------------------|\n'
+    printf -- '|----------------|---------------|-------------|--------------------|\n'
     crc32 "$fname.$format" &>/dev/null  # Make my QLC SSD cache the file into the SLC cache
 
     for parallelization in 1 2 4 8 12 16 24 32; do
@@ -1248,14 +1250,25 @@ for fname in 4GiB-base64 4GiB-random; do
     done
 done
 
-|           File |       Decoder | Runtime / s | Bandwidth / (MB/s) |
-|----------------|---------------|-------------|--------------------|
-| 4GiB-random.gz |  pragzip -P 1 |       1.272 |               3377 |
-| 4GiB-random.gz |  pragzip -P 2 |       2.659 |               1615 |
-| 4GiB-random.gz |  pragzip -P 4 |       1.728 |               2486 |
-| 4GiB-random.gz |  pragzip -P 8 |       1.582 |               2715 |
-| 4GiB-random.gz | pragzip -P 12 |       1.505 |               2854 |
-| 4GiB-random.gz | pragzip -P 16 |       1.677 |               2561 |
-| 4GiB-random.gz | pragzip -P 24 |       1.656 |               2594 |
-| 4GiB-random.gz | pragzip -P 32 |       1.630 |               2635 |
+    |           File |       Decoder | Runtime / s | Bandwidth / (MB/s) |
+    |----------------|---------------|-------------|--------------------|
+    | 4GiB-base64.gz |  pragzip -P 1 |      19.763 |                217 |
+    | 4GiB-base64.gz |  pragzip -P 2 |       9.782 |                439 |
+    | 4GiB-base64.gz |  pragzip -P 4 |       5.122 |                839 |
+    | 4GiB-base64.gz |  pragzip -P 8 |       2.905 |               1478 |
+    | 4GiB-base64.gz | pragzip -P 12 |       2.241 |               1917 |
+    | 4GiB-base64.gz | pragzip -P 16 |       1.890 |               2272 |
+    | 4GiB-base64.gz | pragzip -P 24 |       1.703 |               2522 |
+    | 4GiB-base64.gz | pragzip -P 32 |       1.716 |               2503 |
+
+    |           File |       Decoder | Runtime / s | Bandwidth / (MB/s) |
+    |----------------|---------------|-------------|--------------------|
+    | 4GiB-random.gz |  pragzip -P 1 |       1.289 |               3332 |
+    | 4GiB-random.gz |  pragzip -P 2 |       1.961 |               2190 |
+    | 4GiB-random.gz |  pragzip -P 4 |       1.431 |               3001 |
+    | 4GiB-random.gz |  pragzip -P 8 |       1.276 |               3366 |
+    | 4GiB-random.gz | pragzip -P 12 |       1.306 |               3289 |
+    | 4GiB-random.gz | pragzip -P 16 |       1.439 |               2985 |
+    | 4GiB-random.gz | pragzip -P 24 |       1.509 |               2846 |
+    | 4GiB-random.gz | pragzip -P 32 |       1.530 |               2807 |
 */

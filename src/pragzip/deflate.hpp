@@ -43,7 +43,7 @@ namespace pragzip
 namespace deflate
 {
 using LiteralOrLengthHuffmanCoding =
-    HuffmanCodingReversedBitsCached<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_LITERAL_HUFFMAN_CODE_COUNT>;
+    HuffmanCodingDoubleLiteralCached<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_LITERAL_HUFFMAN_CODE_COUNT>;
 
 /**
  * Because the fixed Huffman coding is used by different threads it HAS TO BE immutable. It is constant anyway
