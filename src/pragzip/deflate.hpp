@@ -161,7 +161,8 @@ using PrecodeHuffmanCoding = HuffmanCodingReversedBitsCachedCompressed<uint8_t, 
 using DistanceHuffmanCoding = HuffmanCodingReversedBitsCached<uint16_t, MAX_CODE_LENGTH,
                                                               uint8_t, MAX_DISTANCE_SYMBOL_COUNT>;
 
-using LiteralAndDistanceCLBuffer = std::array<uint8_t, MAX_LITERAL_OR_LENGTH_SYMBOLS + MAX_DISTANCE_SYMBOL_COUNT>;
+/* Include 256 safety buffer so that we can avoid branches while filling. */
+using LiteralAndDistanceCLBuffer = std::array<uint8_t, MAX_LITERAL_OR_LENGTH_SYMBOLS + MAX_DISTANCE_SYMBOL_COUNT + 256>;
 
 
 [[nodiscard]] constexpr FixedHuffmanCoding
@@ -276,6 +277,7 @@ public:
         uint8_t literal{ 0 };
     } codeCounts;
 
+    /* These are cumulative counters but they can be manually reset before calls to readHeader. */
     struct {
         double readDynamicHeader{ 0 };
         double readPrecode{ 0 };
@@ -444,7 +446,7 @@ public:
 
 private:
     template<typename Window>
-    void
+    forceinline void
     appendToWindow( Window&                     window,
                     typename Window::value_type decodedSymbol );
 
@@ -591,6 +593,11 @@ private:
      * The exact value does not matter and is undefined when @ref m_containsMarkerBytes is false.
      */
     size_t m_distanceToLastMarkerByte{ 0 };
+
+    /* Large buffers required only temporarily inside readHeader. */
+    alignas( 64 ) std::array<uint8_t, MAX_PRECODE_COUNT> m_precodeCL;
+    alignas( 64 ) PrecodeHuffmanCoding m_precodeHC;
+    alignas( 64 ) LiteralAndDistanceCLBuffer m_literalCL;
 };
 
 
@@ -681,19 +688,36 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDistanceAndLiteralCodeLengths(
                 return Error::INVALID_CL_BACKREFERENCE;
             }
             const auto lastValue = literalCL[i - 1];
-            const auto repeatCount = bitReader.read<2>() + 3;
-            const auto nextI = i + repeatCount;
-            if ( nextI > literalCLSize ) {
-                return Error::EXCEEDED_LITERAL_RANGE;
-            }
-            for ( ; i < nextI; ++i ) {
-                literalCL[i] = lastValue;
-            }
+
+            /* Unroll 3U + 0b11U = 6 times to avoid branches. Do it manually to be portable. */
+            literalCL[i + 0] = lastValue;
+            literalCL[i + 1] = lastValue;
+            literalCL[i + 2] = lastValue;
+            literalCL[i + 3] = lastValue;
+            literalCL[i + 4] = lastValue;
+            literalCL[i + 5] = lastValue;
+
+            i += bitReader.read<2>() + 3;
         } else if ( code == 17 ) {
-            /* Decode fixed number of zeros. The vector is initialized to zeros, so we can simply skip these. */
+            /* Unroll 3U + 0b111U = 10 times to avoid branches. Do it manually to be portable. */
+            literalCL[i + 0] = 0;
+            literalCL[i + 1] = 0;
+            literalCL[i + 2] = 0;
+            literalCL[i + 3] = 0;
+            literalCL[i + 4] = 0;
+            literalCL[i + 5] = 0;
+            literalCL[i + 6] = 0;
+            literalCL[i + 7] = 0;
+            literalCL[i + 8] = 0;
+            literalCL[i + 9] = 0;
+
             i += bitReader.read<3>() + 3;
         } else if ( code == 18 ) {
             /* Decode fixed number of zeros. The vector is initialized to zeros, so we can simply skip these. */
+            #pragma GCC unroll 16
+            for ( size_t j = 0; j < 11U + ( 1U << 7U ) - 1U; ++j ) {
+                literalCL[i + j] = 0;
+            }
             i += bitReader.read<7>() + 11;
         }
     }
@@ -745,9 +769,9 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& 
     }
 
     /* Get code lengths (CL) for alphabet P. */
-    std::array<uint8_t, MAX_PRECODE_COUNT> codeLengthCL{};
+    std::memset( m_precodeCL.data(), 0, m_precodeCL.size() * sizeof( m_precodeCL[0] ) );
     for ( size_t i = 0; i < codeLengthCount; ++i ) {
-        codeLengthCL[PRECODE_ALPHABET[i]] = bitReader.read<PRECODE_BITS>();
+        m_precodeCL[PRECODE_ALPHABET[i]] = bitReader.read<PRECODE_BITS>();
     }
 
     if constexpr ( ENABLE_STATISTICS ) {
@@ -755,8 +779,7 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& 
         durations.readPrecode += duration( times.readDynamicStart, times.readPrecode );
     }
 
-    PrecodeHuffmanCoding codeLengthHC;
-    auto error = codeLengthHC.initializeFromLengths( VectorView<uint8_t>( codeLengthCL.data(), codeLengthCL.size() ) );
+    auto error = m_precodeHC.initializeFromLengths( VectorView<uint8_t>( m_precodeCL.data(), m_precodeCL.size() ) );
 
     if constexpr ( ENABLE_STATISTICS ) {
         times.createdPrecodeHC = now();
@@ -772,9 +795,8 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& 
     }
 
     /* Decode the code lengths for the literal/length and distance alphabets. */
-    LiteralAndDistanceCLBuffer literalCL{};
     auto precodeApplyError = readDistanceAndLiteralCodeLengths(
-        literalCL, bitReader, codeLengthHC, literalCodeCount + distanceCodeCount );
+        m_literalCL, bitReader, m_precodeHC, literalCodeCount + distanceCodeCount );
 
     if constexpr ( ENABLE_STATISTICS ) {
         times.appliedPrecodeHC = now();
@@ -791,7 +813,7 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& 
     /* Create distance HC
      * When encoding base64-encoded random-data, I encountered a length of 9, so uint16_t is necessary! */
     error = m_distanceHC.initializeFromLengths(
-        VectorView<uint8_t>( literalCL.data() + literalCodeCount, distanceCodeCount ) );
+        VectorView<uint8_t>( m_literalCL.data() + literalCodeCount, distanceCodeCount ) );
 
     if constexpr ( ENABLE_STATISTICS ) {
         times.createdDistanceHC = now();
@@ -807,7 +829,7 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& 
     }
 
     /* Create literal HC */
-    error = m_literalHC.initializeFromLengths( VectorView<uint8_t>( literalCL.data(), literalCodeCount ) );
+    error = m_literalHC.initializeFromLengths( VectorView<uint8_t>( m_literalCL.data(), literalCodeCount ) );
     if ( error != Error::NONE ) {
         if constexpr ( ENABLE_STATISTICS ) {
             this->failedLengthInit++;
