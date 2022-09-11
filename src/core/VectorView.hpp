@@ -85,6 +85,12 @@ public:
         return m_data[i];
     }
 
+    [[nodiscard]] explicit
+    operator std::vector<T>() const
+    {
+        return std::vector<T>( begin(), end() );
+    }
+
 private:
     const T* m_data{ nullptr };
     size_t   m_size{ 0 };

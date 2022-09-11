@@ -272,10 +272,16 @@ public:
     std::array<uint64_t, /* codeLengthCount - 4 is 4 bits = 16 possible values */ 16> precodeCLHistogram{};
 
     struct {
-        uint8_t precode{ 0 };
-        uint8_t distance{ 0 };
-        uint8_t literal{ 0 };
+        uint32_t precode{ 0 };
+        uint32_t distance{ 0 };
+        uint32_t literal{ 0 };  // Minimum value is 257!
     } codeCounts;
+
+    /* These are cumulative counters but they can be manually reset before calls to readHeader. */
+    struct {
+        uint64_t literal{ 0 };
+        uint64_t backreference{ 0 };
+    } symbolTypes;
 
     /* These are cumulative counters but they can be manually reset before calls to readHeader. */
     struct {
@@ -442,6 +448,18 @@ public:
         }
 
         return false;
+    }
+
+    [[nodiscard]] constexpr const auto&
+    precodeCL() const noexcept
+    {
+        return m_precodeCL;
+    }
+
+    [[nodiscard]] constexpr const auto&
+    distanceAndLiteralCL() const noexcept
+    {
+        return m_literalCL;
     }
 
 private:
@@ -1125,6 +1143,10 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readInternalCompressed( BitReader&   
         auto code = *decoded;
 
         if ( code <= 255 ) {
+            if constexpr ( ENABLE_STATISTICS ) {
+                symbolTypes.literal++;
+            }
+
             appendToWindow( window, code );
             ++nBytesRead;
             continue;
@@ -1137,6 +1159,10 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readInternalCompressed( BitReader&   
 
         if ( UNLIKELY( code > 285 ) ) [[unlikely]] {
             return { nBytesRead, Error::INVALID_HUFFMAN_CODE };
+        }
+
+        if constexpr ( ENABLE_STATISTICS ) {
+            symbolTypes.backreference++;
         }
 
         const auto length = getLength( code, bitReader );
