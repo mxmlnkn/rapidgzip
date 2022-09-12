@@ -136,27 +136,17 @@ public:
             return;
         }
 
-        while ( m_cache.size() >= m_maxCacheSize ) {
-            const auto toEvict = m_cacheStrategy.evict();
-            assert( toEvict );
-            const auto keyToEvict = toEvict ? *toEvict : m_cache.begin()->first;
-            m_cache.erase( keyToEvict );
-
-            if ( const auto match = m_accesses.find( keyToEvict ); match != m_accesses.end() ) {
-                if ( match->second == 0 ) {
-                    m_statistics.unusedEntries++;
-                }
-                m_accesses.erase( match );
-            }
+        /* If an entry with the same key already exists, then we can simply replace it without evicting anything.
+         * Do not use try_emplace here because that could temporarily exceed the allotted capacity. */
+        if ( const auto existingEntry = m_cache.find( key ); existingEntry == m_cache.end() ) {
+            shrinkTo( capacity() - 1 );
+            m_cache.emplace( key, std::move( value ) );
+        } else {
+            existingEntry->second = std::move( value );
         }
 
         if ( const auto match = m_accesses.find( key ); match == m_accesses.end() ) {
             m_accesses[key] = 0;
-        }
-
-        const auto [match, wasInserted] = m_cache.try_emplace( key, std::move( value ) );
-        if ( !wasInserted ) {
-            match->second = std::move( value );
         }
 
         m_cacheStrategy.touch( key );
@@ -187,6 +177,25 @@ public:
     {
         m_cacheStrategy.evict( key );
         m_cache.erase( key );
+    }
+
+
+    void
+    shrinkTo( size_t newSize )
+    {
+        while ( m_cache.size() > newSize ) {
+            const auto toEvict = m_cacheStrategy.evict();
+            assert( toEvict );
+            const auto keyToEvict = toEvict ? *toEvict : m_cache.begin()->first;
+            m_cache.erase( keyToEvict );
+
+            if ( const auto match = m_accesses.find( keyToEvict ); match != m_accesses.end() ) {
+                if ( match->second == 0 ) {
+                    m_statistics.unusedEntries++;
+                }
+                m_accesses.erase( match );
+            }
+        }
     }
 
     /* Analytics */
