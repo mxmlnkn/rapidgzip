@@ -263,8 +263,8 @@ private:
              || ( !blockData->matchesEncodedOffset( blockOffset )
                   && ( partitionOffset != blockOffset ) ) ) {
             if ( blockData ) {
-                std::cerr << "[Info] Detected a performance problem. YOUR DATA IS FINE! However, decoding might "
-                          << "take longer than necessary. Please consider opening a performance bug report with "
+                std::cerr << "[Info] Detected a performance problem. Decoding might take longer than necessary. "
+                          << "Please consider opening a performance bug report with "
                           << "a reproducing compressed file. Detailed information:\n"
                           << "[Info] Found mismatching block. Need offset " << formatBits( blockOffset )
                           << ". Look in partition offset: " << formatBits( partitionOffset )

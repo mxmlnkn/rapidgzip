@@ -129,6 +129,35 @@ testUncompressedBlockFinder( std::string const&                             path
         std::cerr << "Found ranges:\n" << printRanges( foundRanges );
         std::cerr << "Expected ranges:\n" << printRanges( expected );
     }
+
+    /* Search in 1 B blocks. */
+    foundRanges.clear();
+    static constexpr auto BLOCK_SIZE = 8U;  /** in bits */
+    for ( size_t offset = 0; offset < bitReader.size(); offset += BLOCK_SIZE ) {
+        bitReader.seek( static_cast<long long int>( offset ) );
+        const auto foundRange = blockfinder::seekToNonFinalUncompressedDeflateBlock( bitReader, offset + BLOCK_SIZE );
+        if ( foundRange.first != std::numeric_limits<size_t>::max() ) {
+            const auto validResult = rangesIntersect( foundRange, std::make_pair( offset, offset + BLOCK_SIZE ) );
+            REQUIRE( validResult );
+            if ( !validResult ) {
+                std::cerr << "Found range: [" << formatBits( foundRange.first ) << ", "
+                          << formatBits( foundRange.second ) << "] is outside of search range ["
+                          << formatBits( offset ) << ", " << formatBits( offset + BLOCK_SIZE ) << "]\n";
+            }
+            foundRanges.emplace_back( foundRange );
+        }
+    }
+
+    /* It is valid for there to be duplicates because the allowed start range may be 3 to 10 bits before the
+     * uncompressed block size depending on how many zero bits there are. */
+    foundRanges.erase( std::unique( foundRanges.begin(), foundRanges.end() ), foundRanges.end() );
+
+    REQUIRE_EQUAL( foundRanges.size(), expected.size() );
+    REQUIRE( foundRanges == expected );
+    if ( foundRanges != expected ) {
+        std::cerr << "Found ranges:\n" << printRanges( foundRanges );
+        std::cerr << "Expected ranges:\n" << printRanges( expected );
+    }
 }
 
 

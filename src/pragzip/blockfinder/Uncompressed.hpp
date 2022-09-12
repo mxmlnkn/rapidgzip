@@ -24,12 +24,21 @@ seekToNonFinalUncompressedDeflateBlock( BitReader&   bitReader,
 {
     static constexpr auto DEFLATE_MAGIC_BIT_COUNT = 3U;
 
+    /* Beware that the starting offset might be up to 7 + 3 bits before the size offset!
+     * 8 + 3 would be invalid because then the byte-aligned size would be 1 byte prior. */
+    static constexpr uint32_t MAX_PRECEDING_BITS = DEFLATE_MAGIC_BIT_COUNT + ( BYTE_SIZE - 1U );
+    static constexpr uint32_t MAX_PRECEDING_BYTES = ceilDiv( MAX_PRECEDING_BITS, BYTE_SIZE ) * BYTE_SIZE;
+
     try
     {
+        const auto untilOffsetSizeMember = untilOffset >= std::numeric_limits<size_t>::max() - MAX_PRECEDING_BYTES
+                                           ? std::numeric_limits<size_t>::max()
+                                           : untilOffset + MAX_PRECEDING_BYTES;
+
         const auto startOffset = bitReader.tell();
         for ( size_t offset = std::max( static_cast<size_t>( BYTE_SIZE ),
                                         ceilDiv( startOffset + DEFLATE_MAGIC_BIT_COUNT, BYTE_SIZE ) * BYTE_SIZE );
-              offset < untilOffset; offset += BYTE_SIZE )
+              offset < untilOffsetSizeMember; offset += BYTE_SIZE )
         {
             assert( offset % BYTE_SIZE == 0 );
             bitReader.seek( static_cast<long long int>( offset ) );
@@ -43,10 +52,7 @@ seekToNonFinalUncompressedDeflateBlock( BitReader&   bitReader,
             /* This should happen rather rarely, at least for false positives. So, we can be a bit indulgent
              * and seek back possibly expensively to check the block header. Beware the bit order! They are
              * read and numbered from the lowest bits first, i.e., the three bits right before the size are
-             * the three HIGHEST bits and the padding are the lower bits!
-             * Beware that the starting offset might be up to 7 + 3 bits before the size offset!
-             * 8 + 3 would be invalid because then the byte-aligned size would be 1 byte prior. */
-            static constexpr auto MAX_PRECEDING_BITS = DEFLATE_MAGIC_BIT_COUNT + ( BYTE_SIZE - 1U );
+             * the three HIGHEST bits and the padding are the lower bits! */
             bitReader.seek( static_cast<long long int>( offset - MAX_PRECEDING_BITS ) );
             const auto previousBits = bitReader.peek<MAX_PRECEDING_BITS>();
 
@@ -63,7 +69,7 @@ seekToNonFinalUncompressedDeflateBlock( BitReader&   bitReader,
                 trailingZeros = j;
             }
 
-            if ( offset - DEFLATE_MAGIC_BIT_COUNT >= startOffset ) {
+            if ( ( offset - DEFLATE_MAGIC_BIT_COUNT >= startOffset ) && ( offset - trailingZeros < untilOffset ) ) {
                 return std::make_pair( offset - trailingZeros, offset - DEFLATE_MAGIC_BIT_COUNT );
             }
         }

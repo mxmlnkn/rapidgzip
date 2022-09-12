@@ -551,19 +551,62 @@ countNewlines( const std::string_view& view )
 
 
 [[nodiscard]] constexpr uint64_t
-operator "" _Ki( unsigned long long int value )
+operator "" _Ki( unsigned long long int value ) noexcept
 {
     return value * 1024ULL;
 }
 
 [[nodiscard]] constexpr uint64_t
-operator "" _Mi( unsigned long long int value )
+operator "" _Mi( unsigned long long int value ) noexcept
 {
     return value * 1024ULL * 1024ULL;
 }
 
 [[nodiscard]] constexpr uint64_t
-operator "" _Gi( unsigned long long int value )
+operator "" _Gi( unsigned long long int value ) noexcept
 {
     return value * 1024ULL * 1024ULL * 1024ULL;
+}
+
+
+/**
+ * @param rangeA Closed interval given by two numbers.
+ */
+template<typename Pair,
+         typename Value>
+[[nodiscard]] constexpr bool
+rangeContains( const Pair&  range,
+               const Value& value ) noexcept
+{
+    return ( range.first <= value ) && ( value <= range.second );
+}
+
+
+template<typename PairA,
+         typename PairB>
+[[nodiscard]] constexpr bool
+rangesIntersect( const PairA& rangeA,
+                 const PairB& rangeB ) noexcept
+{
+    /**
+     * Cases:
+     * @verbatim
+     * A     +------+
+     *       |      |
+     * B  +-+|      |
+     *    +--+      |
+     *    +----+    |
+     *    +------------+
+     *       +--+   |
+     *       |+-+   |
+     *       |+-----+
+     *       |+--------+
+     *       |      +--+
+     *       |      |
+     * @endverbatim
+     */
+    return rangeContains( rangeA, rangeB.first )
+           || rangeContains( rangeA, rangeB.second )
+           || rangeContains( rangeB, rangeA.first )
+           || rangeContains( rangeB, rangeA.second );
 }
