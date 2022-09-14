@@ -244,7 +244,7 @@ private:
               const size_t blockIndex )
     {
         const auto getPartitionOffset =
-            [this] ( auto offet ) { return m_blockFinder->partitionOffsetContaining( offet ); };
+            [this] ( auto offset ) { return m_blockFinder->partitionOffsetContaining( offset ); };
         const auto partitionOffset = getPartitionOffset( blockOffset );
 
         std::shared_ptr<BlockData> blockData;

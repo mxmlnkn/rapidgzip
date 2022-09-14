@@ -66,17 +66,28 @@ public:
             std::stringstream existingBlocks;
             existingBlocks << ( blockCountFinalized ? "" : ">=" ) << blockCount;
 
+            const auto decodeDuration = decodeBlockStartTime && decodeBlockEndTime
+                                        ? duration( *decodeBlockStartTime, *decodeBlockEndTime )
+                                        : 0.0;
+            const auto optimalDecodeDuration = decodeBlockTotalTime / parallelization;
+            /* The pool efficiency only makes sense when the thread pool is smaller or equal the CPU cores. */
+            const auto poolEfficiency = optimalDecodeDuration / decodeDuration;
+
             std::stringstream out;
             out << "\n   Parallelization                   : " << parallelization
                 << "\n   Cache"
                 << "\n       Hits                          : " << cache.hits
                 << "\n       Misses                        : " << cache.misses
                 << "\n       Unused Entries                : " << cache.unusedEntries
+                << "\n       Maximum Fill Size             : " << cache.maxSize
+                << "\n       Capacity                      : " << cache.capacity
                 << "\n   Prefetch Cache"
                 << "\n       Hits                          : " << prefetchCache.hits
                 << "\n       Misses                        : " << prefetchCache.misses
                 << "\n       Unused Entries                : " << prefetchCache.unusedEntries
                 << "\n       Prefetch Queue Hit            : " << prefetchDirectHits
+                << "\n       Maximum Fill Size             : " << prefetchCache.maxSize
+                << "\n       Capacity                      : " << prefetchCache.capacity
                 << "\n   Cache Hit Rate                    : " << cacheHitRate() * 100 << " %"
                 << "\n   Useless Prefetches                : " << uselessPrefetches() * 100 << " %"
                 << "\n   Access Patterns"
@@ -92,10 +103,14 @@ public:
                 << "\n       Fetched On-demand             : " << onDemandFetchCount
                 << "\n   Prefetch Stall by BlockFinder     : " << waitOnBlockFinderCount
                 << "\n   Time spent in:"
-                << "\n       bzip2::readBlockData          : " << readBlockDataTotalTime << "s"
-                << "\n       decodeBlock                   : " << decodeBlockTotalTime   << "s"
-                << "\n       std::future::get              : " << futureWaitTotalTime    << "s"
-                << "\n       get                           : " << getTotalTime           << "s";
+                << "\n       bzip2::readBlockData          : " << readBlockDataTotalTime << " s"
+                << "\n       decodeBlock                   : " << decodeBlockTotalTime   << " s"
+                << "\n       std::future::get              : " << futureWaitTotalTime    << " s"
+                << "\n       get                           : " << getTotalTime           << " s"
+                << "\n   Thread Pool Utilization:"
+                << "\n       Total Real Decode Duration    : " << decodeDuration << " s"
+                << "\n       Theoretical Optimal Duration  : " << optimalDecodeDuration << " s"
+                << "\n       Pool Efficiency (Fill Factor) : " << poolEfficiency * 100 << " %";
             return out.str();
         }
 
@@ -141,6 +156,9 @@ public:
         size_t prefetchDirectHits{ 0 };
         size_t waitOnBlockFinderCount{ 0 };
 
+        std::optional<std::decay_t<decltype( now() )> > decodeBlockStartTime;
+        std::optional<std::decay_t<decltype( now() )> > decodeBlockEndTime;
+
         double decodeBlockTotalTime{ 0 };
         double futureWaitTotalTime{ 0 };
         double getTotalTime{ 0 };
@@ -163,6 +181,10 @@ protected:
     {
         if ( !m_blockFinder ) {
             throw std::invalid_argument( "BlockFinder must be valid!" );
+        }
+
+        if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+            m_statistics.parallelization = m_parallelization;
         }
     }
 
@@ -499,8 +521,19 @@ private:
         [[maybe_unused]] const auto tDecodeStart = now();
         auto blockData = decodeBlock( blockOffset, nextBlockOffset );
         if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+            const auto tDecodeEnd = now();
+
             std::scoped_lock lock( this->m_analyticsMutex );
-            this->m_statistics.decodeBlockTotalTime += duration( tDecodeStart );
+
+            const auto& minStartTime = this->m_statistics.decodeBlockStartTime;
+            this->m_statistics.decodeBlockStartTime.emplace(
+                minStartTime ? std::min( *minStartTime, tDecodeStart ) : tDecodeStart );
+
+            const auto& maxEndTime = this->m_statistics.decodeBlockEndTime;
+            this->m_statistics.decodeBlockEndTime.emplace(
+                maxEndTime ? std::max( *maxEndTime, tDecodeEnd ) : tDecodeEnd );
+
+            this->m_statistics.decodeBlockTotalTime += duration( tDecodeStart, tDecodeEnd );
         }
         return blockData;
     }

@@ -106,6 +106,7 @@ public:
         size_t misses{ 0 };
         size_t unusedEntries{ 0 };
         size_t capacity{ 0 };
+        size_t maxSize{ 0 };
     };
 
 public:
@@ -141,6 +142,7 @@ public:
         if ( const auto existingEntry = m_cache.find( key ); existingEntry == m_cache.end() ) {
             shrinkTo( capacity() - 1 );
             m_cache.emplace( key, std::move( value ) );
+            m_statistics.maxSize = std::max( m_statistics.maxSize, m_cache.size() );
         } else {
             existingEntry->second = std::move( value );
         }
