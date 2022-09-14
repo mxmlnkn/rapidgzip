@@ -233,15 +233,21 @@ public:
             queuedResult = submitOnDemandTask( blockOffset, nextBlockOffset );
         }
 
-        prefetchNewBlocks(
-            validDataBlockIndex,
-            getPartitionOffset,
-            [&cachedResult = cachedResult, &queuedResult = queuedResult] () {
-                using namespace std::chrono_literals;
-                return cachedResult.has_value() ||
-                       ( queuedResult.valid() && ( queuedResult.wait_for( 0s ) == std::future_status::ready ) );
-            }
-        );
+        const auto doPrefetch =
+            [&] ()
+            {
+                prefetchNewBlocks(
+                    validDataBlockIndex,
+                    getPartitionOffset,
+                    [&cachedResult = cachedResult, &queuedResult = queuedResult] () {
+                        using namespace std::chrono_literals;
+                        return cachedResult.has_value() ||
+                               ( queuedResult.valid() && ( queuedResult.wait_for( 0s ) == std::future_status::ready ) );
+                    }
+                );
+            };
+
+        doPrefetch();
 
         /* Return result */
         if ( cachedResult.has_value() ) {
@@ -254,6 +260,11 @@ public:
         }
 
         [[maybe_unused]] const auto tFutureGetStart = now();
+        using namespace std::chrono_literals;
+        /* At ~4 MiB compressed blocks and ~200 MB/s compressed bandwidth for base64, one block might take ~20ms. */
+        while ( queuedResult.wait_for( 1ms ) == std::future_status::timeout ) {
+            doPrefetch();
+        }
         auto result = std::make_shared<BlockData>( queuedResult.get() );
         [[maybe_unused]] const auto futureGetDuration = duration( tFutureGetStart );
 
