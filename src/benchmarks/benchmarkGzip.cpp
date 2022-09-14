@@ -1101,52 +1101,47 @@ done
 
     | Format |       Decoder | Runtime / s | Bandwidth / (MB/s) |
     |--------|---------------|-------------|--------------------|
-    |        |           cat |       1.273 |               3374 |
-    |        |          fcat |       0.503 |               8539 |
+    |     gz |          gzip |      22.695 |                189 |
+    |     gz |         bgzip |      15.821 |                271 |
+    |     gz |   bgzip -@ 24 |      15.837 |                271 |
+    |     gz |          pigz |      13.366 |                321 |
+    |     gz |         igzip |       8.878 |                484 |
+    |     gz |   igzip -T 24 |       9.123 |                471 |
+    |     gz |  pragzip -P 1 |      19.180 |                224 |
+    |     gz | pragzip -P 24 |       1.641 |               2617 |
 
     | Format |       Decoder | Runtime / s | Bandwidth / (MB/s) |
     |--------|---------------|-------------|--------------------|
-    |     gz |          gzip |      22.171 |                194 |
-    |     gz |         bgzip |      16.127 |                266 |
-    |     gz |   bgzip -@ 24 |      16.131 |                266 |
-    |     gz |          pigz |      13.120 |                327 |
-    |     gz |         igzip |       9.533 |                451 |
-    |     gz |   igzip -T 24 |       8.767 |                490 |
-    |     gz | pragzip -P 1  |      17.224 |                249 |
-    |     gz | pragzip -P 24 |       1.705 |               2519 |
+    |    bgz |          gzip |      26.441 |                162 |
+    |    bgz |         bgzip |      12.151 |                353 |
+    |    bgz |   bgzip -@ 24 |       1.727 |               2487 |
+    |    bgz |          pigz |      20.088 |                214 |
+    |    bgz |         igzip |       9.451 |                454 |
+    |    bgz |   igzip -T 24 |       9.498 |                452 |
+    |    bgz |  pragzip -P 1 |      27.083 |                159 |
+    |    bgz | pragzip -P 24 |       1.852 |               2319 |
 
     | Format |       Decoder | Runtime / s | Bandwidth / (MB/s) |
     |--------|---------------|-------------|--------------------|
-    |    bgz |          gzip |      24.716 |                174 |
-    |    bgz |         bgzip |      11.914 |                360 |
-    |    bgz |   bgzip -@ 24 |       1.600 |               2684 |
-    |    bgz |          pigz |      20.156 |                213 |
-    |    bgz |         igzip |       9.372 |                458 |
-    |    bgz |   igzip -T 24 |       9.321 |                461 |
-    |    bgz | pragzip -P 1  |      26.686 |                161 |
-    |    bgz | pragzip -P 24 |       1.915 |               2243 |
+    |   pigz |          gzip |      22.964 |                187 |
+    |   pigz |         bgzip |      16.282 |                264 |
+    |   pigz |   bgzip -@ 24 |      16.306 |                263 |
+    |   pigz |          pigz |      13.509 |                318 |
+    |   pigz |         igzip |       9.562 |                449 |
+    |   pigz |   igzip -T 24 |       9.384 |                458 |
+    |   pigz |  pragzip -P 1 |      22.193 |                194 |
+    |   pigz | pragzip -P 24 |       1.839 |               2335 |
 
     | Format |       Decoder | Runtime / s | Bandwidth / (MB/s) |
     |--------|---------------|-------------|--------------------|
-    |   pigz |          gzip |      22.726 |                189 |
-    |   pigz |         bgzip |      16.191 |                265 |
-    |   pigz |   bgzip -@ 24 |      16.075 |                267 |
-    |   pigz |          pigz |      13.652 |                315 |
-    |   pigz |         igzip |       9.482 |                453 |
-    |   pigz |   igzip -T 24 |       9.584 |                448 |
-    |   pigz | pragzip -P 1  |      21.573 |                199 |
-    |   pigz | pragzip -P 24 |       1.760 |               2440 |
-
-    | Format |       Decoder | Runtime / s | Bandwidth / (MB/s) |
-    |--------|---------------|-------------|--------------------|
-    |    igz |          gzip |      22.669 |                189 |
-    |    igz |         bgzip |      14.741 |                291 |
-    |    igz |   bgzip -@ 24 |      14.693 |                292 |
-    |    igz |          pigz |      12.215 |                352 |
-    |    igz |         igzip |       7.714 |                557 |
-    |    igz |   igzip -T 24 |       7.725 |                556 |
-    |    igz | pragzip -P 1  |      16.501 |                260 |
-    |    igz | pragzip -P 24 |       1.653 |               2598 |
+    |    igz |          gzip |      21.656 |                198 |
+    |    igz |         bgzip |      15.076 |                285 |
+    |    igz |   bgzip -@ 24 |      14.861 |                289 |
+    |    igz |          pigz |      12.096 |                355 |
+    |    igz |         igzip |       7.927 |                542 |
+    |    igz |   igzip -T 24 |       7.887 |                545 |
+    |    igz |  pragzip -P 1 |      15.463 |                278 |
+    |    igz | pragzip -P 24 |       1.678 |               2560 |
 
 
 # Create an incompressible random file

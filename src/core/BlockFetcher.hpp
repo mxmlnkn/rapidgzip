@@ -203,7 +203,7 @@ public:
      *        query BlockFinder for the block offset. This started as a performance optimization, to avoid
      *        unnecessary BlockFinder lookups but when looking up the partition offset, it might be necessary
      *        or else the BlockFinder::find call might throw because it can't find the given offset.
-     * @param getPartitionOffset Returns the partition offset to a given blockOffset. This is used to look up
+     * @param getPartitionOffsetFromOffset Returns the partition offset to a given blockOffset. This is used to look up
      *        existence of blocks in the cache to avoid duplicate prefetches (one for the partition offset
      *        and another one for the real offset).
      * @return BlockData to requested blockOffset. Undefined what happens for an invalid blockOffset as input.
@@ -212,7 +212,7 @@ public:
     get( const size_t                blockOffset,
          const std::optional<size_t> dataBlockIndex = std::nullopt,
          const bool                  onlyCheckCaches = false,
-         const GetPartitionOffset&   getPartitionOffset = {} )
+         const GetPartitionOffset&   getPartitionOffsetFromOffset = {} )
     {
         [[maybe_unused]] const auto tGetStart = now();
 
@@ -233,12 +233,13 @@ public:
             queuedResult = submitOnDemandTask( blockOffset, nextBlockOffset );
         }
 
+        m_fetchingStrategy.fetch( validDataBlockIndex );
+
         const auto doPrefetch =
             [&] ()
             {
                 prefetchNewBlocks(
-                    validDataBlockIndex,
-                    getPartitionOffset,
+                    getPartitionOffsetFromOffset,
                     [&cachedResult = cachedResult, &queuedResult = queuedResult] () {
                         using namespace std::chrono_literals;
                         return cachedResult.has_value() ||
@@ -396,48 +397,61 @@ private:
     /**
      * Fills m_prefetching up with a maximum of m_parallelization-1 new tasks predicted
      * based on the given last accessed block index(es).
-     * @param dataBlockIndex The currently accessed block index as needed to query the prefetcher.
      * @param stopPrefetching The prefetcher might wait a bit on the block finder but when stopPrefetching returns true
      *                        it will stop that and return before having completely filled the prefetch queue.
      */
     void
-    prefetchNewBlocks( const size_t                 dataBlockIndex,
-                       const GetPartitionOffset&    getPartitionOffset,
+    prefetchNewBlocks( const GetPartitionOffset&    getPartitionOffsetFromOffset,
                        const std::function<bool()>& stopPrefetching )
     {
         /* Make space for new asynchronous prefetches. */
         processReadyPrefetches();
 
-        /* Get blocks to prefetch. In order to avoid oscillating caches, the fetching strategy should ony return
-         * less than the cache size number of blocks. It is fine if that means no work is being done in the background
-         * for some calls to 'get'! */
-        m_fetchingStrategy.fetch( dataBlockIndex );
-        auto blocksToPrefetch = m_fetchingStrategy.prefetch( /* maxAmountToPrefetch */ m_parallelization );
+        const auto threadPoolSaturated =
+            [&] () { return m_prefetching.size() + /* thread with the requested block */ 1 >= m_threadPool.size(); };
+
+        if ( threadPoolSaturated() ) {
+            return;
+        }
+
+        auto blockIndexesToPrefetch = m_fetchingStrategy.prefetch( m_prefetchCache.capacity() );
+
+        std::vector<size_t> blockOffsetsToPrefetch( blockIndexesToPrefetch.size() );
+        for ( auto blockIndexToPrefetch : blockIndexesToPrefetch ) {
+            /* If we don't find the offset in the timeout of 0, then we very likely also don't have it cached yet. */
+            const auto blockOffset = m_blockFinder->get( blockIndexToPrefetch, /* timeout */ 0 );
+            if ( !blockOffset ) {
+                continue;
+            }
+
+            blockOffsetsToPrefetch.emplace_back( *blockOffset );
+            if ( getPartitionOffsetFromOffset ) {
+                const auto partitionOffset = getPartitionOffsetFromOffset( *blockOffset );
+                if ( *blockOffset != partitionOffset ) {
+                    blockOffsetsToPrefetch.emplace_back( partitionOffset );
+                }
+            }
+        }
 
         const auto touchInCacheIfExists =
-            [this] ( size_t blockIndex )
+            [this] ( size_t prefetchBlockOffset )
             {
-                if ( m_prefetchCache.test( blockIndex ) ) {
-                    m_prefetchCache.touch( blockIndex );
+                if ( m_prefetchCache.test( prefetchBlockOffset ) ) {
+                    m_prefetchCache.touch( prefetchBlockOffset );
                 }
-                if ( m_cache.test( blockIndex ) ) {
-                    m_cache.touch( blockIndex );
+                if ( m_cache.test( prefetchBlockOffset ) ) {
+                    m_cache.touch( prefetchBlockOffset );
                 }
             };
 
         /* Touch all blocks to be prefetched to avoid evicting them while doing the prefetching of other blocks! */
-        for ( auto blockIndexToPrefetch : blocksToPrefetch ) {
-            touchInCacheIfExists( blockIndexToPrefetch );
+        for ( auto offset = blockOffsetsToPrefetch.rbegin(); offset != blockOffsetsToPrefetch.rend(); ++offset ) {
+            touchInCacheIfExists( *offset );
         }
 
-        for ( auto blockIndexToPrefetch : blocksToPrefetch ) {
-            if ( m_prefetching.size() + /* thread with the requested block */ 1 >= m_parallelization ) {
+        for ( auto blockIndexToPrefetch : blockIndexesToPrefetch ) {
+            if ( threadPoolSaturated() ) {
                 break;
-            }
-
-            if ( blockIndexToPrefetch == dataBlockIndex ) {
-                throw std::logic_error( "The fetching strategy should not return the "
-                                        "last fetched block for prefetching!" );
             }
 
             if ( m_blockFinder->finalized() && ( blockIndexToPrefetch >= m_blockFinder->size() ) ) {
@@ -466,21 +480,21 @@ private:
                 }
             }
 
-            touchInCacheIfExists( blockIndexToPrefetch );
-
             /* Do not prefetch already cached/prefetched blocks or block indexes which are not yet in the block map. */
             if ( !prefetchBlockOffset.has_value()
                  || !nextPrefetchBlockOffset.has_value()
                  || isInCacheOrQueue( *prefetchBlockOffset )
-                 || ( getPartitionOffset && isInCacheOrQueue( getPartitionOffset( *prefetchBlockOffset ) ) ) )
+                 || ( getPartitionOffsetFromOffset
+                      && isInCacheOrQueue( getPartitionOffsetFromOffset( *prefetchBlockOffset ) ) ) )
             {
                 continue;
             }
 
-            /* Avoid cache pollution by stopping prefetching when we would evict usable results. */
-            if ( m_prefetchCache.size() >= m_prefetchCache.capacity() ) {
-                const auto toBeEvicted = m_prefetchCache.cacheStrategy().nextEviction();
-                if ( toBeEvicted && contains( blocksToPrefetch, *toBeEvicted ) ) {
+            /* Avoid cache pollution by stopping prefetching when we would evict usable results.
+             * Note that we have to also account for m_prefetching.size() evictions before our eviction of interest! */
+            if ( const auto offsetToBeEvicted = m_prefetchCache.nextNthEviction( m_prefetching.size() + 1 );
+                 offsetToBeEvicted.has_value() ) {
+                if ( contains( blockOffsetsToPrefetch, offsetToBeEvicted ) ) {
                     break;
                 }
             }

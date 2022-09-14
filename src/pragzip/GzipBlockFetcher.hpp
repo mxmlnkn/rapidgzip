@@ -243,13 +243,14 @@ private:
     getBlock( const size_t blockOffset,
               const size_t blockIndex )
     {
-        const auto getPartitionOffset =
-            [this] ( auto offset ) { return m_blockFinder->partitionOffsetContaining( offset ); };
-        const auto partitionOffset = getPartitionOffset( blockOffset );
+        const auto getPartitionOffsetFromOffset =
+            [this] ( auto offset ) { return m_blockFinder->partitionOffsetContainingOffset( offset ); };
+        const auto partitionOffset = getPartitionOffsetFromOffset( blockOffset );
 
         std::shared_ptr<BlockData> blockData;
         try {
-            blockData = BaseType::get( partitionOffset, blockIndex, /* only check caches */ true, getPartitionOffset );
+            blockData = BaseType::get( partitionOffset, blockIndex, /* only check caches */ true,
+                                       getPartitionOffsetFromOffset );
         } catch ( const NoBlockInRange& ) {
             /* Trying to get the next block based on the partition offset is only a performance optimization.
              * It should succeed most of the time for good performance but is not required to and also might
@@ -274,7 +275,8 @@ private:
             }
             /* This call given the exact block offset must always yield the correct data and should be equivalent
              * to directly call @ref decodeBlock with that offset. */
-            blockData = BaseType::get( blockOffset, blockIndex, /* only check caches */ false, getPartitionOffset );
+            blockData = BaseType::get( blockOffset, blockIndex, /* only check caches */ false,
+                                       getPartitionOffsetFromOffset );
         }
 
         if ( !blockData || ( blockData->encodedOffsetInBits == std::numeric_limits<size_t>::max() ) ) {

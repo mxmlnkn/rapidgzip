@@ -183,7 +183,7 @@ public:
     }
 
     [[nodiscard]] size_t
-    partitionOffsetContaining( size_t blockOffset ) const
+    partitionOffsetContainingOffset( size_t blockOffset ) const
     {
         /* Round down to m_spacingInBits grid. */
         return ( blockOffset / m_spacingInBits ) * m_spacingInBits;
