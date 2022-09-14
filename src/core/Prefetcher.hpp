@@ -22,6 +22,15 @@ public:
     virtual void
     fetch( size_t index ) = 0;
 
+    /**
+     * @return true if all of the memorized last access were sequential. On true, more optimizations may be enabled.
+     */
+    [[nodiscard]] virtual bool
+    isSequential() const noexcept
+    {
+        return false;
+    }
+
     [[nodiscard]] virtual std::vector<size_t>
     prefetch( size_t maxAmountToPrefetch ) const = 0;
 };
@@ -90,6 +99,18 @@ public:
         while ( m_previousIndexes.size() > m_memorySize ) {
             m_previousIndexes.pop_back();
         }
+    }
+
+    [[nodiscard]] virtual bool
+    isSequential() const noexcept override
+    {
+        /* Returning true for the empty case and only one element or very few is desired behavior. */
+        for ( size_t i = 0; i + 1 < m_previousIndexes.size(); ++i ) {
+            if ( m_previousIndexes[i + 1] + 1 != m_previousIndexes[i] ) {
+                return false;
+            }
+        }
+        return true;
     }
 
     [[nodiscard]] static std::vector<size_t>

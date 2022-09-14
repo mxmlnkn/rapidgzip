@@ -257,7 +257,7 @@ public:
         auto result = std::make_shared<BlockData>( queuedResult.get() );
         [[maybe_unused]] const auto futureGetDuration = duration( tFutureGetStart );
 
-        m_cache.insert( blockOffset, result );
+        insertIntoCache( blockOffset, result );
 
         if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
             std::scoped_lock lock( m_analyticsMutex );
@@ -289,6 +289,17 @@ public:
     }
 
 private:
+    void
+    insertIntoCache( const size_t               blockOffset,
+                     std::shared_ptr<BlockData> blockData )
+    {
+        if ( m_fetchingStrategy.isSequential() ) {
+            m_cache.clear();
+        }
+        m_cache.insert( blockOffset, std::move( blockData ) );
+    }
+
+
     [[nodiscard]] bool
     isInCacheOrQueue( const size_t blockOffset ) const
     {
@@ -318,7 +329,7 @@ private:
                 result = m_prefetchCache.get( blockOffset );
                 if ( result ) {
                     m_prefetchCache.evict( blockOffset );
-                    m_cache.insert( blockOffset, *result );
+                    insertIntoCache( blockOffset, *result );
                 }
             }
         }
