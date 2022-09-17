@@ -129,9 +129,18 @@ public:
 
         assert( !m_blockOffsets.empty() );
         const auto blockIndexOutside = blockIndex - m_blockOffsets.size();  // >= 0
-        const auto blockOffset = ( firstPartitionIndex() + blockIndexOutside ) * m_spacingInBits;
+        const auto partitionIndex = firstPartitionIndex() + blockIndexOutside;
+        const auto blockOffset = partitionIndex * m_spacingInBits;
         if ( blockOffset < m_fileSizeInBits ) {
             return blockOffset;
+        }
+
+        /* As the last offset (one after the last valid one), return the file size. */
+        if ( partitionIndex > 0 ) {
+            const auto previousBlockOffset = ( partitionIndex - 1U ) * m_spacingInBits;
+            if ( previousBlockOffset < m_fileSizeInBits ) {
+                return m_fileSizeInBits;
+            }
         }
 
         return std::nullopt;
