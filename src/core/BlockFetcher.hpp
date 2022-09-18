@@ -216,7 +216,11 @@ public:
     {
         [[maybe_unused]] const auto tGetStart = now();
 
-        auto [cachedResult, queuedResult] = getFromCaches( blockOffset );
+        /* Not using capture bindings here because C++ is too dumb to capture those, yet.
+         * @see https://stackoverflow.com/a/46115028/2191065 */
+        auto resultFromCaches = getFromCaches( blockOffset );
+        auto& cachedResult = resultFromCaches.first;
+        auto& queuedResult = resultFromCaches.second;
 
         const auto validDataBlockIndex = dataBlockIndex ? *dataBlockIndex : m_blockFinder->find( blockOffset );
         const auto nextBlockOffset = m_blockFinder->get( validDataBlockIndex + 1 );
@@ -235,20 +239,14 @@ public:
 
         m_fetchingStrategy.fetch( validDataBlockIndex );
 
-        const auto doPrefetch =
-            [&] ()
-            {
-                prefetchNewBlocks(
-                    getPartitionOffsetFromOffset,
-                    [&cachedResult = cachedResult, &queuedResult = queuedResult] () {
-                        using namespace std::chrono_literals;
-                        return cachedResult.has_value() ||
-                               ( queuedResult.valid() && ( queuedResult.wait_for( 0s ) == std::future_status::ready ) );
-                    }
-                );
+        const auto resultIsReady =
+            [&cachedResult, &queuedResult] () {
+                using namespace std::chrono_literals;
+                return cachedResult.has_value() ||
+                       ( queuedResult.valid() && ( queuedResult.wait_for( 0s ) == std::future_status::ready ) );
             };
 
-        doPrefetch();
+        prefetchNewBlocks( getPartitionOffsetFromOffset, resultIsReady );
 
         /* Return result */
         if ( cachedResult.has_value() ) {
@@ -264,7 +262,7 @@ public:
         using namespace std::chrono_literals;
         /* At ~4 MiB compressed blocks and ~200 MB/s compressed bandwidth for base64, one block might take ~20ms. */
         while ( queuedResult.wait_for( 1ms ) == std::future_status::timeout ) {
-            doPrefetch();
+            prefetchNewBlocks( getPartitionOffsetFromOffset, resultIsReady );
         }
         auto result = std::make_shared<BlockData>( queuedResult.get() );
         [[maybe_unused]] const auto futureGetDuration = duration( tFutureGetStart );
