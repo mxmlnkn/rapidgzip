@@ -88,6 +88,7 @@ public:
     {
         if ( !toAppend.empty() ) {
             data.emplace_back( std::move( toAppend ) );
+            data.back().shrink_to_fit();
         }
     }
 
@@ -102,6 +103,13 @@ public:
     }
 
     [[nodiscard]] size_t
+    dataCapacity() const noexcept
+    {
+        const auto addSize = [] ( const size_t size, const auto& container ) { return size + container.capacity(); };
+        return std::accumulate( data.begin(), data.end(), size_t( 0 ), addSize );
+    }
+
+    [[nodiscard]] size_t
     dataWithMarkersSize() const noexcept
     {
         const auto addSize = [] ( const size_t size, const auto& container ) { return size + container.size(); };
@@ -109,9 +117,28 @@ public:
     }
 
     [[nodiscard]] size_t
+    dataWithMarkersCapacity() const noexcept
+    {
+        const auto addSize = [] ( const size_t size, const auto& container ) { return size + container.capacity(); };
+        return std::accumulate( dataWithMarkers.begin(), dataWithMarkers.end(), size_t( 0 ), addSize );
+    }
+
+    [[nodiscard]] size_t
     size() const noexcept
     {
         return dataSize() + dataWithMarkersSize();
+    }
+
+    [[nodiscard]] size_t
+    sizeInBytes() const noexcept
+    {
+        return dataSize() * sizeof( uint8_t ) + dataWithMarkersSize() * sizeof( uint16_t );
+    }
+
+    [[nodiscard]] size_t
+    capacityInBytes() const noexcept
+    {
+        return dataCapacity() * sizeof( uint8_t ) + dataWithMarkersCapacity() * sizeof( uint16_t );
     }
 
     void
@@ -125,6 +152,17 @@ public:
      */
     [[nodiscard]] std::array<std::uint8_t, MAX_WINDOW_SIZE>
     getLastWindow( WindowView const& previousWindow ) const;
+
+    void
+    shrinkToFit()
+    {
+        for ( auto& container : data ) {
+            container.shrink_to_fit();
+        }
+        for ( auto& container : dataWithMarkers ) {
+            container.shrink_to_fit();
+        }
+    }
 
     /**
      * Check decoded blocks that account for possible markers whether they actually contain markers and if not so
@@ -159,14 +197,16 @@ DecodedData::append( DecodedDataView const& buffers )
                                          "has already been appended because the ordering will be wrong!" );
         }
 
-        auto& copied = dataWithMarkers.empty() ? dataWithMarkers.emplace_back() : dataWithMarkers.back();
+        auto& copied = dataWithMarkers.emplace_back();
+        copied.reserve( buffers.dataWithMarkersSize() );
         for ( const auto& buffer : buffers.dataWithMarkers ) {
             copied.insert( copied.end(), buffer.begin(), buffer.end() );
         }
     }
 
     if ( buffers.dataSize() > 0 ) {
-        auto& copied = data.empty() ? data.emplace_back() : data.back();
+        auto& copied = data.emplace_back();
+        copied.reserve( buffers.dataSize() );
         for ( const auto& buffer : buffers.data ) {
             copied.insert( copied.end(), buffer.begin(), buffer.end() );
         }
@@ -249,5 +289,7 @@ DecodedData::cleanUnmarkedData()
             break;
         }
     }
+
+    shrinkToFit();
 }
 }  // namespace pragzip::deflate
