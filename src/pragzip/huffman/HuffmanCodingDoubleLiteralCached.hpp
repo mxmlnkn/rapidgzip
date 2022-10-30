@@ -274,7 +274,7 @@ public:
              * the compiler). */
             auto symbol1 = m_doubleCodeCache[(int)value * 2];
             m_nextSymbol = m_doubleCodeCache[(int)value * 2 + 1];
-            assert( ( symbol1 >> LENGTH_SHIFT ) <= m_cachedBitCount );
+            assert( static_cast<uint32_t>( symbol1 >> LENGTH_SHIFT ) <= m_cachedBitCount );
             bitReader.seekAfterPeek( symbol1 >> LENGTH_SHIFT );
             symbol1 &= nLowestBitsSet<Symbol, LENGTH_SHIFT>();
 
