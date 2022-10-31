@@ -610,3 +610,22 @@ rangesIntersect( const PairA& rangeA,
            || rangeContains( rangeB, rangeA.first )
            || rangeContains( rangeB, rangeA.second );
 }
+
+
+constexpr std::string_view BASE64_SYMBOLS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+/\n";
+
+
+template<typename CharT>
+[[nodiscard]] bool
+isBase64( std::basic_string_view<CharT> data )
+{
+    static const auto base64Symbols = [] () {
+        std::basic_string<CharT> result;
+        result.resize( BASE64_SYMBOLS.size() );
+        std::transform( BASE64_SYMBOLS.begin(), BASE64_SYMBOLS.end(), result.begin(),
+                        [] ( const auto x ) { return static_cast<CharT>( x ); } );
+        return result;
+    }();
+
+    return data.find_first_not_of( base64Symbols ) == std::string_view::npos;
+}

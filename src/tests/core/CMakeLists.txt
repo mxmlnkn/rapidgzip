@@ -22,6 +22,12 @@ target_link_libraries(testCache PRIVATE core)
 add_test(NAME Test-Cache COMMAND testCache)
 add_dependencies(all_tests testCache)
 
+add_executable(testCommon)
+target_sources(testCommon PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testCommon.cpp)
+target_link_libraries(testCommon PRIVATE core)
+add_test(NAME Test-Common COMMAND testCommon)
+add_dependencies(all_tests testCommon)
+
 add_executable(testParallelBitStringFinder)
 target_sources(testParallelBitStringFinder PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testParallelBitStringFinder.cpp)
 target_link_libraries(testParallelBitStringFinder PRIVATE core)
