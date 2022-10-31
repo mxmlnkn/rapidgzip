@@ -193,6 +193,9 @@ public:
     ~BlockFetcher()
     {
         if constexpr ( SHOW_PROFILE ) {
+            /* Clear caches while updating the unused entries statistic. */
+            m_cache.shrinkTo( 0 );
+            m_prefetchCache.shrinkTo( 0 );
             std::cerr << ( ThreadSafeOutput() << "[BlockFetcher::~BlockFetcher]" << statistics().print() );
         }
     }
