@@ -241,14 +241,10 @@ writeAllSplice( const int         outputFileDescriptor,
  * 0x7ffff000 (2'147'479'552) B. To avoid this, it has to be looped over.
  */
 void
-writeAll( const int         outputFileDescriptor,
-          const void* const dataToWrite,
-          const size_t      dataToWriteSize )
+writeAllToFd( const int         outputFileDescriptor,
+              const void* const dataToWrite,
+              const size_t      dataToWriteSize )
 {
-    if ( writeAllSplice( outputFileDescriptor, dataToWrite, dataToWriteSize ) ) {
-        return;
-    }
-
     for ( uint64_t nTotalWritten = 0; nTotalWritten < dataToWriteSize; ) {
         const auto currentBufferPosition =
             reinterpret_cast<const void*>( reinterpret_cast<uintptr_t>( dataToWrite ) + nTotalWritten );
@@ -278,7 +274,7 @@ writeAll( const int         outputFileDescriptor,
 
     if ( outputFileDescriptor >= 0 ) {
         if ( !writeAllSplice( outputFileDescriptor, dataToWrite, dataToWriteSize ) ) {
-            writeAll( outputFileDescriptor, dataToWrite, dataToWriteSize );
+            writeAllToFd( outputFileDescriptor, dataToWrite, dataToWriteSize );
         }
     }
 

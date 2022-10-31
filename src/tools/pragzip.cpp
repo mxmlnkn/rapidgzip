@@ -573,7 +573,9 @@ pragzipCLI( int argc, char** argv )
               uint64_t    const size )
             {
                 if ( outputFileDescriptor >= 0 ) {
-                    writeAll( outputFileDescriptor, buffer, size );
+                    if ( !writeAllSplice( outputFileDescriptor, buffer, size ) ) {
+                        writeAllToFd( outputFileDescriptor, buffer, size );
+                    }
                 }
                 if ( countLines ) {
                     newlineCount += countNewlines( { reinterpret_cast<const char*>( buffer ),
