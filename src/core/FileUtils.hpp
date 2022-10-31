@@ -258,7 +258,7 @@ writeAllSplice( [[maybe_unused]] const int         outputFileDescriptor,
                 [[maybe_unused]] const void* const dataToWrite,
                 [[maybe_unused]] const size_t      dataToWriteSize )
 {
-#if HAVE_VMSPLICE
+#if 0
     ::iovec dataToSplice{};
     dataToSplice.iov_base = const_cast<void*>( reinterpret_cast<const void*>( dataToWrite ) );
     dataToSplice.iov_len = dataToWriteSize;
