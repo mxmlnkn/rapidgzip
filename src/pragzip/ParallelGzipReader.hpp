@@ -242,8 +242,8 @@ public:
 
     size_t
     read( const int    outputFileDescriptor = -1,
-          char* const  outputBuffer = nullptr,
-          const size_t nBytesToRead = std::numeric_limits<size_t>::max() )
+          char* const  outputBuffer         = nullptr,
+          const size_t nBytesToRead         = std::numeric_limits<size_t>::max() )
     {
         const auto writeFunctor =
             [nBytesDecoded = uint64_t( 0 ), outputFileDescriptor, outputBuffer]
@@ -251,7 +251,7 @@ public:
               uint64_t    const size ) mutable
             {
                 auto* const currentBufferPosition = outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded;
-                writeAll( outputFileDescriptor, currentBufferPosition, buffer, size );
+                writeAllSpliced( outputFileDescriptor, currentBufferPosition, buffer, size );
                 nBytesDecoded += size;
             };
 

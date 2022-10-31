@@ -195,24 +195,70 @@ findParentFolderContaining( const std::string& folder,
 
 
 /**
+ * Short overview of syscalls that optimize copies by instead copying full page pointers into the
+ * pipe buffers inside the kernel:
+ * - splice: <fd (pipe or not)> <-> <pipe>
+ * - vmsplice: memory -> <pipe>
+ * - mmap: <fd> -> memory
+ * - sendfile: <fd that supports mmap> -> <fd (before Linux 2.6.33 (2010-02-24) it had to be a socket fd)>
+ *
+ * I think the underlying problem with wrong output data for small chunk sizes
+ * is that vmsplice is not as "synchronous" as I thought it to be:
+ *
+ * https://lwn.net/Articles/181169/
+ *
+ *  - Determining whether it is safe to write to a vmspliced buffer is
+ *    suggested to be done implicitly by splicing more than the maximum
+ *    number of pages that can be inserted into the pipe buffer.
+ *    That number was supposed to be queryable with fcntl F_GETPSZ.
+ *    -> This is probably why I didn't notice problems with larger chunk
+ *       sizes.
+ *  - Even that might not be safe enough when there are multiple pipe
+ *    buffers.
+ *
+ * https://stackoverflow.com/questions/70515745/how-do-i-use-vmsplice-to-correctly-output-to-a-pipe
+ * https://codegolf.stackexchange.com/questions/215216/high-throughput-fizz-buzz/239848#239848
+ *
+ *  - the safest way to use vmsplice seems to be mmap -> vmplice with
+ *    SPLICE_F_GIFT -> munmap. munmap can be called directly after the
+ *    return from vmplice and this works in a similar way to aio_write
+ *    but actually a lot faster.
+ *
+ * I think using std::vector with vmsplice is NOT safe when it is
+ * destructed too soon! The problem here is that the memory is probably not
+ * returned to the system, which would be fine, but is actually reused by
+ * the c/C++ standard library's implementation of malloc/free/new/delete:
+ *
+ * https://stackoverflow.com/a/1119334
+ *
+ *  - In many malloc/free implementations, free does normally not return
+ *    the memory to the operating system (or at least only in rare cases).
+ *    [...] Free will put the memory block in its own free block list.
+ *    Normally it also tries to meld together adjacent blocks in the
+ *    address space.
+ *
+ * https://mazzo.li/posts/fast-pipes.html
+ * https://github.com/bitonic/pipes-speed-test.git
+ *
+ *  - Set pipe size and double buffer. (Similar to the lwn article
+ *    but instead of querying the pipe size, it is set.)
+ *  - fcntl(STDOUT_FILENO, F_SETPIPE_SZ, options.pipe_size);
+ *
+ * I think I will have to implement a container with a custom allocator
+ * that uses mmap and munmap to get back my vmsplice speeds :/(.
+ * Or maybe try setting the pipe buffer size to some forced value and
+ * then only free the last data after pipe size more has been written.
+ *
  * @note Throws if some splice calls were successful followed by an unsucessful one before finishing.
  * @return true if successful and false if it could not be spliced from the beginning, e.g., because the file
  *         descriptor is not a pipe.
  */
 [[nodiscard]] bool
-writeAllSplice( const int         outputFileDescriptor,
-                const void* const dataToWrite,
-                const size_t      dataToWriteSize )
+writeAllSplice( [[maybe_unused]] const int         outputFileDescriptor,
+                [[maybe_unused]] const void* const dataToWrite,
+                [[maybe_unused]] const size_t      dataToWriteSize )
 {
 #if HAVE_VMSPLICE
-    /**
-     * Short overview of syscalls that optimize copies by instead copying full page pointers into the
-     * pipe buffers inside the kernel:
-     * - splice: <fd (pipe or not)> <-> <pipe>
-     * - vmsplice: memory -> <pipe>
-     * - mmap: <fd> -> memory
-     * - sendfile: <fd that supports mmap> -> <fd (before Linux 2.6.33 (2010-02-24) it had to be a socket fd)>
-     */
     ::iovec dataToSplice{};
     dataToSplice.iov_base = const_cast<void*>( reinterpret_cast<const void*>( dataToWrite ) );
     dataToSplice.iov_len = dataToWriteSize;
@@ -267,6 +313,29 @@ writeAll( const int         outputFileDescriptor,
           void* const       outputBuffer,
           const void* const dataToWrite,
           const size_t      dataToWriteSize )
+{
+    if ( dataToWriteSize == 0 ) {
+        return;
+    }
+
+    if ( outputFileDescriptor >= 0 ) {
+        writeAllToFd( outputFileDescriptor, dataToWrite, dataToWriteSize );
+    }
+
+    if ( outputBuffer != nullptr ) {
+        std::memcpy( outputBuffer, dataToWrite, dataToWriteSize );
+    }
+}
+
+
+/**
+ * May only be used with data allocated with mmap and to be deallocated with munmap and not to be modified anymore!
+ */
+void
+writeAllSpliced( const int         outputFileDescriptor,
+                 void* const       outputBuffer,
+                 const void* const dataToWrite,
+                 const size_t      dataToWriteSize )
 {
     if ( dataToWriteSize == 0 ) {
         return;
