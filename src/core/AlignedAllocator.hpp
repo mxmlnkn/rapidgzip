@@ -63,7 +63,7 @@ public:
 
     constexpr void
     deallocate( ElementType*                 allocatedPointer,
-                [[maybe_unused]] std::size_t nBytesAllocated )
+                [[maybe_unused]] std::size_t nElementsAllocated )
     {
         /* According to the C++20 draft n4868 § 17.6.3.3, the delete operator
          * must be called with the same alignment argument as the new expression.
