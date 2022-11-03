@@ -567,29 +567,45 @@ pragzipCLI( int argc, char** argv )
         }
 
         uint64_t newlineCount{ 0 };
-        const auto writeAndCount =
-            [outputFileDescriptor, countLines, &newlineCount]
-            ( const void* const buffer,
-              uint64_t    const size )
-            {
-                if ( outputFileDescriptor >= 0 ) {
-                    if ( !writeAllSplice( outputFileDescriptor, buffer, size ) ) {
-                        writeAllToFd( outputFileDescriptor, buffer, size );
-                    }
-                }
-                if ( countLines ) {
-                    newlineCount += countNewlines( { reinterpret_cast<const char*>( buffer ),
-                                                     static_cast<size_t>( size ) } );
-                }
-            };
 
         const auto t0 = now();
 
         size_t totalBytesRead{ 0 };
         if ( decoderParallelism == 1 ) {
+            const auto writeAndCount =
+                [outputFileDescriptor, countLines, &newlineCount]
+                ( const void* const buffer,
+                  uint64_t const    size )
+                {
+                    if ( outputFileDescriptor >= 0 ) {
+                        writeAllToFd( outputFileDescriptor, buffer, size );
+                    }
+                    if ( countLines ) {
+                        newlineCount += countNewlines( { reinterpret_cast<const char*>( buffer ),
+                                                         static_cast<size_t>( size ) } );
+                    }
+                };
+
             pragzip::GzipReader</* CRC32 */ false> gzipReader{ std::move( inputFile ) };
             totalBytesRead = gzipReader.read( writeAndCount );
         } else {
+            const auto writeAndCount =
+                [outputFileDescriptor, countLines, &newlineCount]
+                ( const void* const                          buffer,
+                  uint64_t const                             size,
+                  const std::shared_ptr<pragzip::BlockData>& blockData )
+                {
+                    if ( outputFileDescriptor >= 0 ) {
+                        if ( !writeAllSplice( outputFileDescriptor, buffer, size, blockData ) ) {
+                            writeAllToFd( outputFileDescriptor, buffer, size );
+                        }
+                    }
+                    if ( countLines ) {
+                        newlineCount += countNewlines( { reinterpret_cast<const char*>( buffer ),
+                                                         static_cast<size_t>( size ) } );
+                    }
+                };
+
             const auto chunkSize = parsedArgs["chunk-size"].as<unsigned int>();
             using GzipReader = pragzip::ParallelGzipReader<>;
             const auto reader =

@@ -32,6 +32,13 @@
 #endif
 
 
+#if defined( HAVE_VMSPLICE )
+    #include <any>
+
+    #include <AtomicMutex.hpp>
+#endif
+
+
 #ifdef _MSC_VER
 [[nodiscard]] bool
 stdinHasInput()
@@ -254,11 +261,11 @@ findParentFolderContaining( const std::string& folder,
  *         descriptor is not a pipe.
  */
 [[nodiscard]] bool
-writeAllSplice( [[maybe_unused]] const int         outputFileDescriptor,
-                [[maybe_unused]] const void* const dataToWrite,
-                [[maybe_unused]] const size_t      dataToWriteSize )
+writeAllSpliceUnsafe( [[maybe_unused]] const int         outputFileDescriptor,
+                      [[maybe_unused]] const void* const dataToWrite,
+                      [[maybe_unused]] const size_t      dataToWriteSize )
 {
-#if 0
+#if HAVE_VMSPLICE
     ::iovec dataToSplice{};
     dataToSplice.iov_base = const_cast<void*>( reinterpret_cast<const void*>( dataToWrite ) );
     dataToSplice.iov_len = dataToWriteSize;
@@ -280,6 +287,103 @@ writeAllSplice( [[maybe_unused]] const int         outputFileDescriptor,
     return false;
 #endif
 }
+
+
+#if defined( HAVE_VMSPLICE )
+/**
+ * Keeps shared pointers to spliced objects until an amount of bytes equal to the pipe buffer size
+ * has been spliced into the pipe.
+ * It implements a singleton-like (singleton per file descriptor) interface as a performance optimization.
+ * Without a global ledger, the effectively held back objects would be overestimated by the number of actual ledgers.
+ */
+class SpliceVault
+{
+public:
+    using VaultLock = std::unique_lock<AtomicMutex>;
+
+public:
+    [[nodiscard]] static std::pair<SpliceVault*, VaultLock>
+    getInstance( int fileDescriptor )
+    {
+        static AtomicMutex mutex;
+        static std::unordered_map<int, std::unique_ptr<SpliceVault> > vaults;
+
+        const std::scoped_lock lock{ mutex };
+        auto vault = vaults.find( fileDescriptor );
+        if ( vault == vaults.end() ) {
+            /* try_emplace cannot be used because the SpliceVault constructor is private. */
+            vault = vaults.emplace( fileDescriptor,
+                                        std::unique_ptr<SpliceVault>( new SpliceVault( fileDescriptor ) ) ).first;
+        }
+        return std::make_pair( vault->second.get(), vault->second->lock() );
+    }
+
+    /**
+     * @param dataToWrite A pointer to the start of the data to write. This pointer should be part of @p splicedData!
+     * @param splicedData This owning shared pointer will be stored until enough other data has been spliced into
+     *                    the pipe.
+     */
+    template<typename T>
+    [[nodiscard]] bool
+    splice( const void* const         dataToWrite,
+            size_t const              dataToWriteSize,
+            const std::shared_ptr<T>& splicedData )
+    {
+        if ( ( m_pipeBufferSize < 0 )
+             || !writeAllSpliceUnsafe( m_fileDescriptor, dataToWrite, dataToWriteSize ) ) {
+            return false;
+        }
+
+        m_totalSplicedBytes += dataToWriteSize;
+        if ( !m_splicedData.empty() && ( std::get<1>( m_splicedData.back() ) == splicedData.get() ) ) {
+            std::get<2>( m_splicedData.back() ) += dataToWriteSize;
+        } else {
+            m_splicedData.emplace_back( splicedData, splicedData.get(), dataToWriteSize );
+        }
+
+        while ( !m_splicedData.empty()
+                && ( m_totalSplicedBytes - std::get<2>( m_splicedData.front() )
+                     >= static_cast<size_t>( m_pipeBufferSize ) ) ) {
+            m_totalSplicedBytes -= std::get<2>( m_splicedData.front() );
+            m_splicedData.pop_front();
+        }
+
+        return true;
+    }
+
+private:
+    explicit
+    SpliceVault( int fileDescriptor ) :
+        m_fileDescriptor( fileDescriptor ),
+        m_pipeBufferSize( fcntl( fileDescriptor, F_GETPIPE_SZ ) )
+    {}
+
+    [[nodiscard]] VaultLock
+    lock()
+    {
+        return VaultLock( m_mutex );
+    }
+
+private:
+    const int m_fileDescriptor;
+    /** We are assuming here that the pipe buffer size does not change to avoid frequent calls to fcntl. */
+    const int m_pipeBufferSize;
+
+    /**
+     * Contains shared_ptr to extend lifetime and amount of bytes that have been spliced to determine
+     * when the shared_ptr can be removed from this list.
+     */
+    std::deque<std::tuple</* packed RAII resource */ std::any,
+                          /* raw pointer of RAII resource for comparison */ const void*,
+                          /* spliced bytes */ size_t> > m_splicedData;
+    /**
+     * This data is redundant but helps to avoid O(N) recalculation of this value from @ref m_splicedData.
+     */
+    size_t m_totalSplicedBytes{ 0 };
+
+    AtomicMutex m_mutex;
+};
+#endif
 
 
 /**
@@ -320,31 +424,6 @@ writeAll( const int         outputFileDescriptor,
 
     if ( outputFileDescriptor >= 0 ) {
         writeAllToFd( outputFileDescriptor, dataToWrite, dataToWriteSize );
-    }
-
-    if ( outputBuffer != nullptr ) {
-        std::memcpy( outputBuffer, dataToWrite, dataToWriteSize );
-    }
-}
-
-
-/**
- * May only be used with data allocated with mmap and to be deallocated with munmap and not to be modified anymore!
- */
-void
-writeAllSpliced( const int         outputFileDescriptor,
-                 void* const       outputBuffer,
-                 const void* const dataToWrite,
-                 const size_t      dataToWriteSize )
-{
-    if ( dataToWriteSize == 0 ) {
-        return;
-    }
-
-    if ( outputFileDescriptor >= 0 ) {
-        if ( !writeAllSplice( outputFileDescriptor, dataToWrite, dataToWriteSize ) ) {
-            writeAllToFd( outputFileDescriptor, dataToWrite, dataToWriteSize );
-        }
     }
 
     if ( outputBuffer != nullptr ) {

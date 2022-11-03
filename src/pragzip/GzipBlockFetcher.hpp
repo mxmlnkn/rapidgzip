@@ -95,6 +95,33 @@ public:
 };
 
 
+/**
+ * Tries to use writeAllSpliceUnsafe and, if successful, also extends lifetime by adding the block data
+ * shared_ptr into a list.
+ *
+ * @note Limitations:
+ *  - To avoid querying the pipe buffer size, it is only done once. This might introduce subtle errors when it is
+ *    dynamically changed after this point.
+ *  - It does not account for pages to be spliced into yet another pipe buffer, which would extend the lifetime
+ *    of those pages beyond the lifetime of the shared_ptr, which also would introduce subtle bugs.
+ *  - The lifetime can only be extended on block granularity even though chunks would be more suited.
+ *    This results in larger peak memory than strictly necessary.
+ *  - In the worst case we would read only 1B out of each block, which would extend the lifetime
+ *    of thousands of large blocks resulting in an out of memory issue.
+ *    - This would only be triggerable by using the API. The current CLI and not even the Python
+ *      interface would trigger this because either they don't splice to a pipe or only read
+ *      sequentially.
+ */
+[[nodiscard]] bool
+writeAllSplice( const int                         outputFileDescriptor,
+                const void* const                 dataToWrite,
+                size_t const                      dataToWriteSize,
+                const std::shared_ptr<BlockData>& blockData )
+{
+    return SpliceVault::getInstance( outputFileDescriptor ).first->splice( dataToWrite, dataToWriteSize, blockData );
+}
+
+
 template<typename FetchingStrategy,
          bool     ENABLE_STATISTICS = false>
 class GzipBlockFetcher :

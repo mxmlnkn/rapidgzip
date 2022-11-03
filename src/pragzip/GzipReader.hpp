@@ -196,6 +196,12 @@ public:
               uint64_t    const size ) mutable
             {
                 auto* const currentBufferPosition = outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded;
+                /**
+                 * @note We cannot splice easily here because we don't use std::shared_ptr for the data and therefore
+                 *       cannot easily extend the lifetime of the spliced data as necessary. It also isn't as
+                 *       important as for the multi-threaded version because decoding is the bottlneck for the
+                 *       sequential version.
+                 */
                 writeAll( outputFileDescriptor, currentBufferPosition, buffer, size );
                 nBytesDecoded += size;
             };
