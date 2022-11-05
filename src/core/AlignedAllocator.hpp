@@ -41,6 +41,15 @@ public:
         using other = AlignedAllocator<OtherElementType, ALIGNMENT_IN_BYTES>;
     };
 
+public:
+    constexpr AlignedAllocator() noexcept = default;
+
+    constexpr AlignedAllocator( const AlignedAllocator& ) noexcept = default;
+
+    template<typename U>
+    constexpr AlignedAllocator( AlignedAllocator<U, ALIGNMENT_IN_BYTES> const& ) noexcept
+    {}
+
     [[nodiscard]] constexpr ElementType*
     allocate( std::size_t nElementsToAllocate )
     {
