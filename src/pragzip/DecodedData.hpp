@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include <FasterVector.hpp>
 #include <VectorView.hpp>
 
 #include "definitions.hpp"
@@ -100,6 +101,10 @@ public:
 };
 
 
+using MarkerVector = FasterVector<uint16_t>;
+using DecodedVector = FasterVector<uint8_t>;
+
+
 struct DecodedData
 {
 public:
@@ -175,7 +180,7 @@ public:
 
 public:
     void
-    append( std::vector<uint8_t>&& toAppend )
+    append( DecodedVector&& toAppend )
     {
         if ( !toAppend.empty() ) {
             data.emplace_back( std::move( toAppend ) );
@@ -221,7 +226,7 @@ public:
      * with the next block. Because this is not supposed to be called very often, it returns a copy of
      * the data instead of views.
      */
-    [[nodiscard]] std::vector<std::uint8_t>
+    [[nodiscard]] DecodedVector
     getLastWindow( WindowView const& previousWindow ) const;
 
     /**
@@ -230,7 +235,7 @@ public:
      *        the window as it would be after this whole block.
      * @note Should only be called after @ref applyWindow because @p skipBytes larger than @ref dataSize will throw.
      */
-    [[nodiscard]] std::vector<std::uint8_t>
+    [[nodiscard]] DecodedVector
     getWindowAt( WindowView const& previousWindow,
                  size_t            skipBytes ) const;
 
@@ -264,8 +269,8 @@ public:
      * There is no append( DecodedData ) method because this property might not be retained after using
      * @ref cleanUnmarkedData.
      */
-    std::vector<std::vector<uint16_t> > dataWithMarkers;
-    std::vector<std::vector<uint8_t> > data;
+    std::vector<MarkerVector> dataWithMarkers;
+    std::vector<DecodedVector> data;
 };
 
 
@@ -315,7 +320,7 @@ DecodedData::applyWindow( WindowView const& window )
                 return result;
             }();
 
-        std::vector<uint8_t> downcasted( markerCount );
+        DecodedVector downcasted( markerCount );
         size_t offset{ 0 };
         for ( auto& chunk : dataWithMarkers ) {
             std::transform( chunk.begin(), chunk.end(), downcasted.begin() + offset,
@@ -328,7 +333,7 @@ DecodedData::applyWindow( WindowView const& window )
         return;
     }
 
-    std::vector<uint8_t> downcasted( markerCount );
+    DecodedVector downcasted( markerCount );
     size_t offset{ 0 };
 
     /* For maximum size windows, we can skip one check because even UINT16_MAX is valid. */
@@ -353,10 +358,10 @@ DecodedData::applyWindow( WindowView const& window )
 }
 
 
-[[nodiscard]] inline std::vector<std::uint8_t>
+[[nodiscard]] inline DecodedVector
 DecodedData::getLastWindow( WindowView const& previousWindow ) const
 {
-    std::vector<std::uint8_t> window( MAX_WINDOW_SIZE, 0 );
+    DecodedVector window( MAX_WINDOW_SIZE, 0 );
     size_t nBytesWritten{ 0 };
 
     /* Fill the result from the back with data from our buffer. */
@@ -402,7 +407,7 @@ DecodedData::getLastWindow( WindowView const& previousWindow ) const
 }
 
 
-[[nodiscard]] inline std::vector<std::uint8_t>
+[[nodiscard]] inline DecodedVector
 DecodedData::getWindowAt( WindowView const& previousWindow,
                           size_t const      skipBytes) const
 {
@@ -410,7 +415,7 @@ DecodedData::getWindowAt( WindowView const& previousWindow,
         throw std::invalid_argument( "Amount of bytes to skip is larger than this block!" );
     }
 
-    std::vector<std::uint8_t> window( MAX_WINDOW_SIZE );
+    DecodedVector window( MAX_WINDOW_SIZE );
     size_t prefilled{ 0 };
     if ( skipBytes < MAX_WINDOW_SIZE ) {
         const auto lastBytesToCopyFromPrevious = MAX_WINDOW_SIZE - skipBytes;

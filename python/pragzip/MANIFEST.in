@@ -9,6 +9,10 @@ include tools/licenses.cpp
 include tools/pragzip.cpp
 include external/cxxopts/LICENSE
 include external/cxxopts/include/cxxopts.hpp
+include external/rpmalloc/LICENSE
+include external/rpmalloc/rpmalloc/rpmalloc.c
+include external/rpmalloc/rpmalloc/rpmalloc.h
+include external/rpmalloc/rpmalloc/rpnew.h
 include external/zlib/LICENSE
 include external/zlib/inflate.c
 include external/zlib/inflate.h

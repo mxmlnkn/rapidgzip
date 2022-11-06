@@ -627,7 +627,9 @@ public:
             /* For some reason, indexed_gzip also stores windows for the very last checkpoint at the end of the file,
              * which is useless because there is nothing thereafter. But, don't filter it here so that exportIndex
              * mirrors importIndex better. */
-            m_windowMap->emplace( checkpoint.compressedOffsetInBits, checkpoint.window );
+            m_windowMap->emplace( checkpoint.compressedOffsetInBits,
+                                  WindowMap::Window( checkpoint.window.data(),
+                                                     checkpoint.window.data() + checkpoint.window.size() ) );
         }
         chunkFetcher().clearCache();
     }

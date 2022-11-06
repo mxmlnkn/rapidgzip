@@ -17,10 +17,11 @@
 
 #include <BlockFetcher.hpp>
 #include <BlockMap.hpp>
+#include <common.hpp>
+#include <FasterVector.hpp>
 
 #include "blockfinder/DynamicHuffman.hpp"
 #include "blockfinder/Uncompressed.hpp"
-#include "common.hpp"
 #include "DecodedData.hpp"
 #include "deflate.hpp"
 #include "gzip.hpp"
@@ -983,7 +984,7 @@ private:
         BlockData result;
         result.encodedOffsetInBits = blockOffset;
 
-        std::vector<uint8_t> decoded( decodedSize );
+        FasterVector<uint8_t> decoded( decodedSize );
         if ( deflateWrapper.read( decoded.data(), decoded.size() ) != decoded.size() ) {
             throw std::runtime_error( "Could not decode as much as requested!" );
         }

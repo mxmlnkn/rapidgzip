@@ -503,7 +503,9 @@ pragzipCLI( int argc, char** argv )
 
     if ( parsedArgs.count( "oss-attributions" ) > 0 ) {
         std::cout << licenses::CXXOPTS << "\n"
+        #ifdef WITH_RPMALLOC
                   << licenses::RPMALLOC << "\n"
+        #endif
                   << licenses::ZLIB;
         return 0;
     }

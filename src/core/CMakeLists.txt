@@ -15,6 +15,7 @@ target_sources(core INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/BlockMap.hpp
     ${CMAKE_CURRENT_LIST_DIR}/Cache.hpp
     ${CMAKE_CURRENT_LIST_DIR}/common.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/FasterVector.hpp
     ${CMAKE_CURRENT_LIST_DIR}/FileUtils.hpp
     ${CMAKE_CURRENT_LIST_DIR}/JoiningThread.hpp
     ${CMAKE_CURRENT_LIST_DIR}/ParallelBitStringFinder.hpp

@@ -58,7 +58,7 @@ public:
         }
 
         if ( !m_blockFinder ) {
-            m_blockFinder = std::make_unique<JoiningThread>( &BlockFinder::blockFinderMain, this );
+            m_blockFinder = std::make_unique<JoiningThread>( [this] () { blockFinderMain(); } );
         }
     }
 

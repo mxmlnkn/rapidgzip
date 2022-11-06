@@ -8,13 +8,14 @@
 #include <utility>
 #include <vector>
 
+#include <DecodedData.hpp>
 #include <VectorView.hpp>
 
 
 class WindowMap
 {
 public:
-    using Window = std::vector<std::uint8_t>;
+    using Window = pragzip::deflate::DecodedVector;
     using WindowView = VectorView<std::uint8_t>;
 
 public:
@@ -39,7 +40,7 @@ public:
          * a WindowView without a corresponding lock. */
         std::scoped_lock lock( m_mutex );
         if ( const auto match = m_windows.find( encodedOffsetInBits ); match != m_windows.end() ) {
-            return match->second;
+            return WindowView( match->second.data(), match->second.size() );
         }
         return std::nullopt;
     }
