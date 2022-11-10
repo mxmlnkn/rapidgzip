@@ -34,6 +34,7 @@
 
 #if defined( HAVE_VMSPLICE )
     #include <any>
+    #include <deque>
 
     #include <AtomicMutex.hpp>
 #endif
