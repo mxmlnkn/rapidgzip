@@ -732,7 +732,9 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDistanceAndLiteralCodeLengths(
             i += bitReader.read<3>() + 3;
         } else if ( code == 18 ) {
             /* Decode fixed number of zeros. The vector is initialized to zeros, so we can simply skip these. */
-            #pragma GCC unroll 16
+            #if defined( __GNUC__ )
+                #pragma GCC unroll 16
+            #endif
             for ( size_t j = 0; j < 11U + ( 1U << 7U ) - 1U; ++j ) {
                 literalCL[i + j] = 0;
             }

@@ -130,7 +130,7 @@ readHeader( BitReader& bitReader )
 
     if ( ( flags & ( 1U << 2U ) ) != 0 ) {
         const auto length = bitReader.read<16>();
-        std::vector<uint8_t> extraData( length );
+        std::vector<uint8_t> extraData( static_cast<size_t>( length ) );
         for ( auto& extraByte : extraData ) {
             extraByte = static_cast<uint8_t>( bitReader.read<BYTE_SIZE>() );
         }

@@ -47,7 +47,7 @@ protected:
             m_offsets[bitLength - this->m_minCodeLength] = sum;
             sum += bitLengthFrequencies[bitLength];
         }
-        m_offsets[this->m_maxCodeLength - this->m_minCodeLength + 1] = sum;
+        m_offsets[this->m_maxCodeLength - this->m_minCodeLength + 1] = static_cast<uint16_t>( sum );
 
         /* The codeLengths.size() check above should implicitly check this already. */
         assert( sum <= m_symbolsPerLength.size() && "Specified max symbol range exceeded!" );

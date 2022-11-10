@@ -40,6 +40,9 @@
      * removes the alias, then use: const auto fileno = _fileno; */
     #pragma warning(disable : 4996)
 
+    /* Ignore warnings about [[likely]], [[unlikely]], which will only work with C++20. */
+    #pragma warning(disable : C5051)
+
     #include <sys/stat.h>
 
     #define S_IFIFO _S_IFIFO

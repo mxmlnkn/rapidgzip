@@ -204,7 +204,7 @@ writeGzipIndex( const GzipIndex&                                              in
     const auto writeValue = [&checkedWrite] ( auto value ) { checkedWrite( &value, sizeof( value ) ); };
 
     const auto& checkpoints = index.checkpoints;
-    const uint32_t windowSizeInBytes = 32_Ki;
+    const uint32_t windowSizeInBytes = static_cast<uint32_t>( 32_Ki );
 
     if ( !std::all_of( checkpoints.begin(), checkpoints.end(), [windowSizeInBytes] ( const auto& checkpoint ) {
         return checkpoint.window.empty() || ( checkpoint.window.size() >= windowSizeInBytes ); } ) )

@@ -99,7 +99,22 @@ fileSize( const std::string& filePath )
 {
     std::ifstream file( filePath );
     file.seekg( 0, std::ios_base::end );
-    return file.tellg();
+    const auto result = file.tellg();
+    if ( result < 0 ) {
+        throw std::invalid_argument( "Could not get size of specified file!" );
+    }
+    return static_cast<size_t>( result );
+}
+
+
+inline size_t
+filePosition( std::FILE* file )
+{
+    const auto offset = std::ftell( file );
+    if ( offset < 0 ) {
+        throw std::runtime_error( "Could not get the file position!" );
+    }
+    return static_cast<size_t>( offset );
 }
 
 
@@ -394,7 +409,7 @@ private:
 void
 writeAllToFd( const int         outputFileDescriptor,
               const void* const dataToWrite,
-              const size_t      dataToWriteSize )
+              const uint64_t    dataToWriteSize )
 {
     for ( uint64_t nTotalWritten = 0; nTotalWritten < dataToWriteSize; ) {
         const auto currentBufferPosition =
@@ -408,7 +423,7 @@ writeAllToFd( const int         outputFileDescriptor,
                     << dataToWriteSize << ".";
             throw std::runtime_error( std::move( message ).str() );
         }
-        nTotalWritten += static_cast<size_t>( nBytesWritten );
+        nTotalWritten += static_cast<uint64_t>( nBytesWritten );
     }
 }
 
@@ -417,7 +432,7 @@ void
 writeAll( const int         outputFileDescriptor,
           void* const       outputBuffer,
           const void* const dataToWrite,
-          const size_t      dataToWriteSize )
+          const uint64_t    dataToWriteSize )
 {
     if ( dataToWriteSize == 0 ) {
         return;
@@ -428,6 +443,9 @@ writeAll( const int         outputFileDescriptor,
     }
 
     if ( outputBuffer != nullptr ) {
+        if ( dataToWriteSize > std::numeric_limits<size_t>::max() ) {
+            throw std::invalid_argument( "Too much data to write!" );
+        }
         std::memcpy( outputBuffer, dataToWrite, dataToWriteSize );
     }
 }

@@ -271,7 +271,7 @@ public:
             throw std::domain_error( std::move( message ).str() );
         }
 
-        return nBytesWritten;
+        return static_cast<size_t>( nBytesWritten );
     }
 
     size_t
