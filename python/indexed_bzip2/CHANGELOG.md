@@ -1,10 +1,13 @@
 
-# Version 1.4.0 built on 2022-mm-dd
+# Version 1.4.0 built on 2022-11-10
 
- - Add command line CLI entrypoint ibzip2 to be used as a standalon parallel bzip2 decoder as replacement for bzip2.
- - Speed up magic bit string finder 9-fold.
+ - Add command line CLI entrypoint ibzip2 to be used as a standalone parallel bzip2 decoder as replacement for bzip2.
+ - Add a BZ2Reader::read overload that takes a callback functor.
+ - Add io.SEEK_SET as default value for the "seek" method's "whence" argument.
  - Fix segmentation fault when IndexedBzip2File failed to construct, e.g., because of a wrong argument type given.
+ - Speed up magic bit string finder 9-fold.
  - Refactored a lot of code in order to build pragzip on top of the indexed_bzip2 backend.
+ - Migrate to pyproject.toml installation method.
 
 # Version 1.3.1 built on 2021-12-23
 
