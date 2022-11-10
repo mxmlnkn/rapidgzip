@@ -4,6 +4,7 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <BitManipulation.hpp>
@@ -76,10 +77,10 @@ testDynamicHuffmanBlockFinder()
     REQUIRE( nextDeflateCandidate<10>( 0x7CU ) == 0 );
     REQUIRE( nextDeflateCandidate<14>( 0x7CU ) == 0 );
 
-    static constexpr auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT = createNextDeflateCandidateLUT<14>();
-    for ( uint32_t bits = 0; bits < NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT.size(); ++bits ) {
-        REQUIRE( isValidDynamicHuffmanBlock( bits ) == ( NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT[bits] == 0 ) );
-        if ( isValidDynamicHuffmanBlock( bits ) != ( NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT[bits] == 0 ) ) {
+    const auto& LUT = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<18>;
+    for ( uint32_t bits = 0; bits < LUT.size(); ++bits ) {
+        REQUIRE( isValidDynamicHuffmanBlock( bits ) == ( LUT[bits] == 0 ) );
+        if ( isValidDynamicHuffmanBlock( bits ) != ( LUT[bits] == 0 ) ) {
             std::cerr << "Results differ for bits: 0x" << std::hex << bits << std::dec
                       << ", isValidDynamicHuffmanBlock: " << ( isValidDynamicHuffmanBlock( bits ) ? "true" : "false" )
                       << "\n";
@@ -107,14 +108,56 @@ testUncompressedBlockFinder( std::string const&                             path
             break;
         }
 
-        std::cerr << "Found range: " << foundRange.first << ", " << foundRange.second << "\n";
-
         foundRanges.emplace_back( foundRange );
         bitReader.seek( static_cast<long long int>( foundRange.second ) + 1 );
     }
 
+    const auto printRanges =
+        [&bitReader] ( const auto& offsetRanges ) {
+            std::stringstream message;
+            for ( const auto& [start, stop] : offsetRanges ) {
+                bitReader.seek( stop + 3 );
+                message << std::dec << "    [" << start << ", " << stop << "] -> size: 0x"
+                        << std::hex << bitReader.peek<32>() << "\n";
+            }
+            return std::move( message ).str();
+        };
+
     REQUIRE_EQUAL( foundRanges.size(), expected.size() );
     REQUIRE( foundRanges == expected );
+    if ( foundRanges != expected ) {
+        std::cerr << "Found ranges:\n" << printRanges( foundRanges );
+        std::cerr << "Expected ranges:\n" << printRanges( expected );
+    }
+
+    /* Search in 1 B blocks. */
+    foundRanges.clear();
+    static constexpr auto BLOCK_SIZE = 8U;  /** in bits */
+    for ( size_t offset = 0; offset < bitReader.size(); offset += BLOCK_SIZE ) {
+        bitReader.seek( static_cast<long long int>( offset ) );
+        const auto foundRange = blockfinder::seekToNonFinalUncompressedDeflateBlock( bitReader, offset + BLOCK_SIZE );
+        if ( foundRange.first != std::numeric_limits<size_t>::max() ) {
+            const auto validResult = rangesIntersect( foundRange, std::make_pair( offset, offset + BLOCK_SIZE ) );
+            REQUIRE( validResult );
+            if ( !validResult ) {
+                std::cerr << "Found range: [" << formatBits( foundRange.first ) << ", "
+                          << formatBits( foundRange.second ) << "] is outside of search range ["
+                          << formatBits( offset ) << ", " << formatBits( offset + BLOCK_SIZE ) << "]\n";
+            }
+            foundRanges.emplace_back( foundRange );
+        }
+    }
+
+    /* It is valid for there to be duplicates because the allowed start range may be 3 to 10 bits before the
+     * uncompressed block size depending on how many zero bits there are. */
+    foundRanges.erase( std::unique( foundRanges.begin(), foundRanges.end() ), foundRanges.end() );
+
+    REQUIRE_EQUAL( foundRanges.size(), expected.size() );
+    REQUIRE( foundRanges == expected );
+    if ( foundRanges != expected ) {
+        std::cerr << "Found ranges:\n" << printRanges( foundRanges );
+        std::cerr << "Expected ranges:\n" << printRanges( expected );
+    }
 }
 
 
@@ -138,15 +181,27 @@ main( int    argc,
             findParentFolderContaining( binaryFolder, "src/tests/data/random-128KiB.bgz" )
         ) / "src" / "tests" / "data";
 
+    /* Note that pragzip --analyze shows the real offset to be 199507 but depending on the preceding bits
+     * the range can go all the way back to the last byte boundary. In this case it goes back 1 bit. */
+    testUncompressedBlockFinder( testsFolder / "base64-64KiB.pgz", { { 199506, 199509 } } );
+
+    /* Note that pragzip --analyze shows the real offset to be 24942 * BYTE_SIZE + 7 but depending on the preceding bits
+     * the range can go all the way back to the last byte boundary. In this case it goes back 1 bit. */
+    testUncompressedBlockFinder( testsFolder / "base64-64KiB-7b-offset-uncompressed.pgz",
+                                 { { 24942 * BYTE_SIZE + 6, 24944 * BYTE_SIZE - 3 } } );
+
     /* Because the whole file consists of compressed blocks, the +5 can be easily explained.
      * After a compressed block, the next one will begin at byte-boundary but the latest it might begin is at
      * the next byte boundary minus 3 0-bits (non-final block + block type 0b00). */
     const std::vector<std::pair<size_t, size_t> > expectedOffsetRanges = {
-        { 24ULL    * BYTE_SIZE, 24ULL    * BYTE_SIZE + 5ULL },
-        { 32806ULL * BYTE_SIZE, 32806ULL * BYTE_SIZE + 5ULL },
-        { 65604ULL * BYTE_SIZE, 65604ULL * BYTE_SIZE + 5ULL },
-        /* The Uncompressed block finder only looks for non-final blocks! */
-        /* { 98386ULL * BYTE_SIZE, 98386ULL * BYTE_SIZE + 5ULL }, */
+        { 24ULL    * BYTE_SIZE - 2ULL, 24ULL    * BYTE_SIZE + 5ULL },
+        { 32806ULL * BYTE_SIZE       , 32806ULL * BYTE_SIZE + 5ULL },
+        { 65604ULL * BYTE_SIZE       , 65604ULL * BYTE_SIZE + 5ULL },
+        /* The Uncompressed block finder only looks for non-final blocks. However, because of the byte-alignment
+         * and the zero-padding it might give a false positive range even for a final uncompressed block!
+         * In this case, the real offset is at exactly 98386 B. But this means that there 5 zero-padded bits
+         * following that might get interpreted as the non-final uncompressed block signature 0b000! */
+        { 98386ULL * BYTE_SIZE + 1ULL, 98386ULL * BYTE_SIZE + 5ULL },
     };
     testUncompressedBlockFinder( testsFolder / "random-128KiB.gz", expectedOffsetRanges );
 

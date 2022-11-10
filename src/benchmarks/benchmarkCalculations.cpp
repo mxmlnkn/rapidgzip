@@ -2,7 +2,11 @@
 #include <cstdint>
 #include <iomanip>
 #include <iostream>
+#include <sstream>
+#include <stdexcept>
+#include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <common.hpp>  // countNewlines
@@ -46,7 +50,7 @@ main( int    /* argc */,
       char** /* argv */ )
 {
     std::cout << "Creating random data..." << std::flush;
-    const auto buffer = createRandomBase64( 1024ULL * 1024ULL * 1024ULL );
+    const auto buffer = createRandomBase64( 1_Gi );
     std::cout << "OK" << std::endl;
 
     size_t newLines{ 0 };

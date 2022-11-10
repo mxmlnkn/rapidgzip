@@ -25,11 +25,11 @@ namespace pragzip
 {
 enum StoppingPoint : uint32_t
 {
-    NONE                 = 0,
-    END_OF_STREAM_HEADER = 1 << 0,
-    END_OF_STREAM        = 1 << 1,  // after gzip footer has been read
-    END_OF_BLOCK_HEADER  = 1 << 2,
-    END_OF_BLOCK         = 1 << 3,
+    NONE                 = 0U,
+    END_OF_STREAM_HEADER = 1U << 0U,
+    END_OF_STREAM        = 1U << 1U,  // after gzip footer has been read
+    END_OF_BLOCK_HEADER  = 1U << 2U,
+    END_OF_BLOCK         = 1U << 3U,
     ALL                  = 0xFFFF'FFFFU,
 };
 
@@ -196,6 +196,12 @@ public:
               uint64_t    const size ) mutable
             {
                 auto* const currentBufferPosition = outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded;
+                /**
+                 * @note We cannot splice easily here because we don't use std::shared_ptr for the data and therefore
+                 *       cannot easily extend the lifetime of the spliced data as necessary. It also isn't as
+                 *       important as for the multi-threaded version because decoding is the bottlneck for the
+                 *       sequential version.
+                 */
                 writeAll( outputFileDescriptor, currentBufferPosition, buffer, size );
                 nBytesDecoded += size;
             };

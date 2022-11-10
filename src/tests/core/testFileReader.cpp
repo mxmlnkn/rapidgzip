@@ -3,8 +3,10 @@
 #include <cstdio>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #include <common.hpp>
 #include <filereader/Buffered.hpp>

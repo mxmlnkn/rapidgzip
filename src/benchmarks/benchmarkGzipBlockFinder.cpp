@@ -7,15 +7,19 @@ https://www.ietf.org/rfc/rfc1952.txt
 */
 
 
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <iomanip>
 #include <iostream>
+#include <limits>
+#include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include <zlib.h>
@@ -24,8 +28,14 @@ https://www.ietf.org/rfc/rfc1952.txt
 #include <blockfinder/Bgzf.hpp>
 #include <blockfinder/DynamicHuffman.hpp>
 #include <blockfinder/PigzParallel.hpp>
+#include <blockfinder/precodecheck/SingleCompressedLUT.hpp>
+#include <blockfinder/precodecheck/SingleLUT.hpp>
+#include <blockfinder/precodecheck/WalkTreeCompressedLUT.hpp>
+#include <blockfinder/precodecheck/WalkTreeLUT.hpp>
+#include <blockfinder/precodecheck/WithoutLUT.hpp>
 #include <common.hpp>
 #include <filereader/Buffered.hpp>
+#include <HuffmanCodingCheckOnly.hpp>
 #include <pragzip.hpp>
 #include <Statistics.hpp>
 #include <TestHelpers.hpp>
@@ -50,7 +60,7 @@ findGzipStreams( const std::string& fileName )
 {
     const auto file = throwingOpen( fileName, "rb" );
 
-    static constexpr auto bufferSize = 4 * 1024 * 1024;
+    static constexpr auto bufferSize = 4_Mi;
     std::vector<char> buffer( bufferSize, 0 );
 
     std::vector<size_t> streamOffsets;
@@ -119,8 +129,8 @@ parseWithZlib( const std::string& fileName )
     std::vector<size_t> streamOffsets;
     std::vector<size_t> blockOffsets;
 
-    static constexpr int BUFFER_SIZE = 1024 * 1024;
-    static constexpr int WINDOW_SIZE = 32 * 1024;
+    static constexpr auto BUFFER_SIZE = 1_Mi;
+    static constexpr auto WINDOW_SIZE = 32_Ki;
 
     /**
      * Make one entire pass through the compressed stream and build an index, with
@@ -152,7 +162,7 @@ parseWithZlib( const std::string& fileName )
         throwCode( ret );
     }
 
-    std::vector<unsigned char> extraBuffer( 1024 );
+    std::vector<unsigned char> extraBuffer( 1_Ki );
 
     gz_header header;
     header.extra = extraBuffer.data();
@@ -260,7 +270,7 @@ parseWithZlib( const std::string& fileName )
 class GzipWrapper
 {
 public:
-    static constexpr int WINDOW_SIZE = 32 * 1024;
+    static constexpr auto WINDOW_SIZE = 32_Ki;
 
     enum class Format
     {
@@ -339,7 +349,7 @@ public:
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
         m_stream.next_in = const_cast<unsigned char*>( compressed ) + byteOffset;
 
-        const auto outputPreviouslyAvailable = std::min( size_t( 8 * 1024 ), m_outputBuffer.size() );
+        const auto outputPreviouslyAvailable = std::min( 8_Ki, m_outputBuffer.size() );
         m_stream.avail_out = outputPreviouslyAvailable;
         m_stream.next_out = m_outputBuffer.data();
 
@@ -380,8 +390,8 @@ public:
 
 private:
     z_stream m_stream{};
-    std::vector<unsigned char> m_window = std::vector<unsigned char>( 32ULL * 1024ULL, '\0' );
-    std::vector<unsigned char> m_outputBuffer = std::vector<unsigned char>( 64ULL * 1024ULL * 1024ULL );
+    std::vector<unsigned char> m_window = std::vector<unsigned char>( 32_Ki, '\0' );
+    std::vector<unsigned char> m_outputBuffer = std::vector<unsigned char>( 64_Mi );
 };
 
 
@@ -483,14 +493,14 @@ findDeflateBlocksZlibOptimized( BufferedFileReader::AlignedBuffer buffer )
         if ( ( ( nextThreeBits >> 1U ) & 0b11ULL ) == 0b000ULL ) {
             /* Do not use CHAR_BIT because this is a deflate constant defining a byte as 8 bits. */
             const auto nextByteOffset = ceilDiv( offset + 3, 8U );
-            const auto length = ( static_cast<uint16_t>( cBuffer[nextByteOffset + 1] )
-                                  << static_cast<uint8_t>( CHAR_BIT ) )
-                                + cBuffer[nextByteOffset];
+            const auto length = static_cast<uint16_t>(
+                ( static_cast<uint16_t>( cBuffer[nextByteOffset + 1] ) << static_cast<uint8_t>( CHAR_BIT ) )
+                + cBuffer[nextByteOffset] );
             const auto negatedLength = static_cast<uint16_t>(
                 ( static_cast<uint16_t>( cBuffer[nextByteOffset + 3] )
                   << static_cast<uint8_t>( CHAR_BIT ) )
                 + cBuffer[nextByteOffset + 2] );
-            if ( ( length != static_cast<uint16_t>( ~negatedLength ) ) || ( length < 8 * 1024 ) ) {
+            if ( ( length != static_cast<uint16_t>( ~negatedLength ) ) || ( length < 8_Ki ) ) {
                 continue;
             }
 
@@ -603,23 +613,16 @@ findDeflateBlocksPragzip( BufferedFileReader::AlignedBuffer buffer )
 }
 
 
-/**
- * Same as findDeflateBlocksPragzip but prefilters calling pragzip using a lookup table and even skips multiple bits.
- * Also, does not find uncompressed blocks nor fixed huffman blocks and as the others no final blocks!
- * The idea is that fixed huffman blocks should be very rare and uncompressed blocks can be found very fast in a
- * separate run over the data (to be implemented).
- */
 template<uint8_t CACHED_BIT_COUNT>
-[[nodiscard]] std::vector<size_t>
-findDeflateBlocksPragzipLUT( BufferedFileReader::AlignedBuffer data )
+[[nodiscard]] uint64_t
+countDeflateBlocksPreselection( BufferedFileReader::AlignedBuffer data )
 {
     const size_t nBitsToTest = data.size() * CHAR_BIT;
     pragzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( data ) ) );
 
-    std::vector<size_t> bitOffsets;
+    uint64_t candidateCount{ 0 };
 
     using namespace pragzip::blockfinder;
-    static const auto nextDeflateCandidateLUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
 
     pragzip::deflate::Block block;
     for ( size_t offset = 0; offset <= nBitsToTest; ) {
@@ -628,8 +631,7 @@ findDeflateBlocksPragzipLUT( BufferedFileReader::AlignedBuffer data )
         try
         {
             const auto peeked = bitReader.peek<CACHED_BIT_COUNT>();
-            const auto nextPosition = nextDeflateCandidateLUT[peeked];  // ~8 MB/s
-            //const auto nextPosition = nextDeflateCandidate<CACHED_BIT_COUNT>( peeked );  // ~6 MB/s (slower than LUT!)
+            const auto nextPosition = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<CACHED_BIT_COUNT>[peeked];
 
             /* If we can skip forward, then that means that the new position only has been partially checked.
              * Therefore, rechecking the LUT for non-zero skips not only ensures that we aren't wasting time in
@@ -641,30 +643,544 @@ findDeflateBlocksPragzipLUT( BufferedFileReader::AlignedBuffer data )
                 continue;
             }
 
-            static_assert( CACHED_BIT_COUNT >= 13, "This implementation is optimized for LUTs with at least 13 bits!" );
-            bitReader.seekAfterPeek( 13 );
-            if ( checkPrecode( bitReader ) != pragzip::Error::NONE ) {
-                ++offset;
-                continue;
-            }
-
-            bitReader.seek( static_cast<long long int>( offset ) + 3 );
-            auto error = block.readDynamicHuffmanCoding( bitReader );
-            if ( error != pragzip::Error::NONE ) {
-                ++offset;
-                continue;
-            }
-
-            /* Testing decoding is not necessary because the Huffman canonical check is already very strong!
-             * Decoding up to 8 kiB like in pugz only impedes performance and it is harder to reuse that already
-             * decoded data if we do decide that it is a valid block. The number of checks during reading is also
-             * pretty few because there almost are no wasted / invalid symbols. */
-            bitOffsets.push_back( offset );
+            ++candidateCount;
             ++offset;
         } catch ( const pragzip::BitReader::EndOfFileReached& ) {
             /* This might happen when calling readDynamicHuffmanCoding quite some bytes before the end! */
             break;
         }
+    }
+
+    return candidateCount;
+}
+
+
+template<uint8_t CACHED_BIT_COUNT>
+[[nodiscard]] uint64_t
+countDeflateBlocksPreselectionManualSlidingBuffer( BufferedFileReader::AlignedBuffer data )
+{
+    const size_t nBitsToTest = data.size() * CHAR_BIT;
+    pragzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( data ) ) );
+
+    uint64_t candidateCount{ 0 };
+
+    using namespace pragzip::blockfinder;
+
+    /* For this test, CACHED_BIT_COUNT (<=18) would be sufficient but for the precode check we would need in total
+     * 13 + 4 + 57 = 74 bits. We might split this into two buffers of length CACHED_BIT_COUNT and 74 -CACHED_BIT_COUNT
+     * because we need the CACHED_BIT_COUNT anyway for much more frequent LUT lookup. */
+    auto bitBufferForLUT = bitReader.read<CACHED_BIT_COUNT>();
+
+    pragzip::deflate::Block block;
+    try {
+        for ( size_t offset = 0; offset <= nBitsToTest; ) {
+            auto nextPosition = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<CACHED_BIT_COUNT>[bitBufferForLUT];
+
+            /* If we can skip forward, then that means that the new position only has been partially checked.
+             * Therefore, rechecking the LUT for non-zero skips not only ensures that we aren't wasting time in
+             * readHeader but it also ensures that we can avoid checking the first three bits again inside readHeader
+             * and instead start reading and checking the dynamic Huffman code directly! */
+            if ( nextPosition == 0 ) {
+                nextPosition = 1;
+                ++candidateCount;
+            }
+
+            bitBufferForLUT >>= nextPosition;
+            bitBufferForLUT |= bitReader.read( nextPosition )
+                               << static_cast<uint8_t>( CACHED_BIT_COUNT - nextPosition );
+            offset += nextPosition;
+        }
+    } catch ( const pragzip::BitReader::EndOfFileReached& ) {
+        /* This might happen when calling readDynamicHuffmanCoding quite some bytes before the end! */
+    }
+
+    return candidateCount;
+}
+
+
+enum class CheckPrecodeMethod
+{
+    WITHOUT_LUT,
+    WITHOUT_LUT_USING_ARRAY,
+    WALK_TREE_LUT,
+    WALK_TREE_COMPRESSED_LUT,
+    SINGLE_LUT,
+    SINGLE_COMPRESSED_LUT,
+};
+
+
+[[nodiscard]] std::string
+toString( CheckPrecodeMethod method )
+{
+    switch ( method )
+    {
+    case CheckPrecodeMethod::WITHOUT_LUT             : return "Without LUT";
+    case CheckPrecodeMethod::WITHOUT_LUT_USING_ARRAY : return "Without LUT Using Array";
+    case CheckPrecodeMethod::WALK_TREE_LUT           : return "Walk Tree LUT";
+    case CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT: return "Walk Tree Compressed LUT";
+    case CheckPrecodeMethod::SINGLE_LUT              : return "Single LUT";
+    case CheckPrecodeMethod::SINGLE_COMPRESSED_LUT   : return "Single Compressed LUT";
+    }
+    throw std::invalid_argument( "Unknown check precode method!" );
+}
+
+
+template<CheckPrecodeMethod CHECK_PRECODE_METHOD>
+constexpr pragzip::Error
+checkPrecode( const uint64_t next4Bits,
+              const uint64_t next57Bits )
+{
+    using namespace pragzip::PrecodeCheck;
+
+    if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_COMPRESSED_LUT ) {
+        /**
+         * I'm completely baffled that there is no performance gain for this one, which requires
+         * only 78 KiB 256 B LUT as opposed to SingleLUT, which requires a 2 MiB LUT.
+         * The lookup itself also isn't more expensive because the same bits are now stored in bytes,
+         * which avoids a third stage of bit-shifting and masking.
+         * @verbatim
+         * [13 bits] ( 43.67 <= 44.28 +- 0.26 <= 44.6 ) MB/s
+         * [14 bits] ( 44.46 <= 44.69 +- 0.14 <= 44.92 ) MB/s
+         * [15 bits] ( 44.07 <= 44.38 +- 0.14 <= 44.61 ) MB/s
+         * [16 bits] ( 44.09 <= 44.38 +- 0.2 <= 44.59 ) MB/s
+         * [17 bits] ( 44.4 <= 45.2 +- 0.5 <= 45.6 ) MB/s
+         * [18 bits] ( 42.6 <= 44.1 +- 0.6 <= 44.5 ) MB/s
+         * @endverbatim
+         */
+        return SingleCompressedLUT::checkPrecode( next4Bits, next57Bits );
+    }
+
+    if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_LUT ) {
+        /**
+         * I thought this would be faster than the WalkTreeLUT, it even save the whole branch
+         * in case the precode might be valid judging from the first 5 frequency counts.
+         * But the overflow checking might add too much more instructions in all cases.
+         * @verbatim
+         * [13 bits] ( 39.1 <= 43.5 +- 1.6 <= 44.5 ) MB/s
+         * [14 bits] ( 44.6 <= 45.3 +- 0.4 <= 45.7 ) MB/s
+         * [15 bits] ( 43.5 <= 44.2 +- 0.3 <= 44.6 ) MB/s
+         * [16 bits] ( 43.2 <= 44.1 +- 0.4 <= 44.6 ) MB/s
+         * [17 bits] ( 44.4 <= 45 +- 0.4 <= 45.6 ) MB/s
+         * [18 bits] ( 43.09 <= 43.38 +- 0.24 <= 43.78 ) MB/s
+         * @endverbatim
+         */
+        return SingleLUT::checkPrecode( next4Bits, next57Bits );
+    }
+
+    if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT ) {
+         /*
+         * @verbatim
+         * [13 bits] ( 48.9 <= 49.9 +- 0.6 <= 50.9 ) MB/s
+         * [14 bits] ( 49.8 <= 51.2 +- 0.7 <= 52.1 ) MB/s
+         * [15 bits] ( 48.5 <= 50.2 +- 0.8 <= 51 ) MB/s
+         * [16 bits] ( 46.6 <= 49.4 +- 1.1 <= 50.6 ) MB/s
+         * [17 bits] ( 49.7 <= 50.7 +- 0.4 <= 51.1 ) MB/s
+         * [18 bits] ( 47.2 <= 47.9 +- 0.4 <= 48.3 ) MB/s
+         * @endverbatim
+         */
+        return WalkTreeCompressedLUT::checkPrecode( next4Bits, next57Bits );
+    }
+
+    if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_LUT ) {
+        /**
+         * Even this version with 40 KiB is not faster than the version with 4 MiB.
+         * It's actually a tad slower, especially for the minimum measured bandwidths.
+         * I'm baffled.
+         * @todo Compressing the LUT might have an actual benefit when including one more count.
+         *       The uncompressed LUT for that is 128 MiB! But, theoretically, the upper bound for
+         *       the compressed LUT would be 32 * 40 KiB = 1280 KiB but I need to fix the creation
+         *       algorithm to skip a temporary creation of the 128 MiB table, especially if I want
+         *       to have it constexpr.
+         * @verbatim
+         * [13 bits] ( 48.95 <= 49.38 +- 0.28 <= 49.85 ) MB/s
+         * [14 bits] ( 49.5 <= 50.7 +- 0.7 <= 51.4 ) MB/s
+         * [15 bits] ( 49.9 <= 50.7 +- 0.4 <= 51.2 ) MB/s
+         * [16 bits] ( 50.3 <= 50.8 +- 0.3 <= 51.4 ) MB/s
+         * [17 bits] ( 49.9 <= 51.2 +- 0.6 <= 52 ) MB/s
+         * [18 bits] ( 46.5 <= 49 +- 0.9 <= 49.8 ) MB/s
+         * @endverbatim
+         */
+        return WalkTreeLUT::checkPrecode( next4Bits, next57Bits );
+    }
+
+    if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WITHOUT_LUT_USING_ARRAY ) {
+        /**
+         * @verbatim
+         * [13 bits] ( 35.08 <= 35.43 +- 0.21 <= 35.74 ) MB/s
+         * [14 bits] ( 33.74 <= 34 +- 0.15 <= 34.21 ) MB/s
+         * [15 bits] ( 34.1 <= 34.49 +- 0.23 <= 34.8 ) MB/s
+         * [16 bits] ( 33.85 <= 34.09 +- 0.16 <= 34.32 ) MB/s
+         * [17 bits] ( 33.3 <= 34 +- 0.4 <= 34.6 ) MB/s
+         * [18 bits] ( 34.41 <= 34.89 +- 0.25 <= 35.22 ) MB/s
+         * @endverbatim
+         */
+        return WithoutLUT::checkPrecodeUsingArray( next4Bits, next57Bits );
+    }
+
+    if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WITHOUT_LUT ) {
+        /**
+         * @verbatim
+         * [13 bits] ( 33.1 <= 33.28 +- 0.13 <= 33.46 ) MB/s
+         * [14 bits] ( 32.93 <= 33.39 +- 0.26 <= 33.79 ) MB/s
+         * [15 bits] ( 33.32 <= 33.48 +- 0.12 <= 33.64 ) MB/s
+         * [16 bits] ( 32.96 <= 33.2 +- 0.25 <= 33.58 ) MB/s
+         * [17 bits] ( 32.9 <= 33.27 +- 0.24 <= 33.61 ) MB/s
+         * [18 bits] ( 31.7 <= 32.3 +- 0.3 <= 32.7 ) MB/s
+         * @endverbatim
+         */
+        return WithoutLUT::checkPrecode( next4Bits, next57Bits );
+    }
+
+    throw std::invalid_argument( "Unknown check precode method!" );
+}
+
+
+/* Without "forceinline", I observed a ~10% performance degradation! */
+template<CheckPrecodeMethod CHECK_PRECODE_METHOD>
+[[nodiscard]] forceinline pragzip::Error
+checkDeflateBlock( const uint64_t      bitBufferForLUT,
+                   const uint64_t      bitBufferPrecodeBits,
+                   const size_t        offset,
+                   pragzip::BitReader& bitReader )
+{
+    using namespace pragzip;
+    using namespace deflate;
+    constexpr auto ALL_PRECODE_BITS = PRECODE_COUNT_BITS + MAX_PRECODE_COUNT * PRECODE_BITS;
+
+    const auto next4Bits = bitBufferPrecodeBits & nLowestBitsSet<uint64_t, PRECODE_COUNT_BITS>();
+    const auto next57Bits = ( bitBufferPrecodeBits >> PRECODE_COUNT_BITS )
+                            & nLowestBitsSet<uint64_t, MAX_PRECODE_COUNT * PRECODE_BITS>();
+
+    uint64_t histogram{ 0 };
+    auto error = Error::NONE;
+    if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_LUT ) {
+        error = PrecodeCheck::WalkTreeLUT::checkPrecode( next4Bits, next57Bits, &histogram );
+    } else {
+        error = checkPrecode<CHECK_PRECODE_METHOD>( next4Bits, next57Bits );
+    }
+
+    if ( LIKELY( error != Error::NONE ) ) [[unlikely]] {
+        return error;
+    }
+
+#ifndef NDEBUG
+    const auto oldTell = bitReader.tell();
+#endif
+
+    const auto literalCodeCount = 257 + ( ( bitBufferForLUT >> 3U ) & nLowestBitsSet<uint64_t, 5>() );
+    const auto distanceCodeCount = 1 + ( ( bitBufferForLUT >> 8U ) & nLowestBitsSet<uint64_t, 5>() );
+    const auto codeLengthCount = 4 + next4Bits;
+    const auto precodeBits = next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS );
+
+    LiteralAndDistanceCLBuffer literalCL{};
+    const auto distanceCodesOffset = offset + 13 + 4 + ( codeLengthCount * PRECODE_BITS );
+    const auto bitReaderOffset = offset + 13 + ALL_PRECODE_BITS;
+
+    if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_LUT ) {
+        using PrecodeCheck::SingleLUT::ValidHistogramID::getHistogramIdFromUniformlyPackedHistogram;
+        const auto validId = getHistogramIdFromUniformlyPackedHistogram( histogram );
+        if ( validId >= precode::VALID_HUFFMAN_CODINGS.size() ) {
+            throw std::logic_error( "Histograms should have been valid at this point!" );
+        }
+        const auto& precodeHC = precode::VALID_HUFFMAN_CODINGS[validId];
+
+        bitReader.seek( static_cast<long long int>( distanceCodesOffset ) );
+        const auto alphabet = precode::getAlphabetFromCodeLengths( precodeBits, histogram );
+        error = Block<>::readDistanceAndLiteralCodeLengths(
+            literalCL, bitReader, precodeHC, literalCodeCount + distanceCodeCount,
+            [&alphabet] ( auto symbol ) { return alphabet[symbol]; } );
+        /* Using this theoretically derivable position avoids a possibly costly call to tell()
+         * to save the old offset. */
+        bitReader.seek( static_cast<long long int>( bitReaderOffset ) );
+
+    } else {
+        /* Get code lengths (CL) for alphabet P. */
+        std::array<uint8_t, MAX_PRECODE_COUNT> codeLengthCL{};
+        for ( size_t i = 0; i < codeLengthCount; ++i ) {
+            const auto codeLength = ( precodeBits >> ( i * PRECODE_BITS ) )
+                                    & nLowestBitsSet<uint64_t, PRECODE_BITS>();
+            codeLengthCL[PRECODE_ALPHABET[i]] = codeLength;
+        }
+
+        PrecodeHuffmanCoding precodeHC;
+        error = precodeHC.initializeFromLengths( { codeLengthCL.data(), codeLengthCL.size() } );
+
+        /* Note that the precode should never fail to initialize because checkPrecode
+         * already returned successful! */
+        if ( UNLIKELY( error != Error::NONE ) ) [[unlikely]] {
+            return error;
+        }
+
+        bitReader.seek( static_cast<long long int>( distanceCodesOffset ) );
+        error = Block<>::readDistanceAndLiteralCodeLengths(
+            literalCL, bitReader, precodeHC, literalCodeCount + distanceCodeCount );
+        /* Using this theoretically derivable position avoids a possibly costly call to tell()
+         * to save the old offset. */
+        bitReader.seek( static_cast<long long int>( bitReaderOffset ) );
+    }
+
+    if ( LIKELY( error != Error::NONE ) ) [[likely]] {
+        return error;
+    }
+
+    /* Check distance code lengths. */
+    HuffmanCodingCheckOnly<uint16_t, MAX_CODE_LENGTH,
+                           uint8_t, MAX_DISTANCE_SYMBOL_COUNT> distanceHC;
+    error = distanceHC.initializeFromLengths(
+        VectorView<uint8_t>( literalCL.data() + literalCodeCount, distanceCodeCount ) );
+
+    if ( LIKELY( error != Error::NONE ) ) [[likely]] {
+        return error;
+    }
+
+    /* Check literal code lengths. */
+    HuffmanCodingCheckOnly<uint16_t, MAX_CODE_LENGTH,
+                           uint16_t, MAX_LITERAL_HUFFMAN_CODE_COUNT> literalHC;
+    error = literalHC.initializeFromLengths( VectorView<uint8_t>( literalCL.data(), literalCodeCount ) );
+
+#ifndef NDEBUG
+    if ( oldTell != bitReader.tell() ) {
+        std::cerr << "Previous position: " << oldTell << " new position: " << bitReader.tell() << "\n";
+        throw std::logic_error( "Did not seek back correctly!" );
+    }
+#endif
+
+    return error;
+}
+
+
+[[nodiscard]] std::optional<std::pair<size_t, uint64_t> >
+checkAndGetValidHistogramID( const uint64_t precodeBits )
+{
+    using namespace pragzip;
+    using namespace deflate;
+    using namespace PrecodeCheck::SingleCompressedLUT;
+    using pragzip::PrecodeCheck::SingleLUT::Histogram;
+
+    constexpr auto PRECODES_PER_CHUNK = 4U;
+    constexpr auto CACHED_BITS = PRECODE_BITS * PRECODES_PER_CHUNK;
+    constexpr auto CHUNK_COUNT = ceilDiv( pragzip::deflate::MAX_PRECODE_COUNT, PRECODES_PER_CHUNK );
+    static_assert( CACHED_BITS == 12 );
+    static_assert( CHUNK_COUNT == 5 );
+
+    Histogram bitLengthFrequencies{ 0 };
+    Histogram overflowsInSum{ 0 };
+    Histogram overflowsInLUT{ 0 };
+
+    for ( size_t chunk = 0; chunk < CHUNK_COUNT; ++chunk ) {
+        auto precodeChunk = precodeBits >> ( chunk * CACHED_BITS );
+        /* The last requires no bit masking because @ref next57Bits is already sufficiently masked.
+         * This branch will hopefully get unrolled, else it could hinder performance. */
+        if ( chunk != CHUNK_COUNT - 1 ) {
+            precodeChunk &= nLowestBitsSet<uint64_t, CACHED_BITS>();
+        }
+
+        const auto partialHistogram = PRECODE_X4_TO_HISTOGRAM_LUT[precodeChunk];
+
+        /**
+         * Account for overflows over the storage boundaries during addition.
+         *  - Addition in lowest bits: 0+0 -> 0, 0+1 -> 1, 1+0 -> 1, 1+1 -> 0 (+ carry bit)
+         *                             <=> bitwise xor ^ (also sometimes called carryless addition)
+         *  - If there is a carry-over (overflow) from a lower bit, then these results will be inverted.
+         *    We can check for that with another xor, wich also acts as a bit-wise inequality comparison,
+         *    setting the resulting bit only to 1 if both source bits are different.
+         *    This result needs to be masked to the bits of interest but that can be done last to reduce instructions.
+         */
+        const auto carrylessSum = bitLengthFrequencies ^ partialHistogram;
+        bitLengthFrequencies = bitLengthFrequencies + partialHistogram;
+        overflowsInSum |= carrylessSum ^ bitLengthFrequencies;
+        overflowsInLUT |= partialHistogram;
+    }
+
+    /* Ignore non-zero and overflow counts for lookup. */
+    const auto histogramToLookUp = ( bitLengthFrequencies >> 5U )
+                                   & nLowestBitsSet<Histogram>( HISTOGRAM_TO_LOOK_UP_BITS );
+    const auto nonZeroCount = bitLengthFrequencies & nLowestBitsSet<Histogram>( 5 );
+    if ( LIKELY( POWER_OF_TWO_SPECIAL_CASES[nonZeroCount] != histogramToLookUp ) ) [[likely]] {
+        if ( ( ( overflowsInSum & OVERFLOW_BITS_MASK ) != 0 )
+             || ( ( overflowsInLUT & ( ~Histogram( 0 ) << OVERFLOW_MEMBER_OFFSET ) ) != 0 ) ) {
+            return std::nullopt;
+        }
+
+        const auto& [histogramLUT, validLUT] = COMPRESSED_PRECODE_HISTOGRAM_VALID_LUT_DICT;
+        constexpr auto INDEX_BITS = COMPRESSED_PRECODE_HISTOGRAM_INDEX_BITS;
+        const auto elementIndex = ( histogramToLookUp >> INDEX_BITS )
+                                  & nLowestBitsSet<Histogram>( HISTOGRAM_TO_LOOK_UP_BITS - INDEX_BITS );
+        const auto subIndex = histogramLUT[elementIndex];
+        const auto validIndex = ( subIndex << INDEX_BITS ) + ( histogramToLookUp & nLowestBitsSet<uint64_t>( INDEX_BITS ) );
+        if ( LIKELY( ( validLUT[validIndex] ) == 0 ) ) [[unlikely]] {
+            /* This also handles the case of all being zero, which in the other version returns EMPTY_ALPHABET!
+             * Some might also not be bloating but simply invalid, we cannot differentiate that but it can be
+             * helpful for tests to have different errors. For actual usage comparison with NONE is sufficient. */
+            return std::nullopt;
+        }
+    }
+
+    using PrecodeCheck::SingleLUT::ValidHistogramID::getHistogramIdFromVLPHWithoutZero;
+    const auto validId = getHistogramIdFromVLPHWithoutZero( histogramToLookUp );
+    return std::make_pair( validId, histogramToLookUp );
+}
+
+
+template<>
+[[nodiscard]] forceinline pragzip::Error
+checkDeflateBlock<CheckPrecodeMethod::SINGLE_COMPRESSED_LUT>( const uint64_t      bitBufferForLUT,
+                                                              const uint64_t      bitBufferPrecodeBits,
+                                                              const size_t        offset,
+                                                              pragzip::BitReader& bitReader )
+{
+    using namespace pragzip;
+    using namespace deflate;
+
+    const auto next4Bits = bitBufferPrecodeBits & nLowestBitsSet<uint64_t, PRECODE_COUNT_BITS>();
+    const auto next57Bits = ( bitBufferPrecodeBits >> PRECODE_COUNT_BITS )
+                            & nLowestBitsSet<uint64_t, MAX_PRECODE_COUNT * PRECODE_BITS>();
+
+    const auto codeLengthCount = 4 + next4Bits;
+    const auto precodeBits = next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS );
+
+    const auto result = checkAndGetValidHistogramID( precodeBits );
+    if ( !result ) {
+        return Error::INVALID_CODE_LENGTHS;
+    }
+    const auto& [validId, bitLengthFrequencies] = *result;
+    if ( validId >= precode::VALID_HUFFMAN_CODINGS.size() ) {
+        return Error::INVALID_CODE_LENGTHS;
+    }
+
+    constexpr auto ALL_PRECODE_BITS = PRECODE_COUNT_BITS + MAX_PRECODE_COUNT * PRECODE_BITS;
+    const auto distanceCodesOffset = offset + 13 + 4 + ( codeLengthCount * PRECODE_BITS );
+    const auto bitReaderOffset = offset + 13 + ALL_PRECODE_BITS;
+
+    const auto& precodeHC = precode::VALID_HUFFMAN_CODINGS[validId];
+
+    //using pragzip::PrecodeCheck::SingleLUT::getAlphabetFromCodeLengths;
+    /* I would need a *another* POWER_OF_TWO_SPECIAL_CASES LUT to get alphabets for those cases :/ */
+    //const auto alphabet = getAlphabetFromCodeLengths( precodeBits, bitLengthFrequencies );
+    const auto histogram = PrecodeCheck::WalkTreeLUT::precodesToHistogram<5>( precodeBits );
+    const auto alphabet = precode::getAlphabetFromCodeLengths( precodeBits, histogram );
+
+    bitReader.seek( static_cast<long long int>( distanceCodesOffset ) );
+
+    LiteralAndDistanceCLBuffer literalCL{};
+    const auto literalCodeCount = 257 + ( ( bitBufferForLUT >> 3U ) & nLowestBitsSet<uint64_t, 5>() );
+    const auto distanceCodeCount = 1 + ( ( bitBufferForLUT >> 8U ) & nLowestBitsSet<uint64_t, 5>() );
+    auto error = Block<>::readDistanceAndLiteralCodeLengths(
+        literalCL, bitReader, precodeHC, literalCodeCount + distanceCodeCount,
+        [&alphabet] ( auto symbol ) { return alphabet[symbol]; } );
+
+    /* Using this theoretically derivable position avoids a possibly costly call to tell()
+     * to save the old offset. */
+    bitReader.seek( static_cast<long long int>( bitReaderOffset ) );
+
+    if ( LIKELY( error != Error::NONE ) ) [[likely]] {
+        return error;
+    }
+
+    /* Check distance code lengths. */
+    HuffmanCodingCheckOnly<uint16_t, MAX_CODE_LENGTH,
+                           uint8_t, MAX_DISTANCE_SYMBOL_COUNT> distanceHC;
+    error = distanceHC.initializeFromLengths(
+        VectorView<uint8_t>( literalCL.data() + literalCodeCount, distanceCodeCount ) );
+
+    if ( LIKELY( error != Error::NONE ) ) [[likely]] {
+        return error;
+    }
+
+    /* Check literal code lengths. */
+    HuffmanCodingCheckOnly<uint16_t, MAX_CODE_LENGTH,
+                           uint16_t, MAX_LITERAL_HUFFMAN_CODE_COUNT> literalHC;
+    error = literalHC.initializeFromLengths( VectorView<uint8_t>( literalCL.data(), literalCodeCount ) );
+
+    return error;
+}
+
+
+/**
+ * Same as findDeflateBlocksPragzip but prefilters calling pragzip using a lookup table and even skips multiple bits.
+ * Also, does not find uncompressed blocks nor fixed huffman blocks and as the others no final blocks!
+ * The idea is that fixed huffman blocks should be very rare and uncompressed blocks can be found very fast in a
+ * separate run over the data (to be implemented).
+ */
+template<uint8_t            CACHED_BIT_COUNT,
+         CheckPrecodeMethod CHECK_PRECODE_METHOD = CheckPrecodeMethod::WALK_TREE_LUT>
+[[nodiscard]] std::vector<size_t>
+findDeflateBlocksPragzipLUT( BufferedFileReader::AlignedBuffer data )
+{
+    const size_t nBitsToTest = data.size() * CHAR_BIT;
+    pragzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( data ) ) );
+
+    std::vector<size_t> bitOffsets;
+
+    const auto oldOffset = bitReader.tell();
+
+    try
+    {
+        using namespace pragzip;
+        using namespace pragzip::deflate;  /* For the definitions of deflate-specific number of bits. */
+
+        /**
+         * For LUT we need at CACHED_BIT_COUNT bits and for the precode check we would need in total
+         * 13 + 4 + 57 = 74 bits. Because this does not fit into 64-bit we need to keep two sliding bit buffers.
+         * The first can simply have length CACHED_BIT_COUNT and the other one can even keep duplicated bits to
+         * have length of 61 bits required for the precode. Updating three different buffers would require more
+         * instructions but might not be worth it.
+         */
+        auto bitBufferForLUT = bitReader.peek<CACHED_BIT_COUNT>();
+        bitReader.seek( static_cast<long long int>( oldOffset ) + 13 );
+        constexpr auto ALL_PRECODE_BITS = PRECODE_COUNT_BITS + MAX_PRECODE_COUNT * PRECODE_BITS;
+        static_assert( ( ALL_PRECODE_BITS == 61 ) && ( ALL_PRECODE_BITS >= CACHED_BIT_COUNT )
+                       && ( ALL_PRECODE_BITS <= std::numeric_limits<uint64_t>::digits )
+                       && ( ALL_PRECODE_BITS <= pragzip::BitReader::MAX_BIT_BUFFER_SIZE ),
+                       "It must fit into 64-bit and it also must fit the largest possible jump in the LUT." );
+        auto bitBufferPrecodeBits = bitReader.read<ALL_PRECODE_BITS>();
+
+        const auto& LUT = pragzip::blockfinder::NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<CACHED_BIT_COUNT>;
+        Block block;
+        for ( size_t offset = oldOffset; offset <= nBitsToTest; ) {
+            auto nextPosition = LUT[bitBufferForLUT];  // ~8 MB/s
+
+            /* If we can skip forward, then that means that the new position only has been partially checked.
+             * Therefore, rechecking the LUT for non-zero skips not only ensures that we aren't wasting time in
+             * readHeader but it also ensures that we can avoid checking the first three bits again inside readHeader
+             * and instead start reading and checking the dynamic Huffman code directly! */
+            if ( nextPosition == 0 ) {
+                nextPosition = 1;
+
+                const auto error = checkDeflateBlock<CHECK_PRECODE_METHOD>( bitBufferForLUT, bitBufferPrecodeBits,
+                                                                            offset, bitReader );
+                if ( UNLIKELY( error == Error::NONE ) ) [[unlikely]] {
+                    /* Testing decoding is not necessary because the Huffman canonical check is already very strong!
+                     * Decoding up to 8 KiB like in pugz only impedes performance and it is harder to reuse that
+                     * already decoded data if we do decide that it is a valid block. The number of checks during
+                     * reading is also pretty few because there almost are no wasted / invalid symbols. */
+                    bitOffsets.push_back( offset );
+                }
+            }
+
+            const auto bitsToLoad = nextPosition;
+
+            /* Refill bit buffer for LUT using the bits from the higher precode bit buffer. */
+            bitBufferForLUT >>= bitsToLoad;
+            if constexpr ( CACHED_BIT_COUNT > 13 ) {
+                constexpr uint8_t DUPLICATED_BITS = CACHED_BIT_COUNT - 13;
+                bitBufferForLUT |= ( ( bitBufferPrecodeBits >> DUPLICATED_BITS )
+                                     & nLowestBitsSet<uint64_t>( bitsToLoad ) )
+                                   << static_cast<uint8_t>( CACHED_BIT_COUNT - bitsToLoad );
+            } else {
+                bitBufferForLUT |= ( bitBufferPrecodeBits & nLowestBitsSet<uint64_t>( bitsToLoad ) )
+                                   << static_cast<uint8_t>( CACHED_BIT_COUNT - bitsToLoad );
+            }
+
+            /* Refill the precode bit buffer directly from the bit reader. */
+            bitBufferPrecodeBits >>= bitsToLoad;
+            bitBufferPrecodeBits |= bitReader.read( bitsToLoad )
+                                    << static_cast<uint8_t>( ALL_PRECODE_BITS - bitsToLoad );
+
+            offset += nextPosition;
+        }
+    } catch ( const pragzip::BitReader::EndOfFileReached& ) {
+        /* This might happen when calling readDynamicHuffmanCoding quite some bytes before the end! */
     }
 
     return bitOffsets;
@@ -681,28 +1197,46 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
 
     using namespace pragzip::blockfinder;
     static constexpr auto CACHED_BIT_COUNT = 14;
-    static const auto nextDeflateCandidateLUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
 
     size_t offsetsTestedMoreInDepth{ 0 };
     std::unordered_map<pragzip::Error, uint64_t> errorCounts;
     pragzip::deflate::Block</* CRC32 */ false, /* enable analysis */ true> block;
+    size_t checkPrecodeFails{ 0 };
+    size_t passedDeflateHeaderTest{ 0 };
     for ( size_t offset = 0; offset <= nBitsToTest; ) {
         bitReader.seek( static_cast<long long int>( offset ) );
 
         try
         {
             const auto peeked = bitReader.peek<CACHED_BIT_COUNT>();
-            const auto nextPosition = nextDeflateCandidateLUT[peeked];
+            const auto nextPosition = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<CACHED_BIT_COUNT>[peeked];
 
             if ( nextPosition > 0 ) {
                 bitReader.seekAfterPeek( nextPosition );
                 offset += nextPosition;
                 continue;
             }
+            ++passedDeflateHeaderTest;
+
+            bitReader.seek( static_cast<long long int>( offset ) + 13 );
+            const auto next4Bits = bitReader.read( pragzip::deflate::PRECODE_COUNT_BITS );
+            const auto next57Bits = bitReader.peek( pragzip::deflate::MAX_PRECODE_COUNT
+                                                    * pragzip::deflate::PRECODE_BITS );
+            static_assert( pragzip::deflate::MAX_PRECODE_COUNT * pragzip::deflate::PRECODE_BITS
+                           <= pragzip::BitReader::MAX_BIT_BUFFER_SIZE,
+                           "This optimization requires a larger BitBuffer inside BitReader!" );
+            using pragzip::PrecodeCheck::WalkTreeLUT::checkPrecode;
+            const auto precodeError = checkPrecode( next4Bits, next57Bits );
+            if ( precodeError != pragzip::Error::NONE ) {
+                ++checkPrecodeFails;
+            }
 
             offsetsTestedMoreInDepth++;
-            bitReader.seekAfterPeek( 3 );
-            auto error = block.readDynamicHuffmanCoding( bitReader );
+            bitReader.seek( static_cast<long long int>( offset ) + 3 );
+            auto error = precodeError;
+            if ( precodeError == pragzip::Error::NONE ) {
+                error = block.readDynamicHuffmanCoding( bitReader );
+            }
 
             const auto [count, wasInserted] = errorCounts.try_emplace( error, 1 );
             if ( !wasInserted ) {
@@ -743,9 +1277,44 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
      *        code lengths. So yeah, using peek probably will do nothing.
      */
     std::cerr << "Reading dynamic Huffman Code (HC) deflate block failed because the code lengths were invalid:\n"
-              << "    Invalid Precode  HC: " << block.failedPrecodeInit   << "\n"
-              << "    Invalid Distance HC: " << block.failedDistanceInit << "\n"
-              << "    Invalid Symbol   HC: " << block.failedLengthInit   << "\n";
+              << "    Total number of test locations (including those skipped with the jump LUT): " << nBitsToTest
+              << "\n"
+              << "    Invalid Precode  HC: " << block.failedPrecodeInit  << " ("
+              << static_cast<double>( block.failedPrecodeInit  ) / static_cast<double>( nBitsToTest ) * 100 << " %)\n"
+              << "    Invalid Distance HC: " << block.failedDistanceInit << " ("
+              << static_cast<double>( block.failedDistanceInit ) / static_cast<double>( nBitsToTest ) * 100 << " %)\n"
+              << "    Invalid Symbol   HC: " << block.failedLengthInit   << " ("
+              << static_cast<double>( block.failedLengthInit   ) / static_cast<double>( nBitsToTest ) * 100 << " %)\n"
+              << "    Failed checkPrecode calls: " << checkPrecodeFails << "\n\n";
+
+    std::cerr << "Cumulative time spent during tests with deflate::block::readDynamicHuffmanCoding:\n"
+              << "    readDynamicHuffmanCoding : " << block.durations.readDynamicHeader << " s\n"
+              << "    Read precode             : " << block.durations.readPrecode << " s\n"
+              << "    Create precode HC        : " << block.durations.createPrecodeHC << " s\n"
+              << "    Apply precode HC         : " << block.durations.applyPrecodeHC << " s\n"
+              << "    Create distance HC       : " << block.durations.createDistanceHC << " s\n"
+              << "    Create literal HC        : " << block.durations.createLiteralHC << " s\n"
+              << "\n";
+
+    std::cerr << "Filtering cascade:\n"
+              << "+-> Total number of test locations: " << nBitsToTest
+              << "\n"
+              << "    Filtered by deflate header test jump LUT: " << ( nBitsToTest - passedDeflateHeaderTest ) << " ("
+              << static_cast<double>( nBitsToTest - passedDeflateHeaderTest ) / static_cast<double>( nBitsToTest ) * 100
+              << " %)\n"
+              << "    Remaining locations to test: " << passedDeflateHeaderTest << "\n"
+              << "    +-> Failed checkPrecode calls: " << checkPrecodeFails << " ("
+              << static_cast<double>( checkPrecodeFails ) / static_cast<double>( passedDeflateHeaderTest ) * 100
+              << " %)\n"
+              << "        Remaining locations to test: " << ( passedDeflateHeaderTest - checkPrecodeFails ) << "\n"
+              << "        +-> Invalid Distance Huffman Coding: " << block.failedDistanceInit << " ("
+              << static_cast<double>( block.failedDistanceInit )
+                 / static_cast<double>( passedDeflateHeaderTest - checkPrecodeFails ) * 100 << " %)\n"
+              << "            Remaining locations: "
+              << ( passedDeflateHeaderTest - checkPrecodeFails - block.failedDistanceInit ) << "\n"
+              << "            +-> Failing precode HC usage or literal/distance HC construction: "
+              << ( passedDeflateHeaderTest - checkPrecodeFails - block.failedDistanceInit - bitOffsets.size() ) << "\n"
+              << "                Location candidates: " << bitOffsets.size() << "\n\n";
 
     /**
      * @verbatim
@@ -775,6 +1344,7 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
     for ( size_t i = 0; i < block.precodeCLHistogram.size(); ++i ) {
         std::cerr << "    " << std::setw( 2 ) << 4 + i << " : " << block.precodeCLHistogram[i] << "\n";
     }
+    std::cerr << "\n";
 
     /**
      * Encountered errors:
@@ -807,7 +1377,8 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
  * Once, doing simple Boyer-Moore-like string search tests and skips forward and the second time doing
  * extensive tests by loading and checking the dynamic Huffman trees, which might require seeking back.
  */
-template<uint8_t CACHED_BIT_COUNT>
+template<uint8_t            CACHED_BIT_COUNT,
+         CheckPrecodeMethod CHECK_PRECODE_METHOD = CheckPrecodeMethod::WALK_TREE_LUT>
 [[nodiscard]] std::vector<size_t>
 findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
 {
@@ -821,11 +1392,12 @@ findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
     std::vector<size_t> bitOffsetCandidates;
 
     using namespace pragzip::blockfinder;
-    static const auto nextDeflateCandidateLUT = createNextDeflateCandidateLUT<CACHED_BIT_COUNT>();
+    const auto& LUT = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<CACHED_BIT_COUNT>;
 
+    //const auto t0 = now();
     for ( size_t offset = 0; offset <= nBitsToTest; ) {
         try {
-            const auto nextPosition = nextDeflateCandidateLUT[bitReader.peek<CACHED_BIT_COUNT>()];
+            const auto nextPosition = LUT[bitReader.peek<CACHED_BIT_COUNT>()];
             if ( nextPosition == 0 ) {
                 bitOffsetCandidates.push_back( offset );
                 ++offset;
@@ -839,6 +1411,10 @@ findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
         }
     }
 
+    //const auto t1 = now();
+    //std::cerr << "    Candidates after first pass: " << bitOffsetCandidates.size()
+    //          << ", pass took " << duration( t0, t1 ) << " s\n";
+
     std::vector<size_t> bitOffsets;
 
     pragzip::deflate::Block block;
@@ -851,7 +1427,27 @@ findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
              * LUT size must be at least 13-bit! */
             try {
                 bitReader.seek( static_cast<long long int>( offset ) + 13 );
-                const auto error = checkPrecode( bitReader );
+                const auto next4Bits = bitReader.read( pragzip::deflate::PRECODE_COUNT_BITS );
+                const auto next57Bits = bitReader.peek( pragzip::deflate::MAX_PRECODE_COUNT
+                                                        * pragzip::deflate::PRECODE_BITS );
+                static_assert( pragzip::deflate::MAX_PRECODE_COUNT * pragzip::deflate::PRECODE_BITS
+                               <= pragzip::BitReader::MAX_BIT_BUFFER_SIZE,
+                               "This optimization requires a larger BitBuffer inside BitReader!" );
+
+                auto error = pragzip::Error::NONE;
+                if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_COMPRESSED_LUT ) {
+                    error = pragzip::PrecodeCheck::SingleCompressedLUT::checkPrecode( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_LUT ) {
+                    error = pragzip::PrecodeCheck::SingleLUT::checkPrecode( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_LUT ) {
+                    error = pragzip::PrecodeCheck::WalkTreeLUT::checkPrecode( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT ) {
+                    error = pragzip::PrecodeCheck::WalkTreeCompressedLUT::checkPrecode( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WITHOUT_LUT_USING_ARRAY ) {
+                    error = pragzip::PrecodeCheck::WithoutLUT::checkPrecodeUsingArray( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WITHOUT_LUT ) {
+                    error = pragzip::PrecodeCheck::WithoutLUT::checkPrecode( next4Bits, next57Bits );
+                }
 
                 if ( error != pragzip::Error::NONE ) {
                     return false;
@@ -868,6 +1464,159 @@ findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
     std::copy_if( bitOffsetCandidates.begin(), bitOffsetCandidates.end(),
                   std::back_inserter( bitOffsets ), checkOffset );
 
+    //std::cerr << "    Candidates after second pass: " << bitOffsets.size()
+    //          << ", pass took " << duration( t1 ) << " s\n";
+
+    /**
+     * Tested with WalkTreeLUT:
+     * Candidates after first pass: 43801, pass took 0.161696 s
+     * Candidates after second pass: 0, pass took 0.0199207 s
+     */
+
+    return bitOffsets;
+}
+
+
+template<uint8_t            CACHED_BIT_COUNT,
+         CheckPrecodeMethod CHECK_PRECODE_METHOD = CheckPrecodeMethod::WALK_TREE_LUT>
+[[nodiscard]] std::vector<size_t>
+findDeflateBlocksPragzipLUTTwoPassWithPrecode( BufferedFileReader::AlignedBuffer data )
+{
+    static_assert( CACHED_BIT_COUNT >= 13,
+                   "The LUT must check at least 13-bits, i.e., up to including the distance "
+                   "code length check, to avoid duplicate checks in the precode check!" );
+
+    const size_t nBitsToTest = data.size() * CHAR_BIT;
+    pragzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( data ) ) );
+
+    std::vector<size_t> bitOffsetCandidates;
+
+    using namespace pragzip::blockfinder;
+    using namespace pragzip::deflate;  /* For the definitions of deflate-specific number of bits. */
+
+    const auto oldOffset = bitReader.tell();
+
+    /**
+     * For LUT we need at CACHED_BIT_COUNT bits and for the precode check we would need in total
+     * 13 + 4 + 57 = 74 bits. Because this does not fit into 64-bit we need to keep two sliding bit buffers.
+     * The first can simply have length CACHED_BIT_COUNT and the other one can even keep duplicated bits to
+     * have length of 61 bits required for the precode. Updating three different buffers would require more
+     * instructions but might not be worth it.
+     */
+    auto bitBufferForLUT = bitReader.peek<CACHED_BIT_COUNT>();
+    bitReader.seek( static_cast<long long int>( oldOffset ) + 13 );
+    constexpr auto ALL_PRECODE_BITS = PRECODE_COUNT_BITS + MAX_PRECODE_COUNT * PRECODE_BITS;
+    static_assert( ( ALL_PRECODE_BITS == 61 ) && ( ALL_PRECODE_BITS >= CACHED_BIT_COUNT )
+                   && ( ALL_PRECODE_BITS <= std::numeric_limits<uint64_t>::digits )
+                   && ( ALL_PRECODE_BITS <= pragzip::BitReader::MAX_BIT_BUFFER_SIZE ),
+                   "It must fit into 64-bit and it also must fit the largest possible jump in the LUT." );
+    auto bitBufferPrecodeBits = bitReader.read<ALL_PRECODE_BITS>();
+
+    //const auto t0 = now();
+    try {
+        for ( size_t offset = oldOffset; offset <= nBitsToTest; ) {
+            auto nextPosition = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<CACHED_BIT_COUNT>[bitBufferForLUT];
+            if ( nextPosition == 0 ) {
+                nextPosition = 1;
+
+                const auto next4Bits = bitBufferPrecodeBits & nLowestBitsSet<uint64_t, PRECODE_COUNT_BITS>();
+                const auto next57Bits = ( bitBufferPrecodeBits >> PRECODE_COUNT_BITS )
+                                        & nLowestBitsSet<uint64_t, MAX_PRECODE_COUNT * PRECODE_BITS>();
+
+                auto precodeError = pragzip::Error::NONE;
+                if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_COMPRESSED_LUT ) {
+                    precodeError = pragzip::PrecodeCheck::SingleCompressedLUT::checkPrecode( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_LUT ) {
+                    precodeError = pragzip::PrecodeCheck::SingleLUT::checkPrecode( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_LUT ) {
+                    precodeError = pragzip::PrecodeCheck::WalkTreeLUT::checkPrecode( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT ) {
+                    precodeError = pragzip::PrecodeCheck::WalkTreeCompressedLUT::checkPrecode( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WITHOUT_LUT_USING_ARRAY ) {
+                    precodeError = pragzip::PrecodeCheck::WithoutLUT::checkPrecodeUsingArray( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WITHOUT_LUT ) {
+                    precodeError = pragzip::PrecodeCheck::WithoutLUT::checkPrecode( next4Bits, next57Bits );
+                }
+
+                if ( UNLIKELY( precodeError == pragzip::Error::NONE ) ) [[unlikely]] {
+                    bitOffsetCandidates.push_back( offset );
+                }
+            }
+
+            const auto bitsToLoad = nextPosition;
+
+            /* Refill bit buffer for LUT using the bits from the higher precode bit buffer. */
+            bitBufferForLUT >>= bitsToLoad;
+            if constexpr ( CACHED_BIT_COUNT > 13 ) {
+                constexpr uint8_t DUPLICATED_BITS = CACHED_BIT_COUNT - 13;
+                bitBufferForLUT |= ( ( bitBufferPrecodeBits >> DUPLICATED_BITS )
+                                     & nLowestBitsSet<uint64_t>( bitsToLoad ) )
+                                   << static_cast<uint8_t>( CACHED_BIT_COUNT - bitsToLoad );
+            } else {
+                bitBufferForLUT |= ( bitBufferPrecodeBits & nLowestBitsSet<uint64_t>( bitsToLoad ) )
+                                   << static_cast<uint8_t>( CACHED_BIT_COUNT - bitsToLoad );
+            }
+
+            /* Refill the precode bit buffer directly from the bit reader. */
+            bitBufferPrecodeBits >>= bitsToLoad;
+            bitBufferPrecodeBits |= bitReader.read( bitsToLoad )
+                                    << static_cast<uint8_t>( ALL_PRECODE_BITS - bitsToLoad );
+
+            offset += nextPosition;
+        }
+    } catch ( const pragzip::BitReader::EndOfFileReached& ) {
+        /* Might happen when testing close to the end. */
+    }
+
+    //const auto t1 = now();
+    //std::cerr << "    Candidates after first pass: " << bitOffsetCandidates.size()
+    //          << ", pass took " << duration( t0, t1 ) << " s\n";
+
+    std::vector<size_t> bitOffsets;
+
+    pragzip::deflate::Block block;
+
+    const auto checkOffset =
+        [&] ( const auto offset )
+        {
+            /* Check the precode Huffman coding. We can skip a lot of the generic tests done in deflate::Block
+             * because this is only called for offsets prefiltered by the LUT. But, this also means that the
+             * LUT size must be at least 13-bit! */
+            try {
+                bitReader.seek( static_cast<long long int>( offset ) + 13 );
+                const auto next4Bits = bitReader.read( pragzip::deflate::PRECODE_COUNT_BITS );
+                const auto next57Bits = bitReader.peek( pragzip::deflate::MAX_PRECODE_COUNT
+                                                        * pragzip::deflate::PRECODE_BITS );
+                static_assert( pragzip::deflate::MAX_PRECODE_COUNT * pragzip::deflate::PRECODE_BITS
+                               <= pragzip::BitReader::MAX_BIT_BUFFER_SIZE,
+                               "This optimization requires a larger BitBuffer inside BitReader!" );
+
+                using pragzip::PrecodeCheck::WalkTreeLUT::checkPrecode;
+                const auto error = checkPrecode( next4Bits, next57Bits );
+
+                if ( error != pragzip::Error::NONE ) {
+                    return false;
+                }
+            } catch ( const pragzip::BitReader::EndOfFileReached& ) {}
+
+            try {
+                bitReader.seek( static_cast<long long int>( offset ) + 3 );
+                return block.readDynamicHuffmanCoding( bitReader ) == pragzip::Error::NONE;
+            } catch ( const pragzip::BitReader::EndOfFileReached& ) {}
+            return false;
+        };
+
+    std::copy_if( bitOffsetCandidates.begin(), bitOffsetCandidates.end(),
+                  std::back_inserter( bitOffsets ), checkOffset );
+
+    //std::cerr << "    Candidates after second pass: " << bitOffsets.size()
+    //          << ", pass took " << duration( t1 ) << " s\n";
+
+    /**
+     * Tested with WalkTreeLUT:
+     * Candidates after first pass: 43801, pass took 0.16743 s
+     * Candidates after second pass: 0, pass took 0.0216388 s
+     */
     return bitOffsets;
 }
 
@@ -996,7 +1745,7 @@ void
 benchmarkGzip( const std::string& fileName )
 {
     {
-        const auto buffer = bufferFile( fileName, 128ULL * 1024ULL * 1024ULL );
+        const auto buffer = bufferFile( fileName, 128_Mi );
         const auto [blockCandidates, durations] = benchmarkFunction<10>(
             [&buffer] () { return findUncompressedDeflateBlocks( buffer ); } );
 
@@ -1006,7 +1755,7 @@ benchmarkGzip( const std::string& fileName )
     }
 
     {
-        const auto buffer = bufferFile( fileName, 128ULL * 1024ULL * 1024ULL );
+        const auto buffer = bufferFile( fileName, 128_Mi );
         const auto [blockCandidates, durations] = benchmarkFunction<10>(
             [&buffer] () { return findUncompressedDeflateBlocksNestedBranches( buffer ); } );
 
@@ -1055,7 +1804,7 @@ benchmarkGzip( const std::string& fileName )
                 /* Especially for the naive zlib finder up to one deflate block might be missing,
                  * i.e., up to ~64 KiB! */
                 const auto offset = blockOffsets[i];
-                if ( offset >= nBytesToTest * CHAR_BIT - 128ULL * 1024ULL * CHAR_BIT ) {
+                if ( offset >= nBytesToTest * CHAR_BIT - 128_Ki * CHAR_BIT ) {
                     break;
                 }
 
@@ -1072,7 +1821,7 @@ benchmarkGzip( const std::string& fileName )
         };
 
     {
-        const auto buffer = bufferFile( fileName, 256ULL * 1024ULL );
+        const auto buffer = bufferFile( fileName, 256_Ki );
         const auto [blockCandidates, durations] = benchmarkFunction<10>(
             [&buffer] () { return findDeflateBlocksZlib( buffer ); } );
 
@@ -1085,7 +1834,7 @@ benchmarkGzip( const std::string& fileName )
     /* Because final blocks are skipped, it won't find anything for BGZ files! */
     const auto isBgzfFile = pragzip::blockfinder::Bgzf::isBgzfFile( std::make_unique<StandardFileReader>( fileName ) );
     if ( !isBgzfFile ) {
-        const auto buffer = bufferFile( fileName, 256ULL * 1024ULL );
+        const auto buffer = bufferFile( fileName, 256_Ki );
         const auto [blockCandidates, durations] = benchmarkFunction<10>(
             [&buffer] () { return findDeflateBlocksZlibOptimized( buffer ); } );
 
@@ -1096,7 +1845,8 @@ benchmarkGzip( const std::string& fileName )
 
     /* Benchmarks with own implementation (pragzip). */
     {
-        const auto buffer = bufferFile( fileName, 16ULL * 1024ULL * 1024ULL );
+        static constexpr auto OPTIMAL_NEXT_DEFLATE_LUT_SIZE = pragzip::blockfinder::OPTIMAL_NEXT_DEFLATE_LUT_SIZE;
+        const auto buffer = bufferFile( fileName, 16_Mi );
 
         const auto blockCandidates = countFilterEfficiencies( buffer );
         std::cout << "Block candidates (" << blockCandidates.size() << "): " << blockCandidates << "\n\n";
@@ -1110,12 +1860,13 @@ benchmarkGzip( const std::string& fileName )
                 << blockCandidatesPragzip.size() << "): " << blockCandidatesPragzip;
             throw std::logic_error( std::move( msg ).str() );
         }
-        std::cout << "[findDeflateBlocksPragzipLUT] " << formatBandwidth( durations, buffer.size() ) << "\n";
+        std::cout << std::setw( 37 ) << std::left << "[findDeflateBlocksPragzip] " << std::right
+                  << formatBandwidth( durations, buffer.size() ) << "\n";
 
         /* Same as above but with a LUT that can skip bits similar to the Boyer–Moore string-search algorithm. */
 
         /* Call findDeflateBlocksPragzipLUT once to initialize the static variables! */
-        if ( const auto blockCandidatesLUT = findDeflateBlocksPragzipLUT<17>( buffer );
+        if ( const auto blockCandidatesLUT = findDeflateBlocksPragzipLUT<OPTIMAL_NEXT_DEFLATE_LUT_SIZE>( buffer );
              blockCandidatesLUT != blockCandidates ) {
             std::stringstream msg;
             msg << "Results with findDeflateBlocksPragzipLUT differ! Block candidates ("
@@ -1127,7 +1878,7 @@ benchmarkGzip( const std::string& fileName )
             /* As for choosing CACHED_BIT_COUNT == 13, see the output of the results at the end of the file.
              * 13 is the last for which it significantly improves over less bits and 14 bits produce reproducibly
              * slower bandwidths! 13 bits is the best configuration as far as I know. */
-            [&buffer] () { return findDeflateBlocksPragzipLUT<17>( buffer ); } );
+            [&buffer] () { return findDeflateBlocksPragzipLUT<OPTIMAL_NEXT_DEFLATE_LUT_SIZE>( buffer ); } );
 
         if ( blockCandidates != blockCandidatesLUT ) {
             std::stringstream msg;
@@ -1135,7 +1886,8 @@ benchmarkGzip( const std::string& fileName )
                 << blockCandidatesLUT.size() << "): " << blockCandidatesLUT;
             throw std::logic_error( std::move( msg ).str() );
         }
-        std::cout << "[findDeflateBlocksPragzipLUT] " << formatBandwidth( durationsLUT, buffer.size() ) << "\n";
+        std::cout << std::setw( 37 ) << std::left << "[findDeflateBlocksPragzipLUT] " << std::right
+                  << formatBandwidth( durationsLUT, buffer.size() ) << "\n";
 
         /* Same as above but with a LUT and two-pass. */
 
@@ -1143,7 +1895,7 @@ benchmarkGzip( const std::string& fileName )
             /* As for choosing CACHED_BIT_COUNT == 13, see the output of the results at the end of the file.
              * 13 is the last for which it significantly improves over less bits and 14 bits produce reproducibly
              * slower bandwidths! 13 bits is the best configuration as far as I know. */
-            [&buffer] () { return findDeflateBlocksPragzipLUTTwoPass<17>( buffer ); } );
+            [&buffer] () { return findDeflateBlocksPragzipLUTTwoPass<OPTIMAL_NEXT_DEFLATE_LUT_SIZE>( buffer ); } );
 
         if ( blockCandidates != blockCandidatesLUT2P ) {
             std::stringstream msg;
@@ -1175,25 +1927,142 @@ benchmarkGzip( const std::string& fileName )
 
 
 template<uint8_t CACHED_BIT_COUNT>
+uint64_t
+benchmarkLUTSizeOnlySkipManualSlidingBufferLUT( const BufferedFileReader::AlignedBuffer& buffer )
+{
+    /* As long as we lookup more or equal than 13 bits, we should get the exact same candidates because only
+     * the first 13 bits are actually checked, higher lookups only allow for conflating double skips! */
+    std::optional<uint64_t> alternativeCandidateCount;
+    if constexpr ( CACHED_BIT_COUNT > 13 ) {
+        alternativeCandidateCount = benchmarkLUTSizeOnlySkipManualSlidingBufferLUT<CACHED_BIT_COUNT - 1>( buffer );
+    }
+
+    const auto [candidateCount, durations] = benchmarkFunction<10>(
+        [&buffer] () { return countDeflateBlocksPreselectionManualSlidingBuffer<CACHED_BIT_COUNT>( buffer ); } );
+
+    std::cout << "[findDeflateBlocksPragzipLUT with " << static_cast<int>( CACHED_BIT_COUNT ) << " bits] "
+              << formatBandwidth( durations, buffer.size() ) << " (" << candidateCount << " candidates)\n";
+
+    if ( alternativeCandidateCount && ( *alternativeCandidateCount != candidateCount ) ) {
+        throw std::logic_error( "Got inconsistent number of candidates for deflate blockfinder with "
+                                "different LUT table sizes!" );
+    }
+
+    return candidateCount;
+}
+
+
+template<uint8_t CACHED_BIT_COUNT>
+uint64_t
+benchmarkLUTSizeOnlySkipLUT( const BufferedFileReader::AlignedBuffer& buffer )
+{
+    /* As long as we lookup more or equal than 13 bits, we should get the exact same candidates because only
+     * the first 13 bits are actually checked, higher lookups only allow for conflating double skips! */
+    std::optional<uint64_t> alternativeCandidateCount;
+    if constexpr ( CACHED_BIT_COUNT > 13 ) {
+        alternativeCandidateCount = benchmarkLUTSizeOnlySkipLUT<CACHED_BIT_COUNT - 1>( buffer );
+    }
+
+    const auto [candidateCount, durations] = benchmarkFunction<10>(
+        [&buffer] () { return countDeflateBlocksPreselection<CACHED_BIT_COUNT>( buffer ); } );
+
+    std::cout << "[findDeflateBlocksPragzipLUT with " << static_cast<int>( CACHED_BIT_COUNT ) << " bits] "
+              << formatBandwidth( durations, buffer.size() ) << " (" << candidateCount << " candidates)\n";
+
+    if ( alternativeCandidateCount && ( *alternativeCandidateCount != candidateCount ) ) {
+        throw std::logic_error( "Got inconsistent number of candidates for deflate blockfinder with "
+                                "different LUT table sizes!" );
+    }
+    return candidateCount;
+}
+
+
+enum class FindDeflateMethod
+{
+    FULL_CHECK,
+    TWO_PASS,
+    TWO_PASS_WITH_PRECODE,
+};
+
+
+[[nodiscard]] std::string
+toString( FindDeflateMethod method )
+{
+    switch ( method )
+    {
+    case FindDeflateMethod::FULL_CHECK            : return "findDeflateBlocksPragzipLUT";
+    case FindDeflateMethod::TWO_PASS              : return "findDeflateBlocksPragzipLUTTwoPass";
+    case FindDeflateMethod::TWO_PASS_WITH_PRECODE : return "findDeflateBlocksPragzipLUTTwoPassAndPrecode";
+    }
+    throw std::invalid_argument( "Unknown find deflate method!" );
+}
+
+
+template<uint8_t            CACHED_BIT_COUNT,
+         FindDeflateMethod  FIND_DEFLATE_METHOD,
+         CheckPrecodeMethod CHECK_PRECODE_METHOD>
 std::vector<size_t>
 benchmarkLUTSize( const BufferedFileReader::AlignedBuffer& buffer )
 {
     std::optional<std::vector<size_t> > blockCandidatesWithLessBits;
     if constexpr ( CACHED_BIT_COUNT > 13 ) {
-        blockCandidatesWithLessBits = benchmarkLUTSize<CACHED_BIT_COUNT - 1>( buffer );
+        blockCandidatesWithLessBits =
+            benchmarkLUTSize<CACHED_BIT_COUNT - 1, FIND_DEFLATE_METHOD, CHECK_PRECODE_METHOD>( buffer );
     }
 
     const auto [blockCandidates, durations] = benchmarkFunction<10>(
-        [&buffer] () { return findDeflateBlocksPragzipLUT<CACHED_BIT_COUNT>( buffer ); } );
+        [&buffer] () {
+            if constexpr ( FIND_DEFLATE_METHOD == FindDeflateMethod::FULL_CHECK ) {
+                return findDeflateBlocksPragzipLUT<CACHED_BIT_COUNT, CHECK_PRECODE_METHOD>( buffer );
+            } else if constexpr ( FIND_DEFLATE_METHOD == FindDeflateMethod::TWO_PASS ) {
+                return findDeflateBlocksPragzipLUTTwoPass<CACHED_BIT_COUNT, CHECK_PRECODE_METHOD>( buffer );
+            } else if constexpr ( FIND_DEFLATE_METHOD == FindDeflateMethod::TWO_PASS_WITH_PRECODE ) {
+                return findDeflateBlocksPragzipLUTTwoPassWithPrecode<CACHED_BIT_COUNT, CHECK_PRECODE_METHOD>( buffer );
+            }
+        } );
 
-    std::cout << "[findDeflateBlocksPragzipLUT with " << static_cast<int>( CACHED_BIT_COUNT ) << " bits] "
-              << formatBandwidth( durations, buffer.size() ) << "\n";
+    std::cout << "[" << toString( FIND_DEFLATE_METHOD ) << " with " << static_cast<int>( CACHED_BIT_COUNT ) << " bits, "
+              << toString( CHECK_PRECODE_METHOD ) << "] "
+              << formatBandwidth( durations, buffer.size() ) << " (candidates: " << blockCandidates.size() << ")\n";
 
     if ( blockCandidatesWithLessBits && ( *blockCandidatesWithLessBits != blockCandidates ) ) {
-        throw std::logic_error( "Got inconsistent errors for pragzip blockfinder with different LUT table sizes!" );
+        std::cerr << "blockCandidatesWithLessBits (" << blockCandidatesWithLessBits->size() << "):"
+                  << *blockCandidatesWithLessBits << "\n"
+                  << "blockCandidates (" << blockCandidates.size() << "):" << blockCandidates << "\n";
+        throw std::logic_error( "Got inconsistent block candidates for pragzip blockfinder with different "
+                                "LUT table sizes!" );
     }
 
     return blockCandidates;
+}
+
+
+template<uint8_t MIN_CACHED_BIT_COUNT,
+         uint8_t MAX_CACHED_BIT_COUNT,
+         uint8_t CACHED_BIT_COUNT = MIN_CACHED_BIT_COUNT>
+void
+analyzeDeflateJumpLUT()
+{
+    using namespace pragzip::blockfinder;
+    static const auto LUT = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<CACHED_BIT_COUNT>;
+
+    std::cerr << "Deflate Jump LUT for " << static_cast<int>( CACHED_BIT_COUNT ) << " bits is sized: "
+              << formatBytes( LUT.size() * sizeof( LUT[0] ) ) << " with the following jump distance distribution:\n";
+    std::map<uint32_t, uint64_t> jumpFrequencies;
+    for ( const auto x : LUT ) {
+        jumpFrequencies[x]++;
+    }
+    for ( const auto& [distance, count] : jumpFrequencies ) {
+        if ( count > 0 ) {
+            std::cerr << "    " << std::setw( 2 ) << distance << " : " << std::setw( 5 ) << count << " ("
+                      << static_cast<double>( count ) / static_cast<double>( LUT.size() ) * 100 << " %)\n";
+        }
+    }
+    std::cerr << "\n";
+
+    if constexpr ( CACHED_BIT_COUNT < MAX_CACHED_BIT_COUNT ) {
+        analyzeDeflateJumpLUT<MIN_CACHED_BIT_COUNT, MAX_CACHED_BIT_COUNT, CACHED_BIT_COUNT + 1>();
+    }
 }
 
 
@@ -1227,7 +2096,7 @@ main( int    argc,
             /* Check for the uncompressed file inside the loop because "bgzip" does not have a --keep option!
              * https://github.com/samtools/htslib/pull/1331 */
             if ( !std::filesystem::exists( fileName ) ) {
-                createRandomBase64( fileName, 16UL * 1024UL * 1024UL );
+                createRandomBase64( fileName, 16_Mi );
             }
 
             /* Python3 module pgzip does not create the .gz file beside the input file but in the current directory,
@@ -1257,12 +2126,84 @@ main( int    argc,
             /* Benchmark Pragzip LUT version with different LUT sizes. */
 
             if ( name == "gzip" ) {
-                std::cout << "=== Testing different Pragzip + LUT table sizes ===\n\n";
+                const auto data = bufferFile( newFileName );
+
                 /* CACHED_BIT_COUNT == 19 fails on GCC because it requires > 99 M constexpr steps.
                  * CACHED_BIT_COUNT == 18 fail on clang because it requires > 99 M constexpr steps.
-                 * It works when using simple const instead of constexpr */
-                benchmarkLUTSize<18>( bufferFile( newFileName ) );
+                 * It works when using simple const instead of constexpr.
+                 * This is a maximum cached bit count. It will benchmark all the way down to 13. */
+                constexpr auto CACHED_BIT_COUNT = 18U;
+
+            /* Do not always compile and run all tests because it increases compile-time and runtime a lot. */
+            //#define BENCHMARK_ALL_VERSIONS_WITH_DIFFERENT_JUMP_LUT_SIZES
+            #ifdef BENCHMARK_ALL_VERSIONS_WITH_DIFFERENT_JUMP_LUT_SIZES
+
+                std::cout << "== Testing different pragzip deflate header jump LUT table sizes ==\n\n";
+                std::cout << "=== Only using the skip LUT (many false positives) and manual sliding bit buffer ===\n\n";
+                const auto candidateCountManualSkipping =
+                    benchmarkLUTSizeOnlySkipManualSlidingBufferLUT<CACHED_BIT_COUNT>( data );
                 std::cout << "\n\n";
+
+                std::cout << "=== Only using the skip LUT (many false positives) ===\n\n";
+                const auto candidateCountSkipLUTOnly = benchmarkLUTSizeOnlySkipLUT<CACHED_BIT_COUNT>( data );
+                std::cout << "\n\n";
+
+                REQUIRE_EQUAL( candidateCountManualSkipping, candidateCountSkipLUTOnly );
+
+                std::cout << "=== Full test and precode check ===\n\n";
+                constexpr auto FULL_CHECK = FindDeflateMethod::FULL_CHECK;
+                benchmarkLUTSize<CACHED_BIT_COUNT, FULL_CHECK, CheckPrecodeMethod::WITHOUT_LUT>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, FULL_CHECK, CheckPrecodeMethod::WITHOUT_LUT_USING_ARRAY>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, FULL_CHECK, CheckPrecodeMethod::WALK_TREE_LUT>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, FULL_CHECK, CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, FULL_CHECK, CheckPrecodeMethod::SINGLE_LUT>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, FULL_CHECK, CheckPrecodeMethod::SINGLE_COMPRESSED_LUT>( data );
+                std::cout << "\n\n";
+
+                std::cout << "=== Full test and precode check in two passes ===\n\n";
+                constexpr auto TWO_PASS = FindDeflateMethod::TWO_PASS;
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS, CheckPrecodeMethod::WITHOUT_LUT>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS, CheckPrecodeMethod::WITHOUT_LUT_USING_ARRAY>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS, CheckPrecodeMethod::WALK_TREE_LUT>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS, CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS, CheckPrecodeMethod::SINGLE_LUT>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS, CheckPrecodeMethod::SINGLE_COMPRESSED_LUT>( data );
+                std::cout << "\n\n";
+
+                std::cout << "=== Full test and precode check in two passes and precode check in first pass ===\n\n";
+                constexpr auto TWO_PASS_PRE = FindDeflateMethod::TWO_PASS_WITH_PRECODE;
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS_PRE, CheckPrecodeMethod::WITHOUT_LUT>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS_PRE, CheckPrecodeMethod::WITHOUT_LUT_USING_ARRAY>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS_PRE, CheckPrecodeMethod::WALK_TREE_LUT>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS_PRE, CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS_PRE, CheckPrecodeMethod::SINGLE_LUT>( data );
+                std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS_PRE, CheckPrecodeMethod::SINGLE_COMPRESSED_LUT>( data );
+                std::cout << "\n\n";
+            #else
+                std::cout << "=== Full test and precode check ===\n\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT,
+                                 FindDeflateMethod::FULL_CHECK,
+                                 CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT>( data );
+                benchmarkLUTSize<CACHED_BIT_COUNT,
+                                 FindDeflateMethod::FULL_CHECK,
+                                 CheckPrecodeMethod::WALK_TREE_LUT>( data );
+            #endif
+            #undef BENCHMARK_ALL_VERSIONS_WITH_DIFFERENT_JUMP_LUT_SIZES
             }
 
             /* Benchmark all different blockfinder implementations with the current encoded file. */
@@ -1283,432 +2224,14 @@ main( int    argc,
         return 1;
     }
 
+    analyzeDeflateJumpLUT<13, 18>();
+
     return 0;
 }
 
 
 /*
-cmake --build . -- benchmarkGzipBlockFinder && taskset 0x08 src/benchmarks/benchmarkGzipBlockFinder random.gz
-
-=== Testing different Pragzip + LUT table sizes ===
-
-[findDeflateBlocksPragzipLUT with 13 bits] ( 25.5 <= 27.5 +- 0.7 <= 27.9 ) MB/s
-[findDeflateBlocksPragzipLUT with 14 bits] ( 27 <= 28 +- 0.4 <= 28.3 ) MB/s
-[findDeflateBlocksPragzipLUT with 15 bits] ( 27.5 <= 28.19 +- 0.3 <= 28.49 ) MB/s
-[findDeflateBlocksPragzipLUT with 16 bits] ( 27.2 <= 28.5 +- 0.5 <= 28.9 ) MB/s
-[findDeflateBlocksPragzipLUT with 17 bits] ( 27.98 <= 28.32 +- 0.16 <= 28.5 ) MB/s
-[findDeflateBlocksPragzipLUT with 18 bits] ( 24.65 <= 25.38 +- 0.28 <= 25.63 ) MB/s
-
-
-=== Testing with encoder: gzip ===
-
-> gzip --version
-gzip 1.10
-Copyright (C) 2018 Free Software Foundation, Inc.
-Copyright (C) 1993 Jean-loup Gailly.
-This is free software.  You may redistribute copies of it under the terms of
-the GNU General Public License <https://www.gnu.org/licenses/gpl.html>.
-There is NO WARRANTY, to the extent permitted by law.
-
-Written by Jean-loup Gailly.
-
-[findUncompressedDeflateBlocks] ( 2105 <= 2124 +- 9 <= 2134 ) MB/s
-    Block candidates (33):  1641849 14802352 16084952 18358560 19055164 23166984 28247616 32673280 32778929 34162050 37006712 37488520 38504569 43578016 43755016 ...
-
-[findUncompressedDeflateBlocksNestedBranches] ( 2017 <= 2032 +- 8 <= 2040 ) MB/s
-    Block candidates (33):  1641857 14802362 16084963 18358568 19055168 23166992 28247625 32673288 32778936 34162056 37006720 37488528 38504576 43578025 43755024 ...
-
-Gzip streams (2):  0 12748064
-Deflate blocks (495):  192 205414 411532 617749 824122 1029728 1236300 1442840 1649318 1855554 2061582 2267643 2473676 2679825 2886058 ...
-
-Block size distribution: min: 0 B, avg: 25783.4 B +- 38.8132 B, max: 25888 B
-Block Size Distribution (small to large):
-     0 b |
-         |
-         |
-         |
-         |
-207110 b |==================== (494)
-
-
-[findDeflateBlocksZlib] ( 0.1932 <= 0.1947 +- 0.0007 <= 0.1956 ) MB/s
-    Block candidates (20):  192 205414 411532 617749 824122 1028344 1028348 1028349 1029728 1236300 1442840 1572611 1572612 1641846 1641847 ...
-
-[findDeflateBlocksZlibOptimized] ( 0.662 <= 0.678 +- 0.006 <= 0.684 ) MB/s
-    Block candidates (11):  192 205414 411532 617749 824122 1029728 1236300 1442840 1649318 1855554 2094939
-
-From 101984512 bits to test, found 10793215 (10.5832 %) candidates and reduced them down further to 494.
-Reading dynamic Huffman Code (HC) deflate block failed because the code lengths were invalid:
-    Invalid Precode  HC: 10750095
-    Invalid Distance HC: 8171
-    Invalid Symbol   HC: 76
-Precode CL count:
-     4 : 657613
-     5 : 658795
-     6 : 655429
-     7 : 667649
-     8 : 656510
-     9 : 656660
-    10 : 649639
-    11 : 705194
-    12 : 663377
-    13 : 662213
-    14 : 659557
-    15 : 678195
-    16 : 670387
-    17 : 681204
-    18 : 699319
-    19 : 771474
-Encountered errors:
-     7114742 Constructing a Huffman coding from the given code length sequence failed!
-     3643600 The Huffman coding is not optimal!
-       28976 Invalid number of literal/length codes!
-        5403 Cannot copy last length because this is the first one!
-         494 No error.
-
-Block candidates (494):  192 205414 411532 617749 824122 1029728 1236300 1442840 1649318 1855554 2061582 2267643 2473676 2679825 2886058 ...
-
-[findDeflateBlocksPragzipLUT] ( 4.16 <= 4.27 +- 0.04 <= 4.3 ) MB/s
-[findDeflateBlocksPragzipLUT] ( 27.5 <= 28.2 +- 0.3 <= 28.5 ) MB/s
-[findDeflateBlocksPragzipLUTTwoPass] ( 26.72 <= 27.08 +- 0.16 <= 27.27 ) MB/s
-
-=== Testing with encoder: pigz ===
-
-> pigz --version
-pigz 2.6
-
-[findUncompressedDeflateBlocks] ( 2093 <= 2130 +- 21 <= 2165 ) MB/s
-    Block candidates (26):  9115355 15453880 17626256 20230960 20959049 32956072 33043921 36063152 36741288 38098897 42646161 44588288 47241200 51683920 53144346 ...
-
-[findUncompressedDeflateBlocksNestedBranches] ( 2020 <= 2037 +- 8 <= 2049 ) MB/s
-    Block candidates (26):  9115363 15453888 17626265 20230970 20959057 32956081 33043930 36063160 36741296 38098906 42646169 44588300 47241208 51683930 53144353 ...
-
-Gzip streams (2):  0 12761091
-Deflate blocks (1195):  192 102374 205527 308631 411790 515077 618182 721566 797442 797452 797462 797472 900531 1003441 1106502 ...
-
-Block size distribution: min: 0 B, avg: 10679.8 B +- 4498.38 B, max: 12979 B
-Block Size Distribution (small to large):
-     0 b |===                  (171)
-         |
-         |
-         |
-         |==                   (127)
-103838 b |==================== (896)
-
-
-[findDeflateBlocksZlib] ( 0.187 <= 0.196 +- 0.003 <= 0.197 ) MB/s
-    Block candidates (31):  192 102374 205527 234702 234703 234706 234707 308631 411790 515077 618182 721566 797472 900531 1003441 ...
-
-[findDeflateBlocksZlibOptimized] ( 0.6704 <= 0.6751 +- 0.0026 <= 0.6788 ) MB/s
-    Block candidates (22):  192 102374 205527 308631 411790 515077 618182 721566 797472 900531 1003441 1106502 1209841 1313251 1416637 ...
-
-From 102088728 bits to test, found 10825715 (10.6042 %) candidates and reduced them down further to 1023.
-Reading dynamic Huffman Code (HC) deflate block failed because the code lengths were invalid:
-    Invalid Precode  HC: 10782517
-    Invalid Distance HC: 8095
-    Invalid Symbol   HC: 97
-Precode CL count:
-     4 : 654362
-     5 : 659851
-     6 : 657378
-     7 : 672068
-     8 : 656228
-     9 : 660807
-    10 : 653347
-    11 : 707917
-    12 : 662677
-    13 : 666890
-    14 : 660750
-    15 : 680791
-    16 : 675077
-    17 : 683831
-    18 : 702215
-    19 : 771526
-Encountered errors:
-     7143922 Constructing a Huffman coding from the given code length sequence failed!
-     3646787 The Huffman coding is not optimal!
-       28695 Invalid number of literal/length codes!
-        5287 Cannot copy last length because this is the first one!
-        1023 No error.
-
-Block candidates (1023):  192 102374 205527 308631 411790 515077 618182 721566 797472 900531 1003441 1106502 1209841 1313251 1416637 ...
-
-[findDeflateBlocksPragzipLUT] ( 4.175 <= 4.198 +- 0.016 <= 4.224 ) MB/s
-[findDeflateBlocksPragzipLUT] ( 24.76 <= 25.07 +- 0.19 <= 25.34 ) MB/s
-[findDeflateBlocksPragzipLUTTwoPass] ( 22.5 <= 23.8 +- 0.5 <= 24.2 ) MB/s
-
-=== Testing with encoder: igzip ===
-
-> igzip --version
-igzip command line interface 2.30.0
-
-[findUncompressedDeflateBlocks] ( 2065 <= 2100 +- 22 <= 2125 ) MB/s
-    Block candidates (25):  9264928 9787856 11847658 25696321 26896376 30346740 32737457 32800465 34399866 36035720 44696189 48931825 49145872 52556250 53613251 ...
-
-[findUncompressedDeflateBlocksNestedBranches] ( 1986 <= 2022 +- 25 <= 2054 ) MB/s
-    Block candidates (25):  9264940 9787864 11847666 25696328 26896384 30346744 32737464 32800472 34399872 36035728 44696192 48931835 49145880 52556258 53613256 ...
-
-Gzip streams (2):  0 12669134
-Deflate blocks (129):  1136 790905 1580736 2370674 3160686 3950671 4740448 5530378 6321349 7112718 7903168 8692985 9482887 10274151 11065651 ...
-
-Block size distribution: min: 0 B, avg: 98870.4 B +- 77.9492 B, max: 98950 B
-Block Size Distribution (small to large):
-     0 b |
-         |
-         |
-         |
-         |
-791606 b |==================== (128)
-
-
-[findDeflateBlocksZlib] ( 0.1914 <= 0.1953 +- 0.0016 <= 0.1968 ) MB/s
-    Block candidates (8):  1136 790905 1139766 1173134 1580736 1702286 1702289 1702290
-
-[findDeflateBlocksZlibOptimized] ( 0.671 <= 0.682 +- 0.006 <= 0.688 ) MB/s
-    Block candidates (3):  1136 790905 1580736
-
-From 101353072 bits to test, found 10586580 (10.4452 %) candidates and reduced them down further to 128.
-Reading dynamic Huffman Code (HC) deflate block failed because the code lengths were invalid:
-    Invalid Precode  HC: 10545141
-    Invalid Distance HC: 7810
-    Invalid Symbol   HC: 67
-Precode CL count:
-     4 : 642652
-     5 : 642717
-     6 : 643007
-     7 : 649979
-     8 : 642713
-     9 : 643131
-    10 : 643993
-    11 : 667509
-    12 : 648787
-    13 : 648830
-    14 : 648330
-    15 : 653030
-    16 : 658402
-    17 : 661059
-    18 : 685711
-    19 : 806730
-Encountered errors:
-     6971628 Constructing a Huffman coding from the given code length sequence failed!
-     3581390 The Huffman coding is not optimal!
-       28226 Invalid number of literal/length codes!
-        5208 Cannot copy last length because this is the first one!
-         128 No error.
-
-Block candidates (128):  1136 790905 1580736 2370674 3160686 3950671 4740448 5530378 6321349 7112718 7903168 8692985 9482887 10274151 11065651 ...
-
-[findDeflateBlocksPragzipLUT] ( 4.329 <= 4.365 +- 0.019 <= 4.39 ) MB/s
-[findDeflateBlocksPragzipLUT] ( 31.3 <= 31.66 +- 0.19 <= 31.9 ) MB/s
-[findDeflateBlocksPragzipLUTTwoPass] ( 29.22 <= 29.49 +- 0.13 <= 29.67 ) MB/s
-
-=== Testing with encoder: bgzip ===
-
-> bgzip --version
-bgzip (htslib) 1.13+ds
-Copyright (C) 2021 Genome Research Ltd.
-
-[findUncompressedDeflateBlocks] ( 2036 <= 2059 +- 18 <= 2082 ) MB/s
-    Block candidates (32):  2959288 3061001 3075096 6140777 11709712 12621274 12934273 13868528 22428648 27137769 30108368 30328864 34426556 35504328 43584170 ...
-
-[findUncompressedDeflateBlocksNestedBranches] ( 1914 <= 1953 +- 18 <= 1977 ) MB/s
-    Block candidates (32):  2959296 3061008 3075104 6140784 11709720 12621280 12934282 13868536 22428661 27137776 30108376 30328875 34426562 35504336 43584176 ...
-
-Got 6 B of FEXTRA field!
-Gzip streams (260):  0 49330 98651 147979 197311 246645 295981 345312 394654 443992 493330 542663 591980 641320 690645 ...
-Deflate blocks (259):  144 394784 789352 1183976 1578632 1973304 2367992 2762640 3157376 3552080 3946784 4341448 4735984 5130704 5525304 ...
-
-Block size distribution: min: 0 B, avg: 49140.7 B +- 3056.03 B, max: 49347 B
-Block Size Distribution (small to large):
-     0 b |                     (1)
-         |
-         |
-         |
-         |
-394776 b |==================== (257)
-
-
-[findDeflateBlocksZlib] ( 0.1929 <= 0.1949 +- 0.0008 <= 0.1956 ) MB/s
-    Block candidates (6):  144 394784 789352 1183976 1578632 1973304
-
-From 101426648 bits to test, found 10685794 (10.5355 %) candidates and reduced them down further to 0.
-Reading dynamic Huffman Code (HC) deflate block failed because the code lengths were invalid:
-    Invalid Precode  HC: 10643875
-    Invalid Distance HC: 7994
-    Invalid Symbol   HC: 86
-Precode CL count:
-     4 : 649877
-     5 : 652413
-     6 : 649876
-     7 : 656779
-     8 : 649155
-     9 : 653706
-    10 : 649399
-    11 : 685360
-    12 : 654690
-    13 : 655229
-    14 : 653321
-    15 : 671557
-    16 : 664263
-    17 : 670322
-    18 : 689720
-    19 : 780127
-Encountered errors:
-     7043469 Constructing a Huffman coding from the given code length sequence failed!
-     3608486 The Huffman coding is not optimal!
-       28615 Invalid number of literal/length codes!
-        5224 Cannot copy last length because this is the first one!
-
-Block candidates (0):
-
-[findDeflateBlocksPragzipLUT] ( 4.303 <= 4.348 +- 0.03 <= 4.387 ) MB/s
-[findDeflateBlocksPragzipLUT] ( 31 <= 32 +- 0.5 <= 32.7 ) MB/s
-[findDeflateBlocksPragzipLUTTwoPass] ( 29 <= 30 +- 0.5 <= 30.5 ) MB/s
-[findBgzStreams] ( 16000 <= 36000 +- 7000 <= 41000 ) MB/s
-    Block candidates (259):  144 394784 789352 1183976 1578632 1973304 2367992 2762640 3157376 3552080 3946784 4341448 4735984 5130704 5525304 ...
-
-Found 259 gzip stream candidates!
- 0 49330 98651 147979 197311 246645 295981 345312 394654 443992 493330 542663 591980 641320 690645 ...
-
-
-=== Testing with encoder: Python3 gzip ===
-
-> python3 --version
-Python 3.10.4
-
-[findUncompressedDeflateBlocks] ( 2020 <= 2070 +- 30 <= 2110 ) MB/s
-    Block candidates (27):  194240 942224 2600937 4563939 7237456 9078080 14882897 16489920 23810345 29007536 30927412 33606996 47122649 49244473 49721738 ...
-
-[findUncompressedDeflateBlocksNestedBranches] ( 1972 <= 1995 +- 16 <= 2021 ) MB/s
-    Block candidates (27):  194248 942233 2600944 4563944 7237464 9078091 14882904 16489928 23810352 29007546 30927416 33607004 47122656 49244480 49721745 ...
-
-Got 6 B of FEXTRA field!
-Gzip streams (2):  0 12759547
-Deflate blocks (989):  192 102672 205833 308639 411748 515132 618285 721612 824892 928415 1031456 1134888 1238197 1341253 1444122 ...
-
-Block size distribution: min: 0 B, avg: 12903 B +- 27.2736 B, max: 12999 B
-Block Size Distribution (small to large):
-     0 b |
-         |
-         |
-         |
-         |
-103999 b |==================== (988)
-
-
-[findDeflateBlocksZlib] ( 0.185 <= 0.193 +- 0.003 <= 0.195 ) MB/s
-    Block candidates (29):  192 102672 194239 194240 194241 194242 194245 205833 308639 411748 515132 618285 721612 824892 928415 ...
-
-[findDeflateBlocksZlibOptimized] ( 0.637 <= 0.66 +- 0.011 <= 0.669 ) MB/s
-    Block candidates (20):  192 102672 205833 308639 411748 515132 618285 721612 824892 928415 1031456 1134888 1238197 1341253 1444122 ...
-
-From 102076376 bits to test, found 10826052 (10.6058 %) candidates and reduced them down further to 988.
-Reading dynamic Huffman Code (HC) deflate block failed because the code lengths were invalid:
-    Invalid Precode  HC: 10782746
-    Invalid Distance HC: 8056
-    Invalid Symbol   HC: 92
-Precode CL count:
-     4 : 651279
-     5 : 660953
-     6 : 658117
-     7 : 672607
-     8 : 657614
-     9 : 659431
-    10 : 652932
-    11 : 708769
-    12 : 661425
-    13 : 667119
-    14 : 661341
-    15 : 682005
-    16 : 676819
-    17 : 682065
-    18 : 702720
-    19 : 770856
-Encountered errors:
-     7144252 Constructing a Huffman coding from the given code length sequence failed!
-     3646642 The Huffman coding is not optimal!
-       28850 Invalid number of literal/length codes!
-        5320 Cannot copy last length because this is the first one!
-         988 No error.
-
-Block candidates (988):  192 102672 205833 308639 411748 515132 618285 721612 824892 928415 1031456 1134888 1238197 1341253 1444122 ...
-
-[findDeflateBlocksPragzipLUT] ( 4.1 <= 4.19 +- 0.04 <= 4.22 ) MB/s
-[findDeflateBlocksPragzipLUT] ( 25.15 <= 25.31 +- 0.11 <= 25.47 ) MB/s
-[findDeflateBlocksPragzipLUTTwoPass] ( 23.9 <= 24.09 +- 0.13 <= 24.29 ) MB/s
-
-=== Testing with encoder: Python3 pgzip ===
-
-> python3 -m pip show pgzip
-Name: pgzip
-Version: 0.3.1
-Summary: A multi-threading implementation of Python gzip module
-Home-page: https://github.com/pgzip/pgzip
-Author: pgzip team
-Author-email: pgzip@thegoldfish.org
-License: MIT
-Location: /home/hypatia/.local/lib/python3.10/site-packages
-Requires:
-Required-by:
-
-[findUncompressedDeflateBlocks] ( 2102 <= 2131 +- 14 <= 2158 ) MB/s
-    Block candidates (23):  2311842 13547514 17302848 21375988 29568384 38396442 40876281 45811441 46230384 50735041 50861242 51689824 52966512 56154593 62322161 ...
-
-[findUncompressedDeflateBlocksNestedBranches] ( 1981 <= 2023 +- 18 <= 2043 ) MB/s
-    Block candidates (23):  2311849 13547520 17302857 21375992 29568395 38396449 40876289 45811448 46230393 50735049 50861248 51689833 52966520 56154600 62322168 ...
-
-Got 8 B of FEXTRA field!
-Gzip streams (2):  0 12747800
-Deflate blocks (495):  272 205800 411533 617885 824269 1030628 1237131 1442923 1649106 1855109 2061199 2267938 2473926 2680186 2886437 ...
-
-Block size distribution: min: 0 B, avg: 25782.9 B +- 37.5362 B, max: 25890 B
-Block Size Distribution (small to large):
-     0 b |
-         |
-         |
-         |
-         |
-207124 b |==================== (494)
-
-
-[findDeflateBlocksZlib] ( 0.192 <= 0.1941 +- 0.0009 <= 0.1952 ) MB/s
-    Block candidates (12):  272 205800 411533 617885 824269 1030628 1164656 1237131 1442923 1649106 1771228 1855109
-
-[findDeflateBlocksZlibOptimized] ( 0.665 <= 0.671 +- 0.004 <= 0.676 ) MB/s
-    Block candidates (10):  272 205800 411533 617885 824269 1030628 1237131 1442923 1649106 1855109
-
-From 101982400 bits to test, found 10792871 (10.5831 %) candidates and reduced them down further to 494.
-Reading dynamic Huffman Code (HC) deflate block failed because the code lengths were invalid:
-    Invalid Precode  HC: 10750237
-    Invalid Distance HC: 8081
-    Invalid Symbol   HC: 74
-Precode CL count:
-     4 : 656512
-     5 : 660445
-     6 : 654292
-     7 : 669369
-     8 : 656014
-     9 : 657507
-    10 : 647620
-    11 : 707401
-    12 : 661996
-    13 : 660533
-    14 : 659181
-    15 : 677181
-    16 : 671809
-    17 : 679677
-    18 : 699874
-    19 : 773460
-Encountered errors:
-     7114233 Constructing a Huffman coding from the given code length sequence failed!
-     3644159 The Huffman coding is not optimal!
-       28689 Invalid number of literal/length codes!
-        5296 Cannot copy last length because this is the first one!
-         494 No error.
-
-Block candidates (494):  272 205800 411533 617885 824269 1030628 1237131 1442923 1649106 1855109 2061199 2267938 2473926 2680186 2886437 ...
-
-[findDeflateBlocksPragzipLUT] ( 4.222 <= 4.273 +- 0.023 <= 4.296 ) MB/s
-[findDeflateBlocksPragzipLUT] ( 28.06 <= 28.41 +- 0.16 <= 28.63 ) MB/s
-[findDeflateBlocksPragzipLUTTwoPass] ( 26.3 <= 26.62 +- 0.22 <= 26.93 ) MB/s
+( set -o pipefail; cmake --build . -- benchmarkGzipBlockFinder 2>&1 | tee build.log ) &&
+stdbuf -o0 -e0 taskset 0x08 src/benchmarks/benchmarkGzipBlockFinder | tee benchmark.log
+mv benchmark.log ../results/benchmarks/benchmarkGzipBlockFinder.log
 */

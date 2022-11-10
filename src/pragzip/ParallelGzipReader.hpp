@@ -13,6 +13,7 @@
 #include <string_view>
 #include <thread>
 #include <utility>
+#include <vector>
 
 #include <BlockMap.hpp>
 #include <common.hpp>
@@ -28,9 +29,12 @@
 #include "IndexFileFormat.hpp"
 
 
+namespace pragzip
+{
 /**
  * @note Calls to this class are not thread-safe! Even though they use threads to evaluate them in parallel.
  */
+template<bool ENABLE_STATISTICS = false>
 class ParallelGzipReader final :
     public FileReader
 {
@@ -43,10 +47,10 @@ public:
      * because the prefetch and cache units are very large and striding or backward accessing over multiple
      * megabytes should be extremely rare.
      */
-    using BlockFetcher = pragzip::GzipBlockFetcher<FetchingStrategy::FetchNextMulti>;
+    using BlockFetcher = pragzip::GzipBlockFetcher<FetchingStrategy::FetchNextMulti, ENABLE_STATISTICS>;
     using BlockFinder = typename BlockFetcher::BlockFinder;
     using BitReader = pragzip::BitReader;
-    using WriteFunctor = std::function<void ( const void*, uint64_t )>;
+    using WriteFunctor = std::function<void ( const void*, uint64_t, const std::shared_ptr<BlockData>& )>;
 
 private:
     static constexpr bool SHOW_PROFILE{ false };
@@ -58,40 +62,88 @@ public:
      * @verbatim
      * base64 /dev/urandom | head -c $(( 4 * 1024 * 1024 * 1024 )) > 4GiB-base64
      * gzip 4GiB-base64
-     * m pragzip && time src/tools/pragzip -P 0 -d -c 4GiB-base64.gz | wc -l
+     *
+     * function benchmarkWcl()
+     * {
+     *     for chunkSize in 128 $(( 1*1024 )) $(( 2*1024 )) $(( 4*1024 )) $(( 8*1024 )) $(( 16*1024 )) $(( 32*1024 )); do
+     *         echo "Chunk Size: $chunkSize KiB"
+     *         for i in $( seq 5 ); do
+     *             src/tools/pragzip --chunk-size $chunkSize -P 0 -d -c "$1" 2>pragzip.log | wc -l
+     *             grep "Decompressed in total" pragzip.log
+     *         done
+     *     done
+     * }
+     *
+     * m pragzip
+     * benchmarkWcl 4GiB-base64.gz
+     *
      *
      * spacing | bandwidth / (MB/s) | file read multiplier
      * --------+--------------------+----------------------
-     * 128 KiB | ~ 850              | 2.08337
-     *   1 MiB | ~1750              | 1.13272
-     *   2 MiB | ~2000              | 1.06601
-     *   4 MiB | ~2000              | 1.03457
-     *   8 MiB | ~2000              | 1.0169
-     *  16 MiB | ~1900              | 1.00799
-     *  32 MiB | ~1800              | 1.00429
+     * 128 KiB | ~1250              | 2.08337
+     *   1 MiB | ~2250              | 1.13272
+     *   2 MiB | ~2550              | 1.06601
+     *   4 MiB | ~2650              | 1.03457
+     *   8 MiB | ~2650              | 1.0169
+     *  16 MiB | ~2550              | 1.00799
+     *  32 MiB | ~2250              | 1.00429
      * @endverbatim
      *
      * For higher chunk sizes, the bandwidths become very uncertain,
      * probably because even work division becomes a problem realtive to the file size.
      *
      * @verbatim
-     * head -c $(( 2 * 1024 * 1024 * 1024 )) /dev/urandom > random.bin
-     * gzip random.bin
-     * m pragzip && time src/tools/pragzip -P 0 -d -c 4GiB-base64.gz | wc -l
+     * head -c $(( 4 * 1024 * 1024 * 1024 )) /dev/urandom > 4GiB-random
+     * gzip 4GiB-random.gz
+     * m pragzip
+     * benchmarkWcl 4GiB-random.gz
      *
      * spacing | bandwidth / (MB/s) | file read multiplier
      * --------+--------------------+----------------------
-     * 128 KiB | ~1200              | 2.00049
-     *   1 MiB | ~2150              | 1.12502
-     *   2 MiB | ~2250              | 1.06253
-     *   4 MiB | ~2350              | 1.03129
-     *   8 MiB | ~2350              | 1.01567
-     *  16 MiB | ~2350              | 1.00786
-     *  32 MiB | ~2150              | 1.00396
+     * 128 KiB | ~1450              | 2.00049
+     *   1 MiB | ~2650              | 1.12502
+     *   2 MiB | ~2900              | 1.06253
+     *   4 MiB | ~2900              | 1.03129
+     *   8 MiB | ~3400              | 1.01567
+     *  16 MiB | ~3300              | 1.00786
+     *  32 MiB | ~2900              | 1.00396
+     * @endverbatim
+     *
+     * Another set of benchmarks that exclude the bottleneck for writing the results to a pipe by
+     * using the pragzip option --count-lines. Note that in contrast to pugz, it the decompressed
+     * blocks are still processed in sequential order. Processing them out of order by providing
+     * a map-reduce like interface might accomplish even more speedups.
+     *
+     * @verbatim
+     * m pragzip
+     * for chunkSize in 128 $(( 1*1024 )) $(( 2*1024 )) $(( 4*1024 )) $(( 8*1024 )) $(( 16*1024 )) $(( 32*1024 )); do
+     *     echo "Chunk Size: $chunkSize KiB"
+     *     for i in $( seq 5 ); do
+     *         src/tools/pragzip --chunk-size $chunkSize -P 0 --count-lines 4GiB-base64.gz 2>pragzip.log
+     *         grep "Decompressed in total" pragzip.log
+     *     done
+     * done
+     *
+     * spacing | bandwidth / (MB/s)
+     * --------+--------------------
+     * 128 KiB | ~1350
+     *   1 MiB | ~3000
+     *   2 MiB | ~3300
+     *   4 MiB | ~3400
+     *   8 MiB | ~3400
+     *  16 MiB | ~3300
+     *  32 MiB | ~2900
      * @endverbatim
      *
      * The factor 2 amount of read data can be explained with the BitReader always buffering 128 KiB!
      * Therefore if the work chunk is too small, it leads to this problem.
+     * @note Beware the actual result of wc -l! With the wrong vmsplice usage, it returned random results
+     *       for chunk sizes smaller than 4 MiB or even for higher chunk sizes with alternative malloc
+     *       implementations like mimalloc.
+     * @note The optimum at ~8 MiB for incompressible data vs ~4 MiB for base64 data with a compression
+     *       ratio ~1.3 might be explainable with a roughly equal decompressed block size. In general,
+     *       we would like the chunk size to be measured in decompressed data because the decompressed
+     *       bandwidth is much more stable than the compressed bandwidth over a variety of data.
      * @todo We might be able to reduce this overhead by buffering up to untilOffset and then
      *       only increase the buffer in much smaller steps, e.g., 8 KiB.
      *       This might actually be easy to implement by making the BitReader chunk size adjustable.
@@ -104,7 +156,7 @@ public:
     explicit
     ParallelGzipReader( std::unique_ptr<FileReader> fileReader,
                         size_t                      parallelization = 0,
-                        uint64_t                    chunkSize = 2ULL * 1024ULL * 1024ULL ) :
+                        uint64_t                    chunkSize = 4_Mi ) :
         m_bitReader( std::move( fileReader ) ),
         m_fetcherParallelization(
             parallelization == 0
@@ -114,7 +166,7 @@ public:
             [this, chunkSize] () {
                 return std::make_unique<BlockFinder>(
                     m_bitReader.cloneSharedFileReader(),
-                    /* spacing in bytes */ std::max<uint64_t>( 32 * 1024, chunkSize ) );
+                    /* spacing in bytes */ std::max( 32_Ki, chunkSize ) );
             }
         )
     {
@@ -238,17 +290,31 @@ public:
 
     size_t
     read( const int    outputFileDescriptor = -1,
-          char* const  outputBuffer = nullptr,
-          const size_t nBytesToRead = std::numeric_limits<size_t>::max() )
+          char* const  outputBuffer         = nullptr,
+          const size_t nBytesToRead         = std::numeric_limits<size_t>::max() )
     {
         const auto writeFunctor =
             [nBytesDecoded = uint64_t( 0 ), outputFileDescriptor, outputBuffer]
-            ( const void* const buffer,
-              uint64_t    const size ) mutable
+            ( const void* const                 dataToWrite,
+              uint64_t const                    dataToWriteSize,
+              const std::shared_ptr<BlockData>& blockData ) mutable
             {
-                auto* const currentBufferPosition = outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded;
-                writeAll( outputFileDescriptor, currentBufferPosition, buffer, size );
-                nBytesDecoded += size;
+                if ( dataToWriteSize == 0 ) {
+                    return;
+                }
+
+                if ( outputFileDescriptor >= 0 ) {
+                    if ( !writeAllSplice( outputFileDescriptor, dataToWrite, dataToWriteSize, blockData ) ) {
+                        writeAllToFd( outputFileDescriptor, dataToWrite, dataToWriteSize );
+                    }
+                }
+
+                if ( outputBuffer != nullptr ) {
+                    auto* const currentBufferPosition = outputBuffer + nBytesDecoded;
+                    std::memcpy( currentBufferPosition, dataToWrite, dataToWriteSize );
+                }
+
+                nBytesDecoded += dataToWriteSize;
             };
 
         return read( writeFunctor, nBytesToRead );
@@ -303,15 +369,16 @@ public:
                     continue;
                 }
 
-                const auto t0 = now();
+                [[maybe_unused]] const auto tWriteStart = now();
 
                 const auto nBytesToDecode = std::min( chunk.size() - offsetInChunk, nBytesToRead - nBytesDecoded );
                 if ( writeFunctor ) {
-                    writeFunctor( chunk.data() + offsetInChunk, nBytesToDecode );
+                    writeFunctor( chunk.data() + offsetInChunk, nBytesToDecode, blockData );
                 }
 
-                const auto t1 = now();
-                m_writeOutputTime += duration( t0, t1 );
+                if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+                    m_writeOutputTime += duration( tWriteStart );
+                }
 
                 nBytesDecoded += nBytesToDecode;
                 m_currentPosition += nBytesToDecode;
@@ -425,7 +492,7 @@ public:
         GzipIndex index;
         index.compressedSizeInBytes = ceilDiv( offsets.rbegin()->first, 8U );
         index.uncompressedSizeInBytes = offsets.rbegin()->second;
-        index.windowSizeInBytes = 32ULL * 1024ULL;
+        index.windowSizeInBytes = 32_Ki;
 
         /* Heuristically determine a checkpoint spacing from the existing checkpoints. */
         std::vector<size_t> uncompressedSpacings;
@@ -434,7 +501,7 @@ public:
         }
         index.checkpointSpacing = ceilDiv(
             *std::max_element( uncompressedSpacings.begin(), uncompressedSpacings.end() ),
-            32ULL * 1024ULL ) * 32ULL * 1024ULL;
+            32_Ki ) * 32_Ki;
 
         for ( const auto& [compressedOffsetInBits, uncompressedOffsetInBytes] : offsets ) {
             Checkpoint checkpoint;
@@ -462,6 +529,15 @@ public:
     availableBlockOffsets() const
     {
         return m_blockMap->blockOffsets();
+    }
+
+    [[nodiscard]] auto
+    statistics() const
+    {
+        if ( !m_blockFetcher ) {
+            throw std::invalid_argument( "No BlockFetcher initialized!" );
+        }
+        return m_blockFetcher->statistics();
     }
 
 private:
@@ -626,7 +702,7 @@ private:
             throw std::invalid_argument( "A non-empty list of block offsets is required!" );
         }
 
-        BlockFinder::BlockOffsets encodedBlockOffsets;
+        typename BlockFinder::BlockOffsets encodedBlockOffsets;
         for ( auto it = offsets.begin(), nit = std::next( offsets.begin() ); nit != offsets.end(); ++it, ++nit )
         {
             /* Ignore blocks with no data, i.e., EOS blocks. */
@@ -668,3 +744,4 @@ private:
     std::shared_ptr<WindowMap> const m_windowMap{ std::make_shared<WindowMap>() };
     std::unique_ptr<BlockFetcher>    m_blockFetcher;
 };
+}  // namespace pragzip

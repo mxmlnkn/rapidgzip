@@ -8,6 +8,7 @@
 #include <sstream>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include <cxxopts.hpp>
@@ -25,7 +26,7 @@
 analyze( std::unique_ptr<FileReader> inputFile )
 {
     using namespace pragzip;
-    using Block = pragzip::deflate::Block</* CRC32 */ false>;
+    using Block = pragzip::deflate::Block</* CRC32 */ false, /* Statistics */ true>;
 
     pragzip::BitReader bitReader{ std::move( inputFile ) };
 
@@ -43,6 +44,12 @@ analyze( std::unique_ptr<FileReader> inputFile )
 
     std::vector<size_t> encodedBlockSizes;
     std::vector<size_t> decodedBlockSizes;
+    std::vector<double> compressionRatios;
+    std::map<deflate::CompressionType, size_t> compressionTypes;
+
+    std::map<std::vector<uint8_t>, size_t> precodeCodings;
+    std::map<std::vector<uint8_t>, size_t> distanceCodings;
+    std::map<std::vector<uint8_t>, size_t> literalCodings;
 
     while ( true ) {
         if ( !gzipHeader ) {
@@ -64,7 +71,7 @@ analyze( std::unique_ptr<FileReader> inputFile )
             streamBlockCount = 0;
             streamBytesRead = 0;
 
-            std::cout << "Found gzip header:\n";
+            std::cout << "Gzip header:\n";
             std::cout << "    Gzip Stream Count   : " << streamCount << "\n";
             std::cout << "    Compressed Offset   : " << formatBits( headerOffset ) << "\n";
             std::cout << "    Uncompressed Offset : " << totalBytesRead << " B\n";
@@ -113,6 +120,9 @@ analyze( std::unique_ptr<FileReader> inputFile )
         size_t uncompressedBlockOffset = totalBytesRead;
         size_t uncompressedBlockOffsetInStream = streamBytesRead;
 
+        block.symbolTypes.literal = 0;
+        block.symbolTypes.backreference = 0;
+
         while ( !block.eob() ) {
             const auto [buffers, error] = block.read( bitReader, std::numeric_limits<size_t>::max() );
             const auto nBytesRead = buffers.size();
@@ -136,21 +146,94 @@ analyze( std::unique_ptr<FileReader> inputFile )
         streamBlockCount += 1;
         totalBlockCount += 1;
 
-        std::cout << "Found deflate block:\n";
-        std::cout << "    Final Block             : " << ( block.isLastBlock() ? "True" : "False" ) << "\n";
-        std::cout << "    Compression Type        : " << Block::toString( block.compressionType() ) << "\n";
-        std::cout << "    File Statistics:\n";
-        std::cout << "        Total Block Count   : " << totalBlockCount << "\n";
-        std::cout << "        Compressed Offset   : " << formatBits( blockOffset ) << "\n";
-        std::cout << "        Uncompressed Offset : " << uncompressedBlockOffset << " B\n";
-        std::cout << "    Gzip Stream Statistics:\n";
-        std::cout << "        Block Count         : " << streamBlockCount << "\n";
-        std::cout << "        Compressed Offset   : " << formatBits( blockOffset - headerOffset ) << "\n";
-        std::cout << "        Uncompressed Offset : " << uncompressedBlockOffsetInStream << " B\n";
-        std::cout << "    Compressed Size         : " << formatBits( bitReader.tell() - blockOffset ) << "\n";
-        std::cout << "    Uncompressed Size       : " << uncompressedBlockSize << " B\n";
-        std::cout << "\n";
+        const auto compressedSizeInBits = bitReader.tell() - blockOffset;
+        const auto compressionRatio = static_cast<double>( uncompressedBlockSize ) /
+                                      static_cast<double>( compressedSizeInBits ) * BYTE_SIZE;
+        compressionRatios.emplace_back( compressionRatio );
 
+        const auto [compressionTypeCount, wasInserted] = compressionTypes.try_emplace( block.compressionType(), 1 );
+        if ( !wasInserted ) {
+            compressionTypeCount->second++;
+        }
+
+        const auto printCodeLengthStatistics =
+            [] ( const auto& codeLenghts )
+            {
+                auto min = std::numeric_limits<uint32_t>::max();
+                auto max = std::numeric_limits<uint32_t>::min();
+                size_t nonZeroCount{ 0 };
+
+                std::array<size_t, 128> lengthCounts{};
+
+                for ( const auto codeLength : codeLenghts ) {
+                    if ( codeLength > 0 ) {
+                        min = std::min( min, static_cast<uint32_t>( codeLength ) );
+                        max = std::max( max, static_cast<uint32_t>( codeLength ) );
+                        nonZeroCount++;
+                    }
+                    lengthCounts.at( codeLength )++;
+                }
+
+                std::stringstream result;
+                result << nonZeroCount << " CLs in [" << min << ", " << max << "] out of " << codeLenghts.size()
+                       << ": CL:Count, ";
+                bool requiresComma{ false };
+                for ( size_t codeLength = 0; codeLength < lengthCounts.size(); ++codeLength ) {
+                    if ( requiresComma ) {
+                        result << ", ";
+                        requiresComma = false;
+                    }
+
+                    const auto count = lengthCounts[codeLength];
+                    if ( count > 0 ) {
+                        result << codeLength << ":" << count;
+                        requiresComma = true;
+                    }
+                }
+
+                return std::move( result ).str();
+            };
+
+        const VectorView<uint8_t> precodeCL{ block.precodeCL().data(), block.precodeCL().size() };
+        const VectorView<uint8_t> distanceCL{ block.distanceAndLiteralCL().data() + block.codeCounts.literal,
+                                              block.codeCounts.distance };
+        const VectorView<uint8_t> literalCL{ block.distanceAndLiteralCL().data(), block.codeCounts.literal };
+
+        precodeCodings[static_cast<std::vector<uint8_t> >( precodeCL )]++;
+        distanceCodings[static_cast<std::vector<uint8_t> >( distanceCL )]++;
+        literalCodings[static_cast<std::vector<uint8_t> >( literalCL )]++;
+
+        const auto formatSymbolType =
+            [total = block.symbolTypes.literal + block.symbolTypes.backreference] ( const auto count )
+            {
+                std::stringstream result;
+                result << count << " (" << static_cast<double>( count ) * 100.0 / static_cast<double>( total ) << " %)";
+                return std::move( result ).str();
+            };
+
+        std::cout
+            << "Deflate block:\n"
+            << "    Final Block             : " << ( block.isLastBlock() ? "True" : "False" ) << "\n"
+            << "    Compression Type        : " << toString( block.compressionType() ) << "\n"
+            << "    File Statistics:\n"
+            << "        Total Block Count   : " << totalBlockCount << "\n"
+            << "        Compressed Offset   : " << formatBits( blockOffset ) << "\n"
+            << "        Uncompressed Offset : " << uncompressedBlockOffset << " B\n"
+            << "    Gzip Stream Statistics:\n"
+            << "        Block Count         : " << streamBlockCount << "\n"
+            << "        Compressed Offset   : " << formatBits( blockOffset - headerOffset ) << "\n"
+            << "        Uncompressed Offset : " << uncompressedBlockOffsetInStream << " B\n"
+            << "    Compressed Size         : " << formatBits( compressedSizeInBits ) << "\n"
+            << "    Uncompressed Size       : " << uncompressedBlockSize << " B\n"
+            << "    Compression Ratio       : " << compressionRatio << "\n"
+            << "    Huffman Alphabets:\n"
+            << "        Precode  : " << printCodeLengthStatistics( precodeCL ) << "\n"
+            << "        Distance : " << printCodeLengthStatistics( distanceCL ) << "\n"
+            << "        Literals : " << printCodeLengthStatistics( literalCL ) << "\n"
+            << "    Symbol Types:\n"
+            << "        Literal         : " << formatSymbolType( block.symbolTypes.literal ) << "\n"
+            << "        Back-References : " << formatSymbolType( block.symbolTypes.backreference ) << "\n"
+            << "\n";
 
         if ( block.isLastBlock() ) {
             const auto footer = gzip::readFooter( bitReader );
@@ -183,11 +266,81 @@ analyze( std::unique_ptr<FileReader> inputFile )
         }
     }
 
-    std::cout << "\n== Encoded Block Size Distribution ==\n\n";
-    std::cout << Histogram<size_t>{ encodedBlockSizes, 8, "bits" }.plot();
+    const auto printCategorizedDuration =
+        [totalDuration = block.durations.readDynamicHeader + block.durations.readData] ( const double duration )
+        {
+            std::stringstream result;
+            result << duration << " s (" << duration / totalDuration * 100 << " %)";
+            return std::move( result ).str();
+        };
 
-    std::cout << "\n== Decoded Block Size Distribution ==\n\n";
-    std::cout << Histogram<size_t>{ decodedBlockSizes, 8, "Bytes" }.plot();
+    const auto printHeaderDuration =
+        [totalDuration = block.durations.readDynamicHeader] ( const double duration )
+        {
+            std::stringstream result;
+            result << duration << " s (" << duration / totalDuration * 100 << " %)";
+            return std::move( result ).str();
+        };
+
+    const auto printAlphabetStatistics =
+        [] ( const auto& counts )
+        {
+            size_t total{ 0 };
+            size_t duplicates{ 0 };
+            for ( const auto& [_, count] : counts ) {
+                if ( count > 1 ) {
+                    duplicates += count - 1;
+                }
+                total += count;
+            }
+
+            std::stringstream result;
+            result << duplicates << " duplicates out of " << total << " ("
+                   << static_cast<double>( duplicates ) * 100. / static_cast<double>( total ) << " %)";
+            return std::move( result ).str();
+        };
+
+    std::cout
+        << "\n\n== Benchmark Profile (Cumulative Times) ==\n"
+        << "\n"
+        << "readDynamicHuffmanCoding : " << printCategorizedDuration( block.durations.readDynamicHeader ) << "\n"
+        << "readData                 : " << printCategorizedDuration( block.durations.readData ) << "\n"
+        << "Dynamic Huffman Initialization in Detail:\n"
+        << "    Read precode       : " << printHeaderDuration( block.durations.readPrecode      ) << "\n"
+        << "    Create precode HC  : " << printHeaderDuration( block.durations.createPrecodeHC  ) << "\n"
+        << "    Apply precode HC   : " << printHeaderDuration( block.durations.applyPrecodeHC   ) << "\n"
+        << "    Create distance HC : " << printHeaderDuration( block.durations.createDistanceHC ) << "\n"
+        << "    Create literal HC  : " << printHeaderDuration( block.durations.createLiteralHC  ) << "\n"
+        << "\n"
+        << "\n"
+        << "== Alphabet Statistics ==\n"
+        << "\n"
+        << "Precode  : " << printAlphabetStatistics( precodeCodings ) << "\n"
+        << "Distance : " << printAlphabetStatistics( distanceCodings ) << "\n"
+        << "Literals : " << printAlphabetStatistics( literalCodings ) << "\n"
+        << "\n"
+        << "\n"
+        << "== Encoded Block Size Distribution ==\n"
+        << "\n"
+        << Histogram<size_t>{ encodedBlockSizes, 8, "bits" }.plot()
+        << "\n"
+        << "\n"
+        << "== Decoded Block Size Distribution ==\n"
+        << "\n"
+        << Histogram<size_t>{ decodedBlockSizes, 8, "Bytes" }.plot()
+        << "\n"
+        << "\n== Compression Ratio Distribution ==\n"
+        << "\n"
+        << Histogram<double>{ compressionRatios, 8, "Bytes" }.plot()
+        << "\n"
+        << "== Deflate Block Compression Types ==\n"
+        << "\n";
+
+    for ( const auto& [compressionType, count] : compressionTypes ) {
+        std::cout << std::setw( 10 ) << toString( compressionType ) << " : " << count << "\n";
+    }
+
+    std::cout << std::endl;
 
     return Error::NONE;
 }
@@ -310,7 +463,7 @@ pragzipCLI( int argc, char** argv )
 
     if ( parsedArgs.count( "version" ) > 0 ) {
         std::cout << "pragzip, CLI to the parallelized, indexed, and seekable gzip decoding library pragzip "
-                  << "version 0.3.0.\n";
+                  << "version 0.4.0.\n";
         return 0;
     }
 
@@ -414,32 +567,51 @@ pragzipCLI( int argc, char** argv )
         }
 
         uint64_t newlineCount{ 0 };
-        const auto writeAndCount =
-            [outputFileDescriptor, countLines, &newlineCount]
-            ( const void* const buffer,
-              uint64_t    const size )
-            {
-                if ( outputFileDescriptor >= 0 ) {
-                    writeAll( outputFileDescriptor, buffer, size );
-                }
-                if ( countLines ) {
-                    newlineCount += countNewlines( { reinterpret_cast<const char*>( buffer ),
-                                                     static_cast<size_t>( size ) } );
-                }
-            };
 
         const auto t0 = now();
 
         size_t totalBytesRead{ 0 };
         if ( decoderParallelism == 1 ) {
+            const auto writeAndCount =
+                [outputFileDescriptor, countLines, &newlineCount]
+                ( const void* const buffer,
+                  uint64_t const    size )
+                {
+                    if ( outputFileDescriptor >= 0 ) {
+                        writeAllToFd( outputFileDescriptor, buffer, size );
+                    }
+                    if ( countLines ) {
+                        newlineCount += countNewlines( { reinterpret_cast<const char*>( buffer ),
+                                                         static_cast<size_t>( size ) } );
+                    }
+                };
+
             pragzip::GzipReader</* CRC32 */ false> gzipReader{ std::move( inputFile ) };
             totalBytesRead = gzipReader.read( writeAndCount );
         } else {
+            const auto writeAndCount =
+                [outputFileDescriptor, countLines, &newlineCount]
+                ( const void* const                          buffer,
+                  uint64_t const                             size,
+                  const std::shared_ptr<pragzip::BlockData>& blockData )
+                {
+                    if ( outputFileDescriptor >= 0 ) {
+                        if ( !writeAllSplice( outputFileDescriptor, buffer, size, blockData ) ) {
+                            writeAllToFd( outputFileDescriptor, buffer, size );
+                        }
+                    }
+                    if ( countLines ) {
+                        newlineCount += countNewlines( { reinterpret_cast<const char*>( buffer ),
+                                                         static_cast<size_t>( size ) } );
+                    }
+                };
+
             const auto chunkSize = parsedArgs["chunk-size"].as<unsigned int>();
+            using GzipReader = pragzip::ParallelGzipReader<>;
             const auto reader =
                 chunkSize > 0
-                ? std::make_unique<ParallelGzipReader>( std::move( inputFile ), decoderParallelism, chunkSize * 1024 )
-                : std::make_unique<ParallelGzipReader>( std::move( inputFile ), decoderParallelism );
+                ? std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism, chunkSize * 1024 )
+                : std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism );
             totalBytesRead = reader->read( writeAndCount );
         }
 

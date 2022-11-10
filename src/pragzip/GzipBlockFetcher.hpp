@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -87,18 +88,57 @@ public:
      * block offset. Such a range might happen for finding uncompressed deflate blocks because of the byte-padding. */
     size_t maxEncodedOffsetInBits{ std::numeric_limits<size_t>::max() };
     size_t encodedSizeInBits{ 0 };
+
+    /* Benchmark results */
+    double blockFinderDuration{ 0 };
+    double decodeDuration{ 0 };
 };
 
 
-template<typename FetchingStrategy>
+/**
+ * Tries to use writeAllSpliceUnsafe and, if successful, also extends lifetime by adding the block data
+ * shared_ptr into a list.
+ *
+ * @note Limitations:
+ *  - To avoid querying the pipe buffer size, it is only done once. This might introduce subtle errors when it is
+ *    dynamically changed after this point.
+ *  - It does not account for pages to be spliced into yet another pipe buffer, which would extend the lifetime
+ *    of those pages beyond the lifetime of the shared_ptr, which also would introduce subtle bugs.
+ *  - The lifetime can only be extended on block granularity even though chunks would be more suited.
+ *    This results in larger peak memory than strictly necessary.
+ *  - In the worst case we would read only 1B out of each block, which would extend the lifetime
+ *    of thousands of large blocks resulting in an out of memory issue.
+ *    - This would only be triggerable by using the API. The current CLI and not even the Python
+ *      interface would trigger this because either they don't splice to a pipe or only read
+ *      sequentially.
+ */
+[[nodiscard]] bool
+writeAllSplice( const int                         outputFileDescriptor,
+                const void* const                 dataToWrite,
+                size_t const                      dataToWriteSize,
+                const std::shared_ptr<BlockData>& blockData )
+{
+#if defined( HAVE_VMSPLICE )
+    return SpliceVault::getInstance( outputFileDescriptor ).first->splice( dataToWrite, dataToWriteSize, blockData );
+#else
+    return false;
+#endif
+}
+
+
+template<typename FetchingStrategy,
+         bool     ENABLE_STATISTICS = false>
 class GzipBlockFetcher :
-    public BlockFetcher<GzipBlockFinder, BlockData, FetchingStrategy>
+    public BlockFetcher<GzipBlockFinder, BlockData, FetchingStrategy, ENABLE_STATISTICS>
 {
 public:
-    using BaseType = BlockFetcher<GzipBlockFinder, BlockData, FetchingStrategy>;
+    using BaseType = BlockFetcher<GzipBlockFinder, BlockData, FetchingStrategy, ENABLE_STATISTICS>;
     using BitReader = pragzip::BitReader;
     using WindowView = VectorView<uint8_t>;
     using BlockFinder = typename BaseType::BlockFinder;
+
+private:
+    static constexpr bool SHOW_PROFILE{ false };
 
 public:
     GzipBlockFetcher( BitReader                    bitReader,
@@ -134,6 +174,16 @@ public:
     {
         m_cancelThreads = true;
         this->stopThreadPool();
+
+        if constexpr ( SHOW_PROFILE ) {
+            std::stringstream out;
+            out << "[GzipBlockFetcher::GzipBlockFetcher] First block access statistics:\n";
+            out << "    Time spent in block finder          : " << m_blockFinderTime << " s\n";
+            out << "    Time spent decoding                 : " << m_decodeTime << " s\n";
+            out << "    Time spent applying the last window : " << m_applyWindowTime << " s\n";
+            out << "    Replaced marker bytes               : " << formatBytes( m_markerCount ) << "\n";
+            std::cerr << std::move( out ).str();
+        }
     }
 
     /**
@@ -145,7 +195,7 @@ public:
         /* In case we already have decoded the block once, we can simply query it from the block map and the fetcher. */
         auto blockInfo = m_blockMap->findDataOffset( offset );
         if ( blockInfo.contains( offset ) ) {
-            return std::make_pair( blockInfo, BaseType::get( blockInfo.encodedOffsetInBits ) );
+            return std::make_pair( blockInfo, getBlock( blockInfo.encodedOffsetInBits, blockInfo.blockIndex ) );
         }
 
         if ( m_blockMap->finalized() ) {
@@ -163,41 +213,8 @@ public:
                 return std::nullopt;
             }
 
-            const auto partitionOffset = m_blockFinder->partitionOffsetContaining( *nextBlockOffset );
-            try {
-                blockData = BaseType::get( partitionOffset, m_nextUnprocessedBlockIndex, /* only check caches */ true );
-            } catch ( const NoBlockInRange& ) {
-                /* Trying to get the next block based on the partition offset is only a performance optimization.
-                 * It should succeed most of the time for good performance but is not required to and also might
-                 * sometimes not, e.g., when the deflate block finder failed to find any valid block inside the
-                 * partition, e.g., because it only contains fixed Huffman blocks. */
-            }
+            blockData = getBlock( *nextBlockOffset, m_nextUnprocessedBlockIndex );
 
-            /* If we got no block or one with the wrong data, then try again with the real offset, not the
-             * speculatively prefetched one. */
-            if ( !blockData
-                 || ( !blockData->matchesEncodedOffset( *nextBlockOffset )
-                      && ( partitionOffset != *nextBlockOffset ) ) ) {
-                blockData = BaseType::get( *nextBlockOffset, m_nextUnprocessedBlockIndex );
-            }
-
-            if ( blockData->encodedOffsetInBits == std::numeric_limits<size_t>::max() ) {
-                std::stringstream message;
-                message << "Decoding failed at block offset " << formatBits( *nextBlockOffset ) << "!";
-                throw std::domain_error( std::move( message ).str() );
-            }
-
-            if ( !blockData->matchesEncodedOffset( *nextBlockOffset ) ) {
-                std::stringstream message;
-                message << "Got wrong block to searched offset! Looked for " << std::to_string( *nextBlockOffset )
-                        << " and looked up cache successively for estimated offset "
-                        << std::to_string( partitionOffset ) << " but got block with actual offset "
-                        << std::to_string( *nextBlockOffset );
-                throw std::logic_error( std::move( message ).str() );
-            }
-
-            /* Care has to be taken that we store the correct block offset not the speculative possible range! */
-            blockData->setEncodedOffset( *nextBlockOffset );
             m_blockMap->push( *nextBlockOffset, blockData->encodedSizeInBits, blockData->size() );
             const auto blockOffsetAfterNext = *nextBlockOffset + blockData->encodedSizeInBits;
             m_blockFinder->insert( blockOffsetAfterNext );
@@ -227,7 +244,18 @@ public:
                 throw std::logic_error( std::move( message ).str() );
             }
 
+            [[maybe_unused]] const auto markerCount = blockData->dataWithMarkersSize();
+            [[maybe_unused]] const auto tApplyStart = now();
             blockData->applyWindow( *lastWindow );
+            if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+                if ( markerCount > 0 ) {
+                    m_applyWindowTime += duration( tApplyStart );
+                }
+                m_markerCount += markerCount;
+                m_blockFinderTime += blockData->blockFinderDuration;
+                m_decodeTime += blockData->decodeDuration;
+            }
+
             const auto nextWindow = blockData->getLastWindow( *lastWindow );
             m_windowMap->emplace( blockOffsetAfterNext, { nextWindow.begin(), nextWindow.end() } );
         }
@@ -236,6 +264,72 @@ public:
     }
 
 private:
+    /**
+     * First, tries to look up the given block offset by its partition offset and then by its real offset.
+     *
+     * @param blockOffset The real block offset, not a guessed one, i.e., also no partition offset!
+     *        This is important because this offset is stored in the returned BlockData as the real one.
+     */
+    [[nodiscard]] std::shared_ptr<BlockData>
+    getBlock( const size_t blockOffset,
+              const size_t blockIndex )
+    {
+        const auto getPartitionOffsetFromOffset =
+            [this] ( auto offset ) { return m_blockFinder->partitionOffsetContainingOffset( offset ); };
+        const auto partitionOffset = getPartitionOffsetFromOffset( blockOffset );
+
+        std::shared_ptr<BlockData> blockData;
+        try {
+            blockData = BaseType::get( partitionOffset, blockIndex, /* only check caches */ true,
+                                       getPartitionOffsetFromOffset );
+        } catch ( const NoBlockInRange& ) {
+            /* Trying to get the next block based on the partition offset is only a performance optimization.
+             * It should succeed most of the time for good performance but is not required to and also might
+             * sometimes not, e.g., when the deflate block finder failed to find any valid block inside the
+             * partition, e.g., because it only contains fixed Huffman blocks. */
+        }
+
+        /* If we got no block or one with the wrong data, then try again with the real offset, not the
+         * speculatively prefetched one. */
+        if ( !blockData
+             || ( !blockData->matchesEncodedOffset( blockOffset )
+                  && ( partitionOffset != blockOffset ) ) ) {
+            if ( blockData ) {
+                std::cerr << "[Info] Detected a performance problem. Decoding might take longer than necessary. "
+                          << "Please consider opening a performance bug report with "
+                          << "a reproducing compressed file. Detailed information:\n"
+                          << "[Info] Found mismatching block. Need offset " << formatBits( blockOffset )
+                          << ". Look in partition offset: " << formatBits( partitionOffset )
+                          << ". Found possible range: ["
+                          << formatBits( blockData->encodedOffsetInBits ) << ", "
+                          << formatBits( blockData->maxEncodedOffsetInBits ) << "]\n";
+            }
+            /* This call given the exact block offset must always yield the correct data and should be equivalent
+             * to directly call @ref decodeBlock with that offset. */
+            blockData = BaseType::get( blockOffset, blockIndex, /* only check caches */ false,
+                                       getPartitionOffsetFromOffset );
+        }
+
+        if ( !blockData || ( blockData->encodedOffsetInBits == std::numeric_limits<size_t>::max() ) ) {
+            std::stringstream message;
+            message << "Decoding failed at block offset " << formatBits( blockOffset ) << "!";
+            throw std::domain_error( std::move( message ).str() );
+        }
+
+        if ( !blockData->matchesEncodedOffset( blockOffset ) ) {
+            std::stringstream message;
+            message << "Got wrong block to searched offset! Looked for " << std::to_string( blockOffset )
+                    << " and looked up cache successively for estimated offset "
+                    << std::to_string( partitionOffset ) << " but got block with actual offset "
+                    << std::to_string( blockOffset );
+            throw std::logic_error( std::move( message ).str() );
+        }
+
+        /* Care has to be taken that we store the correct block offset not the speculative possible range! */
+        blockData->setEncodedOffset( blockOffset );
+        return blockData;
+    }
+
     [[nodiscard]] BlockData
     decodeBlock( size_t blockOffset,
                  size_t nextBlockOffset ) const override
@@ -349,7 +443,7 @@ public:
                     return std::numeric_limits<size_t>::max();
                 }
                 bitReader.seek( beginOffset );
-                return blockfinder::seekToNonFinalDynamicDeflateBlock<16>( bitReader, endOffset );
+                return blockfinder::seekToNonFinalDynamicDeflateBlock( bitReader, endOffset );
             };
 
         const auto findNextUncompressed =
@@ -368,13 +462,14 @@ public:
          *       1. Try decoding the earlier offset.
          *       2. Update the used offset by searching from last position + 1 until the chunk end.
          */
-        static constexpr size_t CHUNK_SIZE = 8ULL * 1024ULL * BYTE_SIZE;
+        const auto tBlockFinderStart = now();
+        static constexpr auto CHUNK_SIZE = 8_Ki * BYTE_SIZE;
         for ( auto chunkBegin = blockOffset; chunkBegin < untilOffset; chunkBegin += CHUNK_SIZE ) {
             if ( cancelThreads ) {
                 break;
             }
 
-            const auto chunkEnd = std::min( chunkBegin + CHUNK_SIZE, untilOffset );
+            const auto chunkEnd = std::min( static_cast<size_t>( chunkBegin + CHUNK_SIZE ), untilOffset );
 
             auto uncompressedOffsetRange = findNextUncompressed( chunkBegin, chunkEnd );
             auto dynamicHuffmanOffset = findNextDynamic( chunkBegin, chunkEnd );
@@ -393,7 +488,10 @@ public:
                     uncompressedOffsetRange = findNextUncompressed( uncompressedOffsetRange.second + 1, chunkEnd );
                 }
 
+                const auto tBlockFinderStop = now();
                 if ( auto result = tryToDecode( offsetToTest ); result ) {
+                    result->blockFinderDuration = duration( tBlockFinderStart, tBlockFinderStop );
+                    result->decodeDuration = duration( tBlockFinderStop );
                     return *std::move( result );
                 }
             }
@@ -536,7 +634,7 @@ private:
         z_stream m_stream{};
         /* Loading the whole encoded data (multiple MiB) into memory first and then
          * decoding it in one go is 4x slower than processing it in chunks of 128 KiB! */
-        std::array<char, 128 * 1024> m_buffer;
+        std::array<char, 128_Ki> m_buffer;
     };
 
 private:
@@ -693,6 +791,12 @@ private:
     }
 
 private:
+    /* Members for benchmark statistics */
+    double m_applyWindowTime{ 0 };
+    double m_blockFinderTime{ 0 };
+    double m_decodeTime{ 0 };
+    uint64_t m_markerCount{ 0 };
+
     std::atomic<bool> m_cancelThreads{ false };
 
     /* Variables required by decodeBlock and which therefore should be either const or locked. */

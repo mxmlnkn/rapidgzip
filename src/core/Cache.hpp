@@ -1,9 +1,13 @@
 #pragma once
 
+#include <algorithm>
 #include <iterator>
+#include <limits>
+#include <map>
 #include <optional>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 
 namespace CacheStrategy
@@ -18,8 +22,15 @@ public:
     virtual void
     touch( Index index ) = 0;
 
+    /**
+     * @return The next eviction no matter whether the cache is currently full. Only returns nothing if the cache
+     *         is empty, i.e., there is nothing to evict.
+     */
     [[nodiscard]] virtual std::optional<Index>
     nextEviction() const = 0;
+
+    [[nodiscard]] virtual std::optional<Index>
+    nextNthEviction( size_t countToEmplaceHypothetically ) const = 0;
 
     /**
      * @param indexToEvict If an index is given, that index will be removed if it exists instead of using
@@ -35,6 +46,9 @@ class LeastRecentlyUsed :
     public CacheStrategy<Index>
 {
 public:
+    using Nonce = uint64_t;
+
+public:
     LeastRecentlyUsed() = default;
 
     void
@@ -43,38 +57,36 @@ public:
         ++usageNonce;
         auto [match, wasInserted] = m_lastUsage.try_emplace( std::move( index ), usageNonce );
         if ( !wasInserted ) {
+            m_sortedIndexes.erase( match->second );
             match->second = usageNonce;
         }
+        m_sortedIndexes.emplace( usageNonce, index );
     }
 
     [[nodiscard]] std::optional<Index>
     nextEviction() const override
     {
-        if ( m_lastUsage.empty() ) {
-            return std::nullopt;
-        }
+        return m_sortedIndexes.empty() ? std::nullopt : std::make_optional( m_sortedIndexes.begin()->second );
+    }
 
-        auto lowest = m_lastUsage.begin();
-        for ( auto it = std::next( lowest ); it != m_lastUsage.end(); ++it ) {
-            if ( it->second < lowest->second ) {
-                lowest = it;
-            }
-        }
-
-        return lowest->first;
+    [[nodiscard]] std::optional<Index>
+    nextNthEviction( size_t countToEmplaceHypothetically ) const override
+    {
+        return ( countToEmplaceHypothetically == 0 ) || ( countToEmplaceHypothetically > m_sortedIndexes.size() )
+               ? std::nullopt
+               : std::make_optional( std::next( m_sortedIndexes.begin(), countToEmplaceHypothetically - 1 )->second );
     }
 
     std::optional<Index>
     evict( std::optional<Index> indexToEvict = {} ) override
     {
-        if ( indexToEvict && ( m_lastUsage.find( *indexToEvict ) != m_lastUsage.end() ) ) {
-            m_lastUsage.erase( *indexToEvict );
-            return indexToEvict;
-        }
-
-        auto evictedIndex = nextEviction();
+        auto evictedIndex = indexToEvict ? indexToEvict : nextEviction();
         if ( evictedIndex ) {
-            m_lastUsage.erase( *evictedIndex );
+            const auto existingEntry = m_lastUsage.find( *evictedIndex );
+            if ( existingEntry != m_lastUsage.end() ) {
+                m_sortedIndexes.erase( existingEntry->second );
+                m_lastUsage.erase( existingEntry );
+            }
         }
         return evictedIndex;
     }
@@ -82,8 +94,15 @@ public:
 private:
     /* With this, inserting will be relatively fast but eviction make take longer
      * because we have to go over all elements. */
-    std::unordered_map<Index, size_t> m_lastUsage;
-    size_t usageNonce{ 0 };
+    std::unordered_map<Index, Nonce> m_lastUsage;
+
+    /**
+     * Keep a map of values sorted by nonce, i.e., by timestamp. A multimap is not necessary because nonces should
+     * should be unique. m_sortedIndexes.begin holds the least recent index.
+     */
+    std::map<Nonce, Index> m_sortedIndexes;
+
+    Nonce usageNonce{ 0 };
 };
 }
 
@@ -106,6 +125,7 @@ public:
         size_t misses{ 0 };
         size_t unusedEntries{ 0 };
         size_t capacity{ 0 };
+        size_t maxSize{ 0 };
     };
 
 public:
@@ -136,27 +156,18 @@ public:
             return;
         }
 
-        while ( m_cache.size() >= m_maxCacheSize ) {
-            const auto toEvict = m_cacheStrategy.evict();
-            assert( toEvict );
-            const auto keyToEvict = toEvict ? *toEvict : m_cache.begin()->first;
-            m_cache.erase( keyToEvict );
-
-            if ( const auto match = m_accesses.find( keyToEvict ); match != m_accesses.end() ) {
-                if ( match->second == 0 ) {
-                    m_statistics.unusedEntries++;
-                }
-                m_accesses.erase( match );
-            }
+        /* If an entry with the same key already exists, then we can simply replace it without evicting anything.
+         * Do not use try_emplace here because that could temporarily exceed the allotted capacity. */
+        if ( const auto existingEntry = m_cache.find( key ); existingEntry == m_cache.end() ) {
+            shrinkTo( capacity() - 1 );
+            m_cache.emplace( key, std::move( value ) );
+            m_statistics.maxSize = std::max( m_statistics.maxSize, m_cache.size() );
+        } else {
+            existingEntry->second = std::move( value );
         }
 
         if ( const auto match = m_accesses.find( key ); match == m_accesses.end() ) {
             m_accesses[key] = 0;
-        }
-
-        const auto [match, wasInserted] = m_cache.try_emplace( key, std::move( value ) );
-        if ( !wasInserted ) {
-            match->second = std::move( value );
         }
 
         m_cacheStrategy.touch( key );
@@ -187,6 +198,45 @@ public:
     {
         m_cacheStrategy.evict( key );
         m_cache.erase( key );
+    }
+
+    /**
+     * @return The next eviction, if any is necessary, when hypothetically inserting the specified index.
+     */
+    [[nodiscard]] std::optional<Key>
+    nextEviction( const std::optional<Key>& key = std::nullopt ) const
+    {
+        if ( ( m_cache.size() < capacity() ) || ( key.has_value() && ( m_cache.find( *key ) == m_cache.end() ) ) ) {
+            return std::nullopt;
+        }
+        return m_cacheStrategy.nextEviction();
+    }
+
+    [[nodiscard]] std::optional<Key>
+    nextNthEviction( size_t countToBeInserted ) const
+    {
+        const auto freeCapacity = capacity() - m_cache.size();
+        return countToBeInserted <= freeCapacity
+               ? std::nullopt
+               : m_cacheStrategy.nextNthEviction( countToBeInserted - freeCapacity );
+    }
+
+    void
+    shrinkTo( size_t newSize )
+    {
+        while ( m_cache.size() > newSize ) {
+            const auto toEvict = m_cacheStrategy.evict();
+            assert( toEvict );
+            const auto keyToEvict = toEvict ? *toEvict : m_cache.begin()->first;
+            m_cache.erase( keyToEvict );
+
+            if ( const auto match = m_accesses.find( keyToEvict ); match != m_accesses.end() ) {
+                if ( match->second == 0 ) {
+                    m_statistics.unusedEntries++;
+                }
+                m_accesses.erase( match );
+            }
+        }
     }
 
     /* Analytics */

@@ -18,27 +18,27 @@ isLittleEndian()
 [[nodiscard]] constexpr uint64_t
 byteSwap( uint64_t value )
 {
-    value = ( ( value & uint64_t( 0x0000'0000'FFFF'FFFFULL ) ) << 32 ) |
-            ( ( value & uint64_t( 0xFFFF'FFFF'0000'0000ULL ) ) >> 32 );
-    value = ( ( value & uint64_t( 0x0000'FFFF'0000'FFFFULL ) ) << 16 ) |
-            ( ( value & uint64_t( 0xFFFF'0000'FFFF'0000ULL ) ) >> 16 );
-    value = ( ( value & uint64_t( 0x00FF'00FF'00FF'00FFULL ) ) << 8  ) |
-            ( ( value & uint64_t( 0xFF00'FF00'FF00'FF00ULL ) ) >> 8  );
+    value = ( ( value & uint64_t( 0x0000'0000'FFFF'FFFFULL ) ) << 32U ) |
+            ( ( value & uint64_t( 0xFFFF'FFFF'0000'0000ULL ) ) >> 32U );
+    value = ( ( value & uint64_t( 0x0000'FFFF'0000'FFFFULL ) ) << 16U ) |
+            ( ( value & uint64_t( 0xFFFF'0000'FFFF'0000ULL ) ) >> 16U );
+    value = ( ( value & uint64_t( 0x00FF'00FF'00FF'00FFULL ) ) << 8U  ) |
+            ( ( value & uint64_t( 0xFF00'FF00'FF00'FF00ULL ) ) >> 8U  );
     return value;
 }
 
 [[nodiscard]] constexpr uint32_t
 byteSwap( uint32_t value )
 {
-    value = ( ( value & uint32_t( 0x0000'FFFFUL ) ) << 16 ) | ( ( value & uint32_t( 0xFFFF'0000UL ) ) >> 16 );
-    value = ( ( value & uint32_t( 0x00FF'00FFUL ) ) << 8  ) | ( ( value & uint32_t( 0xFF00'FF00UL ) ) >> 8  );
+    value = ( ( value & uint32_t( 0x0000'FFFFUL ) ) << 16U ) | ( ( value & uint32_t( 0xFFFF'0000UL ) ) >> 16U );
+    value = ( ( value & uint32_t( 0x00FF'00FFUL ) ) << 8U  ) | ( ( value & uint32_t( 0xFF00'FF00UL ) ) >> 8U  );
     return value;
 }
 
 [[nodiscard]] constexpr uint16_t
 byteSwap( uint16_t value )
 {
-    value = ( ( value & uint16_t( 0x00FFU ) ) << 8  ) | ( ( value & uint16_t( 0xFF00U ) ) >> 8  );
+    value = ( ( value & uint16_t( 0x00FFU ) ) << 8U ) | ( ( value & uint16_t( 0xFF00U ) ) >> 8U );
     return value;
 }
 
@@ -119,7 +119,7 @@ nHighestBitsSet()
 
 
 [[nodiscard]] constexpr uint8_t
-reverseBits( uint8_t data )
+reverseBitsWithoutLUT( uint8_t data )
 {
     /* Reverse bits using bit-parallelism in a recursive fashion, i.e., first swap every bit with its neighbor,
      * then swap each half nibble with its neighbor, then each nibble. */
@@ -133,7 +133,7 @@ reverseBits( uint8_t data )
 
 
 [[nodiscard]] constexpr uint16_t
-reverseBits( uint16_t data )
+reverseBitsWithoutLUT( uint16_t data )
 {
     /* Reverse bits using bit-parallelism in a recursive fashion, i.e., first swap every bit with its neighbor,
      * then swap each half nibble with its neighbor, then each nibble, then each byte. */
@@ -152,7 +152,7 @@ reverseBits( uint16_t data )
 
 
 [[nodiscard]] constexpr uint32_t
-reverseBits( uint32_t data )
+reverseBitsWithoutLUT( uint32_t data )
 {
     /* Reverse bits using bit-parallelism in a recursive fashion, i.e., first swap every bit with its neighbor,
      * then swap each half nibble with its neighbor, then each nibble, then each byte, then each word. */
@@ -172,7 +172,7 @@ reverseBits( uint32_t data )
 
 
 [[nodiscard]] constexpr uint64_t
-reverseBits( uint64_t data )
+reverseBitsWithoutLUT( uint64_t data )
 {
     /* Reverse bits using bit-parallelism in a recursive fashion, i.e., first swap every bit with its neighbor,
      * then swap each half nibble with its neighbor, then each nibble, then each byte, then each word, then each
@@ -197,17 +197,94 @@ reverseBits( uint64_t data )
 
 
 template<typename T>
-[[nodiscard]] constexpr std::array<T, std::numeric_limits<T>::max()>
+[[nodiscard]] constexpr auto
 createReversedBitsLUT()
 {
-    static_assert( std::is_unsigned_v<T>, "Type must be unsigned!" );
-    std::array<T, std::numeric_limits<T>::max()> result{};
-    for ( T i = 0; i < result.size(); ++i ) {
-        result[i] = reverseBits( i );
+    static_assert( std::is_unsigned_v<T> && std::is_integral_v<T> );
+
+    std::array<T, 1ULL << std::numeric_limits<T>::digits> result{};
+    for ( size_t i = 0; i < result.size(); ++i ) {
+        result[i] = reverseBitsWithoutLUT( static_cast<T>( i ) );
     }
     return result;
 }
 
 
-alignas( 8 ) static constexpr std::array<uint16_t, std::numeric_limits<uint16_t>::max() >
-reversedBitsLUT16 = createReversedBitsLUT<uint16_t>();
+template<typename T>
+alignas( 8 ) static constexpr auto REVERSED_BITS_LUT = createReversedBitsLUT<T>();
+
+
+template<typename T>
+[[nodiscard]] constexpr T
+reverseBits( T value )
+{
+    static_assert( std::is_unsigned_v<T> && std::is_integral_v<T> );
+
+    if constexpr ( sizeof( T ) <= 2 ) {
+        return REVERSED_BITS_LUT<T>[value];
+    } else {
+        return reverseBitsWithoutLUT( value );
+    }
+}
+
+static_assert( REVERSED_BITS_LUT<uint8_t>.size() == 256 );
+
+static_assert( REVERSED_BITS_LUT<uint8_t>[0b1111'0000U] == 0b0000'1111U );
+static_assert( REVERSED_BITS_LUT<uint8_t>[0b1010'1010U] == 0b0101'0101U );
+static_assert( reverseBitsWithoutLUT( uint8_t( 0b1111'0000 ) ) == 0b0000'1111U );
+static_assert( reverseBitsWithoutLUT( uint8_t( 0b1010'1010 ) ) == 0b0101'0101U );
+static_assert( reverseBits( uint8_t( 0b1111'0000 ) ) == 0b0000'1111U );
+static_assert( reverseBits( uint8_t( 0b1010'1010 ) ) == 0b0101'0101U );
+
+static_assert( REVERSED_BITS_LUT<uint16_t>[0b1111'0000'1111'0000U] == 0b0000'1111'0000'1111U );
+static_assert( REVERSED_BITS_LUT<uint16_t>[0b1010'1010'1010'1010U] == 0b0101'0101'0101'0101U );
+static_assert( reverseBitsWithoutLUT( uint16_t( 0b1111'0000'1111'0000 ) ) == 0b0000'1111'0000'1111U );
+static_assert( reverseBitsWithoutLUT( uint16_t( 0b1010'1010'1010'1010 ) ) == 0b0101'0101'0101'0101U );
+static_assert( reverseBits( uint16_t( 0b1111'0000'1111'0000 ) ) == 0b0000'1111'0000'1111U );
+static_assert( reverseBits( uint16_t( 0b1010'1010'1010'1010 ) ) == 0b0101'0101'0101'0101U );
+
+
+/**
+ * Reverses the lowest @p bitCount bits. The highest bits are set to 0 and are assumed to be zero in the input.
+ * @param bitCount Must be greater than zero or else the applied bitshift is undefined behavior as per C++ standard.
+ */
+template<typename T>
+[[nodiscard]] constexpr T
+reverseBits( T       value,
+             uint8_t bitCount )
+{
+    return reverseBits<T>( value ) >> static_cast<uint8_t>( std::numeric_limits<T>::digits - bitCount );
+}
+
+
+/**
+ * Basically ceil(log2(stateCount)) with an exception for 0.
+ */
+[[nodiscard]] constexpr uint8_t
+requiredBits( const uint64_t stateCount )
+{
+    if ( stateCount == 0 ) {
+        return 0;
+    }
+    if ( stateCount == 1 ) {
+        return 1;
+    }
+
+    uint8_t result{ 0 };
+    for ( auto maxValue = stateCount - 1; maxValue != 0; maxValue >>= 1U ) {
+        ++result;
+    }
+    return result;
+}
+
+static_assert( requiredBits( 0 ) == 0 );
+static_assert( requiredBits( 1 ) == 1 );
+static_assert( requiredBits( 2 ) == 1 );
+static_assert( requiredBits( 3 ) == 2 );
+static_assert( requiredBits( 4 ) == 2 );
+static_assert( requiredBits( 5 ) == 3 );
+static_assert( requiredBits( 6 ) == 3 );
+static_assert( requiredBits( 7 ) == 3 );
+static_assert( requiredBits( 8 ) == 3 );
+static_assert( requiredBits( 64 ) == 6 );
+static_assert( requiredBits( 256 ) == 8 );

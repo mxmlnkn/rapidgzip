@@ -1,7 +1,11 @@
 #include <cassert>
 #include <cstdio>
 #include <iostream>
+#include <limits>
+#include <memory>
 #include <thread>
+#include <utility>
+#include <vector>
 
 #include <unistd.h>
 
@@ -147,9 +151,9 @@ testSingleByteAtFileBufferBoundary()
     std::vector<size_t> bytePositions;
     for ( size_t i = 0; i < 4; ++i ) {
         bytePositions.push_back( i );
-        bytePositions.push_back( 1024UL * 1024UL - 2 + i );
-        bytePositions.push_back( 2UL * 1024UL * 1024UL - 2 + i );
-        bytePositions.push_back( 3UL * 1024UL * 1024UL - 2 + i );
+        bytePositions.push_back( 1_Mi - 2 + i );
+        bytePositions.push_back( 2_Mi - 2 + i );
+        bytePositions.push_back( 3_Mi - 2 + i );
     }
 
     for ( const auto bytePosition : bytePositions ) {
@@ -225,8 +229,7 @@ main()
         /* At this offset the second sub chunk begins and it will actually become multi-threaded for small buffers. */
         auto const specialOffset = minSubChunkSize - buffer.size() - secondMatchingString.size();
 
-        const std::vector<size_t> offsetsToTest = { 1, 100, 123, 1024, 4UL * 1024UL - 1, 4UL * 1024UL,
-                                                    28UL * 1024UL, 4UL * 1024UL * 1024UL,
+        const std::vector<size_t> offsetsToTest = { 1, 100, 123, 1_Ki, 4_Ki - 1, 4_Ki, 28_Ki, 4_Mi,
                                                     specialOffset - 1, specialOffset, specialOffset + 1 };
 
         for ( const auto offset : offsetsToTest ) {

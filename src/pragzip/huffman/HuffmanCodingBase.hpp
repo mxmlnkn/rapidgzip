@@ -14,14 +14,17 @@
 namespace pragzip
 {
 template<typename T_HuffmanCode,
-         uint8_t  MAX_CODE_LENGTH,
+         uint8_t  T_MAX_CODE_LENGTH,
          typename T_Symbol,
-         size_t   MAX_SYMBOL_COUNT>
+         size_t   T_MAX_SYMBOL_COUNT>
 class HuffmanCodingBase
 {
 public:
     using HuffmanCode = T_HuffmanCode;
     using Symbol = T_Symbol;
+
+    static constexpr auto MAX_CODE_LENGTH = T_MAX_CODE_LENGTH;
+    static constexpr auto MAX_SYMBOL_COUNT = T_MAX_SYMBOL_COUNT;
 
     static_assert( MAX_CODE_LENGTH <= std::numeric_limits<HuffmanCode>::digits,
                    "The huffman code type must fit the max code length!" );
@@ -97,7 +100,7 @@ protected:
             unusedSymbolCount *= 2;  /* Because we go down one more level for all unused tree nodes! */
         }
 
-        if ( ( ( nonZeroCount == 1 ) && ( unusedSymbolCount >  1 ) ) ||
+        if ( ( ( nonZeroCount == 1 ) && ( unusedSymbolCount != ( 1U << m_maxCodeLength ) ) ) ||
              ( ( nonZeroCount >  1 ) && ( unusedSymbolCount != 0 ) ) ) {
             return Error::BLOATING_HUFFMAN_CODING;
         }

@@ -199,7 +199,7 @@ int main()
     /* The "fun" thing with Huffman Coding is that are no wasted bits and therefore also no possible sanity checks.
      * And more interestingly, based on randomly distributed bits of data, a non-uniform symbol distribution can
      * be created using a Huffman tree representing the desired distribution. */
-    BufferedFileReader::AlignedBuffer encoded( 16UL * 1024UL * 1024UL );
+    BufferedFileReader::AlignedBuffer encoded( 16_Mi );
     for ( auto& c : encoded ) {
         c = static_cast<std::decay_t<decltype( c )> >( rand() % 256 );
     }

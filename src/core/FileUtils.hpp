@@ -1,11 +1,14 @@
 #pragma once
 
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 #include <sys/stat.h>
 
@@ -23,9 +26,17 @@
     #include <sys/poll.h>
     #include <unistd.h>
 
-    #ifndef HAVE_VMSPLICE
-        #define HAVE_VMSPLICE __linux__
+    #if not defined( HAVE_VMSPLICE ) and defined( __linux__ )
+        #define HAVE_VMSPLICE
     #endif
+#endif
+
+
+#if defined( HAVE_VMSPLICE )
+    #include <any>
+    #include <deque>
+
+    #include <AtomicMutex.hpp>
 #endif
 
 
@@ -88,7 +99,22 @@ fileSize( const std::string& filePath )
 {
     std::ifstream file( filePath );
     file.seekg( 0, std::ios_base::end );
-    return file.tellg();
+    const auto result = file.tellg();
+    if ( result < 0 ) {
+        throw std::invalid_argument( "Could not get size of specified file!" );
+    }
+    return static_cast<size_t>( result );
+}
+
+
+inline size_t
+filePosition( std::FILE* file )
+{
+    const auto offset = std::ftell( file );
+    if ( offset < 0 ) {
+        throw std::runtime_error( "Could not get the file position!" );
+    }
+    return static_cast<size_t>( offset );
 }
 
 
@@ -192,24 +218,70 @@ findParentFolderContaining( const std::string& folder,
 
 
 /**
+ * Short overview of syscalls that optimize copies by instead copying full page pointers into the
+ * pipe buffers inside the kernel:
+ * - splice: <fd (pipe or not)> <-> <pipe>
+ * - vmsplice: memory -> <pipe>
+ * - mmap: <fd> -> memory
+ * - sendfile: <fd that supports mmap> -> <fd (before Linux 2.6.33 (2010-02-24) it had to be a socket fd)>
+ *
+ * I think the underlying problem with wrong output data for small chunk sizes
+ * is that vmsplice is not as "synchronous" as I thought it to be:
+ *
+ * https://lwn.net/Articles/181169/
+ *
+ *  - Determining whether it is safe to write to a vmspliced buffer is
+ *    suggested to be done implicitly by splicing more than the maximum
+ *    number of pages that can be inserted into the pipe buffer.
+ *    That number was supposed to be queryable with fcntl F_GETPSZ.
+ *    -> This is probably why I didn't notice problems with larger chunk
+ *       sizes.
+ *  - Even that might not be safe enough when there are multiple pipe
+ *    buffers.
+ *
+ * https://stackoverflow.com/questions/70515745/how-do-i-use-vmsplice-to-correctly-output-to-a-pipe
+ * https://codegolf.stackexchange.com/questions/215216/high-throughput-fizz-buzz/239848#239848
+ *
+ *  - the safest way to use vmsplice seems to be mmap -> vmplice with
+ *    SPLICE_F_GIFT -> munmap. munmap can be called directly after the
+ *    return from vmplice and this works in a similar way to aio_write
+ *    but actually a lot faster.
+ *
+ * I think using std::vector with vmsplice is NOT safe when it is
+ * destructed too soon! The problem here is that the memory is probably not
+ * returned to the system, which would be fine, but is actually reused by
+ * the c/C++ standard library's implementation of malloc/free/new/delete:
+ *
+ * https://stackoverflow.com/a/1119334
+ *
+ *  - In many malloc/free implementations, free does normally not return
+ *    the memory to the operating system (or at least only in rare cases).
+ *    [...] Free will put the memory block in its own free block list.
+ *    Normally it also tries to meld together adjacent blocks in the
+ *    address space.
+ *
+ * https://mazzo.li/posts/fast-pipes.html
+ * https://github.com/bitonic/pipes-speed-test.git
+ *
+ *  - Set pipe size and double buffer. (Similar to the lwn article
+ *    but instead of querying the pipe size, it is set.)
+ *  - fcntl(STDOUT_FILENO, F_SETPIPE_SZ, options.pipe_size);
+ *
+ * I think I will have to implement a container with a custom allocator
+ * that uses mmap and munmap to get back my vmsplice speeds :/(.
+ * Or maybe try setting the pipe buffer size to some forced value and
+ * then only free the last data after pipe size more has been written.
+ *
  * @note Throws if some splice calls were successful followed by an unsucessful one before finishing.
  * @return true if successful and false if it could not be spliced from the beginning, e.g., because the file
  *         descriptor is not a pipe.
  */
 [[nodiscard]] bool
-writeAllSplice( const int         outputFileDescriptor,
-                const void* const dataToWrite,
-                const size_t      dataToWriteSize )
+writeAllSpliceUnsafe( [[maybe_unused]] const int         outputFileDescriptor,
+                      [[maybe_unused]] const void* const dataToWrite,
+                      [[maybe_unused]] const size_t      dataToWriteSize )
 {
-#if HAVE_VMSPLICE
-    /**
-     * Short overview of syscalls that optimize copies by instead copying full page pointers into the
-     * pipe buffers inside the kernel:
-     * - splice: <fd (pipe or not)> <-> <pipe>
-     * - vmsplice: memory -> <pipe>
-     * - mmap: <fd> -> memory
-     * - sendfile: <fd that supports mmap> -> <fd (before Linux 2.6.33 (2010-02-24) it had to be a socket fd)>
-     */
+#if defined( HAVE_VMSPLICE )
     ::iovec dataToSplice{};
     dataToSplice.iov_base = const_cast<void*>( reinterpret_cast<const void*>( dataToWrite ) );
     dataToSplice.iov_len = dataToWriteSize;
@@ -233,19 +305,112 @@ writeAllSplice( const int         outputFileDescriptor,
 }
 
 
+#if defined( HAVE_VMSPLICE )
+/**
+ * Keeps shared pointers to spliced objects until an amount of bytes equal to the pipe buffer size
+ * has been spliced into the pipe.
+ * It implements a singleton-like (singleton per file descriptor) interface as a performance optimization.
+ * Without a global ledger, the effectively held back objects would be overestimated by the number of actual ledgers.
+ */
+class SpliceVault
+{
+public:
+    using VaultLock = std::unique_lock<AtomicMutex>;
+
+public:
+    [[nodiscard]] static std::pair<SpliceVault*, VaultLock>
+    getInstance( int fileDescriptor )
+    {
+        static AtomicMutex mutex;
+        static std::unordered_map<int, std::unique_ptr<SpliceVault> > vaults;
+
+        const std::scoped_lock lock{ mutex };
+        auto vault = vaults.find( fileDescriptor );
+        if ( vault == vaults.end() ) {
+            /* try_emplace cannot be used because the SpliceVault constructor is private. */
+            vault = vaults.emplace( fileDescriptor,
+                                        std::unique_ptr<SpliceVault>( new SpliceVault( fileDescriptor ) ) ).first;
+        }
+        return std::make_pair( vault->second.get(), vault->second->lock() );
+    }
+
+    /**
+     * @param dataToWrite A pointer to the start of the data to write. This pointer should be part of @p splicedData!
+     * @param splicedData This owning shared pointer will be stored until enough other data has been spliced into
+     *                    the pipe.
+     */
+    template<typename T>
+    [[nodiscard]] bool
+    splice( const void* const         dataToWrite,
+            size_t const              dataToWriteSize,
+            const std::shared_ptr<T>& splicedData )
+    {
+        if ( ( m_pipeBufferSize < 0 )
+             || !writeAllSpliceUnsafe( m_fileDescriptor, dataToWrite, dataToWriteSize ) ) {
+            return false;
+        }
+
+        m_totalSplicedBytes += dataToWriteSize;
+        if ( !m_splicedData.empty() && ( std::get<1>( m_splicedData.back() ) == splicedData.get() ) ) {
+            std::get<2>( m_splicedData.back() ) += dataToWriteSize;
+        } else {
+            m_splicedData.emplace_back( splicedData, splicedData.get(), dataToWriteSize );
+        }
+
+        while ( !m_splicedData.empty()
+                && ( m_totalSplicedBytes - std::get<2>( m_splicedData.front() )
+                     >= static_cast<size_t>( m_pipeBufferSize ) ) ) {
+            m_totalSplicedBytes -= std::get<2>( m_splicedData.front() );
+            m_splicedData.pop_front();
+        }
+
+        return true;
+    }
+
+private:
+    explicit
+    SpliceVault( int fileDescriptor ) :
+        m_fileDescriptor( fileDescriptor ),
+        m_pipeBufferSize( fcntl( fileDescriptor, F_GETPIPE_SZ ) )
+    {}
+
+    [[nodiscard]] VaultLock
+    lock()
+    {
+        return VaultLock( m_mutex );
+    }
+
+private:
+    const int m_fileDescriptor;
+    /** We are assuming here that the pipe buffer size does not change to avoid frequent calls to fcntl. */
+    const int m_pipeBufferSize;
+
+    /**
+     * Contains shared_ptr to extend lifetime and amount of bytes that have been spliced to determine
+     * when the shared_ptr can be removed from this list.
+     */
+    std::deque<std::tuple</* packed RAII resource */ std::any,
+                          /* raw pointer of RAII resource for comparison */ const void*,
+                          /* spliced bytes */ size_t> > m_splicedData;
+    /**
+     * This data is redundant but helps to avoid O(N) recalculation of this value from @ref m_splicedData.
+     */
+    size_t m_totalSplicedBytes{ 0 };
+
+    AtomicMutex m_mutex;
+};
+#endif
+
+
 /**
  * Posix write is not guaranteed to write everything and in fact was encountered to not write more than
  * 0x7ffff000 (2'147'479'552) B. To avoid this, it has to be looped over.
  */
 void
-writeAll( const int         outputFileDescriptor,
-          const void* const dataToWrite,
-          const size_t      dataToWriteSize )
+writeAllToFd( const int         outputFileDescriptor,
+              const void* const dataToWrite,
+              const uint64_t    dataToWriteSize )
 {
-    if ( writeAllSplice( outputFileDescriptor, dataToWrite, dataToWriteSize ) ) {
-        return;
-    }
-
     for ( uint64_t nTotalWritten = 0; nTotalWritten < dataToWriteSize; ) {
         const auto currentBufferPosition =
             reinterpret_cast<const void*>( reinterpret_cast<uintptr_t>( dataToWrite ) + nTotalWritten );
@@ -258,7 +423,7 @@ writeAll( const int         outputFileDescriptor,
                     << dataToWriteSize << ".";
             throw std::runtime_error( std::move( message ).str() );
         }
-        nTotalWritten += static_cast<size_t>( nBytesWritten );
+        nTotalWritten += static_cast<uint64_t>( nBytesWritten );
     }
 }
 
@@ -267,19 +432,20 @@ void
 writeAll( const int         outputFileDescriptor,
           void* const       outputBuffer,
           const void* const dataToWrite,
-          const size_t      dataToWriteSize )
+          const uint64_t    dataToWriteSize )
 {
     if ( dataToWriteSize == 0 ) {
         return;
     }
 
     if ( outputFileDescriptor >= 0 ) {
-        if ( !writeAllSplice( outputFileDescriptor, dataToWrite, dataToWriteSize ) ) {
-            writeAll( outputFileDescriptor, dataToWrite, dataToWriteSize );
-        }
+        writeAllToFd( outputFileDescriptor, dataToWrite, dataToWriteSize );
     }
 
     if ( outputBuffer != nullptr ) {
+        if ( dataToWriteSize > std::numeric_limits<size_t>::max() ) {
+            throw std::invalid_argument( "Too much data to write!" );
+        }
         std::memcpy( outputBuffer, dataToWrite, dataToWriteSize );
     }
 }

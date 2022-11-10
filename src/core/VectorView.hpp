@@ -1,7 +1,8 @@
 #pragma once
 
-#include <vector>
+#include <array>
 #include <stdexcept>
+#include <vector>
 
 
 /**
@@ -15,10 +16,10 @@ public:
 
 public:
     constexpr VectorView() noexcept = default;
-    constexpr VectorView( const VectorView& ) noexcept = default;
-    constexpr VectorView( VectorView&& ) noexcept = default;
-    constexpr VectorView& operator=( const VectorView& ) noexcept = default;
-    constexpr VectorView& operator=( VectorView&& ) noexcept = default;
+    constexpr VectorView( const VectorView<T>& ) noexcept = default;
+    constexpr VectorView( VectorView<T>&& ) noexcept = default;
+    constexpr VectorView<T>& operator=( const VectorView<T>& ) noexcept = default;
+    constexpr VectorView<T>& operator=( VectorView<T>&& ) noexcept = default;
 
     constexpr
     VectorView( const std::vector<T>& vector ) noexcept :
@@ -82,6 +83,12 @@ public:
             throw std::out_of_range( "VectorView index larger than size!" );
         }
         return m_data[i];
+    }
+
+    [[nodiscard]] explicit
+    operator std::vector<T>() const
+    {
+        return std::vector<T>( begin(), end() );
     }
 
 private:

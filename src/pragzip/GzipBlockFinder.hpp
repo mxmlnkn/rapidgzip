@@ -8,6 +8,7 @@
 #include <optional>
 #include <thread>
 #include <utility>
+#include <vector>
 
 #include "blockfinder/Bgzf.hpp"
 #include "common.hpp"
@@ -42,7 +43,7 @@ public:
                            ? std::make_unique<blockfinder::Bgzf>( std::unique_ptr<FileReader>( fileReader->clone() ) )
                            : std::unique_ptr<blockfinder::Bgzf>() )
     {
-        if ( m_spacingInBits < 32UL * 1024UL ) {
+        if ( m_spacingInBits < 32_Ki ) {
             /* Well, actually, it could make sense because this is about the spacing in the compressed data but
              * then even more! A spacing of 32 KiB in uncompressed data can lead to index sizes up to the
              * decompressed file. A spacing of 32 KiB in the compressed data can only lead to an index equal that
@@ -128,9 +129,18 @@ public:
 
         assert( !m_blockOffsets.empty() );
         const auto blockIndexOutside = blockIndex - m_blockOffsets.size();  // >= 0
-        const auto blockOffset = ( firstPartitionIndex() + blockIndexOutside ) * m_spacingInBits;
+        const auto partitionIndex = firstPartitionIndex() + blockIndexOutside;
+        const auto blockOffset = partitionIndex * m_spacingInBits;
         if ( blockOffset < m_fileSizeInBits ) {
             return blockOffset;
+        }
+
+        /* As the last offset (one after the last valid one), return the file size. */
+        if ( partitionIndex > 0 ) {
+            const auto previousBlockOffset = ( partitionIndex - 1U ) * m_spacingInBits;
+            if ( previousBlockOffset < m_fileSizeInBits ) {
+                return m_fileSizeInBits;
+            }
         }
 
         return std::nullopt;
@@ -162,7 +172,7 @@ public:
         }
 
         throw std::out_of_range( "No block with the specified offset " + std::to_string( encodedBlockOffsetInBits )
-                                 + " exists in the block map!" );
+                                 + " exists in the block finder map!" );
     }
 
     void
@@ -173,7 +183,7 @@ public:
     }
 
     [[nodiscard]] size_t
-    partitionOffsetContaining( size_t blockOffset ) const
+    partitionOffsetContainingOffset( size_t blockOffset ) const
     {
         /* Round down to m_spacingInBits grid. */
         return ( blockOffset / m_spacingInBits ) * m_spacingInBits;

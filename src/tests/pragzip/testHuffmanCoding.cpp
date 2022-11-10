@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
+#include <utility>
 #include <vector>
 
 #include <BitReader.hpp>
@@ -54,6 +55,9 @@ template<typename HuffmanCoding>
 void
 testHuffmanCoding()
 {
+    /* A single symbol with code length 1 should also be a valid Huffman Coding. */
+    decodeHuffmanAndCompare<HuffmanCoding>( /* code lengths */ { 1 }, /* encoded */ { 0 }, /* decoded */ { 0 } );
+
     /* codeLengths, encoded, decoded */
     decodeHuffmanAndCompare<HuffmanCoding>( { 1, 1 }, { 0 }, { 0 } );
     decodeHuffmanAndCompare<HuffmanCoding>( { 1, 1 }, { 0 }, { 0, 0, 0, 0, 0, 0, 0, 0 } );
@@ -63,14 +67,19 @@ testHuffmanCoding()
     decodeHuffmanAndCompare<HuffmanCoding>( { 1, 3, 3, 3, 3 }, { 0b111'001'0 }, { 0, 1, 4, 0 } );
     decodeHuffmanAndCompare<HuffmanCoding>( { 1, 3, 3, 3, 3 }, { 0b011'101'0 }, { 0, 2, 3, 0 } );
 
-    const std::vector<typename HuffmanCoding::BitCount> equalCodeLengths( 256, 8 );
-    std::vector<typename HuffmanCoding::Symbol> decoded( equalCodeLengths.size() );
-    std::vector<uint8_t> encoded( equalCodeLengths.size() );
-    for ( size_t i = 0; i < encoded.size(); ++i ) {
-        decoded[i] = i;
-        encoded[i] = reverseBits( static_cast<uint8_t>( i ) );
+    /* Code length 8 can be easily "encoded" for the tests because no bit shifting is necessary because each
+     * byte maps to an encoded byte. */
+    if ( HuffmanCoding::MAX_CODE_LENGTH >= 8U ) {
+        constexpr auto CODE_LENGTH = 8U;
+        const std::vector<typename HuffmanCoding::BitCount> equalCodeLengths( 1U << CODE_LENGTH, CODE_LENGTH );
+        std::vector<typename HuffmanCoding::Symbol> decoded( equalCodeLengths.size() );
+        std::vector<uint8_t> encoded( equalCodeLengths.size() );
+        for ( size_t i = 0; i < encoded.size(); ++i ) {
+            decoded[i] = i;
+            encoded[i] = REVERSED_BITS_LUT<uint8_t>.at( static_cast<uint8_t>( i ) );
+        }
+        decodeHuffmanAndCompare<HuffmanCoding>( equalCodeLengths, encoded, decoded );
     }
-    decodeHuffmanAndCompare<HuffmanCoding>( equalCodeLengths, encoded, decoded );
 }
 
 
@@ -90,6 +99,11 @@ int main()
 
     std::cerr << "Testing HuffmanCodingReversedCodesPerLength...\n";
     testHuffmanCoding<HuffmanCodingReversedCodesPerLength<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_SYMBOL_COUNT> >();
+
+    std::cerr << "Testing HuffmanCodingReversedCodesPerLength with precode configuration...\n";
+    using namespace pragzip::deflate;
+    testHuffmanCoding<HuffmanCodingReversedCodesPerLength<uint16_t, MAX_PRECODE_LENGTH, uint8_t, MAX_PRECODE_COUNT> >();
+    testHuffmanCoding<HuffmanCodingReversedCodesPerLength<uint8_t, MAX_PRECODE_LENGTH, uint8_t, MAX_PRECODE_COUNT> >();
 
     std::cerr << "Testing HuffmanCodingDoubleLiteralCached...\n";
     testHuffmanCoding<HuffmanCodingDoubleLiteralCached<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_SYMBOL_COUNT> >();

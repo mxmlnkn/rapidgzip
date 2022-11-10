@@ -4,6 +4,7 @@ add_library(core INTERFACE)
 target_include_directories(core INTERFACE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(core INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/AlignedAllocator.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/AtomicMutex.hpp
     ${CMAKE_CURRENT_LIST_DIR}/BitManipulation.hpp
     ${CMAKE_CURRENT_LIST_DIR}/BitReader.hpp
     ${CMAKE_CURRENT_LIST_DIR}/BitStringFinder.hpp

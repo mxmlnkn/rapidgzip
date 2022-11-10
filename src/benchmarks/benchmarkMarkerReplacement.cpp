@@ -23,8 +23,8 @@ replaceInPlace( std::vector<std::uint16_t>&      buffer,
     for ( size_t i = 0; i < buffer.size(); ++i ) {
         if ( buffer[i] < 256 ) {
             replaced[i] = buffer[i];
-        } else if ( buffer[i] >= 32 * 1024 ) {
-            replaced[i] = window[buffer[i] - 32 * 1024];
+        } else if ( buffer[i] >= 32_Ki ) {
+            replaced[i] = window[buffer[i] - 32_Ki];
         } else {
             throw std::domain_error( "Illegal marker byte!" );
         }
@@ -39,10 +39,10 @@ replaceInPlace2( std::vector<std::uint16_t>&      buffer,
     auto* const replaced = reinterpret_cast<std::uint8_t*>( buffer.data() );
     //#pragma omp parallel for simd  // triggers the domain_error probably because it is in-place!
     for ( int i = 0; i < static_cast<int>( buffer.size() ); ++i ) {
-        if ( ( buffer[i] >= 256 ) && ( buffer[i] < 32 * 1024 ) ) {
+        if ( ( buffer[i] >= 256 ) && ( buffer[i] < 32_Ki ) ) {
             throw std::domain_error( "Illegal marker byte!" );
         }
-        replaced[i] = buffer[i] < 256 ? buffer[i] : window[buffer[i] - 32 * 1024];
+        replaced[i] = buffer[i] < 256 ? buffer[i] : window[buffer[i] - 32_Ki];
     }
 }
 
@@ -54,7 +54,7 @@ replaceInPlaceAlternativeFormat( std::vector<std::uint16_t>&      buffer,
     auto* const replaced = reinterpret_cast<std::uint8_t*>( buffer.data() );
     //#pragma omp parallel for simd  // triggers the domain_error probably because it is in-place!
     for ( int i = 0; i < static_cast<int>( buffer.size() ); ++i ) {
-        if ( buffer[i] >= 32 * 1024 + 256 ) {
+        if ( buffer[i] >= 32_Ki + 256 ) {
             throw std::domain_error( "Illegal marker byte!" );
         }
         replaced[i] = buffer[i] < 256 ? buffer[i] : window[buffer[i] - 256];
@@ -68,7 +68,7 @@ replaceInPlaceTransformAlternativeFormat( std::vector<std::uint16_t>&      buffe
 {
     auto* const replaced = reinterpret_cast<std::uint8_t*>( buffer.data() );
     std::transform( buffer.begin(), buffer.end(), replaced, [&window] ( const auto c ) {
-        if ( c >= 32 * 1024 + 256 ) {
+        if ( c >= 32_Ki + 256 ) {
             throw std::domain_error( "Illegal marker byte!" );
         }
         return c < 256 ? c : window[c - 256];
@@ -87,7 +87,7 @@ replaceInPlaceHalfWindowAlternativeFormat( std::vector<std::uint16_t>&      buff
 
     #pragma omp parallel for simd
     for ( int i = 0; i < static_cast<int>( buffer.size() ); ++i ) {  // NOLINT
-        if ( buffer[i] >= 32 * 1024 + 256 ) {
+        if ( buffer[i] >= 32_Ki + 256 ) {
             throw std::domain_error( "Illegal marker byte!" );
         }
 
@@ -111,7 +111,7 @@ replaceInPlaceExtendedWindowAlternativeFormat( std::vector<std::uint16_t>&      
 {
     auto* const replaced = reinterpret_cast<std::uint8_t*>( buffer.data() );
 
-    std::array<std::uint8_t, 32 * 1024 + 256> extendedWindow{};
+    std::array<std::uint8_t, 32_Ki + 256> extendedWindow{};
     #pragma omp parallel for simd
     for ( size_t i = 0; i < 256; ++i ) {  // NOLINT
         extendedWindow[i] = i;  // NOLINT
@@ -120,7 +120,7 @@ replaceInPlaceExtendedWindowAlternativeFormat( std::vector<std::uint16_t>&      
 
     //#pragma omp parallel for simd  // triggers segfault probably because it is in-place!
     for ( size_t i = 0; i < buffer.size(); ++i ) {
-        if ( buffer[i] >= 32 * 1024 + 256 ) {
+        if ( buffer[i] >= 32_Ki + 256 ) {
             throw std::domain_error( "Illegal marker byte!" );
         }
 
@@ -251,9 +251,9 @@ createRandomBuffer( std::size_t bufferSize )
     std::vector<std::uint16_t> buffer( bufferSize );
     for ( size_t i = 0; i < buffer.size(); ++i ) {
         const size_t matchLength = 3 + ( rand() % ( 64 - 3 ) );
-        const size_t offset = rand() % ( 32 * 1024 );
+        const size_t offset = rand() % 32_Ki;
         for ( size_t j = 0; ( j < matchLength ) && ( i < buffer.size() ); ++i, ++j ) {
-            buffer[i] = 32UL * 1024UL + ( ( offset + j ) % ( 32UL * 1024UL ) );
+            buffer[i] = 32_Ki + ( ( offset + j ) % 32_Ki );
         }
         for ( size_t j = 0; ( j < matchLength ) && ( i < buffer.size() ); ++i, ++j ) {
             buffer[i] = rand() % 128;
@@ -270,9 +270,9 @@ createRandomBufferAlternativeFormat( std::size_t bufferSize )
     std::vector<std::uint16_t> buffer( bufferSize );
     for ( size_t i = 0; i < buffer.size(); ++i ) {
         const size_t matchLength = 3 + ( rand() % ( 64 - 3 ) );
-        const size_t offset = rand() % ( 32 * 1024 );
+        const size_t offset = rand() % 32_Ki;
         for ( size_t j = 0; ( j < matchLength ) && ( i < buffer.size() ); ++i, ++j ) {
-            buffer[i] = 256 + ( ( offset + j ) % ( 32UL * 1024UL ) );
+            buffer[i] = 256 + ( ( offset + j ) % 32_Ki );
         }
         for ( size_t j = 0; ( j < matchLength ) && ( i < buffer.size() ); ++i, ++j ) {
             buffer[i] = rand() % 128;
@@ -297,9 +297,9 @@ createRandomWindow( std::size_t bufferSize )
 int
 main()
 {
-    const auto buffer = createRandomBuffer( 128UL * 1024UL * 1024UL );
-    const auto bufferAlternativeFormat = createRandomBufferAlternativeFormat( 128UL * 1024UL * 1024UL );
-    const auto window = createRandomWindow( 32UL * 1024UL );
+    const auto buffer = createRandomBuffer( 128_Mi );
+    const auto bufferAlternativeFormat = createRandomBufferAlternativeFormat( 128_Mi );
+    const auto window = createRandomWindow( 32_Ki );
 
     std::cout << "[replaceInPlace] ";
     measureByteComparison( buffer, window, replaceInPlace );

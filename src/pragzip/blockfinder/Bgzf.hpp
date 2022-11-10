@@ -161,7 +161,7 @@ public:
         return    ( header[ 0] == 0x1F )
                && ( header[ 1] == 0x8B )
                && ( header[ 2] == 0x08 )
-               && ( ( header[3] & ( 1U << 2 ) ) != 0 )
+               && ( ( header[3] & ( 1U << 2U ) ) != 0 )
                && ( header[10] == 0x06 )   // length of extra field is 6B
                && ( header[11] == 0x00 )
                && ( header[12] == 'B'  )   // subfield ID "BC"
@@ -179,7 +179,7 @@ public:
     {
         if ( isBgzfHeader( header ) ) {
             /* The two-stepped cast is necessary for correct overflows! Number is in little-endian. */
-            return ( static_cast<uint16_t>( header[17] ) << 8 ) + header[16];
+            return ( static_cast<uint16_t>( header[17] ) << 8U ) + header[16];
         }
         return std::nullopt;
     }

@@ -35,7 +35,7 @@ main( int    argc,
     REQUIRE( index.compressedSizeInBytes == fileSize( rootFolder / "base64-256KiB.gz" ) );
     REQUIRE( index.uncompressedSizeInBytes == fileSize( rootFolder / "base64-256KiB" ) );
 
-    REQUIRE( index.checkpointSpacing == 64 * 1024 );
+    REQUIRE( index.checkpointSpacing == 64_Ki );
     REQUIRE( index.checkpoints.size() == 5 );
 
     try

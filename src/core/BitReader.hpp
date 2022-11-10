@@ -6,12 +6,14 @@
 
 #include <cassert>
 #include <cstddef>
+#include <cstring>
 #include <limits>
 #include <optional>
 #include <stdexcept>
 #include <sstream>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include <sys/stat.h>
@@ -50,7 +52,7 @@ public:
      * Any power of 2 larger than 4096 (4k blocks) should be safe bet.
      * 4K is too few, and will lead to a 2x slowdown in some test because of the frequent buffer refills.
      */
-    static constexpr size_t IOBUF_SIZE = 128 * 1024;
+    static constexpr size_t IOBUF_SIZE = 128_Ki;
     static constexpr int NO_FILE = -1;
     static constexpr auto MAX_BIT_BUFFER_SIZE = std::numeric_limits<BitBuffer>::digits;
 
@@ -276,7 +278,7 @@ public:
 
         if ( UNLIKELY( outputBuffer == nullptr ) ) [[unlikely]] {
             seek( nBytesToRead, SEEK_CUR );
-        } else if ( oldTell % CHAR_BIT != 0 ) {
+        } else if ( UNLIKELY( oldTell % CHAR_BIT != 0 ) ) [[unlikely]] {
             for ( size_t i = 0; i < nBytesToRead; ++i ) {
                 outputBuffer[i] = static_cast<char>( read( CHAR_BIT ) );
             }
@@ -292,21 +294,25 @@ public:
             }
 
             /* 2. Empty byte buffer */
-            const auto nBytesReadFromBuffer = std::min( nBytesToRead - nBytesRead,
-                                                        m_inputBuffer.size() - m_inputBufferPosition );
-            if ( nBytesReadFromBuffer > 0 ) {
-                std::memcpy( outputBuffer + nBytesRead, m_inputBuffer.data() + m_inputBufferPosition,
-                             nBytesReadFromBuffer );
-                nBytesRead += nBytesReadFromBuffer;
-                m_inputBufferPosition += nBytesReadFromBuffer;
-            }
+            nBytesRead += readFromBuffer( outputBuffer + nBytesRead, nBytesToRead - nBytesRead );
 
-            /* 3. Read directly from underlying file */
+            /* 3. a) Read directly from underlying file or
+             *    b) Refill byte buffer and read from it to avoid many small calls to FileReader::read. */
             const auto nBytesToReadFromFile = nBytesToRead - nBytesRead;
-            if ( ( nBytesToReadFromFile > 0 ) && m_file ) {
-                /* We don't need the return value because we are using tell! */
-                [[maybe_unused]] const auto nBytesReadFromFile =
-                    m_file->read( outputBuffer + nBytesRead, nBytesToReadFromFile );
+            if ( UNLIKELY( ( nBytesToReadFromFile > 0 ) && m_file ) ) [[unlikely]] {
+                assert( m_inputBufferPosition == m_inputBuffer.size() );
+                if ( nBytesToRead < std::min<size_t>( 1_Ki, IOBUF_SIZE ) ) {
+                    /* Because nBytesToRead < IOBUF_SIZE, refilling the buffer once will suffice to read the
+                     * requested amount of bytes or else we have reached EOF. */
+                    refillBuffer();
+                    readFromBuffer( outputBuffer + nBytesRead, nBytesToRead - nBytesRead );
+                } else {
+                    if ( ( nBytesToReadFromFile > 0 ) && m_file ) {
+                        /* We don't need the return value because we are using tell! */
+                        [[maybe_unused]] const auto nBytesReadFromFile =
+                            m_file->read( outputBuffer + nBytesRead, nBytesToReadFromFile );
+                    }
+                }
             }
         }
 
@@ -518,6 +524,18 @@ private:
         } else {
             m_bitBuffer &= nHighestBitsSet<BitBuffer>( m_originalBitBufferSize );
         }
+    }
+
+    size_t
+    readFromBuffer( void* const  outputBuffer,
+                    size_t const nBytesToRead )
+    {
+        const auto nBytesReadFromBuffer = std::min( nBytesToRead, m_inputBuffer.size() - m_inputBufferPosition );
+        if ( nBytesReadFromBuffer > 0 ) {
+            std::memcpy( outputBuffer, m_inputBuffer.data() + m_inputBufferPosition, nBytesReadFromBuffer );
+            m_inputBufferPosition += nBytesReadFromBuffer;
+        }
+        return nBytesReadFromBuffer;
     }
 
     void

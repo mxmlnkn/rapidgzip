@@ -31,7 +31,6 @@ class BZ2Reader :
 public:
     using BlockHeader = bzip2::Block;
     using BitReader = bzip2::BitReader;
-    using WriteFunctor = std::function<void ( const void*, uint64_t )>;
 
 public:
     static constexpr size_t IOBUF_SIZE = 4096;
@@ -195,31 +194,11 @@ public:
         return m_bitReader.tell();
     }
 
-    /**
-     * @param[out] outputBuffer should at least be large enough to hold @p nBytesToRead bytes
-     * @return number of bytes written
-     */
-    size_t
-    read( const int     outputFileDescriptor = -1,
-          char* const   outputBuffer         = nullptr,
-          const size_t  nBytesToRead         = std::numeric_limits<size_t>::max() ) override
-    {
-        const auto writeFunctor =
-            [nBytesDecoded = uint64_t( 0 ), outputFileDescriptor, outputBuffer]
-            ( const void* const buffer,
-              uint64_t    const size ) mutable
-            {
-                auto* const currentBufferPosition = outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded;
-                writeAll( outputFileDescriptor, currentBufferPosition, buffer, size );
-                nBytesDecoded += size;
-            };
-
-        return read( writeFunctor, nBytesToRead );
-    }
+    using BZ2ReaderInterface::read;
 
     size_t
     read( const WriteFunctor& writeFunctor,
-          const size_t        nBytesToRead = std::numeric_limits<size_t>::max() )
+          const size_t        nBytesToRead = std::numeric_limits<size_t>::max() ) override
     {
         size_t nBytesDecoded = 0;
         while ( ( nBytesDecoded < nBytesToRead ) && !m_bitReader.eof() && !eof() ) {
@@ -472,7 +451,7 @@ BZ2Reader::decodeStream( WriteFunctor const& writeFunctor,
         m_decodedBufferPos = m_lastHeader.bwdata.decodeBlock( nBytesToDecode, m_decodedBuffer.data() );
 
         if ( ( m_lastHeader.bwdata.writeCount == 0 ) && !m_blockToDataOffsetsComplete ) {
-            m_calculatedStreamCRC = ( ( m_calculatedStreamCRC << 1 ) | ( m_calculatedStreamCRC >> 31 ) )
+            m_calculatedStreamCRC = ( ( m_calculatedStreamCRC << 1U ) | ( m_calculatedStreamCRC >> 31U ) )
                                     ^ m_lastHeader.bwdata.dataCRC;
         }
 

@@ -22,8 +22,8 @@ ctypedef (long long int) lli
 cdef extern from "tools/pragzip.cpp":
     int pragzipCLI(int, char**) except +
 
-cdef extern from "pragzip/ParallelGzipReader.hpp":
-    cppclass ParallelGzipReader:
+cdef extern from "pragzip/ParallelGzipReader.hpp" namespace "pragzip":
+    cppclass ParallelGzipReader[ENABLE_STATISTICS=*]:
         ParallelGzipReader(string, size_t) except +
         ParallelGzipReader(int, size_t) except +
         ParallelGzipReader(PyObject*, size_t) except +
@@ -195,7 +195,7 @@ cdef class _PragzipFile():
 class PragzipFile(io.RawIOBase):
     def __init__(self, filename, parallelization = 0):
         self.gzipReader = _PragzipFile(filename, parallelization)
-        self.name = filename
+        self.name = filename if isinstance(filename, str) else ""
         self.mode = 'rb'
 
         self.readinto = self.gzipReader.readinto
@@ -258,4 +258,4 @@ def cli():
             PyBuffer_Release(&buffer)
 
 
-__version__ = '0.2.0'
+__version__ = '0.4.0'

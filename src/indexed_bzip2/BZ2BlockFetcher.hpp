@@ -4,6 +4,7 @@
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <utility>
 #include <vector>
 
 #include <BlockFetcher.hpp>

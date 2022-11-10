@@ -13,6 +13,21 @@
 
 namespace pragzip
 {
+/**
+ * This version uses a large lookup table (LUT) to avoid loops over the BitReader to speed things up a lot.
+ * The problem is that the LUT creation can take a while depending on the code lengths.
+ * - During initialization, it creates a LUT. The index of that array are a fixed number of bits read from BitReader.
+ *   To simplify things, the fixed bits must be larger or equal than the maximum code length.
+ *   To fill the LUT, the higher bits the actual codes with shorter lengths are filled with all possible values
+ *   and the LUT table result is duplicated for all those values. This process is slow.
+ * - During decoding, it reads MAX_CODE_LENGTH bits from the BitReader and uses that value to access the LUT,
+ *   which contains the symbol and the actual code length, which is <= MAX_CODE_LENGTH. The BitReader will be seeked
+ *   by the actual code length.
+ * The "compressed" part of the name references the fact that the symbol and code length are stored not as a pair
+ * but in a bit-packed manner in the LUT. This reduces the LUT size by 50% for Symbol = uint16_t
+ * (value is uint16_t instead of std::pair<uint8_t, uint16_t> and uint16_t aligns to 2 B, which effectively increases
+ * the pair size to 4 B inside the array).
+ */
 template<typename HuffmanCode,
          uint8_t  MAX_CODE_LENGTH,
          typename Symbol,
@@ -25,12 +40,7 @@ public:
     using BitCount = typename BaseType::BitCount;
     using CodeLengthFrequencies = typename BaseType::CodeLengthFrequencies;
 
-    static constexpr auto CACHED_BIT_COUNT = MAX_CODE_LENGTH;
-
-    /* Either ceil(log2(MAX_SYMBOL_COUNT)) or std::numeric_limits<Symbol>::digits - ceil(log2(MAX_CODE_LENGTH)),
-     * but the ceil o log2 composition is hard to calculate at compile-time. */
-    static constexpr auto LENGTH_SHIFT = 12;
-    static_assert( std::is_same_v<HuffmanCode, uint16_t>, "Length compression shift is hardcoded for uint16_t!" );
+    static constexpr auto LENGTH_SHIFT = requiredBits( MAX_SYMBOL_COUNT );
     static_assert( MAX_SYMBOL_COUNT <= ( 1UL << LENGTH_SHIFT ), "Not enough free bits to pack length into Symbol!" );
 
 public:
@@ -66,24 +76,18 @@ public:
 
             const auto k = length - this->m_minCodeLength;
             const auto code = codeValues[k]++;
+            const auto reversedCode = reverseBits( code, length );
 
-            HuffmanCode reversedCode{ 0 };
-            if constexpr ( sizeof( HuffmanCode ) <= sizeof( reversedBitsLUT16[0] ) ) {
-                reversedCode = reversedBitsLUT16[code];
-            } else {
-                reversedCode = reverseBits( code );
-            }
-            reversedCode >>= ( std::numeric_limits<decltype( code )>::digits - length );
-
-            static_assert( CACHED_BIT_COUNT < sizeof( uint32_t ) * CHAR_BIT,
-                           "We need a larger data type for correct comparison." );
-            const auto fillerBitCount = CACHED_BIT_COUNT - length;
-            for ( uint32_t fillerBits = 0; fillerBits < ( 1U << fillerBitCount ); ++fillerBits ) {
-                const auto paddedCode = static_cast<HuffmanCode>( ( fillerBits << length ) | reversedCode );
-                assert( paddedCode < m_codeCache.size() );
-                m_codeCache[paddedCode] = static_cast<Symbol>( symbol | ( length << LENGTH_SHIFT ) );
-                assert( ( m_codeCache[paddedCode] >> LENGTH_SHIFT ) == length );
-                assert( ( m_codeCache[paddedCode] & nLowestBitsSet<Symbol, LENGTH_SHIFT>() ) == symbol );
+            const auto fillerBitCount = this->m_maxCodeLength - length;
+            const auto maximumPaddedCode = static_cast<HuffmanCode>(
+                reversedCode | ( nLowestBitsSet<HuffmanCode>( fillerBitCount ) << length ) );
+            assert( maximumPaddedCode < m_codeCache.size() );
+            const auto increment = static_cast<HuffmanCode>( HuffmanCode( 1 ) << length );
+            const auto value = static_cast<Symbol>( symbol | ( length << LENGTH_SHIFT ) );
+            assert( ( value >> LENGTH_SHIFT ) == length );
+            assert( ( value & nLowestBitsSet<Symbol, LENGTH_SHIFT>() ) == symbol );
+            for ( auto paddedCode = reversedCode; paddedCode <= maximumPaddedCode; paddedCode += increment ) {
+                m_codeCache[paddedCode] = value;
             }
         }
         //const auto t1 = now();
@@ -97,20 +101,20 @@ public:
     decode( BitReader& bitReader ) const
     {
         try {
-            const auto value = bitReader.peek<CACHED_BIT_COUNT>();
+            const auto value = bitReader.peek( this->m_maxCodeLength );
 
             assert( value < m_codeCache.size() );
             auto symbol = m_codeCache[(int)value];
             const auto length = symbol >> LENGTH_SHIFT;
             symbol &= nLowestBitsSet<Symbol, LENGTH_SHIFT>();
 
-            /* Unfortunately, read is much faster than a simple seek forward,
-             * probably because of inlining and extraneous checks. For some reason read seems even faster than
-             * the newly introduced and trimmed down seekAfterPeek ... */
-            bitReader.read( length );
             if ( length == 0 ) {
-                throw std::logic_error( "Invalid Huffman code encountered!" );
+                /* This might happen for non-optimal Huffman trees out of which all except the case of a single
+                 * symbol with bit length 1 are forbidden! */
+                return std::nullopt;
             }
+
+            bitReader.seekAfterPeek( length );
             return symbol;
         } catch ( const BitReader::EndOfFileReached& ) {
             /* Should only happen at the end of the file and probably not even there
@@ -126,6 +130,6 @@ private:
      *  - any pair < 64-bit probably has to use some bit shifts anyway so not much more work
      *  - using 8-bit length and 16-bit symbol yields non-aligned access quite frequently
      *  - the space reduction by 33% might improve L1 cache hit rates or cache line utilization. */
-    alignas( 8 ) std::array<Symbol, ( 1UL << CACHED_BIT_COUNT )> m_codeCache{};
+    alignas( 8 ) std::array<Symbol, ( 1UL << MAX_CODE_LENGTH )> m_codeCache{};
 };
 }  // namespace pragzip

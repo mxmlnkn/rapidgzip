@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <chrono>
 #include <cstdint>
@@ -38,6 +39,9 @@
      * methods are named fileno! Instead, disable the deprecation warning for this and if a more recent compiler
      * removes the alias, then use: const auto fileno = _fileno; */
     #pragma warning(disable : 4996)
+
+    /* Ignore warnings about [[likely]], [[unlikely]], which will only work with C++20. */
+    #pragma warning(disable : C5051)
 
     #include <sys/stat.h>
 
@@ -155,6 +159,35 @@ endsWith( const S& fullString,
 formatBits( const uint64_t value )
 {
     return std::to_string( value / 8 ) + " B " + std::to_string( value % 8 ) + " b";
+}
+
+
+[[nodiscard]] std::string
+formatBytes( const uint64_t value )
+{
+    const std::array<std::pair<std::string_view, uint64_t>, 4> UNITS{ {
+        { "GiB", 1024ULL * 1024ULL * 1024ULL },
+        { "MiB", 1024ULL * 1024ULL },
+        { "KiB", 1024ULL },
+        { "B", 1ULL },
+    } };
+
+    std::stringstream result;
+    for ( const auto& [unit, multiplier] : UNITS ) {
+        const auto remainder = ( value / multiplier ) % 1024;
+        if ( remainder != 0 ) {
+            if ( result.tellp() > 0 ) {
+                result << " ";
+            }
+            result << remainder << " " << unit;
+        }
+    }
+
+    if ( result.tellp() == 0 ) {
+        return "0 B";
+    }
+
+    return std::move( result ).str();
 }
 
 
@@ -517,4 +550,85 @@ countNewlines( const std::string_view& view )
     }
 
     return matches;
+}
+
+
+[[nodiscard]] constexpr uint64_t
+operator "" _Ki( unsigned long long int value ) noexcept
+{
+    return value * 1024ULL;
+}
+
+[[nodiscard]] constexpr uint64_t
+operator "" _Mi( unsigned long long int value ) noexcept
+{
+    return value * 1024ULL * 1024ULL;
+}
+
+[[nodiscard]] constexpr uint64_t
+operator "" _Gi( unsigned long long int value ) noexcept
+{
+    return value * 1024ULL * 1024ULL * 1024ULL;
+}
+
+
+/**
+ * @param rangeA Closed interval given by two numbers.
+ */
+template<typename Pair,
+         typename Value>
+[[nodiscard]] constexpr bool
+rangeContains( const Pair&  range,
+               const Value& value ) noexcept
+{
+    return ( range.first <= value ) && ( value <= range.second );
+}
+
+
+template<typename PairA,
+         typename PairB>
+[[nodiscard]] constexpr bool
+rangesIntersect( const PairA& rangeA,
+                 const PairB& rangeB ) noexcept
+{
+    /**
+     * Cases:
+     * @verbatim
+     * A     +------+
+     *       |      |
+     * B  +-+|      |
+     *    +--+      |
+     *    +----+    |
+     *    +------------+
+     *       +--+   |
+     *       |+-+   |
+     *       |+-----+
+     *       |+--------+
+     *       |      +--+
+     *       |      |
+     * @endverbatim
+     */
+    return rangeContains( rangeA, rangeB.first )
+           || rangeContains( rangeA, rangeB.second )
+           || rangeContains( rangeB, rangeA.first )
+           || rangeContains( rangeB, rangeA.second );
+}
+
+
+constexpr std::string_view BASE64_SYMBOLS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+/\n";
+
+
+template<typename CharT>
+[[nodiscard]] bool
+isBase64( std::basic_string_view<CharT> data )
+{
+    static const auto base64Symbols = [] () {
+        std::basic_string<CharT> result;
+        result.resize( BASE64_SYMBOLS.size() );
+        std::transform( BASE64_SYMBOLS.begin(), BASE64_SYMBOLS.end(), result.begin(),
+                        [] ( const auto x ) { return static_cast<CharT>( x ); } );
+        return result;
+    }();
+
+    return data.find_first_not_of( base64Symbols ) == std::string_view::npos;
 }

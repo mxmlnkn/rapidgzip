@@ -1,8 +1,14 @@
+#include <algorithm>
 #include <cassert>
+#include <chrono>
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
+#include <memory>
 #include <stdexcept>
+#include <string>
 
 #include <BitStringFinder.hpp>
 #include <common.hpp>
@@ -155,9 +161,9 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     read( 256 );
 
     /* Try some subsequent reads over bz2 block boundaries. */
-    read( 5UL * 1024UL * 1024UL );
-    read( 7UL * 1024UL * 1024UL );
-    read( 1024 );
+    read( 5_Mi );
+    read( 7_Mi );
+    read( 1_Ki );
 
     /* Try reading over the end of the file. */
     read( decodedFileSize + 1000 );
@@ -169,10 +175,10 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     seek( 2 );
     seek( 4 );
     seek( 256 );
-    seek( 3UL * 1024UL * 1024UL );
+    seek( 3_Mi );
 
     /* Seek after end of file */
-    seek( 1024UL * 1024UL * 1024UL );
+    seek( 1_Gi );
 
     REQUIRE( encodedFile->blockOffsetsComplete() );
     REQUIRE_EQUAL( decodedFileSize, encodedFile->size() );
@@ -197,12 +203,12 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     read( 2 );
 
     seek( 256 );
-    read( 1024 );
+    read( 1_Ki );
 
-    seek( 2UL * 1024UL * 1024UL + 432 );
+    seek( 2_Mi + 432 );
     read( 12345 );
 
-    seek( 1UL * 1024UL * 1024UL - 432 );
+    seek( 1_Mi - 432 );
     read( 432 );
 
     /* Try reading 1B before the end of file */
@@ -216,7 +222,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     encodedFile->joinThreads();
     read( 100 ); /* Direct read after current position even after closing threads. */
     seek( 222 );
-    read( 1024UL * 1024UL );
+    read( 1_Mi );
     read( decodedFileSize + 1000 );
 
     encodedFile->joinThreads();
@@ -272,7 +278,7 @@ main()
     const auto tmpFolder = createTemporaryDirectory( "indexed_bzip2.testParallelBZ2Reader" );
 
     const auto decodedTestFilePath = tmpFolder.path() / "decoded";
-    createRandomTextFile( decodedTestFilePath, 2UL * 1024UL * 1024UL );
+    createRandomTextFile( decodedTestFilePath, 2_Mi );
 
     const auto command = "bzip2 -k -- '" + std::string( decodedTestFilePath ) + "'";
     const auto returnCode = std::system( command.c_str() );

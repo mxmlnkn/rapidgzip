@@ -240,6 +240,7 @@ make && time ./blockfinder /dev/shm/large.bz2
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include <cxxopts.hpp>

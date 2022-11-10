@@ -17,6 +17,13 @@
 
 namespace pragzip
 {
+/**
+ * This was the first and is the most straight-forward implementation.
+ * - During initialization, it stores all codes and their lengths in two vectors.
+ * - During decoding, it reads the bits one by one and for each intermediary, checks whether
+ *   there is a matching code with the current length in the vectors.
+ * Note that reading the bits one by one is also necessary to reverse the codes.
+ */
 template<typename T_HuffmanCode,
          typename T_Symbol>
 class HuffmanCodingLinearSearch
@@ -25,6 +32,8 @@ public:
     using HuffmanCode = T_HuffmanCode;
     using Symbol = T_Symbol;
     using BitCount = uint8_t;
+
+    static constexpr auto MAX_CODE_LENGTH = std::numeric_limits<HuffmanCode>::digits;
 
     [[nodiscard]] bool
     isValid() const
@@ -108,7 +117,7 @@ public:
              *   -> can store 128 - 152 / 2 = 52
              *      -> also not fully utilized ... Why use such a suboptimal fixed tree?! */
             maxSymbolsPossible = ( uint8_t( 1 ) << ( bitLength - 1 ) )
-                                 - ceilDiv( *frequency, 2 );  // ( *frequency >> 2 ) + ( frequency & 1 );
+                                 - ceilDiv( *frequency, 2 );  // ( *frequency >> 2U ) + ( frequency & 1 );
         }
 
         /**
@@ -132,7 +141,8 @@ public:
         std::vector<HuffmanCode> minimumCodeValuesPerLevel( bitLengthFrequencies.size() + 1 );
         minimumCodeValuesPerLevel[0] = 0;
         for ( size_t bits = 1; bits <= bitLengthFrequencies.size(); ++bits ) {
-            minimumCodeValuesPerLevel[bits] = ( minimumCodeValuesPerLevel[bits - 1] + bitLengthFrequencies[bits - 1] ) << 1;
+            minimumCodeValuesPerLevel[bits] = ( minimumCodeValuesPerLevel[bits - 1]
+                                                + bitLengthFrequencies[bits - 1] ) << 1U;
         }
 
         /* Now, begin assigning the alphabet consecutively to the codes starting from the minimumCodes.
@@ -178,7 +188,7 @@ public:
          * would be inversed. @todo Reverse the Huffman codes and prepend bits instead of appending, so that this
          * first step can be conflated and still have the correct order for comparison! */
         for ( BitCount i = 0; i < m_minCodeLength; ++i ) {
-            code = ( code << 1 ) | ( bitReader.read<1>() );
+            code = ( code << 1U ) | ( bitReader.read<1>() );
         }
 
         for ( BitCount bitLength = m_minCodeLength; bitLength <= m_maxCodeLength; ++bitLength ) {

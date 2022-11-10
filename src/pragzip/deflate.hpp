@@ -1,7 +1,7 @@
 /**
  * @file
  *
- * - Note that this implementation avoids C++ exceptions because invalid data is assumed happen rather often,
+ * - Note that this implementation avoids C++ exceptions because invalid data is assumed to happen rather often,
  *   which is the case when searching for deflate blocks without knowing the exact offsets! Exceptions are too
  *   slow for that!
  * - In the same manner as exceptions, it turns out that using std::array with a maximum possible size instead of
@@ -14,6 +14,7 @@
 #include <array>
 #include <cassert>
 #include <cstring>
+#include <functional>
 #include <limits>
 #include <map>
 #include <optional>
@@ -24,8 +25,11 @@
 
 #include <BitReader.hpp>
 #include <HuffmanCodingDoubleLiteralCached.hpp>
+#include <HuffmanCodingLinearSearch.hpp>
 #include <HuffmanCodingSymbolsPerLength.hpp>
+#include <HuffmanCodingReversedBitsCachedCompressed.hpp>
 #include <HuffmanCodingReversedBitsCached.hpp>
+#include <HuffmanCodingReversedCodesPerLength.hpp>
 
 #include "crc32.hpp"
 #include "DecodedData.hpp"
@@ -44,12 +48,121 @@ using LiteralOrLengthHuffmanCoding =
 /**
  * Because the fixed Huffman coding is used by different threads it HAS TO BE immutable. It is constant anyway
  * but it also MUST NOT have mutable members. This means that HuffmanCodingDoubleLiteralCached does NOT work
- * because it internally safes the second symbol.
+ * because it internally saves the second symbol.
  * @todo Make it such that the implementations can handle the case that the construction might result in
  *       larger symbol values than are allowed to appear in the first place! I.e., cut-off construction there.
  *       Note that changing this from 286 to 512, lead to an increase of the runtime! We need to reduce it again! */
 using FixedHuffmanCoding =
     HuffmanCodingReversedBitsCached<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_LITERAL_OR_LENGTH_SYMBOLS + 2>;
+
+
+
+/**
+ * [findDeflateBlocksPragzipLUT with 13 bits, Walk Tree LUT] ( 42.1 <= 42.6 +- 0.3 <= 43 ) MB/s
+ * [findDeflateBlocksPragzipLUT with 14 bits, Walk Tree LUT] ( 42.14 <= 42.56 +- 0.22 <= 42.9 ) MB/s
+ * [findDeflateBlocksPragzipLUT with 15 bits, Walk Tree LUT] ( 41.9 <= 42.4 +- 0.3 <= 42.9 ) MB/s
+ * [findDeflateBlocksPragzipLUT with 16 bits, Walk Tree LUT] ( 40.7 <= 42 +- 0.6 <= 42.8 ) MB/s
+ * [findDeflateBlocksPragzipLUT with 17 bits, Walk Tree LUT] ( 41.7 <= 42.5 +- 0.5 <= 43.2 ) MB/s
+ * [findDeflateBlocksPragzipLUT with 18 bits, Walk Tree LUT] ( 40.57 <= 41.01 +- 0.28 <= 41.41 ) MB/s
+ *
+ * Cumulative time spent during tests with deflate::block::readDynamicHuffmanCoding:
+ *     readDynamicHuffmanCoding : 10.368 s
+ *     Read precode             : 0.468309 s
+ *     Create precode HC        : 2.72764 s
+ *     Apply precode HC         : 6.68265 s
+ *     Create distance HC       : 0.138837 s
+ *     Create literal HC        : 0.0533746 s
+ * -> @todo The precode check is much more lax for this!
+ *          The block finder performance is only comparable to others because checkPrecode is called beforehand!
+ */
+// using PrecodeHuffmanCoding = HuffmanCodingLinearSearch<uint8_t, uint8_t>;
+
+/**
+ * [findDeflateBlocksPragzipLUT with 13 bits, Walk Tree LUT] ( 50.1 <= 50.6 +- 0.4 <= 51.4 ) MB/s
+ * [findDeflateBlocksPragzipLUT with 14 bits, Walk Tree LUT] ( 49.4 <= 50.6 +- 0.7 <= 51.4 ) MB/s
+ * [findDeflateBlocksPragzipLUT with 15 bits, Walk Tree LUT] ( 50.04 <= 50.42 +- 0.3 <= 50.96 ) MB/s
+ * [findDeflateBlocksPragzipLUT with 16 bits, Walk Tree LUT] ( 48.2 <= 50.1 +- 0.8 <= 51 ) MB/s
+ * [findDeflateBlocksPragzipLUT with 17 bits, Walk Tree LUT] ( 49.3 <= 50.1 +- 0.4 <= 50.6 ) MB/s
+ * [findDeflateBlocksPragzipLUT with 18 bits, Walk Tree LUT] ( 45.9 <= 47.8 +- 1 <= 48.8 ) MB/s
+ *
+ * Cumulative time spent during tests with deflate::block::readDynamicHuffmanCoding:
+ *     readDynamicHuffmanCoding : 10.233 s
+ *     Read precode             : 0.466273 s
+ *     Create precode HC        : 2.61544 s
+ *     Apply precode HC         : 6.6635 s
+ *     Create distance HC       : 0.138498 s
+ *     Create literal HC        : 0.0532511 s
+ * -> @todo The precode check is much more lax for this!
+ *          The block finder performance is only comparable to others because checkPrecode is called beforehand!
+ */
+// using PrecodeHuffmanCoding = HuffmanCodingSymbolsPerLength<uint8_t, MAX_PRECODE_LENGTH, uint8_t, MAX_PRECODE_COUNT>;
+
+/**
+ * [findDeflateBlocksPragzipLUT with 13 bits, Walk Tree LUT] ( 48.4 <= 49 +- 0.4 <= 49.8 ) MB/s
+ * [findDeflateBlocksPragzipLUT with 14 bits, Walk Tree LUT] ( 48.3 <= 49.5 +- 0.7 <= 50.4 ) MB/s
+ * [findDeflateBlocksPragzipLUT with 15 bits, Walk Tree LUT] ( 47.4 <= 49 +- 0.7 <= 49.6 ) MB/s
+ * [findDeflateBlocksPragzipLUT with 16 bits, Walk Tree LUT] ( 48.9 <= 49.8 +- 0.3 <= 50.2 ) MB/s
+ * [findDeflateBlocksPragzipLUT with 17 bits, Walk Tree LUT] ( 48.4 <= 49.6 +- 0.5 <= 50.2 ) MB/s
+ * [findDeflateBlocksPragzipLUT with 18 bits, Walk Tree LUT] ( 46.3 <= 47.2 +- 0.5 <= 47.8 ) MB/s
+ *
+ * Cumulative time spent during tests with deflate::block::readDynamicHuffmanCoding:
+ *     readDynamicHuffmanCoding : 1.8663 s
+ *     Read precode             : 0.417445 s
+ *     Create precode HC        : 1.06137 s
+ *     Apply precode HC         : 0.0399441 s
+ *     Create distance HC       : 0.00760224 s
+ *     Create literal HC        : 0.0447448 s
+ */
+// using PrecodeHuffmanCoding = HuffmanCodingReversedCodesPerLength<uint8_t, MAX_PRECODE_LENGTH,
+//                                                                  uint8_t, MAX_PRECODE_COUNT>;
+
+/**
+ * [findDeflateBlocksPragzipLUT with 13 bits, Walk Tree LUT] ( 51.2 <= 52.5 +- 0.8 <= 53.6 ) MB/s
+ * [findDeflateBlocksPragzipLUT with 14 bits, Walk Tree LUT] ( 52.2 <= 53 +- 0.3 <= 53.3 ) MB/s
+ * [findDeflateBlocksPragzipLUT with 15 bits, Walk Tree LUT] ( 51 <= 52 +- 0.4 <= 52.4 ) MB/s
+ * [findDeflateBlocksPragzipLUT with 16 bits, Walk Tree LUT] ( 52.1 <= 52.6 +- 0.3 <= 53.1 ) MB/s
+ * [findDeflateBlocksPragzipLUT with 17 bits, Walk Tree LUT] ( 51.1 <= 52.2 +- 0.5 <= 52.7 ) MB/s
+ * [findDeflateBlocksPragzipLUT with 18 bits, Walk Tree LUT] ( 48.9 <= 50.4 +- 0.7 <= 50.9 ) MB/s
+ *
+ * Cumulative time spent during tests with deflate::block::readDynamicHuffmanCoding:
+ *     readDynamicHuffmanCoding : 2.01957 s
+ *     Read precode             : 0.409709 s
+ *     Create precode HC        : 1.23679 s
+ *     Apply precode HC         : 0.0188343 s
+ *     Create distance HC       : 0.00916463 s
+ *     Create literal HC        : 0.0444881 s
+ * -> This sums up to 1.71898603 s < 2.01957 s. I can only surmise that the missing time is spend in the calls
+ *    to now() and the increments for fialed counters and other statistics.
+ */
+// using PrecodeHuffmanCoding = HuffmanCodingReversedBitsCached<uint8_t, MAX_PRECODE_LENGTH, uint8_t, MAX_PRECODE_COUNT>;
+
+/**
+ * [findDeflateBlocksPragzipLUT with 13 bits, Walk Tree LUT] ( 52.2 <= 52.9 +- 0.4 <= 53.7 ) MB/s
+ * [findDeflateBlocksPragzipLUT with 14 bits, Walk Tree LUT] ( 52.6 <= 53.6 +- 0.4 <= 53.9 ) MB/s
+ * [findDeflateBlocksPragzipLUT with 15 bits, Walk Tree LUT] ( 52.14 <= 52.42 +- 0.13 <= 52.57 ) MB/s
+ * [findDeflateBlocksPragzipLUT with 16 bits, Walk Tree LUT] ( 52.3 <= 52.7 +- 0.3 <= 53.1 ) MB/s
+ * [findDeflateBlocksPragzipLUT with 17 bits, Walk Tree LUT] ( 51.5 <= 53.3 +- 0.7 <= 53.8 ) MB/s
+ * [findDeflateBlocksPragzipLUT with 18 bits, Walk Tree LUT] ( 50.2 <= 50.9 +- 0.5 <= 51.6 ) MB/s
+ *
+ * Cumulative time spent during tests with deflate::block::readDynamicHuffmanCoding:
+ *     readDynamicHuffmanCoding : 1.84971 s
+ *     Read precode             : 0.417705 s
+ *     Create precode HC        : 1.06757 s
+ *     Apply precode HC         : 0.0182615 s
+ *     Create distance HC       : 0.00743017 s
+ *     Create literal HC        : 0.0440123 s
+ */
+using PrecodeHuffmanCoding = HuffmanCodingReversedBitsCachedCompressed<uint8_t, MAX_PRECODE_LENGTH,
+                                                                       uint8_t, MAX_PRECODE_COUNT>;
+
+/* HuffmanCodingReversedBitsCached is definitely faster for silesia.tar.gz which has more back-references than
+ * base64.gz for which the difference in changing this Huffman coding is negligible. Note that we can't use
+ * double caching for this because that would mean merging the cache with ne next literal/length Huffman code! */
+using DistanceHuffmanCoding = HuffmanCodingReversedBitsCached<uint16_t, MAX_CODE_LENGTH,
+                                                              uint8_t, MAX_DISTANCE_SYMBOL_COUNT>;
+
+/* Include 256 safety buffer so that we can avoid branches while filling. */
+using LiteralAndDistanceCLBuffer = std::array<uint8_t, MAX_LITERAL_OR_LENGTH_SYMBOLS + MAX_DISTANCE_SYMBOL_COUNT + 256>;
 
 
 [[nodiscard]] constexpr FixedHuffmanCoding
@@ -100,10 +213,10 @@ calculateDistance( uint16_t distance ) noexcept
 
 using DistanceLUT = std::array<uint16_t, 30>;
 
-[[nodiscard]] DistanceLUT
+[[nodiscard]] constexpr DistanceLUT
 createDistanceLUT() noexcept
 {
-    DistanceLUT result;
+    DistanceLUT result{};
     for ( uint16_t i = 0; i < 4; ++i ) {
         result[i] = i + 1;
     }
@@ -114,7 +227,7 @@ createDistanceLUT() noexcept
 }
 
 
-alignas( 8 ) static inline const DistanceLUT
+alignas( 8 ) static constexpr DistanceLUT
 distanceLUT = createDistanceLUT();
 
 
@@ -144,15 +257,12 @@ alignas( 8 ) static constexpr LengthLUT
 lengthLUT = createLengthLUT();
 
 
-template<bool ENABLE_STATISTICS>
-class BlockStatistics;
-
-template<>
-class BlockStatistics<false>
-{};
-
-template<>
-class BlockStatistics<true>
+/**
+ * It should be fine to have these data members even when not needed.
+ * It's not like they are expensive to initialize and deflate::block shouldn't be created in quick successions
+ * anyway, it can and should be reused!
+ */
+class BlockStatistics
 {
 public:
     uint64_t failedPrecodeInit{ 0 };
@@ -162,10 +272,40 @@ public:
     std::array<uint64_t, /* codeLengthCount - 4 is 4 bits = 16 possible values */ 16> precodeCLHistogram{};
 
     struct {
-        uint8_t precode{ 0 };
-        uint8_t distance{ 0 };
-        uint8_t literal{ 0 };
+        uint32_t precode{ 0 };
+        uint32_t distance{ 0 };
+        uint32_t literal{ 0 };  // Minimum value is 257!
     } codeCounts;
+
+    /* These are cumulative counters but they can be manually reset before calls to readHeader. */
+    struct {
+        uint64_t literal{ 0 };
+        uint64_t backreference{ 0 };
+    } symbolTypes;
+
+    /* These are cumulative counters but they can be manually reset before calls to readHeader. */
+    struct {
+        double readDynamicHeader{ 0 };
+        double readPrecode{ 0 };
+        double createPrecodeHC{ 0 };
+        double applyPrecodeHC{ 0 };
+        double createDistanceHC{ 0 };
+        double createLiteralHC{ 0 };
+        double readData{ 0 };
+    } durations;
+
+    /** These are time points used to calculate the durations and are necessary to constexpr hide calls to now(). */
+    struct {
+        using TimePoint = std::chrono::time_point<std::chrono::high_resolution_clock>;
+
+        TimePoint readDynamicStart;
+        TimePoint readPrecode;
+        TimePoint createdPrecodeHC;
+        TimePoint appliedPrecodeHC;
+        TimePoint createdDistanceHC;
+
+        TimePoint readDataStart;
+    } times;
 };
 
 
@@ -179,27 +319,10 @@ public:
 template<bool CALCULATE_CRC32 = false,
          bool ENABLE_STATISTICS = false>
 class Block :
-    public BlockStatistics<ENABLE_STATISTICS>
+    public BlockStatistics
 {
 public:
     using CompressionType = deflate::CompressionType;
-
-    [[nodiscard]] static std::string
-    toString( CompressionType compressionType ) noexcept
-    {
-        switch ( compressionType )
-        {
-        case CompressionType::UNCOMPRESSED:
-            return "Uncompressed";
-        case CompressionType::FIXED_HUFFMAN:
-            return "Fixed Huffman";
-        case CompressionType::DYNAMIC_HUFFMAN:
-            return "Dynamic Huffman";
-        case CompressionType::RESERVED:
-            return "Reserved";
-        }
-        return "Unknown";
-    }
 
 public:
     [[nodiscard]] bool
@@ -256,6 +379,14 @@ public:
     template<bool treatLastBlockAsError = false>
     [[nodiscard]] Error
     readHeader( BitReader& bitReader );
+
+    [[nodiscard]] forceinline static Error
+    readDistanceAndLiteralCodeLengths( LiteralAndDistanceCLBuffer&              literalCL,
+                                       BitReader&                               bitReader,
+                                       const PrecodeHuffmanCoding&              precodeCoding,
+                                       const size_t                             literalCLSize,
+                                       const std::function<uint8_t( uint8_t )>& translateSymbol
+                                           = [] ( uint8_t symbol ) { return symbol; } );
 
     /**
      * Reads the dynamic Huffman code. This is called by @ref readHeader after reading the first three header bits
@@ -319,9 +450,21 @@ public:
         return false;
     }
 
+    [[nodiscard]] constexpr const auto&
+    precodeCL() const noexcept
+    {
+        return m_precodeCL;
+    }
+
+    [[nodiscard]] constexpr const auto&
+    distanceAndLiteralCL() const noexcept
+    {
+        return m_literalCL;
+    }
+
 private:
     template<typename Window>
-    void
+    forceinline void
     appendToWindow( Window&                     window,
                     typename Window::value_type decodedSymbol );
 
@@ -353,17 +496,18 @@ private:
      *         are returned and both are non-empty in the case of the last written data wrapping around.
      */
     template<typename Window,
-             typename Symbol = typename Window::value_type>
-    [[nodiscard]] static std::array<VectorView<Symbol>, 2>
-    lastBuffers( const Window& window,
-                 size_t        position,
-                 size_t        size )
+             typename Symbol = typename Window::value_type,
+             typename View = VectorView<Symbol> >
+    [[nodiscard]] static std::array<View, 2>
+    lastBuffers( Window& window,
+                 size_t  position,
+                 size_t  size )
     {
         if ( size > window.size() ) {
             throw std::invalid_argument( "Requested more bytes than fit in the buffer. Data is missing!" );
         }
 
-        std::array<VectorView<Symbol>, 2> result;
+        std::array<View, 2> result;
         if ( size == 0 ) {
             return result;
         }
@@ -371,12 +515,12 @@ private:
         /* Calculate wrapped around begin without unsigned underflow during the difference. */
         const auto begin = ( position + window.size() - ( size % window.size() ) ) % window.size();
         if ( begin < position ) {
-            result[0] = VectorView<Symbol>( window.data() + begin, position - begin );
+            result[0] = View( window.data() + begin, position - begin );
             return result;
         }
 
-        result[0] = VectorView<Symbol>( window.data() + begin, window.size() - begin );  // up to end of window
-        result[1] = VectorView<Symbol>( window.data(), position );  // wrapped around part at start of window
+        result[0] = View( window.data() + begin, window.size() - begin );  // up to end of window
+        result[1] = View( window.data(), position );  // wrapped around part at start of window
         return result;
     }
 
@@ -438,10 +582,7 @@ private:
     static constexpr FixedHuffmanCoding m_fixedHC = createFixedHC();
     LiteralOrLengthHuffmanCoding m_literalHC;
 
-    /* HuffmanCodingReversedBitsCached is definitely faster for siles.tar.gz which has more back-references than
-     * base64.gz for which the difference in changing this Huffman coding is negligible. Note that we can't use
-     * double caching for this because that would mean merging the cache with ne next literal/length Huffman code! */
-    HuffmanCodingReversedBitsCached<uint16_t, MAX_CODE_LENGTH, uint8_t, MAX_DISTANCE_SYMBOL_COUNT> m_distanceHC;
+    DistanceHuffmanCoding m_distanceHC;
 
     alignas( 64 ) PreDecodedBuffer m_window16{ initializeMarkedWindowBuffer() };
 
@@ -470,6 +611,11 @@ private:
      * The exact value does not matter and is undefined when @ref m_containsMarkerBytes is false.
      */
     size_t m_distanceToLastMarkerByte{ 0 };
+
+    /* Large buffers required only temporarily inside readHeader. */
+    alignas( 64 ) std::array<uint8_t, MAX_PRECODE_COUNT> m_precodeCL;
+    alignas( 64 ) PrecodeHuffmanCoding m_precodeHC;
+    alignas( 64 ) LiteralAndDistanceCLBuffer m_literalCL;
 };
 
 
@@ -528,11 +674,87 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readHeader( BitReader& bitReader )
 }
 
 
+/**
+ * Decode the code lengths for the literal/length and distance alphabets.
+ * @param BitReader Should be positioned after the precode code length bits, i.e., at deflate start + 3 (header bits)
+ *        + 5 + 5 + 3 (code length bits) + precode codes * 3.
+ */
+template<bool CALCULATE_CRC32,
+         bool ENABLE_STATISTICS>
+Error
+Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDistanceAndLiteralCodeLengths(
+    LiteralAndDistanceCLBuffer&              literalCL,
+    BitReader&                               bitReader,
+    const PrecodeHuffmanCoding&              precodeCoding,
+    const size_t                             literalCLSize,
+    const std::function<uint8_t( uint8_t )>& translateSymbol )
+{
+    size_t i = 0;
+    for ( ; i < literalCLSize; ) {
+        const auto decoded = precodeCoding.decode( bitReader );
+        if ( !decoded ) {
+            return Error::INVALID_HUFFMAN_CODE;
+        }
+        const auto code = translateSymbol( *decoded );
+
+        /* Note that this interpretation of the alphabet results in the maximum code length being 15! */
+        if ( code <= 15 ) {
+            literalCL[i] = code;
+            ++i;
+        } else if ( code == 16 ) {
+            if ( i == 0 ) {
+                return Error::INVALID_CL_BACKREFERENCE;
+            }
+            const auto lastValue = literalCL[i - 1];
+
+            /* Unroll 3U + 0b11U = 6 times to avoid branches. Do it manually to be portable. */
+            literalCL[i + 0] = lastValue;
+            literalCL[i + 1] = lastValue;
+            literalCL[i + 2] = lastValue;
+            literalCL[i + 3] = lastValue;
+            literalCL[i + 4] = lastValue;
+            literalCL[i + 5] = lastValue;
+
+            i += bitReader.read<2>() + 3;
+        } else if ( code == 17 ) {
+            /* Unroll 3U + 0b111U = 10 times to avoid branches. Do it manually to be portable. */
+            literalCL[i + 0] = 0;
+            literalCL[i + 1] = 0;
+            literalCL[i + 2] = 0;
+            literalCL[i + 3] = 0;
+            literalCL[i + 4] = 0;
+            literalCL[i + 5] = 0;
+            literalCL[i + 6] = 0;
+            literalCL[i + 7] = 0;
+            literalCL[i + 8] = 0;
+            literalCL[i + 9] = 0;
+
+            i += bitReader.read<3>() + 3;
+        } else if ( code == 18 ) {
+            /* Decode fixed number of zeros. The vector is initialized to zeros, so we can simply skip these. */
+            #if defined( __GNUC__ )
+                #pragma GCC unroll 16
+            #endif
+            for ( size_t j = 0; j < 11U + ( 1U << 7U ) - 1U; ++j ) {
+                literalCL[i + j] = 0;
+            }
+            i += bitReader.read<7>() + 11;
+        }
+    }
+
+    return i == literalCLSize ? Error::NONE : Error::EXCEEDED_LITERAL_RANGE;
+}
+
+
 template<bool CALCULATE_CRC32,
          bool ENABLE_STATISTICS>
 Error
 Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& bitReader )
 {
+    if constexpr ( ENABLE_STATISTICS ) {
+        times.readDynamicStart = now();
+    }
+
     /**
      * Huffman codings map variable length (bit) codes to symbols.
      * Huffman codings are given a as a tuple of code lengths, i.e., number of bits for Huffman code to use.
@@ -549,10 +771,12 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& 
 
     const auto literalCodeCount = 257 + bitReader.read<5>();
     if ( literalCodeCount > MAX_LITERAL_OR_LENGTH_SYMBOLS ) {
+        durations.readDynamicHeader += duration( times.readDynamicStart );
         return Error::EXCEEDED_LITERAL_RANGE;
     }
     const auto distanceCodeCount = 1 + bitReader.read<5>();
     if ( distanceCodeCount > MAX_DISTANCE_SYMBOL_COUNT ) {
+        durations.readDynamicHeader += duration( times.readDynamicStart );
         return Error::EXCEEDED_DISTANCE_RANGE;
     }
     const auto codeLengthCount = 4 + bitReader.read<4>();
@@ -565,82 +789,79 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& 
     }
 
     /* Get code lengths (CL) for alphabet P. */
-    constexpr auto MAX_CL_SYMBOL_COUNT = 19;
-    constexpr auto CL_CODE_LENGTH_BIT_COUNT = 3;
-    constexpr auto MAX_CL_CODE_LENGTH = ( 1U << CL_CODE_LENGTH_BIT_COUNT ) - 1U;
-    static constexpr std::array<uint8_t, MAX_CL_SYMBOL_COUNT> alphabetOrderC =
-        { 16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15 };
-    std::array<uint8_t, MAX_CL_SYMBOL_COUNT> codeLengthCL = {};
+    std::memset( m_precodeCL.data(), 0, m_precodeCL.size() * sizeof( m_precodeCL[0] ) );
     for ( size_t i = 0; i < codeLengthCount; ++i ) {
-        codeLengthCL[alphabetOrderC[i]] = bitReader.read<CL_CODE_LENGTH_BIT_COUNT>();
+        m_precodeCL[PRECODE_ALPHABET[i]] = bitReader.read<PRECODE_BITS>();
     }
 
-    HuffmanCodingSymbolsPerLength<uint8_t, MAX_CL_CODE_LENGTH, uint8_t, MAX_CL_SYMBOL_COUNT> codeLengthHC;
-    auto error = codeLengthHC.initializeFromLengths( VectorView<uint8_t>( codeLengthCL.data(), codeLengthCL.size() ) );
+    if constexpr ( ENABLE_STATISTICS ) {
+        times.readPrecode = now();
+        durations.readPrecode += duration( times.readDynamicStart, times.readPrecode );
+    }
+
+    auto error = m_precodeHC.initializeFromLengths( VectorView<uint8_t>( m_precodeCL.data(), m_precodeCL.size() ) );
+
+    if constexpr ( ENABLE_STATISTICS ) {
+        times.createdPrecodeHC = now();
+        this->durations.createPrecodeHC += duration( times.readPrecode, times.createdPrecodeHC );
+    }
+
     if ( error != Error::NONE ) {
         if constexpr ( ENABLE_STATISTICS ) {
             this->failedPrecodeInit++;
+            durations.readDynamicHeader += duration( times.readDynamicStart );
         }
         return error;
     }
 
     /* Decode the code lengths for the literal/length and distance alphabets. */
-    std::array<uint8_t, MAX_LITERAL_OR_LENGTH_SYMBOLS + MAX_DISTANCE_SYMBOL_COUNT> literalCL = {};
-    const auto literalCLSize = literalCodeCount + distanceCodeCount;
-    for ( size_t i = 0; i < literalCLSize; ) {
-        const auto decoded = codeLengthHC.decode( bitReader );
-        if ( !decoded ) {
-            return Error::INVALID_HUFFMAN_CODE;
-        }
-        const auto code = *decoded;
+    auto precodeApplyError = readDistanceAndLiteralCodeLengths(
+        m_literalCL, bitReader, m_precodeHC, literalCodeCount + distanceCodeCount );
 
-        /* Note that this interpretation of the alphabet results in the maximum code length being 15! */
-        if ( code <= 15 ) {
-            literalCL[i] = code;
-            ++i;
-        } else if ( code == 16 ) {
-            if ( i == 0 ) {
-                return Error::INVALID_CL_BACKREFERENCE;
-            }
-            const auto lastValue = literalCL[i - 1];
-            const auto repeatCount = bitReader.read<2>() + 3;
-            if ( i + repeatCount > literalCLSize ) {
-                return Error::EXCEEDED_LITERAL_RANGE;
-            }
-            for ( uint32_t j = 0; j < repeatCount; ++j, ++i ) {
-                literalCL[i] = lastValue;
-            }
-        } else if ( code == 17 ) {
-            /* Decode fixed number of zeros. The vector is initialized to zeros, so we can simply skip these. */
-            i += bitReader.read<3>() + 3;
-        } else if ( code == 18 ) {
-            /* Decode fixed number of zeros. The vector is initialized to zeros, so we can simply skip these. */
-            i += bitReader.read<7>() + 11;
-        } else {
-            throw std::logic_error( "No such value should have been in the alphabet!" );
-        }
-
-        if ( i > literalCLSize ) {
-            return Error::EXCEEDED_LITERAL_RANGE;
-        }
+    if constexpr ( ENABLE_STATISTICS ) {
+        times.appliedPrecodeHC = now();
+        durations.applyPrecodeHC += duration( times.createdPrecodeHC, times.appliedPrecodeHC );
     }
 
-    /* When encoding base64-encoded random-data, I encountered a length of 9, so uint16_t is necessary! */
+    if ( precodeApplyError != Error::NONE ) {
+        if constexpr ( ENABLE_STATISTICS ) {
+            durations.readDynamicHeader += duration( times.readDynamicStart );
+        }
+        return precodeApplyError;
+    }
+
+    /* Create distance HC
+     * When encoding base64-encoded random-data, I encountered a length of 9, so uint16_t is necessary! */
     error = m_distanceHC.initializeFromLengths(
-        VectorView<uint8_t>( literalCL.data() + literalCodeCount, distanceCodeCount ) );
+        VectorView<uint8_t>( m_literalCL.data() + literalCodeCount, distanceCodeCount ) );
+
+    if constexpr ( ENABLE_STATISTICS ) {
+        times.createdDistanceHC = now();
+        durations.createDistanceHC += duration( times.appliedPrecodeHC, times.createdDistanceHC );
+    }
+
     if ( error != Error::NONE ) {
         if constexpr ( ENABLE_STATISTICS ) {
+            durations.readDynamicHeader += duration( times.readDynamicStart );
             this->failedDistanceInit++;
         }
         return error;
     }
 
-    error = m_literalHC.initializeFromLengths( VectorView<uint8_t>( literalCL.data(), literalCodeCount ) );
+    /* Create literal HC */
+    error = m_literalHC.initializeFromLengths( VectorView<uint8_t>( m_literalCL.data(), literalCodeCount ) );
     if ( error != Error::NONE ) {
         if constexpr ( ENABLE_STATISTICS ) {
             this->failedLengthInit++;
         }
     }
+
+    if constexpr ( ENABLE_STATISTICS ) {
+        const auto tFinish = now();
+        durations.createLiteralHC += duration( times.createdDistanceHC, tFinish );
+        durations.readDynamicHeader += duration( times.readDynamicStart, tFinish );
+    }
+
     return error;
 }
 
@@ -672,7 +893,7 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::getDistance( BitReader& bitReader ) c
 {
     uint16_t distance = 0;
     if ( m_compressionType == CompressionType::FIXED_HUFFMAN ) {
-        distance = reverseBits( static_cast<uint8_t>( bitReader.read<5>() ) ) >> 3;
+        distance = reverseBits( static_cast<uint8_t>( bitReader.read<5>() ) ) >> 3U;
         if ( UNLIKELY( distance >= MAX_DISTANCE_SYMBOL_COUNT ) ) [[unlikely]] {
             return { 0, Error::EXCEEDED_DISTANCE_RANGE };
         }
@@ -689,7 +910,7 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::getDistance( BitReader& bitReader ) c
     } else if ( distance <= 29U ) {
         const auto extraBitsCount = ( distance - 2U ) / 2U;
         const auto extraBits = bitReader.read( extraBitsCount );
-        distance = calculateDistance( distance ) + extraBits;
+        distance = distanceLUT[distance] + extraBits;
     } else {
         throw std::logic_error( "Invalid distance codes encountered!" );
     }
@@ -710,6 +931,10 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::read( BitReader& bitReader,
 
     if ( m_compressionType == CompressionType::RESERVED ) {
         throw std::domain_error( "Invalid deflate compression type!" );
+    }
+
+    if constexpr ( ENABLE_STATISTICS ) {
+        times.readDataStart = now();
     }
 
     DecodedDataView result;
@@ -745,6 +970,19 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::read( BitReader& bitReader,
             std::memcpy( m_window.data(), remainingData.data(), remainingData.size() );
             nBytesRead = bitReader.read( reinterpret_cast<char*>( m_window.data() + remainingData.size() ),
                                          m_uncompressedSize );
+        } else if ( !m_containsMarkerBytes ) {
+            /* When there are no markers, it means we can simply memcpy into the uint8_t window.
+             * This speeds things up from ~400 MB/s to ~ 6 GB/s compared to calling appendToWindow for each byte!
+             * We can use @ref lastBuffers, which are also returned, to determine where to copy to. */
+            m_windowPosition = ( m_windowPosition + m_uncompressedSize ) % m_window.size();
+            size_t totalBytesRead{ 0 };
+            auto buffers =
+                lastBuffers<DecodedBuffer, uint8_t, WeakVector<uint8_t> >(
+                    m_window, m_windowPosition, m_uncompressedSize );
+            for ( auto& buffer : buffers ) {
+                totalBytesRead += bitReader.read( reinterpret_cast<char*>( buffer.data() ), buffer.size() );
+            }
+            nBytesRead = totalBytesRead;
         }
 
         if ( nBytesRead ) {
@@ -752,20 +990,29 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::read( BitReader& bitReader,
             m_atEndOfBlock = true;
             m_decodedBytes += *nBytesRead;
 
+            result.data = lastBuffers( m_window, m_windowPosition, *nBytesRead );
+
             if constexpr ( CALCULATE_CRC32 ) {
-                for ( size_t i = 0; i < *nBytesRead; ++i ) {
-                    m_crc32 = updateCRC32( m_crc32, m_window[i] );
+                for ( const auto& buffer : result.data ) {
+                    for ( size_t i = 0; i < buffer.size(); ++i ) {
+                        m_crc32 = updateCRC32( m_crc32, buffer[i] );
+                    }
                 }
             }
 
-            result.data = lastBuffers( m_window, m_windowPosition, *nBytesRead );
+            if constexpr ( ENABLE_STATISTICS ) {
+                durations.readData += duration( times.readDataStart );
+            }
+
             return { result, *nBytesRead == m_uncompressedSize ? Error::NONE : Error::EOF_UNCOMPRESSED };
         }
     }
 
+    size_t nBytesRead{ 0 };
+    auto error = Error::NONE;
     if ( m_containsMarkerBytes ) {
         /* This is the only case that should increment or reset m_distanceToLastMarkerByte. */
-        const auto [nBytesRead, error] = readInternal( bitReader, nMaxToDecode, m_window16 );
+        std::tie( nBytesRead, error ) = readInternal( bitReader, nMaxToDecode, m_window16 );
 
         /* Theoretically, it would be enough if m_distanceToLastMarkerByte >= MAX_WINDOW_SIZE but that complicates
          * things because we can only convert up to m_distanceToLastMarkerByte of data even though we might need
@@ -775,15 +1022,18 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::read( BitReader& bitReader,
                   && ( m_distanceToLastMarkerByte == m_decodedBytes ) ) ) {
             setInitialWindow();
             result.data = lastBuffers( m_window, m_windowPosition, nBytesRead );
-            return { result, error };
+        } else {
+            result.dataWithMarkers = lastBuffers( m_window16, m_windowPosition, nBytesRead );
         }
-
-        result.dataWithMarkers = lastBuffers( m_window16, m_windowPosition, nBytesRead );
-        return { result, error };
+    } else {
+        std::tie( nBytesRead, error ) = readInternal( bitReader, nMaxToDecode, m_window );
+        result.data = lastBuffers( m_window, m_windowPosition, nBytesRead );
     }
 
-    const auto [nBytesRead, error] = readInternal( bitReader, nMaxToDecode, m_window );
-    result.data = lastBuffers( m_window, m_windowPosition, nBytesRead );
+    if constexpr ( ENABLE_STATISTICS ) {
+        durations.readData += duration( times.readDataStart );
+    }
+
     return { result, error };
 }
 
@@ -827,13 +1077,33 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readInternal( BitReader& bitReader,
         /**
          * Because the non-compressed deflate block size is 16-bit, the uncompressed data is limited to 65535 B!
          * The buffer can hold MAX_WINDOW_SIZE 16-bit values (for markers) or twice the amount of decoded bytes.
-         * Therefore, this routine is safe to call.
-         * @todo This does not take into account nMaxToDecode nor the buffer size!
-         * @todo Use memcpy? Would have to do m_distanceToLastMarkerByte += m_uncompressedSize and calculate CRC32.
+         * Therefore, this routine is safe to call in respect of "buffer overflows" before returning the view to
+         * the buffer.
+         * @note This does not take into account nMaxToDecode to avoid further state to keep track off.
+         * Timings for different buffer sizes in MB/s for 2GiB-random.gz:
+         * @verbatim
+         *    8 B : 398.55  411.779 409.841
+         *   16 B : 386.543 385.621 385.567
+         *   32 B : 412.783 407.354 402.352 402.129
+         *   64 B : 397.71  412.952 413.265 416.339
+         *  128 B : 379.629 380.691 387.439 377.22
+         *  256 B : 380.17  389.722 387.635 405.699
+         *  512 B : 382.466 379.642 390.317 381.801
+         * 1024 B : 384.92  386.544 381.748 388.71
+         * 2048 B : 378.362 394.002 391.357 389.728
+         * 4096 B : 380.87  379.09  386.711 395.955
+         * @endverbatim
          */
-        for ( uint16_t i = 0; i < m_uncompressedSize; ++i ) {
-            const auto literal = bitReader.read<BYTE_SIZE>();
-            appendToWindow( window, literal );
+        uint32_t totalBytesRead{ 0 };
+        std::array<uint8_t, 64> buffer;
+        for ( ; totalBytesRead + buffer.size() <= m_uncompressedSize; totalBytesRead += buffer.size() ) {
+            const auto nBytesRead = bitReader.read( reinterpret_cast<char*>( buffer.data() ), buffer.size() );
+            for ( size_t i = 0; i < nBytesRead; ++i ) {
+                appendToWindow( window, buffer[i] );
+            }
+        }
+        for ( ; totalBytesRead < m_uncompressedSize; ++totalBytesRead ) {
+            appendToWindow( window, static_cast<uint8_t>( bitReader.read<BYTE_SIZE>() ) );
         }
         m_atEndOfBlock = true;
         m_decodedBytes += m_uncompressedSize;
@@ -875,18 +1145,26 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readInternalCompressed( BitReader&   
         auto code = *decoded;
 
         if ( code <= 255 ) {
+            if constexpr ( ENABLE_STATISTICS ) {
+                symbolTypes.literal++;
+            }
+
             appendToWindow( window, code );
             ++nBytesRead;
             continue;
         }
 
-        if ( code == 256 ) {
+        if ( UNLIKELY( code == 256 ) ) [[unlikely]] {
             m_atEndOfBlock = true;
             break;
         }
 
-        if ( code > 285 ) {
+        if ( UNLIKELY( code > 285 ) ) [[unlikely]] {
             return { nBytesRead, Error::INVALID_HUFFMAN_CODE };
+        }
+
+        if constexpr ( ENABLE_STATISTICS ) {
+            symbolTypes.backreference++;
         }
 
         const auto length = getLength( code, bitReader );

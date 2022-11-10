@@ -41,6 +41,15 @@ public:
         using other = AlignedAllocator<OtherElementType, ALIGNMENT_IN_BYTES>;
     };
 
+public:
+    constexpr AlignedAllocator() noexcept = default;
+
+    constexpr AlignedAllocator( const AlignedAllocator& ) noexcept = default;
+
+    template<typename U>
+    constexpr AlignedAllocator( AlignedAllocator<U, ALIGNMENT_IN_BYTES> const& ) noexcept
+    {}
+
     [[nodiscard]] constexpr ElementType*
     allocate( std::size_t nElementsToAllocate )
     {
@@ -54,7 +63,7 @@ public:
 
     constexpr void
     deallocate( ElementType*                 allocatedPointer,
-                [[maybe_unused]] std::size_t nBytesAllocated )
+                [[maybe_unused]] std::size_t nElementsAllocated )
     {
         /* According to the C++20 draft n4868 § 17.6.3.3, the delete operator
          * must be called with the same alignment argument as the new expression.

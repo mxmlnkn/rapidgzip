@@ -1,5 +1,6 @@
 #include "bzip2.hpp"
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdlib>
@@ -7,9 +8,12 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <stdexcept>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include <BitStringFinder.hpp>
 #include <filereader/BufferView.hpp>
@@ -66,16 +70,16 @@ findBitString( const char* buffer,
     const auto minBytesForSearchString = ( (size_t)bitStringSize + 8U - 1U ) / 8U;
     uint64_t bytes = 0;
     for ( size_t i = 0; i < std::min( minBytesForSearchString, bufferSize ); ++i ) {
-        bytes = ( bytes << 8 ) | static_cast<uint8_t>( buffer[i] );
+        bytes = ( bytes << 8U ) | static_cast<uint8_t>( buffer[i] );
     }
 
     assert( bitStringSize == 48 ); /* this allows us to fixedly load always two bytes (16 bits) */
     for ( size_t i = 0; i < bufferSize; ++i ) {
-        bytes = ( bytes << 8 ) | static_cast<uint8_t>( buffer[i] );
+        bytes = ( bytes << 8U ) | static_cast<uint8_t>( buffer[i] );
         if ( ++i >= bufferSize ) {
             break;
         }
-        bytes = ( bytes << 8 ) | static_cast<uint8_t>( buffer[i] );
+        bytes = ( bytes << 8U ) | static_cast<uint8_t>( buffer[i] );
 
         for ( size_t j = 0; j < shiftedBitStrings.size(); ++j ) {
             if ( ( bytes & shiftedBitMasks[j] ) == shiftedBitStrings[j] ) {
@@ -790,7 +794,7 @@ findBitStringsParallel( const std::vector<char>& data )
     const auto parallelization = std::thread::hardware_concurrency();
     ParallelBitStringFinder<bitStringToFindSize> bitStringFinder(
         std::make_unique<BufferViewFileReader>( data ),
-        bitStringToFind, parallelization, 0, parallelization * 1024ULL * 1024ULL
+        bitStringToFind, parallelization, 0, parallelization * 1_Mi
     );
     while( true )  {
         matches.push_back( bitStringFinder.find() );
@@ -937,7 +941,7 @@ main( int    argc,
     } else {
         std::cerr << "Using a random buffer for testing. Because this will rarely result in positives, "
                   << "the correctness of the bit string find algorithms should already have been verified!\n";
-        data.resize( 256ULL * 1024ULL * 1024ULL );
+        data.resize( 256_Mi );
         for ( size_t i = 0; i + 3 < data.size(); i += 4 ) {
             const auto randomNumber = static_cast<uint32_t>( rand() );
             data[i + 0] = static_cast<char>( ( randomNumber >>  0U ) & 0xFFU );

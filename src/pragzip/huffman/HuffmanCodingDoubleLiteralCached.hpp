@@ -24,7 +24,6 @@ public:
     using BaseType = HuffmanCodingReversedCodesPerLength<HuffmanCode, MAX_CODE_LENGTH, Symbol, MAX_SYMBOL_COUNT>;
     using BitCount = typename BaseType::BitCount;
 
-    static constexpr auto CACHED_BIT_COUNT = MAX_CODE_LENGTH;
     /* Either ceil(log2(MAX_SYMBOL_COUNT)) or std::numeric_limits<Symbol>::digits - ceil(log2(MAX_CODE_LENGTH)),
      * but the ceil o log2 composition is hard to calculate at compile-time.
      * floor o log2 would be position of first non-zero bit. */
@@ -46,6 +45,33 @@ public:
         }
 
 #if 1
+        /**
+         * Size and decompressed base64 bandwidths:
+         * @verbatim
+         * 2 * minCodeLength     : 220.2 <= 220.6 +- 0.7 <= 221.4
+         * 2 * minCodeLength + 1 : 252.5 <= 254.3 +- 1.7 <= 256
+         * 2 * minCodeLength + 2 : 221.15 <= 221.18 +- 0.05 <= 221.24
+         * @endverbatim
+         * Urgh, it is difficult to find a stable formula for the optimal double cache size :/.
+         * I might need the expected deflate block size as well as take into account the whole code length statistics
+         * holistically.
+         * E.g., 2 * m_minCodeLength allows for 2 min code length values to be cached.
+         * 2 * m_minCodeLength + 1 allows the above **and** combinations of the next most frequent with the most-
+         * frequent, which should still be pretty common.
+         * 2 * m_minCodeLength + 2 probably has a bad performance because the accounted cases become increasingly
+         * rare, e.g., it inclues the case of two less common symbols, which are expected exponentially less than
+         * a single one.
+         * Furthermore, this optimum might change and maybe even become more stable, when implementing two-staged
+         * lookup.
+         * For 2 * minCodeLength + 1:
+         *     readDynamicHuffmanCoding : 0.000170131 s (15.3217 %)
+         *     readData                 : 0.00094026 s (84.6783 %)
+         * minCodeLength is almost always 6 for base64 data in my tests but maxCodeLength can go up to 9.
+         */
+        m_cachedBitCount = std::min<uint32_t>( std::max<uint32_t>( this->m_maxCodeLength,
+                                                                   2 * this->m_minCodeLength + 1 ),
+                                               MAX_CODE_LENGTH );
+
         /* Measuring the time here instead of before the if above, leads to a 40% performance penalty!!??
          * I.e., measuring more code, yields faster times than measuring only a part of the whole...
          * Modern complex processors and compiler optimizations are fun. */
@@ -71,9 +97,8 @@ public:
 
             /* Do not greedily decode two symbols at once if the first symbol is a special deflate LZ77 symbol,
              * which will consume some of the next bits! */
-            assert( length <= CACHED_BIT_COUNT );
-            if ( ( length + this->m_minCodeLength > CACHED_BIT_COUNT ) || ( symbol >= 256 ) ) {
-                const auto fillerBitCount = CACHED_BIT_COUNT - length;
+            if ( ( length + this->m_minCodeLength > m_cachedBitCount ) || ( symbol >= 256 ) ) {
+                const auto fillerBitCount = m_cachedBitCount - length;
                 const auto symbolAndLength = static_cast<Symbol>( symbol | ( static_cast<Symbol>( length ) << LENGTH_SHIFT ) );
 
                 for ( uint32_t fillerBits = 0; fillerBits < ( uint32_t( 1 ) << fillerBitCount ); ++fillerBits ) {
@@ -89,26 +114,24 @@ public:
 
                     /* Store only one symbol if the Huffman code of the second would be truncated because of the
                      * limited bit count for the cache. */
-                    const auto totalLength = length + length2;
-                    if ( totalLength > CACHED_BIT_COUNT ) {
-                        assert( length <= CACHED_BIT_COUNT );
+                    const auto totalLength = static_cast<uint32_t>( length + length2 );
+                    if ( totalLength > m_cachedBitCount ) {
+                        assert( length <= m_cachedBitCount );
                         const auto paddedCode =
                             static_cast<HuffmanCode>( static_cast<HuffmanCode>( reversedCode2 << length ) | reversedCode )
-                            & nLowestBitsSet<HuffmanCode, CACHED_BIT_COUNT>();
+                            & nLowestBitsSet<HuffmanCode>( m_cachedBitCount );
 
                         m_doubleCodeCache[paddedCode * 2] =
                             static_cast<Symbol>( symbol | ( static_cast<Symbol>( length ) << LENGTH_SHIFT ) );
                         //m_doubleCodeCache[paddedCode * 2 + 1] = NONE_SYMBOL;
                     } else {
-                        const auto fillerBitCount = CACHED_BIT_COUNT - totalLength;
+                        const auto fillerBitCount = m_cachedBitCount - totalLength;
                         const auto mergedCode = static_cast<HuffmanCode>( ( reversedCode2 << length ) | reversedCode );
                         const auto symbolAndLength =
                             static_cast<Symbol>( symbol | ( static_cast<Symbol>( totalLength ) << LENGTH_SHIFT ) );
 
                         /* Using SIMD for this loop actually worsens timings. Probably too short or because of the
                          * necessary code rearrangement for the while condition for the required canonical form. */
-                        static_assert( CACHED_BIT_COUNT < sizeof( uint32_t ) * CHAR_BIT,
-                                       "We need a larger data type for correct comparison." );
                         for ( uint32_t fillerBits = 0; fillerBits < ( 1U << fillerBitCount ); ++fillerBits ) {
                             const auto paddedCode = static_cast<HuffmanCode>( fillerBits << totalLength ) | mergedCode;
                             m_doubleCodeCache[paddedCode * 2] = symbolAndLength;
@@ -179,19 +202,14 @@ public:
                         const auto length = this->m_minCodeLength + k;
 
                         /* Reverse bits so that lookup is does not have to reverse. */
-                        HuffmanCode reversedCode;
-                        if constexpr ( sizeof( HuffmanCode ) <= sizeof( reversedBitsLUT16[0] ) ) {
-                            reversedCode = reversedBitsLUT16[code];
-                        } else {
-                            reversedCode = reverseBits( code );
-                        }
-                        reversedCode >>= ( std::numeric_limits<decltype( code )>::digits - length );
+                        const auto reversedCode = reverseBits( code, length );
 
                         assert( ( reversedCode & nLowestBitsSet<decltype( reversedCode )>( length ) ) == reversedCode );
                         assert( ( mergedCode & nLowestBitsSet<decltype( mergedCode )>( mergedCodeLength ) ) == mergedCode );
 
                         /* Add to cache or append further Huffman codes recursively. */
-                        const auto newMergedCode = static_cast<HuffmanCode>( ( reversedCode << mergedCodeLength ) | mergedCode )
+                        const auto newMergedCode = static_cast<HuffmanCode>( ( reversedCode << mergedCodeLength )
+                                                                             | mergedCode )
                                                    & nLowestBitsSet<HuffmanCode, CACHED_BIT_COUNT>();
                         if ( mergedCodeLength + length <= CACHED_BIT_COUNT ) {
                             symbols[symbolSize - 1] = symbol;
@@ -248,7 +266,7 @@ public:
 
         try
         {
-            const auto value = bitReader.peek<CACHED_BIT_COUNT>();
+            const auto value = bitReader.peek( m_cachedBitCount );
 
             assert( value < m_doubleCodeCache.size() / 2 );
             /* Casting value to int improves speed ~2% probably because of the relaxed bound-checking because
@@ -256,7 +274,7 @@ public:
              * the compiler). */
             auto symbol1 = m_doubleCodeCache[(int)value * 2];
             m_nextSymbol = m_doubleCodeCache[(int)value * 2 + 1];
-            assert( ( symbol1 >> LENGTH_SHIFT ) <= CACHED_BIT_COUNT );
+            assert( static_cast<uint32_t>( symbol1 >> LENGTH_SHIFT ) <= m_cachedBitCount );
             bitReader.seekAfterPeek( symbol1 >> LENGTH_SHIFT );
             symbol1 &= nLowestBitsSet<Symbol, LENGTH_SHIFT>();
 
@@ -269,12 +287,13 @@ public:
     }
 
 private:
+    uint32_t m_cachedBitCount{ 0 };
     mutable Symbol m_nextSymbol = NONE_SYMBOL;
     /* note that Symbol is uint16_t but MAX_SYMBOL_COUNT = 512 only requires 9 bits, i.e., we have 7 unused bits,
      * which can be used to store the code length, which only requires ceil(log2(15)) = 4 bits, or 5 bits if we want
      * to store the code length sum for both symbols in only one of the symbols.
      * Using std::array<std::array<Symbol, 2>, ( 1UL << CACHED_BIT_COUNT )> instead of a one-dimensional array
      * with the same size reduces speed for base64.gz by 10%! */
-    alignas( 8 ) std::array<Symbol, 2 * ( 1UL << CACHED_BIT_COUNT )> m_doubleCodeCache{};
+    alignas( 8 ) std::array<Symbol, 2 * ( 1UL << MAX_CODE_LENGTH )> m_doubleCodeCache{};
 };
 }  // namespace pragzip

@@ -188,10 +188,10 @@ public:
         }
 
         if ( origin == SEEK_SET ) {
-            m_currentPosition = offset;
+            m_currentPosition = static_cast<size_t>( std::max( 0LL, offset ) );
         } else {
             /* Note that the file must be seekable at this point, meaning std::ftell will work! */
-            m_currentPosition = std::ftell( m_file.get() );
+            m_currentPosition = filePosition( m_file.get() );
         }
 
         return m_currentPosition;
@@ -207,7 +207,7 @@ public:
     tell() const override
     {
         if ( m_seekable ) {
-            return std::ftell( fp() );
+            return filePosition( fp() );
         }
         return m_currentPosition;
     }

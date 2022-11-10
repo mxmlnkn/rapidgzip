@@ -15,9 +15,12 @@ int gnTests = 0;  // NOLINT
 int gnTestErrors = 0;  // NOLINT
 
 
-template<typename T>
+template<typename A,
+         typename B>
 void
-requireEqual( const T& a, const T& b, int line )
+requireEqual( const A&  a,
+              const B&  b,
+              const int line )
 {
     ++gnTests;
     if ( a != b ) {

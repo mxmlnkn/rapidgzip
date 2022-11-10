@@ -128,9 +128,9 @@ readHeader( BitReader& bitReader )
             return { result, Error::NONE };
         };
 
-    if ( ( flags & ( 1U << 2 ) ) != 0 ) {
+    if ( ( flags & ( 1U << 2U ) ) != 0 ) {
         const auto length = bitReader.read<16>();
-        std::vector<uint8_t> extraData( length );
+        std::vector<uint8_t> extraData( static_cast<size_t>( length ) );
         for ( auto& extraByte : extraData ) {
             extraByte = static_cast<uint8_t>( bitReader.read<BYTE_SIZE>() );
         }
@@ -139,21 +139,21 @@ readHeader( BitReader& bitReader )
 
     Error error = Error::NONE;
 
-    if ( ( flags & ( 1U << 3 ) ) != 0 ) {
+    if ( ( flags & ( 1U << 3U ) ) != 0 ) {
         std::tie( header.fileName, error ) = readZeroTerminatedString();
         if ( error != Error::NONE ) {
             return { header, error };
         }
     }
 
-    if ( ( flags & ( 1U << 4 ) ) != 0 ) {
+    if ( ( flags & ( 1U << 4U ) ) != 0 ) {
         std::tie( header.comment, error ) = readZeroTerminatedString();
         if ( error != Error::NONE ) {
             return { header, error };
         }
     }
 
-    if ( ( flags & ( 1U << 1 ) ) != 0 ) {
+    if ( ( flags & ( 1U << 1U ) ) != 0 ) {
         header.crc16 = bitReader.read<16>();
     }
 
@@ -190,28 +190,28 @@ checkHeader( BitReader& bitReader )
             return Error::NONE;
         };
 
-    if ( ( flags & ( 1U << 2 ) ) != 0 ) {
+    if ( ( flags & ( 1U << 2U ) ) != 0 ) {
         const auto length = bitReader.read<16>();
         bitReader.seek( length * BYTE_SIZE, SEEK_CUR );
     }
 
     Error error = Error::NONE;
 
-    if ( ( flags & ( 1U << 3 ) ) != 0 ) {
+    if ( ( flags & ( 1U << 3U ) ) != 0 ) {
         error = skipZeroTerminatedString();
         if ( error != Error::NONE ) {
             return error;
         }
     }
 
-    if ( ( flags & ( 1U << 4 ) ) != 0 ) {
+    if ( ( flags & ( 1U << 4U ) ) != 0 ) {
         error = skipZeroTerminatedString();
         if ( error != Error::NONE ) {
             return error;
         }
     }
 
-    if ( ( flags & ( 1U << 1 ) ) != 0 ) {
+    if ( ( flags & ( 1U << 1U ) ) != 0 ) {
         bitReader.read<16>();  // CRC16
     }
 

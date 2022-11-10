@@ -13,6 +13,17 @@
 
 namespace pragzip
 {
+/**
+ * This version uses a large lookup table (LUT) to avoid loops over the BitReader to speed things up a lot.
+ * The problem is that the LUT creation can take a while depending on the code lengths.
+ * - During initialization, it creates a LUT. The index of that array are a fixed number of bits read from BitReader.
+ *   To simplify things, the fixed bits must be larger or equal than the maximum code length.
+ *   To fill the LUT, the higher bits the actual codes with shorter lengths are filled with all possible values
+ *   and the LUT table result is duplicated for all those values. This process is slow.
+ * - During decoding, it reads MAX_CODE_LENGTH bits from the BitReader and uses that value to access the LUT,
+ *   which contains the symbol and the actual code length, which is <= MAX_CODE_LENGTH. The BitReader will be seeked
+ *   by the actual code length.
+ */
 template<typename HuffmanCode,
          uint8_t  MAX_CODE_LENGTH,
          typename Symbol,
@@ -24,8 +35,6 @@ public:
     using BaseType = HuffmanCodingSymbolsPerLength<HuffmanCode, MAX_CODE_LENGTH, Symbol, MAX_SYMBOL_COUNT>;
     using BitCount = typename BaseType::BitCount;
     using CodeLengthFrequencies = typename BaseType::CodeLengthFrequencies;
-
-    static constexpr auto CACHED_BIT_COUNT = MAX_CODE_LENGTH;
 
 public:
     [[nodiscard]] constexpr Error
@@ -60,21 +69,14 @@ public:
 
             const auto k = length - this->m_minCodeLength;
             const auto code = codeValues[k]++;
+            const auto reversedCode = reverseBits( code, length );
 
-            HuffmanCode reversedCode{ 0 };
-            if constexpr ( sizeof( HuffmanCode ) <= sizeof( reversedBitsLUT16[0] ) ) {
-                reversedCode = reversedBitsLUT16[code];
-            } else {
-                reversedCode = reverseBits( code );
-            }
-            reversedCode >>= ( std::numeric_limits<decltype( code )>::digits - length );
-
-            static_assert( CACHED_BIT_COUNT < sizeof( uint32_t ) * CHAR_BIT,
-                           "We need a larger data type for correct comparison." );
-            const auto fillerBitCount = CACHED_BIT_COUNT - length;
-            for ( uint32_t fillerBits = 0; fillerBits < ( uint32_t( 1 ) << fillerBitCount ); ++fillerBits ) {
-                const auto paddedCode = static_cast<HuffmanCode>( ( fillerBits << length ) | reversedCode );
-                assert( paddedCode < m_codeCache.size() );
+            const auto fillerBitCount = this->m_maxCodeLength - length;
+            const auto maximumPaddedCode = static_cast<HuffmanCode>(
+                reversedCode | ( nLowestBitsSet<HuffmanCode>( fillerBitCount ) << length ) );
+            assert( maximumPaddedCode < m_codeCache.size() );
+            const auto increment = static_cast<HuffmanCode>( HuffmanCode( 1 ) << length );
+            for ( auto paddedCode = reversedCode; paddedCode <= maximumPaddedCode; paddedCode += increment ) {
                 m_codeCache[paddedCode].first = length;
                 m_codeCache[paddedCode].second = static_cast<Symbol>( symbol );
             }
@@ -90,18 +92,18 @@ public:
     decode( BitReader& bitReader ) const
     {
         try {
-            const auto value = bitReader.peek<CACHED_BIT_COUNT>();
+            const auto value = bitReader.peek( this->m_maxCodeLength );
 
             assert( value < m_codeCache.size() );
             const auto [length, symbol] = m_codeCache[(int)value];
 
-            /* Unfortunately, read is much faster than a simple seek forward,
-             * probably because of inlining and extraneous checks. For some reason read seems even faster than
-             * the newly introduced and trimmed down seekAfterPeek ... */
-            bitReader.read( length );
             if ( length == 0 ) {
-                throw std::logic_error( "Invalid Huffman code encountered!" );
+                /* This might happen for non-optimal Huffman trees out of which all except the case of a single
+                 * symbol with bit length 1 are forbidden! */
+                return std::nullopt;
             }
+
+            bitReader.seekAfterPeek( length );
             return symbol;
         } catch ( const BitReader::EndOfFileReached& ) {
             /* Should only happen at the end of the file and probably not even there
@@ -111,6 +113,6 @@ public:
     }
 
 private:
-    alignas( 8 ) std::array<std::pair</* length */ uint8_t, Symbol>, ( 1UL << CACHED_BIT_COUNT )> m_codeCache{};
+    alignas( 8 ) std::array<std::pair</* length */ uint8_t, Symbol>, ( 1UL << MAX_CODE_LENGTH )> m_codeCache{};
 };
 }  // namespace pragzip

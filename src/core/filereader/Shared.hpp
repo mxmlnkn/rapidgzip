@@ -1,11 +1,16 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
 #include <iostream>
 #include <memory>
 #include <mutex>
 #include <stdexcept>
 #include <utility>
+
+#ifndef _MSC_VER
+    #include <unistd.h>
+#endif
 
 #include <common.hpp>
 #include <Statistics.hpp>
@@ -37,6 +42,12 @@ public:
         if ( file == nullptr ) {
             throw std::invalid_argument( "File reader may not be null!" );
         }
+
+    #ifndef _MSC_VER
+        if ( auto* const sharedFile = dynamic_cast<StandardFileReader*>( file ); sharedFile != nullptr ) {
+            m_fileDescriptor = file->fileno();
+        }
+    #endif
 
         /* Fall back to a clone-like copy of all members if the source is also a SharedFileReader.
          * Most of the members are already copied inside the member initializer list. */
@@ -78,6 +89,7 @@ public:
                     << " ) B (" << m_statistics->seekForward.count << "calls)\n"
                     << "   reads         : (" << m_statistics->read.formatAverageWithUncertainty( true )
                     << " ) B (" << m_statistics->read.count << "calls)\n"
+                    << "   locks         :" << m_statistics->locks << "\n"
                     << "   read in total" << m_statistics->read.sum << "B out of" << m_fileSizeBytes << "B,"
                     << "i.e., read the file" << m_statistics->read.sum / m_fileSizeBytes << "times\n"
                     << "   time spent seeking and reading:" << m_statistics->readingTime << "s\n"
@@ -102,6 +114,7 @@ private:
     SharedFileReader( const SharedFileReader& other ) :
         m_statistics( other.m_statistics ),
         m_sharedFile( other.m_sharedFile ),
+        m_fileDescriptor( other.m_fileDescriptor ),
         m_mutex( other.m_mutex ),
         m_fileSizeBytes( other.m_fileSizeBytes ),
         m_currentPosition( other.m_currentPosition )
@@ -114,14 +127,14 @@ public:
         /* This is a shared file. Closing the underlying file while it might be used by another process,
          * seems like a bug-prone functionality. If you really want to close a file, delete all SharedFileReader
          * classes using it. It will be closed by the last destructor @see deleter set in the constructor. */
-        std::scoped_lock lock( *m_mutex );
+        const auto lock = getLock();
         m_sharedFile.reset();
     }
 
     [[nodiscard]] bool
     closed() const override
     {
-        std::scoped_lock lock( *m_mutex );
+        const auto lock = getLock();
         return !m_sharedFile || m_sharedFile->closed();
     }
 
@@ -135,14 +148,18 @@ public:
     [[nodiscard]] bool
     fail() const override
     {
-        std::scoped_lock lock( *m_mutex );
+        const auto lock = getLock();
         return !m_sharedFile || m_sharedFile->fail();
     }
 
     [[nodiscard]] int
     fileno() const override
     {
-        std::scoped_lock lock( *m_mutex );
+        if ( m_fileDescriptor >= 0 ) {
+            return m_fileDescriptor;
+        }
+
+        const auto lock = getLock();
         if ( m_sharedFile ) {
             return m_sharedFile->fileno();
         }
@@ -165,12 +182,6 @@ public:
     seek( long long int offset,
           int           origin = SEEK_SET ) override
     {
-        std::scoped_lock lock( *m_mutex );
-
-        if ( !m_sharedFile || m_sharedFile->closed() ) {
-            throw std::invalid_argument( "Invalid or closed SharedFileReader can't be seeked!" );
-        }
-
         switch ( origin )
         {
         case SEEK_CUR:
@@ -199,32 +210,45 @@ public:
             return 0;
         }
 
-        std::scoped_lock lock( *m_mutex );
-
-        const auto t0 = now();
-
-        if ( !m_sharedFile || m_sharedFile->closed() ) {
-            throw std::invalid_argument( "Invalid or closed SharedFileReader can't be read from!" );
+        if ( !m_sharedFile ) {
+            throw std::invalid_argument( "Invalid SharedFileReader cannot be read from!" );
         }
 
         nMaxBytesToRead = std::min( nMaxBytesToRead, m_fileSizeBytes - m_currentPosition );
 
-        /* Seeking alone does not clear the EOF nor fail bit if the last read did set it. */
-        m_sharedFile->clearerr();
-
-        if constexpr ( SHOW_PROFILE ) {
-            const auto oldOffset = m_sharedFile->tell();
-            if ( m_currentPosition > oldOffset ) {
-                m_statistics->seekForward.merge( m_currentPosition - oldOffset );
-            } else if ( m_currentPosition < oldOffset ) {
-                m_statistics->seekBack.merge( oldOffset - m_currentPosition );
+        const auto t0 = now();
+        size_t nBytesRead{ 0 };
+    #ifndef _MSC_VER
+        if ( m_fileDescriptor >= 0 ) {
+            const auto nBytesReadWithPread = ::pread( m_sharedFile->fileno(), buffer, nMaxBytesToRead,
+                                                      m_currentPosition );
+            if ( nBytesReadWithPread < 0 ) {
+                throw std::runtime_error( "Failed to read from file!" );
             }
+            nBytesRead = static_cast<size_t>( nBytesReadWithPread );
+        } else
+    #endif
+        {
+            const auto fileLock = getLock();
+
+            if constexpr ( SHOW_PROFILE ) {
+                const std::scoped_lock lock{ m_statistics->mutex };
+                const auto oldOffset = m_sharedFile->tell();
+                if ( m_currentPosition > oldOffset ) {
+                    m_statistics->seekForward.merge( m_currentPosition - oldOffset );
+                } else if ( m_currentPosition < oldOffset ) {
+                    m_statistics->seekBack.merge( oldOffset - m_currentPosition );
+                }
+            }
+
+            /* Seeking alone does not clear the EOF nor fail bit if the last read did set it. */
+            m_sharedFile->clearerr();
+            m_sharedFile->seek( m_currentPosition, SEEK_SET );
+            nBytesRead = m_sharedFile->read( buffer, nMaxBytesToRead );
         }
 
-        m_sharedFile->seek( m_currentPosition, SEEK_SET );
-        const auto nBytesRead = m_sharedFile->read( buffer, nMaxBytesToRead );
-
         if constexpr ( SHOW_PROFILE ) {
+            const std::scoped_lock lock{ m_statistics->mutex };
             m_statistics->read.merge( nBytesRead );
             m_statistics->readingTime += duration( t0 );
         }
@@ -248,17 +272,30 @@ public:
     }
 
 private:
+    [[nodiscard]] std::scoped_lock<std::mutex>
+    getLock() const
+    {
+        if constexpr ( SHOW_PROFILE ) {
+            ++m_statistics->locks;
+        }
+        return std::scoped_lock( *m_mutex );
+    }
+
+private:
     struct AccessStatistics {
         Statistics<uint64_t> read;
         Statistics<uint64_t> seekBack;
         Statistics<uint64_t> seekForward;
         double readingTime{ 0 };
+        std::atomic<uint64_t> locks{ 0 };
+        std::mutex mutex{};
     };
 
 private:
     std::shared_ptr<AccessStatistics> m_statistics;
 
     std::shared_ptr<FileReader> m_sharedFile;
+    int m_fileDescriptor{ -1 };
     const std::shared_ptr<std::mutex> m_mutex;
 
     /** This is only for performance to avoid querying the file. */

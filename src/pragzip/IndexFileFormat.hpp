@@ -138,12 +138,12 @@ readGzipIndex( std::unique_ptr<FileReader> file )
     loadValue( index.checkpointSpacing );
     loadValue( index.windowSizeInBytes );
 
-    /* However, a window size larger than 32*1024 makes no sense bacause the Lempel-Ziv back-references
-     * in the deflate format are limited to 32*1024! Smaller values might, however, be enforced by especially
+    /* However, a window size larger than 32 KiB makes no sense bacause the Lempel-Ziv back-references
+     * in the deflate format are limited to 32 KiB! Smaller values might, however, be enforced by especially
      * memory-constrained encoders.
-     * This basically means that we either check for this to be exactly 32*1024 or we simply throw away all
-     * other data and only load the last 32*1024 of the window buffer. */
-    if ( index.windowSizeInBytes != 32 * 1024 ) {
+     * This basically means that we either check for this to be exactly 32 KiB or we simply throw away all
+     * other data and only load the last 32 KiB of the window buffer. */
+    if ( index.windowSizeInBytes != 32_Ki ) {
         throw std::invalid_argument( "Only a window size of 32 KiB makes sense because indexed_gzip supports "
                                      "no smaller ones and gzip does supprt any larger one." );
     }
@@ -204,7 +204,7 @@ writeGzipIndex( const GzipIndex&                                              in
     const auto writeValue = [&checkedWrite] ( auto value ) { checkedWrite( &value, sizeof( value ) ); };
 
     const auto& checkpoints = index.checkpoints;
-    const uint32_t windowSizeInBytes = 32 * 1024;
+    const uint32_t windowSizeInBytes = static_cast<uint32_t>( 32_Ki );
 
     if ( !std::all_of( checkpoints.begin(), checkpoints.end(), [windowSizeInBytes] ( const auto& checkpoint ) {
         return checkpoint.window.empty() || ( checkpoint.window.size() >= windowSizeInBytes ); } ) )

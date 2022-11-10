@@ -29,13 +29,16 @@
  */
 template<typename T_BlockFinder,
          typename T_BlockData,
-         typename FetchingStrategy>
+         typename FetchingStrategy,
+         bool     ENABLE_STATISTICS = false>
 class BlockFetcher
 {
 public:
     using BlockFinder = T_BlockFinder;
     using BlockData = T_BlockData;
     using BlockCache = Cache</** block offset in bits */ size_t, std::shared_ptr<BlockData> >;
+
+    using GetPartitionOffset = std::function<size_t( size_t )>;
 
     struct Statistics
     {
@@ -63,17 +66,28 @@ public:
             std::stringstream existingBlocks;
             existingBlocks << ( blockCountFinalized ? "" : ">=" ) << blockCount;
 
+            const auto decodeDuration = decodeBlockStartTime && decodeBlockEndTime
+                                        ? duration( *decodeBlockStartTime, *decodeBlockEndTime )
+                                        : 0.0;
+            const auto optimalDecodeDuration = decodeBlockTotalTime / parallelization;
+            /* The pool efficiency only makes sense when the thread pool is smaller or equal the CPU cores. */
+            const auto poolEfficiency = optimalDecodeDuration / decodeDuration;
+
             std::stringstream out;
             out << "\n   Parallelization                   : " << parallelization
                 << "\n   Cache"
                 << "\n       Hits                          : " << cache.hits
                 << "\n       Misses                        : " << cache.misses
                 << "\n       Unused Entries                : " << cache.unusedEntries
+                << "\n       Maximum Fill Size             : " << cache.maxSize
+                << "\n       Capacity                      : " << cache.capacity
                 << "\n   Prefetch Cache"
                 << "\n       Hits                          : " << prefetchCache.hits
                 << "\n       Misses                        : " << prefetchCache.misses
                 << "\n       Unused Entries                : " << prefetchCache.unusedEntries
                 << "\n       Prefetch Queue Hit            : " << prefetchDirectHits
+                << "\n       Maximum Fill Size             : " << prefetchCache.maxSize
+                << "\n       Capacity                      : " << prefetchCache.capacity
                 << "\n   Cache Hit Rate                    : " << cacheHitRate() * 100 << " %"
                 << "\n   Useless Prefetches                : " << uselessPrefetches() * 100 << " %"
                 << "\n   Access Patterns"
@@ -89,10 +103,14 @@ public:
                 << "\n       Fetched On-demand             : " << onDemandFetchCount
                 << "\n   Prefetch Stall by BlockFinder     : " << waitOnBlockFinderCount
                 << "\n   Time spent in:"
-                << "\n       bzip2::readBlockData          : " << readBlockDataTotalTime << "s"
-                << "\n       decodeBlock                   : " << decodeBlockTotalTime   << "s"
-                << "\n       std::future::get              : " << futureWaitTotalTime    << "s"
-                << "\n       get                           : " << getTotalTime           << "s";
+                << "\n       bzip2::readBlockData          : " << readBlockDataTotalTime << " s"
+                << "\n       decodeBlock                   : " << decodeBlockTotalTime   << " s"
+                << "\n       std::future::get              : " << futureWaitTotalTime    << " s"
+                << "\n       get                           : " << getTotalTime           << " s"
+                << "\n   Thread Pool Utilization:"
+                << "\n       Total Real Decode Duration    : " << decodeDuration << " s"
+                << "\n       Theoretical Optimal Duration  : " << optimalDecodeDuration << " s"
+                << "\n       Pool Efficiency (Fill Factor) : " << poolEfficiency * 100 << " %";
             return out.str();
         }
 
@@ -138,6 +156,9 @@ public:
         size_t prefetchDirectHits{ 0 };
         size_t waitOnBlockFinderCount{ 0 };
 
+        std::optional<std::decay_t<decltype( now() )> > decodeBlockStartTime;
+        std::optional<std::decay_t<decltype( now() )> > decodeBlockEndTime;
+
         double decodeBlockTotalTime{ 0 };
         double futureWaitTotalTime{ 0 };
         double getTotalTime{ 0 };
@@ -161,6 +182,10 @@ protected:
         if ( !m_blockFinder ) {
             throw std::invalid_argument( "BlockFinder must be valid!" );
         }
+
+        if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+            m_statistics.parallelization = m_parallelization;
+        }
     }
 
 public:
@@ -168,94 +193,92 @@ public:
     ~BlockFetcher()
     {
         if constexpr ( SHOW_PROFILE ) {
+            /* Clear caches while updating the unused entries statistic. */
+            m_cache.shrinkTo( 0 );
+            m_prefetchCache.shrinkTo( 0 );
             std::cerr << ( ThreadSafeOutput() << "[BlockFetcher::~BlockFetcher]" << statistics().print() );
         }
     }
 
     /**
      * Fetches, prefetches, caches, and returns result.
+     * @param dataBlockIndex Only used to determine which block indexes to prefetch. If not specified, will
+     *        query BlockFinder for the block offset. This started as a performance optimization, to avoid
+     *        unnecessary BlockFinder lookups but when looking up the partition offset, it might be necessary
+     *        or else the BlockFinder::find call might throw because it can't find the given offset.
+     * @param getPartitionOffsetFromOffset Returns the partition offset to a given blockOffset. This is used to look up
+     *        existence of blocks in the cache to avoid duplicate prefetches (one for the partition offset
+     *        and another one for the real offset).
      * @return BlockData to requested blockOffset. Undefined what happens for an invalid blockOffset as input.
      */
     [[nodiscard]] std::shared_ptr<BlockData>
-    get( size_t                blockOffset,
-         std::optional<size_t> dataBlockIndex = {},
-         bool                  onlyCheckCaches = false )
+    get( const size_t                blockOffset,
+         const std::optional<size_t> dataBlockIndex = std::nullopt,
+         const bool                  onlyCheckCaches = false,
+         const GetPartitionOffset&   getPartitionOffsetFromOffset = {} )
     {
         [[maybe_unused]] const auto tGetStart = now();
 
-        /* In case of a late prefetch, this might return an unfinished future. */
-        auto resultFuture = takeFromPrefetchQueue( blockOffset );
-
-        /* Access cache before data might get evicted!
-         * Access cache after prefetch queue to avoid incrementing the cache misses counter.*/
-        std::optional<std::shared_ptr<BlockData> > result;
-        if ( !resultFuture.valid() ) {
-            result = m_cache.get( blockOffset );
-            if ( !result ) {
-                /* On prefetch cache hit, move the value into the normal cache. */
-                result = m_prefetchCache.get( blockOffset );
-                if ( result ) {
-                    m_prefetchCache.evict( blockOffset );
-                    m_cache.insert( blockOffset, *result );
-                }
-            }
-        }
+        /* Not using capture bindings here because C++ is too dumb to capture those, yet.
+         * @see https://stackoverflow.com/a/46115028/2191065 */
+        auto resultFromCaches = getFromCaches( blockOffset );
+        auto& cachedResult = resultFromCaches.first;
+        auto& queuedResult = resultFromCaches.second;
 
         const auto validDataBlockIndex = dataBlockIndex ? *dataBlockIndex : m_blockFinder->find( blockOffset );
         const auto nextBlockOffset = m_blockFinder->get( validDataBlockIndex + 1 );
 
-        if constexpr ( SHOW_PROFILE ) {
+        if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
             m_statistics.recordBlockIndexGet( validDataBlockIndex );
         }
 
         /* Start requested calculation if necessary. */
-        if ( !result && !resultFuture.valid() ) {
+        if ( !cachedResult.has_value() && !queuedResult.valid() ) {
             if ( onlyCheckCaches ) {
                 return {};
             }
-
-            ++m_statistics.onDemandFetchCount;
-            resultFuture = m_threadPool.submitTask( [this, blockOffset, nextBlockOffset] () {
-                return decodeAndMeasureBlock(
-                    blockOffset, nextBlockOffset ? *nextBlockOffset : std::numeric_limits<size_t>::max() );
-            } );
-            assert( resultFuture.valid() );
+            queuedResult = submitOnDemandTask( blockOffset, nextBlockOffset );
         }
 
-        prefetchNewBlocks(
-            validDataBlockIndex,
-            [&] () {
+        m_fetchingStrategy.fetch( validDataBlockIndex );
+
+        const auto resultIsReady =
+            [&cachedResult, &queuedResult] () {
                 using namespace std::chrono_literals;
-                return result.has_value() ||
-                       ( resultFuture.valid() && ( resultFuture.wait_for( 0s ) == std::future_status::ready ) );
-            }
-        );
+                return cachedResult.has_value() ||
+                       ( queuedResult.valid() && ( queuedResult.wait_for( 0s ) == std::future_status::ready ) );
+            };
+
+        prefetchNewBlocks( getPartitionOffsetFromOffset, resultIsReady );
 
         /* Return result */
-        if ( result ) {
-            assert( !resultFuture.valid() );
-
-            if constexpr ( SHOW_PROFILE ) {
+        if ( cachedResult.has_value() ) {
+            assert( !queuedResult.valid() );
+            if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
                 std::scoped_lock lock( m_analyticsMutex );
                 m_statistics.getTotalTime += duration( tGetStart );
             }
-
-            return *result;
+            return *std::move( cachedResult );
         }
 
         [[maybe_unused]] const auto tFutureGetStart = now();
-        result = std::make_shared<BlockData>( resultFuture.get() );
+        using namespace std::chrono_literals;
+        /* At ~4 MiB compressed blocks and ~200 MB/s compressed bandwidth for base64, one block might take ~20ms. */
+        while ( queuedResult.wait_for( 1ms ) == std::future_status::timeout ) {
+            prefetchNewBlocks( getPartitionOffsetFromOffset, resultIsReady );
+        }
+        auto result = std::make_shared<BlockData>( queuedResult.get() );
         [[maybe_unused]] const auto futureGetDuration = duration( tFutureGetStart );
 
-        m_cache.insert( blockOffset, *result );
+        insertIntoCache( blockOffset, result );
 
-        if constexpr ( SHOW_PROFILE ) {
+        if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
             std::scoped_lock lock( m_analyticsMutex );
             m_statistics.futureWaitTotalTime += futureGetDuration;
             m_statistics.getTotalTime += duration( tGetStart );
         }
 
-        return *result;
+        return result;
     }
 
     void
@@ -279,22 +302,67 @@ public:
     }
 
 private:
+    void
+    insertIntoCache( const size_t               blockOffset,
+                     std::shared_ptr<BlockData> blockData )
+    {
+        if ( m_fetchingStrategy.isSequential() ) {
+            m_cache.clear();
+        }
+        m_cache.insert( blockOffset, std::move( blockData ) );
+    }
+
+
+    [[nodiscard]] bool
+    isInCacheOrQueue( const size_t blockOffset ) const
+    {
+        return ( m_prefetching.find( blockOffset ) != m_prefetching.end() )
+               || m_cache.test( blockOffset )
+               || m_prefetchCache.test( blockOffset );
+    }
+
+    /**
+     * @return either a shared_ptr from the caches or a future from the prefetch queue. The prefetch future
+     *         is taken from the queue, i.e., it should not be discarded. Either reinsert it into the queue
+     *         or wait for the result and insert it into a cache.
+     */
+    [[nodiscard]] std::pair<std::optional<std::shared_ptr<BlockData> >, std::future<BlockData> >
+    getFromCaches( const size_t blockOffset )
+    {
+        /* In case of a late prefetch, this might return an unfinished future. */
+        auto resultFuture = takeFromPrefetchQueue( blockOffset );
+
+        /* Access cache before data might get evicted!
+         * Access cache after prefetch queue to avoid incrementing the cache misses counter. */
+        std::optional<std::shared_ptr<BlockData> > result;
+        if ( !resultFuture.valid() ) {
+            result = m_cache.get( blockOffset );
+            if ( !result ) {
+                /* On prefetch cache hit, move the value into the normal cache. */
+                result = m_prefetchCache.get( blockOffset );
+                if ( result ) {
+                    m_prefetchCache.evict( blockOffset );
+                    insertIntoCache( blockOffset, *result );
+                }
+            }
+        }
+
+        return std::make_pair( std::move( result ), std::move( resultFuture ) );
+    }
+
     [[nodiscard]] std::future<BlockData>
     takeFromPrefetchQueue( size_t blockOffset )
     {
         /* Check whether the desired offset is prefetched. */
         std::future<BlockData> resultFuture;
-        const auto match = std::find_if(
-            m_prefetching.begin(), m_prefetching.end(),
-            [blockOffset] ( auto const& kv ) { return kv.first == blockOffset; }
-        );
+        const auto match = m_prefetching.find( blockOffset );
 
         if ( match != m_prefetching.end() ) {
             resultFuture = std::move( match->second );
             m_prefetching.erase( match );
             assert( resultFuture.valid() );
 
-            if constexpr ( SHOW_PROFILE ) {
+            if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
                 ++m_statistics.prefetchDirectHits;
             }
         }
@@ -330,47 +398,61 @@ private:
     /**
      * Fills m_prefetching up with a maximum of m_parallelization-1 new tasks predicted
      * based on the given last accessed block index(es).
-     * @param dataBlockIndex The currently accessed block index as needed to query the prefetcher.
      * @param stopPrefetching The prefetcher might wait a bit on the block finder but when stopPrefetching returns true
      *                        it will stop that and return before having completely filled the prefetch queue.
      */
     void
-    prefetchNewBlocks( size_t                       dataBlockIndex,
+    prefetchNewBlocks( const GetPartitionOffset&    getPartitionOffsetFromOffset,
                        const std::function<bool()>& stopPrefetching )
     {
         /* Make space for new asynchronous prefetches. */
         processReadyPrefetches();
 
-        /* Get blocks to prefetch. In order to avoid oscillating caches, the fetching strategy should ony return
-         * less than the cache size number of blocks. It is fine if that means no work is being done in the background
-         * for some calls to 'get'! */
-        m_fetchingStrategy.fetch( dataBlockIndex );
-        auto blocksToPrefetch = m_fetchingStrategy.prefetch( /* maxAmountToPrefetch */ m_parallelization );
+        const auto threadPoolSaturated =
+            [&] () { return m_prefetching.size() + /* thread with the requested block */ 1 >= m_threadPool.size(); };
+
+        if ( threadPoolSaturated() ) {
+            return;
+        }
+
+        auto blockIndexesToPrefetch = m_fetchingStrategy.prefetch( m_prefetchCache.capacity() );
+
+        std::vector<size_t> blockOffsetsToPrefetch( blockIndexesToPrefetch.size() );
+        for ( auto blockIndexToPrefetch : blockIndexesToPrefetch ) {
+            /* If we don't find the offset in the timeout of 0, then we very likely also don't have it cached yet. */
+            const auto blockOffset = m_blockFinder->get( blockIndexToPrefetch, /* timeout */ 0 );
+            if ( !blockOffset ) {
+                continue;
+            }
+
+            blockOffsetsToPrefetch.emplace_back( *blockOffset );
+            if ( getPartitionOffsetFromOffset ) {
+                const auto partitionOffset = getPartitionOffsetFromOffset( *blockOffset );
+                if ( *blockOffset != partitionOffset ) {
+                    blockOffsetsToPrefetch.emplace_back( partitionOffset );
+                }
+            }
+        }
 
         const auto touchInCacheIfExists =
-            [this] ( size_t blockIndex )
+            [this] ( size_t prefetchBlockOffset )
             {
-                if ( m_prefetchCache.test( blockIndex ) ) {
-                    m_prefetchCache.touch( blockIndex );
+                if ( m_prefetchCache.test( prefetchBlockOffset ) ) {
+                    m_prefetchCache.touch( prefetchBlockOffset );
                 }
-                if ( m_cache.test( blockIndex ) ) {
-                    m_cache.touch( blockIndex );
+                if ( m_cache.test( prefetchBlockOffset ) ) {
+                    m_cache.touch( prefetchBlockOffset );
                 }
             };
 
         /* Touch all blocks to be prefetched to avoid evicting them while doing the prefetching of other blocks! */
-        for ( auto blockIndexToPrefetch : blocksToPrefetch ) {
-            touchInCacheIfExists( blockIndexToPrefetch );
+        for ( auto offset = blockOffsetsToPrefetch.rbegin(); offset != blockOffsetsToPrefetch.rend(); ++offset ) {
+            touchInCacheIfExists( *offset );
         }
 
-        for ( auto blockIndexToPrefetch : blocksToPrefetch ) {
-            if ( m_prefetching.size() + /* thread with the requested block */ 1 >= m_parallelization ) {
+        for ( auto blockIndexToPrefetch : blockIndexesToPrefetch ) {
+            if ( threadPoolSaturated() ) {
                 break;
-            }
-
-            if ( blockIndexToPrefetch == dataBlockIndex ) {
-                throw std::logic_error( "The fetching strategy should not return the "
-                                        "last fetched block for prefetching!" );
             }
 
             if ( m_blockFinder->finalized() && ( blockIndexToPrefetch >= m_blockFinder->size() ) ) {
@@ -393,28 +475,27 @@ private:
             }
             while ( !prefetchBlockOffset && !nextPrefetchBlockOffset && !stopPrefetching() );
 
-            if constexpr ( SHOW_PROFILE ) {
+            if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
                 if ( !prefetchBlockOffset.has_value() ) {
                     m_statistics.waitOnBlockFinderCount++;
                 }
             }
 
-            touchInCacheIfExists( blockIndexToPrefetch );
-
             /* Do not prefetch already cached/prefetched blocks or block indexes which are not yet in the block map. */
             if ( !prefetchBlockOffset.has_value()
                  || !nextPrefetchBlockOffset.has_value()
-                 || ( m_prefetching.find( *prefetchBlockOffset ) != m_prefetching.end() )
-                 || m_cache.test( *prefetchBlockOffset )
-                 || m_prefetchCache.test( *prefetchBlockOffset ) )
+                 || isInCacheOrQueue( *prefetchBlockOffset )
+                 || ( getPartitionOffsetFromOffset
+                      && isInCacheOrQueue( getPartitionOffsetFromOffset( *prefetchBlockOffset ) ) ) )
             {
                 continue;
             }
 
-            /* Avoid cache pollution by stopping prefetching when we would evict usable results. */
-            if ( m_prefetchCache.size() >= m_prefetchCache.capacity() ) {
-                const auto toBeEvicted = m_prefetchCache.cacheStrategy().nextEviction();
-                if ( toBeEvicted && contains( blocksToPrefetch, *toBeEvicted ) ) {
+            /* Avoid cache pollution by stopping prefetching when we would evict usable results.
+             * Note that we have to also account for m_prefetching.size() evictions before our eviction of interest! */
+            if ( const auto offsetToBeEvicted = m_prefetchCache.nextNthEviction( m_prefetching.size() + 1 );
+                 offsetToBeEvicted.has_value() ) {
+                if ( contains( blockOffsetsToPrefetch, offsetToBeEvicted ) ) {
                     break;
                 }
             }
@@ -439,6 +520,21 @@ private:
         }
     }
 
+    [[nodiscard]] std::future<BlockData>
+    submitOnDemandTask( const size_t                blockOffset,
+                        const std::optional<size_t> nextBlockOffset )
+    {
+        if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+            ++m_statistics.onDemandFetchCount;
+        }
+        auto resultFuture = m_threadPool.submitTask( [this, blockOffset, nextBlockOffset] () {
+            return decodeAndMeasureBlock(
+                blockOffset, nextBlockOffset ? *nextBlockOffset : std::numeric_limits<size_t>::max() );
+        } );
+        assert( resultFuture.valid() );
+        return resultFuture;
+    }
+
 protected:
     [[nodiscard]] virtual BlockData
     decodeBlock( size_t blockOffset,
@@ -461,9 +557,20 @@ private:
     {
         [[maybe_unused]] const auto tDecodeStart = now();
         auto blockData = decodeBlock( blockOffset, nextBlockOffset );
-        if constexpr ( SHOW_PROFILE ) {
+        if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+            const auto tDecodeEnd = now();
+
             std::scoped_lock lock( this->m_analyticsMutex );
-            this->m_statistics.decodeBlockTotalTime += duration( tDecodeStart );
+
+            const auto& minStartTime = this->m_statistics.decodeBlockStartTime;
+            this->m_statistics.decodeBlockStartTime.emplace(
+                minStartTime ? std::min( *minStartTime, tDecodeStart ) : tDecodeStart );
+
+            const auto& maxEndTime = this->m_statistics.decodeBlockEndTime;
+            this->m_statistics.decodeBlockEndTime.emplace(
+                maxEndTime ? std::max( *maxEndTime, tDecodeEnd ) : tDecodeEnd );
+
+            this->m_statistics.decodeBlockTotalTime += duration( tDecodeStart, tDecodeEnd );
         }
         return blockData;
     }

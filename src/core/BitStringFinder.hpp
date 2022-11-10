@@ -46,7 +46,7 @@ public:
 
     BitStringFinder( std::unique_ptr<FileReader> fileReader,
                      uint64_t                    bitStringToFind,
-                     size_t                      fileBufferSizeBytes = 1ULL * 1024ULL * 1024ULL ) :
+                     size_t                      fileBufferSizeBytes = 1_Mi ) :
         m_bitStringToFind( bitStringToFind & nLowestBitsSet<uint64_t>( bitStringSize ) ),
         m_movingBitsToKeep( bitStringSize > 0 ? bitStringSize - 1U : 0U ),
         m_movingBytesToKeep( ceilDiv( m_movingBitsToKeep, CHAR_BIT ) ),
