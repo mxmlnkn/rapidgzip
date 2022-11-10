@@ -118,7 +118,11 @@ writeAllSplice( const int                         outputFileDescriptor,
                 size_t const                      dataToWriteSize,
                 const std::shared_ptr<BlockData>& blockData )
 {
+#if defined( HAVE_VMSPLICE )
     return SpliceVault::getInstance( outputFileDescriptor ).first->splice( dataToWrite, dataToWriteSize, blockData );
+#else
+    return false;
+#endif
 }
 
 

@@ -26,8 +26,8 @@
     #include <sys/poll.h>
     #include <unistd.h>
 
-    #ifndef HAVE_VMSPLICE
-        #define HAVE_VMSPLICE __linux__
+    #if not defined( HAVE_VMSPLICE ) and defined( __linux__ )
+        #define HAVE_VMSPLICE
     #endif
 #endif
 
@@ -266,7 +266,7 @@ writeAllSpliceUnsafe( [[maybe_unused]] const int         outputFileDescriptor,
                       [[maybe_unused]] const void* const dataToWrite,
                       [[maybe_unused]] const size_t      dataToWriteSize )
 {
-#if HAVE_VMSPLICE
+#if defined( HAVE_VMSPLICE )
     ::iovec dataToSplice{};
     dataToSplice.iov_base = const_cast<void*>( reinterpret_cast<const void*>( dataToWrite ) );
     dataToSplice.iov_len = dataToWriteSize;
