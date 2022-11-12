@@ -20,6 +20,8 @@ jobs:
         # 3.10 was released 2021-10-04 and end-of-life will be 2026-10-04
         python-version: ['3.7', '3.11']
         os: [macos-latest, ubuntu-latest, windows-latest]
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "10.14"
 
     steps:
     - uses: actions/checkout@v3

@@ -10,12 +10,12 @@ jobs:
 
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [macos-latest, ubuntu-latest, windows-latest]
         # manylinux1 is not supported anymore because it won't compile C++17 code
         # manylinux2010 runs into this problem https://github.com/pypa/cibuildwheel/issues/1001
-        # macos-latest gives an error:
-        # > error: aligned allocation function of type 'void *(std::size_t, std::align_val_t)' is only available on macOS 10.14 or newer
         manylinux-image: [manylinux2014]
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "10.14"
 
     steps:
     - uses: actions/checkout@v3
