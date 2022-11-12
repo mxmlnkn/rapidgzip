@@ -1,5 +1,5 @@
 
-# Version 1.4.0 built on 2022-11-10
+# Version 1.4.0 built on 2022-11-12
 
  - Add command line CLI entrypoint ibzip2 to be used as a standalone parallel bzip2 decoder as replacement for bzip2.
  - Add a BZ2Reader::read overload that takes a callback functor.
