@@ -11,10 +11,15 @@ jobs:
 
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
+        os: [macos-latest, windows-latest]
         # manylinux1 is not supported anymore because it won't compile C++17 code
         # manylinux2010 runs into this problem https://github.com/pypa/cibuildwheel/issues/1001
-        manylinux-image: [manylinux2014]
+        # MacOS and Windows ignore the manylinux-image version because they are not Linux.
+        include:
+        - os: ubuntu-latest
+          manylinux-image: manylinux2014
+        - os: ubuntu-latest
+          manylinux-image: manylinux_2_28
     env:
       # By default, both build (https://pypi.org/project/build/)
       # and cibuildwheel (https://pypi.org/project/cibuildwheel/) seem to try to compile for macOS 10.9
@@ -63,9 +68,16 @@ jobs:
       working-directory: python/pragzip
       run: python3 -m build --sdist
 
-    - name: Build Wheels
+    - name: Build x86-64 Wheels
       env:
+        CIBW_ARCHS: auto64
         CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux-image }}
+      run: python -m cibuildwheel --output-dir dist python/pragzip
+
+    - name: Build i686 Wheels
+      if: matrix.manylinux-image == 'manylinux2014' && matrix.os != 'macos-latest'
+      env:
+        CIBW_ARCHS: auto32
         CIBW_MANYLINUX_I686_IMAGE: ${{ matrix.manylinux-image }}
       run: python -m cibuildwheel --output-dir dist python/pragzip
 
@@ -77,6 +89,7 @@ jobs:
       env:
         TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD_PRAGZIP }}
       working-directory: python/pragzip
+      # Only one out of the OS matrix needs to upload the tarball.
       if: matrix.manylinux-image == 'manylinux2014' && matrix.os == 'ubuntu-latest'
       run: twine upload --skip-existing -u __token__ dist/*
 
