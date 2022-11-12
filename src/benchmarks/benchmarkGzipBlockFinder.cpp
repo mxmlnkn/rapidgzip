@@ -886,7 +886,7 @@ checkDeflateBlock( const uint64_t      bitBufferForLUT,
 
         bitReader.seek( static_cast<long long int>( distanceCodesOffset ) );
         const auto alphabet = precode::getAlphabetFromCodeLengths( precodeBits, histogram );
-        error = Block<>::readDistanceAndLiteralCodeLengths(
+        error = readDistanceAndLiteralCodeLengths(
             literalCL, bitReader, precodeHC, literalCodeCount + distanceCodeCount,
             [&alphabet] ( auto symbol ) { return alphabet[symbol]; } );
         /* Using this theoretically derivable position avoids a possibly costly call to tell()
@@ -912,7 +912,7 @@ checkDeflateBlock( const uint64_t      bitBufferForLUT,
         }
 
         bitReader.seek( static_cast<long long int>( distanceCodesOffset ) );
-        error = Block<>::readDistanceAndLiteralCodeLengths(
+        error = readDistanceAndLiteralCodeLengths(
             literalCL, bitReader, precodeHC, literalCodeCount + distanceCodeCount );
         /* Using this theoretically derivable position avoids a possibly costly call to tell()
          * to save the old offset. */
@@ -1065,7 +1065,7 @@ checkDeflateBlock<CheckPrecodeMethod::SINGLE_COMPRESSED_LUT>( const uint64_t    
     LiteralAndDistanceCLBuffer literalCL{};
     const auto literalCodeCount = 257 + ( ( bitBufferForLUT >> 3U ) & nLowestBitsSet<uint64_t, 5>() );
     const auto distanceCodeCount = 1 + ( ( bitBufferForLUT >> 8U ) & nLowestBitsSet<uint64_t, 5>() );
-    auto error = Block<>::readDistanceAndLiteralCodeLengths(
+    auto error = readDistanceAndLiteralCodeLengths(
         literalCL, bitReader, precodeHC, literalCodeCount + distanceCodeCount,
         [&alphabet] ( auto symbol ) { return alphabet[symbol]; } );
 
