@@ -256,6 +256,84 @@ createLengthLUT() noexcept
 alignas( 8 ) static constexpr LengthLUT
 lengthLUT = createLengthLUT();
 
+namespace
+{
+/**
+ * @note Initially this was a static member of Block but when compiling with the manylinux_2_28 container,
+ *       which contains "g++ (GCC) 11.2.1 20220127 (Red Hat 11.2.1-9)", I'd get redefinition errors for this
+ *       even though it compiles fine with "g++ (Ubuntu 11.2.0-19ubuntu1) 11.2.0".
+ *       I suspect that it does not like static methods inside templated classes. Multiple instantiations
+ *       of it might be mangled into the same name?
+ *       > pragzip.cpp:638:1: error: redefinition of ‘const char
+ *       > _ZTSZN7pragzip7deflate5BlockILb0ELb0EE33readDistanceAndLiteralCodeLengthsERSt5arrayIhLm572EER9BitReader
+ *       > ILb0EmERKNS_41HuffmanCodingReversedBitsCachedCompressedIhLh7EhLm19EEEmRKSt8functionIFhhEEEd_UlhE_ []’
+ */
+[[nodiscard]] forceinline inline Error
+readDistanceAndLiteralCodeLengths( LiteralAndDistanceCLBuffer&              literalCL,
+                                   BitReader&                               bitReader,
+                                   const PrecodeHuffmanCoding&              precodeCoding,
+                                   const size_t                             literalCLSize,
+                                   const std::function<uint8_t( uint8_t )>& translateSymbol
+                                       = [] ( uint8_t symbol ) { return symbol; } )
+{
+    size_t i = 0;
+    for ( ; i < literalCLSize; ) {
+        const auto decoded = precodeCoding.decode( bitReader );
+        if ( !decoded ) {
+            return Error::INVALID_HUFFMAN_CODE;
+        }
+        const auto code = translateSymbol( *decoded );
+
+        /* Note that this interpretation of the alphabet results in the maximum code length being 15! */
+        if ( code <= 15 ) {
+            literalCL[i] = code;
+            ++i;
+        } else if ( code == 16 ) {
+            if ( i == 0 ) {
+                return Error::INVALID_CL_BACKREFERENCE;
+            }
+            const auto lastValue = literalCL[i - 1];
+
+            /* Unroll 3U + 0b11U = 6 times to avoid branches. Do it manually to be portable. */
+            literalCL[i + 0] = lastValue;
+            literalCL[i + 1] = lastValue;
+            literalCL[i + 2] = lastValue;
+            literalCL[i + 3] = lastValue;
+            literalCL[i + 4] = lastValue;
+            literalCL[i + 5] = lastValue;
+
+            i += bitReader.read<2>() + 3;
+        } else if ( code == 17 ) {
+            /* Unroll 3U + 0b111U = 10 times to avoid branches. Do it manually to be portable. */
+            literalCL[i + 0] = 0;
+            literalCL[i + 1] = 0;
+            literalCL[i + 2] = 0;
+            literalCL[i + 3] = 0;
+            literalCL[i + 4] = 0;
+            literalCL[i + 5] = 0;
+            literalCL[i + 6] = 0;
+            literalCL[i + 7] = 0;
+            literalCL[i + 8] = 0;
+            literalCL[i + 9] = 0;
+
+            i += bitReader.read<3>() + 3;
+        } else if ( code == 18 ) {
+            /* Decode fixed number of zeros. The vector is initialized to zeros, so we can simply skip these. */
+            #if defined( __GNUC__ )
+                #pragma GCC unroll 16
+            #endif
+            for ( size_t j = 0; j < 11U + ( 1U << 7U ) - 1U; ++j ) {
+                literalCL[i + j] = 0;
+            }
+            i += bitReader.read<7>() + 11;
+        }
+    }
+
+    return i == literalCLSize ? Error::NONE : Error::EXCEEDED_LITERAL_RANGE;
+}
+
+}
+
 
 /**
  * It should be fine to have these data members even when not needed.
@@ -379,14 +457,6 @@ public:
     template<bool treatLastBlockAsError = false>
     [[nodiscard]] Error
     readHeader( BitReader& bitReader );
-
-    [[nodiscard]] forceinline static Error
-    readDistanceAndLiteralCodeLengths( LiteralAndDistanceCLBuffer&              literalCL,
-                                       BitReader&                               bitReader,
-                                       const PrecodeHuffmanCoding&              precodeCoding,
-                                       const size_t                             literalCLSize,
-                                       const std::function<uint8_t( uint8_t )>& translateSymbol
-                                           = [] ( uint8_t symbol ) { return symbol; } );
 
     /**
      * Reads the dynamic Huffman code. This is called by @ref readHeader after reading the first three header bits
@@ -673,77 +743,6 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readHeader( BitReader& bitReader )
     return error;
 }
 
-
-/**
- * Decode the code lengths for the literal/length and distance alphabets.
- * @param BitReader Should be positioned after the precode code length bits, i.e., at deflate start + 3 (header bits)
- *        + 5 + 5 + 3 (code length bits) + precode codes * 3.
- */
-template<bool CALCULATE_CRC32,
-         bool ENABLE_STATISTICS>
-Error
-Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDistanceAndLiteralCodeLengths(
-    LiteralAndDistanceCLBuffer&              literalCL,
-    BitReader&                               bitReader,
-    const PrecodeHuffmanCoding&              precodeCoding,
-    const size_t                             literalCLSize,
-    const std::function<uint8_t( uint8_t )>& translateSymbol )
-{
-    size_t i = 0;
-    for ( ; i < literalCLSize; ) {
-        const auto decoded = precodeCoding.decode( bitReader );
-        if ( !decoded ) {
-            return Error::INVALID_HUFFMAN_CODE;
-        }
-        const auto code = translateSymbol( *decoded );
-
-        /* Note that this interpretation of the alphabet results in the maximum code length being 15! */
-        if ( code <= 15 ) {
-            literalCL[i] = code;
-            ++i;
-        } else if ( code == 16 ) {
-            if ( i == 0 ) {
-                return Error::INVALID_CL_BACKREFERENCE;
-            }
-            const auto lastValue = literalCL[i - 1];
-
-            /* Unroll 3U + 0b11U = 6 times to avoid branches. Do it manually to be portable. */
-            literalCL[i + 0] = lastValue;
-            literalCL[i + 1] = lastValue;
-            literalCL[i + 2] = lastValue;
-            literalCL[i + 3] = lastValue;
-            literalCL[i + 4] = lastValue;
-            literalCL[i + 5] = lastValue;
-
-            i += bitReader.read<2>() + 3;
-        } else if ( code == 17 ) {
-            /* Unroll 3U + 0b111U = 10 times to avoid branches. Do it manually to be portable. */
-            literalCL[i + 0] = 0;
-            literalCL[i + 1] = 0;
-            literalCL[i + 2] = 0;
-            literalCL[i + 3] = 0;
-            literalCL[i + 4] = 0;
-            literalCL[i + 5] = 0;
-            literalCL[i + 6] = 0;
-            literalCL[i + 7] = 0;
-            literalCL[i + 8] = 0;
-            literalCL[i + 9] = 0;
-
-            i += bitReader.read<3>() + 3;
-        } else if ( code == 18 ) {
-            /* Decode fixed number of zeros. The vector is initialized to zeros, so we can simply skip these. */
-            #if defined( __GNUC__ )
-                #pragma GCC unroll 16
-            #endif
-            for ( size_t j = 0; j < 11U + ( 1U << 7U ) - 1U; ++j ) {
-                literalCL[i + j] = 0;
-            }
-            i += bitReader.read<7>() + 11;
-        }
-    }
-
-    return i == literalCLSize ? Error::NONE : Error::EXCEEDED_LITERAL_RANGE;
-}
 
 
 template<bool CALCULATE_CRC32,

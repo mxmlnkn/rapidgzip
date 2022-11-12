@@ -279,7 +279,7 @@ seekToNonFinalDynamicDeflateBlock( BitReader&   bitReader,
                     if ( LIKELY( error == Error::NONE ) ) [[likely]] {
                         bitReader.seek( static_cast<long long int>( offset )
                                         + 13 + 4 + ( codeLengthCount * PRECODE_BITS ) );
-                        error = Block<>::readDistanceAndLiteralCodeLengths(
+                        error = readDistanceAndLiteralCodeLengths(
                             literalCL, bitReader, precodeHC, literalCodeCount + distanceCodeCount );
                         /* Using this theoretically derivable position avoids a possibly costly call to tell()
                          * to save the old offset. */
