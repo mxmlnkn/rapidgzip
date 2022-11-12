@@ -2,8 +2,7 @@ name: Build Conda Packages (pragzip)
 
 on:
   push:
-    # Not working yet and indexed_bzip2 only has a single download from conda ...
-    branches: 'NONEXISTING'
+    branches: 'master'
 
 jobs:
   Build-Conda:
@@ -12,6 +11,9 @@ jobs:
     strategy:
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
+
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "10.14"
 
     steps:
     - uses: actions/checkout@v3
