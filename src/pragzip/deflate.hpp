@@ -1040,7 +1040,7 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::read( BitReader& bitReader,
 template<bool CALCULATE_CRC32,
          bool ENABLE_STATISTICS>
 template<typename Window>
-void
+inline void
 Block<CALCULATE_CRC32, ENABLE_STATISTICS>::appendToWindow( Window&                     window,
                                                            typename Window::value_type decodedSymbol )
 {
