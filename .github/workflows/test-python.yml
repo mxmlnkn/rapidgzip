@@ -1,0 +1,94 @@
+name: Python Module Tests
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  Tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        # Oldest and newest versions should be enough. Python versions are supported 5 years from release date.
+        # 3.5 was released 2015-09-13 and end-of-life was 2020-09-13
+        # 3.6 was released 2016-12-23 and end-of-life will be 2021-12-23
+        # 3.7 was released 2018-06-27 and end-of-life will be 2023-06-27
+        # 3.8 was released 2019-10-14 and end-of-life will be 2024-10-14
+        # 3.9 was released 2020-10-05 and end-of-life will be 2025-10-25
+        # 3.10 was released 2021-10-04 and end-of-life will be 2026-10-04
+        python-version: ['3.7', '3.11']
+        os: [macos-latest, ubuntu-latest, windows-latest]
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install Dependencies
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get -y install bzip2 pbzip2 lbzip2 g++ zlib1g-dev
+
+    - name: Install Python Modules
+      run: |
+        python3 -m pip install --upgrade pip
+        python3 -m pip install --upgrade-strategy eager --upgrade cibuildwheel cython twine numpy
+
+    - name: Install Python Modules (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        # https://github.com/pypa/build/issues/253#issuecomment-793906474
+        # https://bugs.python.org/issue43749
+        # Only seems to be an issue with versions older than 3.9 because they did not backport the fix.
+        python3 -m pip install --upgrade build[virtualenv]
+
+    - name: Install Python Modules (Non-Windows)
+      if: matrix.os != 'windows-latest'
+      run: |
+        python3 -m pip install --upgrade build
+
+    - name: Test indexed_bzip2 Installation From Tarball
+      working-directory: python/indexed_bzip2
+      shell: bash
+      run: |
+        python3 -m build
+        twine check dist/*
+        python3 -m pip install dist/*.tar.gz
+
+    - name: Test pragzip Installation From Tarball
+      working-directory: python/pragzip
+      shell: bash
+      run: |
+        python3 -m build
+        twine check dist/*
+        python3 -m pip install dist/*.tar.gz
+
+    - name: Test Simple Startup pragzip
+      run: |
+        pragzip --help
+        pragzip --version
+
+    - name: Test Simple Startup ibzip2
+      run: |
+        ibzip2 --help
+        ibzip2 --version
+
+    - name: Test BZip2 Decoder Python Package
+      if: github.ref == 'refs/heads/master'
+      # indexed_bzip2 should be installed for this step!
+      run: python3 src/tests/testBz2.py
+
+    - name: Test pragzip Installation From Tarball
+      working-directory: python/pragzip
+      shell: bash
+      run: |
+        python3 -m build
+        twine check dist/*
+        python3 -m pip install dist/*.tar.gz
