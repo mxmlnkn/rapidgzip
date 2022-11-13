@@ -420,7 +420,7 @@ writeAllToFd( const int         outputFileDescriptor,
         if ( nBytesWritten <= 0 ) {
             std::stringstream message;
             message << "Unable to write all data to the given file descriptor. Wrote " << nTotalWritten << " out of "
-                    << dataToWriteSize << ".";
+                    << dataToWriteSize << " (" << strerror( errno ) << ").";
             throw std::runtime_error( std::move( message ).str() );
         }
         nTotalWritten += static_cast<uint64_t>( nBytesWritten );
