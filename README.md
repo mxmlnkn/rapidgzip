@@ -29,6 +29,14 @@ This module provides:
 
 The random seeking support is similar to the one provided by [indexed_gzip](https://github.com/pauldmccarthy/indexed_gzip) and the parallel capabilities are effectively a working version of [pugz](https://github.com/Piezoid/pugz), which is only a concept and only works with a limited subset of file contents, namely non-binary (ASCII characters 0 to 127) compressed files.
 
+| Module                            | Runtime / s | Bandwidth / (MB/s) | Speedup |
+|-----------------------------------|-------------|--------------------|---------|
+| gzip                              |  17.5       |  190               | 1       |
+| pragzip with parallelization = 1  |  18.2       |  180               | 1.0     |
+| pragzip with parallelization = 2  |   9.3       |  350               | 1.9     |
+| pragzip with parallelization = 12 |  1.82       | 1800               | 9.6     |
+| pragzip with parallelization = 24 |  1.25       | 2620               | 14.0    |
+
 [See here for the extended Readme.](python/pragzip)
 
 
@@ -49,5 +57,13 @@ This module provides:
   - an `ibzip2.open` Python method for reading and seeking inside bzip2 files using multiple threads for a speedup of **6** over the built-in bzip2 module using a 12-core processor.
 
 The parallel decompression capabilities are similar to [lbzip2](https://lbzip2.org/) but with a more permissive license and with support to be used as a library with random seeking capabilities similar to [seek-bzip2](https://github.com/galaxyproject/seek-bzip2).
+
+| Module                                  | Runtime / s | Bandwidth / (MB/s) | Speedup |
+|-----------------------------------------|-------------|--------------------|---------|
+| bz2                                     | 392         |  5.1               | 1       |
+| indexed_bzip2 with parallelization = 1  | 559         |  3.6               | 0.7     |
+| indexed_bzip2 with parallelization = 2  | 321         |  6.2               | 1.2     |
+| indexed_bzip2 with parallelization = 12 |  72         | 27.8               | 5.4     |
+| indexed_bzip2 with parallelization = 24 |  64         | 31.5               | 6.2     |
 
 [See here for the extended Readme.](python/indexed_bzip2)
