@@ -32,15 +32,74 @@ To use the parallel implementation you need to specify a `parallelization` argum
 
 # Table of Contents
 
-1. [Installation](#installation)
-2. [Usage](#usage)
+1. [Performance comparison with bz2 module](#performance-comparison-with-bz2-module)
+2. [Installation](#installation)
+3. [Usage](#usage)
    1. [Python Library](#python-library)
    2. [Via Ratarmount](#via-ratarmount)
    3. [Command Line Tool](#command-line-tool)
    4. [C++ Library](#c-library)
-3. [Performance comparison with bz2 module](#performance-comparison-with-bz2-module)
 4. [Internal Architecture](#internal-architecture)
 5. [Tracing the Decoder](#tracing-the-decoder)
+
+
+# Performance comparison with bz2 module
+
+Results for an AMD Ryzen 3900X 12-core (24 virtual cores) processor and with `bz2FilePath='CTU-13-Dataset.tar.bz2'`, which is a 2GB bz2 compressed archive.
+
+| Module                                  | Runtime / s | Bandwidth / (MB/s) | Speedup |
+|-----------------------------------------|-------------|--------------------|---------|
+| bz2                                     | 392         |  5.1               | 1       |
+| indexed_bzip2 with parallelization = 0  |  62         | 32.3               | 6.3     |
+| indexed_bzip2 with parallelization = 1  | 559         |  3.6               | 0.7     |
+| indexed_bzip2 with parallelization = 2  | 321         |  6.2               | 1.2     |
+| indexed_bzip2 with parallelization = 6  | 116         | 17.2               | 3.4     |
+| indexed_bzip2 with parallelization = 12 |  72         | 27.8               | 5.4     |
+| indexed_bzip2 with parallelization = 24 |  64         | 31.5               | 6.2     |
+| indexed_bzip2 with parallelization = 32 |  66         | 30.1               | 5.9     |
+
+The speedup of `indexed_bzip2` over the `bz2` module with `parallelization = 0` is **6**.
+When using only one core, `indexed_bzip2` is unfortunately slower by (559-392)/392 = 42%.
+
+These are simple timing tests for reading all the contents of a bzip2 file sequentially.
+
+<details>
+
+```python3
+import bz2
+import os
+import time
+
+fileSize = os.stat(bz2FilePath).st_size
+
+with bz2.open(bz2FilePath) as file:
+    t0 = time.time()
+    while file.read(512*1024):
+        pass
+    bz2Duration = time.time() - t0
+    print(f"Decoded file in {bz2Duration:.0f}s, bandwidth: {fileSize / bz2Duration / 1e6:.1f} MB/s")
+```
+
+The usage of indexed_bzip2 is slightly different:
+
+```python3
+import indexed_bzip2
+import time
+
+# parallelization = 0 means that it is automatically using all available cores.
+for parallelization in [0, 1, 2, 6, 12, 24, 32]:
+    with indexed_bzip2.IndexedBzip2File(bz2FilePath, parallelization = parallelization) as file:
+        t0 = time.time()
+        # Unfortunately, the chunk size is very performance critical! It might depend on the cache size.
+        while file.read(512*1024):
+            pass
+        ibz2Duration = time.time() - t0
+        print(f"Decoded file in {ibz2Duration:.0f}s"
+              f", bandwidth: {fileSize / ibz2Duration / 1e6:.1f} MB/s"
+              f", speedup: {bz2Duration/ibz2Duration:.1f}")
+```
+
+</details>
 
 
 # Installation
@@ -207,53 +266,6 @@ The license is also permissive enough for most use cases.
 I currently did not yet test integrating it into other projects other than simply manually copying the source in `core` and `indexed_bzip2`.
 If you have suggestions and wishes like support with CMake or Conan, please open an issue.
 
-
-# Performance comparison with bz2 module
-
-These are simple timing tests for reading all the contents of a bzip2 file sequentially.
-
-```python3
-import bz2
-import time
-
-with bz2.open( bz2FilePath ) as file:
-    t0 = time.time()
-    while file.read( 4*1024*1024 ):
-        pass
-    t1 = time.time()
-    print( f"Decoded file in {t1-t0}s" )
-```
-
-The usage of indexed_bzip2 is slightly different:
-
-```python3
-import indexed_bzip2
-import time
-
-# parallelization = 0 means that it is automatically using all available cores.
-with indexed_bzip2.IndexedBzip2File( bz2FilePath, parallelization = 0 ) as file:
-    t0 = time.time()
-    while file.read( 4*1024*1024 ):
-        pass
-    t1 = time.time()
-    print( f"Decoded file in {t1-t0}s" )
-```
-
-Results for an AMD Ryzen 3900X 12-core (24 virtual cores) processor and with `bz2FilePath='CTU-13-Dataset.tar.bz2'`, which is a 2GB bz2 compressed archive.
-
-| Module                                  | Runtime / s |
-|-----------------------------------------|-------------|
-| bz2                                     | 411         |
-| indexed_bzip2 with parallelization = 0  | 62          |
-| indexed_bzip2 with parallelization = 1  | 555         |
-| indexed_bzip2 with parallelization = 2  | 307         |
-| indexed_bzip2 with parallelization = 6  | 119         |
-| indexed_bzip2 with parallelization = 12 | 76          |
-| indexed_bzip2 with parallelization = 24 | 62          |
-| indexed_bzip2 with parallelization = 32 | 63          |
-
-The speedup of `indexed_bzip2` over the `bz2` module with `parallelization = 0` is 411/62 = **6**.
-When using only one core, `indexed_bzip2` is slower by (555-411)/411 = 35%.
 
 # Internal Architecture
 
