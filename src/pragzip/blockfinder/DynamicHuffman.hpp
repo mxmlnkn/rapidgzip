@@ -23,8 +23,6 @@ namespace pragzip::blockfinder
  *   (filters out 2 /32 = 6.25%)
  *   Beware that the >highest< 4 bits may not be 1 but this that we requrie all 5-bits to
  *   determine validity because they are lower significant first!
- * - (Anything but 0b1111) + 1 bit
- *   Distance Code Count 1 + (5-bits) <= 30 <=> (5-bits) <= 29 -> filters out 6.25%
  * The returned position is only 0 if all of the above holds for a bitCount of 13
  * Next would be the 3-bit precode code lengths. One or two alone does not allow any filtering at all.
  * I think starting from three, it might become possible, e.g., if any two are 1, then all others must
@@ -62,12 +60,6 @@ isDeflateCandidate( uint32_t bits )
         bits >>= 5U;
         matches &= codeCount <= 29;
 
-        /* Bits 8-12: distance count */
-        if constexpr ( bitCount < 1U + 2U + 5U + 5U ) {
-            return matches;
-        }
-        const auto distanceCodeCount = bits & nLowestBitsSet<uint32_t, 5U>();
-        matches &= distanceCodeCount <= 29;
         return matches;
     }
 }
