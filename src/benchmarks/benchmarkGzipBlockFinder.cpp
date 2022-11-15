@@ -876,7 +876,8 @@ checkDeflateBlock( const uint64_t      bitBufferForLUT,
     const auto distanceCodesOffset = offset + 13 + 4 + ( codeLengthCount * PRECODE_BITS );
     const auto bitReaderOffset = offset + 13 + ALL_PRECODE_BITS;
 
-    if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_LUT ) {
+    if constexpr ( false /* CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_LUT */ ) {
+        /** @todo This fails for the igzip benchmark! */
         using PrecodeCheck::SingleLUT::ValidHistogramID::getHistogramIdFromUniformlyPackedHistogram;
         const auto validId = getHistogramIdFromUniformlyPackedHistogram( histogram );
         if ( validId >= precode::VALID_HUFFMAN_CODINGS.size() ) {
