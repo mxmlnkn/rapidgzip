@@ -98,10 +98,19 @@ def probability_to_find_at_least_one_string( string_to_find, letter_probabilitie
     # @todo calculate M to the npower of number_of_letters_to_search using eigenvalue decomposition?
     return np.linalg.matrix_power( M, number_of_letters_to_search )[0,len( string_to_find )]
 
-print( probability_to_find_at_least_one_string( "ACTAGC", { "A": 0.25, "C": 0.125, "G": 0.5, "T": 0.125 }, 100000 ) )
+print("Probability to find ACTAGC in a 100k long string: ",
+      probability_to_find_at_least_one_string("ACTAGC", { "A": 0.25, "C": 0.125, "G": 0.5, "T": 0.125 }, 100000))
 # 0.9977688993088842
-print( probability_to_find_at_least_one_string( "ACTAGC", { "A": 0.25, "C": 0.125, "G": 0.5, "T": 0.125 }, 1000000 ) )
+print("Probability to find ACTAGC in a 1M long string: ",
+      probability_to_find_at_least_one_string("ACTAGC", { "A": 0.25, "C": 0.125, "G": 0.5, "T": 0.125 }, 1000000))
 # 0.9999999999999789
+
+# Unexpected values because the string match will be found rather soon.
+# Meaning we are always in the boundary behavior (compare to the plot).
+# More interesting would be the average distance between matches or the average matches given the
+# random stream length but that is harder to compute.
+print("Probability to find 0b010 in a 100k long string: ",
+      probability_to_find_at_least_one_string("010", { "0": 0.5, "1": 0.5 }, 10))
 
 magic_bytes = 0x314159265359
 string_to_find = f"{magic_bytes:048b}"
@@ -131,4 +140,3 @@ fig.savefig( file + ".pdf" )
 fig.savefig( file + ".png" )
 
 plt.show()
-

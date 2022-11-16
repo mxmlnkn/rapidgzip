@@ -1284,8 +1284,8 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
               << static_cast<double>( block.failedPrecodeInit  ) / static_cast<double>( nBitsToTest ) * 100 << " %)\n"
               << "    Invalid Distance HC: " << block.failedDistanceInit << " ("
               << static_cast<double>( block.failedDistanceInit ) / static_cast<double>( nBitsToTest ) * 100 << " %)\n"
-              << "    Invalid Symbol   HC: " << block.failedLengthInit   << " ("
-              << static_cast<double>( block.failedLengthInit   ) / static_cast<double>( nBitsToTest ) * 100 << " %)\n"
+              << "    Invalid Symbol   HC: " << block.failedLiteralInit   << " ("
+              << static_cast<double>( block.failedLiteralInit  ) / static_cast<double>( nBitsToTest ) * 100 << " %)\n"
               << "    Failed checkPrecode calls: " << checkPrecodeFails << "\n\n";
 
     std::cerr << "Cumulative time spent during tests with deflate::block::readDynamicHuffmanCoding:\n"

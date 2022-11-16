@@ -345,7 +345,8 @@ class BlockStatistics
 public:
     uint64_t failedPrecodeInit{ 0 };
     uint64_t failedDistanceInit{ 0 };
-    uint64_t failedLengthInit{ 0 };
+    uint64_t failedLiteralInit{ 0 };
+    uint64_t failedPrecodeApply{ 0 };
 
     std::array<uint64_t, /* codeLengthCount - 4 is 4 bits = 16 possible values */ 16> precodeCLHistogram{};
 
@@ -824,6 +825,7 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& 
 
     if ( precodeApplyError != Error::NONE ) {
         if constexpr ( ENABLE_STATISTICS ) {
+            this->failedPrecodeApply++;
             durations.readDynamicHeader += duration( times.readDynamicStart );
         }
         return precodeApplyError;
@@ -851,7 +853,7 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& 
     error = m_literalHC.initializeFromLengths( VectorView<uint8_t>( m_literalCL.data(), literalCodeCount ) );
     if ( error != Error::NONE ) {
         if constexpr ( ENABLE_STATISTICS ) {
-            this->failedLengthInit++;
+            this->failedLiteralInit++;
         }
     }
 
