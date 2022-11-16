@@ -101,7 +101,7 @@ struct Statistics
             magnitude += 1;
         }
 
-        const auto roundToUnertainty =
+        const auto roundToUncertainty =
             [magnitude] ( double value )
             {
                 return std::round( value / std::pow( 10, magnitude ) ) * std::pow( 10, magnitude );
@@ -113,12 +113,14 @@ struct Statistics
          *       (13 +- 1) GB.
          */
         std::stringstream result;
+        result << std::fixed << std::setprecision( std::max( -magnitude, 0. ) );
+
         if ( includeBounds ) {
-            result << roundToUnertainty( min ) << " <= ";
+            result << roundToUncertainty( min ) << " <= ";
         }
-        result << roundToUnertainty( average() ) << " +- " << roundToUnertainty( standardDeviation() );
+        result << roundToUncertainty( average() ) << " +- " << roundToUncertainty( standardDeviation() );
         if ( includeBounds ) {
-            result << " <= " << roundToUnertainty( max );
+            result << " <= " << roundToUncertainty( max );
         }
 
         return result.str();
