@@ -67,6 +67,14 @@ public:
          *   L3 Cache: 64MB (shared)
          * So, theoretically it shouldn't exceed the L1 cache size but who knows. */
         //const auto t0 = now();
+
+        if ( m_needsToBeZeroed ) {
+            // Works constexpr
+            for ( size_t symbol = 0; symbol < ( 1ULL << this->m_maxCodeLength ); ++symbol ) {
+                m_codeCache[symbol] = 0;
+            }
+        }
+
         auto codeValues = this->m_minimumCodeValuesPerLevel;
         for ( size_t symbol = 0; static_cast<size_t>( symbol ) < codeLengths.size(); ++symbol ) {
             const auto length = codeLengths[symbol];
@@ -90,6 +98,9 @@ public:
                 m_codeCache[paddedCode] = value;
             }
         }
+
+        m_needsToBeZeroed = true;
+
         //const auto t1 = now();
         //std::cerr << "Creating Huffman LUT took " << duration(t0,t1) << " s\n";
         // Some timings for small.gz: 2.3676e-05 s, 2.186e-05 s, 2.3607e-05 s, 2.1791e-05 s, 2.3606e-05 s, 3.6038e-05 s
@@ -131,5 +142,6 @@ private:
      *  - using 8-bit length and 16-bit symbol yields non-aligned access quite frequently
      *  - the space reduction by 33% might improve L1 cache hit rates or cache line utilization. */
     alignas( 8 ) std::array<Symbol, ( 1UL << MAX_CODE_LENGTH )> m_codeCache{};
+    bool m_needsToBeZeroed{ false };
 };
 }  // namespace pragzip

@@ -33,6 +33,9 @@ public:
     static_assert( MAX_SYMBOL_COUNT <= NONE_SYMBOL, "Not enough unused symbols for special none symbol!" );
 
 public:
+    /**
+     * @note Reusing this struct by calling this method multiple times is allowed. All members will be reinitialized.
+     */
     constexpr Error
     initializeFromLengths( const VectorView<BitCount>& codeLengths )
     {
@@ -43,6 +46,20 @@ public:
         {
             return errorCode;
         }
+
+        /**
+         * Forbid single-symbol Huffman codings for this implementation because:
+         *  - this implementation is unable to detect invalid encoded symbols, which only are possible for the
+         *    single symbol case.
+         *  - this implementation is only used for the literal encoding right now for which a single symbol
+         *    makes no sense because then that symbol would have to be the end of block symbol and why should there
+         *    be empty dynamic blocks? Those are very space-wasting.
+         */
+        if ( ( this->m_minCodeLength == 1 ) && ( this->m_maxCodeLength == 1 ) && ( this->m_offsets[1] == 1 ) ) {
+            return Error::INVALID_CODE_LENGTHS;
+        }
+
+        m_nextSymbol = NONE_SYMBOL;
 
 #if 1
         /**
@@ -290,8 +307,8 @@ private:
     uint32_t m_cachedBitCount{ 0 };
     mutable Symbol m_nextSymbol = NONE_SYMBOL;
     /* note that Symbol is uint16_t but MAX_SYMBOL_COUNT = 512 only requires 9 bits, i.e., we have 7 unused bits,
-     * which can be used to store the code length, which only requires ceil(log2(15)) = 4 bits, or 5 bits if we want
-     * to store the code length sum for both symbols in only one of the symbols.
+     * which can be used to store the code length, which only requires ceil(log2(15)) = 4 bits, or 5 bits
+     * because we want to store the code length sum for both symbols in only the first symbol.
      * Using std::array<std::array<Symbol, 2>, ( 1UL << CACHED_BIT_COUNT )> instead of a one-dimensional array
      * with the same size reduces speed for base64.gz by 10%! */
     alignas( 8 ) std::array<Symbol, 2 * ( 1UL << MAX_CODE_LENGTH )> m_doubleCodeCache{};

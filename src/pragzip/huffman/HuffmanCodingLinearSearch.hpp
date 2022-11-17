@@ -55,6 +55,7 @@ public:
     /**
      * Creates a Huffman coding for the alphabet (0, ..., codeLengths.size() - 1) using the respective
      * bit lengths for the Huffman codes.
+     * @note Reusing this struct by calling this method multiple times is allowed. All members will be reinitialized.
      */
     Error
     initializeFromLengths( const VectorView<BitCount>& codeLengths )

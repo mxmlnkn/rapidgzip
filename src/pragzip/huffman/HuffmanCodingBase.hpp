@@ -108,6 +108,9 @@ protected:
         return Error::NONE;
     }
 
+    /**
+     * @note Reusing this struct by calling this method multiple times is allowed. All members will be reinitialized.
+     */
     constexpr void
     initializeMinimumCodeValues( CodeLengthFrequencies& bitLengthFrequencies )
     {

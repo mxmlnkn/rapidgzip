@@ -9,9 +9,11 @@
 #include <BitReader.hpp>
 #include <common.hpp>
 #include <filereader/Buffered.hpp>
+#include <filereader/BufferView.hpp>
 #include <HuffmanCodingDoubleLiteralCached.hpp>
 #include <HuffmanCodingLinearSearch.hpp>
 #include <HuffmanCodingReversedBitsCached.hpp>
+#include <HuffmanCodingReversedBitsCachedCompressed.hpp>
 #include <HuffmanCodingReversedCodesPerLength.hpp>
 #include <HuffmanCodingSymbolsPerLength.hpp>
 #include <TestHelpers.hpp>
@@ -53,10 +55,65 @@ decodeHuffmanAndCompare( const std::vector<uint8_t>&                        code
 
 template<typename HuffmanCoding>
 void
-testHuffmanCoding()
+testHuffmanCodingInvalidDetection()
 {
-    /* A single symbol with code length 1 should also be a valid Huffman Coding. */
-    decodeHuffmanAndCompare<HuffmanCoding>( /* code lengths */ { 1 }, /* encoded */ { 0 }, /* decoded */ { 0 } );
+    const std::vector<char> encoded = { 0b0110'1110 };
+    pragzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( encoded ) );
+
+    HuffmanCoding coding;
+    const std::vector<uint8_t> codeLengthsHalfBit = { 1 };
+    REQUIRE_EQUAL( coding.initializeFromLengths( codeLengthsHalfBit ), pragzip::Error::NONE );
+
+    REQUIRE( coding.decode( bitReader ).has_value() );
+    REQUIRE( !coding.decode( bitReader ).has_value() );
+}
+
+
+template<typename HuffmanCoding>
+void
+testHuffmanCodingReuse( bool testOneSymbolCoding = true )
+{
+    const std::vector<char> encoded = { 0b0110'1101 };
+    pragzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( encoded ) );
+
+    const std::vector<uint8_t> codeLengths2Bit = { 2, 2, 2, 2 };
+    HuffmanCoding coding;
+    REQUIRE_EQUAL( coding.initializeFromLengths( codeLengths2Bit ), pragzip::Error::NONE );
+
+    /* Note that gzip Huffman decoding iterates over bits from the least significant first, meaning that the
+     * second symbol has bit squence 0b01 (reverse read 0b10 = 2). */
+    REQUIRE_EQUAL( coding.decode( bitReader ).value(), 2 );
+
+    const std::vector<uint8_t> codeLengths1Bit = { 1, 1 };
+    REQUIRE_EQUAL( coding.initializeFromLengths( codeLengths1Bit ), pragzip::Error::NONE );
+    bitReader.seek( 2 );
+    /* When not reinitializing the cached next symbol, this might return symbols that are not even value,
+     * e.g., it will return 3 even though only 0 and 1 are possible! */
+    REQUIRE_EQUAL( coding.decode( bitReader ).value(), 1 );
+
+    /* Ensure that caches and such are correctly cleared so that invalid bit sequences will be detected correctly. */
+    if ( testOneSymbolCoding ) {
+        const std::vector<uint8_t> codeLengthsHalfBit = { 1 };
+        REQUIRE_EQUAL( coding.initializeFromLengths( codeLengthsHalfBit ), pragzip::Error::NONE );
+        bitReader.seek( 0 );
+        REQUIRE( !coding.decode( bitReader ).has_value() );
+    }
+}
+
+
+template<typename HuffmanCoding>
+void
+testHuffmanCoding( bool testOneSymbolCoding = true )
+{
+    if ( testOneSymbolCoding ) {
+        testHuffmanCodingInvalidDetection<HuffmanCoding>();
+    }
+    testHuffmanCodingReuse<HuffmanCoding>( testOneSymbolCoding );
+
+    if ( testOneSymbolCoding ) {
+        /* A single symbol with code length 1 should also be a valid Huffman Coding. */
+        decodeHuffmanAndCompare<HuffmanCoding>( /* code lengths */ { 1 }, /* encoded */ { 0 }, /* decoded */ { 0 } );
+    }
 
     /* codeLengths, encoded, decoded */
     decodeHuffmanAndCompare<HuffmanCoding>( { 1, 1 }, { 0 }, { 0 } );
@@ -97,6 +154,10 @@ int main()
     std::cerr << "Testing HuffmanCodingReversedBitsCached...\n";
     testHuffmanCoding<HuffmanCodingReversedBitsCached<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_SYMBOL_COUNT> >();
 
+    std::cerr << "Testing HuffmanCodingReversedBitsCachedCompressed...\n";
+    testHuffmanCoding<HuffmanCodingReversedBitsCachedCompressed<uint16_t, MAX_CODE_LENGTH,
+                                                                uint16_t, MAX_SYMBOL_COUNT> >();
+
     std::cerr << "Testing HuffmanCodingReversedCodesPerLength...\n";
     testHuffmanCoding<HuffmanCodingReversedCodesPerLength<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_SYMBOL_COUNT> >();
 
@@ -106,7 +167,8 @@ int main()
     testHuffmanCoding<HuffmanCodingReversedCodesPerLength<uint8_t, MAX_PRECODE_LENGTH, uint8_t, MAX_PRECODE_COUNT> >();
 
     std::cerr << "Testing HuffmanCodingDoubleLiteralCached...\n";
-    testHuffmanCoding<HuffmanCodingDoubleLiteralCached<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_SYMBOL_COUNT> >();
+    testHuffmanCoding<HuffmanCodingDoubleLiteralCached<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_SYMBOL_COUNT> >(
+        /* do not test one-symbol codings because this implementation does not support it */ false );
 
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
 
