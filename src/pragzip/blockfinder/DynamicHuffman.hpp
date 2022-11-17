@@ -234,7 +234,6 @@ seekToNonFinalDynamicDeflateBlock( BitReader&   bitReader,
                        "It must fit into 64-bit and it also must fit the largest possible jump in the LUT." );
         auto bitBufferPrecodeBits = bitReader.read<ALL_PRECODE_BITS>();
 
-        Block block;
         for ( size_t offset = oldOffset; offset < untilOffset; ) {
             auto nextPosition = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<CACHED_BIT_COUNT>[bitBufferForLUT];
 
