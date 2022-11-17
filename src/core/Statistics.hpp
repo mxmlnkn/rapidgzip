@@ -85,15 +85,17 @@ struct Statistics
     }
 
     [[nodiscard]] std::string
-    formatAverageWithUncertainty( bool includeBounds = false ) const
+    formatAverageWithUncertainty( bool    includeBounds = false,
+                                  uint8_t sigmaMultiple = 1 ) const
     {
+        const auto uncertainty = standardDeviation() * sigmaMultiple;
         /* Round uncertainty and value according to DIN 1333
          * @see https://www.tu-chemnitz.de/physik/PGP/files/Allgemeines/Rundungsregeln.pdf */
 
         /* Log10: 0.1 -> -1, 1 -> 0, 2 -> 0.301, 10 -> 1.
          * In order to scale to a range [0,100), we have to divide by 10^magnitude. */
-        auto magnitude = std::floor( std::log10( standardDeviation() ) ) - 1;
-        auto scaled = standardDeviation() / std::pow( 10, magnitude );
+        auto magnitude = std::floor( std::log10( uncertainty ) ) - 1;
+        auto scaled = uncertainty / std::pow( 10, magnitude );
 
         /* Round uncertainties beginning with 1 and 2 to two significant digits and all others to only one.
          * This could probably be integrated into the magnitude calculation but it would be less readable. */
@@ -118,7 +120,7 @@ struct Statistics
         if ( includeBounds ) {
             result << roundToUncertainty( min ) << " <= ";
         }
-        result << roundToUncertainty( average() ) << " +- " << roundToUncertainty( standardDeviation() );
+        result << roundToUncertainty( average() ) << " +- " << roundToUncertainty( uncertainty );
         if ( includeBounds ) {
             result << " <= " << roundToUncertainty( max );
         }
