@@ -225,15 +225,21 @@ analyze( std::unique_ptr<FileReader> inputFile )
             << "        Uncompressed Offset : " << uncompressedBlockOffsetInStream << " B\n"
             << "    Compressed Size         : " << formatBits( compressedSizeInBits ) << "\n"
             << "    Uncompressed Size       : " << uncompressedBlockSize << " B\n"
-            << "    Compression Ratio       : " << compressionRatio << "\n"
-            << "    Huffman Alphabets:\n"
-            << "        Precode  : " << printCodeLengthStatistics( precodeCL ) << "\n"
-            << "        Distance : " << printCodeLengthStatistics( distanceCL ) << "\n"
-            << "        Literals : " << printCodeLengthStatistics( literalCL ) << "\n"
-            << "    Symbol Types:\n"
-            << "        Literal         : " << formatSymbolType( block.symbolTypes.literal ) << "\n"
-            << "        Back-References : " << formatSymbolType( block.symbolTypes.backreference ) << "\n"
-            << "\n";
+            << "    Compression Ratio       : " << compressionRatio << "\n";
+        if ( block.compressionType() == deflate::CompressionType::DYNAMIC_HUFFMAN ) {
+            std::cout
+                << "    Huffman Alphabets:\n"
+                << "        Precode  : " << printCodeLengthStatistics( precodeCL ) << "\n"
+                << "        Distance : " << printCodeLengthStatistics( distanceCL ) << "\n"
+                << "        Literals : " << printCodeLengthStatistics( literalCL ) << "\n";
+        }
+        if ( block.compressionType() != deflate::CompressionType::UNCOMPRESSED ) {
+            std::cout
+                << "    Symbol Types:\n"
+                << "        Literal         : " << formatSymbolType( block.symbolTypes.literal ) << "\n"
+                << "        Back-References : " << formatSymbolType( block.symbolTypes.backreference ) << "\n"
+                << "\n";
+        }
 
         if ( block.isLastBlock() ) {
             const auto footer = gzip::readFooter( bitReader );
