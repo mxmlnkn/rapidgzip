@@ -47,7 +47,7 @@ public:
      * because the prefetch and cache units are very large and striding or backward accessing over multiple
      * megabytes should be extremely rare.
      */
-    using BlockFetcher = pragzip::GzipBlockFetcher<FetchingStrategy::FetchNextMulti, ENABLE_STATISTICS>;
+    using BlockFetcher = pragzip::GzipBlockFetcher<FetchingStrategy::FetchMultiStream, ENABLE_STATISTICS>;
     using BlockFinder = typename BlockFetcher::BlockFinder;
     using BitReader = pragzip::BitReader;
     using WriteFunctor = std::function<void ( const void*, uint64_t, const std::shared_ptr<BlockData>& )>;

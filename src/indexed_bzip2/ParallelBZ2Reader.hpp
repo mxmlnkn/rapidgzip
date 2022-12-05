@@ -36,7 +36,7 @@ class ParallelBZ2Reader final :
     public BZ2ReaderInterface
 {
 public:
-    using BlockFetcher = ::BZ2BlockFetcher<FetchingStrategy::FetchNextSmart>;
+    using BlockFetcher = ::BZ2BlockFetcher<FetchingStrategy::FetchNextAdaptive>;
     using BlockFinder = typename BlockFetcher::BlockFinder;
     using BitReader = bzip2::BitReader;
 

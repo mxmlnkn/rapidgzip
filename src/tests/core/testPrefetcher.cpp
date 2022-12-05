@@ -218,9 +218,9 @@ testFindAdjacentIf()
 
 
 void
-testFetchNext()
+testFetchNextFixed()
 {
-    FetchNext strategy;
+    FetchNextFixed strategy;
     strategy.fetch( 23 );
     REQUIRE_EQUAL( strategy.prefetch( 3 ), std::vector<size_t>( { 24, 25, 26 } ) );
     REQUIRE_EQUAL( strategy.prefetch( 3 ), std::vector<size_t>( { 24, 25, 26 } ) );
@@ -285,17 +285,17 @@ testLinearAccess()
 void
 testFetchMulti()
 {
-    /* For purely sequential access like decoding a file with pragzip without any seek, FetchNextMulti should
-     * decay into FetchNextSmart. With this, it is proven that it does not degrade parallelized gzip decoding
+    /* For purely sequential access like decoding a file with pragzip without any seek, FetchMultiStream should
+     * decay into FetchNextAdaptive. With this, it is proven that it does not degrade parallelized gzip decoding
      * performance for pragzip -d while at the same time improving performance for multi-stream sequential access
      * when used as ratarmount backend. */
-    FetchNextSmart fetchNextSmart;
-    FetchNextMulti fetchNextMulti;
+    FetchNextAdaptive fetchNextAdaptive;
+    FetchMultiStream fetchMultiStream;
 
     for ( size_t i = 0; i < 100; ++i ) {
-        fetchNextSmart.fetch( i );
-        fetchNextMulti.fetch( i );
-        REQUIRE_EQUAL( fetchNextSmart.prefetch( 8 ), fetchNextMulti.prefetch( 8 ) );
+        fetchNextAdaptive.fetch( i );
+        fetchMultiStream.fetch( i );
+        REQUIRE_EQUAL( fetchNextAdaptive.prefetch( 8 ), fetchMultiStream.prefetch( 8 ) );
     }
 }
 
@@ -750,12 +750,12 @@ private:
 
 
 void
-benchmarkFetchNext()
+benchmarkFetchNextFixed()
 {
-    std::cerr << "FetchNext strategy:\n";
+    std::cerr << "FetchNextFixed strategy:\n";
 
     const size_t parallelization = 16;
-    SimpleBlockFetcher<FetchNext> blockFetcher( parallelization );
+    SimpleBlockFetcher<FetchNextFixed> blockFetcher( parallelization );
     const auto cacheSize = blockFetcher.cache().capacity();
 
     size_t indexToGet = 0;
@@ -837,9 +837,9 @@ benchmarkFetchNext()
 
 
 void
-benchmarkFetchNextSmart()
+benchmarkFetchNextAdaptive()
 {
-    std::cerr << "FetchNextSmart strategy:\n";
+    std::cerr << "FetchNextAdaptive strategy:\n";
 
     const auto printShortStats =
         [] ( const auto& blockFetcher )
@@ -854,7 +854,7 @@ benchmarkFetchNextSmart()
         };
 
     const size_t parallelization = 16;
-    SimpleBlockFetcher<FetchNextSmart> blockFetcher( parallelization );
+    SimpleBlockFetcher<FetchNextAdaptive> blockFetcher( parallelization );
     const auto cacheSize = blockFetcher.cache().capacity();
 
     size_t indexToGet = 0;
@@ -1009,9 +1009,9 @@ benchmarkAccessPattern( const VectorView<int>  pattern,
             }
 
             const std::unordered_map<size_t, const char*> STRATEGY_NAMES = {
-                { typeid( FetchNext ).hash_code(), "FetchNext" },
-                { typeid( FetchNextSmart ).hash_code(), "FetchNextSmart" },
-                { typeid( FetchNextMulti ).hash_code(), "FetchNextMulti" }
+                { typeid( FetchNextFixed ).hash_code(), "FetchNextFixed" },
+                { typeid( FetchNextAdaptive ).hash_code(), "FetchNextAdaptive" },
+                { typeid( FetchMultiStream ).hash_code(), "FetchMultiStream" }
             };
 
             auto const* const strategyName = STRATEGY_NAMES.at( typeid( Strategy ).hash_code() );
@@ -1035,22 +1035,22 @@ benchmarkAccessPattern( const VectorView<int>  pattern,
 
         /* Without a dedicated prefetch cache, there is no pollution avoidance scheme anyway, so skip this. */
         if ( !activelyAvoidPrefetchCachePollution ) {
-            benchmarkPattern( FetchNext     (), 16 + parallelization, 0, activelyAvoidPrefetchCachePollution );
-            benchmarkPattern( FetchNextSmart(), 16 + parallelization, 0, activelyAvoidPrefetchCachePollution );
-            benchmarkPattern( FetchNextMulti(), 16 + parallelization, 0, activelyAvoidPrefetchCachePollution );
+            benchmarkPattern( FetchNextFixed(), 16 + parallelization, 0, activelyAvoidPrefetchCachePollution );
+            benchmarkPattern( FetchNextAdaptive(), 16 + parallelization, 0, activelyAvoidPrefetchCachePollution );
+            benchmarkPattern( FetchMultiStream(), 16 + parallelization, 0, activelyAvoidPrefetchCachePollution );
         }
 
         std::cerr << "== Testing with dedicated prefetch cache ==\n\n";
 
-        benchmarkPattern( FetchNext     (), 16, parallelization, activelyAvoidPrefetchCachePollution );
-        benchmarkPattern( FetchNextSmart(), 16, parallelization, activelyAvoidPrefetchCachePollution );
-        benchmarkPattern( FetchNextMulti(), 16, parallelization, activelyAvoidPrefetchCachePollution );
+        benchmarkPattern( FetchNextFixed(), 16, parallelization, activelyAvoidPrefetchCachePollution );
+        benchmarkPattern( FetchNextAdaptive(), 16, parallelization, activelyAvoidPrefetchCachePollution );
+        benchmarkPattern( FetchMultiStream(), 16, parallelization, activelyAvoidPrefetchCachePollution );
 
         std::cerr << "== Testing with dedicated prefetch cache twice the size ==\n\n";
 
-        benchmarkPattern( FetchNext     (), 16, 2 * parallelization, activelyAvoidPrefetchCachePollution );
-        benchmarkPattern( FetchNextSmart(), 16, 2 * parallelization, activelyAvoidPrefetchCachePollution );
-        benchmarkPattern( FetchNextMulti(), 16, 2 * parallelization, activelyAvoidPrefetchCachePollution );
+        benchmarkPattern( FetchNextFixed(), 16, 2 * parallelization, activelyAvoidPrefetchCachePollution );
+        benchmarkPattern( FetchNextAdaptive(), 16, 2 * parallelization, activelyAvoidPrefetchCachePollution );
+        benchmarkPattern( FetchMultiStream(), 16, 2 * parallelization, activelyAvoidPrefetchCachePollution );
     }
 }
 
@@ -1089,7 +1089,7 @@ main()
         const auto checkStatistics =
             [] ( const auto& statistics, const std::string& fetchingStrategy )
             {
-                if ( fetchingStrategy != "FetchNext" ) {
+                if ( fetchingStrategy != "FetchNextFixed" ) {
                     /* The very first access may trigger prefetching with full parallelization as a heuristic.
                      * Without the double prefetch cache size, it seems that twice the amount of unused entries
                      * is possible. @todo That could be a bug to be further analyzed. */
@@ -1112,7 +1112,7 @@ main()
         const auto checkStatistics =
             [] ( const auto& statistics, const std::string& fetchingStratgegy )
             {
-                if ( fetchingStratgegy != "FetchNext" ) {
+                if ( fetchingStratgegy != "FetchNextFixed" ) {
                     /* The very first access may trigger prefetching with full parallelization as a heuristic.
                      * Without the double prefetch cache size, it seems that twice the amount of unused entries
                      * is possible. @todo That could be a bug to be further analyzed. */
@@ -1135,7 +1135,7 @@ main()
         const auto checkStatistics =
             [] ( const auto& statistics, const std::string& fetchingStratgegy )
             {
-                if ( fetchingStratgegy != "FetchNext" ) {
+                if ( fetchingStratgegy != "FetchNextFixed" ) {
                     /* The very first access may trigger prefetching with full parallelization as a heuristic.
                      * Without the double prefetch cache size, it seems that twice the amount of unused entries
                      * is possible. @todo That could be a bug to be further analyzed. */
@@ -1148,14 +1148,14 @@ main()
 
     testFindAdjacentIf();
 
-    testFetchNext();
-    testLinearAccess<FetchNextSmart>();
-    testLinearAccess<FetchNextMulti>();
-    testInterleavedLinearAccess<FetchNextMulti>( 1 );
-    testInterleavedLinearAccess<FetchNextMulti>( 2 );
+    testFetchNextFixed();
+    testLinearAccess<FetchNextAdaptive>();
+    testLinearAccess<FetchMultiStream>();
+    testInterleavedLinearAccess<FetchMultiStream>( 1 );
+    testInterleavedLinearAccess<FetchMultiStream>( 2 );
 
-    benchmarkFetchNext();
-    benchmarkFetchNextSmart();
+    benchmarkFetchNextFixed();
+    benchmarkFetchNextAdaptive();
 
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
 
@@ -1172,51 +1172,51 @@ Results for benchmarkAccessPattern (parallelization = 16, REAL_ACCESS_PATTERN_1)
 
     = Testing access pattern without actively avoiding prefetch cache pollution =
     == Testing without dedicated prefetch cache ==
-    FetchNext      : Hit Rate : 0.870113 %
-    FetchNextSmart : Hit Rate : 0.892182 %
-    FetchNextMulti : Hit Rate : 0.935057 %
+    FetchNextFixed    : Hit Rate : 0.870113 %
+    FetchNextAdaptive : Hit Rate : 0.892182 %
+    FetchMultiStream  : Hit Rate : 0.935057 %
 
     == Testing with dedicated prefetch cache ==
-    FetchNext      : Hit Rate : 0.787516 %  Useless Prefetches : 0.953225 %
-    FetchNextSmart : Hit Rate : 0.883354 %  Useless Prefetches : 0.691707 %
-    FetchNextMulti : Hit Rate : 0.936318 %  Useless Prefetches : 0.656334 %
+    FetchNextFixed    : Hit Rate : 0.787516 %  Useless Prefetches : 0.953225 %
+    FetchNextAdaptive : Hit Rate : 0.883354 %  Useless Prefetches : 0.691707 %
+    FetchMultiStream  : Hit Rate : 0.936318 %  Useless Prefetches : 0.656334 %
 
     == Testing with dedicated prefetch cache twice the size ==
-    FetchNext      : Hit Rate : 0.908575 %  Useless Prefetches : 0.765974 %
-    FetchNextSmart : Hit Rate : 0.954603 %  Useless Prefetches : 0.179747 %
-    FetchNextMulti : Hit Rate : 0.957125 %  Useless Prefetches : 0.0946667 %
+    FetchNextFixed    : Hit Rate : 0.908575 %  Useless Prefetches : 0.765974 %
+    FetchNextAdaptive : Hit Rate : 0.954603 %  Useless Prefetches : 0.179747 %
+    FetchMultiStream  : Hit Rate : 0.957125 %  Useless Prefetches : 0.0946667 %
 
     = Testing access pattern while actively avoiding prefetch cache pollution =
     == Testing with dedicated prefetch cache ==
-    FetchNext      : Hit Rate : 0.738966 %  Useless Prefetches : 0.924986 %
-    FetchNextSmart : Hit Rate : 0.854351 %  Useless Prefetches : 0.670407 %
-    FetchNextMulti : Hit Rate : 0.913619 %  Useless Prefetches : 0.50571 %
+    FetchNextFixed    : Hit Rate : 0.738966 %  Useless Prefetches : 0.924986 %
+    FetchNextAdaptive : Hit Rate : 0.854351 %  Useless Prefetches : 0.670407 %
+    FetchMultiStream  : Hit Rate : 0.913619 %  Useless Prefetches : 0.50571 %
 
     == Testing with dedicated prefetch cache twice the size ==
-    FetchNext      : Hit Rate : 0.86633  %  Useless Prefetches : 0.751051 %
-    FetchNextSmart : Hit Rate : 0.947667 %  Useless Prefetches : 0.171651 %
-    FetchNextMulti : Hit Rate : 0.956494 %  Useless Prefetches : 0.0934579 %
+    FetchNextFixed    : Hit Rate : 0.86633  %  Useless Prefetches : 0.751051 %
+    FetchNextAdaptive : Hit Rate : 0.947667 %  Useless Prefetches : 0.171651 %
+    FetchMultiStream  : Hit Rate : 0.956494 %  Useless Prefetches : 0.0934579 %
 
- => For this access pattern, FetchNextMulti always has the highest hit rate with at the same time the lowest useless prefetches!
+ => For this access pattern, FetchMultiStream       always has the highest hit rate with at the same time the lowest useless prefetches!
  => The dedicated prefetch cache while keeping the total cache sizes / memory usage constant decreases the hit rate
     a bit and even leads to a bit more unused entries.
- => actively avoiding cache pollution does not help very much for FetchNextMulti and decreases the hit rate
+ => actively avoiding cache pollution does not help very much for FetchMultiStream       and decreases the hit rate
     -> Maybe better to not simply stop prefetching on detected cache pollution but instead touch all those to be prefetched first if they already exist!
 
 Repeated tests with first touching blocks to be prefetched before actively testing for prefetch cache pollution:
 
     = Testing access pattern while actively avoiding prefetch cache pollution =
     == Testing with dedicated prefetch cache ==
-    FetchNext      : Hit Rate : 0.755359 %  Useless Prefetches : 0.956552 %
-    FetchNextSmart : Hit Rate : 0.894704 %  Useless Prefetches : 0.637235 %
-    FetchNextMulti : Hit Rate : 0.954603 %  Useless Prefetches : 0.329703 %
+    FetchNextFixed    : Hit Rate : 0.755359 %  Useless Prefetches : 0.956552 %
+    FetchNextAdaptive : Hit Rate : 0.894704 %  Useless Prefetches : 0.637235 %
+    FetchMultiStream  : Hit Rate : 0.954603 %  Useless Prefetches : 0.329703 %
 
     == Testing with dedicated prefetch cache twice the size ==
-    FetchNext      : Hit Rate : 0.912358 %  Useless Prefetches : 0.686254 %
-    FetchNextSmart : Hit Rate : 0.955233 %  Useless Prefetches : 0.138482 %
-    FetchNextMulti : Hit Rate : 0.958386 %  Useless Prefetches : 0.039604 %
+    FetchNextFixed    : Hit Rate : 0.912358 %  Useless Prefetches : 0.686254 %
+    FetchNextAdaptive : Hit Rate : 0.955233 %  Useless Prefetches : 0.138482 %
+    FetchMultiStream  : Hit Rate : 0.958386 %  Useless Prefetches : 0.039604 %
 
- => This is better in all metrics than the previous pollution prevention except for FetchNext but that strategy is
+ => This is better in all metrics than the previous pollution prevention except for FetchNextFixed         but that strategy is
     the worst anyway and can be ignored for further analyses, I think.
 
 Instead of doubling the prefetch cache, try halfing the maximum prefetch size:
@@ -1224,9 +1224,9 @@ Instead of doubling the prefetch cache, try halfing the maximum prefetch size:
     = Testing access pattern while actively avoiding prefetch cache pollution =
     == Testing without dedicated prefetch cache ==
     == Testing with dedicated prefetch cache ==
-    FetchNext      : Hit Rate : 0.9029   %  Useless Prefetches : 0.608321 %
-    FetchNextSmart : Hit Rate : 0.946406 %  Useless Prefetches : 0.135593 %
-    FetchNextMulti : Hit Rate : 0.949559 %  Useless Prefetches : 0.0479042 %
+    FetchNextFixed    : Hit Rate : 0.9029   %  Useless Prefetches : 0.608321 %
+    FetchNextAdaptive : Hit Rate : 0.946406 %  Useless Prefetches : 0.135593 %
+    FetchMultiStream  : Hit Rate : 0.949559 %  Useless Prefetches : 0.0479042 %
 
  => This yields similar results to doubling the prefetch cache size.
     => Either, I'll have to make the FetchingStrategy return prefetching candidates much more conservatively,
@@ -1238,62 +1238,62 @@ Simple sequential access is not a problem for any of the methods:
 
     = Testing access pattern without actively avoiding prefetch cache pollution =
     == Testing without dedicated prefetch cache ==
-    FetchNext      : Hit Rate : 0.999 %  Useless Prefetches : 0 %
-    FetchNextSmart : Hit Rate : 0.999 %  Useless Prefetches : 0 %
-    FetchNextMulti : Hit Rate : 0.999 %  Useless Prefetches : 0 %
+    FetchNextFixed    : Hit Rate : 0.999 %  Useless Prefetches : 0 %
+    FetchNextAdaptive : Hit Rate : 0.999 %  Useless Prefetches : 0 %
+    FetchMultiStream  : Hit Rate : 0.999 %  Useless Prefetches : 0 %
 
     == Testing with dedicated prefetch cache ==
-    FetchNext      : Hit Rate : 0.999 %  Useless Prefetches : 0 %
-    FetchNextSmart : Hit Rate : 0.999 %  Useless Prefetches : 0 %
-    FetchNextMulti : Hit Rate : 0.999 %  Useless Prefetches : 0 %
+    FetchNextFixed    : Hit Rate : 0.999 %  Useless Prefetches : 0 %
+    FetchNextAdaptive : Hit Rate : 0.999 %  Useless Prefetches : 0 %
+    FetchMultiStream  : Hit Rate : 0.999 %  Useless Prefetches : 0 %
 
     == Testing with dedicated prefetch cache twice the size ==
-    FetchNext      : Hit Rate : 0.999 %  Useless Prefetches : 0 %
-    FetchNextSmart : Hit Rate : 0.999 %  Useless Prefetches : 0 %
-    FetchNextMulti : Hit Rate : 0.999 %  Useless Prefetches : 0 %
+    FetchNextFixed    : Hit Rate : 0.999 %  Useless Prefetches : 0 %
+    FetchNextAdaptive : Hit Rate : 0.999 %  Useless Prefetches : 0 %
+    FetchMultiStream  : Hit Rate : 0.999 %  Useless Prefetches : 0 %
 
     = Testing access pattern while actively avoiding prefetch cache pollution =
     == Testing without dedicated prefetch cache ==
     == Testing with dedicated prefetch cache ==
 
-    FetchNext      : Hit Rate : 0.999 %  Useless Prefetches : 0 %
-    FetchNextSmart : Hit Rate : 0.999 %  Useless Prefetches : 0 %
-    FetchNextMulti : Hit Rate : 0.999 %  Useless Prefetches : 0 %
+    FetchNextFixed    : Hit Rate : 0.999 %  Useless Prefetches : 0 %
+    FetchNextAdaptive : Hit Rate : 0.999 %  Useless Prefetches : 0 %
+    FetchMultiStream  : Hit Rate : 0.999 %  Useless Prefetches : 0 %
 
     == Testing with dedicated prefetch cache twice the size ==
-    FetchNext      : Hit Rate : 0.999 %  Useless Prefetches : 0 %
-    FetchNextSmart : Hit Rate : 0.999 %  Useless Prefetches : 0 %
-    FetchNextMulti : Hit Rate : 0.999 %  Useless Prefetches : 0 %
+    FetchNextFixed    : Hit Rate : 0.999 %  Useless Prefetches : 0 %
+    FetchNextAdaptive : Hit Rate : 0.999 %  Useless Prefetches : 0 %
+    FetchMultiStream  : Hit Rate : 0.999 %  Useless Prefetches : 0 %
 
-A backwards access pattern, currently, results in a bug for FetchNextMulti because it simply sorts all last values!
+A backwards access pattern, currently, results in a bug for FetchMultiStream       because it simply sorts all last values!
 
     = Testing access pattern without actively avoiding prefetch cache pollution =
 
     == Testing without dedicated prefetch cache ==
-    FetchNext : Hit Rate : 0 %  Useless Prefetches : 0 %
-    FetchNextSmart : Hit Rate : 0 %  Useless Prefetches : 0 %
-    FetchNextMulti : Hit Rate : 0 %  Useless Prefetches : 0 %
+    FetchNextFixed    : Hit Rate : 0 %  Useless Prefetches : 0 %
+    FetchNextAdaptive : Hit Rate : 0 %  Useless Prefetches : 0 %
+    FetchMultiStream  : Hit Rate : 0 %  Useless Prefetches : 0 %
 
     == Testing with dedicated prefetch cache ==
-    FetchNext : Hit Rate : 0 %  Useless Prefetches : 0.0433145 %
-    FetchNextSmart : Hit Rate : 0 %  Useless Prefetches : 0 %
-    FetchNextMulti : Hit Rate : 0 %  Useless Prefetches : 0 %
+    FetchNextFixed    : Hit Rate : 0 %  Useless Prefetches : 0.0433145 %
+    FetchNextAdaptive : Hit Rate : 0 %  Useless Prefetches : 0 %
+    FetchMultiStream  : Hit Rate : 0 %  Useless Prefetches : 0 %
 
     == Testing with dedicated prefetch cache twice the size ==
-    FetchNext : Hit Rate : 0 %  Useless Prefetches : 0.0282486 %
-    FetchNextSmart : Hit Rate : 0 %  Useless Prefetches : 0 %
-    FetchNextMulti : Hit Rate : 0 %  Useless Prefetches : 0 %
+    FetchNextFixed    : Hit Rate : 0 %  Useless Prefetches : 0.0282486 %
+    FetchNextAdaptive : Hit Rate : 0 %  Useless Prefetches : 0 %
+    FetchMultiStream  : Hit Rate : 0 %  Useless Prefetches : 0 %
 
     = Testing access pattern while actively avoiding prefetch cache pollution =
     == Testing without dedicated prefetch cache ==
     == Testing with dedicated prefetch cache ==
 
-    FetchNext : Hit Rate : 0 %  Useless Prefetches : 0.0433145 %
-    FetchNextSmart : Hit Rate : 0 %  Useless Prefetches : 0 %
-    FetchNextMulti : Hit Rate : 0 %  Useless Prefetches : 0 %
+    FetchNextFixed    : Hit Rate : 0 %  Useless Prefetches : 0.0433145 %
+    FetchNextAdaptive : Hit Rate : 0 %  Useless Prefetches : 0 %
+    FetchMultiStream  : Hit Rate : 0 %  Useless Prefetches : 0 %
 
     == Testing with dedicated prefetch cache twice the size ==
-    FetchNext : Hit Rate : 0 %  Useless Prefetches : 0.0282486 %
-    FetchNextSmart : Hit Rate : 0 %  Useless Prefetches : 0 %
-    FetchNextMulti : Hit Rate : 0 %  Useless Prefetches : 0 %
+    FetchNextFixed    : Hit Rate : 0 %  Useless Prefetches : 0.0282486 %
+    FetchNextAdaptive : Hit Rate : 0 %  Useless Prefetches : 0 %
+    FetchMultiStream  : Hit Rate : 0 %  Useless Prefetches : 0 %
 */

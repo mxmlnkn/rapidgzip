@@ -39,7 +39,7 @@ public:
 /**
  * Simply prefetches the next n indexes after the last access.
  */
-class FetchNext :
+class FetchNextFixed :
     public FetchingStrategy
 {
 public:
@@ -68,7 +68,7 @@ private:
 
 
 /**
- * Similar to @ref FetchNext but the amount of returned subsequent indexes is relative to the amount of
+ * Similar to @ref FetchNextFixed but the amount of returned subsequent indexes is relative to the amount of
  * consecutive accesses in the memory.
  * If all are consecutive, returns the specified amount to prefetch.
  * Else, if there are only random access in memory, then it will return nothing to prefetch to avoid wasted computation.
@@ -77,12 +77,12 @@ private:
  *   2 consecutive pair -> 2
  *   3 consecutive pair -> 4
  */
-class FetchNextSmart :
+class FetchNextAdaptive :
     public FetchingStrategy
 {
 public:
     explicit
-    FetchNextSmart( size_t memorySize = 3 ) :
+    FetchNextAdaptive( size_t memorySize = 3 ) :
         m_memorySize( memorySize )
     {}
 
@@ -186,19 +186,19 @@ protected:
 
 
 /**
- * Similar to @ref FetchNextSmart but it is able to detect multiple interleaved consecutive accesses as might happen
+ * Similar to @ref FetchNextAdaptive but it is able to detect multiple interleaved consecutive accesses as might happen
  * for parallel processes accessing the cache.
  * Detection works by sorting all last indexes and looking for consecutive sequences there and return predictions
  * for them at the same time.
  */
-class FetchNextMulti :
-    public FetchNextSmart
+class FetchMultiStream :
+    public FetchNextAdaptive
 {
 public:
     explicit
-    FetchNextMulti( size_t memorySize = 3,
-                    size_t maxStreamCount = 16U ) :
-        FetchNextSmart( maxStreamCount * memorySize ),
+    FetchMultiStream( size_t memorySize = 3,
+                      size_t maxStreamCount = 16U ) :
+        FetchNextAdaptive( maxStreamCount * memorySize ),
         m_memorySizePerStream( memorySize )
     {}
 
