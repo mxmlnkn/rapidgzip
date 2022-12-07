@@ -6,7 +6,7 @@
 
 namespace pragzip
 {
-enum class Error
+enum class [[nodiscard]] Error
 {
     NONE                        = 0x00,
 

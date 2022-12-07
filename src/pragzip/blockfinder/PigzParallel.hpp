@@ -179,11 +179,14 @@ public:
             pragzip::BitReader bitReader( std::make_unique<BufferedFileReader>( m_buffer ) );
             #endif
 
-            pragzip::gzip::checkHeader( bitReader );
+            auto error = pragzip::gzip::checkHeader( bitReader );
+            if ( error != pragzip::Error::NONE ) {
+                throw std::invalid_argument( "Corrupted deflate stream in gzip file!" );
+            }
             m_lastBlockOffsetReturned = bitReader.tell();
 
             DeflateBlock block;
-            const auto error = block.readHeader( bitReader );
+            error = block.readHeader( bitReader );
             if ( error != pragzip::Error::NONE ) {
                 throw std::invalid_argument( "Corrupted deflate stream in gzip file!" );
             }

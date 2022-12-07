@@ -27,7 +27,6 @@ https://www.ietf.org/rfc/rfc1952.txt
 #include <BitReader.hpp>
 #include <blockfinder/Bgzf.hpp>
 #include <blockfinder/DynamicHuffman.hpp>
-#include <blockfinder/PigzParallel.hpp>
 #include <blockfinder/precodecheck/SingleCompressedLUT.hpp>
 #include <blockfinder/precodecheck/SingleLUT.hpp>
 #include <blockfinder/precodecheck/WalkTreeCompressedLUT.hpp>

@@ -18,6 +18,11 @@
 #include "Interface.hpp"
 
 
+/**
+ * A simplistic pigz block finder reaches 1.3 GB/s
+ * A parallel implementation of the naive pigz block finder reached 2.3 MB/s.
+ * This pigz blockfinder makes use of std::string_view::find to reach 8 GB/s.
+ */
 namespace pragzip::blockfinder
 {
 class PigzStringView :
