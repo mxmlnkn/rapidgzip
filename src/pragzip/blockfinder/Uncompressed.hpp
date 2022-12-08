@@ -36,16 +36,19 @@ seekToNonFinalUncompressedDeflateBlock( BitReader&   bitReader,
                                            : untilOffset + MAX_PRECEDING_BYTES;
 
         const auto startOffset = bitReader.tell();
-        for ( size_t offset = std::max( static_cast<size_t>( BYTE_SIZE ),
-                                        ceilDiv( startOffset + DEFLATE_MAGIC_BIT_COUNT, BYTE_SIZE ) * BYTE_SIZE );
-              offset < untilOffsetSizeMember; offset += BYTE_SIZE )
-        {
-            assert( offset % BYTE_SIZE == 0 );
-            bitReader.seek( static_cast<long long int>( offset ) );
+        /* Align to byte because we begin checking there instead of the deflate magic bits. */
+        const auto startOffsetByte = std::max(
+            static_cast<size_t>( BYTE_SIZE ),
+            ceilDiv( startOffset + DEFLATE_MAGIC_BIT_COUNT, BYTE_SIZE ) * BYTE_SIZE );
+        if ( startOffsetByte < untilOffsetSizeMember ) {
+            bitReader.seek( static_cast<long long int>( startOffsetByte ) );
+        }
 
+        for ( size_t offset = startOffsetByte; offset < untilOffsetSizeMember; offset += BYTE_SIZE ) {
             /* We should be at a byte-boundary, so try reading the size. */
             const auto size = bitReader.peek<32>();
             if ( LIKELY( ( ( size ^ ( size >> 16U ) ) & nLowestBitsSet<uint32_t>( 16 ) ) != 0xFFFFU ) ) [[likely]] {
+                bitReader.seekAfterPeek( BYTE_SIZE );
                 continue;
             }
 
@@ -58,6 +61,7 @@ seekToNonFinalUncompressedDeflateBlock( BitReader&   bitReader,
 
             static constexpr auto MAGIC_BITS_MASK = 0b111ULL << ( MAX_PRECEDING_BITS - DEFLATE_MAGIC_BIT_COUNT );
             if ( LIKELY( ( previousBits & MAGIC_BITS_MASK ) != 0 ) ) [[likely]] {
+                bitReader.seek( offset + BYTE_SIZE );
                 continue;
             }
 
@@ -72,6 +76,8 @@ seekToNonFinalUncompressedDeflateBlock( BitReader&   bitReader,
             if ( ( offset - DEFLATE_MAGIC_BIT_COUNT >= startOffset ) && ( offset - trailingZeros < untilOffset ) ) {
                 return std::make_pair( offset - trailingZeros, offset - DEFLATE_MAGIC_BIT_COUNT );
             }
+
+            bitReader.seek( offset + BYTE_SIZE );
         }
     } catch ( const BitReader::EndOfFileReached& ) {
         /* This might happen when trying to read the 32 bits! */
