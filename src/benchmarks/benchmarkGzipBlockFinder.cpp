@@ -401,7 +401,7 @@ findDeflateBlocksZlib( BufferedFileReader::AlignedBuffer buffer )
     GzipWrapper gzip( GzipWrapper::Format::RAW );
 
     for ( size_t offset = 0; offset <= ( buffer.size() - 1 ) * sizeof( buffer[0] ) * CHAR_BIT; ++offset ) {
-        if ( gzip.tryInflate( reinterpret_cast<unsigned char*>( buffer.data() ),
+        if ( gzip.tryInflate( reinterpret_cast<unsigned char const*>( buffer.data() ),
                               buffer.size() * sizeof( buffer[0] ),
                               offset ) ) {
             bitOffsets.push_back( offset );
@@ -534,7 +534,7 @@ findDeflateBlocksZlibOptimized( BufferedFileReader::AlignedBuffer buffer )
          * end to this block's beginning. It would require a min,max possible range (<8)!
          */
         ++zlibTestCount;
-        if ( gzip.tryInflate( reinterpret_cast<unsigned char*>( buffer.data() ),
+        if ( gzip.tryInflate( reinterpret_cast<unsigned char const*>( buffer.data() ),
                               buffer.size() * sizeof( buffer[0] ),
                               offset ) ) {
             bitOffsets.push_back( offset );

@@ -98,3 +98,8 @@ add_executable(empiricalFalsePositiveRate EXCLUDE_FROM_ALL)
 target_sources(empiricalFalsePositiveRate PRIVATE ${CMAKE_CURRENT_LIST_DIR}/empiricalFalsePositiveRate.cpp)
 target_link_libraries(empiricalFalsePositiveRate PRIVATE libpragzip)
 target_compile_features(empiricalFalsePositiveRate INTERFACE cxx_std_17)
+
+
+add_executable(benchmarkSequential2023)
+target_sources(benchmarkSequential2023 PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkSequential2023.cpp)
+target_link_libraries(benchmarkSequential2023 PRIVATE libpragzip)
