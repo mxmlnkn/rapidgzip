@@ -44,13 +44,16 @@ seekToNonFinalUncompressedDeflateBlock( BitReader&   bitReader,
             bitReader.seek( static_cast<long long int>( startOffsetByte ) );
         }
 
+        auto size = bitReader.read<3U * BYTE_SIZE>() << BYTE_SIZE;
         for ( size_t offset = startOffsetByte; offset < untilOffsetSizeMember; offset += BYTE_SIZE ) {
             /* We should be at a byte-boundary, so try reading the size. */
-            const auto size = bitReader.peek<32>();
+            size = ( size >> BYTE_SIZE ) | ( bitReader.read<BYTE_SIZE>() << 3U * BYTE_SIZE );
             if ( LIKELY( ( ( size ^ ( size >> 16U ) ) & nLowestBitsSet<uint32_t>( 16 ) ) != 0xFFFFU ) ) [[likely]] {
-                bitReader.seekAfterPeek( BYTE_SIZE );
                 continue;
             }
+
+            const auto oldOffset = offset + 4U * BYTE_SIZE;
+            assert( oldOffset == bitReader.tell() );
 
             /* This should happen rather rarely, at least for false positives. So, we can be a bit indulgent
              * and seek back possibly expensively to check the block header. Beware the bit order! They are
@@ -61,7 +64,7 @@ seekToNonFinalUncompressedDeflateBlock( BitReader&   bitReader,
 
             static constexpr auto MAGIC_BITS_MASK = 0b111ULL << ( MAX_PRECEDING_BITS - DEFLATE_MAGIC_BIT_COUNT );
             if ( LIKELY( ( previousBits & MAGIC_BITS_MASK ) != 0 ) ) [[likely]] {
-                bitReader.seek( offset + BYTE_SIZE );
+                bitReader.seek( oldOffset );
                 continue;
             }
 
@@ -77,7 +80,7 @@ seekToNonFinalUncompressedDeflateBlock( BitReader&   bitReader,
                 return std::make_pair( offset - trailingZeros, offset - DEFLATE_MAGIC_BIT_COUNT );
             }
 
-            bitReader.seek( offset + BYTE_SIZE );
+            bitReader.seek( oldOffset );
         }
     } catch ( const BitReader::EndOfFileReached& ) {
         /* This might happen when trying to read the 32 bits! */

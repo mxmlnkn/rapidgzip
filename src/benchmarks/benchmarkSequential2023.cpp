@@ -798,7 +798,7 @@ sed -r '/[.]{3}/d; /Open file handles/d' benchmarks2023.log
 [Dynamic block finder using pragzip] ( min: 3.29371, 3.72 +- 0.10, max: 3.87226 ) MB/s
 [Dynamic block finder using zlib] ( min: 0.157237, 0.176 +- 0.003, max: 0.180353 ) MB/s
 [Dynamic block finder] ( min: 55.817, 67.3 +- 2.1, max: 69.4555 ) MB/s
-[Uncompressed block finder] ( min: 365.294, 379 +- 6, max: 384.476 ) MB/s
+[Uncompressed block finder] ( min: 389.345, 430 +- 7, max: 444.314 ) MB/s
 [Apply window] Output(!) bandwidth of 8-bit symbols (input is 16-bit symbols): ( min: 680.418, 791 +- 19, max: 810.93 ) MB/s
 [Count newlines] ( min: 7525.09, 12400 +- 800, max: 12901.9 ) MB/s
 [Parallel File Reading] Using 1 threads: ( min: 7083.82, 9480 +- 280, max: 9886.19 ) MB/s
