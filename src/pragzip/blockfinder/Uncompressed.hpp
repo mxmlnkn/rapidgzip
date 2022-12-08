@@ -31,9 +31,12 @@ seekToNonFinalUncompressedDeflateBlock( BitReader&   bitReader,
 
     try
     {
-        const auto untilOffsetSizeMember = untilOffset >= std::numeric_limits<size_t>::max() - MAX_PRECEDING_BYTES
-                                           ? std::numeric_limits<size_t>::max()
-                                           : untilOffset + MAX_PRECEDING_BYTES;
+        const auto untilOffsetSizeMember = std::min(
+            bitReader.size(),
+            untilOffset >= std::numeric_limits<size_t>::max() - MAX_PRECEDING_BYTES
+            ? std::numeric_limits<size_t>::max()
+            : untilOffset + MAX_PRECEDING_BYTES
+        );
 
         const auto startOffset = bitReader.tell();
         /* Align to byte because we begin checking there instead of the deflate magic bits. */
