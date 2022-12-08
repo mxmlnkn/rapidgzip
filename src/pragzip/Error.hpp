@@ -1,5 +1,6 @@
 #pragma once
 
+#include <sstream>
 #include <string>
 
 
@@ -82,5 +83,14 @@ toString( Error error )
         return "No error.";
     }
     return "Unknown error code!";
+}
+
+
+std::ostream&
+operator<<( std::ostream&  out,
+            pragzip::Error error )
+{
+    out << toString( error );
+    return out;
 }
 }  // namespace pragzip
