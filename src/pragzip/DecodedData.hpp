@@ -16,27 +16,50 @@
 
 namespace pragzip::deflate
 {
+template<bool FULL_WINDOW>
+struct MapMarkers
+{
+    MapMarkers( VectorView<uint8_t> const& window ) :
+        m_window( window )
+    {
+        assert( ( m_window.size() >= MAX_WINDOW_SIZE ) == FULL_WINDOW );
+    }
+
+    [[nodiscard]] constexpr uint8_t
+    operator()( uint16_t value ) const
+    {
+        if ( value <= std::numeric_limits<uint8_t>::max() ) {
+            return static_cast<uint8_t>( value );
+        }
+
+        if ( value < MAX_WINDOW_SIZE ) {
+            throw std::invalid_argument( "Cannot replace unknown 2 B code!" );
+        }
+
+        if constexpr ( !FULL_WINDOW  ) {
+            if ( value - MAX_WINDOW_SIZE >= m_window.size() ) {
+                throw std::invalid_argument( "Window too small!" );
+            }
+        }
+
+        return m_window[value - MAX_WINDOW_SIZE];
+    }
+
+private:
+    const VectorView<uint8_t> m_window;
+};
+
+
 void
 replaceMarkerBytes( WeakVector<std::uint16_t>  buffer,
                     VectorView<uint8_t> const& window )
 {
-    const auto mapMarker =
-        [&window] ( uint16_t value )
-        {
-            if ( ( value > std::numeric_limits<uint8_t>::max() )
-                 && ( value < MAX_WINDOW_SIZE ) )
-            {
-                throw std::invalid_argument( "Cannot replace unknown 2 B code!" );
-            }
-
-            if ( ( value >= MAX_WINDOW_SIZE ) && ( value - MAX_WINDOW_SIZE >= window.size() ) ) {
-                throw std::invalid_argument( "Window too small!" );
-            }
-
-            return value >= MAX_WINDOW_SIZE ? window[value - MAX_WINDOW_SIZE] : static_cast<uint8_t>( value );
-        };
-
-    std::transform( buffer.begin(), buffer.end(), buffer.begin(), mapMarker );
+    /* For maximum size windows, we can skip one check because even UINT16_MAX is valid. */
+    if ( window.size() >= MAX_WINDOW_SIZE ) {
+        std::transform( buffer.begin(), buffer.end(), buffer.begin(), MapMarkers<true>( window ) );
+    } else {
+        std::transform( buffer.begin(), buffer.end(), buffer.begin(), MapMarkers<false>( window ) );
+    }
 }
 
 
@@ -217,19 +240,56 @@ DecodedData::append( DecodedDataView const& buffers )
 inline void
 DecodedData::applyWindow( WindowView const& window )
 {
-    if ( dataWithMarkersSize() == 0 ) {
+    const auto markerCount = dataWithMarkersSize();
+    if ( markerCount == 0 ) {
         dataWithMarkers.clear();
         return;
     }
 
-    std::vector<uint8_t> downcasted( dataWithMarkersSize() );
-    size_t offset{ 0 };
-    for ( auto& chunk : dataWithMarkers ) {
-        replaceMarkerBytes( &chunk, window );
-        std::transform( chunk.begin(), chunk.end(), downcasted.begin() + offset,
-                        [] ( const auto symbol ) { return static_cast<uint8_t>( symbol ); } );
-        offset += chunk.size();
+    /* Because of the overhead of copying the window, avoid it for small replacements. */
+    if ( markerCount >= 128_Ki ) {
+        const std::array<uint8_t, 64_Ki> fullWindow =
+            [&window] () noexcept
+            {
+                std::array<uint8_t, 64_Ki> result{};
+                std::iota( result.begin(), result.begin() + 256, 0 );
+                std::copy( window.begin(), window.end(), result.begin() + MAX_WINDOW_SIZE );
+                return result;
+            }();
+
+        std::vector<uint8_t> downcasted( markerCount );
+        size_t offset{ 0 };
+        for ( auto& chunk : dataWithMarkers ) {
+            std::transform( chunk.begin(), chunk.end(), downcasted.begin() + offset,
+                            [&fullWindow] ( const auto value ) constexpr noexcept { return fullWindow[value]; } );
+            offset += chunk.size();
+        }
+
+        data.insert( data.begin(), std::move( downcasted ) );
+        dataWithMarkers.clear();
+        return;
     }
+
+    std::vector<uint8_t> downcasted( markerCount );
+    size_t offset{ 0 };
+
+    /* For maximum size windows, we can skip one check because even UINT16_MAX is valid. */
+    static_assert( std::numeric_limits<uint16_t>::max() - MAX_WINDOW_SIZE + 1U == MAX_WINDOW_SIZE );
+    if ( window.size() >= MAX_WINDOW_SIZE ) {
+        const MapMarkers<true> mapMarkers( window );
+        for ( auto& chunk : dataWithMarkers ) {
+            std::transform( chunk.begin(), chunk.end(), downcasted.begin() + offset, mapMarkers );
+            offset += chunk.size();
+        }
+    } else {
+        const MapMarkers<false> mapMarkers( window );
+        for ( auto& chunk : dataWithMarkers ) {
+            std::transform( chunk.begin(), chunk.end(), chunk.begin(), mapMarkers );
+            std::copy( chunk.begin(), chunk.end(), reinterpret_cast<std::uint8_t*>( downcasted.data() + offset ) );
+            offset += chunk.size();
+        }
+    }
+
     data.insert( data.begin(), std::move( downcasted ) );
     dataWithMarkers.clear();
 }
