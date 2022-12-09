@@ -116,7 +116,7 @@ public:
 
         /* Use a packaged task, which abstracts handling the return type and makes the task return void. */
         using ReturnType = decltype( std::declval<T_Functor>()() );
-        std::packaged_task<ReturnType()> packagedTask{ task };
+        std::packaged_task<ReturnType()> packagedTask{ std::move( task ) };
         auto resultFuture = packagedTask.get_future();
         m_tasks.emplace_back( std::move( packagedTask ) );
 
