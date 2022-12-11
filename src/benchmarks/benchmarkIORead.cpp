@@ -18,7 +18,7 @@ struct TemporaryFile
             x = static_cast<char>( rand() );
         }
         for ( size_t nBytesWritten = 0; nBytesWritten < size; nBytesWritten += dataToWrite.size() ) {
-            file.write( dataToWrite.data(), dataToWrite.size() );
+            file.write( dataToWrite.data(), static_cast<std::streamsize>( dataToWrite.size() ) );
         }
         file.close();
     }

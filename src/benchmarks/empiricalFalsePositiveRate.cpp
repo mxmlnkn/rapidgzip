@@ -146,7 +146,7 @@ benchmarkRandomNumberGeneration()
 
     const auto dt = duration( t0 );
     std::cout << "Generating " << formatBytes( randomData.size() ) << " of random data took " << dt << " s"
-              << " -> " << randomData.size() / dt / 1e6 << " MB/s.\n";
+              << " -> " << static_cast<double>( randomData.size() ) / dt / 1e6 << " MB/s.\n";
 }
 
 
@@ -242,6 +242,7 @@ static constexpr size_t MAXIMUM_CHECKED_TAIL_BITS =
     pragzip::deflate::MAX_LITERAL_OR_LENGTH_SYMBOLS * pragzip::deflate::MAX_PRECODE_LENGTH;
 
 
+// NOLINTNEXTLINE(clang-analyzer-optin.performance.Padding)
 class AnalyzeDynamicBlockFalsePositives
 {
 public:
@@ -263,15 +264,6 @@ private:
     countFalsePositives( const std::vector<char>& data,
                          size_t                   nBitsToTest );
 
-private:
-    /* Random generator */
-    std::random_device m_randomDevice;
-    std::mt19937 m_randomGenerator{ m_randomDevice() };
-    std::uniform_int_distribution<char> m_uniformBytes{
-        std::numeric_limits<char>::lowest(),
-        std::numeric_limits<char>::max()
-    };
-
 public:
     // NOLINTBEGIN(misc-non-private-member-variables-in-classes)
     // NOLINTBEGIN(cppcoreguidelines-non-private-member-variables-in-classes)
@@ -282,7 +274,6 @@ public:
 
     /* Statistics */
     size_t m_offsetsTestedMoreInDepth{ 0 };
-    std::unordered_map<pragzip::Error, uint64_t> m_errorCounts;
     size_t checkPrecodeFails{ 0 };
     size_t filteredByInvalidPrecode{ 0 };
     size_t filteredByBloatingPrecode{ 0 };
@@ -298,8 +289,19 @@ public:
     size_t filteredByInvalidLiteralCoding{ 0 };
     size_t filteredByBloatingLiteralCoding{ 0 };
 
-    // NOLINTEND(misc-non-private-member-variables-in-classes)
     // NOLINTEND(cppcoreguidelines-non-private-member-variables-in-classes)
+    // NOLINTEND(misc-non-private-member-variables-in-classes)
+
+private:
+    std::unordered_map<pragzip::Error, uint64_t> m_errorCounts;
+
+    /* Random generator */
+    std::random_device m_randomDevice;
+    std::mt19937 m_randomGenerator{ m_randomDevice() };
+    std::uniform_int_distribution<char> m_uniformBytes{
+        std::numeric_limits<char>::lowest(),
+        std::numeric_limits<char>::max()
+    };
 };
 
 

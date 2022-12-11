@@ -84,7 +84,7 @@ benchmarkBitReader( const std::vector<char>& data,
     using pragzip::BitReader;
     BitReader bitReader( std::make_unique<BufferViewFileReader>( data ) );
 
-    const auto t0 = now();
+    const auto t0 = now();  // NOLINT(clang-analyzer-deadcode.DeadStores)
 
     uint64_t sum = 0;
     try {
@@ -142,7 +142,7 @@ benchmarkUncompressedBlockFinder( const std::vector<char>& data )
             break;
         }
         ++count;
-        bitReader.seek( max + 1 );
+        bitReader.seek( static_cast<long long int>( max ) + 1 );
     }
 
     return { duration( t0 ), count };
@@ -186,7 +186,7 @@ benchmarkDynamicBlockFinder( const std::vector<char>& data )
             break;
         }
         ++count;
-        bitReader.seek( offset + 1 );
+        bitReader.seek( static_cast<long long int>( offset ) + 1 );
     }
 
     return { duration( t0 ), count };
@@ -540,6 +540,7 @@ benchmarkFileReader( const std::string& path,
 /* Create a temporary file for benchmarking that is cleaned up with RAII. */
 struct TemporaryFile
 {
+    explicit
     TemporaryFile( const size_t requestedSize ) :
         size( requestedSize )
     {
@@ -549,7 +550,7 @@ struct TemporaryFile
             x = static_cast<char>( rand() );
         }
         for ( size_t nBytesWritten = 0; nBytesWritten < size; nBytesWritten += dataToWrite.size() ) {
-            file.write( dataToWrite.data(), dataToWrite.size() );
+            file.write( dataToWrite.data(), static_cast<std::streamsize>( dataToWrite.size() ) );
         }
         file.close();
     }
@@ -558,6 +559,11 @@ struct TemporaryFile
     {
         std::filesystem::remove( path );
     }
+
+    TemporaryFile( const TemporaryFile& ) = delete;
+    TemporaryFile( TemporaryFile&& ) = delete;
+    TemporaryFile& operator=( const TemporaryFile& ) = delete;
+    TemporaryFile& operator=( TemporaryFile&& ) = delete;
 
     const std::string path{ "/dev/shm/pragzip-benchmark-random-file.dat" };
     const size_t size;
@@ -602,7 +608,7 @@ benchmarkFileReaderParallel( ThreadPool&        threadPool,
             uint64_t checksum{ 0 };
             const auto fileSize = fileReader->size();
             for ( auto currentOffset = offset; currentOffset < fileSize; currentOffset += stride ) {
-                fileReader->seek( currentOffset );
+                fileReader->seek( static_cast<long long int>( currentOffset ) );
                 const auto nBytesRead = fileReader->read( buffer.data(), buffer.size() );
                 checksum += nBytesRead + buffer[buffer.size() / 2];
                 if ( nBytesRead == 0 ) {
@@ -640,7 +646,7 @@ benchmarkFileReaderParallelRepeatedly( const size_t fileSize,
 
     ThreadPool threadPool( threadCount );
 
-    const auto times = repeatBenchmarks( [&] () {
+    auto times = repeatBenchmarks( [&] () {
         return benchmarkFileReaderParallel( threadPool, temporaryFile.path, pragzip::BitReader::IOBUF_SIZE );
     } );
 

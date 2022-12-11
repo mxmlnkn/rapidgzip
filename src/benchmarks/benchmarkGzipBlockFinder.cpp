@@ -875,6 +875,7 @@ checkDeflateBlock( const uint64_t      bitBufferForLUT,
     const auto distanceCodesOffset = offset + 13 + 4 + ( codeLengthCount * PRECODE_BITS );
     const auto bitReaderOffset = offset + 13 + ALL_PRECODE_BITS;
 
+    // NOLINTNEXTLINE(readability-simplify-boolean-expr)
     if constexpr ( false /* CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_LUT */ ) {
         /** @todo This fails for the igzip benchmark! */
         using PrecodeCheck::SingleLUT::ValidHistogramID::getHistogramIdFromUniformlyPackedHistogram;
