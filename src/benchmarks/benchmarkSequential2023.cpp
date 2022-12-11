@@ -55,14 +55,18 @@ formatBandwidth( const std::vector<double>& times,
 }
 
 
+using BenchmarkFunction = std::function<std::pair</* duration */ double, /* checksum */ uint64_t>()>;
+
+
 [[nodiscard]] std::vector<double>
-repeatBenchmarks( const std::function<std::pair</* duration */ double, /* checksum */ uint64_t>()>& toMeasure )
+repeatBenchmarks( const BenchmarkFunction& toMeasure,
+                  const size_t             repeatCount = REPEAT_COUNT )
 {
-    std::cout << "Repeating benchmarks " << REPEAT_COUNT << " times ... " << std::flush;
+    std::cout << "Repeating benchmarks " << repeatCount << " times ... " << std::flush;
     const auto tStart = now();
 
     std::optional<uint64_t> checksum;
-    std::vector<double> times( REPEAT_COUNT );
+    std::vector<double> times( repeatCount );
     for ( auto& time : times ) {
         const auto [measuredTime, calculatedChecksum] = toMeasure();
         time = measuredTime;
@@ -118,9 +122,9 @@ benchmarkBitReaderBitReads( const std::vector<uint8_t>& nBitsToTest )
             x = static_cast<char>( rand() );
         }
 
-        std::cout << "\n== Benchmarking by reading " << static_cast<int>( nBits ) << " bits ==\n";
         const auto times = repeatBenchmarks( [&] () { return benchmarkBitReader( data, nBits ); } );
-        std::cout << "[BitReader::read loop] Decoded with " << formatBandwidth( times, data.size() ) << "\n";
+        std::cout << "[BitReader::read " << static_cast<int>( nBits ) << " bits in loop] Decoded with "
+                  << formatBandwidth( times, data.size() ) << "\n";
 
         for ( const auto time : times ) {
             dataFile << static_cast<int>( nBits ) << " " << data.size() << " " << time << std::endl;
@@ -651,10 +655,7 @@ benchmarkFileReaderParallelRepeatedly( const size_t                     fileSize
 
     auto times = repeatBenchmarks( [&] () {
         return benchmarkFileReaderParallel( threadPool, temporaryFile.path, pragzip::BitReader::IOBUF_SIZE );
-    } );
-
-    std::cout << "[Parallel File Reading] Using " << threadCount << " threads: "
-              << formatBandwidth( times, temporaryFile.size ) << "\n";
+    }, /* repeat count */ 50 );
 
     return times;
 }
@@ -664,19 +665,43 @@ benchmarkFileReaderParallelRepeatedly( const size_t                     fileSize
 getCoreTopDown( size_t index,
                 size_t coreCount )
 {
-    if ( std::log2( coreCount ) != std::round( std::log2( coreCount ) ) ) {
-        throw std::invalid_argument( "Core count must be a power of 2! You can use taskset to reduce it." );
+    /* Note that to be 100% perfect, we would have to use the hwloc information about NUMA nodes and cache hierarchy.
+     * But, for the systems I'm interested in, spreading the pinning apart as far as possible is sufficient.
+     * E.g., my Ryzen 3700X 12/24-core has a hierarchy of 1 NUMA node with 24 process units, containing 4 L3 caches
+     * used by 3 cores / 6 processing units each. */
+    std::vector<size_t> factors;
+    for ( auto remainder = coreCount; remainder > 1; ) {
+        for ( size_t factor = 2; factor <= remainder; ++factor ) {
+            if ( remainder % factor == 0 ) {
+                factors.emplace_back( factor );
+                break;
+            }
+        }
+        remainder /= factors.back();
     }
 
-    /* Probably the same as simply reversing the log2( coreCount ) lowest bits. */
-    auto stride = coreCount / 2U;
-    size_t coreId{ 0 };
-    while ( index > 0 ) {
-        coreId += ( index & 1U ) * stride;
-        stride /= 2U;
-        index >>= 1U;
+    if ( factors.empty() ) {
+        throw std::logic_error( "There should be prime factors!" );
     }
-    return coreId;
+
+    if ( factors.front() != 2 ) {
+        throw std::invalid_argument( "Assumed an even number of virtual cores because of SMT!" );
+    }
+
+    factors.erase( factors.begin() );
+
+    const auto usesSMT = index >= coreCount / 2;
+
+    auto id = index % ( coreCount / 2 );
+    size_t coreId{ 0 };
+    size_t stride{ coreCount / 2 };
+    for ( auto factor : factors ) {
+        stride /= factor;
+        coreId += ( id % factor ) * stride;
+        id /= factor;
+    }
+
+    return usesSMT ? coreCount / 2 + coreId : coreId;
 }
 
 
@@ -686,9 +711,7 @@ benchmarkFileReaderParallel()
     const auto coreCount = availableCores();
     std::cout << "Available core count: " << coreCount << "\n";
 
-    const size_t fileSize{ coreCount * 128_Mi };
-
-    pinThreadToLogicalCore( 0 );
+    const size_t fileSize{ coreCount * 64_Mi };
 
     const std::vector<size_t> threadCounts = {
         1, 2, 3, 4,
@@ -708,11 +731,25 @@ benchmarkFileReaderParallel()
     };
 
     REQUIRE_EQUAL( getCoreTopDown( 0, 16 ), size_t( 0 ) );
-    REQUIRE_EQUAL( getCoreTopDown( 1, 16 ), size_t( 8 ) );
-    REQUIRE_EQUAL( getCoreTopDown( 2, 16 ), size_t( 4 ) );
-    REQUIRE_EQUAL( getCoreTopDown( 3, 16 ), size_t( 12 ) );
-    REQUIRE_EQUAL( getCoreTopDown( 4, 16 ), size_t( 2 ) );
-    REQUIRE_EQUAL( getCoreTopDown( 5, 16 ), size_t( 10 ) );
+    REQUIRE_EQUAL( getCoreTopDown( 1, 16 ), size_t( 4 ) );
+    REQUIRE_EQUAL( getCoreTopDown( 2, 16 ), size_t( 2 ) );
+    REQUIRE_EQUAL( getCoreTopDown( 3, 16 ), size_t( 6 ) );
+    REQUIRE_EQUAL( getCoreTopDown( 4, 16 ), size_t( 1 ) );
+    REQUIRE_EQUAL( getCoreTopDown( 5, 16 ), size_t( 5 ) );
+
+    REQUIRE_EQUAL( getCoreTopDown( 0, 24 ), size_t( 0 ) );
+    REQUIRE_EQUAL( getCoreTopDown( 1, 24 ), size_t( 6 ) );
+    REQUIRE_EQUAL( getCoreTopDown( 2, 24 ), size_t( 3 ) );
+    REQUIRE_EQUAL( getCoreTopDown( 3, 24 ), size_t( 9 ) );
+    REQUIRE_EQUAL( getCoreTopDown( 4, 24 ), size_t( 1 ) );
+    REQUIRE_EQUAL( getCoreTopDown( 5, 24 ), size_t( 7 ) );
+    REQUIRE_EQUAL( getCoreTopDown( 6, 24 ), size_t( 4 ) );
+    REQUIRE_EQUAL( getCoreTopDown( 7, 24 ), size_t( 10 ) );
+    REQUIRE_EQUAL( getCoreTopDown( 8, 24 ), size_t( 2 ) );
+    REQUIRE_EQUAL( getCoreTopDown( 9, 24 ), size_t( 8 ) );
+    REQUIRE_EQUAL( getCoreTopDown( 10, 24 ), size_t( 5 ) );
+    REQUIRE_EQUAL( getCoreTopDown( 11, 24 ), size_t( 11 ) );
+    REQUIRE_EQUAL( getCoreTopDown( 12, 24 ), size_t( 12 ) );
 
     const auto toString =
         [] ( const PinningScheme scheme )
@@ -773,8 +810,9 @@ benchmarkFileReaderParallel()
 
             case PinningScheme::STRIDED:
                 {
-                    const auto stride = 1 << static_cast<size_t>( std::ceil( std::log2( static_cast<double>( coreCount )
-                                                                                        / static_cast<double>( threadCount ) ) ) );
+                    const auto stride = 1U << static_cast<size_t>(
+                        std::ceil( std::log2( static_cast<double>( coreCount )
+                                              / static_cast<double>( threadCount ) ) ) );
                     uint32_t coreId{ 0 };
                     for ( size_t i = 0; i < threadCount; ++i ) {
                         threadPinning.emplace( i, coreId );
@@ -808,7 +846,7 @@ benchmarkFileReaderParallel()
                          << std::endl;
             }
 
-            std::cout << "[Parallel File Reading (" << toString( scheme ) << ")] "
+            std::cout << "[Parallel File Reading (" << toString( scheme ) << ")] Using " << threadCount << " threads "
                       << formatBandwidth( times, fileSize ) << "\n";
         }
     }
@@ -922,139 +960,92 @@ main()
 
 
 /*
-cmake --build . -- benchmarkSequential2023 && src/benchmarks/benchmarkSequential2023 2>&1 | grep benchmarks2023.log
+cmake --build . -- benchmarkSequential2023 && src/benchmarks/benchmarkSequential2023 2>&1 | tee benchmarks2023.log
 sed -r '/[.]{3}/d; /Open file handles/d' benchmarks2023.log
 
-[Dynamic block finder using skip LUT and pragzip] ( min: 18.9116, 20.1 +- 0.4, max: 20.8573 ) MB/s
-[Dynamic block finder using pragzip] ( min: 3.29371, 3.72 +- 0.10, max: 3.87226 ) MB/s
-[Dynamic block finder using zlib] ( min: 0.157237, 0.176 +- 0.003, max: 0.180353 ) MB/s
-[Dynamic block finder] ( min: 55.817, 67.3 +- 2.1, max: 69.4555 ) MB/s
-[Uncompressed block finder] ( min: 389.345, 430 +- 7, max: 444.314 ) MB/s
-[Apply window] Output(!) bandwidth of 8-bit symbols (input is 16-bit symbols): ( min: 1073.04, 1420 +- 40, max: 1493.76 ) MB/s
-[Count newlines] ( min: 7525.09, 12400 +- 800, max: 12901.9 ) MB/s
+[Dynamic block finder using skip LUT and pragzip] ( min: 20.6126, 22.66 +- 0.25, max: 22.9213 ) MB/s
+[Dynamic block finder using pragzip] ( min: 3.95542, 4.11 +- 0.03, max: 4.15403 ) MB/s
+[Dynamic block finder using zlib] ( min: 0.165136, 0.1766 +- 0.0021, max: 0.180283 ) MB/s
+[Dynamic block finder] ( min: 61.9047, 67.1 +- 1.0, max: 69.1426 ) MB/s
+[Uncompressed block finder] ( min: 383.5, 413 +- 9, max: 428.144 ) MB/s
+[Apply window] Output(!) bandwidth of 8-bit symbols (input is 16-bit symbols): ( min: 974.843, 1290 +- 70, max: 1445.49 ) MB/s
+[Count newlines] ( min: 7430.55, 12300 +- 500, max: 12698.3 ) MB/s
 
-[Parallel File Reading] Using 1 threads: ( min: 7083.82, 9480 +- 280, max: 9886.19 ) MB/s
-[Parallel File Reading] ( min: 7083.82, 9480 +- 280, max: 9886.19 ) MB/s
-[Parallel File Reading] Using 2 threads: ( min: 10804.6, 16700 +- 800, max: 17494.9 ) MB/s
-[Parallel File Reading] ( min: 10804.6, 16700 +- 800, max: 17494.9 ) MB/s
-[Parallel File Reading] Using 3 threads: ( min: 14343.9, 21000 +- 800, max: 22484.9 ) MB/s
-[Parallel File Reading] ( min: 14343.9, 21000 +- 800, max: 22484.9 ) MB/s
-[Parallel File Reading] Using 4 threads: ( min: 16590.9, 23700 +- 1100, max: 26073.6 ) MB/s
-[Parallel File Reading] ( min: 16590.9, 23700 +- 1100, max: 26073.6 ) MB/s
-[Parallel File Reading] Using 5 threads: ( min: 17327, 25100 +- 1600, max: 26901.9 ) MB/s
-[Parallel File Reading] ( min: 17327, 25100 +- 1600, max: 26901.9 ) MB/s
-[Parallel File Reading] Using 6 threads: ( min: 19075.5, 25700 +- 1200, max: 27137.2 ) MB/s
-[Parallel File Reading] ( min: 19075.5, 25700 +- 1200, max: 27137.2 ) MB/s
-[Parallel File Reading] Using 7 threads: ( min: 18933, 25600 +- 1100, max: 27392.8 ) MB/s
-[Parallel File Reading] ( min: 18933, 25600 +- 1100, max: 27392.8 ) MB/s
-[Parallel File Reading] Using 8 threads: ( min: 19842.3, 26200 +- 1300, max: 27854.6 ) MB/s
-[Parallel File Reading] ( min: 19842.3, 26200 +- 1300, max: 27854.6 ) MB/s
-[Parallel File Reading] Using 10 threads: ( min: 22016.6, 26700 +- 1100, max: 28596.4 ) MB/s
-[Parallel File Reading] ( min: 22016.6, 26700 +- 1100, max: 28596.4 ) MB/s
-[Parallel File Reading] Using 12 threads: ( min: 21673, 27200 +- 1300, max: 28914.1 ) MB/s
-[Parallel File Reading] ( min: 21673, 27200 +- 1300, max: 28914.1 ) MB/s
-[Parallel File Reading] Using 14 threads: ( min: 21706.7, 27100 +- 1100, max: 28362.9 ) MB/s
-[Parallel File Reading] ( min: 21706.7, 27100 +- 1100, max: 28362.9 ) MB/s
-[Parallel File Reading] Using 16 threads: ( min: 20218.1, 26300 +- 1300, max: 28079.3 ) MB/s
-[Parallel File Reading] ( min: 20218.1, 26300 +- 1300, max: 28079.3 ) MB/s
-[Parallel File Reading] Using 20 threads: ( min: 21475.5, 26700 +- 1000, max: 28022.7 ) MB/s
-[Parallel File Reading] ( min: 21475.5, 26700 +- 1000, max: 28022.7 ) MB/s
-[Parallel File Reading] Using 24 threads: ( min: 19052.8, 26500 +- 1000, max: 27849.2 ) MB/s
-[Parallel File Reading] ( min: 19052.8, 26500 +- 1000, max: 27849.2 ) MB/s
+[Parallel File Reading (No pinning)] Using 1 threads ( min: 7765.86, 9700 +- 300, max: 10033 ) MB/s
+[Parallel File Reading (No pinning)] Using 2 threads ( min: 10956.6, 16100 +- 800, max: 16505.7 ) MB/s
+[Parallel File Reading (No pinning)] Using 3 threads ( min: 14365.3, 20400 +- 1000, max: 21179.6 ) MB/s
+[Parallel File Reading (No pinning)] Using 4 threads ( min: 17296.3, 23700 +- 1100, max: 24511 ) MB/s
+[Parallel File Reading (No pinning)] Using 5 threads ( min: 18336.3, 25200 +- 1200, max: 26077.1 ) MB/s
+[Parallel File Reading (No pinning)] Using 6 threads ( min: 19787.4, 26000 +- 1100, max: 26888.7 ) MB/s
+[Parallel File Reading (No pinning)] Using 7 threads ( min: 19850.1, 26000 +- 1300, max: 27042.3 ) MB/s
+[Parallel File Reading (No pinning)] Using 8 threads ( min: 21734.9, 26200 +- 1000, max: 27366.7 ) MB/s
+[Parallel File Reading (No pinning)] Using 10 threads ( min: 22015.8, 26800 +- 1000, max: 27749.3 ) MB/s
+[Parallel File Reading (No pinning)] Using 12 threads ( min: 23215.6, 27300 +- 900, max: 28396.9 ) MB/s
+[Parallel File Reading (No pinning)] Using 14 threads ( min: 21293.3, 26800 +- 1100, max: 27976 ) MB/s
+[Parallel File Reading (No pinning)] Using 16 threads ( min: 22175.6, 26900 +- 1000, max: 28101.7 ) MB/s
+[Parallel File Reading (No pinning)] Using 20 threads ( min: 20362.3, 26900 +- 1100, max: 27905 ) MB/s
+[Parallel File Reading (No pinning)] Using 24 threads ( min: 19845.3, 26600 +- 1200, max: 27761.1 ) MB/s
 
-== Benchmarking by reading 1 bits ==
-[BitReader::read loop] Decoded with ( min: 122.498, 161 +- 5, max: 164.376 ) MB/s
+[Parallel File Reading (Sequential pinning)] Using 1 threads ( min: 7899.77, 9680 +- 290, max: 9941.72 ) MB/s
+[Parallel File Reading (Sequential pinning)] Using 2 threads ( min: 13419.5, 17000 +- 600, max: 17394.8 ) MB/s
+[Parallel File Reading (Sequential pinning)] Using 3 threads ( min: 18696.2, 21600 +- 600, max: 22115.5 ) MB/s
+[Parallel File Reading (Sequential pinning)] Using 4 threads ( min: 18118.7, 23200 +- 900, max: 23947.2 ) MB/s
+[Parallel File Reading (Sequential pinning)] Using 5 threads ( min: 20274.8, 24400 +- 800, max: 25125.9 ) MB/s
+[Parallel File Reading (Sequential pinning)] Using 6 threads ( min: 20816.7, 24800 +- 900, max: 25595.8 ) MB/s
+[Parallel File Reading (Sequential pinning)] Using 7 threads ( min: 22132.4, 25700 +- 900, max: 26505.8 ) MB/s
+[Parallel File Reading (Sequential pinning)] Using 8 threads ( min: 19537.3, 25800 +- 1600, max: 26989.2 ) MB/s
+[Parallel File Reading (Sequential pinning)] Using 10 threads ( min: 20380.3, 26200 +- 1600, max: 27742.1 ) MB/s
+[Parallel File Reading (Sequential pinning)] Using 12 threads ( min: 23573.8, 27400 +- 800, max: 28322.4 ) MB/s
+[Parallel File Reading (Sequential pinning)] Using 14 threads ( min: 23802.9, 27100 +- 700, max: 27977.4 ) MB/s
+[Parallel File Reading (Sequential pinning)] Using 16 threads ( min: 23330.2, 27000 +- 800, max: 27909.9 ) MB/s
+[Parallel File Reading (Sequential pinning)] Using 20 threads ( min: 21252, 27000 +- 900, max: 27680.5 ) MB/s
+[Parallel File Reading (Sequential pinning)] Using 24 threads ( min: 21097.4, 26500 +- 1200, max: 27878.3 ) MB/s
 
-== Benchmarking by reading 2 bits ==
-[BitReader::read loop] Decoded with ( min: 266.72, 309 +- 6, max: 321.063 ) MB/s
+[Parallel File Reading (Recursive pinning)] Using 1 threads ( min: 7793.84, 9610 +- 280, max: 9824.07 ) MB/s
+[Parallel File Reading (Recursive pinning)] Using 2 threads ( min: 10778.3, 15900 +- 800, max: 16180.5 ) MB/s
+[Parallel File Reading (Recursive pinning)] Using 3 threads ( min: 13518.8, 20600 +- 1100, max: 21217.6 ) MB/s
+[Parallel File Reading (Recursive pinning)] Using 4 threads ( min: 15992.3, 23300 +- 1200, max: 24158.6 ) MB/s
+[Parallel File Reading (Recursive pinning)] Using 5 threads ( min: 18268, 24900 +- 1200, max: 26085.9 ) MB/s
+[Parallel File Reading (Recursive pinning)] Using 6 threads ( min: 18990.9, 25200 +- 1300, max: 26936.9 ) MB/s
+[Parallel File Reading (Recursive pinning)] Using 7 threads ( min: 20661.6, 26000 +- 1000, max: 27023.8 ) MB/s
+[Parallel File Reading (Recursive pinning)] Using 8 threads ( min: 21391.7, 26600 +- 1100, max: 27636.9 ) MB/s
+[Parallel File Reading (Recursive pinning)] Using 10 threads ( min: 21839.7, 27000 +- 1000, max: 27966.3 ) MB/s
+[Parallel File Reading (Recursive pinning)] Using 12 threads ( min: 23964.2, 27200 +- 1000, max: 28509.7 ) MB/s
+[Parallel File Reading (Recursive pinning)] Using 14 threads ( min: 23641.5, 27200 +- 1000, max: 28102.7 ) MB/s
+[Parallel File Reading (Recursive pinning)] Using 16 threads ( min: 22968.6, 26900 +- 1100, max: 28171.2 ) MB/s
+[Parallel File Reading (Recursive pinning)] Using 20 threads ( min: 21711.2, 26900 +- 1000, max: 27753.3 ) MB/s
+[Parallel File Reading (Recursive pinning)] Using 24 threads ( min: 20829, 26800 +- 1100, max: 27786.1 ) MB/s
 
-== Benchmarking by reading 3 bits ==
-[BitReader::read loop] Decoded with ( min: 425.604, 451 +- 3, max: 456.371 ) MB/s
-
-== Benchmarking by reading 4 bits ==
-[BitReader::read loop] Decoded with ( min: 520.838, 606 +- 11, max: 624.394 ) MB/s
-
-== Benchmarking by reading 5 bits ==
-[BitReader::read loop] Decoded with ( min: 534.35, 636 +- 12, max: 648.005 ) MB/s
-
-== Benchmarking by reading 6 bits ==
-[BitReader::read loop] Decoded with ( min: 636.798, 695 +- 9, max: 708.326 ) MB/s
-
-== Benchmarking by reading 7 bits ==
-[BitReader::read loop] Decoded with ( min: 873.463, 937 +- 10, max: 949.673 ) MB/s
-
-== Benchmarking by reading 8 bits ==
-[BitReader::read loop] Decoded with ( min: 1065.14, 1109 +- 9, max: 1122.96 ) MB/s
-
-== Benchmarking by reading 9 bits ==
-[BitReader::read loop] Decoded with ( min: 1035.21, 1125 +- 13, max: 1140.21 ) MB/s
-
-== Benchmarking by reading 10 bits ==
-[BitReader::read loop] Decoded with ( min: 946.785, 1229 +- 26, max: 1244.2 ) MB/s
-
-== Benchmarking by reading 11 bits ==
-[BitReader::read loop] Decoded with ( min: 1254.49, 1300 +- 10, max: 1315.62 ) MB/s
-
-== Benchmarking by reading 12 bits ==
-[BitReader::read loop] Decoded with ( min: 1266.81, 1393 +- 14, max: 1409.23 ) MB/s
-
-== Benchmarking by reading 13 bits ==
-[BitReader::read loop] Decoded with ( min: 1079.85, 1351 +- 27, max: 1403.08 ) MB/s
-
-== Benchmarking by reading 14 bits ==
-[BitReader::read loop] Decoded with ( min: 1504.5, 1597 +- 23, max: 1624.09 ) MB/s
-
-== Benchmarking by reading 15 bits ==
-[BitReader::read loop] Decoded with ( min: 1451.06, 1661 +- 23, max: 1690.45 ) MB/s
-
-== Benchmarking by reading 16 bits ==
-[BitReader::read loop] Decoded with ( min: 1358.66, 1920 +- 60, max: 1961.59 ) MB/s
-
-== Benchmarking by reading 17 bits ==
-[BitReader::read loop] Decoded with ( min: 1697.41, 1826 +- 25, max: 1858.6 ) MB/s
-
-== Benchmarking by reading 18 bits ==
-[BitReader::read loop] Decoded with ( min: 1407.06, 1830 +- 70, max: 1922.55 ) MB/s
-
-== Benchmarking by reading 19 bits ==
-[BitReader::read loop] Decoded with ( min: 1407.94, 1890 +- 90, max: 1967.88 ) MB/s
-
-== Benchmarking by reading 20 bits ==
-[BitReader::read loop] Decoded with ( min: 1540.93, 2020 +- 70, max: 2073.51 ) MB/s
-
-== Benchmarking by reading 21 bits ==
-[BitReader::read loop] Decoded with ( min: 1556.3, 2040 +- 80, max: 2095.13 ) MB/s
-
-== Benchmarking by reading 22 bits ==
-[BitReader::read loop] Decoded with ( min: 1410.89, 1850 +- 50, max: 1913.31 ) MB/s
-
-== Benchmarking by reading 23 bits ==
-[BitReader::read loop] Decoded with ( min: 1925.43, 2140 +- 40, max: 2216.76 ) MB/s
-
-== Benchmarking by reading 24 bits ==
-[BitReader::read loop] Decoded with ( min: 1567.21, 2320 +- 60, max: 2366.29 ) MB/s
-
-== Benchmarking by reading 25 bits ==
-[BitReader::read loop] Decoded with ( min: 1833.37, 2240 +- 50, max: 2293.54 ) MB/s
-
-== Benchmarking by reading 26 bits ==
-[BitReader::read loop] Decoded with ( min: 1904.12, 2310 +- 50, max: 2388.26 ) MB/s
-
-== Benchmarking by reading 27 bits ==
-[BitReader::read loop] Decoded with ( min: 1793.45, 2380 +- 60, max: 2424.04 ) MB/s
-
-== Benchmarking by reading 28 bits ==
-[BitReader::read loop] Decoded with ( min: 1845.9, 2440 +- 100, max: 2514.3 ) MB/s
-
-== Benchmarking by reading 29 bits ==
-[BitReader::read loop] Decoded with ( min: 1968.16, 2440 +- 60, max: 2487.26 ) MB/s
-
-== Benchmarking by reading 30 bits ==
-[BitReader::read loop] Decoded with ( min: 2355.82, 2486 +- 25, max: 2562.91 ) MB/s
-
-== Benchmarking by reading 31 bits ==
-[BitReader::read loop] Decoded with ( min: 1978.01, 2540 +- 70, max: 2610.21 ) MB/s
-
-== Benchmarking by reading 32 bits ==
-[BitReader::read loop] Decoded with ( min: 2282.07, 3030 +- 120, max: 3124.6 ) MB/s
+[BitReader::read 1 bits in loop] Decoded with ( min: 130.902, 157 +- 3, max: 160.084 ) MB/s
+[BitReader::read 2 bits in loop] Decoded with ( min: 278.868, 309 +- 6, max: 315.761 ) MB/s
+[BitReader::read 3 bits in loop] Decoded with ( min: 401.837, 444 +- 10, max: 461.124 ) MB/s
+[BitReader::read 4 bits in loop] Decoded with ( min: 485.851, 585 +- 17, max: 601.181 ) MB/s
+[BitReader::read 5 bits in loop] Decoded with ( min: 587.697, 696 +- 20, max: 723.905 ) MB/s
+[BitReader::read 6 bits in loop] Decoded with ( min: 655.309, 834 +- 20, max: 855.084 ) MB/s
+[BitReader::read 7 bits in loop] Decoded with ( min: 625.689, 910 +- 50, max: 965.365 ) MB/s
+[BitReader::read 8 bits in loop] Decoded with ( min: 778.256, 1100 +- 40, max: 1130.15 ) MB/s
+[BitReader::read 9 bits in loop] Decoded with ( min: 874.205, 1150 +- 30, max: 1187.62 ) MB/s
+[BitReader::read 10 bits in loop] Decoded with ( min: 936.633, 1200 +- 60, max: 1266.75 ) MB/s
+[BitReader::read 11 bits in loop] Decoded with ( min: 1001.61, 1290 +- 60, max: 1347.6 ) MB/s
+[BitReader::read 12 bits in loop] Decoded with ( min: 1131.49, 1420 +- 50, max: 1466.57 ) MB/s
+[BitReader::read 13 bits in loop] Decoded with ( min: 913.561, 1480 +- 100, max: 1538.22 ) MB/s
+[BitReader::read 14 bits in loop] Decoded with ( min: 1265.8, 1600 +- 50, max: 1633.45 ) MB/s
+[BitReader::read 15 bits in loop] Decoded with ( min: 1159.89, 1670 +- 90, max: 1720.81 ) MB/s
+[BitReader::read 16 bits in loop] Decoded with ( min: 1724.22, 1930 +- 30, max: 1972.57 ) MB/s
+[BitReader::read 17 bits in loop] Decoded with ( min: 1426.6, 1820 +- 70, max: 1891.34 ) MB/s
+[BitReader::read 18 bits in loop] Decoded with ( min: 1670.77, 1940 +- 50, max: 1983.86 ) MB/s
+[BitReader::read 19 bits in loop] Decoded with ( min: 1658.15, 1970 +- 50, max: 2030.54 ) MB/s
+[BitReader::read 20 bits in loop] Decoded with ( min: 1421.19, 2060 +- 60, max: 2109.23 ) MB/s
+[BitReader::read 21 bits in loop] Decoded with ( min: 1977.52, 2100 +- 30, max: 2149.96 ) MB/s
+[BitReader::read 22 bits in loop] Decoded with ( min: 2086.99, 2184 +- 28, max: 2224.98 ) MB/s
+[BitReader::read 23 bits in loop] Decoded with ( min: 1866.89, 2210 +- 60, max: 2269.94 ) MB/s
+[BitReader::read 24 bits in loop] Decoded with ( min: 1921.59, 2370 +- 60, max: 2428.28 ) MB/s
+[BitReader::read 25 bits in loop] Decoded with ( min: 1786, 2320 +- 80, max: 2390.14 ) MB/s
+[BitReader::read 26 bits in loop] Decoded with ( min: 1469.37, 2400 +- 120, max: 2457.7 ) MB/s
+[BitReader::read 27 bits in loop] Decoded with ( min: 1682.94, 2380 +- 130, max: 2488.32 ) MB/s
+[BitReader::read 28 bits in loop] Decoded with ( min: 2110.26, 2500 +- 70, max: 2576.88 ) MB/s
+[BitReader::read 29 bits in loop] Decoded with ( min: 2363.93, 2530 +- 40, max: 2582.87 ) MB/s
+[BitReader::read 30 bits in loop] Decoded with ( min: 2332.82, 2560 +- 60, max: 2635.76 ) MB/s
+[BitReader::read 31 bits in loop] Decoded with ( min: 2179.75, 2600 +- 50, max: 2660.19 ) MB/s
+[BitReader::read 32 bits in loop] Decoded with ( min: 2385.62, 3150 +- 120, max: 3246.73 ) MB/s
 */
