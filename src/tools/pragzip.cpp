@@ -652,9 +652,14 @@ main( int argc, char** argv )
     {
         return pragzipCLI( argc, argv );
     }
+    catch ( const pragzip::BitReader::EndOfFileReached& exception )
+    {
+        std::cerr << "Unexpected end of file. Truncated or invalid gzip?\n";
+        return 1;
+    }
     catch ( const std::exception& exception )
     {
-        std::cerr << "Caught exception:\n" << exception.what() << "\n";
+        std::cerr << "Caught exception:\n" << exception.what() << ", typeid: " << typeid( exception ).name() << "\n";
         return 1;
     }
 
