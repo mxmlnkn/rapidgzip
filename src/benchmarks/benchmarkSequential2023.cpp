@@ -9,6 +9,7 @@
 #include <iostream>
 #include <filesystem>
 #include <stdexcept>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -21,6 +22,7 @@
 #include <filereader/BufferView.hpp>
 #include <pragzip.hpp>
 #include <Statistics.hpp>
+#include <TestHelpers.hpp>
 
 
 constexpr size_t REPEAT_COUNT{ 200 };
@@ -56,7 +58,7 @@ formatBandwidth( const std::vector<double>& times,
 [[nodiscard]] std::vector<double>
 repeatBenchmarks( const std::function<std::pair</* duration */ double, /* checksum */ uint64_t>()>& toMeasure )
 {
-    std::cout << "Repeating benchmarks " << REPEAT_COUNT << " times ... ";
+    std::cout << "Repeating benchmarks " << REPEAT_COUNT << " times ... " << std::flush;
     const auto tStart = now();
 
     std::optional<uint64_t> checksum;
@@ -121,7 +123,7 @@ benchmarkBitReaderBitReads( const std::vector<uint8_t>& nBitsToTest )
         std::cout << "[BitReader::read loop] Decoded with " << formatBandwidth( times, data.size() ) << "\n";
 
         for ( const auto time : times ) {
-            dataFile << static_cast<int>( nBits ) << " " << data.size() << " " << time << "\n";
+            dataFile << static_cast<int>( nBits ) << " " << data.size() << " " << time << std::endl;
         }
     }
 }
@@ -153,7 +155,7 @@ void
 benchmarkFindUncompressedBlocks()
 {
     const auto t0 = now();
-    std::cout << "Initializing random data for benchmark... ";
+    std::cout << "Initializing random data for benchmark... " << std::flush;
     std::vector<char> data( 32_Mi );
     for ( auto& x : data ) {
         x = static_cast<char>( rand() );
@@ -197,7 +199,7 @@ void
 benchmarkDynamicBlockFinder()
 {
     const auto t0 = now();
-    std::cout << "Initializing random data for benchmark... ";
+    std::cout << "Initializing random data for benchmark... " << std::flush;
     std::vector<char> data( 4_Mi );
     for ( auto& x : data ) {
         x = static_cast<char>( rand() );
@@ -368,7 +370,7 @@ void
 benchmarkDynamicBlockFinderZlib()
 {
     const auto t0 = now();
-    std::cout << "Initializing random data for benchmark... ";
+    std::cout << "Initializing random data for benchmark... " << std::flush;
     std::vector<char> data( 32_Ki );
     for ( auto& x : data ) {
         x = static_cast<char>( rand() );
@@ -423,7 +425,7 @@ void
 benchmarkDynamicBlockFinderPragzip()
 {
     const auto t0 = now();
-    std::cout << "Initializing random data for benchmark... ";
+    std::cout << "Initializing random data for benchmark... " << std::flush;
     std::vector<char> data( 512_Ki );
     for ( auto& x : data ) {
         x = static_cast<char>( rand() );
@@ -496,7 +498,7 @@ void
 benchmarkDynamicBlockFinderPragzipLUT()
 {
     const auto t0 = now();
-    std::cout << "Initializing random data for benchmark... ";
+    std::cout << "Initializing random data for benchmark... " << std::flush;
     std::vector<char> data( 2_Mi );
     for ( auto& x : data ) {
         x = static_cast<char>( rand() );
@@ -639,12 +641,13 @@ benchmarkFileReaderParallel( ThreadPool&        threadPool,
 
 
 [[nodiscard]] std::vector<double>
-benchmarkFileReaderParallelRepeatedly( const size_t fileSize,
-                                       const size_t threadCount )
+benchmarkFileReaderParallelRepeatedly( const size_t                     fileSize,
+                                       const size_t                     threadCount,
+                                       const ThreadPool::ThreadPinning& threadPinning )
 {
     TemporaryFile temporaryFile( fileSize );
 
-    ThreadPool threadPool( threadCount );
+    ThreadPool threadPool( threadCount, threadPinning );
 
     auto times = repeatBenchmarks( [&] () {
         return benchmarkFileReaderParallel( threadPool, temporaryFile.path, pragzip::BitReader::IOBUF_SIZE );
@@ -657,13 +660,35 @@ benchmarkFileReaderParallelRepeatedly( const size_t fileSize,
 }
 
 
+[[nodiscard]] size_t
+getCoreTopDown( size_t index,
+                size_t coreCount )
+{
+    if ( std::log2( coreCount ) != std::round( std::log2( coreCount ) ) ) {
+        throw std::invalid_argument( "Core count must be a power of 2! You can use taskset to reduce it." );
+    }
+
+    /* Probably the same as simply reversing the log2( coreCount ) lowest bits. */
+    auto stride = coreCount / 2U;
+    size_t coreId{ 0 };
+    while ( index > 0 ) {
+        coreId += ( index & 1U ) * stride;
+        stride /= 2U;
+        index >>= 1U;
+    }
+    return coreId;
+}
+
+
 void
 benchmarkFileReaderParallel()
 {
-    constexpr size_t fileSize{ 1_Gi };
+    const auto coreCount = availableCores();
+    std::cout << "Available core count: " << coreCount << "\n";
 
-    std::ofstream dataFile( "result-read-file-parallel.dat" );
-    dataFile << "# threadCount dataSize/B chunkSize/B runtime/s\n";
+    const size_t fileSize{ coreCount * 128_Mi };
+
+    pinThreadToLogicalCore( 0 );
 
     const std::vector<size_t> threadCounts = {
         1, 2, 3, 4,
@@ -674,18 +699,118 @@ benchmarkFileReaderParallel()
         80, 96, 112, 128,    // delta = 16
         160, 192, 224, 256,  // delta = 32
     };
-    for ( const auto threadCount : threadCounts ) {
-        if ( threadCount > std::thread::hardware_concurrency() ) {
-            continue;
-        }
 
-        const auto times = benchmarkFileReaderParallelRepeatedly( fileSize, threadCount );
-        for ( const auto time : times ) {
-            dataFile << threadCount << " " << fileSize << " " << pragzip::BitReader::IOBUF_SIZE << " " << time << "\n";
-        }
+    enum class PinningScheme {
+        NONE,
+        SEQUENTIAL,
+        STRIDED,
+        RECURSIVE,
+    };
 
-        std::cout << "[Parallel File Reading] " << formatBandwidth( times, fileSize ) << "\n";
-        std::cerr << "Open file handles: " << getOpenFileHandleCount() << "\n";
+    REQUIRE_EQUAL( getCoreTopDown( 0, 16 ), size_t( 0 ) );
+    REQUIRE_EQUAL( getCoreTopDown( 1, 16 ), size_t( 8 ) );
+    REQUIRE_EQUAL( getCoreTopDown( 2, 16 ), size_t( 4 ) );
+    REQUIRE_EQUAL( getCoreTopDown( 3, 16 ), size_t( 12 ) );
+    REQUIRE_EQUAL( getCoreTopDown( 4, 16 ), size_t( 2 ) );
+    REQUIRE_EQUAL( getCoreTopDown( 5, 16 ), size_t( 10 ) );
+
+    const auto toString =
+        [] ( const PinningScheme scheme )
+        {
+            switch ( scheme )
+            {
+            case PinningScheme::NONE:
+                return "No pinning";
+            case PinningScheme::SEQUENTIAL:
+                return "Sequential pinning";
+            case PinningScheme::STRIDED:
+                return "Strided pinning";
+            case PinningScheme::RECURSIVE:
+                return "Recursive pinning";
+            }
+            return "";
+        };
+
+    const auto toFileSuffix =
+        [] ( const PinningScheme scheme )
+        {
+            switch ( scheme )
+            {
+            case PinningScheme::NONE:
+                return "no-pinning";
+            case PinningScheme::SEQUENTIAL:
+                return "sequential-pinning";
+            case PinningScheme::STRIDED:
+                return "strided-pinning";
+            case PinningScheme::RECURSIVE:
+                return "recursive-pinning";
+            }
+            return "";
+        };
+
+    for ( const auto scheme : { PinningScheme::NONE, PinningScheme::SEQUENTIAL, PinningScheme::RECURSIVE } ) {
+        std::stringstream fileName;
+        fileName << "result-read-file-parallel-" << toFileSuffix( scheme ) << ".dat";
+        std::ofstream dataFile( fileName.str() );
+        dataFile << "# threadCount dataSize/B chunkSize/B runtime/s\n";
+
+        for ( const auto threadCount : threadCounts ) {
+            if ( threadCount > coreCount ) {
+                continue;
+            }
+
+            ThreadPool::ThreadPinning threadPinning;
+            switch ( scheme )
+            {
+            case PinningScheme::NONE:
+                break;
+
+            case PinningScheme::SEQUENTIAL:
+                for ( size_t i = 0; i < threadCount; ++i ) {
+                    threadPinning.emplace( i, i );
+                }
+                break;
+
+            case PinningScheme::STRIDED:
+                {
+                    const auto stride = 1 << static_cast<size_t>( std::ceil( std::log2( static_cast<double>( coreCount )
+                                                                                        / static_cast<double>( threadCount ) ) ) );
+                    uint32_t coreId{ 0 };
+                    for ( size_t i = 0; i < threadCount; ++i ) {
+                        threadPinning.emplace( i, coreId );
+                        coreId += stride;
+                        if ( coreId >= coreCount ) {
+                            coreId = coreId % coreCount + 1;
+                        }
+                    }
+                }
+                break;
+
+            case PinningScheme::RECURSIVE:
+                {
+                    std::unordered_set<size_t> coreIds;
+                    for ( size_t i = 0; i < threadCount; ++i ) {
+                        const auto coreId = getCoreTopDown( i, coreCount );
+                        coreIds.emplace( coreId );
+                        threadPinning.emplace( i, coreId );
+                    }
+
+                    if ( coreIds.size() != threadCount ) {
+                        throw std::logic_error( "Duplicate core IDs found in mapping!" );
+                    }
+                }
+                break;
+            }
+
+            const auto times = benchmarkFileReaderParallelRepeatedly( fileSize, threadCount, threadPinning );
+            for ( const auto time : times ) {
+                dataFile << threadCount << " " << fileSize << " " << pragzip::BitReader::IOBUF_SIZE << " " << time
+                         << std::endl;
+            }
+
+            std::cout << "[Parallel File Reading (" << toString( scheme ) << ")] "
+                      << formatBandwidth( times, fileSize ) << "\n";
+        }
     }
 }
 
@@ -705,7 +830,7 @@ void
 benchmarkCountNewlines()
 {
     const auto t0 = now();
-    std::cout << "Initializing random data for benchmark... ";
+    std::cout << "Initializing random data for benchmark... " << std::flush;
     std::vector<char> data( 1_Gi );
     for ( auto& x : data ) {
         x = static_cast<char>( rand() );
@@ -744,7 +869,7 @@ void
 benchmarkApplyWindow()
 {
     const auto t0 = now();
-    std::cout << "Initializing random data for benchmark... ";
+    std::cout << "Initializing random data for benchmark... " << std::flush;
     std::vector<uint16_t> data( 32_Mi );
     for ( auto& x : data ) {
         do {
@@ -807,6 +932,7 @@ sed -r '/[.]{3}/d; /Open file handles/d' benchmarks2023.log
 [Uncompressed block finder] ( min: 389.345, 430 +- 7, max: 444.314 ) MB/s
 [Apply window] Output(!) bandwidth of 8-bit symbols (input is 16-bit symbols): ( min: 680.418, 791 +- 19, max: 810.93 ) MB/s
 [Count newlines] ( min: 7525.09, 12400 +- 800, max: 12901.9 ) MB/s
+
 [Parallel File Reading] Using 1 threads: ( min: 7083.82, 9480 +- 280, max: 9886.19 ) MB/s
 [Parallel File Reading] ( min: 7083.82, 9480 +- 280, max: 9886.19 ) MB/s
 [Parallel File Reading] Using 2 threads: ( min: 10804.6, 16700 +- 800, max: 17494.9 ) MB/s

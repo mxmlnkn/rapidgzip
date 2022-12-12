@@ -7,8 +7,10 @@
 #include <mutex>
 #include <thread>
 #include <utility>
+#include <unordered_map>
 #include <vector>
 
+#include "AffinityHelpers.hpp"
 #include "JoiningThread.hpp"
 
 
@@ -18,6 +20,9 @@
  */
 class ThreadPool
 {
+public:
+    using ThreadPinning = std::unordered_map</* thread Index */ size_t, /* core ID */ uint32_t>;
+
 private:
     /**
      * A small type-erasure function wrapper for non-copyable function objects with no function arguments.
@@ -81,10 +86,12 @@ private:
 
 public:
     explicit
-    ThreadPool( size_t nThreads = std::thread::hardware_concurrency() )
+    ThreadPool( size_t        nThreads = std::thread::hardware_concurrency(),
+                ThreadPinning threadPinning = {} ) :
+        m_threadPinning( std::move( threadPinning ) )
     {
         for ( size_t i = 0; i < nThreads; ++i ) {
-            m_threads.emplace_back( JoiningThread( &ThreadPool::workerMain, this ) );
+            m_threads.emplace_back( JoiningThread( [this, i] () { workerMain( i ); } ) );
         }
     }
 
@@ -140,8 +147,12 @@ public:
 
 private:
     void
-    workerMain()
+    workerMain( size_t threadIndex )
     {
+        if ( const auto pinning = m_threadPinning.find( threadIndex ); pinning != m_threadPinning.end() ) {
+            pinThreadToLogicalCore( static_cast<int>( pinning->second ) );
+        }
+
         while ( m_threadPoolRunning )
         {
             std::unique_lock<std::mutex> tasksLock( m_mutex );
@@ -162,6 +173,7 @@ private:
 
 private:
     std::atomic<bool> m_threadPoolRunning = true;
+    const ThreadPinning m_threadPinning;
     std::deque<PackagedTaskWrapper> m_tasks;
     /** necessary for m_tasks AND m_pingWorkers or else the notify_all might go unnoticed! */
     mutable std::mutex m_mutex;
