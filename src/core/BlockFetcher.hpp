@@ -16,6 +16,7 @@
 #include <thread>
 #include <utility>
 
+#include <AffinityHelpers.hpp>
 #include <Cache.hpp>
 #include <common.hpp>
 #include <Prefetcher.hpp>
@@ -172,7 +173,7 @@ protected:
     BlockFetcher( std::shared_ptr<BlockFinder> blockFinder,
                   size_t                       parallelization ) :
         m_parallelization( parallelization == 0
-                           ? std::max<size_t>( 1U, std::thread::hardware_concurrency() )
+                           ? std::max<size_t>( 1U, availableCores() )
                            : parallelization ),
         m_blockFinder    ( std::move( blockFinder ) ),
         m_cache          ( std::max( size_t( 16 ), m_parallelization ) ),

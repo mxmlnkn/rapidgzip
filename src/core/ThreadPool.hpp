@@ -86,7 +86,7 @@ private:
 
 public:
     explicit
-    ThreadPool( size_t        nThreads = std::thread::hardware_concurrency(),
+    ThreadPool( size_t        nThreads = availableCores(),
                 ThreadPinning threadPinning = {} ) :
         m_threadPinning( std::move( threadPinning ) )
     {

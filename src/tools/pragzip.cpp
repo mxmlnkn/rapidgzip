@@ -13,6 +13,7 @@
 
 #include <cxxopts.hpp>
 
+#include <AffinityHelpers.hpp>
 #include <blockfinder/Bgzf.hpp>
 #include <common.hpp>
 #include <filereader/Standard.hpp>
@@ -450,7 +451,7 @@ pragzipCLI( int argc, char** argv )
     const auto quiet   = parsedArgs["quiet"  ].as<bool>();
     const auto verbose = parsedArgs["verbose"].as<bool>();
 
-    const auto getParallelism = [] ( const auto p ) { return p > 0 ? p : std::thread::hardware_concurrency(); };
+    const auto getParallelism = [] ( const auto p ) { return p > 0 ? p : availableCores(); };
     const auto decoderParallelism = getParallelism( parsedArgs["decoder-parallelism"].as<unsigned int>() );
 
     if ( verbose ) {
