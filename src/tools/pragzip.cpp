@@ -422,7 +422,10 @@ pragzipCLI( int argc, char** argv )
           "If an optional integer >= 1 is given, then that is the number of decoder threads to use. "
           "Note that there might be further threads being started with non-decoding work. "
           "If 0 is given, then the parallelism will be determiend automatically.",
-          cxxopts::value<unsigned int>()->default_value( "0" ) );
+          cxxopts::value<unsigned int>()->default_value( "0" ) )
+
+        ( "import-index", "Uses an existing gzip index.", cxxopts::value<std::string>() )
+        ( "export-index", "Write out a gzip index file.", cxxopts::value<std::string>() );
 
     options.add_options( "Output" )
         ( "h,help"   , "Print this help mesage." )
@@ -433,7 +436,7 @@ pragzipCLI( int argc, char** argv )
     /* These options are offered because just piping to other tools can already bottleneck everything! */
     options.add_options( "Processing" )
         ( "count"      , "Prints the decompressed size." )
-        ( "count-lines", "Prints the number of newline characters in the decompressed data." );
+        ( "l,count-lines", "Prints the number of newline characters in the decompressed data." );
 
     options.parse_positional( { "input" } );
 
@@ -518,12 +521,29 @@ pragzipCLI( int argc, char** argv )
 
     /* Parse other arguments. */
 
-    const auto countBytes = ( parsedArgs.count( "count" ) > 0 );
-    const auto countLines = ( parsedArgs.count( "count-lines" ) > 0 );
+    const auto countBytes = parsedArgs.count( "count" ) > 0;
+    const auto countLines = parsedArgs.count( "count-lines" ) > 0;
     const auto decompress = ( parsedArgs.count( "decompress" ) > 0 ) || ( !countBytes && !countLines );
 
     if ( decompress && ( outputFilePath != "/dev/null" ) && fileExists( outputFilePath ) && !force ) {
         std::cerr << "Output file '" << outputFilePath << "' already exists! Use --force to overwrite.\n";
+        return 1;
+    }
+
+    const auto indexLoadPath = parsedArgs.count( "import-index" ) > 0
+                               ? parsedArgs["import-index"].as<std::string>()
+                               : std::string();
+    const auto indexSavePath = parsedArgs.count( "export-index" ) > 0
+                               ? parsedArgs["export-index"].as<std::string>()
+                               : std::string();
+    if ( !indexLoadPath.empty() && !indexSavePath.empty() ) {
+        std::cerr << "[Warning] Importing and exporting an index makes limited sense.\n";
+    }
+    if ( ( !indexLoadPath.empty() || !indexSavePath.empty() ) && ( decoderParallelism == 1 ) ) {
+        std::cerr << "[Warning] The index only has an effect for parallel decoding.\n";
+    }
+    if ( !indexLoadPath.empty() && !fileExists( indexLoadPath ) ) {
+        std::cerr << "The index to import was not found!\n";
         return 1;
     }
 
@@ -618,7 +638,26 @@ pragzipCLI( int argc, char** argv )
                 chunkSize > 0
                 ? std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism, chunkSize * 1024 )
                 : std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism );
+
+            if ( !indexLoadPath.empty() ) {
+                reader->setBlockOffsets( readGzipIndex( std::make_unique<StandardFileReader>( indexLoadPath ) ) );
+            }
+
             totalBytesRead = reader->read( writeAndCount );
+
+            if ( !indexSavePath.empty() ) {
+                const auto file = throwingOpen( indexSavePath, "wb" );
+
+                const auto checkedWrite =
+                    [&file] ( const void* buffer, size_t size )
+                    {
+                        if ( std::fwrite( buffer, 1, size, file.get() ) != size ) {
+                            throw std::runtime_error( "Failed to write data to index!" );
+                        }
+                    };
+
+                writeGzipIndex( reader->gzipIndex(), checkedWrite );
+            }
         }
 
         const auto t1 = now();
