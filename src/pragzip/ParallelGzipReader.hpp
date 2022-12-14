@@ -34,7 +34,8 @@ namespace pragzip
 /**
  * @note Calls to this class are not thread-safe! Even though they use threads to evaluate them in parallel.
  */
-template<bool ENABLE_STATISTICS = false>
+template<bool ENABLE_STATISTICS = false,
+         bool SHOW_PROFILE = false>
 class ParallelGzipReader final :
     public FileReader
 {
@@ -47,13 +48,10 @@ public:
      * because the prefetch and cache units are very large and striding or backward accessing over multiple
      * megabytes should be extremely rare.
      */
-    using BlockFetcher = pragzip::GzipBlockFetcher<FetchingStrategy::FetchMultiStream, ENABLE_STATISTICS>;
+    using BlockFetcher = pragzip::GzipBlockFetcher<FetchingStrategy::FetchMultiStream, ENABLE_STATISTICS, SHOW_PROFILE>;
     using BlockFinder = typename BlockFetcher::BlockFinder;
     using BitReader = pragzip::BitReader;
     using WriteFunctor = std::function<void ( const void*, uint64_t, const std::shared_ptr<BlockData>& )>;
-
-private:
-    static constexpr bool SHOW_PROFILE{ false };
 
 public:
     /**

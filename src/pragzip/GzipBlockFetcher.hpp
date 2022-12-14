@@ -127,18 +127,16 @@ writeAllSplice( const int                         outputFileDescriptor,
 
 
 template<typename FetchingStrategy,
-         bool     ENABLE_STATISTICS = false>
+         bool     ENABLE_STATISTICS = false,
+         bool     SHOW_PROFILE = false>
 class GzipBlockFetcher :
-    public BlockFetcher<GzipBlockFinder, BlockData, FetchingStrategy, ENABLE_STATISTICS>
+    public BlockFetcher<GzipBlockFinder, BlockData, FetchingStrategy, ENABLE_STATISTICS, SHOW_PROFILE>
 {
 public:
-    using BaseType = BlockFetcher<GzipBlockFinder, BlockData, FetchingStrategy, ENABLE_STATISTICS>;
+    using BaseType = BlockFetcher<GzipBlockFinder, BlockData, FetchingStrategy, ENABLE_STATISTICS, SHOW_PROFILE>;
     using BitReader = pragzip::BitReader;
     using WindowView = VectorView<uint8_t>;
     using BlockFinder = typename BaseType::BlockFinder;
-
-private:
-    static constexpr bool SHOW_PROFILE{ false };
 
 public:
     GzipBlockFetcher( BitReader                    bitReader,

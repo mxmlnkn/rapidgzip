@@ -634,31 +634,49 @@ pragzipCLI( int argc, char** argv )
                 };
 
             const auto chunkSize = parsedArgs["chunk-size"].as<unsigned int>();
-            using GzipReader = pragzip::ParallelGzipReader<>;
-            const auto reader =
-                chunkSize > 0
-                ? std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism, chunkSize * 1024 )
-                : std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism );
 
-            if ( !indexLoadPath.empty() ) {
-                reader->setBlockOffsets( readGzipIndex( std::make_unique<StandardFileReader>( indexLoadPath ) ) );
+            const auto decompressParallel =
+                [&] ( const auto& reader )
+                {
+                    if ( !indexLoadPath.empty() ) {
+                        reader->setBlockOffsets(
+                            readGzipIndex( std::make_unique<StandardFileReader>( indexLoadPath ) ) );
+                    }
+
+                    totalBytesRead = reader->read( writeAndCount );
+
+                    if ( !indexSavePath.empty() ) {
+                        const auto file = throwingOpen( indexSavePath, "wb" );
+
+                        const auto checkedWrite =
+                            [&file] ( const void* buffer, size_t size )
+                            {
+                                if ( std::fwrite( buffer, 1, size, file.get() ) != size ) {
+                                    throw std::runtime_error( "Failed to write data to index!" );
+                                }
+                            };
+
+                        writeGzipIndex( reader->gzipIndex(), checkedWrite );
+                    }
+                };
+
+
+            if ( verbose ) {
+                using GzipReader = pragzip::ParallelGzipReader</* enable statistics */ true, /* show profile */ true>;
+                auto reader =
+                    chunkSize > 0
+                    ? std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism, chunkSize * 1024 )
+                    : std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism );
+                decompressParallel( std::move( reader ) );
+            } else {
+                using GzipReader = pragzip::ParallelGzipReader</* enable statistics */ false, /* show profile */ false>;
+                const auto reader =
+                    chunkSize > 0
+                    ? std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism, chunkSize * 1024 )
+                    : std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism );
+                decompressParallel( std::move( reader ) );
             }
 
-            totalBytesRead = reader->read( writeAndCount );
-
-            if ( !indexSavePath.empty() ) {
-                const auto file = throwingOpen( indexSavePath, "wb" );
-
-                const auto checkedWrite =
-                    [&file] ( const void* buffer, size_t size )
-                    {
-                        if ( std::fwrite( buffer, 1, size, file.get() ) != size ) {
-                            throw std::runtime_error( "Failed to write data to index!" );
-                        }
-                    };
-
-                writeGzipIndex( reader->gzipIndex(), checkedWrite );
-            }
         }
 
         const auto t1 = now();

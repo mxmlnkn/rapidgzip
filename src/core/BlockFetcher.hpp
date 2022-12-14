@@ -31,7 +31,8 @@
 template<typename T_BlockFinder,
          typename T_BlockData,
          typename FetchingStrategy,
-         bool     ENABLE_STATISTICS = false>
+         bool     ENABLE_STATISTICS = false,
+         bool     SHOW_PROFILE = false>
 class BlockFetcher
 {
 public:
@@ -165,9 +166,6 @@ public:
         double getTotalTime{ 0 };
         double readBlockDataTotalTime{ 0 };
     };
-
-private:
-    static constexpr bool SHOW_PROFILE{ false };
 
 protected:
     BlockFetcher( std::shared_ptr<BlockFinder> blockFinder,
