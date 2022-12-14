@@ -94,6 +94,11 @@ target_sources(benchmarkIORead PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkIORead
 target_link_libraries(benchmarkIORead PRIVATE libpragzip)
 
 
+add_executable(benchmarkIOWrite)
+target_sources(benchmarkIOWrite PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkIOWrite.cpp)
+target_link_libraries(benchmarkIOWrite PRIVATE libpragzip)
+
+
 add_executable(empiricalFalsePositiveRate EXCLUDE_FROM_ALL)
 target_sources(empiricalFalsePositiveRate PRIVATE ${CMAKE_CURRENT_LIST_DIR}/empiricalFalsePositiveRate.cpp)
 target_link_libraries(empiricalFalsePositiveRate PRIVATE libpragzip)

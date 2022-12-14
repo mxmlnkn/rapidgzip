@@ -612,7 +612,7 @@ writeAllToFdVector( const int                   outputFileDescriptor,
             nBytesWritten -= dataToWrite[i].iov_len;
         }
 
-        /* Write out last partially written buffer if necessary so that we can resumefull vectorized writing
+        /* Write out last partially written buffer if necessary so that we can resume full vectorized writing
          * from the next iovec buffer. */
         if ( ( i < dataToWrite.size() ) && ( nBytesWritten > 0 ) ) {
             const auto& iovBuffer = dataToWrite[i];
@@ -630,12 +630,12 @@ writeAllToFdVector( const int                   outputFileDescriptor,
 
 void
 pwriteAllToFdVector( const int                   outputFileDescriptor,
-                     size_t                      fileOffset,
-                     const std::vector<::iovec>& dataToWrite )
+                     const std::vector<::iovec>& dataToWrite,
+                     size_t                      fileOffset )
 {
     for ( size_t i = 0; i < dataToWrite.size(); ) {
         const auto segmentCount = std::min( static_cast<size_t>( IOV_MAX ), dataToWrite.size() - i );
-        auto nBytesWritten = ::writev( outputFileDescriptor, &dataToWrite[i], segmentCount );
+        auto nBytesWritten = ::pwritev( outputFileDescriptor, &dataToWrite[i], segmentCount, fileOffset );
 
         if ( nBytesWritten < 0 ) {
             std::stringstream message;
@@ -650,7 +650,7 @@ pwriteAllToFdVector( const int                   outputFileDescriptor,
             nBytesWritten -= dataToWrite[i].iov_len;
         }
 
-        /* Write out last partially written buffer if necessary so that we can resumefull vectorized writing
+        /* Write out last partially written buffer if necessary so that we can resume full vectorized writing
          * from the next iovec buffer. */
         if ( ( i < dataToWrite.size() ) && ( nBytesWritten > 0 ) ) {
             const auto& iovBuffer = dataToWrite[i];
