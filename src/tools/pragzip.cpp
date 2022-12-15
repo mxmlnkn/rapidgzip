@@ -567,29 +567,21 @@ pragzipCLI( int argc, char** argv )
         bool writingToStdout{ false };
         if ( decompress ) {
             if ( outputFilePath.empty() ) {
-                if ( !stdoutIsDevNull() ) {
-                    writingToStdout = true;
+                writingToStdout = true;
 
-                #ifdef _MSC_VER
-                    outputFileDescriptor = _fileno( stdout );
-                    if ( outputFilePath.empty() ) {
-                        _setmode( outputFileDescriptor, _O_BINARY );
-                    }
-                #else
-                    outputFileDescriptor = ::fileno( stdout );
-                #endif
-                }
+            #ifdef _MSC_VER
+                outputFileDescriptor = _fileno( stdout );
+                _setmode( outputFileDescriptor, _O_BINARY );
+            #else
+                outputFileDescriptor = ::fileno( stdout );
+            #endif
             } else {
-                if ( outputFilePath == "/dev/null" ) {
-                    outputFileDescriptor = -1;
-                } else {
-                    outputFile = make_unique_file_ptr( outputFilePath.c_str(), "wb" );
-                    if ( !outputFile ) {
-                        std::cerr << "Could not open output file: " << outputFilePath << " for writing!\n";
-                        return 1;
-                    }
-                    outputFileDescriptor = ::fileno( outputFile.get() );
+                outputFile = make_unique_file_ptr( outputFilePath.c_str(), "wb" );
+                if ( !outputFile ) {
+                    std::cerr << "Could not open output file: " << outputFilePath << " for writing!\n";
+                    return 1;
                 }
+                outputFileDescriptor = ::fileno( outputFile.get() );
             }
         }
 
