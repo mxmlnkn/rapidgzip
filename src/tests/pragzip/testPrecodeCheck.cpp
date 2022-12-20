@@ -40,7 +40,7 @@ void
 dummyPrintValue()
 {
     // NOLINTNEXTLINE(clang-diagnostic-unused-variable)
-    int a = 0;
+    [[maybe_unused]] int a = 0;
 }
 
 
@@ -529,7 +529,7 @@ analyzeMaxValidPrecodeFrequenciesHelper( std::function<void( uint64_t )> process
      * when there are more code lengths on a tree level than there are nodes. */
     for ( uint32_t count = 0; count <= std::min( remainingCount, freeBits ); ++count ) {
         const auto newFreeBits = ( freeBits - count ) * 2;
-        const auto newRemainingCount = remainingCount - count;
+        [[maybe_unused]] const auto newRemainingCount = remainingCount - count;
 
         /* The first layer may not be fully filled or even empty. This does not fit any of the general tests. */
         if constexpr ( DEPTH == 1 ) {

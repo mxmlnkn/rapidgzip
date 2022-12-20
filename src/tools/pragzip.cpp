@@ -662,7 +662,7 @@ pragzipCLI( int argc, char** argv )
                 decompressParallel( std::move( reader ) );
             } else {
                 using GzipReader = pragzip::ParallelGzipReader</* enable statistics */ false, /* show profile */ false>;
-                const auto reader =
+                auto reader =
                     chunkSize > 0
                     ? std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism, chunkSize * 1024 )
                     : std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism );

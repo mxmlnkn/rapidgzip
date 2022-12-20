@@ -52,7 +52,6 @@ isDynamicHeader( uint32_t bits )
 
         /* Bits 1-2: compression type */
         const auto compressionType = bits & nLowestBitsSet<uint32_t, 2U>();
-        bits >>= 2U;
         matches &= ( compressionType & 1U ) == 0;
         if constexpr ( bitCount <= 2U ) {
             return matches;
