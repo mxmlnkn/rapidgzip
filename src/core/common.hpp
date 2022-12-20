@@ -42,7 +42,7 @@
     #pragma warning(disable : 4996)
 
     /* Ignore warnings about [[likely]], [[unlikely]], which will only work with C++20. */
-    #pragma warning(disable : C5051)
+    #pragma warning(disable : 5051)
 
     #include <sys/stat.h>
 
