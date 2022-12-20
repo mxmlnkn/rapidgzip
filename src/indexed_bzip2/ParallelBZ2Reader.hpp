@@ -179,6 +179,10 @@ public:
         while ( ( nBytesDecoded < nBytesToRead ) && !eof() ) {
             std::shared_ptr<BlockFetcher::BlockData> blockData;
 
+        #ifdef WITH_PYTHON_SUPPORT
+            checkPythonSignalHandlers();
+        #endif
+
             auto blockInfo = m_blockMap->findDataOffset( m_currentPosition );
             if ( !blockInfo.contains( m_currentPosition ) ) {
                 /* Fetch new block for the first time and add information to block map. */

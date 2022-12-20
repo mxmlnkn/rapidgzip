@@ -355,6 +355,10 @@ public:
                 throw std::logic_error( "Did not expect empty block. Cannot proceed!" );
             }
 
+        #ifdef WITH_PYTHON_SUPPORT
+            checkPythonSignalHandlers();
+        #endif
+
             /* Iterate over chunks, first to find offset, then to copy data to output. */
             size_t offsetInChunk{ offsetInBlock };
             for ( const auto& chunk : blockData->data ) {

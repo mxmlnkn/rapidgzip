@@ -207,12 +207,9 @@ public:
             if ( m_bitReader.tell() == 0 ) {
                 readBzip2Header();
             } else if ( m_lastHeader.eos() ) {
-                try
-                {
+                try {
                     readBzip2Header();
-                }
-                catch ( const std::domain_error& )
-                {
+                } catch ( const std::domain_error& ) {
                     /* @TODO MIGHT THIS lead to a bug if the bzip2 file ends perfectly on a byte boundary
                      * such that m_bitReader.eof() will be true before this code part has been reached?! */
                     std::cerr << "[Warning] Trailing garbage after EOF ignored!\n";
@@ -223,6 +220,10 @@ public:
             }
 
             nBytesDecoded += decodeStream( writeFunctor, nBytesToRead - nBytesDecoded );
+
+        #ifdef WITH_PYTHON_SUPPORT
+            checkPythonSignalHandlers();
+        #endif
         }
         m_currentPosition += nBytesDecoded;
         return nBytesDecoded;

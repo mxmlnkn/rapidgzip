@@ -270,6 +270,10 @@ public:
                 }
             }
 
+        #ifdef WITH_PYTHON_SUPPORT
+            checkPythonSignalHandlers();
+        #endif
+
             if ( m_currentPoint.has_value() && testFlags( *m_currentPoint, stoppingPoint ) ) {
                 break;
             }
