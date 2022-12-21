@@ -51,7 +51,7 @@ public:
     using BlockFetcher = pragzip::GzipBlockFetcher<FetchingStrategy::FetchMultiStream, ENABLE_STATISTICS, SHOW_PROFILE>;
     using BlockFinder = typename BlockFetcher::BlockFinder;
     using BitReader = pragzip::BitReader;
-    using WriteFunctor = std::function<void ( const void*, uint64_t, const std::shared_ptr<BlockData>& )>;
+    using WriteFunctor = std::function<void ( const std::shared_ptr<BlockData>&, size_t, size_t )>;
 
 public:
     /**
@@ -293,23 +293,28 @@ public:
     {
         const auto writeFunctor =
             [nBytesDecoded = uint64_t( 0 ), outputFileDescriptor, outputBuffer]
-            ( const void* const                 dataToWrite,
-              uint64_t const                    dataToWriteSize,
-              const std::shared_ptr<BlockData>& blockData ) mutable
+            ( const std::shared_ptr<BlockData>& blockData,
+              size_t const                      offsetInBlock,
+              size_t const                      dataToWriteSize ) mutable
             {
                 if ( dataToWriteSize == 0 ) {
                     return;
                 }
 
-                if ( outputFileDescriptor >= 0 ) {
-                    if ( !writeAllSplice( outputFileDescriptor, dataToWrite, dataToWriteSize, blockData ) ) {
-                        writeAllToFd( outputFileDescriptor, dataToWrite, dataToWriteSize );
-                    }
-                }
+                writeAll( blockData, outputFileDescriptor, offsetInBlock, dataToWriteSize );
 
                 if ( outputBuffer != nullptr ) {
-                    auto* const currentBufferPosition = outputBuffer + nBytesDecoded;
-                    std::memcpy( currentBufferPosition, dataToWrite, dataToWriteSize );
+                    using pragzip::deflate::DecodedData;
+
+                    size_t nBytesCopied{ 0 };
+                    for ( auto it = DecodedData::Iterator( *blockData, offsetInBlock, dataToWriteSize );
+                          static_cast<bool>( it ); ++it )
+                    {
+                        const auto& [buffer, size] = *it;
+                        auto* const currentBufferPosition = outputBuffer + nBytesDecoded + nBytesCopied;
+                        std::memcpy( currentBufferPosition, buffer, size );
+                        nBytesCopied += size;
+                    }
                 }
 
                 nBytesDecoded += dataToWriteSize;
@@ -346,7 +351,8 @@ public:
             /* Copy data from fetched block to output. */
 
             const auto offsetInBlock = m_currentPosition - blockInfo.decodedOffsetInBytes;
-            if ( offsetInBlock >= blockData->size() ) {
+            const auto blockSize = blockData->size();
+            if ( offsetInBlock >= blockSize ) {
                 throw std::logic_error( "Block does not contain the requested offset even though it "
                                         "shouldn't be according to block map!" );
             }
@@ -359,33 +365,20 @@ public:
             checkPythonSignalHandlers();
         #endif
 
-            /* Iterate over chunks, first to find offset, then to copy data to output. */
-            size_t offsetInChunk{ offsetInBlock };
-            for ( const auto& chunk : blockData->data ) {
-                if ( nBytesDecoded >= nBytesToRead ) {
-                    break;
-                }
+            const auto nBytesToDecode = std::min( blockSize - offsetInBlock, nBytesToRead - nBytesDecoded );
 
-                if ( offsetInChunk > chunk.size() ) {
-                    offsetInChunk -= chunk.size();
-                    continue;
-                }
-
+            if ( writeFunctor ) {
                 [[maybe_unused]] const auto tWriteStart = now();
 
-                const auto nBytesToDecode = std::min( chunk.size() - offsetInChunk, nBytesToRead - nBytesDecoded );
-                if ( writeFunctor ) {
-                    writeFunctor( chunk.data() + offsetInChunk, nBytesToDecode, blockData );
-                }
+                writeFunctor( blockData, offsetInBlock, nBytesToDecode );
 
                 if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
                     m_writeOutputTime += duration( tWriteStart );
                 }
-
-                nBytesDecoded += nBytesToDecode;
-                m_currentPosition += nBytesToDecode;
-                offsetInChunk = 0;
             }
+
+            nBytesDecoded += nBytesToDecode;
+            m_currentPosition += nBytesToDecode;
         }
 
         return nBytesDecoded;

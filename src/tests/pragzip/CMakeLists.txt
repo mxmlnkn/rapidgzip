@@ -10,6 +10,13 @@ target_link_libraries(testHuffmanCoding PRIVATE libhuffman)
 add_test(NAME Test-HuffmanCoding COMMAND testHuffmanCoding)
 add_dependencies(all_tests testHuffmanCoding)
 
+add_executable(testDecodedData)
+target_sources(testDecodedData PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testDecodedData.cpp)
+target_link_libraries(testDecodedData PRIVATE libpragzip)
+add_test(NAME Test-Decoded-Data COMMAND testDecodedData)
+add_dependencies(all_tests testDecodedData)
+target_compile_features(testDecodedData INTERFACE cxx_std_20)  # for aggregate initialization
+
 add_executable(testDeflate)
 target_sources(testDeflate PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testDeflate.cpp)
 target_link_libraries(testDeflate PRIVATE zlibstatic libpragzip)

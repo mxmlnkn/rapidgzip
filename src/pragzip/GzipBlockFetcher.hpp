@@ -126,6 +126,33 @@ writeAllSplice( const int                         outputFileDescriptor,
 }
 
 
+void
+writeAll( const std::shared_ptr<BlockData>& blockData,
+          const int                         outputFileDescriptor,
+          const size_t                      offsetInBlock,
+          const size_t                      dataToWriteSize )
+{
+    if ( ( outputFileDescriptor < 0 ) || ( dataToWriteSize == 0 ) ) {
+        return;
+    }
+
+    using pragzip::deflate::DecodedData;
+
+    bool splicable = true;
+    for ( auto it = DecodedData::Iterator( *blockData, offsetInBlock, dataToWriteSize );
+          static_cast<bool>( it ); ++it )
+    {
+        const auto& [buffer, size] = *it;
+        if ( splicable ) {
+            splicable = writeAllSplice( outputFileDescriptor, buffer, size, blockData );
+        }
+        if ( !splicable ) {
+            writeAllToFd( outputFileDescriptor, buffer, size);
+        }
+    }
+}
+
+
 template<typename FetchingStrategy,
          bool     ENABLE_STATISTICS = false,
          bool     SHOW_PROFILE = false>

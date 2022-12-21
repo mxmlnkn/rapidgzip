@@ -105,6 +105,74 @@ struct DecodedData
 public:
     using WindowView = VectorView<uint8_t>;
 
+    class Iterator
+    {
+    public:
+        explicit
+        Iterator( const DecodedData& decodedData,
+                  const size_t       offset = 0,
+                  const size_t       size = std::numeric_limits<size_t>::max() ) :
+            m_data( decodedData ),
+            m_size( size )
+        {
+            m_offsetInChunk = offset;
+            for ( m_currentChunk = 0; m_currentChunk < m_data.data.size(); ++m_currentChunk ) {
+                const auto& chunk = m_data.data[m_currentChunk];
+                if ( ( m_offsetInChunk < chunk.size() ) && !chunk.empty() ) {
+                    m_sizeInChunk = std::min( chunk.size() - m_offsetInChunk, m_size );
+                    break;
+                }
+                m_offsetInChunk -= chunk.size();
+            }
+        }
+
+        [[nodiscard]] operator bool() const noexcept
+        {
+            return ( m_currentChunk < m_data.data.size() ) && ( m_processedSize < m_size );
+        }
+
+        [[nodiscard]] std::pair<const void*, uint64_t>
+        operator*() const
+        {
+            const auto& chunk = m_data.data[m_currentChunk];
+            return { chunk.data() + m_offsetInChunk, m_sizeInChunk };
+        }
+
+        void
+        operator++()
+        {
+            m_processedSize += m_sizeInChunk;
+            m_offsetInChunk = 0;
+            m_sizeInChunk = 0;
+
+            if ( m_processedSize > m_size ) {
+                throw std::logic_error( "Iterated over mroe bytes than was requested!" );
+            }
+
+            if ( !static_cast<bool>( *this ) ) {
+                return;
+            }
+
+            ++m_currentChunk;
+            for ( ; m_currentChunk < m_data.data.size(); ++m_currentChunk ) {
+                const auto& chunk = m_data.data[m_currentChunk];
+                if ( !chunk.empty() ) {
+                    m_sizeInChunk = std::min( chunk.size(), m_size - m_processedSize );
+                    break;
+                }
+            }
+        }
+
+    private:
+        const DecodedData& m_data;
+        const size_t m_size;
+
+        size_t m_currentChunk{ 0 };
+        size_t m_offsetInChunk{ 0 };
+        size_t m_sizeInChunk{ 0 };
+        size_t m_processedSize{ 0 };
+    };
+
 public:
     void
     append( std::vector<uint8_t>&& toAppend )
