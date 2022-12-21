@@ -102,8 +102,6 @@ public:
  * @note Limitations:
  *  - To avoid querying the pipe buffer size, it is only done once. This might introduce subtle errors when it is
  *    dynamically changed after this point.
- *  - It does not account for pages to be spliced into yet another pipe buffer, which would extend the lifetime
- *    of those pages beyond the lifetime of the shared_ptr, which also would introduce subtle bugs.
  *  - The lifetime can only be extended on block granularity even though chunks would be more suited.
  *    This results in larger peak memory than strictly necessary.
  *  - In the worst case we would read only 1B out of each block, which would extend the lifetime
@@ -111,6 +109,10 @@ public:
  *    - This would only be triggerable by using the API. The current CLI and not even the Python
  *      interface would trigger this because either they don't splice to a pipe or only read
  *      sequentially.
+ * @note It *does* account for pages to be spliced into yet another pipe buffer. This is exactly what the
+ *       SPLICE_F_GIFT flag is for. Without that being set, pages will not be spliced but copied into further
+ *       pipe buffers. So, without this flag, there is no danger of extending the lifetime of those pages
+ *       arbitarily.
  */
 [[nodiscard]] bool
 writeAllSplice( const int                         outputFileDescriptor,
@@ -126,6 +128,17 @@ writeAllSplice( const int                         outputFileDescriptor,
 }
 
 
+#if defined( HAVE_VMSPLICE )
+[[nodiscard]] bool
+writeAllSplice( [[maybe_unused]] const int                         outputFileDescriptor,
+                [[maybe_unused]] const std::shared_ptr<BlockData>& blockData,
+                [[maybe_unused]] const std::vector<::iovec>&       buffersToWrite )
+{
+    return SpliceVault::getInstance( outputFileDescriptor ).first->splice( buffersToWrite, blockData );
+}
+#endif  // HAVE_VMSPLICE
+
+
 void
 writeAll( const std::shared_ptr<BlockData>& blockData,
           const int                         outputFileDescriptor,
@@ -136,6 +149,12 @@ writeAll( const std::shared_ptr<BlockData>& blockData,
         return;
     }
 
+#ifdef HAVE_IOVEC
+    const auto buffersToWrite = toIoVec( *blockData, offsetInBlock, dataToWriteSize );
+    if ( !writeAllSplice( outputFileDescriptor, blockData, buffersToWrite ) ) {
+        writeAllToFdVector( outputFileDescriptor, buffersToWrite );
+    }
+#else
     using pragzip::deflate::DecodedData;
 
     bool splicable = true;
@@ -150,6 +169,7 @@ writeAll( const std::shared_ptr<BlockData>& blockData,
             writeAllToFd( outputFileDescriptor, buffer, size);
         }
     }
+#endif
 }
 
 

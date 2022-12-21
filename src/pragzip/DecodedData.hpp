@@ -420,4 +420,26 @@ DecodedData::cleanUnmarkedData()
 
     shrinkToFit();
 }
+
+
+#ifdef HAVE_IOVEC
+[[nodiscard]] std::vector<::iovec>
+toIoVec( const DecodedData& decodedData,
+         const size_t       offsetInBlock,
+         const size_t       dataToWriteSize )
+{
+    std::vector<::iovec> buffersToWrite;
+    for ( auto it = pragzip::deflate::DecodedData::Iterator( decodedData, offsetInBlock, dataToWriteSize );
+          static_cast<bool>( it ); ++it )
+    {
+        const auto& [data, size] = *it;
+        ::iovec buffer;
+        /* The const_cast should be safe because vmsplice and writev should not modify the input data. */
+        buffer.iov_base = const_cast<void*>( reinterpret_cast<const void*>( data ) );;
+        buffer.iov_len = size;
+        buffersToWrite.emplace_back( buffer );
+    }
+    return buffersToWrite;
+}
+#endif  // HAVE_IOVEC
 }  // namespace pragzip::deflate
