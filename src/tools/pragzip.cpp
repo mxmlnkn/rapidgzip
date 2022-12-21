@@ -562,9 +562,15 @@ pragzipCLI( int argc, char** argv )
         }
 
         /* Open either stdout, the given file, or nothing as necessary. */
-        int outputFileDescriptor{ -1 };
-        unique_file_ptr outputFile;
+        int outputFileDescriptor{ -1 };  // Use this for file access.
+        unique_file_ptr outputFile;  // This should not be used, it is only for automatic closing!
         bool writingToStdout{ false };
+        size_t oldOutputFileSize{ 0 };
+
+    #ifndef _MSC_VER
+        unique_file_descriptor ownedFd;  // This should not be used, it is only for automatic closing!
+    #endif
+
         if ( decompress ) {
             if ( outputFilePath.empty() ) {
                 writingToStdout = true;
@@ -576,12 +582,25 @@ pragzipCLI( int argc, char** argv )
                 outputFileDescriptor = ::fileno( stdout );
             #endif
             } else {
-                outputFile = make_unique_file_ptr( outputFilePath.c_str(), "wb" );
-                if ( !outputFile ) {
-                    std::cerr << "Could not open output file: " << outputFilePath << " for writing!\n";
-                    return 1;
+            #ifndef _MSC_VER
+                if ( fileExists( outputFilePath ) ) {
+                    oldOutputFileSize = fileSize( outputFilePath );
+                    /* Opening an existing file and overwriting its data can be much slower because posix_fallocate
+                     * can be relatively slow compared to the decoding speed and memory bandwidth! Note that std::fopen
+                     * would open a file with O_TRUNC, deallocating all its contents before it has to be reallocated. */
+                    outputFileDescriptor = ::open( outputFilePath.c_str(), O_WRONLY );
+                    ownedFd = unique_file_descriptor( outputFileDescriptor );
                 }
-                outputFileDescriptor = ::fileno( outputFile.get() );
+            #endif
+
+                if ( outputFileDescriptor == -1 ) {
+                    outputFile = make_unique_file_ptr( outputFilePath.c_str(), "wb" );
+                    if ( !outputFile ) {
+                        std::cerr << "Could not open output file: " << outputFilePath << " for writing!\n";
+                        return 1;
+                    }
+                    outputFileDescriptor = ::fileno( outputFile.get() );
+                }
             }
         }
 
@@ -671,6 +690,15 @@ pragzipCLI( int argc, char** argv )
             }
 
         }
+
+    #ifndef _MSC_VER
+        if ( ( *ownedFd != -1 ) && ( oldOutputFileSize > totalBytesRead ) ) {
+            if ( ::ftruncate( outputFileDescriptor, totalBytesRead ) == -1 ) {
+                std::cerr << "[Error] Failed to truncate file because of: " << strerror( errno )
+                          << " (" << errno << ")\n";
+            }
+        }
+    #endif
 
         const auto t1 = now();
         std::cerr << "Decompressed in total " << totalBytesRead << " B in " << duration( t0, t1 ) << " s -> "
