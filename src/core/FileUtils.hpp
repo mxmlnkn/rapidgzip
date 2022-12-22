@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -22,12 +23,18 @@
 
     #include <errno.h>
     #include <fcntl.h>
+    #include <limits.h>         // IOV_MAX
     #include <sys/stat.h>
     #include <sys/poll.h>
+    #include <sys/uio.h>
     #include <unistd.h>
 
     #if not defined( HAVE_VMSPLICE ) and defined( __linux__ )
         #define HAVE_VMSPLICE
+    #endif
+
+    #if not defined( HAVE_IOVEC ) and defined( __linux__ )
+        #define HAVE_IOVEC
     #endif
 #endif
 
@@ -275,6 +282,10 @@ findParentFolderContaining( const std::string& folder,
 #endif
 
 
+#if defined( HAVE_VMSPLICE )
+
+#include <algorithm>
+
 /**
  * Short overview of syscalls that optimize copies by instead copying full page pointers into the
  * pipe buffers inside the kernel:
@@ -339,12 +350,11 @@ writeAllSpliceUnsafe( [[maybe_unused]] const int         outputFileDescriptor,
                       [[maybe_unused]] const void* const dataToWrite,
                       [[maybe_unused]] const size_t      dataToWriteSize )
 {
-#if defined( HAVE_VMSPLICE )
     ::iovec dataToSplice{};
+    /* The const_cast should be safe because vmsplice should not modify the input data. */
     dataToSplice.iov_base = const_cast<void*>( reinterpret_cast<const void*>( dataToWrite ) );
     dataToSplice.iov_len = dataToWriteSize;
     while ( dataToSplice.iov_len > 0 ) {
-        /* The const_cast should be safe because vmsplice should not modify the input data. */
         const auto nBytesWritten = ::vmsplice( outputFileDescriptor, &dataToSplice, 1, /* flags */ 0 );
         if ( nBytesWritten < 0 ) {
             if ( dataToSplice.iov_len == dataToWriteSize ) {
@@ -357,13 +367,52 @@ writeAllSpliceUnsafe( [[maybe_unused]] const int         outputFileDescriptor,
         dataToSplice.iov_len -= nBytesWritten;
     }
     return true;
-#else
-    return false;
-#endif
 }
 
 
-#if defined( HAVE_VMSPLICE )
+[[nodiscard]] bool
+writeAllSpliceUnsafe( [[maybe_unused]] const int                   outputFileDescriptor,
+                      [[maybe_unused]] const std::vector<::iovec>& dataToWrite )
+{
+    for ( size_t i = 0; i < dataToWrite.size(); ) {
+        const auto segmentCount = std::min( static_cast<size_t>( IOV_MAX ), dataToWrite.size() - i );
+        auto nBytesWritten = ::vmsplice( outputFileDescriptor, &dataToWrite[i], segmentCount, /* flags */ 0 );
+
+        if ( nBytesWritten < 0 ) {
+            if ( i == 0 ) {
+                return false;
+            }
+
+            std::stringstream message;
+            message << "Failed to write all bytes because of: " << strerror( errno ) << " (" << errno << ")";
+            throw std::runtime_error( std::move( message.str() ) );
+        }
+
+        /* Skip over buffers that were written fully. */
+        for ( ; ( i < dataToWrite.size() ) && ( dataToWrite[i].iov_len <= static_cast<size_t>( nBytesWritten ) ); ++i ) {
+            nBytesWritten -= dataToWrite[i].iov_len;
+        }
+
+        /* Write out last partially written buffer if necessary so that we can resumefull vectorized writing
+         * from the next iovec buffer. */
+        if ( ( i < dataToWrite.size() ) && ( nBytesWritten > 0 ) ) {
+            const auto& iovBuffer = dataToWrite[i];
+
+            assert( iovBuffer.iov_len < static_cast<size_t>( nBytesWritten ) );
+            const auto size = iovBuffer.iov_len - nBytesWritten;
+
+            const auto remainingData = reinterpret_cast<char*>( iovBuffer.iov_base ) + nBytesWritten;
+            if ( !writeAllSpliceUnsafe( outputFileDescriptor, remainingData, size ) ) {
+                throw std::runtime_error( "Failed to write to pipe subsequently." );
+            }
+            ++i;
+        }
+    }
+
+    return true;
+}
+
+
 /**
  * Keeps shared pointers to spliced objects until an amount of bytes equal to the pipe buffer size
  * has been spliced into the pipe.
@@ -387,7 +436,7 @@ public:
         if ( vault == vaults.end() ) {
             /* try_emplace cannot be used because the SpliceVault constructor is private. */
             vault = vaults.emplace( fileDescriptor,
-                                        std::unique_ptr<SpliceVault>( new SpliceVault( fileDescriptor ) ) ).first;
+                                    std::unique_ptr<SpliceVault>( new SpliceVault( fileDescriptor ) ) ).first;
         }
         return std::make_pair( vault->second.get(), vault->second->lock() );
     }
@@ -408,24 +457,56 @@ public:
             return false;
         }
 
+        account( splicedData, dataToWriteSize );
+        return true;
+    }
+
+    /**
+     * Overload that works for iovec structures directly.
+     */
+    template<typename T>
+    [[nodiscard]] bool
+    splice( const std::vector<::iovec>& buffersToWrite,
+            const std::shared_ptr<T>&   splicedData )
+    {
+        if ( ( m_pipeBufferSize < 0 )
+             || !writeAllSpliceUnsafe( m_fileDescriptor, buffersToWrite ) ) {
+            return false;
+        }
+
+        const auto dataToWriteSize = std::accumulate(
+            buffersToWrite.begin(), buffersToWrite.end(), size_t( 0 ),
+            [] ( size_t sum, const auto& buffer ) { return sum + buffer.iov_len; } );
+
+        account( splicedData, dataToWriteSize );
+        return true;
+    }
+
+
+private:
+    template<typename T>
+    void
+    account( const std::shared_ptr<T>& splicedData,
+             size_t const              dataToWriteSize )
+    {
         m_totalSplicedBytes += dataToWriteSize;
+        /* Append written size to last shared pointer if it is the same one or add a new data set. */
         if ( !m_splicedData.empty() && ( std::get<1>( m_splicedData.back() ) == splicedData.get() ) ) {
             std::get<2>( m_splicedData.back() ) += dataToWriteSize;
         } else {
             m_splicedData.emplace_back( splicedData, splicedData.get(), dataToWriteSize );
         }
 
+        /* Never fully clear the shared pointers even if the size of the last is larger than the pipe buffer
+         * because part of that last large chunk will still be in the pipe buffer! */
         while ( !m_splicedData.empty()
                 && ( m_totalSplicedBytes - std::get<2>( m_splicedData.front() )
                      >= static_cast<size_t>( m_pipeBufferSize ) ) ) {
             m_totalSplicedBytes -= std::get<2>( m_splicedData.front() );
             m_splicedData.pop_front();
         }
-
-        return true;
     }
 
-private:
     explicit
     SpliceVault( int fileDescriptor ) :
         m_fileDescriptor( fileDescriptor ),
@@ -457,7 +538,7 @@ private:
 
     AtomicMutex m_mutex;
 };
-#endif
+#endif  // HAVE_VMSPLICE
 
 
 /**
@@ -484,6 +565,107 @@ writeAllToFd( const int         outputFileDescriptor,
         nTotalWritten += static_cast<uint64_t>( nBytesWritten );
     }
 }
+
+
+#ifdef HAVE_IOVEC
+void
+pwriteAllToFd( const int         outputFileDescriptor,
+               const void* const dataToWrite,
+               const uint64_t    dataToWriteSize,
+               const uint64_t    fileOffset )
+{
+    for ( uint64_t nTotalWritten = 0; nTotalWritten < dataToWriteSize; ) {
+        const auto currentBufferPosition =
+            reinterpret_cast<const void*>( reinterpret_cast<uintptr_t>( dataToWrite ) + nTotalWritten );
+        const auto nBytesWritten = ::pwrite( outputFileDescriptor,
+                                             currentBufferPosition,
+                                             dataToWriteSize - nTotalWritten,
+                                             fileOffset + nTotalWritten );
+        if ( nBytesWritten <= 0 ) {
+            std::stringstream message;
+            message << "Unable to write all data to the given file descriptor. Wrote " << nTotalWritten << " out of "
+                    << dataToWriteSize << " (" << strerror( errno ) << ").";
+            throw std::runtime_error( std::move( message ).str() );
+        }
+
+        nTotalWritten += static_cast<uint64_t>( nBytesWritten );
+    }
+}
+
+
+void
+writeAllToFdVector( const int                   outputFileDescriptor,
+                    const std::vector<::iovec>& dataToWrite )
+{
+    for ( size_t i = 0; i < dataToWrite.size(); ) {
+        const auto segmentCount = std::min( static_cast<size_t>( IOV_MAX ), dataToWrite.size() - i );
+        auto nBytesWritten = ::writev( outputFileDescriptor, &dataToWrite[i], segmentCount );
+
+        if ( nBytesWritten < 0 ) {
+            std::stringstream message;
+            message << "Failed to write all bytes because of: " << strerror( errno ) << " (" << errno << ")";
+            throw std::runtime_error( std::move( message.str() ) );
+        }
+
+        /* Skip over buffers that were written fully. */
+        for ( ; ( i < dataToWrite.size() ) && ( dataToWrite[i].iov_len <= static_cast<size_t>( nBytesWritten ) ); ++i ) {
+            nBytesWritten -= dataToWrite[i].iov_len;
+        }
+
+        /* Write out last partially written buffer if necessary so that we can resumefull vectorized writing
+         * from the next iovec buffer. */
+        if ( ( i < dataToWrite.size() ) && ( nBytesWritten > 0 ) ) {
+            const auto& iovBuffer = dataToWrite[i];
+
+            assert( iovBuffer.iov_len < static_cast<size_t>( nBytesWritten ) );
+            const auto remainingSize = iovBuffer.iov_len - nBytesWritten;
+            const auto remainingData = reinterpret_cast<char*>( iovBuffer.iov_base ) + nBytesWritten;
+            writeAllToFd( outputFileDescriptor, remainingData, remainingSize );
+
+            ++i;
+        }
+    }
+}
+
+
+void
+pwriteAllToFdVector( const int                   outputFileDescriptor,
+                     size_t                      fileOffset,
+                     const std::vector<::iovec>& dataToWrite )
+{
+    for ( size_t i = 0; i < dataToWrite.size(); ) {
+        const auto segmentCount = std::min( static_cast<size_t>( IOV_MAX ), dataToWrite.size() - i );
+        auto nBytesWritten = ::writev( outputFileDescriptor, &dataToWrite[i], segmentCount );
+
+        if ( nBytesWritten < 0 ) {
+            std::stringstream message;
+            message << "Failed to write all bytes because of: " << strerror( errno ) << " (" << errno << ")";
+            throw std::runtime_error( std::move( message.str() ) );
+        }
+
+        fileOffset += nBytesWritten;
+
+        /* Skip over buffers that were written fully. */
+        for ( ; ( i < dataToWrite.size() ) && ( dataToWrite[i].iov_len <= static_cast<size_t>( nBytesWritten ) ); ++i ) {
+            nBytesWritten -= dataToWrite[i].iov_len;
+        }
+
+        /* Write out last partially written buffer if necessary so that we can resumefull vectorized writing
+         * from the next iovec buffer. */
+        if ( ( i < dataToWrite.size() ) && ( nBytesWritten > 0 ) ) {
+            const auto& iovBuffer = dataToWrite[i];
+
+            assert( iovBuffer.iov_len < static_cast<size_t>( nBytesWritten ) );
+            const auto remainingSize = iovBuffer.iov_len - nBytesWritten;
+            const auto remainingData = reinterpret_cast<char*>( iovBuffer.iov_base ) + nBytesWritten;
+            pwriteAllToFd( outputFileDescriptor, remainingData, remainingSize, fileOffset );
+            fileOffset += remainingSize;
+
+            ++i;
+        }
+    }
+}
+#endif  // HAVE_IOVEC
 
 
 void
