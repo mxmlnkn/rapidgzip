@@ -118,6 +118,64 @@ filePosition( std::FILE* file )
 }
 
 
+#ifndef _MSC_VER
+struct unique_file_descriptor
+{
+    explicit
+    unique_file_descriptor( int fd ) :
+        m_fd( fd )
+    {}
+
+    ~unique_file_descriptor()
+    {
+        close();
+    }
+
+    unique_file_descriptor() = default;
+    unique_file_descriptor( const unique_file_descriptor& ) = delete;
+    unique_file_descriptor& operator=( const unique_file_descriptor& ) = delete;
+
+    unique_file_descriptor( unique_file_descriptor&& other ) noexcept :
+        m_fd( other.m_fd )
+    {
+        other.m_fd = -1;
+    }
+
+    unique_file_descriptor&
+    operator=( unique_file_descriptor&& other ) noexcept
+    {
+        close();
+        m_fd = other.m_fd;
+        other.m_fd = -1;
+        return *this;
+    }
+
+    [[nodiscard]] constexpr int
+    operator*() const noexcept
+    {
+        return m_fd;
+    }
+
+    void
+    close()
+    {
+        if ( m_fd >= 0 ) {
+            ::close( m_fd );
+        }
+    }
+
+    void
+    release()
+    {
+        m_fd = -1;
+    }
+
+private:
+    int m_fd{ -1 };
+};
+#endif  // ifndef _MSC_VER
+
+
 using unique_file_ptr = std::unique_ptr<std::FILE, std::function<void ( std::FILE* )> >;
 
 inline unique_file_ptr
