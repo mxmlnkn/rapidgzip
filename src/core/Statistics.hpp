@@ -129,8 +129,9 @@ struct Statistics
     }
 
 public:
-    T min{ std::numeric_limits<T>::infinity() };
-    T max{ -std::numeric_limits<T>::infinity() };
+    /* Note that std::numeric_limits::infinity == 0 for integers. */
+    T min{ std::numeric_limits<T>::max() };
+    T max{ std::numeric_limits<T>::lowest() };
 
     double sum{ 0 };
     double sum2{ 0 };
