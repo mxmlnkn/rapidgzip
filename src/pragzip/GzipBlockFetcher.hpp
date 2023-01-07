@@ -563,7 +563,8 @@ private:
         {
             initStream();
             /* 2^15 = 32 KiB window buffer and minus signaling raw deflate stream to decode. */
-            if ( inflateInit2( &m_stream, -15 ) != Z_OK ) {
+            m_windowFlags = -15;
+            if ( inflateInit2( &m_stream, m_windowFlags ) != Z_OK ) {
                 throw std::runtime_error( "Probably encountered invalid deflate data!" );
             }
         }
@@ -595,16 +596,16 @@ private:
         void
         refillBuffer()
         {
+            if ( m_stream.avail_in > 0 ) {
+                return;
+            }
+
             if ( m_bitReader.tell() % BYTE_SIZE != 0 ) {
                 const auto nBitsToPrime = BYTE_SIZE - ( m_bitReader.tell() % BYTE_SIZE );
                 if ( inflatePrime( &m_stream, nBitsToPrime, m_bitReader.read( nBitsToPrime ) ) != Z_OK ) {
                     throw std::runtime_error( "InflatePrime failed!" );
                 }
                 assert( m_bitReader.tell() % BYTE_SIZE == 0 );
-            }
-
-            if ( m_stream.avail_in > 0 ) {
-                return;
             }
 
             m_stream.avail_in = m_bitReader.read(
@@ -655,10 +656,36 @@ private:
                 if ( errorCode == Z_STREAM_END ) {
                     decodedSize += m_stream.total_out;
 
-                    inflateEnd( &m_stream );
+                    const auto oldStream = m_stream;
+                    inflateEnd( &m_stream );  // All dynamically allocated data structures for this stream are freed.
                     initStream();
-                    /* 2^15 = 32 KiB window buffer and minus signaling raw deflate stream to decode. */
-                    if ( inflateInit2( &m_stream, /* decode gzip */ 16 + /* 2^15 buffer */ 15 ) != Z_OK ) {
+                    m_stream.avail_in = oldStream.avail_in;
+                    m_stream.next_in = oldStream.next_in;
+                    m_stream.total_out = oldStream.total_out;
+
+                    /* If we started with raw deflate, then we also have to skip other the gzip footer.
+                     * Assuming we are decoding gzip and not zlib or multiple raw deflate streams. */
+                    if ( m_windowFlags < 0 ) {
+                        for ( auto stillToRemove = 8U; stillToRemove > 0; ) {
+                            if ( m_stream.avail_in >= stillToRemove ) {
+                                m_stream.avail_in -= stillToRemove;
+                                m_stream.next_in += stillToRemove;
+                                stillToRemove = 0;
+                            } else {
+                                stillToRemove -= m_stream.avail_in;
+                                m_stream.avail_in = 0;
+                                refillBuffer();
+                            }
+                        }
+                    }
+
+                    /* 2^15 = 32 KiB window buffer and minus signaling raw deflate stream to decode.
+                     * > The current implementation of inflateInit2() does not process any header information --
+                     * > that is deferred until inflate() is called.
+                     * Because of this, we don't have to ensure that enough data is available and/or calling it a
+                     * second time to read the rest of the header. */
+                    m_windowFlags = /* decode gzip */ 16 + /* 2^15 buffer */ 15;
+                    if ( inflateInit2( &m_stream, m_windowFlags ) != Z_OK ) {
                         throw std::runtime_error( "Probably encountered invalid gzip header!" );
                     }
 
@@ -676,6 +703,7 @@ private:
 
     private:
         BitReader m_bitReader;
+        int m_windowFlags{ 0 };
         z_stream m_stream{};
         /* Loading the whole encoded data (multiple MiB) into memory first and then
          * decoding it in one go is 4x slower than processing it in chunks of 128 KiB! */
