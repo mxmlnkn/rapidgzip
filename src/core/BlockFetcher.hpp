@@ -500,7 +500,7 @@ private:
             }
 
             ++m_statistics.prefetchCount;
-            auto prefetchedFuture = m_threadPool.submitTask(
+            auto prefetchedFuture = m_threadPool.submit(
                 [this, offset = *prefetchBlockOffset, nextOffset = *nextPrefetchBlockOffset] () {
                     return decodeAndMeasureBlock( offset, nextOffset );
                 } );
@@ -526,7 +526,7 @@ private:
         if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
             ++m_statistics.onDemandFetchCount;
         }
-        auto resultFuture = m_threadPool.submitTask( [this, blockOffset, nextBlockOffset] () {
+        auto resultFuture = m_threadPool.submit( [this, blockOffset, nextBlockOffset] () {
             return decodeAndMeasureBlock(
                 blockOffset, nextBlockOffset ? *nextBlockOffset : std::numeric_limits<size_t>::max() );
         } );

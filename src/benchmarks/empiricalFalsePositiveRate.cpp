@@ -174,7 +174,7 @@ findNonCompressedFalsePositives()
     ThreadPool threadPool;
     std::vector<std::future<size_t> > tasks;
     for ( size_t i = 0; i < nRepetitions; ++i ) {
-        tasks.emplace_back( threadPool.submitTask( countFalsePositives ) );
+        tasks.emplace_back( threadPool.submit( countFalsePositives ) );
     }
 
     CountWithPercentage<size_t> statistics;
@@ -515,7 +515,7 @@ findDynamicFalsePositives( const size_t nBitsToTest )
     tasks.reserve( nThreads );
 
     for ( int i = 0; i < nThreads; ++i ) {
-        tasks.emplace_back( threadPool.submitTask( [nBitsToTest] () {
+        tasks.emplace_back( threadPool.submit( [nBitsToTest] () {
             return std::make_unique<AnalyzeDynamicBlockFalsePositives>( nBitsToTest );
         } ) );
     }

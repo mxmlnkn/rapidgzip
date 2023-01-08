@@ -241,7 +241,7 @@ ParallelBitStringFinder<bitStringSize>::find()
             //          << "buffer size: " << this->m_buffer.size() << " B\n";
 
             auto& result = m_threadResults.emplace_back();
-            result.future = m_threadPool.submitTask(
+            result.future = m_threadPool.submit(
                 [=, &result] ()
                 {
                     workerMain(

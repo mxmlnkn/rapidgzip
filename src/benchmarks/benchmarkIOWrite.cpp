@@ -523,7 +523,7 @@ benchmarkMmapWriteParallel( const std::string&       filePath,
         auto* const map = mmapStrategy == MmapStrategy::SINGLE_MAP
                           ? (char*)maps.front().second + offset
                           : (char*)maps[i].second;
-        futures.emplace_back( threadPool.submitTask( [offset, chunkSize, &data, map] () {
+        futures.emplace_back( threadPool.submit( [offset, chunkSize, &data, map] () {
             memcpy( map, data.data() + offset, std::min( data.size() - offset, chunkSize ) );
         } ) );
     }
@@ -620,7 +620,7 @@ benchmarkPwriteParallel( const std::string&       filePath,
     const auto chunkSize = data.size() / threadPool.size();
     std::vector<std::future<void> > futures;
     for ( size_t offset = 0; offset < data.size(); offset += chunkSize ) {
-        futures.emplace_back( threadPool.submitTask( [offset, chunkSize, &data, fd = *ufd] () {
+        futures.emplace_back( threadPool.submit( [offset, chunkSize, &data, fd = *ufd] () {
             const auto sizeToWrite = std::min( data.size() - offset, chunkSize );
             const auto result = pwrite( fd, data.data() + offset, sizeToWrite, offset );
             if ( ( result < 0 ) || ( static_cast<size_t>( result ) != sizeToWrite ) ) {
@@ -680,7 +680,7 @@ benchmarkWriteParallelFiles( const std::string&       filePath,
     std::vector<std::future<void> > futures;
     for ( size_t i = 0; i < threadCount; ++i ) {
         const auto offset = i * chunkSize;
-        futures.emplace_back( threadPool.submitTask( [offset, chunkSize, &data, fd = *ufds[i]] () {
+        futures.emplace_back( threadPool.submit( [offset, chunkSize, &data, fd = *ufds[i]] () {
             const auto sizeToWrite = std::min( data.size() - offset, chunkSize );
             const auto result = pwrite( fd, data.data() + offset, sizeToWrite, offset );
             if ( ( result < 0 ) || ( static_cast<size_t>( result ) != sizeToWrite ) ) {

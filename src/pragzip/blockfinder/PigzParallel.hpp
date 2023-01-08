@@ -261,7 +261,7 @@ public:
 
             assert( subBuffer.size() > nBytesToRetain );
             m_threadResults.emplace_back(
-                m_threadPool.submitTask(
+                m_threadPool.submit(
                     [=] () { return workerMain( subBuffer, byteOffset ); } ) );
         }
     }

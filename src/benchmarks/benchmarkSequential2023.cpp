@@ -628,7 +628,7 @@ benchmarkFileReaderParallel( ThreadPool&        threadPool,
     const auto parallelism = threadPool.size();
     for ( size_t i = 0; i < parallelism; ++i ) {
         auto sharedFileReader = std::unique_ptr<FileReader>( shareableFileReader->clone() );
-        results.emplace_back( threadPool.submitTask(
+        results.emplace_back( threadPool.submit(
             [chunkSize, i, parallelism, fileReader = std::move( sharedFileReader ), &readStrided] () mutable {
                 return readStrided( fileReader, i * chunkSize, parallelism * chunkSize );
             }

@@ -117,7 +117,7 @@ public:
      */
     template<class T_Functor>
     std::future<decltype( std::declval<T_Functor>()() )>
-    submitTask( T_Functor task )
+    submit( T_Functor task )
     {
         std::lock_guard lock( m_mutex );
 
