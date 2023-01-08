@@ -52,6 +52,39 @@ public:
 struct BlockData :
     public deflate::DecodedData
 {
+    struct BlockBoundary
+    {
+        size_t encodedOffset;
+        size_t decodedOffset;
+
+        [[nodiscard]] bool
+        operator==( const BlockBoundary& other ) const
+        {
+            return ( encodedOffset == other.encodedOffset ) && ( decodedOffset == other.decodedOffset );
+        }
+    };
+
+    struct Footer
+    {
+        BlockBoundary blockBoundary;
+        gzip::Footer gzipFooter;
+    };
+
+    struct Subblock
+    {
+        size_t encodedOffset{ 0 };
+        size_t encodedSize{ 0 };
+        size_t decodedSize{ 0 };
+
+        [[nodiscard]] bool
+        operator==( const Subblock& other ) const
+        {
+            return ( encodedOffset == other.encodedOffset )
+                   && ( encodedSize == other.encodedSize )
+                   && ( decodedSize == other.decodedSize );
+        }
+    };
+
 public:
     [[nodiscard]] bool
     matchesEncodedOffset( size_t offset )
@@ -81,12 +114,87 @@ public:
         maxEncodedOffsetInBits = offset;
     }
 
+    [[nodiscard]] std::vector<Subblock>
+    split( [[maybe_unused]] const size_t spacing ) const
+    {
+        if ( encodedOffsetInBits != maxEncodedOffsetInBits ) {
+            throw std::invalid_argument( "BlockData::split may only be called after setEncodedOffset!" );
+        }
+
+        if ( spacing == 0 ) {
+            throw std::invalid_argument( "Spacing must be a positive number of bytes." );
+        }
+
+        /* blockBoundaries does not contain the first block begin but all thereafter including the boundary after
+         * the last block, i.e., the begin of the next deflate block not belonging to this BlockData. */
+        const auto decompressedSize = size();
+        const auto nBlocks = static_cast<size_t>( std::round( static_cast<double>( decompressedSize )
+                                                              / static_cast<double>( spacing ) ) );
+        if ( ( nBlocks <= 1 ) || blockBoundaries.empty() ) {
+            Subblock subblock;
+            subblock.encodedOffset = encodedOffsetInBits;
+            subblock.encodedSize = encodedSizeInBits;
+            subblock.decodedSize = decompressedSize;
+            if ( ( encodedSizeInBits == 0 ) && ( decompressedSize == 0 ) ) {
+                return {};
+            }
+            return { subblock };
+        }
+
+        /* The idea for partitioning is: Divide the size evenly and into subblocks and then choose the block boundary
+         * that is closest to that value. */
+        const auto perfectSpacing = static_cast<double>( decompressedSize ) / static_cast<double>( nBlocks );
+
+        std::vector<BlockBoundary> selectedBlockBoundaries;
+        selectedBlockBoundaries.reserve( nBlocks + 1 );
+        selectedBlockBoundaries.push_back( BlockBoundary{ encodedOffsetInBits, 0 } );
+        /* The first and last boundaries are static, so we only need to find nBlocks - 1 further boundaries. */
+        for ( size_t iSubblock = 1; iSubblock < nBlocks; ++iSubblock ) {
+            const auto perfectDecompressedOffset = static_cast<size_t>( iSubblock * perfectSpacing );
+            const auto isCloser =
+                [perfectDecompressedOffset] ( const auto& b1, const auto& b2 )
+                {
+                    return absDiff( b1.decodedOffset, perfectDecompressedOffset )
+                           < absDiff( b2.decodedOffset, perfectDecompressedOffset );
+                };
+            const auto closest = std::min_element( blockBoundaries.begin(), blockBoundaries.end(), isCloser );
+            selectedBlockBoundaries.emplace_back( *closest );
+        }
+        selectedBlockBoundaries.push_back( BlockBoundary{ encodedOffsetInBits + encodedSizeInBits, decompressedSize } );
+
+        /* Clean up duplicate boundaries, which might happen for very large deflate blocks.
+         * Note that selectedBlockBoundaries should already be sorted because we push always the closest
+         * of an already sorted "input vector". */
+        selectedBlockBoundaries.erase( std::unique( selectedBlockBoundaries.begin(), selectedBlockBoundaries.end() ),
+                                       selectedBlockBoundaries.end() );
+
+        /* Convert subsequent boundaries into blocks. */
+        std::vector<Subblock> subblocks( selectedBlockBoundaries.size() - 1 );
+        for ( size_t i = 0; i + 1 < selectedBlockBoundaries.size(); ++i ) {
+            assert( selectedBlockBoundaries[i + 1].encodedOffset > selectedBlockBoundaries[i].encodedOffset );
+            assert( selectedBlockBoundaries[i + 1].decodedOffset > selectedBlockBoundaries[i].decodedOffset );
+
+            subblocks[i].encodedOffset = selectedBlockBoundaries[i].encodedOffset;
+            subblocks[i].encodedSize = selectedBlockBoundaries[i + 1].encodedOffset
+                                       - selectedBlockBoundaries[i].encodedOffset;
+            subblocks[i].decodedSize = selectedBlockBoundaries[i + 1].decodedOffset
+                                       - selectedBlockBoundaries[i].decodedOffset;
+        }
+
+        return subblocks;
+    }
+
 public:
     /* This should only be evaluated when it is unequal std::numeric_limits<size_t>::max() and unequal
      * Base::encodedOffsetInBits. Then, [Base::encodedOffsetInBits, maxEncodedOffsetInBits] specifies a valid range
      * for the block offset. Such a range might happen for finding uncompressed deflate blocks because of the
      * byte-padding. */
     size_t maxEncodedOffsetInBits{ std::numeric_limits<size_t>::max() };
+
+    /* Decoded offsets are relative to the decoded offset of this BlockData because that might not be known
+     * during first-pass decompression. */
+    std::vector<BlockBoundary> blockBoundaries;
+    std::vector<Footer> footers;
 
     /* Benchmark results */
     double blockFinderDuration{ 0 };
@@ -259,7 +367,13 @@ public:
 
             blockData = getBlock( *nextBlockOffset, m_nextUnprocessedBlockIndex );
 
-            m_blockMap->push( *nextBlockOffset, blockData->encodedSizeInBits, blockData->size() );
+            const auto subblocks = blockData->split( m_blockFinder->spacingInBits() / 8U );
+            for ( const auto boundary : subblocks ) {
+                m_blockMap->push( boundary.encodedOffset, boundary.encodedSize, boundary.decodedSize );
+            }
+
+            /* This should also work for multi-stream gzip files because encodedSizeInBits is such that it
+             * points across the gzip footer and next header to the next deflate block. */
             const auto blockOffsetAfterNext = *nextBlockOffset + blockData->encodedSizeInBits;
             m_blockFinder->insert( blockOffsetAfterNext );
             if ( blockOffsetAfterNext >= m_bitReader.size() ) {
@@ -300,7 +414,12 @@ public:
                 m_decodeTime += blockData->decodeDuration;
             }
 
-            m_windowMap->emplace( blockOffsetAfterNext, blockData->getLastWindow( *lastWindow ) );
+            size_t decodedOffsetInBlock{ 0 };
+            for ( const auto& subblock : subblocks ) {
+                decodedOffsetInBlock += subblock.decodedSize;
+                m_windowMap->emplace( subblock.encodedOffset + subblock.encodedSize,
+                                      blockData->getWindowAt( *lastWindow, decodedOffsetInBlock ) );
+            }
         }
 
         return std::make_pair( blockInfo, blockData );
@@ -751,6 +870,7 @@ private:
          * start reading in the middle of a gzip stream and will not meet the gzip header for a while or never. */
         bool isAtStreamEnd = false;
         size_t streamBytesRead = 0;
+        size_t totalBytesRead = 0;
         std::optional<gzip::Header> gzipHeader;
 
         std::optional<deflate::Block</* CRC32 */ false> > block;
@@ -800,14 +920,25 @@ private:
                 throw std::domain_error( std::move( message ).str() );
             }
 
-            /* It is only important for performance that the deflate blocks we are matching here are the same
-             * the block finder is will find. Note that we do not have to check for a uncompressed block padding
-             * of zero because the deflate decoder counts that as an error anyway! */
+            /**
+             * Preemptive Stop Condition.
+             * @note It is only important for performance that the deflate blocks we are matching here are the same
+             *       as the block finder will find.
+             * @note We do not have to check for an uncompressed block padding of zero because the deflate decoder
+             *       counts that as an error anyway!
+             */
             if ( ( ( nextBlockOffset >= untilOffset )
                    && !block->isLastBlock()
                    && ( block->compressionType() != deflate::CompressionType::FIXED_HUFFMAN ) )
                  || ( nextBlockOffset == untilOffset ) ) {
                 break;
+            }
+
+            /* Do not push back the first boundary because it is redundant as it should contain the same encoded
+             * offset as @ref result and it also would have the same problem that the real offset is ambiguous
+             * for non-compressed blocks. */
+            if ( totalBytesRead > 0 ) {
+                result.blockBoundaries.emplace_back( BlockData::BlockBoundary{ nextBlockOffset, totalBytesRead } );
             }
 
             /* Loop until we have read the full contents of the current deflate block-> */
@@ -823,9 +954,11 @@ private:
 
                 result.append( bufferViews );
                 streamBytesRead += bufferViews.size();
+                totalBytesRead += bufferViews.size();
             }
 
             if ( block->isLastBlock() ) {
+                const auto footerOffset = bitReader->tell();
                 const auto footer = gzip::readFooter( *bitReader );
 
                 /* We only check for the stream size and CRC32 if we have read the whole stream including the header! */
@@ -844,6 +977,11 @@ private:
                         throw std::runtime_error( std::move( message ).str() );
                     }
                 }
+
+                BlockData::Footer footerResult;
+                footerResult.blockBoundary = BlockData::BlockBoundary{ footerOffset, totalBytesRead };
+                footerResult.gzipFooter = footer;
+                result.footers.emplace_back( footerResult );
 
                 isAtStreamEnd = true;
                 gzipHeader = {};
