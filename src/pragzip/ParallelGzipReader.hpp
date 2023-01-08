@@ -351,10 +351,17 @@ public:
             /* Copy data from fetched block to output. */
 
             const auto offsetInBlock = m_currentPosition - blockInfo.decodedOffsetInBytes;
-            const auto blockSize = blockData->size();
+            const auto blockSize = blockData->decodedSizeInBytes;
             if ( offsetInBlock >= blockSize ) {
-                throw std::logic_error( "Block does not contain the requested offset even though it "
-                                        "shouldn't be according to block map!" );
+                std::stringstream message;
+                message << "[ParallelGzipReader] Block does not contain the requested offset! "
+                        << "Requested offset from chunk fetcher: " << formatBytes( m_currentPosition )
+                        << ", returned block info from block map: " << blockInfo
+                        << ", block data encoded offset: " << formatBits( blockData->encodedOffsetInBits )
+                        << ", block data encoded size: " << formatBits( blockData->encodedSizeInBits )
+                        << ", block data size: " << formatBytes( blockData->decodedSizeInBytes )
+                        << " markers: " << blockData->dataWithMarkersSize();
+                throw std::logic_error( std::move( message ).str() );
             }
 
             if ( blockData->data.empty() ) {

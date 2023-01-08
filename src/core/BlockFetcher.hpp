@@ -503,7 +503,7 @@ private:
             auto prefetchedFuture = m_threadPool.submit(
                 [this, offset = *prefetchBlockOffset, nextOffset = *nextPrefetchBlockOffset] () {
                     return decodeAndMeasureBlock( offset, nextOffset );
-                } );
+                }, /* priority */ 0 );
             const auto [_, wasInserted] = m_prefetching.emplace( *prefetchBlockOffset, std::move( prefetchedFuture ) );
             if ( !wasInserted ) {
                 std::logic_error( "Submitted future could not be inserted to prefetch queue!" );
@@ -514,7 +514,7 @@ private:
          * submitted requested block, the thread pool should never contain more than m_parallelization tasks!
          * All tasks submitted to the thread pool, should either exist in m_prefetching or only temporary inside
          * 'resultFuture' in the 'read' method. */
-        if ( m_threadPool.unprocessedTasksCount() > m_parallelization ) {
+        if ( m_threadPool.unprocessedTasksCount( 0 ) > m_parallelization ) {
             throw std::logic_error( "The thread pool should not have more tasks than there are prefetching futures!" );
         }
     }
@@ -529,7 +529,7 @@ private:
         auto resultFuture = m_threadPool.submit( [this, blockOffset, nextBlockOffset] () {
             return decodeAndMeasureBlock(
                 blockOffset, nextBlockOffset ? *nextBlockOffset : std::numeric_limits<size_t>::max() );
-        } );
+        }, /* priority */ 0 );
         assert( resultFuture.valid() );
         return resultFuture;
     }
@@ -547,6 +547,26 @@ protected:
     stopThreadPool()
     {
         m_threadPool.stop();
+    }
+
+    template<class T_Functor>
+    std::future<decltype( std::declval<T_Functor>()() )>
+    submitTaskWithHighPriority( T_Functor task )
+    {
+        return m_threadPool.submit( std::move( task ), /* priority */ -1 );
+    }
+
+
+    [[nodiscard]] const auto&
+    cache() const noexcept
+    {
+        return m_cache;
+    }
+
+    [[nodiscard]] const auto&
+    prefetchCache() const noexcept
+    {
+        return m_prefetchCache;
     }
 
 private:

@@ -47,6 +47,7 @@ public:
     [[nodiscard]] bool
     empty() const
     {
+        std::scoped_lock lock( m_mutex );
         return m_windows.empty();
     }
 

@@ -127,7 +127,7 @@ public:
 
         /* blockBoundaries does not contain the first block begin but all thereafter including the boundary after
          * the last block, i.e., the begin of the next deflate block not belonging to this BlockData. */
-        const auto decompressedSize = size();
+        const auto decompressedSize = decodedSizeInBytes;
         const auto nBlocks = static_cast<size_t>( std::round( static_cast<double>( decompressedSize )
                                                               / static_cast<double>( spacing ) ) );
         if ( ( nBlocks <= 1 ) || blockBoundaries.empty() ) {
@@ -184,12 +184,29 @@ public:
         return subblocks;
     }
 
+    void
+    finalize( size_t blockEndOffsetInBits )
+    {
+        cleanUnmarkedData();
+        encodedSizeInBits = blockEndOffsetInBits - encodedOffsetInBits;
+        decodedSizeInBytes = deflate::DecodedData::size();
+    }
+
+    [[nodiscard]] constexpr size_t
+    size() const noexcept = delete;
+
+    [[nodiscard]] constexpr size_t
+    dataSize() const noexcept = delete;
+
 public:
     /* This should only be evaluated when it is unequal std::numeric_limits<size_t>::max() and unequal
      * Base::encodedOffsetInBits. Then, [Base::encodedOffsetInBits, maxEncodedOffsetInBits] specifies a valid range
      * for the block offset. Such a range might happen for finding uncompressed deflate blocks because of the
      * byte-padding. */
     size_t maxEncodedOffsetInBits{ std::numeric_limits<size_t>::max() };
+    /* Initialized with size() after thread has finished writing into BlockData. Redundant but avoids a lock
+     * because the marker replacement will momentarily lead to different results returned by size! */
+    size_t decodedSizeInBytes{ std::numeric_limits<size_t>::max() };
 
     /* Decoded offsets are relative to the decoded offset of this BlockData because that might not be known
      * during first-pass decompression. */
@@ -292,6 +309,8 @@ public:
     using WindowView = VectorView<uint8_t>;
     using BlockFinder = typename BaseType::BlockFinder;
 
+    static constexpr bool REPLACE_MARKERS_IN_PARALLEL = true;
+
 public:
     GzipChunkFetcher( BitReader                    bitReader,
                       std::shared_ptr<BlockFinder> blockFinder,
@@ -374,7 +393,7 @@ public:
 
             /* This should also work for multi-stream gzip files because encodedSizeInBits is such that it
              * points across the gzip footer and next header to the next deflate block. */
-            const auto blockOffsetAfterNext = *nextBlockOffset + blockData->encodedSizeInBits;
+            const auto blockOffsetAfterNext = blockData->encodedOffsetInBits + blockData->encodedSizeInBits;
             m_blockFinder->insert( blockOffsetAfterNext );
             if ( blockOffsetAfterNext >= m_bitReader.size() ) {
                 m_blockMap->finalize();
@@ -394,31 +413,28 @@ public:
             /* Because this is a new block, it might contain markers that we have to replace with the window
              * of the last block. The very first block should not contain any markers, ensuring that we
              * can successively propagate the window through all blocks. */
-            auto lastWindow = m_windowMap->get( *nextBlockOffset );
+            auto lastWindow = m_windowMap->get( blockData->encodedOffsetInBits );
             if ( !lastWindow ) {
                 std::stringstream message;
-                message << "The window of the last block at " << formatBits( *nextBlockOffset )
+                message << "The window of the last block at " << formatBits( blockData->encodedOffsetInBits )
                         << " should exist at this point!";
                 throw std::logic_error( std::move( message ).str() );
             }
 
-            [[maybe_unused]] const auto markerCount = blockData->dataWithMarkersSize();
-            [[maybe_unused]] const auto tApplyStart = now();
-            blockData->applyWindow( *lastWindow );
-            if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
-                if ( markerCount > 0 ) {
-                    m_applyWindowTime += duration( tApplyStart );
-                }
-                m_markerCount += markerCount;
-                m_blockFinderTime += blockData->blockFinderDuration;
-                m_decodeTime += blockData->decodeDuration;
+            if constexpr ( REPLACE_MARKERS_IN_PARALLEL ) {
+                waitForReplacedMarkers( blockData, *lastWindow );
+            } else {
+                replaceMarkers( blockData, *lastWindow );
             }
 
             size_t decodedOffsetInBlock{ 0 };
             for ( const auto& subblock : subblocks ) {
                 decodedOffsetInBlock += subblock.decodedSize;
-                m_windowMap->emplace( subblock.encodedOffset + subblock.encodedSize,
-                                      blockData->getWindowAt( *lastWindow, decodedOffsetInBlock ) );
+                const auto windowOffset = subblock.encodedOffset + subblock.encodedSize;
+                /* Avoid recalculating what we already emplaced in waitForReplacedMarkers when calling getLastWindow. */
+                if ( !m_windowMap->get( windowOffset ) ) {
+                    m_windowMap->emplace( windowOffset, blockData->getWindowAt( *lastWindow, decodedOffsetInBlock ) );
+                }
             }
         }
 
@@ -426,6 +442,119 @@ public:
     }
 
 private:
+    void
+    waitForReplacedMarkers( const std::shared_ptr<BlockData>& blockData,
+                            const WindowView                  lastWindow )
+    {
+        using namespace std::chrono_literals;
+
+        auto markerReplaceFuture = m_markersBeingReplaced.find( blockData->encodedOffsetInBits );
+        if ( ( markerReplaceFuture == m_markersBeingReplaced.end() ) && blockData->dataWithMarkers.empty() ) {
+            return;
+        }
+
+        /* Not ready or not yet queued, so queue it and use the wait time to queue more marker replacements. */
+        std::optional<std::future<void> > queuedFuture;
+        if ( markerReplaceFuture == m_markersBeingReplaced.end() ) {
+            /* First, we need to emplace the last window or else we cannot queue further blocks. */
+            const auto windowOffset = blockData->encodedOffsetInBits + blockData->encodedSizeInBits;
+            if ( !m_windowMap->get( windowOffset ) ) {
+                m_windowMap->emplace( windowOffset, blockData->getLastWindow( lastWindow ) );
+            }
+
+            markerReplaceFuture = m_markersBeingReplaced.emplace(
+                blockData->encodedOffsetInBits,
+                this->submitTaskWithHighPriority(
+                    [this, blockData, lastWindow] () { replaceMarkers( blockData, lastWindow ); }
+                )
+            ).first;
+        }
+
+        /* Check other enqueued marker replacements whether they are finished. */
+        for ( auto it = m_markersBeingReplaced.begin(); it != m_markersBeingReplaced.end(); ) {
+            if ( it == markerReplaceFuture ) {
+                ++it;
+                continue;
+            }
+
+            auto& future = it->second;
+            if ( !future.valid() || ( future.wait_for( 0s ) == std::future_status::ready ) ) {
+                future.get();
+                it = m_markersBeingReplaced.erase( it );
+            } else {
+                ++it;
+            }
+        }
+
+        replaceMarkersInPrefetched();
+
+        markerReplaceFuture->second.get();
+        m_markersBeingReplaced.erase( markerReplaceFuture );
+    }
+
+    void
+    replaceMarkersInPrefetched()
+    {
+        /* Trigger jobs for ready block data to replace markers. */
+        const auto& cacheElements = this->prefetchCache().contents();
+        std::vector<size_t> sortedOffsets( cacheElements.size() );
+        std::transform( cacheElements.begin(), cacheElements.end(), sortedOffsets.begin(),
+                        [] ( const auto& keyValue ) { return keyValue.first; } );
+        std::sort( sortedOffsets.begin(), sortedOffsets.end() );
+        for ( const auto triedStartOffset : sortedOffsets ) {
+            const auto blockData = cacheElements.at( triedStartOffset );
+
+            /* Ignore ready blocks. */
+            if ( blockData->dataWithMarkers.empty() )  {
+                continue;
+            }
+
+            /* Ignore blocks already enqueued for marker replacement. */
+            if ( m_markersBeingReplaced.find( blockData->encodedOffsetInBits ) != m_markersBeingReplaced.end() ) {
+                continue;
+            }
+
+            /* Check for previous window. */
+            const auto previousWindow = m_windowMap->get( blockData->encodedOffsetInBits );
+            if ( !previousWindow ) {
+                continue;
+            }
+
+            const auto windowOffset = blockData->encodedOffsetInBits + blockData->encodedSizeInBits;
+            if ( !m_windowMap->get( windowOffset ) ) {
+                m_windowMap->emplace( windowOffset, blockData->getLastWindow( *previousWindow ) );
+            }
+
+            m_markersBeingReplaced.emplace(
+                blockData->encodedOffsetInBits,
+                this->submitTaskWithHighPriority(
+                    [this, blockData, previousWindow] () { replaceMarkers( blockData, *previousWindow ); }
+                )
+            );
+        }
+    }
+
+    /**
+     * Must be thread-safe because it is submitted to the thread pool.
+     */
+    void
+    replaceMarkers( const std::shared_ptr<BlockData>& blockData,
+                    const WindowView                  previousWindow )
+    {
+        [[maybe_unused]] const auto markerCount = blockData->dataWithMarkersSize();
+        [[maybe_unused]] const auto tApplyStart = now();
+        blockData->applyWindow( previousWindow );
+        if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+            std::scoped_lock lock( m_statisticsMutex );
+            if ( markerCount > 0 ) {
+                m_applyWindowTime += duration( tApplyStart );
+            }
+            m_markerCount += markerCount;
+            m_blockFinderTime += blockData->blockFinderDuration;
+            m_decodeTime += blockData->decodeDuration;
+        }
+    }
+
     /**
      * First, tries to look up the given block offset by its partition offset and then by its real offset.
      *
@@ -851,7 +980,7 @@ private:
 
         /* We cannot arbitarily use bitReader.tell here, because the zlib wrapper buffers input read from BitReader.
          * If untilOffset is nullopt, then we are to read to the end of the file. */
-        result.encodedSizeInBits = untilOffset - blockOffset;
+        result.finalize( untilOffset );
         return result;
     }
 
@@ -994,8 +1123,7 @@ private:
             }
         }
 
-        result.cleanUnmarkedData();
-        result.encodedSizeInBits = nextBlockOffset - result.encodedOffsetInBits;
+        result.finalize( nextBlockOffset );
         return result;
     }
 
@@ -1005,6 +1133,7 @@ private:
     double m_blockFinderTime{ 0 };
     double m_decodeTime{ 0 };
     uint64_t m_markerCount{ 0 };
+    mutable std::mutex m_statisticsMutex;
 
     std::atomic<bool> m_cancelThreads{ false };
 
@@ -1019,5 +1148,7 @@ private:
     /* This is the highest found block inside BlockFinder we ever processed and put into the BlockMap.
      * After the BlockMap has been finalized, this isn't needed anymore. */
     size_t m_nextUnprocessedBlockIndex{ 0 };
+
+    std::map</* block offset */ size_t, std::future<void> > m_markersBeingReplaced;
 };
 }  // namespace pragzip

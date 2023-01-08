@@ -274,10 +274,16 @@ public:
         return m_cacheStrategy;
     }
 
+    [[nodiscard]] const auto&
+    contents() const noexcept
+    {
+        return m_cache;
+    }
+
 private:
     CacheStrategy m_cacheStrategy;
     size_t const m_maxCacheSize;
-    std::unordered_map<Key, Value > m_cache;
+    std::unordered_map<Key, Value> m_cache;
 
     /* Analytics */
     Statistics m_statistics;
