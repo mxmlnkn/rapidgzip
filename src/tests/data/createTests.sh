@@ -38,3 +38,40 @@ fname='base64-32KiB'; base64 /dev/urandom | head -c $(( 32*1024 )) > "$fname" &&
 # 32KiB between flush blocks is the minimum.
 fname='base64-64KiB'; base64 /dev/urandom | head -c $(( 64*1024 )) > "$fname" &&
 pigz -c --blocksize 32 -- "$fname" > "${fname}.pgz"
+
+
+function createRandomWordsFile()
+{
+    # Create a worst case for marker replacement for which the backreference window can never be fully resolved
+    # and is propagated through the whole file because the gzip compression consists almost exclusively out
+    # of backreferences. The file contents are random words drawn from a set of words that fits into the window.
+    # Create base dictionary consisting of 128 words of length 16 (the newline is counted as belonging to the word).
+    wordLength=16
+    wordCount=128
+    chunkSize=$(( 1024 * 1024 ))  # 1 MiB
+    fileSizeInChunk=$(( 2 * 1024 ))  # 2 GiB
+    fileName="random-words-2-GiB.dat"
+    cat /dev/urandom | base64 -w $(( wordLength - 1 )) | head -n "$wordCount" > 'random-words.dat'
+
+    > 'random-words-chunk.dat'  # Create or empty file
+    for (( i=0; i < chunkSize; i += wordLength * wordCount )); do
+        cat 'random-words.dat' >> 'random-words-chunk.dat'
+    done
+
+    > "$fileName"  # Create or empty file
+    for (( i=0; i < fileSizeInChunk; ++i )); do
+        shuf 'random-words-chunk.dat' >> "$fileName"
+    done
+
+    gzip -k "$fileName"
+
+    # > pragzip --analyze "$fileName".gz | head -100
+    # [First block]
+    #     Symbol Types:
+    #        Literal         : 1966 (5.99994 %)
+    #        Back-References : 30801 (94.0001 %)
+    # [All subsequent blocks]
+    #     Symbol Types:
+    #         Literal         : 0 (0 %)
+    #         Back-References : 32767 (100 %)
+}
