@@ -23,7 +23,7 @@
     #include <filereader/Python.hpp>
 #endif
 
-#include "GzipBlockFetcher.hpp"
+#include "GzipChunkFetcher.hpp"
 #include "GzipBlockFinder.hpp"
 #include "gzip.hpp"
 #include "IndexFileFormat.hpp"
@@ -48,8 +48,8 @@ public:
      * because the prefetch and cache units are very large and striding or backward accessing over multiple
      * megabytes should be extremely rare.
      */
-    using BlockFetcher = pragzip::GzipBlockFetcher<FetchingStrategy::FetchMultiStream, ENABLE_STATISTICS, SHOW_PROFILE>;
-    using BlockFinder = typename BlockFetcher::BlockFinder;
+    using ChunkFetcher = pragzip::GzipChunkFetcher<FetchingStrategy::FetchMultiStream, ENABLE_STATISTICS, SHOW_PROFILE>;
+    using BlockFinder = typename ChunkFetcher::BlockFinder;
     using BitReader = pragzip::BitReader;
     using WriteFunctor = std::function<void ( const std::shared_ptr<BlockData>&, size_t, size_t )>;
 
@@ -228,7 +228,7 @@ public:
     void
     close() override
     {
-        m_blockFetcher = {};
+        m_chunkFetcher = {};
         m_blockFinder = {};
         m_bitReader.close();
     }
@@ -337,7 +337,7 @@ public:
 
         size_t nBytesDecoded = 0;
         while ( ( nBytesDecoded < nBytesToRead ) && !eof() ) {
-            const auto blockResult = blockFetcher().get( m_currentPosition );
+            const auto blockResult = chunkFetcher().get( m_currentPosition );
             if ( !blockResult ) {
                 m_atEndOfFile = true;
                 break;
@@ -529,10 +529,10 @@ public:
     [[nodiscard]] auto
     statistics() const
     {
-        if ( !m_blockFetcher ) {
-            throw std::invalid_argument( "No BlockFetcher initialized!" );
+        if ( !m_chunkFetcher ) {
+            throw std::invalid_argument( "No chunk fetcher initialized!" );
         }
-        return m_blockFetcher->statistics();
+        return m_chunkFetcher->statistics();
     }
 
 private:
@@ -586,7 +586,7 @@ public:
              * mirrors importIndex better. */
             m_windowMap->emplace( checkpoint.compressedOffsetInBits, checkpoint.window );
         }
-        blockFetcher().clearCache();
+        chunkFetcher().clearCache();
     }
 
 #ifdef WITH_PYTHON_SUPPORT
@@ -641,7 +641,7 @@ public:
     void
     joinThreads()
     {
-        m_blockFetcher.reset();
+        m_chunkFetcher.reset();
         m_blockFinder.reset();
     }
 
@@ -670,24 +670,24 @@ private:
     }
 
 
-    BlockFetcher&
-    blockFetcher()
+    ChunkFetcher&
+    chunkFetcher()
     {
-        if ( m_blockFetcher ) {
-            return *m_blockFetcher;
+        if ( m_chunkFetcher ) {
+            return *m_chunkFetcher;
         }
 
         /* As a side effect, blockFinder() creates m_blockFinder if not already initialized! */
         blockFinder();
 
-        m_blockFetcher = std::make_unique<BlockFetcher>( m_bitReader, m_blockFinder, m_blockMap, m_windowMap,
+        m_chunkFetcher = std::make_unique<ChunkFetcher>( m_bitReader, m_blockFinder, m_blockMap, m_windowMap,
                                                          m_fetcherParallelization );
 
-        if ( !m_blockFetcher ) {
+        if ( !m_chunkFetcher ) {
             throw std::logic_error( "Block fetcher should have been initialized!" );
         }
 
-        return *m_blockFetcher;
+        return *m_chunkFetcher;
     }
 
     void
@@ -737,6 +737,6 @@ private:
      * in order into @ref m_blockMap.
      */
     std::shared_ptr<WindowMap> const m_windowMap{ std::make_shared<WindowMap>() };
-    std::unique_ptr<BlockFetcher>    m_blockFetcher;
+    std::unique_ptr<ChunkFetcher>    m_chunkFetcher;
 };
 }  // namespace pragzip

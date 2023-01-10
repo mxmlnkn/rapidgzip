@@ -176,7 +176,7 @@ writeAll( const std::shared_ptr<BlockData>& blockData,
 template<typename FetchingStrategy,
          bool     ENABLE_STATISTICS = false,
          bool     SHOW_PROFILE = false>
-class GzipBlockFetcher :
+class GzipChunkFetcher :
     public BlockFetcher<GzipBlockFinder, BlockData, FetchingStrategy, ENABLE_STATISTICS, SHOW_PROFILE>
 {
 public:
@@ -186,7 +186,7 @@ public:
     using BlockFinder = typename BaseType::BlockFinder;
 
 public:
-    GzipBlockFetcher( BitReader                    bitReader,
+    GzipChunkFetcher( BitReader                    bitReader,
                       std::shared_ptr<BlockFinder> blockFinder,
                       std::shared_ptr<BlockMap>    blockMap,
                       std::shared_ptr<WindowMap>   windowMap,
@@ -215,14 +215,14 @@ public:
     }
 
     virtual
-    ~GzipBlockFetcher()
+    ~GzipChunkFetcher()
     {
         m_cancelThreads = true;
         this->stopThreadPool();
 
         if constexpr ( SHOW_PROFILE ) {
             std::stringstream out;
-            out << "[GzipBlockFetcher::GzipBlockFetcher] First block access statistics:\n";
+            out << "[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:\n";
             out << "    Time spent in block finder          : " << m_blockFinderTime << " s\n";
             out << "    Time spent decoding                 : " << m_decodeTime << " s\n";
             out << "    Time spent applying the last window : " << m_applyWindowTime << " s\n";

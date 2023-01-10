@@ -48,7 +48,7 @@ testAutomaticMarkerResolution( const std::filesystem::path& filePath,
     const auto blockOffset = getBlockOffset( filePath, blockIndex );
     try {
         std::atomic<bool> cancel{ false };
-        const auto result = GzipBlockFetcher<FetchingStrategy::FetchMultiStream>::decodeBlock(
+        const auto result = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlock(
             bitReader,
             blockOffset,
             /* untilOffset */ std::numeric_limits<size_t>::max(),
