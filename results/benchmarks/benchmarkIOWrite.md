@@ -215,7 +215,7 @@ cmake --build . -- benchmarkIOWrite && src/benchmarks/benchmarkIOWrite /dev/shm/
  1. All 5 write methods (p)write(v) and fwrite reach similar maximum bandwidths.
     Writing into an emptied file           : 3.2-3.4 GB/s (the vectorized variants tend to be slightly faster)
     Writing into a sparsely allocated file : 3.4 GB/s
-    Writing into a truncated file          : 4.7 GB/s
+    Writing into a preallocated file       : 4.7 GB/s
     Pwrite is slightly (10%) faster but that might be because of the differing (multithreaded) benchmark setup
     or because it only executes a single pwrite call per thread, i.e., the chunk size is as large as the file size
     divided by the thread count.
@@ -229,6 +229,8 @@ cmake --build . -- benchmarkIOWrite && src/benchmarks/benchmarkIOWrite /dev/shm/
     but it is still SLOWER than a simple single-core pwrite.
  6. Writing to 4 files from 4 threads doubles the write speed to ~8.7 GB/s!
     However, how can I make use of this when I want one result file?!
+ 7. Writing to separate mmaps, even when they all are part of the same file descriptor, just different chunks of it,
+    increases the write speed significantly to those comparable when writing to a preallocated file: ~4.5 GB/s!
 
 
 # Test with ext4 formatted (veracrypt encrypted) NVME drive
@@ -380,7 +382,7 @@ cmake --build . -- benchmarkIOWrite && src/benchmarks/benchmarkIOWrite /media/e/
  1. Similarly to /dev/shm, all 5 write methods (p)write(v) and fwrite reach similar maximum bandwidths.
     Writing into an emptied file           : 2.5 GB/s
     Writing into a sparsely allocated file : 4.4 GB/s
-    Writing into a truncated file          : 4.4 GB/s
+    Writing into a preallocated file       : 4.4 GB/s
 
 
 # Repeat Test on ext4-formatted NVME on different day
@@ -584,7 +586,7 @@ cmake --build . -- benchmarkIOWrite && src/benchmarks/benchmarkIOWrite /media/e/
  1. Similarly to /dev/shm, all 5 write methods (p)write(v) and fwrite reach similar maximum bandwidths.
     Writing into an emptied file           : 2.0 GB/s
     Writing into a sparsely allocated file : 2.6 GB/s
-    Writing into a truncated file          : 2.8 GB/s
+    Writing into a preallocated file       : 2.8 GB/s
  2. Similarly to /dev/shm, pwritev and writev require at least a chunk size of 4 KiB but from there are relatively
     stable. Note that the total data, considering the chunk count, in ALL cases is much larger than the chunk size
     used for pwrite and write.
@@ -1278,313 +1280,435 @@ Even slower than the perl ramdisk ... 200 kB/s or so allocation bandwidth ...
 
 ```bash
 srun -p romeo --ntasks=1 --cpus-per-task=16 --cpu-freq=2000000-2000000 --time=01:00:00 --mem-per-cpu=1972M --pty --x11 bash
-module load CMake Ninja Clang NASM hwloc
+module load CMake Ninja Clang hwloc
 cmake --build . -- benchmarkIOWrite && src/benchmarks/benchmarkIOWrite /dev/shm/mimi
 ```
 
-## File Creation
+# File Creation
 
-    posix_fallocate file sized 512 MiB: ( min: 9.90548, 11.1 +- 0.4, max: 11.2968 ) GB/s
-    posix_fallocate file sized 1 GiB: ( min: 10.5637, 10.70 +- 0.18, max: 11.1899 ) GB/s
-    posix_fallocate file sized 2 GiB: ( min: 10.7414, 10.84 +- 0.05, max: 10.9226 ) GB/s
-    posix_fallocate file sized 4 GiB: ( min: 10.9741, 11.04 +- 0.06, max: 11.1706 ) GB/s
+    posix_fallocate file sized 128 MiB: ( min: 10.6601, 12.1 +- 0.5, max: 12.4199 ) GB/s
+    posix_fallocate file sized 512 MiB: ( min: 10.9103, 11.01 +- 0.09, max: 11.2095 ) GB/s
+    posix_fallocate file sized 1 GiB: ( min: 10.5134, 10.59 +- 0.10, max: 10.8457 ) GB/s
+    posix_fallocate file sized 2 GiB: ( min: 10.4829, 10.55 +- 0.05, max: 10.6169 ) GB/s
+    posix_fallocate file sized 4 GiB: ( min: 10.6065, 10.70 +- 0.05, max: 10.7878 ) GB/s
 
-    fallocate file sized 512 MiB: ( min: 10.2082, 11.1 +- 0.3, max: 11.3262 ) GB/s
-    fallocate file sized 1 GiB: ( min: 10.5157, 10.67 +- 0.16, max: 11.093 ) GB/s
-    fallocate file sized 2 GiB: ( min: 10.805, 10.86 +- 0.05, max: 10.9495 ) GB/s
-    fallocate file sized 4 GiB: ( min: 10.913, 11.04 +- 0.07, max: 11.1715 ) GB/s
+    fallocate file sized 128 MiB: ( min: 10.4815, 11.5 +- 0.7, max: 12.2336 ) GB/s
+    fallocate file sized 512 MiB: ( min: 10.7661, 10.90 +- 0.10, max: 11.1313 ) GB/s
+    fallocate file sized 1 GiB: ( min: 10.4655, 10.55 +- 0.07, max: 10.717 ) GB/s
+    fallocate file sized 2 GiB: ( min: 10.499, 10.539 +- 0.028, max: 10.5771 ) GB/s
+    fallocate file sized 4 GiB: ( min: 10.6133, 10.68 +- 0.05, max: 10.7358 ) GB/s
 
-    ftruncate file sized 512 MiB: ( min: 5097.57, 200000 +- 70000, max: 259483 ) GB/s
-    ftruncate file sized 1 GiB: ( min: 271147, 460000 +- 80000, max: 531555 ) GB/s
-    ftruncate file sized 2 GiB: ( min: 660764, 960000 +- 120000, max: 1.0684e+06 ) GB/s
-    ftruncate file sized 4 GiB: ( min: 1.45592e+06, 1880000 +- 240000, max: 2.1368e+06 ) GB/s
+    ftruncate file sized 128 MiB: ( min: 2134.2, 51000 +- 17000, max: 61567.8 ) GB/s
+    ftruncate file sized 512 MiB: ( min: 157440, 226000 +- 28000, max: 246271 ) GB/s
+    ftruncate file sized 1 GiB: ( min: 427786, 475000 +- 27000, max: 518716 ) GB/s
+    ftruncate file sized 2 GiB: ( min: 106049, 900000 +- 280000, max: 1.04247e+06 ) GB/s
+    ftruncate file sized 4 GiB: ( min: 904204, 1800000 +- 300000, max: 2.09511e+06 ) GB/s
 
-## Mmap Write
+# Mmap Write
 
-    ftruncate + mmap write 1 GiB: ( min: 2.00815, 2.017 +- 0.006, max: 2.02408 ) GB/s
-    ftruncate + mmap write 1 GiB using  1 threads: ( min: 1.66444, 1.70 +- 0.05, max: 1.8259 ) GB/s
-    ftruncate + mmap write 1 GiB using  2 threads: ( min: 2.35177, 2.44 +- 0.11, max: 2.74224 ) GB/s
-    ftruncate + mmap write 1 GiB using  4 threads: ( min: 3.56526, 3.74 +- 0.13, max: 4.02589 ) GB/s
-    ftruncate + mmap write 1 GiB using  8 threads: ( min: 4.55801, 4.62 +- 0.06, max: 4.74242 ) GB/s
-    ftruncate + mmap write 1 GiB using 16 threads: ( min: 4.62584, 4.73 +- 0.04, max: 4.78146 ) GB/s
+    ftruncate + mmap write 1 GiB: ( min: 1.91366, 1.922 +- 0.004, max: 1.92636 ) GB/s
+    ftruncate + mmap write 1 GiB using  1 threads and maps: ( min: 1.68462, 1.72 +- 0.04, max: 1.82212 ) GB/s
+    ftruncate + mmap write 1 GiB using  2 threads and maps: ( min: 2.28314, 2.6 +- 0.3, max: 2.94913 ) GB/s
+    ftruncate + mmap write 1 GiB using  4 threads and maps: ( min: 3.60656, 3.89 +- 0.29, max: 4.67485 ) GB/s
+    ftruncate + mmap write 1 GiB using  8 threads and maps: ( min: 5.45329, 5.80 +- 0.23, max: 6.09301 ) GB/s
+    ftruncate + mmap write 1 GiB using 16 threads and maps: ( min: 6.81763, 7.14 +- 0.30, max: 7.68205 ) GB/s
 
-## Write into an emptied file
+    ftruncate + mmap write 1 GiB using  1 threads and maps and fds: ( min: 1.75926, 1.782 +- 0.018, max: 1.80444 ) GB/s
+    ftruncate + mmap write 1 GiB using  2 threads and maps and fds: ( min: 2.30686, 2.7 +- 0.4, max: 3.00935 ) GB/s
+    ftruncate + mmap write 1 GiB using  4 threads and maps and fds: ( min: 3.66504, 4.0 +- 0.5, max: 4.94396 ) GB/s
+    ftruncate + mmap write 1 GiB using  8 threads and maps and fds: ( min: 5.84737, 6.19 +- 0.25, max: 6.58466 ) GB/s
+    ftruncate + mmap write 1 GiB using 16 threads and maps and fds: ( min: 6.59439, 7.0 +- 0.3, max: 7.43063 ) GB/s
 
-### Vectorized Writing
+    ftruncate + mmap write 1 GiB using  1 threads: ( min: 1.7695, 1.794 +- 0.010, max: 1.80232 ) GB/s
+    ftruncate + mmap write 1 GiB using  2 threads: ( min: 2.50576, 2.76 +- 0.21, max: 2.91995 ) GB/s
+    ftruncate + mmap write 1 GiB using  4 threads: ( min: 3.40535, 3.55 +- 0.14, max: 3.75578 ) GB/s
+    ftruncate + mmap write 1 GiB using  8 threads: ( min: 3.69015, 4.11 +- 0.24, max: 4.39742 ) GB/s
+    ftruncate + mmap write 1 GiB using 16 threads: ( min: 3.66717, 4.11 +- 0.17, max: 4.27495 ) GB/s
 
-    writev 1 GiB into an emptied file in  1 KiB chunks (x128): ( min: 3.17901, 3.187 +- 0.005, max: 3.19561 ) GB/s
-    writev 1 GiB into an emptied file in  4 KiB chunks (x128): ( min: 3.33004, 3.343 +- 0.008, max: 3.3549 ) GB/s
-    writev 1 GiB into an emptied file in 16 KiB chunks (x128): ( min: 3.35692, 3.364 +- 0.005, max: 3.37168 ) GB/s
-    writev 1 GiB into an emptied file in 64 KiB chunks (x128): ( min: 3.36411, 3.372 +- 0.005, max: 3.37935 ) GB/s
-    writev 1 GiB into an emptied file in  1 MiB chunks (x128): ( min: 3.35992, 3.369 +- 0.007, max: 3.38061 ) GB/s
-    writev 1 GiB into an emptied file in  8 MiB chunks (x128): ( min: 3.35646, 3.368 +- 0.006, max: 3.3731 ) GB/s
+# Write into an emptied file
 
-    pwritev 1 GiB into an emptied file in  1 KiB chunks (x128): ( min: 3.16432, 3.171 +- 0.005, max: 3.18162 ) GB/s
-    pwritev 1 GiB into an emptied file in  4 KiB chunks (x128): ( min: 3.32543, 3.332 +- 0.004, max: 3.33991 ) GB/s
-    pwritev 1 GiB into an emptied file in 16 KiB chunks (x128): ( min: 3.33858, 3.348 +- 0.008, max: 3.35988 ) GB/s
-    pwritev 1 GiB into an emptied file in 64 KiB chunks (x128): ( min: 3.32999, 3.339 +- 0.006, max: 3.3476 ) GB/s
-    pwritev 1 GiB into an emptied file in  1 MiB chunks (x128): ( min: 3.33035, 3.340 +- 0.005, max: 3.34733 ) GB/s
-    pwritev 1 GiB into an emptied file in  8 MiB chunks (x128): ( min: 3.32206, 3.334 +- 0.009, max: 3.34334 ) GB/s
+## Vectorized Writing
 
-### Parallel Writing
+    writev 1 GiB into an emptied file in  1 KiB chunks (x128): ( min: 3.10621, 3.123 +- 0.014, max: 3.14987 ) GB/s
+    writev 1 GiB into an emptied file in  4 KiB chunks (x128): ( min: 3.23959, 3.258 +- 0.014, max: 3.27886 ) GB/s
+    writev 1 GiB into an emptied file in 16 KiB chunks (x128): ( min: 3.25633, 3.270 +- 0.009, max: 3.28356 ) GB/s
+    writev 1 GiB into an emptied file in 64 KiB chunks (x128): ( min: 3.26407, 3.282 +- 0.013, max: 3.30593 ) GB/s
+    writev 1 GiB into an emptied file in  1 MiB chunks (x128): ( min: 3.26272, 3.285 +- 0.011, max: 3.29982 ) GB/s
+    writev 1 GiB into an emptied file in  8 MiB chunks (x128): ( min: 3.26601, 3.274 +- 0.006, max: 3.28079 ) GB/s
 
-    Use pwrite to write 1 GiB into an emptied file using  1 threads: ( min: 3.47043, 3.476 +- 0.006, max: 3.48874 ) GB/s
-    Use pwrite to write 1 GiB into an emptied file using  2 threads: ( min: 3.45981, 3.468 +- 0.007, max: 3.4777 ) GB/s
-    Use pwrite to write 1 GiB into an emptied file using  4 threads: ( min: 3.45484, 3.467 +- 0.007, max: 3.47744 ) GB/s
-    Use pwrite to write 1 GiB into an emptied file using  8 threads: ( min: 3.43814, 3.449 +- 0.008, max: 3.46341 ) GB/s
-    Use pwrite to write 1 GiB into an emptied file using 16 threads: ( min: 3.42642, 3.440 +- 0.009, max: 3.4493 ) GB/s
+    pwritev 1 GiB into an emptied file in  1 KiB chunks (x128): ( min: 3.09874, 3.108 +- 0.005, max: 3.11528 ) GB/s
+    pwritev 1 GiB into an emptied file in  4 KiB chunks (x128): ( min: 3.24965, 3.263 +- 0.014, max: 3.29668 ) GB/s
+    pwritev 1 GiB into an emptied file in 16 KiB chunks (x128): ( min: 3.30139, 3.312 +- 0.007, max: 3.32473 ) GB/s
+    pwritev 1 GiB into an emptied file in 64 KiB chunks (x128): ( min: 3.27002, 3.287 +- 0.017, max: 3.31025 ) GB/s
+    pwritev 1 GiB into an emptied file in  1 MiB chunks (x128): ( min: 3.24822, 3.262 +- 0.010, max: 3.2747 ) GB/s
+    pwritev 1 GiB into an emptied file in  8 MiB chunks (x128): ( min: 3.24598, 3.256 +- 0.005, max: 3.26195 ) GB/s
 
-### Simple Writing
+## Parallel Writing
 
-    fwrite 1 GiB into an emptied file in   1 KiB chunks: ( min: 2.58974, 2.608 +- 0.008, max: 2.61819 ) GB/s
-    fwrite 1 GiB into an emptied file in   4 KiB chunks: ( min: 2.72864, 2.741 +- 0.006, max: 2.74646 ) GB/s
-    fwrite 1 GiB into an emptied file in   8 KiB chunks: ( min: 2.73311, 2.737 +- 0.004, max: 2.74432 ) GB/s
-    fwrite 1 GiB into an emptied file in  16 KiB chunks: ( min: 2.96453, 2.976 +- 0.019, max: 3.01567 ) GB/s
-    fwrite 1 GiB into an emptied file in  64 KiB chunks: ( min: 3.17096, 3.199 +- 0.013, max: 3.21091 ) GB/s
-    fwrite 1 GiB into an emptied file in   1 MiB chunks: ( min: 3.28325, 3.290 +- 0.004, max: 3.29653 ) GB/s
-    fwrite 1 GiB into an emptied file in  16 MiB chunks: ( min: 3.27094, 3.285 +- 0.008, max: 3.29363 ) GB/s
-    fwrite 1 GiB into an emptied file in  64 MiB chunks: ( min: 1.87029, 3.2 +- 0.5, max: 3.34322 ) GB/s
-    fwrite 1 GiB into an emptied file in 512 MiB chunks: ( min: 3.33542, 3.3400 +- 0.0023, max: 3.34386 ) GB/s
-    fwrite 1 GiB into an emptied file in   1 GiB chunks: ( min: 3.33516, 3.3410 +- 0.0030, max: 3.34679 ) GB/s
+    Use pwrite to write 1 GiB into an emptied file using  1 threads: ( min: 3.40252, 3.413 +- 0.007, max: 3.42183 ) GB/s
+    Use pwrite to write 1 GiB into an emptied file using  2 threads: ( min: 3.40252, 3.413 +- 0.006, max: 3.42136 ) GB/s
+    Use pwrite to write 1 GiB into an emptied file using  4 threads: ( min: 3.3963, 3.411 +- 0.009, max: 3.42594 ) GB/s
+    Use pwrite to write 1 GiB into an emptied file using  8 threads: ( min: 3.39202, 3.406 +- 0.008, max: 3.42173 ) GB/s
+    Use pwrite to write 1 GiB into an emptied file using 16 threads: ( min: 3.37989, 3.393 +- 0.008, max: 3.40552 ) GB/s
 
-    write 1 GiB into an emptied file in   1 KiB chunks: ( min: 1.50553, 1.5083 +- 0.0021, max: 1.51163 ) GB/s
-    write 1 GiB into an emptied file in   4 KiB chunks: ( min: 2.79801, 2.806 +- 0.006, max: 2.81607 ) GB/s
-    write 1 GiB into an emptied file in   8 KiB chunks: ( min: 3.00874, 3.021 +- 0.008, max: 3.03071 ) GB/s
-    write 1 GiB into an emptied file in  16 KiB chunks: ( min: 3.1674, 3.1708 +- 0.0022, max: 3.17548 ) GB/s
-    write 1 GiB into an emptied file in  64 KiB chunks: ( min: 3.28842, 3.295 +- 0.004, max: 3.30153 ) GB/s
-    write 1 GiB into an emptied file in   1 MiB chunks: ( min: 3.32575, 3.3284 +- 0.0028, max: 3.33528 ) GB/s
-    write 1 GiB into an emptied file in  16 MiB chunks: ( min: 3.31714, 3.324 +- 0.005, max: 3.33392 ) GB/s
-    write 1 GiB into an emptied file in  64 MiB chunks: ( min: 3.3219, 3.3267 +- 0.0025, max: 3.33001 ) GB/s
-    write 1 GiB into an emptied file in 512 MiB chunks: ( min: 3.32246, 3.327 +- 0.004, max: 3.33612 ) GB/s
-    write 1 GiB into an emptied file in   1 GiB chunks: ( min: 3.32104, 3.326 +- 0.005, max: 3.33929 ) GB/s
+    Write 1 GiB into one file per thread using  1 threads: ( min: 3.77062, 3.800 +- 0.011, max: 3.80698 ) GB/s
+    Write 1 GiB into one file per thread using  2 threads: ( min: 6.80092, 6.812 +- 0.009, max: 6.82716 ) GB/s
+    Write 1 GiB into one file per thread using  4 threads: ( min: 10.0674, 10.098 +- 0.016, max: 10.1187 ) GB/s
+    Write 1 GiB into one file per thread using  8 threads: ( min: 10.0864, 11.0 +- 0.6, max: 11.7745 ) GB/s
+    Write 1 GiB into one file per thread using 16 threads: ( min: 11.8826, 15.6 +- 2.0, max: 17.8131 ) GB/s
 
-## Write into a preallocated file
+## Simple Writing
 
-### Vectorized Writing
+    fwrite 1 GiB into an emptied file in   1 KiB chunks: ( min: 2.8134, 2.828 +- 0.008, max: 2.83542 ) GB/s
+    fwrite 1 GiB into an emptied file in   4 KiB chunks: ( min: 2.95485, 2.958 +- 0.003, max: 2.96518 ) GB/s
+    fwrite 1 GiB into an emptied file in   8 KiB chunks: ( min: 3.0105, 3.017 +- 0.006, max: 3.0289 ) GB/s
+    fwrite 1 GiB into an emptied file in  16 KiB chunks: ( min: 3.32363, 3.331 +- 0.004, max: 3.33806 ) GB/s
+    fwrite 1 GiB into an emptied file in  64 KiB chunks: ( min: 3.58133, 3.619 +- 0.014, max: 3.63012 ) GB/s
+    fwrite 1 GiB into an emptied file in   1 MiB chunks: ( min: 3.65942, 3.665 +- 0.010, max: 3.69218 ) GB/s
+    fwrite 1 GiB into an emptied file in  16 MiB chunks: ( min: 3.6657, 3.6694 +- 0.0029, max: 3.6745 ) GB/s
+    fwrite 1 GiB into an emptied file in  64 MiB chunks: ( min: 3.66896, 3.6717 +- 0.0022, max: 3.67625 ) GB/s
+    fwrite 1 GiB into an emptied file in 512 MiB chunks: ( min: 3.66705, 3.6706 +- 0.0026, max: 3.6744 ) GB/s
+    fwrite 1 GiB into an emptied file in   1 GiB chunks: ( min: 3.63624, 3.664 +- 0.011, max: 3.67321 ) GB/s
 
-    writev 1 GiB into a preallocated file in  1 KiB chunks (x128): ( min: 4.11131, 4.149 +- 0.020, max: 4.17035 ) GB/s
-    writev 1 GiB into a preallocated file in  4 KiB chunks (x128): ( min: 4.483, 4.501 +- 0.012, max: 4.51993 ) GB/s
-    writev 1 GiB into a preallocated file in 16 KiB chunks (x128): ( min: 4.53156, 4.540 +- 0.008, max: 4.55453 ) GB/s
-    writev 1 GiB into a preallocated file in 64 KiB chunks (x128): ( min: 4.46958, 4.535 +- 0.025, max: 4.55792 ) GB/s
-    writev 1 GiB into a preallocated file in  1 MiB chunks (x128): ( min: 4.45243, 4.495 +- 0.019, max: 4.51383 ) GB/s
-    writev 1 GiB into a preallocated file in  8 MiB chunks (x128): ( min: 4.51031, 4.523 +- 0.009, max: 4.53804 ) GB/s
+    write 1 GiB into an emptied file in   1 KiB chunks: ( min: 1.6084, 1.6133 +- 0.0028, max: 1.61733 ) GB/s
+    write 1 GiB into an emptied file in   4 KiB chunks: ( min: 3.03955, 3.064 +- 0.009, max: 3.07255 ) GB/s
+    write 1 GiB into an emptied file in   8 KiB chunks: ( min: 3.32801, 3.334 +- 0.004, max: 3.34075 ) GB/s
+    write 1 GiB into an emptied file in  16 KiB chunks: ( min: 3.5236, 3.5251 +- 0.0009, max: 3.52635 ) GB/s
+    write 1 GiB into an emptied file in  64 KiB chunks: ( min: 3.67552, 3.6786 +- 0.0023, max: 3.68326 ) GB/s
+    write 1 GiB into an emptied file in   1 MiB chunks: ( min: 3.71729, 3.7201 +- 0.0017, max: 3.72213 ) GB/s
+    write 1 GiB into an emptied file in  16 MiB chunks: ( min: 3.71129, 3.717 +- 0.003, max: 3.72069 ) GB/s
+    write 1 GiB into an emptied file in  64 MiB chunks: ( min: 3.70102, 3.717 +- 0.006, max: 3.72285 ) GB/s
+    write 1 GiB into an emptied file in 512 MiB chunks: ( min: 3.70808, 3.713 +- 0.006, max: 3.72304 ) GB/s
+    write 1 GiB into an emptied file in   1 GiB chunks: ( min: 3.70029, 3.707 +- 0.003, max: 3.71113 ) GB/s
 
-    pwritev 1 GiB into a preallocated file in  1 KiB chunks (x128): ( min: 4.14255, 4.151 +- 0.005, max: 4.1565 ) GB/s
-    pwritev 1 GiB into a preallocated file in  4 KiB chunks (x128): ( min: 4.48011, 4.493 +- 0.007, max: 4.50359 ) GB/s
-    pwritev 1 GiB into a preallocated file in 16 KiB chunks (x128): ( min: 4.53064, 4.541 +- 0.006, max: 4.55076 ) GB/s
-    pwritev 1 GiB into a preallocated file in 64 KiB chunks (x128): ( min: 4.54346, 4.548 +- 0.006, max: 4.56238 ) GB/s
-    pwritev 1 GiB into a preallocated file in  1 MiB chunks (x128): ( min: 4.4491, 4.54 +- 0.03, max: 4.55927 ) GB/s
-    pwritev 1 GiB into a preallocated file in  8 MiB chunks (x128): ( min: 4.52511, 4.556 +- 0.013, max: 4.5705 ) GB/s
+# Write into a sparsely allocated file
 
-### Parallel Writing
+## Vectorized Writing
 
-    Use pwrite to write 1 GiB into a preallocated file using  1 threads: ( min: 4.78466, 4.824 +- 0.018, max: 4.84607 ) GB/s
-    Use pwrite to write 1 GiB into a preallocated file using  2 threads: ( min: 4.77028, 4.799 +- 0.015, max: 4.81773 ) GB/s
-    Use pwrite to write 1 GiB into a preallocated file using  4 threads: ( min: 4.72353, 4.759 +- 0.018, max: 4.78184 ) GB/s
-    Use pwrite to write 1 GiB into a preallocated file using  8 threads: ( min: 4.72563, 4.748 +- 0.016, max: 4.77519 ) GB/s
-    Use pwrite to write 1 GiB into a preallocated file using 16 threads: ( min: 4.6901, 4.709 +- 0.016, max: 4.7366 ) GB/s
+    writev 1 GiB into a sparsely allocated file in  1 KiB chunks (x128): ( min: 3.62854, 3.638 +- 0.006, max: 3.64684 ) GB/s
+    writev 1 GiB into a sparsely allocated file in  4 KiB chunks (x128): ( min: 3.6669, 3.6704 +- 0.0024, max: 3.67456 ) GB/s
+    writev 1 GiB into a sparsely allocated file in 16 KiB chunks (x128): ( min: 3.67431, 3.692 +- 0.007, max: 3.69959 ) GB/s
+    writev 1 GiB into a sparsely allocated file in 64 KiB chunks (x128): ( min: 3.66108, 3.6659 +- 0.0025, max: 3.66878 ) GB/s
+    writev 1 GiB into a sparsely allocated file in  1 MiB chunks (x128): ( min: 3.66587, 3.6692 +- 0.0024, max: 3.67236 ) GB/s
+    writev 1 GiB into a sparsely allocated file in  8 MiB chunks (x128): ( min: 3.66397, 3.6695 +- 0.0028, max: 3.67288 ) GB/s
 
-### Simple Writing
+    pwritev 1 GiB into a sparsely allocated file in  1 KiB chunks (x128): ( min: 3.57942, 3.586 +- 0.004, max: 3.59205 ) GB/s
+    pwritev 1 GiB into a sparsely allocated file in  4 KiB chunks (x128): ( min: 3.61638, 3.632 +- 0.006, max: 3.63809 ) GB/s
+    pwritev 1 GiB into a sparsely allocated file in 16 KiB chunks (x128): ( min: 3.64951, 3.655 +- 0.004, max: 3.66015 ) GB/s
+    pwritev 1 GiB into a sparsely allocated file in 64 KiB chunks (x128): ( min: 3.6613, 3.6648 +- 0.0020, max: 3.66783 ) GB/s
+    pwritev 1 GiB into a sparsely allocated file in  1 MiB chunks (x128): ( min: 3.66391, 3.6680 +- 0.0023, max: 3.67206 ) GB/s
+    pwritev 1 GiB into a sparsely allocated file in  8 MiB chunks (x128): ( min: 3.66421, 3.6684 +- 0.0024, max: 3.6712 ) GB/s
 
-    fwrite 1 GiB into a preallocated file in   1 KiB chunks: ( min: 3.24207, 3.270 +- 0.012, max: 3.28091 ) GB/s
-    fwrite 1 GiB into a preallocated file in   4 KiB chunks: ( min: 3.50177, 3.540 +- 0.016, max: 3.5556 ) GB/s
-    fwrite 1 GiB into a preallocated file in   8 KiB chunks: ( min: 3.5317, 3.539 +- 0.004, max: 3.54576 ) GB/s
-    fwrite 1 GiB into a preallocated file in  16 KiB chunks: ( min: 3.94118, 3.986 +- 0.017, max: 3.99967 ) GB/s
-    fwrite 1 GiB into a preallocated file in  64 KiB chunks: ( min: 4.36013, 4.398 +- 0.016, max: 4.40899 ) GB/s
-    fwrite 1 GiB into a preallocated file in   1 MiB chunks: ( min: 4.54959, 4.564 +- 0.010, max: 4.57787 ) GB/s
-    fwrite 1 GiB into a preallocated file in  16 MiB chunks: ( min: 4.513, 4.530 +- 0.012, max: 4.54714 ) GB/s
-    fwrite 1 GiB into a preallocated file in  64 MiB chunks: ( min: 4.53441, 4.554 +- 0.012, max: 4.56944 ) GB/s
-    fwrite 1 GiB into a preallocated file in 512 MiB chunks: ( min: 4.54045, 4.557 +- 0.008, max: 4.56657 ) GB/s
-    fwrite 1 GiB into a preallocated file in   1 GiB chunks: ( min: 4.55372, 4.566 +- 0.009, max: 4.57778 ) GB/s
+## Parallel Writing
 
-    write 1 GiB into a preallocated file in   1 KiB chunks: ( min: 1.85652, 1.874 +- 0.010, max: 1.88269 ) GB/s
-    write 1 GiB into a preallocated file in   4 KiB chunks: ( min: 3.5975, 3.668 +- 0.026, max: 3.68509 ) GB/s
-    write 1 GiB into a preallocated file in   8 KiB chunks: ( min: 4.07922, 4.099 +- 0.011, max: 4.1135 ) GB/s
-    write 1 GiB into a preallocated file in  16 KiB chunks: ( min: 4.21818, 4.240 +- 0.015, max: 4.25567 ) GB/s
-    write 1 GiB into a preallocated file in  64 KiB chunks: ( min: 4.42673, 4.477 +- 0.023, max: 4.50116 ) GB/s
-    write 1 GiB into a preallocated file in   1 MiB chunks: ( min: 4.46033, 4.519 +- 0.023, max: 4.54031 ) GB/s
-    write 1 GiB into a preallocated file in  16 MiB chunks: ( min: 4.50367, 4.529 +- 0.010, max: 4.53975 ) GB/s
-    write 1 GiB into a preallocated file in  64 MiB chunks: ( min: 4.50704, 4.526 +- 0.012, max: 4.53946 ) GB/s
-    write 1 GiB into a preallocated file in 512 MiB chunks: ( min: 4.51166, 4.535 +- 0.010, max: 4.55107 ) GB/s
-    write 1 GiB into a preallocated file in   1 GiB chunks: ( min: 4.53889, 4.548 +- 0.004, max: 4.55163 ) GB/s
+    Use pwrite to write 1 GiB into a sparsely allocated file using  1 threads: ( min: 3.82402, 3.836 +- 0.009, max: 3.85432 ) GB/s
+    Use pwrite to write 1 GiB into a sparsely allocated file using  2 threads: ( min: 3.81023, 3.833 +- 0.010, max: 3.84494 ) GB/s
+    Use pwrite to write 1 GiB into a sparsely allocated file using  4 threads: ( min: 3.82052, 3.836 +- 0.012, max: 3.85472 ) GB/s
+    Use pwrite to write 1 GiB into a sparsely allocated file using  8 threads: ( min: 3.82884, 3.840 +- 0.010, max: 3.85354 ) GB/s
+    Use pwrite to write 1 GiB into a sparsely allocated file using 16 threads: ( min: 3.83008, 3.861 +- 0.021, max: 3.88541 ) GB/s
+
+    Write 1 GiB into one file per thread using  1 threads: ( min: 3.9538, 3.962 +- 0.006, max: 3.97584 ) GB/s
+    Write 1 GiB into one file per thread using  2 threads: ( min: 6.99122, 7.015 +- 0.013, max: 7.03208 ) GB/s
+    Write 1 GiB into one file per thread using  4 threads: ( min: 9.97278, 10.13 +- 0.12, max: 10.2486 ) GB/s
+    Write 1 GiB into one file per thread using  8 threads: ( min: 10.0835, 11.2 +- 0.7, max: 12.6063 ) GB/s
+    Write 1 GiB into one file per thread using 16 threads: ( min: 11.2558, 13.7 +- 2.0, max: 16.4777 ) GB/s
+
+## Simple Writing
+
+    fwrite 1 GiB into a sparsely allocated file in   1 KiB chunks: ( min: 2.72194, 2.758 +- 0.014, max: 2.77053 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in   4 KiB chunks: ( min: 2.91963, 2.935 +- 0.008, max: 2.94963 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in   8 KiB chunks: ( min: 2.95258, 2.965 +- 0.009, max: 2.97994 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in  16 KiB chunks: ( min: 3.2994, 3.307 +- 0.006, max: 3.31593 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in  64 KiB chunks: ( min: 3.60363, 3.608 +- 0.004, max: 3.61492 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in   1 MiB chunks: ( min: 3.68924, 3.6934 +- 0.0027, max: 3.69686 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in  16 MiB chunks: ( min: 3.69482, 3.700 +- 0.003, max: 3.70546 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in  64 MiB chunks: ( min: 3.69883, 3.704 +- 0.003, max: 3.707 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in 512 MiB chunks: ( min: 3.69937, 3.704 +- 0.003, max: 3.71094 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in   1 GiB chunks: ( min: 3.68313, 3.700 +- 0.010, max: 3.71155 ) GB/s
+
+    write 1 GiB into a sparsely allocated file in   1 KiB chunks: ( min: 1.58715, 1.594 +- 0.006, max: 1.60501 ) GB/s
+    write 1 GiB into a sparsely allocated file in   4 KiB chunks: ( min: 3.03348, 3.042 +- 0.006, max: 3.05184 ) GB/s
+    write 1 GiB into a sparsely allocated file in   8 KiB chunks: ( min: 3.30398, 3.311 +- 0.005, max: 3.32003 ) GB/s
+    write 1 GiB into a sparsely allocated file in  16 KiB chunks: ( min: 3.48541, 3.491 +- 0.003, max: 3.49606 ) GB/s
+    write 1 GiB into a sparsely allocated file in  64 KiB chunks: ( min: 3.63409, 3.640 +- 0.005, max: 3.64839 ) GB/s
+    write 1 GiB into a sparsely allocated file in   1 MiB chunks: ( min: 3.67831, 3.6822 +- 0.0022, max: 3.68485 ) GB/s
+    write 1 GiB into a sparsely allocated file in  16 MiB chunks: ( min: 3.67518, 3.684 +- 0.005, max: 3.68904 ) GB/s
+    write 1 GiB into a sparsely allocated file in  64 MiB chunks: ( min: 3.68495, 3.694 +- 0.007, max: 3.70581 ) GB/s
+    write 1 GiB into a sparsely allocated file in 512 MiB chunks: ( min: 3.69529, 3.699 +- 0.003, max: 3.70573 ) GB/s
+    write 1 GiB into a sparsely allocated file in   1 GiB chunks: ( min: 3.69403, 3.700 +- 0.003, max: 3.70353 ) GB/s
+
+# Write into a preallocated file
+
+## Vectorized Writing
+
+    writev 1 GiB into a preallocated file in  1 KiB chunks (x128): ( min: 4.74041, 4.7435 +- 0.0023, max: 4.74816 ) GB/s
+    writev 1 GiB into a preallocated file in  4 KiB chunks (x128): ( min: 4.78775, 4.794 +- 0.004, max: 4.79901 ) GB/s
+    writev 1 GiB into a preallocated file in 16 KiB chunks (x128): ( min: 4.82708, 4.834 +- 0.003, max: 4.83769 ) GB/s
+    writev 1 GiB into a preallocated file in 64 KiB chunks (x128): ( min: 4.83031, 4.843 +- 0.006, max: 4.85086 ) GB/s
+    writev 1 GiB into a preallocated file in  1 MiB chunks (x128): ( min: 4.84856, 4.8513 +- 0.0024, max: 4.8552 ) GB/s
+    writev 1 GiB into a preallocated file in  8 MiB chunks (x128): ( min: 4.69878, 4.82 +- 0.06, max: 4.85579 ) GB/s
+
+    pwritev 1 GiB into a preallocated file in  1 KiB chunks (x128): ( min: 4.64923, 4.6525 +- 0.0029, max: 4.65755 ) GB/s
+    pwritev 1 GiB into a preallocated file in  4 KiB chunks (x128): ( min: 4.70806, 4.7128 +- 0.0022, max: 4.71623 ) GB/s
+    pwritev 1 GiB into a preallocated file in 16 KiB chunks (x128): ( min: 4.74371, 4.749 +- 0.003, max: 4.75243 ) GB/s
+    pwritev 1 GiB into a preallocated file in 64 KiB chunks (x128): ( min: 4.75462, 4.7599 +- 0.0026, max: 4.76295 ) GB/s
+    pwritev 1 GiB into a preallocated file in  1 MiB chunks (x128): ( min: 4.75448, 4.760 +- 0.004, max: 4.76656 ) GB/s
+    pwritev 1 GiB into a preallocated file in  8 MiB chunks (x128): ( min: 4.76397, 4.7681 +- 0.0020, max: 4.77041 ) GB/s
+
+## Parallel Writing
+
+    Use pwrite to write 1 GiB into a preallocated file using  1 threads: ( min: 4.67721, 4.694 +- 0.007, max: 4.7019 ) GB/s
+    Use pwrite to write 1 GiB into a preallocated file using  2 threads: ( min: 4.67654, 4.684 +- 0.004, max: 4.69194 ) GB/s
+    Use pwrite to write 1 GiB into a preallocated file using  4 threads: ( min: 4.66129, 4.70 +- 0.05, max: 4.81162 ) GB/s
+    Use pwrite to write 1 GiB into a preallocated file using  8 threads: ( min: 4.65445, 4.70 +- 0.04, max: 4.77318 ) GB/s
+    Use pwrite to write 1 GiB into a preallocated file using 16 threads: ( min: 4.75435, 5.11 +- 0.18, max: 5.21647 ) GB/s
+
+    Write 1 GiB into one file per thread using  1 threads: ( min: 5.36799, 5.397 +- 0.011, max: 5.406 ) GB/s
+    Write 1 GiB into one file per thread using  2 threads: ( min: 7.00375, 7.034 +- 0.019, max: 7.06069 ) GB/s
+    Write 1 GiB into one file per thread using  4 threads: ( min: 10.2645, 10.44 +- 0.14, max: 10.7865 ) GB/s
+    Write 1 GiB into one file per thread using  8 threads: ( min: 10.623, 11.7 +- 0.6, max: 12.5712 ) GB/s
+    Write 1 GiB into one file per thread using 16 threads: ( min: 11.6786, 12.6 +- 0.8, max: 13.7388 ) GB/s
+
+## Simple Writing
+
+    fwrite 1 GiB into a preallocated file in   1 KiB chunks: ( min: 3.5068, 3.546 +- 0.023, max: 3.57648 ) GB/s
+    fwrite 1 GiB into a preallocated file in   4 KiB chunks: ( min: 3.81936, 3.832 +- 0.010, max: 3.84778 ) GB/s
+    fwrite 1 GiB into a preallocated file in   8 KiB chunks: ( min: 3.86394, 3.884 +- 0.009, max: 3.89277 ) GB/s
+    fwrite 1 GiB into a preallocated file in  16 KiB chunks: ( min: 4.24726, 4.297 +- 0.026, max: 4.33284 ) GB/s
+    fwrite 1 GiB into a preallocated file in  64 KiB chunks: ( min: 4.73264, 4.7374 +- 0.0027, max: 4.74249 ) GB/s
+    fwrite 1 GiB into a preallocated file in   1 MiB chunks: ( min: 4.89148, 4.8941 +- 0.0018, max: 4.897 ) GB/s
+    fwrite 1 GiB into a preallocated file in  16 MiB chunks: ( min: 4.86976, 4.886 +- 0.011, max: 4.90417 ) GB/s
+    fwrite 1 GiB into a preallocated file in  64 MiB chunks: ( min: 4.86979, 4.882 +- 0.008, max: 4.89041 ) GB/s
+    fwrite 1 GiB into a preallocated file in 512 MiB chunks: ( min: 4.87065, 4.886 +- 0.007, max: 4.89359 ) GB/s
+    fwrite 1 GiB into a preallocated file in   1 GiB chunks: ( min: 4.8818, 4.887 +- 0.003, max: 4.89208 ) GB/s
+
+    write 1 GiB into a preallocated file in   1 KiB chunks: ( min: 1.74653, 1.751 +- 0.003, max: 1.75587 ) GB/s
+    write 1 GiB into a preallocated file in   4 KiB chunks: ( min: 3.91995, 3.929 +- 0.005, max: 3.93439 ) GB/s
+    write 1 GiB into a preallocated file in   8 KiB chunks: ( min: 4.21348, 4.26 +- 0.04, max: 4.32063 ) GB/s
+    write 1 GiB into a preallocated file in  16 KiB chunks: ( min: 4.44991, 4.455 +- 0.003, max: 4.45989 ) GB/s
+    write 1 GiB into a preallocated file in  64 KiB chunks: ( min: 4.69056, 4.699 +- 0.004, max: 4.70369 ) GB/s
+    write 1 GiB into a preallocated file in   1 MiB chunks: ( min: 4.76977, 4.7741 +- 0.0027, max: 4.77834 ) GB/s
+    write 1 GiB into a preallocated file in  16 MiB chunks: ( min: 4.7788, 4.7817 +- 0.0019, max: 4.78396 ) GB/s
+    write 1 GiB into a preallocated file in  64 MiB chunks: ( min: 4.76222, 4.783 +- 0.007, max: 4.78704 ) GB/s
+    write 1 GiB into a preallocated file in 512 MiB chunks: ( min: 4.78905, 4.808 +- 0.008, max: 4.8145 ) GB/s
+    write 1 GiB into a preallocated file in   1 GiB chunks: ( min: 4.79717, 4.813 +- 0.006, max: 4.81886 ) GB/s
+
+## Observations
+
+ 1. It is weird that writing to 16 files with write is 15 GB/s while writing to 16 files with mmap is only 7 GB/s!
 
 
 # Test on Taurus Romeo BeeGFS
 
     srun -p romeo --ntasks=1 --cpus-per-task=16 --cpu-freq=2000000-2000000 --time=01:00:00 --mem-per-cpu=1972M --pty --x11 bash
-    module load CMake Ninja Clang NASM hwloc
+    module load CMake Ninja Clang
     ws_allocate --duration 1 --filesystem beegfs io-write-benchmark
     cmake --build . -- benchmarkIOWrite && src/benchmarks/benchmarkIOWrite "$BEEGFSWS/mimi"
 
 
-## File Creation
+# File Creation
 
-    posix_fallocate file sized 512 MiB: ( min: 0.0821209, 0.098 +- 0.006, max: 0.104755 ) GB/s
-    posix_fallocate file sized 1 GiB: ( min: 0.0900766, 0.097 +- 0.006, max: 0.10741 ) GB/s
-    posix_fallocate file sized 2 GiB: ( min: 0.0860204, 0.094 +- 0.008, max: 0.106395 ) GB/s
-    posix_fallocate file sized 4 GiB: ( min: 0.0880936, 0.093 +- 0.004, max: 0.0993601 ) GB/s
+    posix_fallocate file sized 128 MiB: ( min: 0.0857302, 0.093 +- 0.008, max: 0.112494 ) GB/s
 
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    fallocate file sized 512 MiB: ( min: 672.678, 1300 +- 400, max: 1811.45 ) GB/s
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    fallocate file sized 1 GiB: ( min: 2242.69, 3200 +- 500, max: 3842.26 ) GB/s
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    fallocate file sized 2 GiB: ( min: 5117.02, 6700 +- 700, max: 7257.56 ) GB/s
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    fallocate file sized 4 GiB: ( min: 9212.22, 12700 +- 1900, max: 15580.8 ) GB/s
+    Encountered error while calling fallocate on file: Operation not supported (95
 
-    ftruncate file sized 512 MiB: ( min: 294.407, 430 +- 80, max: 586.86 ) GB/s
-    ftruncate file sized 1 GiB: ( min: 656.113, 850 +- 70, max: 917.339 ) GB/s
-    ftruncate file sized 2 GiB: ( min: 591.297, 1600 +- 400, max: 1892.03 ) GB/s
-    ftruncate file sized 4 GiB: ( min: 577.606, 2400 +- 1200, max: 3551.48 ) GB/s
+    ftruncate file sized 128 MiB: ( min: 72.5398, 91 +- 12, max: 107.541 ) GB/s
+    ftruncate file sized 512 MiB: ( min: 206.292, 300 +- 60, max: 376.635 ) GB/s
+    ftruncate file sized 1 GiB: ( min: 599.469, 730 +- 120, max: 940.828 ) GB/s
+    ftruncate file sized 2 GiB: ( min: 1082.46, 1330 +- 160, max: 1672.77 ) GB/s
+    ftruncate file sized 4 GiB: ( min: 2192.83, 2730 +- 280, max: 3127.96 ) GB/s
 
-## Mmap Write
+# Mmap Write
 
-    ftruncate + mmap write 1 GiB: ( min: 0.68387, 0.757 +- 0.028, max: 0.789559 ) GB/s
-    ftruncate + mmap write 1 GiB using  1 threads: ( min: 0.692692, 0.740 +- 0.028, max: 0.770258 ) GB/s
-    ftruncate + mmap write 1 GiB using  2 threads: ( min: 1.34176, 1.40 +- 0.05, max: 1.46161 ) GB/s
-    ftruncate + mmap write 1 GiB using  4 threads: ( min: 2.3137, 2.44 +- 0.09, max: 2.56388 ) GB/s
-    ftruncate + mmap write 1 GiB using  8 threads: ( min: 2.63801, 3.3 +- 0.4, max: 3.70552 ) GB/s
-    ftruncate + mmap write 1 GiB using 16 threads: ( min: 3.30606, 3.7 +- 0.3, max: 4.40742 ) GB/s
+    ftruncate + mmap write 1 GiB: ( min: 0.658352, 0.75 +- 0.04, max: 0.801431 ) GB/s
+    ftruncate + mmap write 1 GiB using  1 threads and maps: ( min: 0.672654, 0.76 +- 0.04, max: 0.8072 ) GB/s
+    ftruncate + mmap write 1 GiB using  2 threads and maps: ( min: 1.54856, 1.67 +- 0.09, max: 1.79078 ) GB/s
+    ftruncate + mmap write 1 GiB using  4 threads and maps: ( min: 2.84907, 3.01 +- 0.11, max: 3.1733 ) GB/s
+    ftruncate + mmap write 1 GiB using  8 threads and maps: ( min: 4.04911, 4.4 +- 0.3, max: 4.91936 ) GB/s
+    ftruncate + mmap write 1 GiB using 16 threads and maps: ( min: 4.2499, 5.0 +- 0.6, max: 6.06955 ) GB/s
 
-## Write into an emptied file
+    ftruncate + mmap write 1 GiB using  1 threads and maps and fds: ( min: 0.731192, 0.79 +- 0.04, max: 0.831504 ) GB/s
+    ftruncate + mmap write 1 GiB using  2 threads and maps and fds: ( min: 1.40542, 1.66 +- 0.11, max: 1.76717 ) GB/s
+    ftruncate + mmap write 1 GiB using  4 threads and maps and fds: ( min: 2.69053, 2.99 +- 0.11, max: 3.08946 ) GB/s
+    ftruncate + mmap write 1 GiB using  8 threads and maps and fds: ( min: 4.0507, 5.0 +- 0.4, max: 5.27721 ) GB/s
+    ftruncate + mmap write 1 GiB using 16 threads and maps and fds: ( min: 3.88738, 4.8 +- 0.6, max: 5.49998 ) GB/s
 
-### Vectorized Writing
+    ftruncate + mmap write 1 GiB using  1 threads: ( min: 0.767186, 0.801 +- 0.018, max: 0.825665 ) GB/s
+    ftruncate + mmap write 1 GiB using  2 threads: ( min: 1.45128, 1.51 +- 0.03, max: 1.55612 ) GB/s
+    ftruncate + mmap write 1 GiB using  4 threads: ( min: 2.37238, 2.52 +- 0.09, max: 2.63709 ) GB/s
+    ftruncate + mmap write 1 GiB using  8 threads: ( min: 2.20598, 2.8 +- 0.4, max: 3.29851 ) GB/s
+    ftruncate + mmap write 1 GiB using 16 threads: ( min: 2.19327, 2.35 +- 0.17, max: 2.6852 ) GB/s
 
-    writev 1 GiB into an emptied file in  1 KiB chunks (x128): ( min: 0.862277, 0.95 +- 0.03, max: 0.971602 ) GB/s
-    writev 1 GiB into an emptied file in  4 KiB chunks (x128): ( min: 0.96226, 0.982 +- 0.012, max: 0.999512 ) GB/s
-    writev 1 GiB into an emptied file in 16 KiB chunks (x128): ( min: 1.00514, 1.017 +- 0.007, max: 1.02882 ) GB/s
-    writev 1 GiB into an emptied file in 64 KiB chunks (x128): ( min: 0.995384, 1.007 +- 0.008, max: 1.02088 ) GB/s
-    writev 1 GiB into an emptied file in  1 MiB chunks (x128): ( min: 1.52526, 1.536 +- 0.007, max: 1.54326 ) GB/s
-    writev 1 GiB into an emptied file in  8 MiB chunks (x128): ( min: 3.17459, 3.190 +- 0.009, max: 3.202 ) GB/s
+# Write into an emptied file
 
-    pwritev 1 GiB into an emptied file in  1 KiB chunks (x128): ( min: 0.987491, 1.007 +- 0.016, max: 1.03676 ) GB/s
-    pwritev 1 GiB into an emptied file in  4 KiB chunks (x128): ( min: 0.979955, 0.991 +- 0.008, max: 1.0031 ) GB/s
-    pwritev 1 GiB into an emptied file in 16 KiB chunks (x128): ( min: 0.693792, 0.98 +- 0.10, max: 1.02183 ) GB/s
-    pwritev 1 GiB into an emptied file in 64 KiB chunks (x128): ( min: 0.995241, 1.003 +- 0.006, max: 1.01188 ) GB/s
-    pwritev 1 GiB into an emptied file in  1 MiB chunks (x128): ( min: 1.52202, 1.534 +- 0.008, max: 1.54637 ) GB/s
-    pwritev 1 GiB into an emptied file in  8 MiB chunks (x128): ( min: 3.1528, 3.178 +- 0.018, max: 3.20324 ) GB/s
+## Vectorized Writing
 
-### Parallel Writing
+    writev 1 GiB into an emptied file in  1 KiB chunks (x128): ( min: 1.02353, 1.043 +- 0.010, max: 1.0585 ) GB/s
+    writev 1 GiB into an emptied file in  4 KiB chunks (x128): ( min: 0.996724, 1.09 +- 0.04, max: 1.14335 ) GB/s
+    writev 1 GiB into an emptied file in 16 KiB chunks (x128): ( min: 0.945977, 1.14 +- 0.10, max: 1.23161 ) GB/s
+    writev 1 GiB into an emptied file in 64 KiB chunks (x128): ( min: 0.916388, 1.15 +- 0.10, max: 1.24443 ) GB/s
+    writev 1 GiB into an emptied file in  1 MiB chunks (x128): ( min: 1.41266, 1.50 +- 0.04, max: 1.55779 ) GB/s
+    writev 1 GiB into an emptied file in  8 MiB chunks (x128): ( min: 2.8073, 2.98 +- 0.11, max: 3.14382 ) GB/s
 
-    Use pwrite to write 1 GiB into an emptied file using  1 threads: ( min: 3.16267, 3.20 +- 0.03, max: 3.2424 ) GB/s
-    Use pwrite to write 1 GiB into an emptied file using  2 threads: ( min: 3.05424, 3.17 +- 0.06, max: 3.23712 ) GB/s
-    Use pwrite to write 1 GiB into an emptied file using  4 threads: ( min: 2.84718, 3.13 +- 0.14, max: 3.2283 ) GB/s
-    Use pwrite to write 1 GiB into an emptied file using  8 threads: ( min: 2.854, 3.00 +- 0.09, max: 3.18987 ) GB/s
-    Use pwrite to write 1 GiB into an emptied file using 16 threads: ( min: 2.84625, 2.98 +- 0.07, max: 3.08657 ) GB/s
+    pwritev 1 GiB into an emptied file in  1 KiB chunks (x128): ( min: 1.0279, 1.047 +- 0.014, max: 1.0728 ) GB/s
+    pwritev 1 GiB into an emptied file in  4 KiB chunks (x128): ( min: 0.968214, 1.11 +- 0.07, max: 1.18681 ) GB/s
+    pwritev 1 GiB into an emptied file in 16 KiB chunks (x128): ( min: 1.03672, 1.15 +- 0.07, max: 1.24204 ) GB/s
+    pwritev 1 GiB into an emptied file in 64 KiB chunks (x128): ( min: 1.05645, 1.20 +- 0.08, max: 1.30735 ) GB/s
+    pwritev 1 GiB into an emptied file in  1 MiB chunks (x128): ( min: 1.31097, 1.48 +- 0.09, max: 1.59417 ) GB/s
+    pwritev 1 GiB into an emptied file in  8 MiB chunks (x128): ( min: 2.41476, 2.85 +- 0.29, max: 3.20209 ) GB/s
 
-### Simple Writing
+## Parallel Writing
 
-    fwrite 1 GiB into an emptied file in   1 KiB chunks: ( min: 0.953338, 0.968 +- 0.009, max: 0.978514 ) GB/s
-    fwrite 1 GiB into an emptied file in   4 KiB chunks: ( min: 0.962424, 0.976 +- 0.008, max: 0.988676 ) GB/s
-    fwrite 1 GiB into an emptied file in   8 KiB chunks: ( min: 0.984835, 0.993 +- 0.005, max: 0.999316 ) GB/s
-    fwrite 1 GiB into an emptied file in  16 KiB chunks: ( min: 0.986457, 0.993 +- 0.005, max: 1.00141 ) GB/s
-    fwrite 1 GiB into an emptied file in  64 KiB chunks: ( min: 0.981478, 0.992 +- 0.008, max: 1.00513 ) GB/s
-    fwrite 1 GiB into an emptied file in   1 MiB chunks: ( min: 1.38065, 1.421 +- 0.023, max: 1.45235 ) GB/s
-    fwrite 1 GiB into an emptied file in  16 MiB chunks: ( min: 3.13779, 3.162 +- 0.015, max: 3.18301 ) GB/s
-    fwrite 1 GiB into an emptied file in  64 MiB chunks: ( min: 3.16605, 3.196 +- 0.014, max: 3.21528 ) GB/s
-    fwrite 1 GiB into an emptied file in 512 MiB chunks: ( min: 3.14083, 3.19 +- 0.03, max: 3.2446 ) GB/s
-    fwrite 1 GiB into an emptied file in   1 GiB chunks: ( min: 3.11903, 3.167 +- 0.028, max: 3.19909 ) GB/s
+    Use pwrite to write 1 GiB into an emptied file using  1 threads: ( min: 2.70347, 2.97 +- 0.14, max: 3.17963 ) GB/s
+    Use pwrite to write 1 GiB into an emptied file using  2 threads: ( min: 2.6959, 2.94 +- 0.12, max: 3.09308 ) GB/s
+    Use pwrite to write 1 GiB into an emptied file using  4 threads: ( min: 2.88158, 3.05 +- 0.13, max: 3.26228 ) GB/s
+    Use pwrite to write 1 GiB into an emptied file using  8 threads: ( min: 2.81792, 3.00 +- 0.15, max: 3.33893 ) GB/s
+    Use pwrite to write 1 GiB into an emptied file using 16 threads: ( min: 2.84561, 2.93 +- 0.07, max: 3.04008 ) GB/s
 
-    write 1 GiB into an emptied file in   1 KiB chunks: ( min: 0.859209, 0.882 +- 0.013, max: 0.89704 ) GB/s
-    write 1 GiB into an emptied file in   4 KiB chunks: ( min: 0.950591, 0.961 +- 0.007, max: 0.974691 ) GB/s
-    write 1 GiB into an emptied file in   8 KiB chunks: ( min: 0.98024, 0.991 +- 0.008, max: 1.00496 ) GB/s
-    write 1 GiB into an emptied file in  16 KiB chunks: ( min: 0.99765, 1.006 +- 0.006, max: 1.01389 ) GB/s
-    write 1 GiB into an emptied file in  64 KiB chunks: ( min: 0.984066, 0.996 +- 0.007, max: 1.00589 ) GB/s
-    write 1 GiB into an emptied file in   1 MiB chunks: ( min: 1.50833, 1.545 +- 0.018, max: 1.56533 ) GB/s
-    write 1 GiB into an emptied file in  16 MiB chunks: ( min: 3.16342, 3.185 +- 0.014, max: 3.20858 ) GB/s
-    write 1 GiB into an emptied file in  64 MiB chunks: ( min: 3.08856, 3.19 +- 0.04, max: 3.24178 ) GB/s
-    write 1 GiB into an emptied file in 512 MiB chunks: ( min: 3.15452, 3.188 +- 0.017, max: 3.21638 ) GB/s
-    write 1 GiB into an emptied file in   1 GiB chunks: ( min: 3.09668, 3.17 +- 0.04, max: 3.20522 ) GB/s
+    Write 1 GiB into one file per thread using  1 threads: ( min: 2.85796, 3.02 +- 0.10, max: 3.17443 ) GB/s
+    Write 1 GiB into one file per thread using  2 threads: ( min: 5.24747, 5.48 +- 0.20, max: 5.8566 ) GB/s
+    Write 1 GiB into one file per thread using  4 threads: ( min: 8.40796, 9.6 +- 0.5, max: 10.1398 ) GB/s
+    Write 1 GiB into one file per thread using  8 threads: ( min: 10.0432, 10.16 +- 0.10, max: 10.3237 ) GB/s
+    Write 1 GiB into one file per thread using 16 threads: ( min: 9.34838, 9.64 +- 0.20, max: 9.88061 ) GB/s
 
-## Write into a preallocated file
+## Simple Writing
 
-### Vectorized Writing
+    fwrite 1 GiB into an emptied file in   1 KiB chunks: ( min: 0.944583, 1.07 +- 0.05, max: 1.10473 ) GB/s
+    fwrite 1 GiB into an emptied file in   4 KiB chunks: ( min: 0.977706, 1.09 +- 0.06, max: 1.15005 ) GB/s
+    fwrite 1 GiB into an emptied file in   8 KiB chunks: ( min: 0.873525, 1.09 +- 0.10, max: 1.19481 ) GB/s
+    fwrite 1 GiB into an emptied file in  16 KiB chunks: ( min: 0.906966, 1.05 +- 0.09, max: 1.14947 ) GB/s
+    fwrite 1 GiB into an emptied file in  64 KiB chunks: ( min: 0.908317, 1.11 +- 0.11, max: 1.20758 ) GB/s
+    fwrite 1 GiB into an emptied file in   1 MiB chunks: ( min: 1.07909, 1.32 +- 0.12, max: 1.44384 ) GB/s
+    fwrite 1 GiB into an emptied file in  16 MiB chunks: ( min: 2.81479, 2.92 +- 0.09, max: 3.06918 ) GB/s
+    fwrite 1 GiB into an emptied file in  64 MiB chunks: ( min: 2.87841, 2.99 +- 0.08, max: 3.13578 ) GB/s
+    fwrite 1 GiB into an emptied file in 512 MiB chunks: ( min: 2.59701, 2.92 +- 0.22, max: 3.2363 ) GB/s
+    fwrite 1 GiB into an emptied file in   1 GiB chunks: ( min: 2.47733, 2.94 +- 0.18, max: 3.1205 ) GB/s
 
-    writev 1 GiB into a preallocated file in  1 KiB chunks (x128): ( min: 0.98567, 1.15 +- 0.07, max: 1.22399 ) GB/s
-    writev 1 GiB into a preallocated file in  4 KiB chunks (x128): ( min: 1.15234, 1.25 +- 0.09, max: 1.3647 ) GB/s
-    writev 1 GiB into a preallocated file in 16 KiB chunks (x128): ( min: 1.21977, 1.30 +- 0.08, max: 1.4482 ) GB/s
-    writev 1 GiB into a preallocated file in 64 KiB chunks (x128): ( min: 1.2313, 1.30 +- 0.06, max: 1.40352 ) GB/s
-    writev 1 GiB into a preallocated file in  1 MiB chunks (x128): ( min: 2.07989, 2.102 +- 0.015, max: 2.12648 ) GB/s
-    writev 1 GiB into a preallocated file in  8 MiB chunks (x128): ( min: 4.36935, 4.43 +- 0.04, max: 4.49219 ) GB/s
+    write 1 GiB into an emptied file in   1 KiB chunks: ( min: 0.801956, 0.90 +- 0.04, max: 0.935843 ) GB/s
+    write 1 GiB into an emptied file in   4 KiB chunks: ( min: 1.00657, 1.08 +- 0.03, max: 1.11824 ) GB/s
+    write 1 GiB into an emptied file in   8 KiB chunks: ( min: 1.0501, 1.13 +- 0.04, max: 1.19206 ) GB/s
+    write 1 GiB into an emptied file in  16 KiB chunks: ( min: 0.942613, 1.14 +- 0.08, max: 1.20232 ) GB/s
+    write 1 GiB into an emptied file in  64 KiB chunks: ( min: 1.04126, 1.17 +- 0.05, max: 1.22383 ) GB/s
+    write 1 GiB into an emptied file in   1 MiB chunks: ( min: 1.42989, 1.55 +- 0.05, max: 1.61887 ) GB/s
+    write 1 GiB into an emptied file in  16 MiB chunks: ( min: 2.8443, 2.95 +- 0.12, max: 3.20742 ) GB/s
+    write 1 GiB into an emptied file in  64 MiB chunks: ( min: 2.82533, 2.96 +- 0.12, max: 3.13191 ) GB/s
+    write 1 GiB into an emptied file in 512 MiB chunks: ( min: 2.88311, 3.03 +- 0.08, max: 3.11887 ) GB/s
+    write 1 GiB into an emptied file in   1 GiB chunks: ( min: 2.42883, 2.99 +- 0.22, max: 3.21305 ) GB/s
 
-    pwritev 1 GiB into a preallocated file in  1 KiB chunks (x128): ( min: 1.03225, 1.12 +- 0.06, max: 1.22163 ) GB/s
-    pwritev 1 GiB into a preallocated file in  4 KiB chunks (x128): ( min: 1.18269, 1.24 +- 0.05, max: 1.3135 ) GB/s
-    pwritev 1 GiB into a preallocated file in 16 KiB chunks (x128): ( min: 1.22951, 1.29 +- 0.06, max: 1.41325 ) GB/s
-    pwritev 1 GiB into a preallocated file in 64 KiB chunks (x128): ( min: 1.21417, 1.29 +- 0.08, max: 1.42046 ) GB/s
-    pwritev 1 GiB into a preallocated file in  1 MiB chunks (x128): ( min: 2.05628, 2.104 +- 0.029, max: 2.13421 ) GB/s
-    pwritev 1 GiB into a preallocated file in  8 MiB chunks (x128): ( min: 4.4053, 4.455 +- 0.027, max: 4.4889 ) GB/s
+# Write into a sparsely allocated file
 
-### Parallel Writing
+## Vectorized Writing
 
-    Use pwrite to write 1 GiB into a preallocated file using  1 threads: ( min: 3.92743, 4.39 +- 0.21, max: 4.54088 ) GB/s
-    Use pwrite to write 1 GiB into a preallocated file using  2 threads: ( min: 4.4648, 4.55 +- 0.05, max: 4.60185 ) GB/s
-    Use pwrite to write 1 GiB into a preallocated file using  4 threads: ( min: 4.44014, 4.489 +- 0.027, max: 4.53465 ) GB/s
-    Use pwrite to write 1 GiB into a preallocated file using  8 threads: ( min: 4.42279, 4.48 +- 0.05, max: 4.5543 ) GB/s
-    Use pwrite to write 1 GiB into a preallocated file using 16 threads: ( min: 4.33694, 4.41 +- 0.05, max: 4.47872 ) GB/s
+    writev 1 GiB into a sparsely allocated file in  1 KiB chunks (x128): ( min: 0.95459, 1.02 +- 0.05, max: 1.09433 ) GB/s
+    writev 1 GiB into a sparsely allocated file in  4 KiB chunks (x128): ( min: 0.981861, 1.10 +- 0.06, max: 1.18528 ) GB/s
+    writev 1 GiB into a sparsely allocated file in 16 KiB chunks (x128): ( min: 1.08645, 1.19 +- 0.05, max: 1.24983 ) GB/s
+    writev 1 GiB into a sparsely allocated file in 64 KiB chunks (x128): ( min: 1.10348, 1.22 +- 0.05, max: 1.26916 ) GB/s
+    writev 1 GiB into a sparsely allocated file in  1 MiB chunks (x128): ( min: 1.13692, 1.49 +- 0.14, max: 1.62931 ) GB/s
+    writev 1 GiB into a sparsely allocated file in  8 MiB chunks (x128): ( min: 2.81609, 3.04 +- 0.15, max: 3.29942 ) GB/s
 
-### Simple Writing
+    pwritev 1 GiB into a sparsely allocated file in  1 KiB chunks (x128): ( min: 0.857248, 1.04 +- 0.07, max: 1.11058 ) GB/s
+    pwritev 1 GiB into a sparsely allocated file in  4 KiB chunks (x128): ( min: 0.984591, 1.11 +- 0.06, max: 1.17469 ) GB/s
+    pwritev 1 GiB into a sparsely allocated file in 16 KiB chunks (x128): ( min: 0.933044, 1.15 +- 0.08, max: 1.20883 ) GB/s
+    pwritev 1 GiB into a sparsely allocated file in 64 KiB chunks (x128): ( min: 1.08093, 1.18 +- 0.04, max: 1.24005 ) GB/s
+    pwritev 1 GiB into a sparsely allocated file in  1 MiB chunks (x128): ( min: 1.18211, 1.48 +- 0.13, max: 1.58725 ) GB/s
+    pwritev 1 GiB into a sparsely allocated file in  8 MiB chunks (x128): ( min: 2.83867, 2.96 +- 0.09, max: 3.08693 ) GB/s
 
-    fwrite 1 GiB into a preallocated file in   1 KiB chunks: ( min: 0.99721, 1.045 +- 0.028, max: 1.07739 ) GB/s
-    fwrite 1 GiB into a preallocated file in   4 KiB chunks: ( min: 1.0768, 1.16 +- 0.06, max: 1.24687 ) GB/s
-    fwrite 1 GiB into a preallocated file in   8 KiB chunks: ( min: 1.17215, 1.21 +- 0.04, max: 1.27838 ) GB/s
-    fwrite 1 GiB into a preallocated file in  16 KiB chunks: ( min: 1.13493, 1.22 +- 0.05, max: 1.2965 ) GB/s
-    fwrite 1 GiB into a preallocated file in  64 KiB chunks: ( min: 1.17874, 1.25 +- 0.06, max: 1.35519 ) GB/s
-    fwrite 1 GiB into a preallocated file in   1 MiB chunks: ( min: 1.88209, 1.914 +- 0.021, max: 1.93899 ) GB/s
-    fwrite 1 GiB into a preallocated file in  16 MiB chunks: ( min: 4.25032, 4.31 +- 0.04, max: 4.36116 ) GB/s
-    fwrite 1 GiB into a preallocated file in  64 MiB chunks: ( min: 3.95681, 4.22 +- 0.15, max: 4.33556 ) GB/s
-    fwrite 1 GiB into a preallocated file in 512 MiB chunks: ( min: 2.30427, 4.2 +- 0.7, max: 4.43517 ) GB/s
-    fwrite 1 GiB into a preallocated file in   1 GiB chunks: ( min: 4.22413, 4.30 +- 0.04, max: 4.34379 ) GB/s
+## Parallel Writing
 
-    write 1 GiB into a preallocated file in   1 KiB chunks: ( min: 0.854546, 0.92 +- 0.05, max: 0.985307 ) GB/s
-    write 1 GiB into a preallocated file in   4 KiB chunks: ( min: 1.04968, 1.081 +- 0.019, max: 1.11493 ) GB/s
-    write 1 GiB into a preallocated file in   8 KiB chunks: ( min: 1.13547, 1.159 +- 0.014, max: 1.18101 ) GB/s
-    write 1 GiB into a preallocated file in  16 KiB chunks: ( min: 1.13301, 1.159 +- 0.011, max: 1.17557 ) GB/s
-    write 1 GiB into a preallocated file in  64 KiB chunks: ( min: 1.13055, 1.149 +- 0.014, max: 1.16997 ) GB/s
-    write 1 GiB into a preallocated file in   1 MiB chunks: ( min: 1.99341, 2.08 +- 0.03, max: 2.11972 ) GB/s
-    write 1 GiB into a preallocated file in  16 MiB chunks: ( min: 4.27261, 4.316 +- 0.030, max: 4.36314 ) GB/s
-    write 1 GiB into a preallocated file in  64 MiB chunks: ( min: 4.12652, 4.24 +- 0.06, max: 4.30356 ) GB/s
-    write 1 GiB into a preallocated file in 512 MiB chunks: ( min: 4.2631, 4.32 +- 0.03, max: 4.37141 ) GB/s
-    write 1 GiB into a preallocated file in   1 GiB chunks: ( min: 4.25994, 4.318 +- 0.028, max: 4.35635 ) GB/s
+    Use pwrite to write 1 GiB into a sparsely allocated file using  1 threads: ( min: 2.81007, 3.02 +- 0.17, max: 3.30958 ) GB/s
+    Use pwrite to write 1 GiB into a sparsely allocated file using  2 threads: ( min: 2.79373, 3.02 +- 0.13, max: 3.23105 ) GB/s
+    Use pwrite to write 1 GiB into a sparsely allocated file using  4 threads: ( min: 2.88333, 3.03 +- 0.09, max: 3.1634 ) GB/s
+    Use pwrite to write 1 GiB into a sparsely allocated file using  8 threads: ( min: 2.93161, 3.07 +- 0.09, max: 3.25342 ) GB/s
+    Use pwrite to write 1 GiB into a sparsely allocated file using 16 threads: ( min: 2.90746, 3.09 +- 0.12, max: 3.35538 ) GB/s
+
+    Write 1 GiB into one file per thread using  1 threads: ( min: 2.87058, 3.02 +- 0.13, max: 3.29991 ) GB/s
+    Write 1 GiB into one file per thread using  2 threads: ( min: 5.24737, 5.47 +- 0.17, max: 5.79586 ) GB/s
+    Write 1 GiB into one file per thread using  4 threads: ( min: 8.39911, 9.6 +- 0.5, max: 10.1175 ) GB/s
+    Write 1 GiB into one file per thread using  8 threads: ( min: 9.72832, 9.99 +- 0.16, max: 10.2113 ) GB/s
+    Write 1 GiB into one file per thread using 16 threads: ( min: 9.04944, 9.6 +- 0.7, max: 11.3997 ) GB/s
+
+## Simple Writing
+
+    fwrite 1 GiB into a sparsely allocated file in   1 KiB chunks: ( min: 0.973277, 1.08 +- 0.06, max: 1.13438 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in   4 KiB chunks: ( min: 0.903548, 1.08 +- 0.08, max: 1.14826 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in   8 KiB chunks: ( min: 0.886184, 1.07 +- 0.10, max: 1.18738 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in  16 KiB chunks: ( min: 0.900005, 1.10 +- 0.09, max: 1.17568 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in  64 KiB chunks: ( min: 0.937815, 1.11 +- 0.10, max: 1.21735 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in   1 MiB chunks: ( min: 1.03759, 1.31 +- 0.15, max: 1.44272 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in  16 MiB chunks: ( min: 2.77181, 2.96 +- 0.14, max: 3.14701 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in  64 MiB chunks: ( min: 2.80614, 2.97 +- 0.13, max: 3.16301 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in 512 MiB chunks: ( min: 2.85765, 2.95 +- 0.08, max: 3.09688 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in   1 GiB chunks: ( min: 2.86054, 2.97 +- 0.09, max: 3.16588 ) GB/s
+
+    write 1 GiB into a sparsely allocated file in   1 KiB chunks: ( min: 0.777102, 0.90 +- 0.07, max: 0.961903 ) GB/s
+    write 1 GiB into a sparsely allocated file in   4 KiB chunks: ( min: 0.878445, 1.05 +- 0.07, max: 1.13623 ) GB/s
+    write 1 GiB into a sparsely allocated file in   8 KiB chunks: ( min: 0.925675, 1.06 +- 0.10, max: 1.1666 ) GB/s
+    write 1 GiB into a sparsely allocated file in  16 KiB chunks: ( min: 1.0105, 1.14 +- 0.06, max: 1.1978 ) GB/s
+    write 1 GiB into a sparsely allocated file in  64 KiB chunks: ( min: 0.909157, 1.10 +- 0.11, max: 1.20903 ) GB/s
+    write 1 GiB into a sparsely allocated file in   1 MiB chunks: ( min: 1.28246, 1.50 +- 0.10, max: 1.58257 ) GB/s
+    write 1 GiB into a sparsely allocated file in  16 MiB chunks: ( min: 2.7388, 2.99 +- 0.14, max: 3.18875 ) GB/s
+    write 1 GiB into a sparsely allocated file in  64 MiB chunks: ( min: 2.51431, 3.02 +- 0.24, max: 3.32096 ) GB/s
+    write 1 GiB into a sparsely allocated file in 512 MiB chunks: ( min: 2.7299, 2.95 +- 0.11, max: 3.07105 ) GB/s
+    write 1 GiB into a sparsely allocated file in   1 GiB chunks: ( min: 2.89029, 3.01 +- 0.09, max: 3.16204 ) GB/s
+
+# Write into a preallocated file
+
+## Vectorized Writing
+
+    writev 1 GiB into a preallocated file in  1 KiB chunks (x128): ( min: 0.903578, 1.03 +- 0.07, max: 1.0925 ) GB/s
+    writev 1 GiB into a preallocated file in  4 KiB chunks (x128): ( min: 0.928805, 1.11 +- 0.08, max: 1.19075 ) GB/s
+    writev 1 GiB into a preallocated file in 16 KiB chunks (x128): ( min: 0.947024, 1.13 +- 0.10, max: 1.22264 ) GB/s
+    writev 1 GiB into a preallocated file in 64 KiB chunks (x128): ( min: 0.98366, 1.16 +- 0.09, max: 1.25047 ) GB/s
+    writev 1 GiB into a preallocated file in  1 MiB chunks (x128): ( min: 1.50036, 1.55 +- 0.03, max: 1.61178 ) GB/s
+    writev 1 GiB into a preallocated file in  8 MiB chunks (x128): ( min: 2.68093, 3.04 +- 0.16, max: 3.19334 ) GB/s
+
+    pwritev 1 GiB into a preallocated file in  1 KiB chunks (x128): ( min: 0.847006, 1.02 +- 0.09, max: 1.07231 ) GB/s
+    pwritev 1 GiB into a preallocated file in  4 KiB chunks (x128): ( min: 0.97235, 1.05 +- 0.07, max: 1.15109 ) GB/s
+    pwritev 1 GiB into a preallocated file in 16 KiB chunks (x128): ( min: 0.92532, 1.11 +- 0.09, max: 1.21208 ) GB/s
+    pwritev 1 GiB into a preallocated file in 64 KiB chunks (x128): ( min: 0.957633, 1.12 +- 0.08, max: 1.19254 ) GB/s
+    pwritev 1 GiB into a preallocated file in  1 MiB chunks (x128): ( min: 1.38113, 1.52 +- 0.06, max: 1.61436 ) GB/s
+    pwritev 1 GiB into a preallocated file in  8 MiB chunks (x128): ( min: 2.74923, 2.98 +- 0.15, max: 3.21076 ) GB/s
+
+## Parallel Writing
+
+    Use pwrite to write 1 GiB into a preallocated file using  1 threads: ( min: 2.55495, 3.03 +- 0.21, max: 3.26194 ) GB/s
+    Use pwrite to write 1 GiB into a preallocated file using  2 threads: ( min: 2.88298, 3.04 +- 0.11, max: 3.2521 ) GB/s
+    Use pwrite to write 1 GiB into a preallocated file using  4 threads: ( min: 2.80951, 3.02 +- 0.12, max: 3.18304 ) GB/s
+    Use pwrite to write 1 GiB into a preallocated file using  8 threads: ( min: 2.82157, 3.05 +- 0.14, max: 3.25335 ) GB/s
+    Use pwrite to write 1 GiB into a preallocated file using 16 threads: ( min: 2.94598, 3.12 +- 0.10, max: 3.32956 ) GB/s
+
+    Write 1 GiB into one file per thread using  1 threads: ( min: 2.86231, 2.96 +- 0.07, max: 3.04273 ) GB/s
+    Write 1 GiB into one file per thread using  2 threads: ( min: 5.14684, 5.53 +- 0.21, max: 5.81141 ) GB/s
+    Write 1 GiB into one file per thread using  4 threads: ( min: 9.09038, 9.6 +- 0.3, max: 10.0021 ) GB/s
+    Write 1 GiB into one file per thread using  8 threads: ( min: 9.85586, 10.11 +- 0.12, max: 10.2543 ) GB/s
+    Write 1 GiB into one file per thread using 16 threads: ( min: 9.33478, 9.7 +- 0.5, max: 10.9818 ) GB/s
+
+## Simple Writing
+
+    fwrite 1 GiB into a preallocated file in   1 KiB chunks: ( min: 0.989257, 1.07 +- 0.04, max: 1.11669 ) GB/s
+    fwrite 1 GiB into a preallocated file in   4 KiB chunks: ( min: 0.974033, 1.10 +- 0.05, max: 1.14322 ) GB/s
+    fwrite 1 GiB into a preallocated file in   8 KiB chunks: ( min: 1.01545, 1.10 +- 0.05, max: 1.15792 ) GB/s
+    fwrite 1 GiB into a preallocated file in  16 KiB chunks: ( min: 0.906119, 1.09 +- 0.09, max: 1.15862 ) GB/s
+    fwrite 1 GiB into a preallocated file in  64 KiB chunks: ( min: 0.923341, 1.14 +- 0.09, max: 1.21575 ) GB/s
+    fwrite 1 GiB into a preallocated file in   1 MiB chunks: ( min: 1.23669, 1.40 +- 0.07, max: 1.46687 ) GB/s
+    fwrite 1 GiB into a preallocated file in  16 MiB chunks: ( min: 2.80832, 3.00 +- 0.14, max: 3.18692 ) GB/s
+    fwrite 1 GiB into a preallocated file in  64 MiB chunks: ( min: 2.84812, 3.01 +- 0.09, max: 3.1579 ) GB/s
+    fwrite 1 GiB into a preallocated file in 512 MiB chunks: ( min: 2.903, 3.05 +- 0.11, max: 3.26771 ) GB/s
+    fwrite 1 GiB into a preallocated file in   1 GiB chunks: ( min: 2.83259, 2.98 +- 0.08, max: 3.09369 ) GB/s
+
+    write 1 GiB into a preallocated file in   1 KiB chunks: ( min: 0.768293, 0.89 +- 0.07, max: 0.969819 ) GB/s
+    write 1 GiB into a preallocated file in   4 KiB chunks: ( min: 1.04195, 1.08 +- 0.04, max: 1.13089 ) GB/s
+    write 1 GiB into a preallocated file in   8 KiB chunks: ( min: 1.04682, 1.14 +- 0.04, max: 1.18223 ) GB/s
+    write 1 GiB into a preallocated file in  16 KiB chunks: ( min: 1.02898, 1.15 +- 0.06, max: 1.22825 ) GB/s
+    write 1 GiB into a preallocated file in  64 KiB chunks: ( min: 1.02233, 1.15 +- 0.09, max: 1.23799 ) GB/s
+    write 1 GiB into a preallocated file in   1 MiB chunks: ( min: 1.28023, 1.47 +- 0.10, max: 1.57922 ) GB/s
+    write 1 GiB into a preallocated file in  16 MiB chunks: ( min: 2.75703, 2.96 +- 0.15, max: 3.18986 ) GB/s
+    write 1 GiB into a preallocated file in  64 MiB chunks: ( min: 2.85471, 3.01 +- 0.12, max: 3.18177 ) GB/s
+    write 1 GiB into a preallocated file in 512 MiB chunks: ( min: 2.84907, 3.03 +- 0.14, max: 3.24775 ) GB/s
+    write 1 GiB into a preallocated file in   1 GiB chunks: ( min: 2.71786, 2.98 +- 0.17, max: 3.25961 ) GB/s
 
 
-# Test on Taurus Romeo BeeGFS with 1 MiB striping and 64 targets
+# Test on Taurus Romeo BeeGFS with 1 MiB striping and 36 targets
 
     beegfs-ctl --getentryinfo "$BEEGFSWS/mimi" --mount=/beegfs/global0
 
@@ -1611,170 +1735,208 @@ cmake --build . -- benchmarkIOWrite && src/benchmarks/benchmarkIOWrite /dev/shm/
               93           Online         Good    2979.4GiB     925.3GiB  31%      312.6M      311.6M 100%   beegfs-storage taurusnvme23-1 [ID: 24]
               94           Online         Good    2979.4GiB      19.5GiB   1%       41.4M       40.9M  99%   beegfs-storage taurusnvme23-1 [ID: 24]
 
-    beegfs-ctl --setpattern --chunksize=1m --numtargets=64 "$BEEGFSWS" --mount=/beegfs/global0
+    beegfs-ctl --setpattern --chunksize=1m --numtargets=36 "$BEEGFSWS" --mount=/beegfs/global0
 
 
 # File Creation
 
-    posix_fallocate file sized 512 MiB: ( min: 0.070798, 0.0746 +- 0.0026, max: 0.0780938 ) GB/s
-    posix_fallocate file sized 1 GiB: ( min: 0.0672955, 0.0693 +- 0.0014, max: 0.071785 ) GB/s
-    ^C
+    posix_fallocate file sized 128 MiB: ( min: 0.0634675, 0.0666 +- 0.0019, max: 0.0690491 ) GB/s
 
     Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    fallocate file sized 512 MiB: ( min: 283.452, 900 +- 300, max: 1237.81 ) GB/s
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    fallocate file sized 1 GiB: ( min: 2313.13, 2600 +- 160, max: 2846.26 ) GB/s
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    fallocate file sized 2 GiB: ( min: 4731.24, 5240 +- 270, max: 5569.99 ) GB/s
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    Encountered error while calling fallocate on file: Operation not supported (95)
-    fallocate file sized 4 GiB: ( min: 9006.88, 10100 +- 500, max: 10928.5 ) GB/s
 
-    ftruncate file sized 512 MiB: ( min: 213.876, 235 +- 14, max: 258.228 ) GB/s
-    ftruncate file sized 1 GiB: ( min: 469.331, 495 +- 22, max: 535.373 ) GB/s
-    ftruncate file sized 2 GiB: ( min: 982.01, 1030 +- 30, max: 1093.64 ) GB/s
-    ftruncate file sized 4 GiB: ( min: 1926.17, 2080 +- 80, max: 2250.99 ) GB/s
+    fallocate file sized 4 GiB: ( min: 8160.48, 11000 +- 1500, max: 13243.6 ) GB/s
+
+    ftruncate file sized 128 MiB: ( min: 51.5239, 61 +- 8, max: 72.326 ) GB/s
+    ftruncate file sized 512 MiB: ( min: 226.794, 264 +- 23, max: 295.843 ) GB/s
+    ftruncate file sized 1 GiB: ( min: 444.289, 520 +- 60, max: 585.629 ) GB/s
+    ftruncate file sized 2 GiB: ( min: 994.657, 1120 +- 70, max: 1200.22 ) GB/s
+    ftruncate file sized 4 GiB: ( min: 2028.47, 2130 +- 90, max: 2286.56 ) GB/s
 
 # Mmap Write
 
-    ftruncate + mmap write 1 GiB: ( min: 0.546038, 0.555 +- 0.007, max: 0.567933 ) GB/s
-    ftruncate + mmap write 1 GiB using  1 threads: ( min: 0.535991, 0.544 +- 0.005, max: 0.551373 ) GB/s
-    ftruncate + mmap write 1 GiB using  2 threads: ( min: 0.833444, 0.97 +- 0.05, max: 1.01174 ) GB/s
-    ftruncate + mmap write 1 GiB using  4 threads: ( min: 1.36527, 1.67 +- 0.15, max: 1.81139 ) GB/s
-    ftruncate + mmap write 1 GiB using  8 threads: ( min: 2.36004, 2.67 +- 0.21, max: 2.95807 ) GB/s
-    ftruncate + mmap write 1 GiB using 16 threads: ( min: 2.86923, 3.27 +- 0.27, max: 3.67242 ) GB/s
+    ftruncate + mmap write 1 GiB: ( min: 0.575724, 0.607 +- 0.020, max: 0.641147 ) GB/s
+    ftruncate + mmap write 1 GiB using  1 threads and maps: ( min: 0.59101, 0.612 +- 0.014, max: 0.63236 ) GB/s
+    ftruncate + mmap write 1 GiB using  2 threads and maps: ( min: 1.21498, 1.26 +- 0.04, max: 1.30741 ) GB/s
+    ftruncate + mmap write 1 GiB using  4 threads and maps: ( min: 2.11425, 2.21 +- 0.08, max: 2.36883 ) GB/s
+    ftruncate + mmap write 1 GiB using  8 threads and maps: ( min: 3.14391, 3.52 +- 0.24, max: 3.89349 ) GB/s
+    ftruncate + mmap write 1 GiB using 16 threads and maps: ( min: 3.31836, 3.9 +- 0.5, max: 4.68071 ) GB/s
+
+    ftruncate + mmap write 1 GiB using  1 threads and maps and fds: ( min: 0.592924, 0.604 +- 0.011, max: 0.624658 ) GB/s
+    ftruncate + mmap write 1 GiB using  2 threads and maps and fds: ( min: 1.23874, 1.279 +- 0.029, max: 1.32259 ) GB/s
+    ftruncate + mmap write 1 GiB using  4 threads and maps and fds: ( min: 2.16905, 2.26 +- 0.07, max: 2.41579 ) GB/s
+    ftruncate + mmap write 1 GiB using  8 threads and maps and fds: ( min: 2.76381, 3.2 +- 0.4, max: 3.94836 ) GB/s
+    ftruncate + mmap write 1 GiB using 16 threads and maps and fds: ( min: 2.85311, 3.2 +- 0.4, max: 4.36289 ) GB/s
+
+    ftruncate + mmap write 1 GiB using  1 threads: ( min: 0.591649, 0.621 +- 0.025, max: 0.659807 ) GB/s
+    ftruncate + mmap write 1 GiB using  2 threads: ( min: 1.03222, 1.08 +- 0.03, max: 1.12891 ) GB/s
+    ftruncate + mmap write 1 GiB using  4 threads: ( min: 1.45266, 1.80 +- 0.19, max: 2.02909 ) GB/s
+    ftruncate + mmap write 1 GiB using  8 threads: ( min: 1.52991, 1.9 +- 0.5, max: 3.12447 ) GB/s
+    ftruncate + mmap write 1 GiB using 16 threads: ( min: 1.52063, 1.65 +- 0.09, max: 1.84318 ) GB/s
 
 # Write into an emptied file
 
 ## Vectorized Writing
 
-    writev 1 GiB into an emptied file in  1 KiB chunks (x128): ( min: 0.741576, 0.752 +- 0.005, max: 0.758639 ) GB/s
-    writev 1 GiB into an emptied file in  4 KiB chunks (x128): ( min: 0.773663, 0.790 +- 0.014, max: 0.825966 ) GB/s
-    writev 1 GiB into an emptied file in 16 KiB chunks (x128): ( min: 0.80828, 0.84 +- 0.03, max: 0.903099 ) GB/s
-    writev 1 GiB into an emptied file in 64 KiB chunks (x128): ( min: 0.842118, 0.857 +- 0.019, max: 0.902332 ) GB/s
-    writev 1 GiB into an emptied file in  1 MiB chunks (x128): ( min: 1.0676, 1.093 +- 0.022, max: 1.13279 ) GB/s
-    writev 1 GiB into an emptied file in  8 MiB chunks (x128): ( min: 2.99817, 3.07 +- 0.06, max: 3.1699 ) GB/s
+    writev 1 GiB into an emptied file in  1 KiB chunks (x128): ( min: 0.765307, 0.783 +- 0.014, max: 0.815316 ) GB/s
+    writev 1 GiB into an emptied file in  4 KiB chunks (x128): ( min: 0.82251, 0.840 +- 0.018, max: 0.885483 ) GB/s
+    writev 1 GiB into an emptied file in 16 KiB chunks (x128): ( min: 0.841632, 0.863 +- 0.023, max: 0.917 ) GB/s
+    writev 1 GiB into an emptied file in 64 KiB chunks (x128): ( min: 0.854144, 0.875 +- 0.022, max: 0.920389 ) GB/s
+    writev 1 GiB into an emptied file in  1 MiB chunks (x128): ( min: 1.06511, 1.099 +- 0.028, max: 1.15485 ) GB/s
+    writev 1 GiB into an emptied file in  8 MiB chunks (x128): ( min: 3.81419, 4.08 +- 0.17, max: 4.38064 ) GB/s
 
-    pwritev 1 GiB into an emptied file in  1 KiB chunks (x128): ( min: 0.780956, 0.794 +- 0.010, max: 0.814196 ) GB/s
-    pwritev 1 GiB into an emptied file in  4 KiB chunks (x128): ( min: 0.830693, 0.847 +- 0.011, max: 0.86012 ) GB/s
-    pwritev 1 GiB into an emptied file in 16 KiB chunks (x128): ( min: 0.847757, 0.868 +- 0.014, max: 0.890096 ) GB/s
-    pwritev 1 GiB into an emptied file in 64 KiB chunks (x128): ( min: 0.855784, 0.870 +- 0.011, max: 0.886999 ) GB/s
-    pwritev 1 GiB into an emptied file in  1 MiB chunks (x128): ( min: 1.06918, 1.093 +- 0.026, max: 1.159 ) GB/s
-    pwritev 1 GiB into an emptied file in  8 MiB chunks (x128): ( min: 3.08915, 3.30 +- 0.11, max: 3.41964 ) GB/s
+    pwritev 1 GiB into an emptied file in  1 KiB chunks (x128): ( min: 0.78262, 0.797 +- 0.017, max: 0.830291 ) GB/s
+    pwritev 1 GiB into an emptied file in  4 KiB chunks (x128): ( min: 0.81177, 0.845 +- 0.023, max: 0.888125 ) GB/s
+    pwritev 1 GiB into an emptied file in 16 KiB chunks (x128): ( min: 0.85395, 0.873 +- 0.021, max: 0.925135 ) GB/s
+    pwritev 1 GiB into an emptied file in 64 KiB chunks (x128): ( min: 0.847679, 0.869 +- 0.018, max: 0.904453 ) GB/s
+    pwritev 1 GiB into an emptied file in  1 MiB chunks (x128): ( min: 1.06892, 1.11 +- 0.03, max: 1.15306 ) GB/s
+    pwritev 1 GiB into an emptied file in  8 MiB chunks (x128): ( min: 3.93517, 4.11 +- 0.10, max: 4.21403 ) GB/s
 
 ## Parallel Writing
 
-    Use pwrite to write 1 GiB into an emptied file using  1 threads: ( min: 3.05305, 3.46 +- 0.18, max: 3.57315 ) GB/s
-    Use pwrite to write 1 GiB into an emptied file using  2 threads: ( min: 3.058, 3.41 +- 0.19, max: 3.54627 ) GB/s
-    Use pwrite to write 1 GiB into an emptied file using  4 threads: ( min: 3.04597, 3.38 +- 0.16, max: 3.52173 ) GB/s
-    Use pwrite to write 1 GiB into an emptied file using  8 threads: ( min: 3.00675, 3.32 +- 0.15, max: 3.43962 ) GB/s
-    Use pwrite to write 1 GiB into an emptied file using 16 threads: ( min: 2.97259, 3.29 +- 0.17, max: 3.40323 ) GB/s
+    Use pwrite to write 1 GiB into an emptied file using  1 threads: ( min: 4.04399, 4.12 +- 0.04, max: 4.1668 ) GB/s
+    Use pwrite to write 1 GiB into an emptied file using  2 threads: ( min: 4.08753, 4.127 +- 0.022, max: 4.15784 ) GB/s
+    Use pwrite to write 1 GiB into an emptied file using  4 threads: ( min: 4.01351, 4.07 +- 0.04, max: 4.11489 ) GB/s
+    Use pwrite to write 1 GiB into an emptied file using  8 threads: ( min: 3.93625, 4.00 +- 0.05, max: 4.06694 ) GB/s
+    Use pwrite to write 1 GiB into an emptied file using 16 threads: ( min: 3.91907, 4.03 +- 0.05, max: 4.08831 ) GB/s
+
+    Write 1 GiB into one file per thread using  1 threads: ( min: 3.9905, 4.06 +- 0.04, max: 4.12286 ) GB/s
+    Write 1 GiB into one file per thread using  2 threads: ( min: 6.35717, 6.392 +- 0.022, max: 6.43498 ) GB/s
+    Write 1 GiB into one file per thread using  4 threads: ( min: 6.89352, 7.6 +- 0.4, max: 7.89938 ) GB/s
+    Write 1 GiB into one file per thread using  8 threads: ( min: 6.77826, 7.5 +- 0.4, max: 7.79436 ) GB/s
+    Write 1 GiB into one file per thread using 16 threads: ( min: 7.51367, 8.2 +- 0.5, max: 8.96869 ) GB/s
 
 ## Simple Writing
 
-    fwrite 1 GiB into an emptied file in   1 KiB chunks: ( min: 0.758541, 0.782 +- 0.021, max: 0.821806 ) GB/s
-    fwrite 1 GiB into an emptied file in   4 KiB chunks: ( min: 0.793491, 0.816 +- 0.018, max: 0.840451 ) GB/s
-    fwrite 1 GiB into an emptied file in   8 KiB chunks: ( min: 0.804017, 0.816 +- 0.009, max: 0.825414 ) GB/s
-    fwrite 1 GiB into an emptied file in  16 KiB chunks: ( min: 0.805736, 0.823 +- 0.015, max: 0.861495 ) GB/s
-    fwrite 1 GiB into an emptied file in  64 KiB chunks: ( min: 0.822271, 0.845 +- 0.013, max: 0.85884 ) GB/s
-    fwrite 1 GiB into an emptied file in   1 MiB chunks: ( min: 0.955136, 0.978 +- 0.019, max: 1.01374 ) GB/s
-    fwrite 1 GiB into an emptied file in  16 MiB chunks: ( min: 2.73464, 3.00 +- 0.24, max: 3.29799 ) GB/s
-    fwrite 1 GiB into an emptied file in  64 MiB chunks: ( min: 2.68745, 2.93 +- 0.22, max: 3.38457 ) GB/s
-    fwrite 1 GiB into an emptied file in 512 MiB chunks: ( min: 2.65781, 2.95 +- 0.26, max: 3.38493 ) GB/s
-    fwrite 1 GiB into an emptied file in   1 GiB chunks: ( min: 2.71047, 3.01 +- 0.28, max: 3.38674 ) GB/s
+    fwrite 1 GiB into an emptied file in   1 KiB chunks: ( min: 0.800344, 0.820 +- 0.025, max: 0.886763 ) GB/s
+    fwrite 1 GiB into an emptied file in   4 KiB chunks: ( min: 0.806447, 0.841 +- 0.026, max: 0.887829 ) GB/s
+    fwrite 1 GiB into an emptied file in   8 KiB chunks: ( min: 0.814404, 0.852 +- 0.029, max: 0.895761 ) GB/s
+    fwrite 1 GiB into an emptied file in  16 KiB chunks: ( min: 0.779142, 0.817 +- 0.027, max: 0.859569 ) GB/s
+    fwrite 1 GiB into an emptied file in  64 KiB chunks: ( min: 0.809341, 0.854 +- 0.027, max: 0.909013 ) GB/s
+    fwrite 1 GiB into an emptied file in   1 MiB chunks: ( min: 0.929131, 0.965 +- 0.021, max: 0.993178 ) GB/s
+    fwrite 1 GiB into an emptied file in  16 MiB chunks: ( min: 3.44034, 3.62 +- 0.14, max: 3.83494 ) GB/s
+    fwrite 1 GiB into an emptied file in  64 MiB chunks: ( min: 3.34598, 3.69 +- 0.16, max: 3.83742 ) GB/s
+    fwrite 1 GiB into an emptied file in 512 MiB chunks: ( min: 3.80433, 3.86 +- 0.03, max: 3.8874 ) GB/s
+    fwrite 1 GiB into an emptied file in   1 GiB chunks: ( min: 3.82788, 3.862 +- 0.026, max: 3.90963 ) GB/s
 
-    write 1 GiB into an emptied file in   1 KiB chunks: ( min: 0.677804, 0.691 +- 0.013, max: 0.723798 ) GB/s
-    write 1 GiB into an emptied file in   4 KiB chunks: ( min: 0.769238, 0.787 +- 0.013, max: 0.813792 ) GB/s
-    write 1 GiB into an emptied file in   8 KiB chunks: ( min: 0.706594, 0.81 +- 0.04, max: 0.859818 ) GB/s
-    write 1 GiB into an emptied file in  16 KiB chunks: ( min: 0.789176, 0.815 +- 0.018, max: 0.846279 ) GB/s
-    write 1 GiB into an emptied file in  64 KiB chunks: ( min: 0.792962, 0.805 +- 0.010, max: 0.819659 ) GB/s
-    write 1 GiB into an emptied file in   1 MiB chunks: ( min: 1.06367, 1.093 +- 0.015, max: 1.10866 ) GB/s
-    write 1 GiB into an emptied file in  16 MiB chunks: ( min: 2.53606, 2.571 +- 0.026, max: 2.61336 ) GB/s
-    write 1 GiB into an emptied file in  64 MiB chunks: ( min: 2.44298, 2.481 +- 0.021, max: 2.50628 ) GB/s
-    write 1 GiB into an emptied file in 512 MiB chunks: ( min: 2.44544, 2.479 +- 0.019, max: 2.5117 ) GB/s
-    write 1 GiB into an emptied file in   1 GiB chunks: ( min: 2.46455, 2.486 +- 0.021, max: 2.53055 ) GB/s
+    write 1 GiB into an emptied file in   1 KiB chunks: ( min: 0.673727, 0.709 +- 0.021, max: 0.731255 ) GB/s
+    write 1 GiB into an emptied file in   4 KiB chunks: ( min: 0.79051, 0.806 +- 0.014, max: 0.839571 ) GB/s
+    write 1 GiB into an emptied file in   8 KiB chunks: ( min: 0.832953, 0.858 +- 0.021, max: 0.900428 ) GB/s
+    write 1 GiB into an emptied file in  16 KiB chunks: ( min: 0.833579, 0.861 +- 0.019, max: 0.886753 ) GB/s
+    write 1 GiB into an emptied file in  64 KiB chunks: ( min: 0.869585, 0.877 +- 0.007, max: 0.893051 ) GB/s
+    write 1 GiB into an emptied file in   1 MiB chunks: ( min: 1.0638, 1.092 +- 0.021, max: 1.12144 ) GB/s
+    write 1 GiB into an emptied file in  16 MiB chunks: ( min: 3.90573, 3.98 +- 0.05, max: 4.06967 ) GB/s
+    write 1 GiB into an emptied file in  64 MiB chunks: ( min: 3.79652, 3.844 +- 0.025, max: 3.8854 ) GB/s
+    write 1 GiB into an emptied file in 512 MiB chunks: ( min: 3.82735, 3.852 +- 0.019, max: 3.87937 ) GB/s
+    write 1 GiB into an emptied file in   1 GiB chunks: ( min: 3.81124, 3.855 +- 0.023, max: 3.87872 ) GB/s
+
+# Write into a sparsely allocated file
+
+## Vectorized Writing
+
+    writev 1 GiB into a sparsely allocated file in  1 KiB chunks (x128): ( min: 0.799152, 0.830 +- 0.019, max: 0.862402 ) GB/s
+    writev 1 GiB into a sparsely allocated file in  4 KiB chunks (x128): ( min: 0.842895, 0.868 +- 0.019, max: 0.899167 ) GB/s
+    writev 1 GiB into a sparsely allocated file in 16 KiB chunks (x128): ( min: 0.858584, 0.884 +- 0.019, max: 0.918244 ) GB/s
+    writev 1 GiB into a sparsely allocated file in 64 KiB chunks (x128): ( min: 0.869493, 0.887 +- 0.016, max: 0.923353 ) GB/s
+    writev 1 GiB into a sparsely allocated file in  1 MiB chunks (x128): ( min: 1.09059, 1.129 +- 0.023, max: 1.1618 ) GB/s
+    writev 1 GiB into a sparsely allocated file in  8 MiB chunks (x128): ( min: 3.77376, 4.16 +- 0.18, max: 4.42353 ) GB/s
+
+    pwritev 1 GiB into a sparsely allocated file in  1 KiB chunks (x128): ( min: 0.781282, 0.83 +- 0.04, max: 0.913696 ) GB/s
+    pwritev 1 GiB into a sparsely allocated file in  4 KiB chunks (x128): ( min: 0.83988, 0.859 +- 0.018, max: 0.900096 ) GB/s
+    pwritev 1 GiB into a sparsely allocated file in 16 KiB chunks (x128): ( min: 0.878493, 0.91 +- 0.03, max: 0.983527 ) GB/s
+    pwritev 1 GiB into a sparsely allocated file in 64 KiB chunks (x128): ( min: 0.87906, 0.92 +- 0.04, max: 0.998629 ) GB/s
+    pwritev 1 GiB into a sparsely allocated file in  1 MiB chunks (x128): ( min: 1.08218, 1.14 +- 0.04, max: 1.19386 ) GB/s
+    pwritev 1 GiB into a sparsely allocated file in  8 MiB chunks (x128): ( min: 3.97766, 4.14 +- 0.14, max: 4.35386 ) GB/s
+
+## Parallel Writing
+
+    Use pwrite to write 1 GiB into a sparsely allocated file using  1 threads: ( min: 4.04793, 4.079 +- 0.030, max: 4.14089 ) GB/s
+    Use pwrite to write 1 GiB into a sparsely allocated file using  2 threads: ( min: 4.03072, 4.071 +- 0.025, max: 4.12212 ) GB/s
+    Use pwrite to write 1 GiB into a sparsely allocated file using  4 threads: ( min: 3.65906, 3.99 +- 0.12, max: 4.06885 ) GB/s
+    Use pwrite to write 1 GiB into a sparsely allocated file using  8 threads: ( min: 3.85592, 3.92 +- 0.08, max: 4.05807 ) GB/s
+    Use pwrite to write 1 GiB into a sparsely allocated file using 16 threads: ( min: 3.76922, 3.81 +- 0.05, max: 3.9062 ) GB/s
+
+    Write 1 GiB into one file per thread using  1 threads: ( min: 3.95965, 4.03 +- 0.04, max: 4.08628 ) GB/s
+    Write 1 GiB into one file per thread using  2 threads: ( min: 6.26423, 6.34 +- 0.16, max: 6.79918 ) GB/s
+    Write 1 GiB into one file per thread using  4 threads: ( min: 7.1801, 7.26 +- 0.06, max: 7.38006 ) GB/s
+    Write 1 GiB into one file per thread using  8 threads: ( min: 7.77398, 8.18 +- 0.24, max: 8.49844 ) GB/s
+    Write 1 GiB into one file per thread using 16 threads: ( min: 8.76611, 9.05 +- 0.23, max: 9.41767 ) GB/s
+
+## Simple Writing
+
+    fwrite 1 GiB into a sparsely allocated file in   1 KiB chunks: ( min: 0.810581, 0.842 +- 0.027, max: 0.89991 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in   4 KiB chunks: ( min: 0.823889, 0.839 +- 0.014, max: 0.862027 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in   8 KiB chunks: ( min: 0.848999, 0.860 +- 0.011, max: 0.883777 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in  16 KiB chunks: ( min: 0.838, 0.846 +- 0.007, max: 0.864403 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in  64 KiB chunks: ( min: 0.852727, 0.883 +- 0.023, max: 0.92519 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in   1 MiB chunks: ( min: 0.953052, 0.984 +- 0.024, max: 1.0293 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in  16 MiB chunks: ( min: 3.8064, 3.92 +- 0.07, max: 4.00052 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in  64 MiB chunks: ( min: 3.81576, 3.849 +- 0.021, max: 3.87388 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in 512 MiB chunks: ( min: 3.84925, 3.874 +- 0.016, max: 3.89781 ) GB/s
+    fwrite 1 GiB into a sparsely allocated file in   1 GiB chunks: ( min: 3.82938, 3.872 +- 0.028, max: 3.91885 ) GB/s
+
+    write 1 GiB into a sparsely allocated file in   1 KiB chunks: ( min: 0.702644, 0.724 +- 0.012, max: 0.744288 ) GB/s
+    write 1 GiB into a sparsely allocated file in   4 KiB chunks: ( min: 0.801498, 0.819 +- 0.012, max: 0.843944 ) GB/s
+    write 1 GiB into a sparsely allocated file in   8 KiB chunks: ( min: 0.842481, 0.89 +- 0.05, max: 0.960844 ) GB/s
+    write 1 GiB into a sparsely allocated file in  16 KiB chunks: ( min: 0.8691, 0.90 +- 0.04, max: 0.970939 ) GB/s
+    write 1 GiB into a sparsely allocated file in  64 KiB chunks: ( min: 0.867135, 0.899 +- 0.025, max: 0.947541 ) GB/s
+    write 1 GiB into a sparsely allocated file in   1 MiB chunks: ( min: 1.07657, 1.111 +- 0.030, max: 1.15629 ) GB/s
+    write 1 GiB into a sparsely allocated file in  16 MiB chunks: ( min: 3.97094, 4.00 +- 0.03, max: 4.06023 ) GB/s
+    write 1 GiB into a sparsely allocated file in  64 MiB chunks: ( min: 3.81947, 3.840 +- 0.019, max: 3.87502 ) GB/s
+    write 1 GiB into a sparsely allocated file in 512 MiB chunks: ( min: 2.77262, 3.8 +- 0.3, max: 3.95671 ) GB/s
+    write 1 GiB into a sparsely allocated file in   1 GiB chunks: ( min: 3.84355, 3.870 +- 0.018, max: 3.89371 ) GB/s
 
 # Write into a preallocated file
 
 ## Vectorized Writing
 
-    writev 1 GiB into a preallocated file in  1 KiB chunks (x128): ( min: 0.906679, 0.930 +- 0.017, max: 0.964037 ) GB/s
-    writev 1 GiB into a preallocated file in  4 KiB chunks (x128): ( min: 0.942697, 0.966 +- 0.018, max: 0.995736 ) GB/s
-    writev 1 GiB into a preallocated file in 16 KiB chunks (x128): ( min: 0.980393, 1.005 +- 0.017, max: 1.03667 ) GB/s
-    writev 1 GiB into a preallocated file in 64 KiB chunks (x128): ( min: 0.983517, 1.000 +- 0.014, max: 1.02639 ) GB/s
-    writev 1 GiB into a preallocated file in  1 MiB chunks (x128): ( min: 1.32614, 1.372 +- 0.029, max: 1.42394 ) GB/s
-    writev 1 GiB into a preallocated file in  8 MiB chunks (x128): ( min: 2.96452, 3.26 +- 0.25, max: 3.58874 ) GB/s
+    writev 1 GiB into a preallocated file in  1 KiB chunks (x128): ( min: 0.781362, 0.82 +- 0.04, max: 0.928671 ) GB/s
+    writev 1 GiB into a preallocated file in  4 KiB chunks (x128): ( min: 0.834449, 0.86 +- 0.04, max: 0.971163 ) GB/s
+    writev 1 GiB into a preallocated file in 16 KiB chunks (x128): ( min: 0.873042, 0.887 +- 0.013, max: 0.905671 ) GB/s
+    writev 1 GiB into a preallocated file in 64 KiB chunks (x128): ( min: 0.868735, 0.90 +- 0.03, max: 0.97017 ) GB/s
+    writev 1 GiB into a preallocated file in  1 MiB chunks (x128): ( min: 1.0914, 1.139 +- 0.026, max: 1.1703 ) GB/s
+    writev 1 GiB into a preallocated file in  8 MiB chunks (x128): ( min: 3.865, 4.02 +- 0.10, max: 4.18158 ) GB/s
 
-    pwritev 1 GiB into a preallocated file in  1 KiB chunks (x128): ( min: 0.918678, 0.936 +- 0.010, max: 0.947565 ) GB/s
-    pwritev 1 GiB into a preallocated file in  4 KiB chunks (x128): ( min: 0.950842, 0.972 +- 0.021, max: 1.00676 ) GB/s
-    pwritev 1 GiB into a preallocated file in 16 KiB chunks (x128): ( min: 0.987989, 1.015 +- 0.022, max: 1.04804 ) GB/s
-    pwritev 1 GiB into a preallocated file in 64 KiB chunks (x128): ( min: 0.977708, 1.013 +- 0.020, max: 1.03797 ) GB/s
-    pwritev 1 GiB into a preallocated file in  1 MiB chunks (x128): ( min: 1.32854, 1.349 +- 0.013, max: 1.37262 ) GB/s
-    pwritev 1 GiB into a preallocated file in  8 MiB chunks (x128): ( min: 3.04783, 3.18 +- 0.14, max: 3.49314 ) GB/s
+    pwritev 1 GiB into a preallocated file in  1 KiB chunks (x128): ( min: 0.799862, 0.83 +- 0.04, max: 0.933451 ) GB/s
+    pwritev 1 GiB into a preallocated file in  4 KiB chunks (x128): ( min: 0.838191, 0.870 +- 0.026, max: 0.93676 ) GB/s
+    pwritev 1 GiB into a preallocated file in 16 KiB chunks (x128): ( min: 0.872485, 0.912 +- 0.028, max: 0.954177 ) GB/s
+    pwritev 1 GiB into a preallocated file in 64 KiB chunks (x128): ( min: 0.891442, 0.913 +- 0.018, max: 0.953172 ) GB/s
+    pwritev 1 GiB into a preallocated file in  1 MiB chunks (x128): ( min: 1.10079, 1.112 +- 0.009, max: 1.12899 ) GB/s
+    pwritev 1 GiB into a preallocated file in  8 MiB chunks (x128): ( min: 3.85995, 4.04 +- 0.15, max: 4.30816 ) GB/s
 
 ## Parallel Writing
 
-    Use pwrite to write 1 GiB into a preallocated file using  1 threads: ( min: 2.83056, 3.07 +- 0.28, max: 3.60487 ) GB/s
-    Use pwrite to write 1 GiB into a preallocated file using  2 threads: ( min: 2.53705, 3.1 +- 0.4, max: 3.54489 ) GB/s
-    Use pwrite to write 1 GiB into a preallocated file using  4 threads: ( min: 2.4922, 2.56 +- 0.06, max: 2.69231 ) GB/s
-    Use pwrite to write 1 GiB into a preallocated file using  8 threads: ( min: 2.53869, 2.57 +- 0.03, max: 2.65272 ) GB/s
-    Use pwrite to write 1 GiB into a preallocated file using 16 threads: ( min: 2.54429, 2.569 +- 0.021, max: 2.61292 ) GB/s
+    Use pwrite to write 1 GiB into a preallocated file using  1 threads: ( min: 4.02534, 4.08 +- 0.03, max: 4.12826 ) GB/s
+    Use pwrite to write 1 GiB into a preallocated file using  2 threads: ( min: 4.00493, 4.036 +- 0.029, max: 4.09371 ) GB/s
+    Use pwrite to write 1 GiB into a preallocated file using  4 threads: ( min: 3.97288, 4.03 +- 0.03, max: 4.09641 ) GB/s
+    Use pwrite to write 1 GiB into a preallocated file using  8 threads: ( min: 3.80692, 3.89 +- 0.05, max: 3.95614 ) GB/s
+    Use pwrite to write 1 GiB into a preallocated file using 16 threads: ( min: 3.75379, 3.80 +- 0.03, max: 3.85273 ) GB/s
+
+    Write 1 GiB into one file per thread using  1 threads: ( min: 4.00261, 4.06 +- 0.05, max: 4.16567 ) GB/s
+    Write 1 GiB into one file per thread using  2 threads: ( min: 6.33716, 6.359 +- 0.012, max: 6.37835 ) GB/s
+    Write 1 GiB into one file per thread using  4 threads: ( min: 7.2908, 7.43 +- 0.16, max: 7.79702 ) GB/s
+    Write 1 GiB into one file per thread using  8 threads: ( min: 7.56552, 7.89 +- 0.24, max: 8.39708 ) GB/s
+    Write 1 GiB into one file per thread using 16 threads: ( min: 7.60629, 8.5 +- 0.5, max: 9.09968 ) GB/s
 
 ## Simple Writing
 
-    fwrite 1 GiB into a preallocated file in   1 KiB chunks: ( min: 0.888493, 0.908 +- 0.015, max: 0.933492 ) GB/s
-    fwrite 1 GiB into a preallocated file in   4 KiB chunks: ( min: 0.893643, 0.912 +- 0.015, max: 0.940932 ) GB/s
-    fwrite 1 GiB into a preallocated file in   8 KiB chunks: ( min: 0.903871, 0.919 +- 0.014, max: 0.946394 ) GB/s
-    fwrite 1 GiB into a preallocated file in  16 KiB chunks: ( min: 0.909451, 0.919 +- 0.008, max: 0.939767 ) GB/s
-    fwrite 1 GiB into a preallocated file in  64 KiB chunks: ( min: 0.937498, 0.950 +- 0.013, max: 0.972367 ) GB/s
-    fwrite 1 GiB into a preallocated file in   1 MiB chunks: ( min: 1.14851, 1.167 +- 0.016, max: 1.19358 ) GB/s
-    fwrite 1 GiB into a preallocated file in  16 MiB chunks: ( min: 2.55985, 2.582 +- 0.027, max: 2.65059 ) GB/s
-    fwrite 1 GiB into a preallocated file in  64 MiB chunks: ( min: 2.47065, 2.494 +- 0.019, max: 2.5239 ) GB/s
-    fwrite 1 GiB into a preallocated file in 512 MiB chunks: ( min: 2.46581, 2.500 +- 0.024, max: 2.54285 ) GB/s
-    fwrite 1 GiB into a preallocated file in   1 GiB chunks: ( min: 2.47628, 2.504 +- 0.021, max: 2.53725 ) GB/s
+    fwrite 1 GiB into a preallocated file in   1 KiB chunks: ( min: 0.807894, 0.829 +- 0.020, max: 0.873587 ) GB/s
+    fwrite 1 GiB into a preallocated file in   4 KiB chunks: ( min: 0.811063, 0.843 +- 0.023, max: 0.873997 ) GB/s
+    fwrite 1 GiB into a preallocated file in   8 KiB chunks: ( min: 0.829535, 0.837 +- 0.008, max: 0.854742 ) GB/s
+    fwrite 1 GiB into a preallocated file in  16 KiB chunks: ( min: 0.831927, 0.854 +- 0.018, max: 0.882209 ) GB/s
+    fwrite 1 GiB into a preallocated file in  64 KiB chunks: ( min: 0.859434, 0.878 +- 0.020, max: 0.919148 ) GB/s
+    fwrite 1 GiB into a preallocated file in   1 MiB chunks: ( min: 0.961051, 0.99 +- 0.03, max: 1.07145 ) GB/s
+    fwrite 1 GiB into a preallocated file in  16 MiB chunks: ( min: 3.77673, 3.86 +- 0.08, max: 3.98746 ) GB/s
+    fwrite 1 GiB into a preallocated file in  64 MiB chunks: ( min: 3.73478, 3.81 +- 0.04, max: 3.85521 ) GB/s
+    fwrite 1 GiB into a preallocated file in 512 MiB chunks: ( min: 3.82259, 3.853 +- 0.019, max: 3.88234 ) GB/s
+    fwrite 1 GiB into a preallocated file in   1 GiB chunks: ( min: 3.8017, 3.850 +- 0.023, max: 3.87372 ) GB/s
 
-    write 1 GiB into a preallocated file in   1 KiB chunks: ( min: 0.775414, 0.790 +- 0.010, max: 0.809114 ) GB/s
-    write 1 GiB into a preallocated file in   4 KiB chunks: ( min: 0.756211, 0.87 +- 0.04, max: 0.89023 ) GB/s
-    write 1 GiB into a preallocated file in   8 KiB chunks: ( min: 0.908212, 0.917 +- 0.008, max: 0.932833 ) GB/s
-    write 1 GiB into a preallocated file in  16 KiB chunks: ( min: 0.920943, 0.933 +- 0.006, max: 0.940773 ) GB/s
-    write 1 GiB into a preallocated file in  64 KiB chunks: ( min: 0.932192, 0.940 +- 0.008, max: 0.959429 ) GB/s
-    write 1 GiB into a preallocated file in   1 MiB chunks: ( min: 1.31291, 1.35 +- 0.03, max: 1.40333 ) GB/s
-    write 1 GiB into a preallocated file in  16 MiB chunks: ( min: 2.60759, 2.644 +- 0.022, max: 2.66762 ) GB/s
-    write 1 GiB into a preallocated file in  64 MiB chunks: ( min: 2.43503, 2.51 +- 0.04, max: 2.55861 ) GB/s
-    write 1 GiB into a preallocated file in 512 MiB chunks: ( min: 2.48915, 2.506 +- 0.019, max: 2.55414 ) GB/s
-    write 1 GiB into a preallocated file in   1 GiB chunks: ( min: 2.48632, 2.504 +- 0.012, max: 2.51832 ) GB/s
+    write 1 GiB into a preallocated file in   1 KiB chunks: ( min: 0.69873, 0.725 +- 0.022, max: 0.76552 ) GB/s
+    write 1 GiB into a preallocated file in   4 KiB chunks: ( min: 0.810461, 0.840 +- 0.026, max: 0.894136 ) GB/s
+    write 1 GiB into a preallocated file in   8 KiB chunks: ( min: 0.838849, 0.859 +- 0.014, max: 0.889932 ) GB/s
+    write 1 GiB into a preallocated file in  16 KiB chunks: ( min: 0.86169, 0.888 +- 0.016, max: 0.907881 ) GB/s
+    write 1 GiB into a preallocated file in  64 KiB chunks: ( min: 0.864693, 0.889 +- 0.019, max: 0.925301 ) GB/s
+    write 1 GiB into a preallocated file in   1 MiB chunks: ( min: 1.1064, 1.133 +- 0.025, max: 1.16981 ) GB/s
+    write 1 GiB into a preallocated file in  16 MiB chunks: ( min: 3.91542, 4.01 +- 0.06, max: 4.08769 ) GB/s
+    write 1 GiB into a preallocated file in  64 MiB chunks: ( min: 3.84064, 3.861 +- 0.016, max: 3.88712 ) GB/s
+    write 1 GiB into a preallocated file in 512 MiB chunks: ( min: 3.80108, 3.853 +- 0.029, max: 3.90841 ) GB/s
+    write 1 GiB into a preallocated file in   1 GiB chunks: ( min: 3.81588, 3.859 +- 0.024, max: 3.89494 ) GB/s

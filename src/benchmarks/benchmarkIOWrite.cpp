@@ -160,7 +160,7 @@ benchmarkFileCreation( const std::string& filePath,
                        const Functor&     createFile,
                        const std::string& name )
 {
-    for ( const auto size : { 512_Mi, 1_Gi, 2_Gi, 4_Gi } ) {
+    for ( const auto size : { 128_Mi, 512_Mi, 1_Gi, 2_Gi, 4_Gi } ) {
         const auto times = repeatBenchmarks( [&filePath, size, &createFile, &name] {
             if ( fileExists( filePath ) ) {
                 std::filesystem::remove( filePath );
@@ -177,7 +177,13 @@ benchmarkFileCreation( const std::string& filePath,
             return duration( t0 );
         }, REPEAT_COUNT );
 
-        std::cout << name << " file sized " << formatBytes( size ) << ": " << formatBandwidth( times, size ) << "\n";
+        std::cout << "    " << name << " file sized " << formatBytes( size ) << ": " << formatBandwidth( times, size )
+                  << "\n";
+
+        if ( times.back() > 1 /* second */ ) {
+            /* 1s for 128 MiB would be ~134 MB/s */
+            break;
+        }
     }
 
     std::cout << std::endl;
@@ -250,7 +256,7 @@ benchmarkFwrite( const std::string&       filePath,
             REPEAT_COUNT );
 
         checkFileSize( filePath, data.size() );
-        std::cout << "fwrite " << formatBytes( data.size() ) << " into " << toStringFile( fileInitialization )
+        std::cout << "    fwrite " << formatBytes( data.size() ) << " into " << toStringFile( fileInitialization )
                   << " in " << std::setw( 7 ) << formatBytes( chunkSize )
                   << " chunks: " << formatBandwidth( times, data.size() ) << "\n";
     }
@@ -294,7 +300,7 @@ benchmarkWrite( const std::string&       filePath,
             REPEAT_COUNT );
 
         checkFileSize( filePath, data.size() );
-        std::cout << "write " << formatBytes( data.size() ) << " into " << toStringFile( fileInitialization )
+        std::cout << "    write " << formatBytes( data.size() ) << " into " << toStringFile( fileInitialization )
                   << " in " << std::setw( 7 ) << formatBytes( chunkSize ) << " chunks: "
                   << formatBandwidth( times, data.size() ) << "\n";
     }
@@ -365,7 +371,7 @@ benchmarkWritev( const std::string&       filePath,
             REPEAT_COUNT );
 
         checkFileSize( filePath, data.size() );
-        std::cout << "writev " << formatBytes( data.size() ) << " into " << toStringFile( fileInitialization )
+        std::cout << "    writev " << formatBytes( data.size() ) << " into " << toStringFile( fileInitialization )
                   << " in " << std::setw( 6 ) << formatBytes( chunkSize ) << " chunks (x" << chunkCount << "): "
                   << formatBandwidth( times, data.size() ) << "\n";
     }
@@ -399,7 +405,7 @@ benchmarkPwritev( const std::string&       filePath,
             REPEAT_COUNT );
 
         checkFileSize( filePath, data.size() );
-        std::cout << "pwritev " << formatBytes( data.size() ) << " into " << toStringFile( fileInitialization )
+        std::cout << "    pwritev " << formatBytes( data.size() ) << " into " << toStringFile( fileInitialization )
                   << " in " << std::setw( 6 ) << formatBytes( chunkSize ) << " chunks (x" << chunkCount << "): "
                   << formatBandwidth( times, data.size() ) << "\n";
     }
@@ -486,7 +492,7 @@ benchmarkMmapWrite( const std::string& filePath )
 
     const auto times = repeatBenchmarks( [&] () { return benchmarkMmapWrite( filePath, data ); }, REPEAT_COUNT );
     checkFileSize( filePath, data.size() );
-    std::cout << "ftruncate + mmap write " << formatBytes( data.size() ) << ": "
+    std::cout << "    ftruncate + mmap write " << formatBytes( data.size() ) << ": "
               << formatBandwidth( times, data.size() ) << "\n";
 }
 
@@ -552,7 +558,7 @@ benchmarkMmapWriteParallel( const std::string& filePath )
             REPEAT_COUNT );
 
         checkFileSize( filePath, data.size() );
-        std::cout << "ftruncate + mmap write " << formatBytes( data.size() ) << " using "
+        std::cout << "    ftruncate + mmap write " << formatBytes( data.size() ) << " using "
                   << std::setw( 2 ) << threadCount
                   << " threads: " << formatBandwidth( times, data.size() ) << "\n";
     }
@@ -572,7 +578,7 @@ benchmarkMmapWriteParallelMaps( const std::string& filePath )
             REPEAT_COUNT );
 
         checkFileSize( filePath, data.size() );
-        std::cout << "ftruncate + mmap write " << formatBytes( data.size() ) << " using "
+        std::cout << "    ftruncate + mmap write " << formatBytes( data.size() ) << " using "
                   << std::setw( 2 ) << threadCount
                   << " threads and maps: " << formatBandwidth( times, data.size() ) << "\n";
     }
@@ -593,7 +599,7 @@ benchmarkMmapWriteParallelMapsAndFds( const std::string& filePath )
             REPEAT_COUNT );
 
         checkFileSize( filePath, data.size() );
-        std::cout << "ftruncate + mmap write " << formatBytes( data.size() ) << " using "
+        std::cout << "    ftruncate + mmap write " << formatBytes( data.size() ) << " using "
                   << std::setw( 2 ) << threadCount
                   << " threads and maps and fds: " << formatBandwidth( times, data.size() ) << "\n";
     }
@@ -649,7 +655,7 @@ benchmarkPwriteParallel( const std::string&       filePath,
             REPEAT_COUNT );
         checkFileSize( filePath, data.size() );
 
-        std::cout << "Use pwrite to write " << formatBytes( data.size() ) << " into "
+        std::cout << "    Use pwrite to write " << formatBytes( data.size() ) << " into "
                   << toStringFile( fileInitialization ) << " using " << std::setw( 2 ) << threadCount << " threads: "
                   << formatBandwidth( times, data.size() ) << "\n";
     }
@@ -718,7 +724,7 @@ benchmarkWriteParallelFiles( const std::string& filePath,
             }
         }
 
-        std::cout << "Write " << formatBytes( data.size() ) << " into one file per thread using "
+        std::cout << "    Write " << formatBytes( data.size() ) << " into one file per thread using "
                   << std::setw( 2 ) << threadCount << " threads: "
                   << formatBandwidth( times, data.size() ) << "\n";
     }
