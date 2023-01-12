@@ -194,23 +194,9 @@ public:
     }
 
     [[nodiscard]] size_t
-    dataCapacity() const noexcept
-    {
-        const auto addSize = [] ( const size_t size, const auto& container ) { return size + container.capacity(); };
-        return std::accumulate( data.begin(), data.end(), size_t( 0 ), addSize );
-    }
-
-    [[nodiscard]] size_t
     dataWithMarkersSize() const noexcept
     {
         const auto addSize = [] ( const size_t size, const auto& container ) { return size + container.size(); };
-        return std::accumulate( dataWithMarkers.begin(), dataWithMarkers.end(), size_t( 0 ), addSize );
-    }
-
-    [[nodiscard]] size_t
-    dataWithMarkersCapacity() const noexcept
-    {
-        const auto addSize = [] ( const size_t size, const auto& container ) { return size + container.capacity(); };
         return std::accumulate( dataWithMarkers.begin(), dataWithMarkers.end(), size_t( 0 ), addSize );
     }
 
@@ -224,12 +210,6 @@ public:
     sizeInBytes() const noexcept
     {
         return dataSize() * sizeof( uint8_t ) + dataWithMarkersSize() * sizeof( uint16_t );
-    }
-
-    [[nodiscard]] size_t
-    capacityInBytes() const noexcept
-    {
-        return dataCapacity() * sizeof( uint8_t ) + dataWithMarkersCapacity() * sizeof( uint16_t );
     }
 
     void
