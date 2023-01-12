@@ -88,6 +88,18 @@ ceilDiv( I1 dividend,
 }
 
 
+/**
+ * Absolute difference function that also works for unsigned types for which std::abs(a-b) wouldn't work.
+ */
+template<typename T, typename V>
+[[nodiscard]] T
+absDiff( const T& a,
+         const V& b )
+{
+    return a < b ? b - a : a - b;
+}
+
+
 template<typename S, typename T>
 std::ostream&
 operator<<( std::ostream&   out,
