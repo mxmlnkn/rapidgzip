@@ -82,12 +82,11 @@ public:
     }
 
 public:
-    size_t encodedOffsetInBits{ std::numeric_limits<size_t>::max() };
     /* This should only be evaluated when it is unequal std::numeric_limits<size_t>::max() and unequal
-     * encodedOffsetInBits. Then, [encodedOffsetInBits, maxEncodedOffsetInBits] specifies a valid range for the
-     * block offset. Such a range might happen for finding uncompressed deflate blocks because of the byte-padding. */
+     * Base::encodedOffsetInBits. Then, [Base::encodedOffsetInBits, maxEncodedOffsetInBits] specifies a valid range
+     * for the block offset. Such a range might happen for finding uncompressed deflate blocks because of the
+     * byte-padding. */
     size_t maxEncodedOffsetInBits{ std::numeric_limits<size_t>::max() };
-    size_t encodedSizeInBits{ 0 };
 
     /* Benchmark results */
     double blockFinderDuration{ 0 };
