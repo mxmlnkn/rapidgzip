@@ -87,10 +87,240 @@ testIterator()
 }
 
 
+template<typename T>
+[[nodiscard]] std::vector<T>
+createVector( const std::vector<std::pair<size_t, T> >& ranges )
+{
+    std::vector<T> result;
+    for ( const auto& [size, symbol] : ranges ) {
+        result.resize( result.size() + size, symbol );
+    }
+    return result;
+}
+
+
+template<typename T>
+[[nodiscard]] std::vector<T>
+resizeRight( const std::vector<T>& container,
+             size_t                size,
+             T                     fill )
+{
+    std::vector<T> result( size, fill );
+    if ( container.size() >= size ) {
+        std::copy( container.begin() + ( container.size() - size ), container.end(), result.begin() );
+    } else {
+        std::copy( container.begin(), container.end(), result.begin() + ( size - container.size() ) );
+    }
+    return result;
+}
+
+
+void
+testGetWindow()
+{
+    /* getLastWindow( window ) should be identical to getWindowAt( window, decodedData.size() ).
+     * getWindowAt( window, 0 ) == window(truncated to MAX_WINDOW_SIZE) should always hold. */
+
+    using namespace pragzip::deflate;
+
+    /* dataWithMarkers.size() == 0 */
+    {
+        DecodedData decodedData;
+        decodedData.data.emplace_back();
+
+        /* data.size() == MAX_WINDOW_SIZE */
+        {
+            decodedData.data.back().resize( MAX_WINDOW_SIZE, 3 );
+            const std::vector<uint8_t> window( MAX_WINDOW_SIZE, 1 );
+            const std::vector<uint8_t> expected( MAX_WINDOW_SIZE, 3 );
+
+            REQUIRE( decodedData.getLastWindow( {} ) == expected );
+            REQUIRE( decodedData.getLastWindow( window ) == expected );
+
+            REQUIRE( decodedData.getWindowAt( {}, decodedData.size() ) == expected );
+            REQUIRE( decodedData.getWindowAt( window, decodedData.size() ) == expected );
+            REQUIRE( decodedData.getWindowAt( window, 0 ) == resizeRight<uint8_t>( window, MAX_WINDOW_SIZE, 0 ) );
+        }
+
+        /* data.size() > MAX_WINDOW_SIZE */
+        {
+            decodedData.data.back().resize( MAX_WINDOW_SIZE + 10000, 3 );
+            const std::vector<uint8_t> window( MAX_WINDOW_SIZE, 1 );
+            const std::vector<uint8_t> expected( MAX_WINDOW_SIZE, 3 );
+
+            REQUIRE( decodedData.getLastWindow( {} ) == expected );
+            REQUIRE( decodedData.getLastWindow( window ) == expected );
+
+            REQUIRE( decodedData.getWindowAt( {}, decodedData.size() ) == expected );
+            REQUIRE( decodedData.getWindowAt( window, decodedData.size() ) == expected );
+            REQUIRE( decodedData.getWindowAt( window, 0 ) == resizeRight<uint8_t>( window, MAX_WINDOW_SIZE, 0 ) );
+        }
+
+        /* data.size() < MAX_WINDOW_SIZE */
+        {
+            decodedData.data.back().resize( 100, 3 );
+
+            /* window.size() == 0 */
+            {
+                const std::vector<uint8_t> window;
+                const auto expected = createVector<uint8_t>( { { MAX_WINDOW_SIZE - 100, 0 }, { 100, 3 } } );
+
+                REQUIRE( decodedData.getLastWindow( window ) == expected );
+                REQUIRE( decodedData.getWindowAt( window, decodedData.size() ) == expected );
+                REQUIRE( decodedData.getWindowAt( window, 0 ) == resizeRight<uint8_t>( window, MAX_WINDOW_SIZE, 0 ) );
+            }
+
+            /* window.size() < MAX_WINDOW_SIZE - data.size() */
+            {
+                const std::vector<uint8_t> window( 200, 1 );
+                const auto expected = createVector<uint8_t>( { { MAX_WINDOW_SIZE - 300, 0 }, { 200, 1 }, { 100, 3 } } );
+
+                REQUIRE( decodedData.getLastWindow( window ) == expected );
+                REQUIRE( decodedData.getWindowAt( window, decodedData.size() ) == expected );
+                REQUIRE( decodedData.getWindowAt( window, 0 ) == resizeRight<uint8_t>( window, MAX_WINDOW_SIZE, 0 ) );
+            }
+
+            /* window.size() < MAX_WINDOW_SIZE */
+            {
+                const std::vector<uint8_t> window( MAX_WINDOW_SIZE - 100, 1 );
+                const auto expected = createVector<uint8_t>( { { MAX_WINDOW_SIZE - 100, 1 }, { 100, 3 } } );
+
+                REQUIRE( decodedData.getLastWindow( window ) == expected );
+                REQUIRE( decodedData.getWindowAt( window, decodedData.size() ) == expected );
+                REQUIRE( decodedData.getWindowAt( window, 0 ) == resizeRight<uint8_t>( window, MAX_WINDOW_SIZE, 0 ) );
+            }
+
+            /* window.size() == MAX_WINDOW_SIZE */
+            {
+                const std::vector<uint8_t> window( MAX_WINDOW_SIZE, 1 );
+                const auto expected = createVector<uint8_t>( { { MAX_WINDOW_SIZE - 100, 1 }, { 100, 3 } } );
+
+                REQUIRE( decodedData.getLastWindow( window ) == expected );
+                REQUIRE( decodedData.getWindowAt( window, decodedData.size() ) == expected );
+                REQUIRE( decodedData.getWindowAt( window, 0 ) == resizeRight<uint8_t>( window, MAX_WINDOW_SIZE, 0 ) );
+            }
+
+
+            /* window.size() > MAX_WINDOW_SIZE */
+            {
+                const std::vector<uint8_t> window( MAX_WINDOW_SIZE + 1000, 1 );
+                const auto expected = createVector<uint8_t>( { { MAX_WINDOW_SIZE - 100, 1 }, { 100, 3 } } );
+
+                REQUIRE( decodedData.getLastWindow( window ) == expected );
+                REQUIRE( decodedData.getWindowAt( window, decodedData.size() ) == expected );
+                REQUIRE( decodedData.getWindowAt( window, 0 ) == resizeRight<uint8_t>( window, MAX_WINDOW_SIZE, 0 ) );
+            }
+        }
+    }
+
+    /* dataWithMarkers.size() > 0 */
+    {
+        DecodedData decodedData;
+        decodedData.data.emplace_back();
+        decodedData.dataWithMarkers.emplace_back();
+        decodedData.dataWithMarkers.back().resize( 300, 5 );
+
+        /* data.size() == MAX_WINDOW_SIZE */
+        {
+            decodedData.data.back().resize( MAX_WINDOW_SIZE, 3 );
+            const std::vector<uint8_t> window( MAX_WINDOW_SIZE, 1 );
+            const std::vector<uint8_t> expected( MAX_WINDOW_SIZE, 3 );
+
+            REQUIRE( decodedData.getLastWindow( {} ) == expected );
+            REQUIRE( decodedData.getLastWindow( window ) == expected );
+
+            REQUIRE( decodedData.getWindowAt( window, decodedData.size() ) == expected );
+            REQUIRE( decodedData.getWindowAt( window, decodedData.size() ) == expected );
+            REQUIRE( decodedData.getWindowAt( window, 0 ) == resizeRight<uint8_t>( window, MAX_WINDOW_SIZE, 0 ) );
+        }
+
+        /* data.size() > MAX_WINDOW_SIZE */
+        {
+            decodedData.data.back().resize( MAX_WINDOW_SIZE + 10000, 3 );
+            const std::vector<uint8_t> window( MAX_WINDOW_SIZE, 1 );
+            const std::vector<uint8_t> expected( MAX_WINDOW_SIZE, 3 );
+
+            REQUIRE( decodedData.getLastWindow( {} ) == expected );
+            REQUIRE( decodedData.getLastWindow( window ) == expected );
+
+            REQUIRE( decodedData.getWindowAt( {}, decodedData.size() ) == expected );
+            REQUIRE( decodedData.getWindowAt( window, decodedData.size() ) == expected );
+            REQUIRE( decodedData.getWindowAt( window, 0 ) == resizeRight<uint8_t>( window, MAX_WINDOW_SIZE, 0 ) );
+        }
+
+        /* MAX_WINDOW_SIZE - dataWithMarkers.size() <= data.size() < MAX_WINDOW_SIZE */
+
+        /* data.size() + dataWithMarkers.size() < MAX_WINDOW_SIZE */
+        {
+            decodedData.data.back().resize( 100, 3 );
+
+            /* window.size() == 0 */
+            {
+                const std::vector<uint8_t> window;
+                const auto expected = createVector<uint8_t>( { { MAX_WINDOW_SIZE - 400, 0 }, { 300, 5 }, { 100, 3 } } );
+
+                REQUIRE( decodedData.getLastWindow( window ) == expected );
+                REQUIRE( decodedData.getWindowAt( window, decodedData.size() ) == expected );
+                REQUIRE( decodedData.getWindowAt( window, 0 ) == resizeRight<uint8_t>( window, MAX_WINDOW_SIZE, 0 ) );
+            }
+
+            /* window.size() < MAX_WINDOW_SIZE - data.size() */
+            {
+                const std::vector<uint8_t> window( 200, 1 );
+                const auto expected = createVector<uint8_t>( { { MAX_WINDOW_SIZE - 600, 0 },
+                                                               { 200, 1 }, { 300, 5 }, { 100, 3 } } );
+
+                REQUIRE( decodedData.getLastWindow( window ) == expected );
+                REQUIRE( decodedData.getWindowAt( window, decodedData.size() ) == expected );
+                REQUIRE( decodedData.getWindowAt( window, 0 ) == resizeRight<uint8_t>( window, MAX_WINDOW_SIZE, 0 ) );
+            }
+
+            /* window.size() < MAX_WINDOW_SIZE */
+            {
+                const std::vector<uint8_t> window( MAX_WINDOW_SIZE - 100, 1 );
+                const auto expected = createVector<uint8_t>( { { MAX_WINDOW_SIZE - 400, 1 }, { 300, 5 }, { 100, 3 } } );
+
+                REQUIRE( decodedData.getLastWindow( window ) == expected );
+                REQUIRE( decodedData.getWindowAt( window, decodedData.size() ) == expected );
+                REQUIRE( decodedData.getWindowAt( window, 0 ) == resizeRight<uint8_t>( window, MAX_WINDOW_SIZE, 0 ) );
+            }
+
+            /* window.size() == MAX_WINDOW_SIZE */
+            {
+                const std::vector<uint8_t> window( MAX_WINDOW_SIZE, 1 );
+                const auto expected = createVector<uint8_t>( { { MAX_WINDOW_SIZE - 400, 1 }, { 300, 5 }, { 100, 3 } } );
+
+                REQUIRE( decodedData.getLastWindow( window ) == expected );
+                REQUIRE( decodedData.getWindowAt( window, decodedData.size() ) == expected );
+                REQUIRE( decodedData.getWindowAt( window, 0 ) == resizeRight<uint8_t>( window, MAX_WINDOW_SIZE, 0 ) );
+            }
+
+            /* window.size() > MAX_WINDOW_SIZE */
+            {
+                const std::vector<uint8_t> window( MAX_WINDOW_SIZE + 1000, 1 );
+                const auto expected = createVector<uint8_t>( { { MAX_WINDOW_SIZE - 400, 1 }, { 300, 5 }, { 100, 3 } } );
+
+                REQUIRE( decodedData.getLastWindow( window ) == expected );
+                REQUIRE( decodedData.getWindowAt( window, decodedData.size() ) == expected );
+                REQUIRE( decodedData.getWindowAt( window, 0 ) == resizeRight<uint8_t>( window, MAX_WINDOW_SIZE, 0 ) );
+
+                REQUIRE( decodedData.getWindowAt( window, 50 )
+                         == createVector<uint8_t>( { { MAX_WINDOW_SIZE - 50, 1 }, { 50, 5 } } ) );
+                REQUIRE( decodedData.getWindowAt( window, 300 )
+                         == createVector<uint8_t>( { { MAX_WINDOW_SIZE - 300, 1 }, { 300, 5 } } ) );
+                REQUIRE( decodedData.getWindowAt( window, 301 )
+                         == createVector<uint8_t>( { { MAX_WINDOW_SIZE - 301, 1 }, { 300, 5 }, { 1, 3 } } ) );
+            }
+        }
+    }
+}
+
+
 int
 main()
 {
     testIterator();
+    testGetWindow();
 
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
 

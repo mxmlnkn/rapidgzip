@@ -224,6 +224,16 @@ public:
     [[nodiscard]] std::vector<std::uint8_t>
     getLastWindow( WindowView const& previousWindow ) const;
 
+    /**
+     * @param skipBytes The number of bits to shift the previous window and fill it with new data.
+     *        A value of 0 would simply return @p previousWindow while a value equal to size() would return
+     *        the window as it would be after this whole block.
+     * @note Should only be called after @ref applyWindow because @p skipBytes larger than @ref dataSize will throw.
+     */
+    [[nodiscard]] std::vector<std::uint8_t>
+    getWindowAt( WindowView const& previousWindow,
+                 size_t            skipBytes ) const;
+
     void
     shrinkToFit()
     {
@@ -386,6 +396,96 @@ DecodedData::getLastWindow( WindowView const& previousWindow ) const
                    std::reverse_iterator( previousWindow.end() )
                    + std::min( remainingBytes, previousWindow.size() ),
                    window.rbegin() + nBytesWritten );
+    }
+
+    return window;
+}
+
+
+[[nodiscard]] inline std::vector<std::uint8_t>
+DecodedData::getWindowAt( WindowView const& previousWindow,
+                          size_t const      skipBytes) const
+{
+    if ( skipBytes > size() ) {
+        throw std::invalid_argument( "Amount of bytes to skip is larger than this block!" );
+    }
+
+    std::vector<std::uint8_t> window( MAX_WINDOW_SIZE );
+    size_t prefilled{ 0 };
+    if ( skipBytes < MAX_WINDOW_SIZE ) {
+        const auto lastBytesToCopyFromPrevious = MAX_WINDOW_SIZE - skipBytes;
+        if ( lastBytesToCopyFromPrevious <= previousWindow.size() ) {
+            for ( size_t j = previousWindow.size() - lastBytesToCopyFromPrevious; j < previousWindow.size();
+                  ++j, ++prefilled )
+            {
+                window[prefilled] = previousWindow[j];
+            }
+            // prefilled = lastBytesToCopyFromPrevious = MAX_WINDOW_SIZE - skipBytes
+        } else {
+            /* If previousWindow.size() < MAX_WINDOW_SIZE, which might happen at the start of streams,
+             * then behave as if previousWindow was padded with leading zeros. */
+            const auto zerosToFill = lastBytesToCopyFromPrevious - previousWindow.size();
+            for ( ; prefilled < zerosToFill; ++prefilled ) {
+                window[prefilled] = 0;
+            }
+
+            for ( size_t j = 0; j < previousWindow.size(); ++j, ++prefilled ) {
+                window[prefilled] = previousWindow[j];
+            }
+            // prefilled = lastBytesToCopyFromPrevious - previousWindow.size() + previousWindow.size()
+        }
+        assert( prefilled == MAX_WINDOW_SIZE - skipBytes );
+    }
+
+    const auto remainingBytes = window.size() - prefilled;
+
+    /* Skip over skipBytes in data and then copy the last remainingBytes before it. */
+    auto offset = skipBytes - remainingBytes;
+    /* if skipBytes < MAX_WINDOW_SIZE
+     *     offset = skipBytes - ( window.size() - ( MAX_WINDOW_SIZE - skipBytes ) ) = 0
+     * if skipBytes >= MAX_WINDOW_SIZE
+     *     offset = skipBytes - ( window.size() - 0 ) */
+
+    const auto copyFromDataWithMarkers =
+        [this, &offset, &prefilled, &window] ( const auto& mapMarker )
+        {
+            for ( auto& chunk : dataWithMarkers ) {
+                if ( prefilled >= window.size() ) {
+                    break;
+                }
+
+                if ( offset >= chunk.size() ) {
+                    offset -= chunk.size();
+                    continue;
+                }
+
+                for ( size_t i = offset; ( i < chunk.size() ) && ( prefilled < window.size() ); ++i, ++prefilled ) {
+                    window[prefilled] = mapMarker( chunk[i] );
+                }
+                offset = 0;
+            }
+        };
+
+    if ( window.size() >= MAX_WINDOW_SIZE ) {
+        copyFromDataWithMarkers( MapMarkers</* full window */ true>( previousWindow ) );
+    } else {
+        copyFromDataWithMarkers( MapMarkers</* full window */ false>( previousWindow ) );
+    }
+
+    for ( auto& chunk : data ) {
+        if ( prefilled >= window.size() ) {
+            break;
+        }
+
+        if ( offset >= chunk.size() ) {
+            offset -= chunk.size();
+            continue;
+        }
+
+        for ( size_t i = offset; ( i < chunk.size() ) && ( prefilled < window.size() ); ++i, ++prefilled ) {
+            window[prefilled] = chunk[i];
+        }
+        offset = 0;
     }
 
     return window;
