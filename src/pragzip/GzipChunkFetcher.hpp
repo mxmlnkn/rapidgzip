@@ -300,8 +300,7 @@ public:
                 m_decodeTime += blockData->decodeDuration;
             }
 
-            const auto nextWindow = blockData->getLastWindow( *lastWindow );
-            m_windowMap->emplace( blockOffsetAfterNext, { nextWindow.begin(), nextWindow.end() } );
+            m_windowMap->emplace( blockOffsetAfterNext, blockData->getLastWindow( *lastWindow ) );
         }
 
         return std::make_pair( blockInfo, blockData );

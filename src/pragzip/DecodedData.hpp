@@ -241,7 +241,7 @@ public:
      * with the next block. Because this is not supposed to be called very often, it returns a copy of
      * the data instead of views.
      */
-    [[nodiscard]] std::array<std::uint8_t, MAX_WINDOW_SIZE>
+    [[nodiscard]] std::vector<std::uint8_t>
     getLastWindow( WindowView const& previousWindow ) const;
 
     void
@@ -363,14 +363,10 @@ DecodedData::applyWindow( WindowView const& window )
 }
 
 
-[[nodiscard]] inline std::array<std::uint8_t, MAX_WINDOW_SIZE>
+[[nodiscard]] inline std::vector<std::uint8_t>
 DecodedData::getLastWindow( WindowView const& previousWindow ) const
 {
-    if ( dataWithMarkersSize() > 0 ) {
-        throw std::invalid_argument( "No valid window available. Please call applyWindow first!" );
-    }
-
-    std::array<std::uint8_t, MAX_WINDOW_SIZE> window{};
+    std::vector<std::uint8_t> window( MAX_WINDOW_SIZE, 0 );
     size_t nBytesWritten{ 0 };
 
     /* Fill the result from the back with data from our buffer. */
@@ -380,6 +376,27 @@ DecodedData::getLastWindow( WindowView const& previousWindow ) const
         {
             window[window.size() - 1 - nBytesWritten] = *symbol;
         }
+    }
+
+    /* Fill the result from the back with data from our unresolved buffers. */
+    const auto copyFromDataWithMarkers =
+        [this, &window, &nBytesWritten] ( const auto& mapMarker )
+        {
+            for ( auto chunk = dataWithMarkers.rbegin();
+                  ( chunk != dataWithMarkers.rend() ) && ( nBytesWritten < window.size() ); ++chunk )
+            {
+                for ( auto symbol = chunk->rbegin(); ( symbol != chunk->rend() ) && ( nBytesWritten < window.size() );
+                      ++symbol, ++nBytesWritten )
+                {
+                    window[window.size() - 1 - nBytesWritten] = mapMarker( *symbol );
+                }
+            }
+        };
+
+    if ( window.size() >= MAX_WINDOW_SIZE ) {
+        copyFromDataWithMarkers( MapMarkers</* full window */ true>( previousWindow ) );
+    } else {
+        copyFromDataWithMarkers( MapMarkers</* full window */ false>( previousWindow ) );
     }
 
     /* Fill the remaining part with the given window. This should only happen for very small DecodedData sizes. */
