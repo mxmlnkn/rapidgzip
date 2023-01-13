@@ -2,7 +2,6 @@
  * @file While the other benchmarks test varying situations and parameters for single components,
  *       this file is a collection of benchmarks for selected (best) versions for each component
  *       to get an overview of the current state of pragzip.
- * @todo Write full statistics to file for plotting.
  */
 
 #include <cstdlib>
@@ -25,7 +24,7 @@
 #include <TestHelpers.hpp>
 
 
-constexpr size_t REPEAT_COUNT{ 200 };
+constexpr size_t REPEAT_COUNT{ 100 };
 
 
 [[nodiscard]] size_t
@@ -933,9 +932,57 @@ benchmarkApplyWindow()
 }
 
 
+[[nodiscard]] std::pair<double, uint64_t>
+benchmarkWrite( const std::string&       filePath,
+                const std::vector<char>& data,
+                const size_t             chunkSize )
+{
+    /* ftruncate( fd, 0 ) is not sufficient!!! At least not without closing and reopening the file it seems!
+     * It will still yield the same results as a preallocated file! */
+    if ( fileExists( filePath ) ) {
+        std::filesystem::remove( filePath );
+    }
+    unique_file_descriptor ufd( ::open( filePath.c_str(), O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR ) );
+
+    const auto t0 = now();
+    uint64_t sum{ 0 };
+    for ( size_t i = 0; i < data.size(); i += chunkSize ) {
+        const auto sizeToWrite = std::min( chunkSize, data.size() - i );
+        writeAllToFd( *ufd, &data[i], sizeToWrite );
+        sum += sizeToWrite;
+    }
+
+    ufd.close();
+    return { duration( t0 ), sum };
+}
+
+
+void
+benchmarkWrite()
+{
+    const std::vector<char> data( 1_Gi, 1 );
+    const std::string filePath( "/dev/shm/pragzip-benchmark-random-file.dat" );
+    const auto times = repeatBenchmarks( [&] () { return benchmarkWrite( filePath, data, data.size() ); } );
+
+    std::ofstream dataFile( "result-file-write.dat" );
+    dataFile << "# dataSize/B runtime/s\n";
+    for ( const auto time : times ) {
+        dataFile << data.size() << " " << time << "\n";
+    }
+
+    std::cout << "[Write to File] Output bandwidth : " << formatBandwidth( times, data.size() ) << "\n";
+
+    if ( fileExists( filePath ) ) {
+        std::filesystem::remove( filePath );
+    }
+}
+
+
 int
 main()
 {
+    benchmarkWrite();
+
     benchmarkDynamicBlockFinderPragzipLUT();
     benchmarkDynamicBlockFinderPragzip();
     benchmarkDynamicBlockFinderZlib();

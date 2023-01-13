@@ -47,7 +47,10 @@ def plotBitReaderSelectedHistogram(nBitsToPlot):
 
 
 def plotBitReaderBandwidths():
-    data = np.loadtxt(os.path.join(folder, "result-bitreader-reads.dat"))
+    filePath = os.path.join(folder, "result-bitreader-reads.dat")
+    if not os.path.isfile(filePath):
+        return None
+    data = np.loadtxt(filePath)
 
     fig = plt.figure(figsize=(6, 3.5))
     ax = fig.add_subplot(111, xlabel="Bits Per Read Call", ylabel="Bandwidth / (MB/s)")
@@ -79,11 +82,13 @@ def plotBitReaderBandwidths():
 
 
 def plotParallelReadingBandwidths():
+    figs = []
     for pinning in ["no-pinning", "sequential-pinning", "recursive-pinning"]:
         fileName = f"result-read-file-parallel-{pinning}.dat"
-        if not os.path.isfile(fileName) or os.stat(fileName).st_size == 0:
+        filePath = os.path.join(folder, fileName)
+        if not os.path.isfile(filePath) or os.stat(filePath).st_size == 0:
             continue
-        data = np.loadtxt(os.path.join(folder, fileName))
+        data = np.loadtxt(filePath)
 
         fig = plt.figure(figsize=(6, 3.5))
         ax = fig.add_subplot(111, xlabel="Number of Threads", ylabel="Bandwidth / (GB/s)", xscale = 'log')
@@ -116,7 +121,9 @@ def plotParallelReadingBandwidths():
 
         fig.suptitle(pinning);
 
-    return fig
+        figs.append(fig)
+
+    return figs
 
 
 def formatBytes(nBytes):
@@ -134,7 +141,7 @@ def formatBytes(nBytes):
 
 
 def plotComponentBandwidths():
-    fig = plt.figure(figsize=(12, 2))
+    fig = plt.figure(figsize=(12, 2.5))
     ax = fig.add_subplot(111, xlabel="Bandwidth / (MB/s)", xscale = 'log')
     ax.grid(axis='both')
 
@@ -156,14 +163,18 @@ def plotComponentBandwidths():
         ("DBF pragzip" , "result-find-dynamic.dat"),
         ("NBF" , "result-find-uncompressed.dat"),
         ("Marker replacement" , "result-apply-window.dat"),
+        ("File writing" , "result-file-write.dat"),
         ("Count newlines" , "result-count-newlines.dat"),
     ]
 
     ticks = []
     for i, component in enumerate(components[::-1]):
         label, fname = component
+        filePath = os.path.join(folder, fname)
+        if not os.path.isfile(filePath):
+            continue
 
-        data = np.loadtxt(os.path.join(folder, fname))
+        data = np.loadtxt(filePath, ndmin = 2)
         bandwidths = data[:, 0] / data[:, 1]
 
         labelWithMedian = f"{label} ({formatBytes( np.median( bandwidths ) )}/s)"
@@ -177,6 +188,10 @@ def plotComponentBandwidths():
             body.set_alpha(0.75)
             body.set_color('b')
 
+    if not ticks:
+        plt.close(fig)
+        return
+
     ax.yaxis.set_ticks([x[0] for x in ticks])
     ax.yaxis.set_ticklabels([x[1] for x in ticks])
     ax.tick_params(axis='y', which='minor', bottom=False)
@@ -189,26 +204,30 @@ def plotComponentBandwidths():
     return fig
 
 
-def plotParallelDecompression(outputType='dev-null'):  # alternative: count-lines
+def plotParallelDecompression(legacyPrefix, parallelPrefix, outputType='dev-null'):  # alternative: count-lines
     fig = plt.figure(figsize=(6, 3.5))
     ax = fig.add_subplot(111, xlabel="Number of Cores", ylabel="Bandwidth / (MB/s)", xscale = 'log', yscale = 'log')
     ax.grid(axis='both')
 
     tools = [
-        ("pragzip", f"result-parallel-pragzip-{outputType}.dat", "tab:red"),
-        ("pragzip (index)", f"result-parallel-pragzip-index-{outputType}.dat", "tab:orange"),
-        ("pugz (sync)", f"result-parallel-pugz-{outputType}-sync.dat", "tab:cyan"),
-        ("pugz", f"result-parallel-pugz-{outputType}.dat", "tab:blue"),
-        ("pigz", "result-decompression-pigz-count-lines.dat", "tab:brown"),
-        ("igzip", "result-decompression-igzip-count-lines.dat", "tab:purple"),
-        ("gzip", "result-decompression-gzip-count-lines.dat", "tab:green"),
+        ("pragzip", f"{parallelPrefix}-pragzip-{outputType}.dat", "tab:red"),
+        ("pragzip (index)", f"{parallelPrefix}-pragzip-index-{outputType}.dat", "tab:orange"),
+        ("pugz (sync)", f"{parallelPrefix}-pugz-sync-{outputType}.dat", "tab:cyan"),
+        ("pugz", f"{parallelPrefix}-pugz-{outputType}.dat", "tab:blue"),
+        ("pigz", f"{legacyPrefix}-pigz-{outputType}.dat", "tab:brown"),
+        ("igzip", f"{legacyPrefix}-igzip-{outputType}.dat", "tab:purple"),
+        ("gzip", f"{legacyPrefix}-gzip-{outputType}.dat", "tab:green"),
     ]
 
     symbols = []
     labels = []
     threadCountsTicks = []
     for tool, fileName, color in tools:
-        data = np.loadtxt(os.path.join(folder, fileName))
+        filePath=os.path.join(folder, fileName)
+        if not os.path.isfile(filePath):
+            print("Skipping missing file:", filePath)
+            continue
+        data = np.loadtxt(filePath, ndmin = 2)
 
         positions = []
         bandwidths = []
@@ -253,13 +272,19 @@ def plotParallelDecompression(outputType='dev-null'):  # alternative: count-line
             symbols.append(mpatches.Patch(color = color, alpha = 0.75))
         labels.append(tool)
 
+    if not labels:
+        plt.close(fig)
+        return
+
     # Add ideal scaling for comparison
-    data = np.loadtxt(os.path.join(folder, f"result-parallel-pragzip-{outputType}.dat"))
-    threadCount = 1
-    subdata = data[data[:, 0] == threadCount]
-    bandwidths = subdata[:, 1] / subdata[:, 2] / 1e6
-    ax.plot(threadCountsTicks, np.median(bandwidths) * np.array(threadCountsTicks), linestyle = '--',
-            label = "ideal linear scaling", color = "tab:red", alpha = 0.75)
+    filePath = os.path.join(folder, f"{parallelPrefix}-pragzip-{outputType}.dat")
+    if os.path.isfile(filePath):
+        data = np.loadtxt(filePath, ndmin = 2)
+        threadCount = 1
+        subdata = data[data[:, 0] == threadCount]
+        bandwidths = subdata[:, 1] / subdata[:, 2] / 1e6
+        ax.plot(threadCountsTicks, np.median(bandwidths) * np.array(threadCountsTicks), linestyle = '--',
+                label = "ideal linear scaling", color = "tab:red", alpha = 0.75)
     symbols.append(Line2D([0], [0], color = "tab:red", alpha = 0.75, linestyle = '--'))
     labels.append("linear scaling")
 
@@ -275,8 +300,8 @@ def plotParallelDecompression(outputType='dev-null'):  # alternative: count-line
 
     fig.tight_layout()
 
-    fig.savefig(f"decompression-{outputType}-bandwidths-number-of-threads.png")
-    fig.savefig(f"decompression-{outputType}-bandwidths-number-of-threads.pdf")
+    fig.savefig(f"{parallelPrefix}-{outputType}-bandwidths-number-of-threads.png")
+    fig.savefig(f"{parallelPrefix}-{outputType}-bandwidths-number-of-threads.pdf")
     return fig
 
 
@@ -294,7 +319,14 @@ def plotChunkSizes():
     labels = []
     xTicks = []
     for tool, fileName, color in tools:
-        data = np.loadtxt(os.path.join(folder, fileName))
+        filePath = os.path.join(folder, fileName)
+        if not os.path.isfile(filePath):
+            print("Ignore missing file:", filePath)
+            continue
+        data = np.loadtxt(filePath, ndmin = 2)
+        if not data:
+            print("Ignore empty file:", filePath)
+            continue
 
         positions = []
         bandwidths = []
@@ -319,6 +351,10 @@ def plotChunkSizes():
         symbols.append(mpatches.Patch(color = color, alpha = 0.75))
         labels.append(tool)
 
+    if not labels:
+        plt.close(fig)
+        return
+
     #ax.set_ylim((100, ax.get_ylim()[1]));
     print(xTicks)
     ax.set_ylim([900,3000])
@@ -341,10 +377,10 @@ def plotChunkSizes():
 # Old tests as to how to plot but the samples correctly but violing plots are sufficient
 #plotBitReaderHistograms()
 #plotBitReaderSelectedHistogram([24])
-#plotParallelDecompression("count-lines")
 
 plotChunkSizes()
-plotParallelDecompression("dev-null")
+plotParallelDecompression("result-decompression-base64", "result-parallel-decompression-base64", "dev-null")
+plotParallelDecompression("result-decompression-silesia", "result-parallel-decompression-silesia", "dev-null")
 plotParallelReadingBandwidths()
 plotBitReaderBandwidths()
 plotComponentBandwidths()
