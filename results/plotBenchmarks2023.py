@@ -163,7 +163,7 @@ def plotComponentBandwidths():
         ("DBF pragzip" , "result-find-dynamic.dat"),
         ("NBF" , "result-find-uncompressed.dat"),
         ("Marker replacement" , "result-apply-window.dat"),
-        ("File writing" , "result-file-write.dat"),
+        ("Write to /dev/shm/" , "result-file-write.dat"),
         ("Count newlines" , "result-count-newlines.dat"),
     ]
 
@@ -210,10 +210,10 @@ def plotParallelDecompression(legacyPrefix, parallelPrefix, outputType='dev-null
     ax.grid(axis='both')
 
     tools = [
-        ("pragzip", f"{parallelPrefix}-pragzip-{outputType}.dat", "tab:red"),
         ("pragzip (index)", f"{parallelPrefix}-pragzip-index-{outputType}.dat", "tab:orange"),
-        ("pugz (sync)", f"{parallelPrefix}-pugz-sync-{outputType}.dat", "tab:cyan"),
+        ("pragzip", f"{parallelPrefix}-pragzip-{outputType}.dat", "tab:red"),
         ("pugz", f"{parallelPrefix}-pugz-{outputType}.dat", "tab:blue"),
+        ("pugz (sync)", f"{parallelPrefix}-pugz-sync-{outputType}.dat", "tab:cyan"),
         ("pigz", f"{legacyPrefix}-pigz-{outputType}.dat", "tab:brown"),
         ("igzip", f"{legacyPrefix}-igzip-{outputType}.dat", "tab:purple"),
         ("gzip", f"{legacyPrefix}-gzip-{outputType}.dat", "tab:green"),
@@ -250,14 +250,17 @@ def plotParallelDecompression(legacyPrefix, parallelPrefix, outputType='dev-null
         if tool.startswith('igzip'):
             print(f"igzip speed: {np.median( bandwidths ):.2f} MB/s")
 
-        if tool.startswith('igzip') or tool.startswith('gzip'):
-            ax.axhline(np.median(bandwidths[0]), color = color, linestyle = ':', alpha = 0.75)
+        if tool.startswith('igzip'):
+            ax.axhline(np.median(bandwidths[0]), color = color, linestyle = '-.')
 
-        if tool.startswith('pragzip') and not 'index' in tool:
+        if tool.startswith('gzip'):
+            ax.axhline(np.median(bandwidths[0]), color = color, linestyle = ':')
+
+        if tool.startswith('pragzip') or tool.startswith('pugz') or tool.startswith('pigz'):
             for i in range(len(bandwidths)):
                 count = positions[i]
                 bandwidth = bandwidths[i]
-                print(f"Pragzip speed: {np.median( bandwidth ):.2f} MB/s for {count} cores")
+                print(f"{tool} speed: {np.median( bandwidth ):.2f} MB/s for {count} cores")
 
         result = ax.violinplot(bandwidths, positions = positions, widths = np.array(positions) / 10.,
                                showextrema = False, showmedians = False)
@@ -266,8 +269,10 @@ def plotParallelDecompression(legacyPrefix, parallelPrefix, outputType='dev-null
             body.set_alpha(0.75)
             body.set_color(color)
 
-        if tool.startswith('igzip') or tool.startswith('gzip'):
-            symbols.append(Line2D([0], [0], color = color, alpha = 0.75, linestyle = ':'))
+        if tool.startswith('igzip'):
+            symbols.append(Line2D([0], [0], color = color, linestyle = '-.'))
+        elif tool.startswith('gzip'):
+            symbols.append(Line2D([0], [0], color = color, linestyle = ':'))
         else:
             symbols.append(mpatches.Patch(color = color, alpha = 0.75))
         labels.append(tool)
@@ -324,7 +329,7 @@ def plotChunkSizes():
             print("Ignore missing file:", filePath)
             continue
         data = np.loadtxt(filePath, ndmin = 2)
-        if not data:
+        if data.shape == (0,0):
             print("Ignore empty file:", filePath)
             continue
 
