@@ -114,19 +114,20 @@ testBlockSplit()
 
     using Subblock = pragzip::BlockData::Subblock;
     using BlockBoundary = pragzip::BlockData::BlockBoundary;
+    block.finalize( 0 );
     REQUIRE( block.split( 1 ).empty() );
 
-    block.encodedSizeInBits = 8;
     block.data.emplace_back();
     block.data.back().resize( 1 );
+    block.finalize( 8 );
     std::vector<Subblock> expected = { Subblock{ 0, 8, 1 } };
     REQUIRE( block.split( 1 ) == expected );
     REQUIRE( block.split( 2 ) == expected );
     REQUIRE( block.split( 10 ) == expected );
 
-    block.encodedSizeInBits = 128;
     block.data.back().resize( 1024 );
     block.blockBoundaries = { BlockBoundary{ 128, 1024 } };
+    block.finalize( 128 );
     expected = { Subblock{ 0, 128, 1024 } };
     REQUIRE( block.split( 1 ) == expected );
     REQUIRE( block.split( 1024 ) == expected );

@@ -38,7 +38,7 @@ add_dependencies(all_tests testParallelGzipReader)
 add_executable(testGzipChunkFetcher)
 target_sources(testGzipChunkFetcher PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testGzipChunkFetcher.cpp)
 target_link_libraries(testGzipChunkFetcher PRIVATE libpragzip)
-add_test(NAME Test-Gzip-Block-Fetcher COMMAND testGzipChunkFetcher)
+add_test(NAME Test-Gzip-Chunk-Fetcher COMMAND testGzipChunkFetcher)
 add_dependencies(all_tests testGzipChunkFetcher)
 
 add_executable(testGzipBlockFinder)
