@@ -383,7 +383,7 @@ DecodedData::getLastWindow( WindowView const& previousWindow ) const
             }
         };
 
-    if ( window.size() >= MAX_WINDOW_SIZE ) {
+    if ( previousWindow.size() >= MAX_WINDOW_SIZE ) {
         copyFromDataWithMarkers( MapMarkers</* full window */ true>( previousWindow ) );
     } else {
         copyFromDataWithMarkers( MapMarkers</* full window */ false>( previousWindow ) );
@@ -466,7 +466,7 @@ DecodedData::getWindowAt( WindowView const& previousWindow,
             }
         };
 
-    if ( window.size() >= MAX_WINDOW_SIZE ) {
+    if ( previousWindow.size() >= MAX_WINDOW_SIZE ) {
         copyFromDataWithMarkers( MapMarkers</* full window */ true>( previousWindow ) );
     } else {
         copyFromDataWithMarkers( MapMarkers</* full window */ false>( previousWindow ) );
