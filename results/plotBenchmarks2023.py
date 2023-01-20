@@ -11,6 +11,8 @@ import os, sys
 
 folder = "." if len(sys.argv) < 2 else sys.argv[1]
 
+myImplementationName = "pragzip"
+
 
 def plotBitReaderHistograms():
     data = np.loadtxt(os.path.join(folder, "result-bitreader-reads.dat"))
@@ -157,10 +159,10 @@ def plotComponentBandwidths():
 
     components = [
         ("DBF zlib" , "result-find-dynamic-zlib.dat"),
-        ("DBF custom deflate" , "result-find-dynamic-pragzip.dat"),
+        ("DBF custom deflate" , f"result-find-dynamic-pragzip.dat"),
         ("Pugz block finder" , "results-pugz-sync.dat"),
-        ("DBF skip-LUT" , "result-find-dynamic-pragzip-skip-lut.dat"),
-        ("DBF pragzip" , "result-find-dynamic.dat"),
+        ("DBF skip-LUT" , f"result-find-dynamic-pragzip-skip-lut.dat"),
+        (f"DBF {myImplementationName}" , "result-find-dynamic.dat"),
         ("NBF" , "result-find-uncompressed.dat"),
         ("Marker replacement" , "result-apply-window.dat"),
         ("Write to /dev/shm/" , "result-file-write.dat"),
@@ -210,8 +212,8 @@ def plotParallelDecompression(legacyPrefix, parallelPrefix, outputType='dev-null
     ax.grid(axis='both')
 
     tools = [
-        ("pragzip (index)", f"{parallelPrefix}-pragzip-index-{outputType}.dat", "tab:orange"),
-        ("pragzip", f"{parallelPrefix}-pragzip-{outputType}.dat", "tab:red"),
+        (f"{myImplementationName} (index)", f"{parallelPrefix}-pragzip-index-{outputType}.dat", "tab:orange"),
+        (f"{myImplementationName}", f"{parallelPrefix}-pragzip-{outputType}.dat", "tab:red"),
         ("pugz", f"{parallelPrefix}-pugz-{outputType}.dat", "tab:blue"),
         ("pugz (sync)", f"{parallelPrefix}-pugz-sync-{outputType}.dat", "tab:cyan"),
         ("pigz", f"{legacyPrefix}-pigz-{outputType}.dat", "tab:brown"),
@@ -256,7 +258,7 @@ def plotParallelDecompression(legacyPrefix, parallelPrefix, outputType='dev-null
         if tool.startswith('gzip'):
             ax.axhline(np.median(bandwidths[0]), color = color, linestyle = ':')
 
-        if tool.startswith('pragzip') or tool.startswith('pugz') or tool.startswith('pigz'):
+        if tool.startswith( myImplementationName ) or tool.startswith('pugz') or tool.startswith('pigz'):
             for i in range(len(bandwidths)):
                 count = positions[i]
                 bandwidth = bandwidths[i]
@@ -316,7 +318,7 @@ def plotChunkSizes():
     ax.grid(axis='both')
 
     tools = [
-        ("pragzip", f"result-chunk-size-pragzip-dev-null.dat", "tab:red"),
+        (myImplementationName, f"result-chunk-size-pragzip-dev-null.dat", "tab:red"),
         ("pugz", f"result-chunk-size-pugz-dev-null.dat", "tab:blue"),
     ]
 
