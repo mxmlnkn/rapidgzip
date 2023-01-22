@@ -4,7 +4,7 @@
 #SBATCH --exclusive
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=128
-#SBATCH --time=05:00:00
+#SBATCH --time=06:00:00
 #SBATCH --mem-per-cpu=1972M
 #SBATCH --cpu-freq=2000000-2000000
 
@@ -134,7 +134,11 @@ function benchmarkParallelDecompressionScaling()
     filePrefix=$1  # e.g. result-parallel-decompression-base64 or result-parallel-decompression-silesia
     inputFilePath=$2  # e.g., /dev/shm/base64-512MiB
 
-    echo '# parallelization dataSize/B runtime/s compressedDataSize/B' > "$filePrefix-pragzip-dev-null.dat"
+    #chunkSizes=( $(( 1 * 1024 )) $(( 2 * 1024 )) $(( 4 * 1024 )) $(( 8 * 1024 )) )
+    chunkSizes=( $(( 2 * 1024 )) )
+    for chunkSize in "${chunkSizes[@]}"; do
+        echo '# parallelization dataSize/B runtime/s compressedDataSize/B' > "$filePrefix-pragzip-$(( chunkSize / 1024 ))-MiB-chunks-dev-null.dat"
+    done
     echo '# parallelization dataSize/B runtime/s compressedDataSize/B' > "$filePrefix-pragzip-index-dev-null.dat"
     if [[ ! "$filePrefix" =~ silesia ]]; then
         echo '# parallelization dataSize/B runtime/s compressedDataSize/B' > "$filePrefix-pugz-dev-null.dat"
@@ -171,17 +175,21 @@ function benchmarkParallelDecompressionScaling()
         done
 
         # pragzip
-        for (( i = 0; i < nRepetitions; ++i )); do
-            tool="pragzip -P $parallelization -o /dev/null"
-            ( time taskset --cpu-list 0-$(( parallelization - 1 )) $tool "$filePath" ) > output.log 2>&1
-            errorCode=$?
-            runtime=$( sed -n -E 's|real[ \t]*0m||p' output.log | sed 's|[ \ts]||' )
-            if [[ -n "$runtime" && $errorCode -eq 0 ]]; then
-                echo "$parallelization $fileSize $runtime $compressedFileSize" |
-                    tee -a "$filePrefix-pragzip-dev-null.dat"
-            else
-                echo "Encountered error code $errorCode when executing $tool, runtime: $runtime"
-            fi
+        for chunkSize in "${chunkSizes[@]}"; do
+            echo "Chunk size: $(( chunkSize / 1024 )) MiB"
+
+            for (( i = 0; i < nRepetitions; ++i )); do
+                tool="pragzip -P $parallelization -o /dev/null --chunk-size $chunkSize"
+                ( time taskset --cpu-list 0-$(( parallelization - 1 )) $tool "$filePath" ) > output.log 2>&1
+                errorCode=$?
+                runtime=$( sed -n -E 's|real[ \t]*0m||p' output.log | sed 's|[ \ts]||' )
+                if [[ -n "$runtime" && $errorCode -eq 0 ]]; then
+                    echo "$parallelization $fileSize $runtime $compressedFileSize" |
+                        tee -a "$filePrefix-pragzip-$(( chunkSize / 1024 ))-MiB-chunks-dev-null.dat"
+                else
+                    echo "Encountered error code $errorCode when executing $tool, runtime: $runtime"
+                fi
+            done
         done
 
         # pugz unsynchronized output
@@ -307,56 +315,111 @@ nRepetitions=20
 set -o pipefail
 
 
-time benchmarkBase64   # 105 min
-time benchmarkSilesia  # 55 min
-time src/benchmarks/benchmarkSequential2023  # Benchmarks of components (this takes ~70 min)
+#time benchmarkSilesia  # 55 min
+#time benchmarkBase64   # 105 min (longer because pugz is also benchmarked)
+#time src/benchmarks/benchmarkSequential2023  # Benchmarks of components (this takes ~70 min)
 
 
-# Benchmark over chunk size for one chosen parallelization
-parallelization=16
+function benchmarkChunks()
+{
+    # Benchmark over chunk size for one chosen parallelization
+    parallelization=128
 
-fileSize=$(( parallelization * 512 * 1024 * 1024 ))
-filePath="/dev/shm/base64.gz"
-# Increase the block size because many smaller blocks trigger some kind of bug in pugz:
-# https://github.com/Piezoid/pugz/issues/13
-base64File512MiB="/dev/shm/base64-512MiB"
-base64 /dev/urandom | head -c $(( 512 * 1024 * 1024 )) > "$base64File512MiB"
-for (( i=0; i<parallelization; ++i )); do cat "$base64File512MiB"; done | gzip > "$filePath"
 
-echo '# parallelization chunkSize/B dataSize/B runtime/s' > 'result-chunk-size-pragzip-dev-null.dat'
-for chunkSize in 128 256 512 $(( 1*1024 )) $(( 2*1024 )) $(( 4*1024 )) $(( 8*1024 )) $(( 16*1024 )) $(( 32*1024 )) \
-                 $(( 64*1024 )) $(( 128*1024 )) $(( 256*1024 )) $(( 512*1024 )) $(( 1024*1024 )); do
-    # pragzip
-    for (( i = 0; i < nRepetitions; ++i )); do
-        tool="pragzip -P $parallelization -o /dev/null --chunk-size $chunkSize"
-        runtime=$( ( time taskset --cpu-list 0-$(( parallelization - 1 )) $tool "$filePath" ) 2>&1 |
-                       sed -n -E 's|real[ \t]*0m||p' | sed 's|[ \ts]||' )
-        errorCode=$?
-        if [[ $errorCode -eq 0 ]]; then
-            echo "$parallelization $(( chunkSize * 1024 )) $fileSize $runtime" | tee -a 'result-chunk-size-pragzip-dev-null.dat'
-        else
-            echo "Encountered error code $errorCode when executing $tool"
-        fi
+    echo "Benchmark chunk sizes for pragzip with Silesia..."
+
+    if [[ ! -f 'silesia.zip' || "$( md5sum silesia.zip | sed 's| .*||' )" != 'c240c17d6805fb8a0bde763f1b94cd99' ]]; then
+        wget -O 'silesia.zip' 'https://sun.aei.polsl.pl/~sdeor/corpus/silesia.zip'
+    fi
+
+    rm -rf silesia/
+    mkdir -p silesia && ( cd silesia && unzip ../silesia.zip )
+    tar -cf silesia.tar silesia/  # 211957760 B -> 212 MB, 203 MiB, gzip 66 MiB -> compression factor: 3.08
+    inputFilePath='silesia.tar'
+
+    fileSize=$(( 2 * parallelization * $( stat --format=%s -- "$inputFilePath" ) ))
+    filePath="/dev/shm/silesia.tar.gz"
+
+    # Increase the block size because many smaller blocks trigger some kind of bug in pugz:
+    # https://github.com/Piezoid/pugz/issues/13
+    for (( i=0; i<parallelization * 2; ++i )); do cat "$inputFilePath"; done |
+        pigz --blocksize $(( parallelization * 4 * 1024 )) > "$filePath"
+
+    echo "Benchmark chunk sizes for pragzip..."
+    echo '# parallelization chunkSize/B dataSize/B runtime/s' > 'result-chunk-size-pragzip-dev-null.dat'
+    for chunkSize in 128 256 512 $(( 1*1024 )) $(( 2*1024 )) $(( 4*1024 )) $(( 8*1024 )) $(( 16*1024 )) $(( 32*1024 )) \
+                     $(( 64*1024 )) $(( 128*1024 )) $(( 256*1024 )) $(( 512*1024 )) $(( 1024*1024 )); do
+        # pragzip
+        for (( i = 0; i < nRepetitions; ++i )); do
+            tool="pragzip -P $parallelization -o /dev/null --chunk-size $chunkSize"
+            runtime=$( ( time taskset --cpu-list 0-$(( parallelization - 1 )) $tool "$filePath" ) 2>&1 |
+                           sed -n -E 's|real[ \t]*0m||p' | sed 's|[ \ts]||' )
+            errorCode=$?
+            if [[ $errorCode -eq 0 ]]; then
+                echo "$parallelization $(( chunkSize * 1024 )) $fileSize $runtime" | tee -a 'result-chunk-size-pragzip-dev-null.dat'
+            else
+                echo "Encountered error code $errorCode when executing $tool"
+            fi
+        done
     done
-done
-echo '# parallelization chunkSize/B dataSize/B runtime/s' > 'result-chunk-size-pugz-dev-null.dat'
-# Smaller chunk sizes lead to errors and/or take too long to feasibly benchmark
-for chunkSize in $(( 4*1024 )) $(( 8*1024 )) $(( 16*1024 )) $(( 32*1024 )) $(( 64*1024 )) $(( 128*1024 )) \
-                 $(( 256*1024 )) $(( 512*1024 )) $(( 1024*1024 )); do
-    # pugz
-    for (( i = 0; i < nRepetitions; ++i )); do
-        tool="pugz -t $parallelization -l -s $chunkSize -u"
-        runtime=$( ( time timeout 120s taskset --cpu-list 0-$(( parallelization - 1 )) $tool "$filePath" > /dev/null ) 2>&1 |
-                       sed -n -E 's|real[ \t]*0m||p' | sed 's|[ \ts]||' )
-        errorCode=$?
-        if [[ $errorCode -eq 0 ]]; then
-            echo "$parallelization $(( chunkSize * 1024 )) $fileSize $runtime" | tee -a 'result-chunk-size-pugz-dev-null.dat'
-        else
-            echo "Encountered error code $errorCode when executing $tool"
-        fi
-    done
-done
 
+    'rm' -- "$filePath"
+
+
+
+    fileSize=$(( parallelization * 512 * 1024 * 1024 ))
+    filePath="/dev/shm/base64.gz"
+    # Increase the block size because many smaller blocks trigger some kind of bug in pugz:
+    # https://github.com/Piezoid/pugz/issues/13
+    base64File512MiB="/dev/shm/base64-512MiB"
+    base64 /dev/urandom | head -c $(( 512 * 1024 * 1024 )) > "$base64File512MiB"
+
+    # Increase the block size because many smaller blocks trigger some kind of bug in pugz:
+    # https://github.com/Piezoid/pugz/issues/13
+    for (( i=0; i<parallelization; ++i )); do cat "$inputFilePath"; done |
+        pigz --blocksize $(( parallelization * 4 * 1024 )) > "$filePath"
+
+    echo "Benchmark chunk sizes for pragzip..."
+    echo '# parallelization chunkSize/B dataSize/B runtime/s' > 'result-chunk-size-pragzip-dev-null.dat'
+    for chunkSize in 128 256 512 $(( 1*1024 )) $(( 2*1024 )) $(( 4*1024 )) $(( 8*1024 )) $(( 16*1024 )) $(( 32*1024 )) \
+                     $(( 64*1024 )) $(( 128*1024 )) $(( 256*1024 )) $(( 512*1024 )) $(( 1024*1024 )); do
+        # pragzip
+        for (( i = 0; i < nRepetitions; ++i )); do
+            tool="pragzip -P $parallelization -o /dev/null --chunk-size $chunkSize"
+            runtime=$( ( time taskset --cpu-list 0-$(( parallelization - 1 )) $tool "$filePath" ) 2>&1 |
+                           sed -n -E 's|real[ \t]*0m||p' | sed 's|[ \ts]||' )
+            errorCode=$?
+            if [[ $errorCode -eq 0 ]]; then
+                echo "$parallelization $(( chunkSize * 1024 )) $fileSize $runtime" | tee -a 'result-chunk-size-pragzip-dev-null.dat'
+            else
+                echo "Encountered error code $errorCode when executing $tool"
+            fi
+        done
+    done
+
+    echo "Benchmark chunk sizes for pugz..."
+    echo '# parallelization chunkSize/B dataSize/B runtime/s' > 'result-chunk-size-pugz-dev-null.dat'
+    # Smaller chunk sizes lead to errors and/or take too long to feasibly benchmark
+    for chunkSize in $(( 4*1024 )) $(( 8*1024 )) $(( 16*1024 )) $(( 32*1024 )) $(( 64*1024 )) $(( 128*1024 )) \
+                     $(( 256*1024 )) $(( 512*1024 )) $(( 1024*1024 )); do
+        # pugz
+        for (( i = 0; i < nRepetitions; ++i )); do
+            tool="pugz -t $parallelization -l -s $chunkSize -u"
+            runtime=$( ( time timeout 120s taskset --cpu-list 0-$(( parallelization - 1 )) $tool "$filePath" > /dev/null ) 2>&1 |
+                           sed -n -E 's|real[ \t]*0m||p' | sed 's|[ \ts]||' )
+            errorCode=$?
+            if [[ $errorCode -eq 0 ]]; then
+                echo "$parallelization $(( chunkSize * 1024 )) $fileSize $runtime" | tee -a 'result-chunk-size-pugz-dev-null.dat'
+            else
+                echo "Encountered error code $errorCode when executing $tool"
+            fi
+        done
+    done
+
+    'rm' -- "$filePath"
+}
+
+# benchmarkChunks
 
 
 cd ~/indexed_bzip2/build

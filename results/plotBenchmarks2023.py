@@ -230,6 +230,8 @@ def plotParallelDecompression(legacyPrefix, parallelPrefix, outputType='dev-null
             print("Skipping missing file:", filePath)
             continue
         data = np.loadtxt(filePath, ndmin = 2)
+        if data.shape[0] == 0:
+            continue
 
         positions = []
         bandwidths = []
