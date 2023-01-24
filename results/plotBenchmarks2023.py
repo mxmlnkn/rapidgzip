@@ -14,6 +14,39 @@ folder = "." if len(sys.argv) < 2 else sys.argv[1]
 myImplementationName = "pragzip"
 
 
+# https://www.nature.com/articles/nmeth.1618
+colors = {
+    'blue'   : '#0072B2',
+    'red'    : '#D55E00',
+    'rosa'   : '#CC79A7',
+    'yellow' : '#F0E442',  # No contrast with white. Who would use this!?
+    'sky'    : '#56B4E9',
+    'orange' : '#E69F00',
+    'green'  : '#009E73',
+    'black'  : '#000000',
+}
+# Possible alternative that includes purple: https://personal.sron.nl/~pault/
+# Colours in default order: '#4477AA', '#EE6677', '#228833', '#CCBB44', '#66CCEE', '#AA3377', '#BBBBBB'.
+# https://lospec.com/palette-list/colorblind-16
+#    #000000
+#    #252525
+#    #676767
+#    #ffffff
+#    #171723
+#    #004949
+#    #009999
+#    #22cf22
+#    #490092
+#    #006ddb
+#    #b66dff
+#    #ff6db6
+#    #920000
+#    #8f4e00
+#    #db6d00
+#    #ffdf4d
+
+
+
 def plotBitReaderHistograms():
     data = np.loadtxt(os.path.join(folder, "result-bitreader-reads.dat"))
 
@@ -65,8 +98,8 @@ def plotBitReaderBandwidths():
         result = ax.violinplot(bandwidths, positions = [nBits], widths = 1, showextrema = False, showmedians = True)
         for body in result['bodies']:
             body.set_zorder(3)
-            body.set_alpha(0.75)
-            body.set_color('b')
+            body.set_alpha(1.0)
+            body.set_color(colors['blue'])
         if body := result['cmedians']:
             body.set(zorder=3, color='0.75')
 
@@ -104,8 +137,8 @@ def plotParallelReadingBandwidths():
                                    showextrema = False, showmedians = True)
             for body in result['bodies']:
                 body.set_zorder(3)
-                body.set_alpha(0.75)
-                body.set_color('b')
+                body.set_alpha(1.0)
+                body.set_color(colors['blue'])
             if body := result['cmedians']:
                 body.set(zorder=3, color='0.75')
 
@@ -121,7 +154,8 @@ def plotParallelReadingBandwidths():
         fig.savefig(f"filereader-bandwidths-number-of-threads-{pinning}.png")
         fig.savefig(f"filereader-bandwidths-number-of-threads-{pinning}.pdf")
 
-        fig.suptitle(pinning);
+        ax.set_title(pinning);
+        fig.tight_layout()
 
         figs.append(fig)
 
@@ -187,8 +221,8 @@ def plotComponentBandwidths():
                                showextrema = False, showmedians = False)
         for body in result['bodies']:
             body.set_zorder(3)
-            body.set_alpha(0.75)
-            body.set_color('b')
+            body.set_alpha(1.0)
+            body.set_color(colors['blue'])
 
     if not ticks:
         plt.close(fig)
@@ -211,14 +245,16 @@ def plotParallelDecompression(legacyPrefix, parallelPrefix, outputType='dev-null
     ax = fig.add_subplot(111, xlabel="Number of Cores", ylabel="Bandwidth / (MB/s)", xscale = 'log', yscale = 'log')
     ax.grid(axis='both')
 
+    alpha = 1.0
+
     tools = [
-        (f"{myImplementationName} (index)", f"{parallelPrefix}-pragzip-index-{outputType}.dat", "tab:orange"),
-        (f"{myImplementationName}", f"{parallelPrefix}-pragzip-{outputType}.dat", "tab:red"),
-        ("pugz", f"{parallelPrefix}-pugz-{outputType}.dat", "tab:blue"),
-        ("pugz (sync)", f"{parallelPrefix}-pugz-sync-{outputType}.dat", "tab:cyan"),
-        ("pigz", f"{legacyPrefix}-pigz-{outputType}.dat", "tab:brown"),
-        ("igzip", f"{legacyPrefix}-igzip-{outputType}.dat", "tab:purple"),
-        ("gzip", f"{legacyPrefix}-gzip-{outputType}.dat", "tab:green"),
+        (f"{myImplementationName} (index)", f"{parallelPrefix}-pragzip-index-{outputType}.dat", colors['rosa']),
+        (f"{myImplementationName}", f"{parallelPrefix}-pragzip-{outputType}.dat", colors['red']),
+        ("pugz", f"{parallelPrefix}-pugz-{outputType}.dat", colors['blue']),
+        ("pugz (sync)", f"{parallelPrefix}-pugz-sync-{outputType}.dat", colors['green']),
+        ("pigz", f"{legacyPrefix}-pigz-{outputType}.dat", colors['sky']),
+        ("igzip", f"{legacyPrefix}-igzip-{outputType}.dat", colors['black']),
+        ("gzip", f"{legacyPrefix}-gzip-{outputType}.dat", colors['black']),
     ]
 
     symbols = []
@@ -255,10 +291,10 @@ def plotParallelDecompression(legacyPrefix, parallelPrefix, outputType='dev-null
             print(f"igzip speed: {np.median( bandwidths ):.2f} MB/s")
 
         if tool.startswith('igzip'):
-            ax.axhline(np.median(bandwidths[0]), color = color, linestyle = '-.')
+            ax.axhline(np.median(bandwidths[0]), color = color, linestyle = '-.', alpha = alpha)
 
         if tool.startswith('gzip'):
-            ax.axhline(np.median(bandwidths[0]), color = color, linestyle = ':')
+            ax.axhline(np.median(bandwidths[0]), color = color, linestyle = ':', alpha = alpha)
 
         if tool.startswith( myImplementationName ) or tool.startswith('pugz') or tool.startswith('pigz'):
             for i in range(len(bandwidths)):
@@ -270,15 +306,15 @@ def plotParallelDecompression(legacyPrefix, parallelPrefix, outputType='dev-null
                                showextrema = False, showmedians = False)
         for body in result['bodies']:
             body.set_zorder(3)
-            body.set_alpha(0.75)
+            body.set_alpha(alpha)
             body.set_color(color)
 
         if tool.startswith('igzip'):
-            symbols.append(Line2D([0], [0], color = color, linestyle = '-.'))
+            symbols.append(Line2D([0], [0], color = color, linestyle = '-.', alpha = alpha))
         elif tool.startswith('gzip'):
-            symbols.append(Line2D([0], [0], color = color, linestyle = ':'))
+            symbols.append(Line2D([0], [0], color = color, linestyle = ':', alpha = alpha))
         else:
-            symbols.append(mpatches.Patch(color = color, alpha = 0.75))
+            symbols.append(mpatches.Patch(color = color, alpha = alpha))
         labels.append(tool)
 
     if not labels:
@@ -293,8 +329,8 @@ def plotParallelDecompression(legacyPrefix, parallelPrefix, outputType='dev-null
         subdata = data[data[:, 0] == threadCount]
         bandwidths = subdata[:, 1] / subdata[:, 2] / 1e6
         ax.plot(threadCountsTicks, np.median(bandwidths) * np.array(threadCountsTicks), linestyle = '--',
-                label = "ideal linear scaling", color = "tab:red", alpha = 0.75)
-    symbols.append(Line2D([0], [0], color = "tab:red", alpha = 0.75, linestyle = '--'))
+                label = "ideal linear scaling", color = colors['black'], alpha = alpha)
+    symbols.append(Line2D([0], [0], color = colors['black'], alpha = alpha, linestyle = '--'))
     labels.append("linear scaling")
 
     ax.set_ylim((100, ax.get_ylim()[1]));
@@ -398,9 +434,11 @@ def plotChunkSizes():
     ax = fig.add_subplot(111, xlabel="Chunk Size / MiB", ylabel="Bandwidth / (MB/s)", xscale = 'log', yscale = 'log')
     ax.grid(axis='both')
 
+    alpha = 1.0
+
     tools = [
-        (myImplementationName, f"result-chunk-size-pragzip-dev-null.dat", "tab:red"),
-        ("pugz", f"result-chunk-size-pugz-dev-null.dat", "tab:blue"),
+        (myImplementationName, f"result-chunk-size-pragzip-dev-null.dat", colors['red']),
+        ("pugz", f"result-chunk-size-pugz-dev-null.dat", colors['blue']),
     ]
 
     symbols = []
@@ -433,10 +471,10 @@ def plotChunkSizes():
                                showextrema = False, showmedians = False)
         for body in result['bodies']:
             body.set_zorder(3)
-            body.set_alpha(0.75)
+            body.set_alpha(alpha)
             body.set_color(color)
 
-        symbols.append(mpatches.Patch(color = color, alpha = 0.75))
+        symbols.append(mpatches.Patch(color = color, alpha = alpha))
         labels.append(tool)
 
     if not labels:
