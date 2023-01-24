@@ -314,6 +314,85 @@ def plotParallelDecompression(legacyPrefix, parallelPrefix, outputType='dev-null
     return fig
 
 
+def plotParallelDecompressionPerChunkSize(legacyPrefix, parallelPrefix, outputType='dev-null'):
+    fig = plt.figure(figsize=(6, 3.5))
+    ax = fig.add_subplot(111, xlabel="Number of Cores", ylabel="Parallel Efficiency", xscale = 'log')
+    ax.grid(axis='both')
+
+    alpha = 0.7  # They overlap quite strongly, so a bit of alpha is necessary
+    tools = [
+        (f"{myImplementationName} 8 MiB chunks", f"{parallelPrefix}-pragzip-8-MiB-chunks-{outputType}.dat", "tab:orange"),
+        (f"{myImplementationName} 4 MiB chunks", f"{parallelPrefix}-pragzip-4-MiB-chunks-{outputType}.dat", "tab:cyan"),
+        (f"{myImplementationName} 2 MiB chunks", f"{parallelPrefix}-pragzip-2-MiB-chunks-{outputType}.dat", "tab:blue"),
+        (f"{myImplementationName} 1 MiB chunks", f"{parallelPrefix}-pragzip-1-MiB-chunks-{outputType}.dat", "tab:red"),
+    ]
+
+    fastestPragzipSingle = None
+    symbols = []
+    labels = []
+    threadCountsTicks = []
+    for tool, fileName, color in tools:
+        filePath=os.path.join(folder, fileName)
+        if not os.path.isfile(filePath):
+            print("Skipping missing file:", filePath)
+            continue
+        data = np.loadtxt(filePath, ndmin = 2)
+        if data.shape[0] == 0:
+            continue
+
+        positions = []
+        bandwidths = []
+        widths = []
+        threadCounts = list(np.unique(data[:, 0]))
+        if len(threadCounts) > len(threadCountsTicks):
+            threadCountsTicks = threadCounts
+
+        for threadCount in sorted(threadCounts):
+            subdata = data[data[:, 0] == threadCount]
+            bandwidth = subdata[:, 1] / subdata[:, 2] / 1e6
+            if fastestPragzipSingle is None:
+                fastestPragzipSingle = bandwidth
+            bandwidths.append(np.array(bandwidth) / fastestPragzipSingle / threadCount)
+            positions.append(threadCount)
+
+        if tool.startswith( myImplementationName ) or tool.startswith('pugz') or tool.startswith('pigz'):
+            for i in range(len(bandwidths)):
+                count = positions[i]
+                bandwidth = bandwidths[i]
+
+        result = ax.violinplot(bandwidths, positions = positions, widths = np.array(positions) / 10.,
+                               showextrema = False, showmedians = False)
+        for body in result['bodies']:
+            body.set_zorder(3)
+            body.set_alpha(alpha)
+            body.set_color(color)
+
+        symbols.append(mpatches.Patch(color = color, alpha = alpha))
+        labels.append(tool)
+
+    if not threadCountsTicks:
+        plt.close(fig)
+        return
+
+    ax.set_xticks([int(x) for x in threadCountsTicks])
+    ax.minorticks_off()
+    ax.xaxis.set_major_formatter(ScalarFormatter())
+
+    ax.set_ylim([0, 1.05])
+
+    ax.legend(symbols, labels, loc='lower left')
+
+    fig.tight_layout()
+
+    fig.savefig(f"{parallelPrefix}-{outputType}-bandwidths-number-of-threads-varying-chunk-sizes.png")
+    fig.savefig(f"{parallelPrefix}-{outputType}-bandwidths-number-of-threads-varying-chunk-sizes.pdf")
+
+    ax.set_title(parallelPrefix)
+    fig.tight_layout()
+
+    return fig
+
+
 def plotChunkSizes():
     fig = plt.figure(figsize=(6, 3.5))
     ax = fig.add_subplot(111, xlabel="Chunk Size / MiB", ylabel="Bandwidth / (MB/s)", xscale = 'log', yscale = 'log')
@@ -390,6 +469,8 @@ def plotChunkSizes():
 plotChunkSizes()
 plotParallelDecompression("result-decompression-base64", "result-parallel-decompression-base64", "dev-null")
 plotParallelDecompression("result-decompression-silesia", "result-parallel-decompression-silesia", "dev-null")
+plotParallelDecompressionPerChunkSize("result-decompression-base64", "result-parallel-decompression-base64", "dev-null")
+plotParallelDecompressionPerChunkSize("result-decompression-silesia", "result-parallel-decompression-silesia", "dev-null")
 plotParallelReadingBandwidths()
 plotBitReaderBandwidths()
 plotComponentBandwidths()
