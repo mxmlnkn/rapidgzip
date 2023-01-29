@@ -391,6 +391,12 @@ public:
                 m_blockMap->push( boundary.encodedOffset, boundary.encodedSize, boundary.decodedSize );
             }
 
+            if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+                std::scoped_lock lock( m_statisticsMutex );
+                m_blockFinderTime += blockData->blockFinderDuration;
+                m_decodeTime += blockData->decodeDuration;
+            }
+
             /* This should also work for multi-stream gzip files because encodedSizeInBits is such that it
              * points across the gzip footer and next header to the next deflate block. */
             const auto blockOffsetAfterNext = blockData->encodedOffsetInBits + blockData->encodedSizeInBits;
@@ -550,8 +556,6 @@ private:
                 m_applyWindowTime += duration( tApplyStart );
             }
             m_markerCount += markerCount;
-            m_blockFinderTime += blockData->blockFinderDuration;
-            m_decodeTime += blockData->decodeDuration;
         }
     }
 
