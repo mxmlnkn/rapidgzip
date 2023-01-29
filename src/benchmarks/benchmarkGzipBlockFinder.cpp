@@ -27,7 +27,6 @@ https://www.ietf.org/rfc/rfc1952.txt
 #include <BitReader.hpp>
 #include <blockfinder/Bgzf.hpp>
 #include <blockfinder/DynamicHuffman.hpp>
-#include <blockfinder/PigzParallel.hpp>
 #include <blockfinder/precodecheck/SingleCompressedLUT.hpp>
 #include <blockfinder/precodecheck/SingleLUT.hpp>
 #include <blockfinder/precodecheck/WalkTreeCompressedLUT.hpp>
@@ -402,7 +401,7 @@ findDeflateBlocksZlib( BufferedFileReader::AlignedBuffer buffer )
     GzipWrapper gzip( GzipWrapper::Format::RAW );
 
     for ( size_t offset = 0; offset <= ( buffer.size() - 1 ) * sizeof( buffer[0] ) * CHAR_BIT; ++offset ) {
-        if ( gzip.tryInflate( reinterpret_cast<unsigned char*>( buffer.data() ),
+        if ( gzip.tryInflate( reinterpret_cast<unsigned char const*>( buffer.data() ),
                               buffer.size() * sizeof( buffer[0] ),
                               offset ) ) {
             bitOffsets.push_back( offset );
@@ -535,7 +534,7 @@ findDeflateBlocksZlibOptimized( BufferedFileReader::AlignedBuffer buffer )
          * end to this block's beginning. It would require a min,max possible range (<8)!
          */
         ++zlibTestCount;
-        if ( gzip.tryInflate( reinterpret_cast<unsigned char*>( buffer.data() ),
+        if ( gzip.tryInflate( reinterpret_cast<unsigned char const*>( buffer.data() ),
                               buffer.size() * sizeof( buffer[0] ),
                               offset ) ) {
             bitOffsets.push_back( offset );
@@ -876,7 +875,9 @@ checkDeflateBlock( const uint64_t      bitBufferForLUT,
     const auto distanceCodesOffset = offset + 13 + 4 + ( codeLengthCount * PRECODE_BITS );
     const auto bitReaderOffset = offset + 13 + ALL_PRECODE_BITS;
 
-    if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_LUT ) {
+    // NOLINTNEXTLINE(readability-simplify-boolean-expr)
+    if constexpr ( false /* CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_LUT */ ) {
+        /** @todo This fails for the igzip benchmark! */
         using PrecodeCheck::SingleLUT::ValidHistogramID::getHistogramIdFromUniformlyPackedHistogram;
         const auto validId = getHistogramIdFromUniformlyPackedHistogram( histogram );
         if ( validId >= precode::VALID_HUFFMAN_CODINGS.size() ) {
@@ -1283,8 +1284,8 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
               << static_cast<double>( block.failedPrecodeInit  ) / static_cast<double>( nBitsToTest ) * 100 << " %)\n"
               << "    Invalid Distance HC: " << block.failedDistanceInit << " ("
               << static_cast<double>( block.failedDistanceInit ) / static_cast<double>( nBitsToTest ) * 100 << " %)\n"
-              << "    Invalid Symbol   HC: " << block.failedLengthInit   << " ("
-              << static_cast<double>( block.failedLengthInit   ) / static_cast<double>( nBitsToTest ) * 100 << " %)\n"
+              << "    Invalid Symbol   HC: " << block.failedLiteralInit   << " ("
+              << static_cast<double>( block.failedLiteralInit  ) / static_cast<double>( nBitsToTest ) * 100 << " %)\n"
               << "    Failed checkPrecode calls: " << checkPrecodeFails << "\n\n";
 
     std::cerr << "Cumulative time spent during tests with deflate::block::readDynamicHuffmanCoding:\n"

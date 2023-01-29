@@ -40,11 +40,31 @@ void
 dummyPrintValue()
 {
     // NOLINTNEXTLINE(clang-diagnostic-unused-variable)
-    int a = 0;
+    [[maybe_unused]] int a = 0;
 }
 
 
 using CompressedHistogram = pragzip::PrecodeCheck::WalkTreeLUT::CompressedHistogram;
+
+
+[[nodiscard]] pragzip::Error
+checkPrecodeDirectly( size_t   next4Bits,
+                      uint64_t precodeBits )
+{
+    using namespace pragzip::deflate;
+
+    const auto codeLengthCount = 4 + next4Bits;
+
+    /* Get code lengths (CL) for alphabet P. */
+    std::array<uint8_t, MAX_PRECODE_COUNT> precodeCL{};
+    std::memset( precodeCL.data(), 0, precodeCL.size() * sizeof( precodeCL[0] ) );
+    for ( size_t i = 0; i < codeLengthCount; ++i ) {
+        precodeCL[PRECODE_ALPHABET[i]] = ( precodeBits >> ( i * 3U ) ) & 0b111U;
+    }
+
+    PrecodeHuffmanCoding precodeHC;
+    return precodeHC.initializeFromLengths( VectorView<uint8_t>( precodeCL.data(), precodeCL.size() ) );
+}
 
 
 void
@@ -117,76 +137,93 @@ testSingleLUTImplementation4Precodes()
     static_assert( check4Precodes( 0 ) != pragzip::Error::NONE );
 
     /* Only one non-zero value that is not 1 leads to a non-optimal tree. */
-    static_assert( check4Precodes( 0b000'000'000'010 ) != pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b000'000'000'011 ) != pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b000'000'000'100 ) != pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b000'000'010'000 ) != pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b000'000'011'000 ) != pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b000'000'100'000 ) != pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b000'010'000'000 ) != pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b000'011'000'000 ) != pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b000'100'000'000 ) != pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b010'000'000'000 ) != pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b011'000'000'000 ) != pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b100'000'000'000 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'000'000'010 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'000'000'011 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'000'000'100 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'000'010'000 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'000'011'000 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'000'100'000 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'010'000'000 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'011'000'000 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'100'000'000 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b010'000'000'000 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b011'000'000'000 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b100'000'000'000 ) != pragzip::Error::NONE );
 
-    static_assert( check4Precodes( 0b000'000'001'000 ) == pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'000'001'000 ) == pragzip::Error::NONE );
 
-    static_assert( WithoutLUT::checkPrecodeUsingArray ( 0, 0b000'000'001'000 ) == pragzip::Error::NONE );
-    static_assert( WithoutLUT           ::checkPrecode( 0, 0b000'000'001'000 ) == pragzip::Error::NONE );
-    static_assert( SingleLUT            ::checkPrecode( 0, 0b000'000'001'000 ) == pragzip::Error::NONE );
-    static_assert( SingleCompressedLUT  ::checkPrecode( 0, 0b000'000'001'000 ) == pragzip::Error::NONE );
-    static_assert( WalkTreeLUT          ::checkPrecode( 0, 0b000'000'001'000 ) == pragzip::Error::NONE );
+    REQUIRE_EQUAL( checkPrecodeDirectly    ( 0, 0b001'000'000'001 ), pragzip::Error::NONE );
+    REQUIRE_EQUAL( WithoutLUT::checkPrecode( 0, 0b001'000'000'001 ), pragzip::Error::NONE );
+
+    REQUIRE_EQUAL( checkPrecodeDirectly    ( 0, 0b010'000'010'001 ), pragzip::Error::NONE );
+    REQUIRE_EQUAL( WithoutLUT::checkPrecode( 0, 0b010'000'010'001 ), pragzip::Error::NONE );
+
+    REQUIRE_EQUAL( checkPrecodeDirectly              ( 0, 0b000'000'001'000 ), pragzip::Error::NONE );
+    REQUIRE_EQUAL( WithoutLUT::checkPrecodeUsingArray( 0, 0b000'000'001'000 ), pragzip::Error::NONE );
+    REQUIRE_EQUAL( WithoutLUT          ::checkPrecode( 0, 0b000'000'001'000 ), pragzip::Error::NONE );
+    REQUIRE_EQUAL( SingleLUT           ::checkPrecode( 0, 0b000'000'001'000 ), pragzip::Error::NONE );
+    REQUIRE_EQUAL( SingleCompressedLUT ::checkPrecode( 0, 0b000'000'001'000 ), pragzip::Error::NONE );
+    REQUIRE_EQUAL( WalkTreeLUT         ::checkPrecode( 0, 0b000'000'001'000 ), pragzip::Error::NONE );
+
+    REQUIRE_EQUAL( WithoutLUT::checkPrecodeUsingArray( 0, 0b000'000'010'000 ),
+                   pragzip::Error::BLOATING_HUFFMAN_CODING );
+    REQUIRE_EQUAL( checkPrecodeDirectly             ( 0, 0b000'000'010'000 ), pragzip::Error::BLOATING_HUFFMAN_CODING );
+    REQUIRE_EQUAL( WithoutLUT         ::checkPrecode( 0, 0b000'000'010'000 ), pragzip::Error::BLOATING_HUFFMAN_CODING );
+    REQUIRE_EQUAL( SingleLUT          ::checkPrecode( 0, 0b000'000'010'000 ), pragzip::Error::BLOATING_HUFFMAN_CODING );
+    REQUIRE_EQUAL( SingleCompressedLUT::checkPrecode( 0, 0b000'000'010'000 ), pragzip::Error::BLOATING_HUFFMAN_CODING );
+    /* Because of the usage of a LUT, the error reasong can not always be exactly deduced. In that case,
+     * non-optimal Huffman codings will be reported as invalid ones! */
+    REQUIRE_EQUAL( WalkTreeLUT::checkPrecode( 0, 0b000'000'010'000 ), pragzip::Error::INVALID_CODE_LENGTHS );
 
     /* A single code length with 1 bit is valid. */
-    static_assert( check4Precodes( 0b000'000'000'001 ) == pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b000'000'001'000 ) == pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b000'001'000'000 ) == pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b001'000'000'000 ) == pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'000'000'001 ) == pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'000'001'000 ) == pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'001'000'000 ) == pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'000'000'000 ) == pragzip::Error::NONE );
 
     /* Two non-zero values are only valid if both of them are of length 1. */
-    static_assert( check4Precodes( 0b001'001'000'000 ) == pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b001'000'001'000 ) == pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b001'000'000'001 ) == pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b000'001'001'000 ) == pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b000'001'000'001 ) == pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b000'000'001'001 ) == pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'001'000'000 ) == pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'000'001'000 ) == pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'000'000'001 ) == pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'001'001'000 ) == pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'001'000'001 ) == pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'000'001'001 ) == pragzip::Error::NONE );
 
-    static_assert( WithoutLUT::checkPrecodeUsingArray ( 0, 0b000'000'001'001 ) == pragzip::Error::NONE );
-    static_assert( WithoutLUT           ::checkPrecode( 0, 0b000'000'001'001 ) == pragzip::Error::NONE );
-    static_assert( SingleLUT            ::checkPrecode( 0, 0b000'000'001'001 ) == pragzip::Error::NONE );
-    static_assert( SingleCompressedLUT  ::checkPrecode( 0, 0b000'000'001'001 ) == pragzip::Error::NONE );
-    static_assert( WalkTreeLUT          ::checkPrecode( 0, 0b000'000'001'001 ) == pragzip::Error::NONE );
+    REQUIRE( WithoutLUT::checkPrecodeUsingArray ( 0, 0b000'000'001'001 ) == pragzip::Error::NONE );
+    REQUIRE( WithoutLUT           ::checkPrecode( 0, 0b000'000'001'001 ) == pragzip::Error::NONE );
+    REQUIRE( SingleLUT            ::checkPrecode( 0, 0b000'000'001'001 ) == pragzip::Error::NONE );
+    REQUIRE( SingleCompressedLUT  ::checkPrecode( 0, 0b000'000'001'001 ) == pragzip::Error::NONE );
+    REQUIRE( WalkTreeLUT          ::checkPrecode( 0, 0b000'000'001'001 ) == pragzip::Error::NONE );
 
     /* If there is a code length longer than one out of the two, then the tree will be non-optimal. */
-    static_assert( check4Precodes( 0b001'011'000'000 ) != pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b001'000'011'000 ) != pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b001'000'000'011 ) != pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b000'001'011'000 ) != pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b000'001'000'011 ) != pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b000'000'011'001 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'011'000'000 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'000'011'000 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'000'000'011 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'001'011'000 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'001'000'011 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'000'011'001 ) != pragzip::Error::NONE );
 
     /* Even with 3 values, there is still only one tree that is valid: code lengths: 1, 2, 2. */
-    static_assert( check4Precodes( 0b001'010'010'000 ) == pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b001'010'000'010 ) == pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b001'010'000'010 ) == pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b010'001'010'000 ) == pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b000'001'010'010 ) == pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b000'010'010'001 ) == pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'010'010'000 ) == pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'010'000'010 ) == pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'010'000'010 ) == pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b010'001'010'000 ) == pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'001'010'010 ) == pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'010'010'001 ) == pragzip::Error::NONE );
 
-    static_assert( check4Precodes( 0b001'010'011'000 ) != pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b011'010'000'010 ) != pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b001'110'000'010 ) != pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b010'001'011'000 ) != pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b000'001'010'110 ) != pragzip::Error::NONE );
-    static_assert( check4Precodes( 0b000'010'010'101 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'010'011'000 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b011'010'000'010 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'110'000'010 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b010'001'011'000 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'001'010'110 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'010'010'101 ) != pragzip::Error::NONE );
 
     /* And even with 4 values, there is still only one tree that is valid: code lengths: 2, 2, 2, 2. */
-    static_assert( check4Precodes( 0b010'010'010'010 ) == pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b010'010'010'010 ) == pragzip::Error::NONE );
 
     /* Too many of the same value overflows the variable-length bit-packed histogram,
      * which should be detected and yield an error. */
-    static_assert( check4Precodes( 0b001'010'001'001 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'010'001'001 ) != pragzip::Error::NONE );
 }
 
 
@@ -492,7 +529,7 @@ analyzeMaxValidPrecodeFrequenciesHelper( std::function<void( uint64_t )> process
      * when there are more code lengths on a tree level than there are nodes. */
     for ( uint32_t count = 0; count <= std::min( remainingCount, freeBits ); ++count ) {
         const auto newFreeBits = ( freeBits - count ) * 2;
-        const auto newRemainingCount = remainingCount - count;
+        [[maybe_unused]] const auto newRemainingCount = remainingCount - count;
 
         /* The first layer may not be fully filled or even empty. This does not fit any of the general tests. */
         if constexpr ( DEPTH == 1 ) {

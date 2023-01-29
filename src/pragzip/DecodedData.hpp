@@ -16,27 +16,50 @@
 
 namespace pragzip::deflate
 {
+template<bool FULL_WINDOW>
+struct MapMarkers
+{
+    MapMarkers( VectorView<uint8_t> const& window ) :
+        m_window( window )
+    {
+        assert( ( m_window.size() >= MAX_WINDOW_SIZE ) == FULL_WINDOW );
+    }
+
+    [[nodiscard]] constexpr uint8_t
+    operator()( uint16_t value ) const
+    {
+        if ( value <= std::numeric_limits<uint8_t>::max() ) {
+            return static_cast<uint8_t>( value );
+        }
+
+        if ( value < MAX_WINDOW_SIZE ) {
+            throw std::invalid_argument( "Cannot replace unknown 2 B code!" );
+        }
+
+        if constexpr ( !FULL_WINDOW  ) {
+            if ( value - MAX_WINDOW_SIZE >= m_window.size() ) {
+                throw std::invalid_argument( "Window too small!" );
+            }
+        }
+
+        return m_window[value - MAX_WINDOW_SIZE];
+    }
+
+private:
+    const VectorView<uint8_t> m_window;
+};
+
+
 void
 replaceMarkerBytes( WeakVector<std::uint16_t>  buffer,
                     VectorView<uint8_t> const& window )
 {
-    const auto mapMarker =
-        [&window] ( uint16_t value )
-        {
-            if ( ( value > std::numeric_limits<uint8_t>::max() )
-                 && ( value < MAX_WINDOW_SIZE ) )
-            {
-                throw std::invalid_argument( "Cannot replace unknown 2 B code!" );
-            }
-
-            if ( ( value >= MAX_WINDOW_SIZE ) && ( value - MAX_WINDOW_SIZE >= window.size() ) ) {
-                throw std::invalid_argument( "Window too small!" );
-            }
-
-            return value >= MAX_WINDOW_SIZE ? window[value - MAX_WINDOW_SIZE] : static_cast<uint8_t>( value );
-        };
-
-    std::transform( buffer.begin(), buffer.end(), buffer.begin(), mapMarker );
+    /* For maximum size windows, we can skip one check because even UINT16_MAX is valid. */
+    if ( window.size() >= MAX_WINDOW_SIZE ) {
+        std::transform( buffer.begin(), buffer.end(), buffer.begin(), MapMarkers<true>( window ) );
+    } else {
+        std::transform( buffer.begin(), buffer.end(), buffer.begin(), MapMarkers<false>( window ) );
+    }
 }
 
 
@@ -82,6 +105,74 @@ struct DecodedData
 public:
     using WindowView = VectorView<uint8_t>;
 
+    class Iterator
+    {
+    public:
+        explicit
+        Iterator( const DecodedData& decodedData,
+                  const size_t       offset = 0,
+                  const size_t       size = std::numeric_limits<size_t>::max() ) :
+            m_data( decodedData ),
+            m_size( size )
+        {
+            m_offsetInChunk = offset;
+            for ( m_currentChunk = 0; m_currentChunk < m_data.data.size(); ++m_currentChunk ) {
+                const auto& chunk = m_data.data[m_currentChunk];
+                if ( ( m_offsetInChunk < chunk.size() ) && !chunk.empty() ) {
+                    m_sizeInChunk = std::min( chunk.size() - m_offsetInChunk, m_size );
+                    break;
+                }
+                m_offsetInChunk -= chunk.size();
+            }
+        }
+
+        [[nodiscard]] operator bool() const noexcept
+        {
+            return ( m_currentChunk < m_data.data.size() ) && ( m_processedSize < m_size );
+        }
+
+        [[nodiscard]] std::pair<const void*, uint64_t>
+        operator*() const
+        {
+            const auto& chunk = m_data.data[m_currentChunk];
+            return { chunk.data() + m_offsetInChunk, m_sizeInChunk };
+        }
+
+        void
+        operator++()
+        {
+            m_processedSize += m_sizeInChunk;
+            m_offsetInChunk = 0;
+            m_sizeInChunk = 0;
+
+            if ( m_processedSize > m_size ) {
+                throw std::logic_error( "Iterated over mroe bytes than was requested!" );
+            }
+
+            if ( !static_cast<bool>( *this ) ) {
+                return;
+            }
+
+            ++m_currentChunk;
+            for ( ; m_currentChunk < m_data.data.size(); ++m_currentChunk ) {
+                const auto& chunk = m_data.data[m_currentChunk];
+                if ( !chunk.empty() ) {
+                    m_sizeInChunk = std::min( chunk.size(), m_size - m_processedSize );
+                    break;
+                }
+            }
+        }
+
+    private:
+        const DecodedData& m_data;
+        const size_t m_size;
+
+        size_t m_currentChunk{ 0 };
+        size_t m_offsetInChunk{ 0 };
+        size_t m_sizeInChunk{ 0 };
+        size_t m_processedSize{ 0 };
+    };
+
 public:
     void
     append( std::vector<uint8_t>&& toAppend )
@@ -103,23 +194,9 @@ public:
     }
 
     [[nodiscard]] size_t
-    dataCapacity() const noexcept
-    {
-        const auto addSize = [] ( const size_t size, const auto& container ) { return size + container.capacity(); };
-        return std::accumulate( data.begin(), data.end(), size_t( 0 ), addSize );
-    }
-
-    [[nodiscard]] size_t
     dataWithMarkersSize() const noexcept
     {
         const auto addSize = [] ( const size_t size, const auto& container ) { return size + container.size(); };
-        return std::accumulate( dataWithMarkers.begin(), dataWithMarkers.end(), size_t( 0 ), addSize );
-    }
-
-    [[nodiscard]] size_t
-    dataWithMarkersCapacity() const noexcept
-    {
-        const auto addSize = [] ( const size_t size, const auto& container ) { return size + container.capacity(); };
         return std::accumulate( dataWithMarkers.begin(), dataWithMarkers.end(), size_t( 0 ), addSize );
     }
 
@@ -135,12 +212,6 @@ public:
         return dataSize() * sizeof( uint8_t ) + dataWithMarkersSize() * sizeof( uint16_t );
     }
 
-    [[nodiscard]] size_t
-    capacityInBytes() const noexcept
-    {
-        return dataCapacity() * sizeof( uint8_t ) + dataWithMarkersCapacity() * sizeof( uint16_t );
-    }
-
     void
     applyWindow( WindowView const& window );
 
@@ -150,8 +221,18 @@ public:
      * with the next block. Because this is not supposed to be called very often, it returns a copy of
      * the data instead of views.
      */
-    [[nodiscard]] std::array<std::uint8_t, MAX_WINDOW_SIZE>
+    [[nodiscard]] std::vector<std::uint8_t>
     getLastWindow( WindowView const& previousWindow ) const;
+
+    /**
+     * @param skipBytes The number of bits to shift the previous window and fill it with new data.
+     *        A value of 0 would simply return @p previousWindow while a value equal to size() would return
+     *        the window as it would be after this whole block.
+     * @note Should only be called after @ref applyWindow because @p skipBytes larger than @ref dataSize will throw.
+     */
+    [[nodiscard]] std::vector<std::uint8_t>
+    getWindowAt( WindowView const& previousWindow,
+                 size_t            skipBytes ) const;
 
     void
     shrinkToFit()
@@ -217,32 +298,65 @@ DecodedData::append( DecodedDataView const& buffers )
 inline void
 DecodedData::applyWindow( WindowView const& window )
 {
-    if ( dataWithMarkersSize() == 0 ) {
+    const auto markerCount = dataWithMarkersSize();
+    if ( markerCount == 0 ) {
         dataWithMarkers.clear();
         return;
     }
 
-    std::vector<uint8_t> downcasted( dataWithMarkersSize() );
-    size_t offset{ 0 };
-    for ( auto& chunk : dataWithMarkers ) {
-        replaceMarkerBytes( &chunk, window );
-        std::transform( chunk.begin(), chunk.end(), downcasted.begin() + offset,
-                        [] ( const auto symbol ) { return static_cast<uint8_t>( symbol ); } );
-        offset += chunk.size();
+    /* Because of the overhead of copying the window, avoid it for small replacements. */
+    if ( markerCount >= 128_Ki ) {
+        const std::array<uint8_t, 64_Ki> fullWindow =
+            [&window] () noexcept
+            {
+                std::array<uint8_t, 64_Ki> result{};
+                std::iota( result.begin(), result.begin() + 256, 0 );
+                std::copy( window.begin(), window.end(), result.begin() + MAX_WINDOW_SIZE );
+                return result;
+            }();
+
+        std::vector<uint8_t> downcasted( markerCount );
+        size_t offset{ 0 };
+        for ( auto& chunk : dataWithMarkers ) {
+            std::transform( chunk.begin(), chunk.end(), downcasted.begin() + offset,
+                            [&fullWindow] ( const auto value ) constexpr noexcept { return fullWindow[value]; } );
+            offset += chunk.size();
+        }
+
+        data.insert( data.begin(), std::move( downcasted ) );
+        dataWithMarkers.clear();
+        return;
     }
+
+    std::vector<uint8_t> downcasted( markerCount );
+    size_t offset{ 0 };
+
+    /* For maximum size windows, we can skip one check because even UINT16_MAX is valid. */
+    static_assert( std::numeric_limits<uint16_t>::max() - MAX_WINDOW_SIZE + 1U == MAX_WINDOW_SIZE );
+    if ( window.size() >= MAX_WINDOW_SIZE ) {
+        const MapMarkers<true> mapMarkers( window );
+        for ( auto& chunk : dataWithMarkers ) {
+            std::transform( chunk.begin(), chunk.end(), downcasted.begin() + offset, mapMarkers );
+            offset += chunk.size();
+        }
+    } else {
+        const MapMarkers<false> mapMarkers( window );
+        for ( auto& chunk : dataWithMarkers ) {
+            std::transform( chunk.begin(), chunk.end(), chunk.begin(), mapMarkers );
+            std::copy( chunk.begin(), chunk.end(), reinterpret_cast<std::uint8_t*>( downcasted.data() + offset ) );
+            offset += chunk.size();
+        }
+    }
+
     data.insert( data.begin(), std::move( downcasted ) );
     dataWithMarkers.clear();
 }
 
 
-[[nodiscard]] inline std::array<std::uint8_t, MAX_WINDOW_SIZE>
+[[nodiscard]] inline std::vector<std::uint8_t>
 DecodedData::getLastWindow( WindowView const& previousWindow ) const
 {
-    if ( dataWithMarkersSize() > 0 ) {
-        throw std::invalid_argument( "No valid window available. Please call applyWindow first!" );
-    }
-
-    std::array<std::uint8_t, MAX_WINDOW_SIZE> window{};
+    std::vector<std::uint8_t> window( MAX_WINDOW_SIZE, 0 );
     size_t nBytesWritten{ 0 };
 
     /* Fill the result from the back with data from our buffer. */
@@ -254,6 +368,27 @@ DecodedData::getLastWindow( WindowView const& previousWindow ) const
         }
     }
 
+    /* Fill the result from the back with data from our unresolved buffers. */
+    const auto copyFromDataWithMarkers =
+        [this, &window, &nBytesWritten] ( const auto& mapMarker )
+        {
+            for ( auto chunk = dataWithMarkers.rbegin();
+                  ( chunk != dataWithMarkers.rend() ) && ( nBytesWritten < window.size() ); ++chunk )
+            {
+                for ( auto symbol = chunk->rbegin(); ( symbol != chunk->rend() ) && ( nBytesWritten < window.size() );
+                      ++symbol, ++nBytesWritten )
+                {
+                    window[window.size() - 1 - nBytesWritten] = mapMarker( *symbol );
+                }
+            }
+        };
+
+    if ( previousWindow.size() >= MAX_WINDOW_SIZE ) {
+        copyFromDataWithMarkers( MapMarkers</* full window */ true>( previousWindow ) );
+    } else {
+        copyFromDataWithMarkers( MapMarkers</* full window */ false>( previousWindow ) );
+    }
+
     /* Fill the remaining part with the given window. This should only happen for very small DecodedData sizes. */
     if ( nBytesWritten < MAX_WINDOW_SIZE ) {
         const auto remainingBytes = MAX_WINDOW_SIZE - nBytesWritten;
@@ -261,6 +396,96 @@ DecodedData::getLastWindow( WindowView const& previousWindow ) const
                    std::reverse_iterator( previousWindow.end() )
                    + std::min( remainingBytes, previousWindow.size() ),
                    window.rbegin() + nBytesWritten );
+    }
+
+    return window;
+}
+
+
+[[nodiscard]] inline std::vector<std::uint8_t>
+DecodedData::getWindowAt( WindowView const& previousWindow,
+                          size_t const      skipBytes) const
+{
+    if ( skipBytes > size() ) {
+        throw std::invalid_argument( "Amount of bytes to skip is larger than this block!" );
+    }
+
+    std::vector<std::uint8_t> window( MAX_WINDOW_SIZE );
+    size_t prefilled{ 0 };
+    if ( skipBytes < MAX_WINDOW_SIZE ) {
+        const auto lastBytesToCopyFromPrevious = MAX_WINDOW_SIZE - skipBytes;
+        if ( lastBytesToCopyFromPrevious <= previousWindow.size() ) {
+            for ( size_t j = previousWindow.size() - lastBytesToCopyFromPrevious; j < previousWindow.size();
+                  ++j, ++prefilled )
+            {
+                window[prefilled] = previousWindow[j];
+            }
+            // prefilled = lastBytesToCopyFromPrevious = MAX_WINDOW_SIZE - skipBytes
+        } else {
+            /* If previousWindow.size() < MAX_WINDOW_SIZE, which might happen at the start of streams,
+             * then behave as if previousWindow was padded with leading zeros. */
+            const auto zerosToFill = lastBytesToCopyFromPrevious - previousWindow.size();
+            for ( ; prefilled < zerosToFill; ++prefilled ) {
+                window[prefilled] = 0;
+            }
+
+            for ( size_t j = 0; j < previousWindow.size(); ++j, ++prefilled ) {
+                window[prefilled] = previousWindow[j];
+            }
+            // prefilled = lastBytesToCopyFromPrevious - previousWindow.size() + previousWindow.size()
+        }
+        assert( prefilled == MAX_WINDOW_SIZE - skipBytes );
+    }
+
+    const auto remainingBytes = window.size() - prefilled;
+
+    /* Skip over skipBytes in data and then copy the last remainingBytes before it. */
+    auto offset = skipBytes - remainingBytes;
+    /* if skipBytes < MAX_WINDOW_SIZE
+     *     offset = skipBytes - ( window.size() - ( MAX_WINDOW_SIZE - skipBytes ) ) = 0
+     * if skipBytes >= MAX_WINDOW_SIZE
+     *     offset = skipBytes - ( window.size() - 0 ) */
+
+    const auto copyFromDataWithMarkers =
+        [this, &offset, &prefilled, &window] ( const auto& mapMarker )
+        {
+            for ( auto& chunk : dataWithMarkers ) {
+                if ( prefilled >= window.size() ) {
+                    break;
+                }
+
+                if ( offset >= chunk.size() ) {
+                    offset -= chunk.size();
+                    continue;
+                }
+
+                for ( size_t i = offset; ( i < chunk.size() ) && ( prefilled < window.size() ); ++i, ++prefilled ) {
+                    window[prefilled] = mapMarker( chunk[i] );
+                }
+                offset = 0;
+            }
+        };
+
+    if ( previousWindow.size() >= MAX_WINDOW_SIZE ) {
+        copyFromDataWithMarkers( MapMarkers</* full window */ true>( previousWindow ) );
+    } else {
+        copyFromDataWithMarkers( MapMarkers</* full window */ false>( previousWindow ) );
+    }
+
+    for ( auto& chunk : data ) {
+        if ( prefilled >= window.size() ) {
+            break;
+        }
+
+        if ( offset >= chunk.size() ) {
+            offset -= chunk.size();
+            continue;
+        }
+
+        for ( size_t i = offset; ( i < chunk.size() ) && ( prefilled < window.size() ); ++i, ++prefilled ) {
+            window[prefilled] = chunk[i];
+        }
+        offset = 0;
     }
 
     return window;
@@ -292,4 +517,26 @@ DecodedData::cleanUnmarkedData()
 
     shrinkToFit();
 }
+
+
+#ifdef HAVE_IOVEC
+[[nodiscard]] std::vector<::iovec>
+toIoVec( const DecodedData& decodedData,
+         const size_t       offsetInBlock,
+         const size_t       dataToWriteSize )
+{
+    std::vector<::iovec> buffersToWrite;
+    for ( auto it = pragzip::deflate::DecodedData::Iterator( decodedData, offsetInBlock, dataToWriteSize );
+          static_cast<bool>( it ); ++it )
+    {
+        const auto& [data, size] = *it;
+        ::iovec buffer;
+        /* The const_cast should be safe because vmsplice and writev should not modify the input data. */
+        buffer.iov_base = const_cast<void*>( reinterpret_cast<const void*>( data ) );;
+        buffer.iov_len = size;
+        buffersToWrite.emplace_back( buffer );
+    }
+    return buffersToWrite;
+}
+#endif  // HAVE_IOVEC
 }  // namespace pragzip::deflate

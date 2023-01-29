@@ -12,6 +12,7 @@
 #include <utility>
 
 #include <DecodedData.hpp>
+#include <FileUtils.hpp>
 #include <filereader/FileReader.hpp>
 #include <filereader/Standard.hpp>
 #include <pragzip.hpp>
@@ -202,7 +203,7 @@ public:
                  *       important as for the multi-threaded version because decoding is the bottlneck for the
                  *       sequential version.
                  */
-                writeAll( outputFileDescriptor, currentBufferPosition, buffer, size );
+                ::writeAll( outputFileDescriptor, currentBufferPosition, buffer, size );
                 nBytesDecoded += size;
             };
 
@@ -269,6 +270,10 @@ public:
                     break;
                 }
             }
+
+        #ifdef WITH_PYTHON_SUPPORT
+            checkPythonSignalHandlers();
+        #endif
 
             if ( m_currentPoint.has_value() && testFlags( *m_currentPoint, stoppingPoint ) ) {
                 break;

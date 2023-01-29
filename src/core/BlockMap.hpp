@@ -32,6 +32,19 @@ public:
             return ( decodedOffsetInBytes <= dataOffset ) && ( dataOffset < decodedOffsetInBytes + decodedSizeInBytes );
         }
 
+        friend std::ostream&
+        operator<<( std::ostream&    out,
+                    const BlockInfo& blockInfo )
+        {
+            out << "BlockInfo{ blockIndex: " << blockInfo.blockIndex
+                << ", encodedOffsetInBits: " << formatBits( blockInfo.encodedOffsetInBits )
+                << ", encodedSizeInBits: " << formatBits( blockInfo.encodedSizeInBits )
+                << ", decodedOffsetInBytes: " << formatBytes( blockInfo.decodedOffsetInBytes )
+                << ", decodedSizeInBytes: " << formatBytes( blockInfo.decodedSizeInBytes )
+                << " }";
+            return out;
+        };
+
     public:
         /** Each block in the stream will be given an increasing index number. */
         size_t blockIndex{ 0 };

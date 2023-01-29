@@ -24,7 +24,7 @@ class SharedFileReader final :
 public:
     static constexpr bool SHOW_PROFILE{ false };
 
-public:
+private:
     /**
      * Create a new shared file reader from an existing FileReader. Takes ownership of the given FileReader!
      */
@@ -72,6 +72,7 @@ public:
             );
     }
 
+public:
     explicit
     SharedFileReader( std::unique_ptr<FileReader> file ) :
         SharedFileReader( file.release() )
@@ -98,6 +99,9 @@ public:
         }
     }
 
+    /**
+     * Creates a shallow copy of this file reader with an independent file position to access the underlying file.
+     */
     [[nodiscard]] FileReader*
     clone() const override
     {

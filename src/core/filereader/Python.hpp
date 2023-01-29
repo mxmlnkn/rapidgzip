@@ -15,6 +15,34 @@
 #include "FileReader.hpp"
 
 
+class PythonExceptionThrownBySignal :
+    public std::runtime_error
+{
+public:
+    PythonExceptionThrownBySignal() :
+        std::runtime_error( "An exception has been thrown while checking the Python signal handler." )
+    {}
+};
+
+
+void
+checkPythonSignalHandlers()
+{
+    /**
+     * @see https://docs.python.org/3/c-api/exceptions.html#signal-handling
+     * > The function attempts to handle all pending signals, and then returns 0.
+     * > However, if a Python signal handler raises an exception, the error indicator is set and the function
+     * > returns -1 immediately (such that other pending signals may not have been handled yet:
+     * > they will be on the next PyErr_CheckSignals() invocation).
+     */
+    for ( auto result = PyErr_CheckSignals(); result != 0; result = PyErr_CheckSignals() ) {
+        if ( PyErr_Occurred() != nullptr ) {
+            throw PythonExceptionThrownBySignal();
+        }
+    }
+}
+
+
 template<typename Value,
          typename std::enable_if_t<std::is_integral_v<Value> && std::is_signed_v<Value>, void*> = nullptr>
 [[nodiscard]] PyObject*

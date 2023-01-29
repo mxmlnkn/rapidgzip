@@ -345,7 +345,8 @@ class BlockStatistics
 public:
     uint64_t failedPrecodeInit{ 0 };
     uint64_t failedDistanceInit{ 0 };
-    uint64_t failedLengthInit{ 0 };
+    uint64_t failedLiteralInit{ 0 };
+    uint64_t failedPrecodeApply{ 0 };
 
     std::array<uint64_t, /* codeLengthCount - 4 is 4 bits = 16 possible values */ 16> precodeCLHistogram{};
 
@@ -774,10 +775,6 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& 
         return Error::EXCEEDED_LITERAL_RANGE;
     }
     const auto distanceCodeCount = 1 + bitReader.read<5>();
-    if ( distanceCodeCount > MAX_DISTANCE_SYMBOL_COUNT ) {
-        durations.readDynamicHeader += duration( times.readDynamicStart );
-        return Error::EXCEEDED_DISTANCE_RANGE;
-    }
     const auto codeLengthCount = 4 + bitReader.read<4>();
 
     if constexpr ( ENABLE_STATISTICS ) {
@@ -824,6 +821,7 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& 
 
     if ( precodeApplyError != Error::NONE ) {
         if constexpr ( ENABLE_STATISTICS ) {
+            this->failedPrecodeApply++;
             durations.readDynamicHeader += duration( times.readDynamicStart );
         }
         return precodeApplyError;
@@ -851,7 +849,7 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& 
     error = m_literalHC.initializeFromLengths( VectorView<uint8_t>( m_literalCL.data(), literalCodeCount ) );
     if ( error != Error::NONE ) {
         if constexpr ( ENABLE_STATISTICS ) {
-            this->failedLengthInit++;
+            this->failedLiteralInit++;
         }
     }
 
@@ -893,9 +891,6 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::getDistance( BitReader& bitReader ) c
     uint16_t distance = 0;
     if ( m_compressionType == CompressionType::FIXED_HUFFMAN ) {
         distance = reverseBits( static_cast<uint8_t>( bitReader.read<5>() ) ) >> 3U;
-        if ( UNLIKELY( distance >= MAX_DISTANCE_SYMBOL_COUNT ) ) [[unlikely]] {
-            return { 0, Error::EXCEEDED_DISTANCE_RANGE };
-        }
     } else {
         const auto decodedDistance = m_distanceHC.decode( bitReader );
         if ( UNLIKELY( !decodedDistance ) ) [[unlikely]] {

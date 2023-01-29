@@ -48,7 +48,7 @@ testAutomaticMarkerResolution( const std::filesystem::path& filePath,
     const auto blockOffset = getBlockOffset( filePath, blockIndex );
     try {
         std::atomic<bool> cancel{ false };
-        const auto result = GzipBlockFetcher<FetchingStrategy::FetchNextMulti>::decodeBlock(
+        const auto result = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlock(
             bitReader,
             blockOffset,
             /* untilOffset */ std::numeric_limits<size_t>::max(),
@@ -91,6 +91,60 @@ testAutomaticMarkerResolution( const std::filesystem::path& filePath,
 }
 
 
+std::ostream&
+operator<<( std::ostream&                                    out,
+            const std::vector<pragzip::BlockData::Subblock>& blocks )
+{
+    out << "{";
+    for ( const auto block : blocks ) {
+        out << " (" << block.encodedOffset << ", " << block.encodedSize << ", " << block.decodedSize << ")";
+    }
+    out << " }";
+    return out;
+}
+
+
+void
+testBlockSplit()
+{
+    BlockData block;
+    block.encodedOffsetInBits = 0;
+    block.maxEncodedOffsetInBits = 0;
+    block.encodedSizeInBits = 0;
+
+    using Subblock = pragzip::BlockData::Subblock;
+    using BlockBoundary = pragzip::BlockData::BlockBoundary;
+    block.finalize( 0 );
+    REQUIRE( block.split( 1 ).empty() );
+
+    block.data.emplace_back();
+    block.data.back().resize( 1 );
+    block.finalize( 8 );
+    std::vector<Subblock> expected = { Subblock{ 0, 8, 1 } };
+    REQUIRE( block.split( 1 ) == expected );
+    REQUIRE( block.split( 2 ) == expected );
+    REQUIRE( block.split( 10 ) == expected );
+
+    block.data.back().resize( 1024 );
+    block.blockBoundaries = { BlockBoundary{ 128, 1024 } };
+    block.finalize( 128 );
+    expected = { Subblock{ 0, 128, 1024 } };
+    REQUIRE( block.split( 1 ) == expected );
+    REQUIRE( block.split( 1024 ) == expected );
+    REQUIRE( block.split( 10000 ) == expected );
+
+    block.blockBoundaries = { BlockBoundary{ 30, 300 }, BlockBoundary{ 128, 1024 } };
+    REQUIRE( block.split( 1024 ) == expected );
+    REQUIRE( block.split( 10000 ) == expected );
+
+    expected = { Subblock{ 0, 30, 300 }, Subblock{ 30, 128 - 30, 1024 - 300 } };
+    REQUIRE( block.split( 400 ) == expected );
+    REQUIRE( block.split( 512 ) == expected );
+    REQUIRE( block.split( 600 ) == expected );
+    REQUIRE( block.split( 1 ) == expected );
+}
+
+
 int
 main( int    argc,
       char** argv )
@@ -99,6 +153,8 @@ main( int    argc,
         std::cerr << "Expected at least the launch command as the first argument!\n";
         return 1;
     }
+
+    testBlockSplit();
 
     const std::string binaryFilePath( argv[0] );
     std::string binaryFolder = ".";

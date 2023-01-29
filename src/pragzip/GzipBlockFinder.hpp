@@ -189,6 +189,12 @@ public:
         return ( blockOffset / m_spacingInBits ) * m_spacingInBits;
     }
 
+    [[nodiscard]] constexpr size_t
+    spacingInBits() const noexcept
+    {
+        return m_spacingInBits;
+    }
+
 private:
     void
     insertUnsafe( size_t blockOffset )

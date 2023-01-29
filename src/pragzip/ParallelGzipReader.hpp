@@ -23,7 +23,7 @@
     #include <filereader/Python.hpp>
 #endif
 
-#include "GzipBlockFetcher.hpp"
+#include "GzipChunkFetcher.hpp"
 #include "GzipBlockFinder.hpp"
 #include "gzip.hpp"
 #include "IndexFileFormat.hpp"
@@ -34,7 +34,8 @@ namespace pragzip
 /**
  * @note Calls to this class are not thread-safe! Even though they use threads to evaluate them in parallel.
  */
-template<bool ENABLE_STATISTICS = false>
+template<bool ENABLE_STATISTICS = false,
+         bool SHOW_PROFILE = false>
 class ParallelGzipReader final :
     public FileReader
 {
@@ -47,13 +48,10 @@ public:
      * because the prefetch and cache units are very large and striding or backward accessing over multiple
      * megabytes should be extremely rare.
      */
-    using BlockFetcher = pragzip::GzipBlockFetcher<FetchingStrategy::FetchNextMulti, ENABLE_STATISTICS>;
-    using BlockFinder = typename BlockFetcher::BlockFinder;
+    using ChunkFetcher = pragzip::GzipChunkFetcher<FetchingStrategy::FetchMultiStream, ENABLE_STATISTICS, SHOW_PROFILE>;
+    using BlockFinder = typename ChunkFetcher::BlockFinder;
     using BitReader = pragzip::BitReader;
-    using WriteFunctor = std::function<void ( const void*, uint64_t, const std::shared_ptr<BlockData>& )>;
-
-private:
-    static constexpr bool SHOW_PROFILE{ false };
+    using WriteFunctor = std::function<void ( const std::shared_ptr<BlockData>&, size_t, size_t )>;
 
 public:
     /**
@@ -230,7 +228,7 @@ public:
     void
     close() override
     {
-        m_blockFetcher = {};
+        m_chunkFetcher = {};
         m_blockFinder = {};
         m_bitReader.close();
     }
@@ -295,23 +293,28 @@ public:
     {
         const auto writeFunctor =
             [nBytesDecoded = uint64_t( 0 ), outputFileDescriptor, outputBuffer]
-            ( const void* const                 dataToWrite,
-              uint64_t const                    dataToWriteSize,
-              const std::shared_ptr<BlockData>& blockData ) mutable
+            ( const std::shared_ptr<BlockData>& blockData,
+              size_t const                      offsetInBlock,
+              size_t const                      dataToWriteSize ) mutable
             {
                 if ( dataToWriteSize == 0 ) {
                     return;
                 }
 
-                if ( outputFileDescriptor >= 0 ) {
-                    if ( !writeAllSplice( outputFileDescriptor, dataToWrite, dataToWriteSize, blockData ) ) {
-                        writeAllToFd( outputFileDescriptor, dataToWrite, dataToWriteSize );
-                    }
-                }
+                writeAll( blockData, outputFileDescriptor, offsetInBlock, dataToWriteSize );
 
                 if ( outputBuffer != nullptr ) {
-                    auto* const currentBufferPosition = outputBuffer + nBytesDecoded;
-                    std::memcpy( currentBufferPosition, dataToWrite, dataToWriteSize );
+                    using pragzip::deflate::DecodedData;
+
+                    size_t nBytesCopied{ 0 };
+                    for ( auto it = DecodedData::Iterator( *blockData, offsetInBlock, dataToWriteSize );
+                          static_cast<bool>( it ); ++it )
+                    {
+                        const auto& [buffer, size] = *it;
+                        auto* const currentBufferPosition = outputBuffer + nBytesDecoded + nBytesCopied;
+                        std::memcpy( currentBufferPosition, buffer, size );
+                        nBytesCopied += size;
+                    }
                 }
 
                 nBytesDecoded += dataToWriteSize;
@@ -334,7 +337,7 @@ public:
 
         size_t nBytesDecoded = 0;
         while ( ( nBytesDecoded < nBytesToRead ) && !eof() ) {
-            const auto blockResult = blockFetcher().get( m_currentPosition );
+            const auto blockResult = chunkFetcher().get( m_currentPosition );
             if ( !blockResult ) {
                 m_atEndOfFile = true;
                 break;
@@ -348,42 +351,41 @@ public:
             /* Copy data from fetched block to output. */
 
             const auto offsetInBlock = m_currentPosition - blockInfo.decodedOffsetInBytes;
-            if ( offsetInBlock >= blockData->size() ) {
-                throw std::logic_error( "Block does not contain the requested offset even though it "
-                                        "shouldn't be according to block map!" );
+            const auto blockSize = blockData->decodedSizeInBytes;
+            if ( offsetInBlock >= blockSize ) {
+                std::stringstream message;
+                message << "[ParallelGzipReader] Block does not contain the requested offset! "
+                        << "Requested offset from chunk fetcher: " << formatBytes( m_currentPosition )
+                        << ", returned block info from block map: " << blockInfo
+                        << ", block data encoded offset: " << formatBits( blockData->encodedOffsetInBits )
+                        << ", block data encoded size: " << formatBits( blockData->encodedSizeInBits )
+                        << ", block data size: " << formatBytes( blockData->decodedSizeInBytes )
+                        << " markers: " << blockData->dataWithMarkersSize();
+                throw std::logic_error( std::move( message ).str() );
             }
 
             if ( blockData->data.empty() ) {
                 throw std::logic_error( "Did not expect empty block. Cannot proceed!" );
             }
 
-            /* Iterate over chunks, first to find offset, then to copy data to output. */
-            size_t offsetInChunk{ offsetInBlock };
-            for ( const auto& chunk : blockData->data ) {
-                if ( nBytesDecoded >= nBytesToRead ) {
-                    break;
-                }
+        #ifdef WITH_PYTHON_SUPPORT
+            checkPythonSignalHandlers();
+        #endif
 
-                if ( offsetInChunk > chunk.size() ) {
-                    offsetInChunk -= chunk.size();
-                    continue;
-                }
+            const auto nBytesToDecode = std::min( blockSize - offsetInBlock, nBytesToRead - nBytesDecoded );
 
+            if ( writeFunctor ) {
                 [[maybe_unused]] const auto tWriteStart = now();
 
-                const auto nBytesToDecode = std::min( chunk.size() - offsetInChunk, nBytesToRead - nBytesDecoded );
-                if ( writeFunctor ) {
-                    writeFunctor( chunk.data() + offsetInChunk, nBytesToDecode, blockData );
-                }
+                writeFunctor( blockData, offsetInBlock, nBytesToDecode );
 
                 if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
                     m_writeOutputTime += duration( tWriteStart );
                 }
-
-                nBytesDecoded += nBytesToDecode;
-                m_currentPosition += nBytesToDecode;
-                offsetInChunk = 0;
             }
+
+            nBytesDecoded += nBytesToDecode;
+            m_currentPosition += nBytesToDecode;
         }
 
         return nBytesDecoded;
@@ -534,10 +536,10 @@ public:
     [[nodiscard]] auto
     statistics() const
     {
-        if ( !m_blockFetcher ) {
-            throw std::invalid_argument( "No BlockFetcher initialized!" );
+        if ( !m_chunkFetcher ) {
+            throw std::invalid_argument( "No chunk fetcher initialized!" );
         }
-        return m_blockFetcher->statistics();
+        return m_chunkFetcher->statistics();
     }
 
 private:
@@ -591,7 +593,7 @@ public:
              * mirrors importIndex better. */
             m_windowMap->emplace( checkpoint.compressedOffsetInBits, checkpoint.window );
         }
-        blockFetcher().clearCache();
+        chunkFetcher().clearCache();
     }
 
 #ifdef WITH_PYTHON_SUPPORT
@@ -646,7 +648,7 @@ public:
     void
     joinThreads()
     {
-        m_blockFetcher.reset();
+        m_chunkFetcher.reset();
         m_blockFinder.reset();
     }
 
@@ -675,24 +677,24 @@ private:
     }
 
 
-    BlockFetcher&
-    blockFetcher()
+    ChunkFetcher&
+    chunkFetcher()
     {
-        if ( m_blockFetcher ) {
-            return *m_blockFetcher;
+        if ( m_chunkFetcher ) {
+            return *m_chunkFetcher;
         }
 
         /* As a side effect, blockFinder() creates m_blockFinder if not already initialized! */
         blockFinder();
 
-        m_blockFetcher = std::make_unique<BlockFetcher>( m_bitReader, m_blockFinder, m_blockMap, m_windowMap,
+        m_chunkFetcher = std::make_unique<ChunkFetcher>( m_bitReader, m_blockFinder, m_blockMap, m_windowMap,
                                                          m_fetcherParallelization );
 
-        if ( !m_blockFetcher ) {
+        if ( !m_chunkFetcher ) {
             throw std::logic_error( "Block fetcher should have been initialized!" );
         }
 
-        return *m_blockFetcher;
+        return *m_chunkFetcher;
     }
 
     void
@@ -742,6 +744,6 @@ private:
      * in order into @ref m_blockMap.
      */
     std::shared_ptr<WindowMap> const m_windowMap{ std::make_shared<WindowMap>() };
-    std::unique_ptr<BlockFetcher>    m_blockFetcher;
+    std::unique_ptr<ChunkFetcher>    m_chunkFetcher;
 };
 }  // namespace pragzip

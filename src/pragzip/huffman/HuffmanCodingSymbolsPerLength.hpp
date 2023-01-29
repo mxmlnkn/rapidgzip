@@ -36,6 +36,9 @@ public:
     using CodeLengthFrequencies = typename BaseType::CodeLengthFrequencies;
 
 protected:
+    /**
+     * @note Reusing this struct by calling this method multiple times is allowed. All members will be reinitialized.
+     */
     constexpr void
     initializeSymbolsPerLength( const VectorView<BitCount>&  codeLengths,
                                 const CodeLengthFrequencies& bitLengthFrequencies )

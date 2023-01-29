@@ -1,4 +1,55 @@
 
+# Version 0.5.0 built on 2023-01-29
+
+## Added
+
+ - Add `--count-lines` option to count lines faster by avoiding to pipe to `wc -l`.
+ - Add a performance profile and index seek point statistics when using the `--verbose` option.
+ - By default, start only as many threads as there are cores pragzip has affinity for.
+ - The seek points are now chosen such that the decompressed size instead of the compressed size
+   approximates the chunk size. This behavior is similar to `indexed_gzip` and improves decompression
+   speed and memory usage when loading such an optimized index.
+ - Add `--export-index` and `--import-index` options. Using an existing index is not only faster
+   but also reduces the maximum memory consumption significantly.
+
+## Performance
+
+ - Uncompressed block finder
+   - Avoid full seeks: 90 -> 380 MB/s.
+   - Keep track of buffer outside of BitReader: 380 -> 430 MB/s.
+ - Marker replacement:
+   - Reduce branches: 800 -> 1400 MB/s (8-bit output bandwidth).
+   - Parallelize marker replacement to scale parallel decompression for files with lots of
+     LZSS backward pointers like the Silesia corpus to 16 cores and more.
+ - File writing:
+   - Use vectorized I/O output to avoid many small calls of 30 KiB: 2.3 GB/s -> 2.4 GB/s.
+   - Reuse an existing output file to avoid costly fallocate: 2.4 GB/s -> 3.0 GB/s.
+
+## Fixes
+
+ - Quit when SIGINT has been sent while using the CLI via Python.
+ - Also print errno as string when I/O write fails.
+ - Fix erroneous error detection for distance code counts equal to 31 or 32.
+   I was not able to find or reproduce a gzip file with those code counts but in principle they are possible.
+ - Avoid crash when using `--analyze` to print alphabet information for uncompressed blocks.
+ - Ensure sure that Huffman coding structures can be reused after `initializeFromLengths`.
+ - Improve error message for truncated gzip files.
+ - Remove special case handling for `/dev/null`.
+ - Fix multi-stream gzip file support by reading over gzip footers when decoding with zlib.
+
+## API
+
+ - Renamings:
+   - `GzipBlockFetcher` -> `GzipChunkFetcher`
+   - `ThreadPool::submitTask` -> `ThreadPool::submit`
+   - `FetchNext` -> `FetchNextFixed`
+   - `FetchNextSmart` -> `FetchNextAdaptive`
+   - `FetchNextMulti` -> `FetchMultiStream`
+ - Call write callback with full results instead of once per contiguous memory chunk.
+ - Make the `SharedFileReader` constructor with unclear ownership semantic private.
+ - Add thread pool priorities.
+
+
 # Version 0.4.0 built on 2022-11-10
 
 ## API

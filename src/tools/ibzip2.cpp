@@ -13,6 +13,7 @@
 
 #include <cxxopts.hpp>
 
+#include <AffinityHelpers.hpp>
 #include <bzip2.hpp>
 #include <BitReader.hpp>
 #include <BitStringFinder.hpp>
@@ -243,7 +244,7 @@ ibzip2CLI( int argc, char** argv )
     const auto test    = parsedArgs["test"   ].as<bool>();
     const auto verbose = parsedArgs["verbose"].as<bool>();
 
-    const auto getParallelism = [] ( const auto p ) { return p > 0 ? p : std::thread::hardware_concurrency(); };
+    const auto getParallelism = [] ( const auto p ) { return p > 0 ? p : availableCores(); };
     const auto blockFinderParallelism = getParallelism( parsedArgs["block-finder-parallelism"].as<unsigned int>() );
     const auto decoderParallelism     = getParallelism( parsedArgs["decoder-parallelism"     ].as<unsigned int>() );
 
@@ -265,7 +266,7 @@ ibzip2CLI( int argc, char** argv )
     }
 
     if ( parsedArgs.count( "version" ) > 0 ) {
-        std::cout << "ibzip2, CLI to the indexed and seekable bzip2 decoding library indexed-bzip2 version 1.2.0.\n";
+        std::cout << "ibzip2, CLI to the indexed and seekable bzip2 decoding library indexed-bzip2 version 1.4.1.\n";
         return 0;
     }
 

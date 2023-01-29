@@ -52,6 +52,39 @@ public:
 struct BlockData :
     public deflate::DecodedData
 {
+    struct BlockBoundary
+    {
+        size_t encodedOffset;
+        size_t decodedOffset;
+
+        [[nodiscard]] bool
+        operator==( const BlockBoundary& other ) const
+        {
+            return ( encodedOffset == other.encodedOffset ) && ( decodedOffset == other.decodedOffset );
+        }
+    };
+
+    struct Footer
+    {
+        BlockBoundary blockBoundary;
+        gzip::Footer gzipFooter;
+    };
+
+    struct Subblock
+    {
+        size_t encodedOffset{ 0 };
+        size_t encodedSize{ 0 };
+        size_t decodedSize{ 0 };
+
+        [[nodiscard]] bool
+        operator==( const Subblock& other ) const
+        {
+            return ( encodedOffset == other.encodedOffset )
+                   && ( encodedSize == other.encodedSize )
+                   && ( decodedSize == other.decodedSize );
+        }
+    };
+
 public:
     [[nodiscard]] bool
     matchesEncodedOffset( size_t offset )
@@ -81,13 +114,104 @@ public:
         maxEncodedOffsetInBits = offset;
     }
 
+    [[nodiscard]] std::vector<Subblock>
+    split( [[maybe_unused]] const size_t spacing ) const
+    {
+        if ( encodedOffsetInBits != maxEncodedOffsetInBits ) {
+            throw std::invalid_argument( "BlockData::split may only be called after setEncodedOffset!" );
+        }
+
+        if ( spacing == 0 ) {
+            throw std::invalid_argument( "Spacing must be a positive number of bytes." );
+        }
+
+        /* blockBoundaries does not contain the first block begin but all thereafter including the boundary after
+         * the last block, i.e., the begin of the next deflate block not belonging to this BlockData. */
+        const auto decompressedSize = decodedSizeInBytes;
+        const auto nBlocks = static_cast<size_t>( std::round( static_cast<double>( decompressedSize )
+                                                              / static_cast<double>( spacing ) ) );
+        if ( ( nBlocks <= 1 ) || blockBoundaries.empty() ) {
+            Subblock subblock;
+            subblock.encodedOffset = encodedOffsetInBits;
+            subblock.encodedSize = encodedSizeInBits;
+            subblock.decodedSize = decompressedSize;
+            if ( ( encodedSizeInBits == 0 ) && ( decompressedSize == 0 ) ) {
+                return {};
+            }
+            return { subblock };
+        }
+
+        /* The idea for partitioning is: Divide the size evenly and into subblocks and then choose the block boundary
+         * that is closest to that value. */
+        const auto perfectSpacing = static_cast<double>( decompressedSize ) / static_cast<double>( nBlocks );
+
+        std::vector<BlockBoundary> selectedBlockBoundaries;
+        selectedBlockBoundaries.reserve( nBlocks + 1 );
+        selectedBlockBoundaries.push_back( BlockBoundary{ encodedOffsetInBits, 0 } );
+        /* The first and last boundaries are static, so we only need to find nBlocks - 1 further boundaries. */
+        for ( size_t iSubblock = 1; iSubblock < nBlocks; ++iSubblock ) {
+            const auto perfectDecompressedOffset = static_cast<size_t>( iSubblock * perfectSpacing );
+            const auto isCloser =
+                [perfectDecompressedOffset] ( const auto& b1, const auto& b2 )
+                {
+                    return absDiff( b1.decodedOffset, perfectDecompressedOffset )
+                           < absDiff( b2.decodedOffset, perfectDecompressedOffset );
+                };
+            const auto closest = std::min_element( blockBoundaries.begin(), blockBoundaries.end(), isCloser );
+            selectedBlockBoundaries.emplace_back( *closest );
+        }
+        selectedBlockBoundaries.push_back( BlockBoundary{ encodedOffsetInBits + encodedSizeInBits, decompressedSize } );
+
+        /* Clean up duplicate boundaries, which might happen for very large deflate blocks.
+         * Note that selectedBlockBoundaries should already be sorted because we push always the closest
+         * of an already sorted "input vector". */
+        selectedBlockBoundaries.erase( std::unique( selectedBlockBoundaries.begin(), selectedBlockBoundaries.end() ),
+                                       selectedBlockBoundaries.end() );
+
+        /* Convert subsequent boundaries into blocks. */
+        std::vector<Subblock> subblocks( selectedBlockBoundaries.size() - 1 );
+        for ( size_t i = 0; i + 1 < selectedBlockBoundaries.size(); ++i ) {
+            assert( selectedBlockBoundaries[i + 1].encodedOffset > selectedBlockBoundaries[i].encodedOffset );
+            assert( selectedBlockBoundaries[i + 1].decodedOffset > selectedBlockBoundaries[i].decodedOffset );
+
+            subblocks[i].encodedOffset = selectedBlockBoundaries[i].encodedOffset;
+            subblocks[i].encodedSize = selectedBlockBoundaries[i + 1].encodedOffset
+                                       - selectedBlockBoundaries[i].encodedOffset;
+            subblocks[i].decodedSize = selectedBlockBoundaries[i + 1].decodedOffset
+                                       - selectedBlockBoundaries[i].decodedOffset;
+        }
+
+        return subblocks;
+    }
+
+    void
+    finalize( size_t blockEndOffsetInBits )
+    {
+        cleanUnmarkedData();
+        encodedSizeInBits = blockEndOffsetInBits - encodedOffsetInBits;
+        decodedSizeInBytes = deflate::DecodedData::size();
+    }
+
+    [[nodiscard]] constexpr size_t
+    size() const noexcept = delete;
+
+    [[nodiscard]] constexpr size_t
+    dataSize() const noexcept = delete;
+
 public:
-    size_t encodedOffsetInBits{ std::numeric_limits<size_t>::max() };
     /* This should only be evaluated when it is unequal std::numeric_limits<size_t>::max() and unequal
-     * encodedOffsetInBits. Then, [encodedOffsetInBits, maxEncodedOffsetInBits] specifies a valid range for the
-     * block offset. Such a range might happen for finding uncompressed deflate blocks because of the byte-padding. */
+     * Base::encodedOffsetInBits. Then, [Base::encodedOffsetInBits, maxEncodedOffsetInBits] specifies a valid range
+     * for the block offset. Such a range might happen for finding uncompressed deflate blocks because of the
+     * byte-padding. */
     size_t maxEncodedOffsetInBits{ std::numeric_limits<size_t>::max() };
-    size_t encodedSizeInBits{ 0 };
+    /* Initialized with size() after thread has finished writing into BlockData. Redundant but avoids a lock
+     * because the marker replacement will momentarily lead to different results returned by size! */
+    size_t decodedSizeInBytes{ std::numeric_limits<size_t>::max() };
+
+    /* Decoded offsets are relative to the decoded offset of this BlockData because that might not be known
+     * during first-pass decompression. */
+    std::vector<BlockBoundary> blockBoundaries;
+    std::vector<Footer> footers;
 
     /* Benchmark results */
     double blockFinderDuration{ 0 };
@@ -102,8 +226,6 @@ public:
  * @note Limitations:
  *  - To avoid querying the pipe buffer size, it is only done once. This might introduce subtle errors when it is
  *    dynamically changed after this point.
- *  - It does not account for pages to be spliced into yet another pipe buffer, which would extend the lifetime
- *    of those pages beyond the lifetime of the shared_ptr, which also would introduce subtle bugs.
  *  - The lifetime can only be extended on block granularity even though chunks would be more suited.
  *    This results in larger peak memory than strictly necessary.
  *  - In the worst case we would read only 1B out of each block, which would extend the lifetime
@@ -111,6 +233,10 @@ public:
  *    - This would only be triggerable by using the API. The current CLI and not even the Python
  *      interface would trigger this because either they don't splice to a pipe or only read
  *      sequentially.
+ * @note It *does* account for pages to be spliced into yet another pipe buffer. This is exactly what the
+ *       SPLICE_F_GIFT flag is for. Without that being set, pages will not be spliced but copied into further
+ *       pipe buffers. So, without this flag, there is no danger of extending the lifetime of those pages
+ *       arbitarily.
  */
 [[nodiscard]] bool
 writeAllSplice( const int                         outputFileDescriptor,
@@ -126,22 +252,67 @@ writeAllSplice( const int                         outputFileDescriptor,
 }
 
 
+#if defined( HAVE_VMSPLICE )
+[[nodiscard]] bool
+writeAllSplice( [[maybe_unused]] const int                         outputFileDescriptor,
+                [[maybe_unused]] const std::shared_ptr<BlockData>& blockData,
+                [[maybe_unused]] const std::vector<::iovec>&       buffersToWrite )
+{
+    return SpliceVault::getInstance( outputFileDescriptor ).first->splice( buffersToWrite, blockData );
+}
+#endif  // HAVE_VMSPLICE
+
+
+void
+writeAll( const std::shared_ptr<BlockData>& blockData,
+          const int                         outputFileDescriptor,
+          const size_t                      offsetInBlock,
+          const size_t                      dataToWriteSize )
+{
+    if ( ( outputFileDescriptor < 0 ) || ( dataToWriteSize == 0 ) ) {
+        return;
+    }
+
+#ifdef HAVE_IOVEC
+    const auto buffersToWrite = toIoVec( *blockData, offsetInBlock, dataToWriteSize );
+    if ( !writeAllSplice( outputFileDescriptor, blockData, buffersToWrite ) ) {
+        writeAllToFdVector( outputFileDescriptor, buffersToWrite );
+    }
+#else
+    using pragzip::deflate::DecodedData;
+
+    bool splicable = true;
+    for ( auto it = DecodedData::Iterator( *blockData, offsetInBlock, dataToWriteSize );
+          static_cast<bool>( it ); ++it )
+    {
+        const auto& [buffer, size] = *it;
+        if ( splicable ) {
+            splicable = writeAllSplice( outputFileDescriptor, buffer, size, blockData );
+        }
+        if ( !splicable ) {
+            writeAllToFd( outputFileDescriptor, buffer, size);
+        }
+    }
+#endif
+}
+
+
 template<typename FetchingStrategy,
-         bool     ENABLE_STATISTICS = false>
-class GzipBlockFetcher :
-    public BlockFetcher<GzipBlockFinder, BlockData, FetchingStrategy, ENABLE_STATISTICS>
+         bool     ENABLE_STATISTICS = false,
+         bool     SHOW_PROFILE = false>
+class GzipChunkFetcher :
+    public BlockFetcher<GzipBlockFinder, BlockData, FetchingStrategy, ENABLE_STATISTICS, SHOW_PROFILE>
 {
 public:
-    using BaseType = BlockFetcher<GzipBlockFinder, BlockData, FetchingStrategy, ENABLE_STATISTICS>;
+    using BaseType = BlockFetcher<GzipBlockFinder, BlockData, FetchingStrategy, ENABLE_STATISTICS, SHOW_PROFILE>;
     using BitReader = pragzip::BitReader;
     using WindowView = VectorView<uint8_t>;
     using BlockFinder = typename BaseType::BlockFinder;
 
-private:
-    static constexpr bool SHOW_PROFILE{ false };
+    static constexpr bool REPLACE_MARKERS_IN_PARALLEL = true;
 
 public:
-    GzipBlockFetcher( BitReader                    bitReader,
+    GzipChunkFetcher( BitReader                    bitReader,
                       std::shared_ptr<BlockFinder> blockFinder,
                       std::shared_ptr<BlockMap>    blockMap,
                       std::shared_ptr<WindowMap>   windowMap,
@@ -170,14 +341,14 @@ public:
     }
 
     virtual
-    ~GzipBlockFetcher()
+    ~GzipChunkFetcher()
     {
         m_cancelThreads = true;
         this->stopThreadPool();
 
         if constexpr ( SHOW_PROFILE ) {
             std::stringstream out;
-            out << "[GzipBlockFetcher::GzipBlockFetcher] First block access statistics:\n";
+            out << "[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:\n";
             out << "    Time spent in block finder          : " << m_blockFinderTime << " s\n";
             out << "    Time spent decoding                 : " << m_decodeTime << " s\n";
             out << "    Time spent applying the last window : " << m_applyWindowTime << " s\n";
@@ -215,8 +386,14 @@ public:
 
             blockData = getBlock( *nextBlockOffset, m_nextUnprocessedBlockIndex );
 
-            m_blockMap->push( *nextBlockOffset, blockData->encodedSizeInBits, blockData->size() );
-            const auto blockOffsetAfterNext = *nextBlockOffset + blockData->encodedSizeInBits;
+            const auto subblocks = blockData->split( m_blockFinder->spacingInBits() / 8U );
+            for ( const auto boundary : subblocks ) {
+                m_blockMap->push( boundary.encodedOffset, boundary.encodedSize, boundary.decodedSize );
+            }
+
+            /* This should also work for multi-stream gzip files because encodedSizeInBits is such that it
+             * points across the gzip footer and next header to the next deflate block. */
+            const auto blockOffsetAfterNext = blockData->encodedOffsetInBits + blockData->encodedSizeInBits;
             m_blockFinder->insert( blockOffsetAfterNext );
             if ( blockOffsetAfterNext >= m_bitReader.size() ) {
                 m_blockMap->finalize();
@@ -236,34 +413,148 @@ public:
             /* Because this is a new block, it might contain markers that we have to replace with the window
              * of the last block. The very first block should not contain any markers, ensuring that we
              * can successively propagate the window through all blocks. */
-            auto lastWindow = m_windowMap->get( *nextBlockOffset );
+            auto lastWindow = m_windowMap->get( blockData->encodedOffsetInBits );
             if ( !lastWindow ) {
                 std::stringstream message;
-                message << "The window of the last block at " << formatBits( *nextBlockOffset )
+                message << "The window of the last block at " << formatBits( blockData->encodedOffsetInBits )
                         << " should exist at this point!";
                 throw std::logic_error( std::move( message ).str() );
             }
 
-            [[maybe_unused]] const auto markerCount = blockData->dataWithMarkersSize();
-            [[maybe_unused]] const auto tApplyStart = now();
-            blockData->applyWindow( *lastWindow );
-            if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
-                if ( markerCount > 0 ) {
-                    m_applyWindowTime += duration( tApplyStart );
-                }
-                m_markerCount += markerCount;
-                m_blockFinderTime += blockData->blockFinderDuration;
-                m_decodeTime += blockData->decodeDuration;
+            if constexpr ( REPLACE_MARKERS_IN_PARALLEL ) {
+                waitForReplacedMarkers( blockData, *lastWindow );
+            } else {
+                replaceMarkers( blockData, *lastWindow );
             }
 
-            const auto nextWindow = blockData->getLastWindow( *lastWindow );
-            m_windowMap->emplace( blockOffsetAfterNext, { nextWindow.begin(), nextWindow.end() } );
+            size_t decodedOffsetInBlock{ 0 };
+            for ( const auto& subblock : subblocks ) {
+                decodedOffsetInBlock += subblock.decodedSize;
+                const auto windowOffset = subblock.encodedOffset + subblock.encodedSize;
+                /* Avoid recalculating what we already emplaced in waitForReplacedMarkers when calling getLastWindow. */
+                if ( !m_windowMap->get( windowOffset ) ) {
+                    m_windowMap->emplace( windowOffset, blockData->getWindowAt( *lastWindow, decodedOffsetInBlock ) );
+                }
+            }
         }
 
         return std::make_pair( blockInfo, blockData );
     }
 
 private:
+    void
+    waitForReplacedMarkers( const std::shared_ptr<BlockData>& blockData,
+                            const WindowView                  lastWindow )
+    {
+        using namespace std::chrono_literals;
+
+        auto markerReplaceFuture = m_markersBeingReplaced.find( blockData->encodedOffsetInBits );
+        if ( ( markerReplaceFuture == m_markersBeingReplaced.end() ) && blockData->dataWithMarkers.empty() ) {
+            return;
+        }
+
+        /* Not ready or not yet queued, so queue it and use the wait time to queue more marker replacements. */
+        std::optional<std::future<void> > queuedFuture;
+        if ( markerReplaceFuture == m_markersBeingReplaced.end() ) {
+            /* First, we need to emplace the last window or else we cannot queue further blocks. */
+            const auto windowOffset = blockData->encodedOffsetInBits + blockData->encodedSizeInBits;
+            if ( !m_windowMap->get( windowOffset ) ) {
+                m_windowMap->emplace( windowOffset, blockData->getLastWindow( lastWindow ) );
+            }
+
+            markerReplaceFuture = m_markersBeingReplaced.emplace(
+                blockData->encodedOffsetInBits,
+                this->submitTaskWithHighPriority(
+                    [this, blockData, lastWindow] () { replaceMarkers( blockData, lastWindow ); }
+                )
+            ).first;
+        }
+
+        /* Check other enqueued marker replacements whether they are finished. */
+        for ( auto it = m_markersBeingReplaced.begin(); it != m_markersBeingReplaced.end(); ) {
+            if ( it == markerReplaceFuture ) {
+                ++it;
+                continue;
+            }
+
+            auto& future = it->second;
+            if ( !future.valid() || ( future.wait_for( 0s ) == std::future_status::ready ) ) {
+                future.get();
+                it = m_markersBeingReplaced.erase( it );
+            } else {
+                ++it;
+            }
+        }
+
+        replaceMarkersInPrefetched();
+
+        markerReplaceFuture->second.get();
+        m_markersBeingReplaced.erase( markerReplaceFuture );
+    }
+
+    void
+    replaceMarkersInPrefetched()
+    {
+        /* Trigger jobs for ready block data to replace markers. */
+        const auto& cacheElements = this->prefetchCache().contents();
+        std::vector<size_t> sortedOffsets( cacheElements.size() );
+        std::transform( cacheElements.begin(), cacheElements.end(), sortedOffsets.begin(),
+                        [] ( const auto& keyValue ) { return keyValue.first; } );
+        std::sort( sortedOffsets.begin(), sortedOffsets.end() );
+        for ( const auto triedStartOffset : sortedOffsets ) {
+            const auto blockData = cacheElements.at( triedStartOffset );
+
+            /* Ignore ready blocks. */
+            if ( blockData->dataWithMarkers.empty() )  {
+                continue;
+            }
+
+            /* Ignore blocks already enqueued for marker replacement. */
+            if ( m_markersBeingReplaced.find( blockData->encodedOffsetInBits ) != m_markersBeingReplaced.end() ) {
+                continue;
+            }
+
+            /* Check for previous window. */
+            const auto previousWindow = m_windowMap->get( blockData->encodedOffsetInBits );
+            if ( !previousWindow ) {
+                continue;
+            }
+
+            const auto windowOffset = blockData->encodedOffsetInBits + blockData->encodedSizeInBits;
+            if ( !m_windowMap->get( windowOffset ) ) {
+                m_windowMap->emplace( windowOffset, blockData->getLastWindow( *previousWindow ) );
+            }
+
+            m_markersBeingReplaced.emplace(
+                blockData->encodedOffsetInBits,
+                this->submitTaskWithHighPriority(
+                    [this, blockData, previousWindow] () { replaceMarkers( blockData, *previousWindow ); }
+                )
+            );
+        }
+    }
+
+    /**
+     * Must be thread-safe because it is submitted to the thread pool.
+     */
+    void
+    replaceMarkers( const std::shared_ptr<BlockData>& blockData,
+                    const WindowView                  previousWindow )
+    {
+        [[maybe_unused]] const auto markerCount = blockData->dataWithMarkersSize();
+        [[maybe_unused]] const auto tApplyStart = now();
+        blockData->applyWindow( previousWindow );
+        if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+            std::scoped_lock lock( m_statisticsMutex );
+            if ( markerCount > 0 ) {
+                m_applyWindowTime += duration( tApplyStart );
+            }
+            m_markerCount += markerCount;
+            m_blockFinderTime += blockData->blockFinderDuration;
+            m_decodeTime += blockData->decodeDuration;
+        }
+    }
+
     /**
      * First, tries to look up the given block offset by its partition offset and then by its real offset.
      *
@@ -518,7 +809,8 @@ private:
         {
             initStream();
             /* 2^15 = 32 KiB window buffer and minus signaling raw deflate stream to decode. */
-            if ( inflateInit2( &m_stream, -15 ) != Z_OK ) {
+            m_windowFlags = -15;
+            if ( inflateInit2( &m_stream, m_windowFlags ) != Z_OK ) {
                 throw std::runtime_error( "Probably encountered invalid deflate data!" );
             }
         }
@@ -550,16 +842,16 @@ private:
         void
         refillBuffer()
         {
+            if ( m_stream.avail_in > 0 ) {
+                return;
+            }
+
             if ( m_bitReader.tell() % BYTE_SIZE != 0 ) {
                 const auto nBitsToPrime = BYTE_SIZE - ( m_bitReader.tell() % BYTE_SIZE );
                 if ( inflatePrime( &m_stream, nBitsToPrime, m_bitReader.read( nBitsToPrime ) ) != Z_OK ) {
                     throw std::runtime_error( "InflatePrime failed!" );
                 }
                 assert( m_bitReader.tell() % BYTE_SIZE == 0 );
-            }
-
-            if ( m_stream.avail_in > 0 ) {
-                return;
             }
 
             m_stream.avail_in = m_bitReader.read(
@@ -610,10 +902,36 @@ private:
                 if ( errorCode == Z_STREAM_END ) {
                     decodedSize += m_stream.total_out;
 
-                    inflateEnd( &m_stream );
+                    const auto oldStream = m_stream;
+                    inflateEnd( &m_stream );  // All dynamically allocated data structures for this stream are freed.
                     initStream();
-                    /* 2^15 = 32 KiB window buffer and minus signaling raw deflate stream to decode. */
-                    if ( inflateInit2( &m_stream, /* decode gzip */ 16 + /* 2^15 buffer */ 15 ) != Z_OK ) {
+                    m_stream.avail_in = oldStream.avail_in;
+                    m_stream.next_in = oldStream.next_in;
+                    m_stream.total_out = oldStream.total_out;
+
+                    /* If we started with raw deflate, then we also have to skip other the gzip footer.
+                     * Assuming we are decoding gzip and not zlib or multiple raw deflate streams. */
+                    if ( m_windowFlags < 0 ) {
+                        for ( auto stillToRemove = 8U; stillToRemove > 0; ) {
+                            if ( m_stream.avail_in >= stillToRemove ) {
+                                m_stream.avail_in -= stillToRemove;
+                                m_stream.next_in += stillToRemove;
+                                stillToRemove = 0;
+                            } else {
+                                stillToRemove -= m_stream.avail_in;
+                                m_stream.avail_in = 0;
+                                refillBuffer();
+                            }
+                        }
+                    }
+
+                    /* 2^15 = 32 KiB window buffer and minus signaling raw deflate stream to decode.
+                     * > The current implementation of inflateInit2() does not process any header information --
+                     * > that is deferred until inflate() is called.
+                     * Because of this, we don't have to ensure that enough data is available and/or calling it a
+                     * second time to read the rest of the header. */
+                    m_windowFlags = /* decode gzip */ 16 + /* 2^15 buffer */ 15;
+                    if ( inflateInit2( &m_stream, m_windowFlags ) != Z_OK ) {
                         throw std::runtime_error( "Probably encountered invalid gzip header!" );
                     }
 
@@ -631,6 +949,7 @@ private:
 
     private:
         BitReader m_bitReader;
+        int m_windowFlags{ 0 };
         z_stream m_stream{};
         /* Loading the whole encoded data (multiple MiB) into memory first and then
          * decoding it in one go is 4x slower than processing it in chunks of 128 KiB! */
@@ -661,7 +980,7 @@ private:
 
         /* We cannot arbitarily use bitReader.tell here, because the zlib wrapper buffers input read from BitReader.
          * If untilOffset is nullopt, then we are to read to the end of the file. */
-        result.encodedSizeInBits = untilOffset - blockOffset;
+        result.finalize( untilOffset );
         return result;
     }
 
@@ -680,6 +999,7 @@ private:
          * start reading in the middle of a gzip stream and will not meet the gzip header for a while or never. */
         bool isAtStreamEnd = false;
         size_t streamBytesRead = 0;
+        size_t totalBytesRead = 0;
         std::optional<gzip::Header> gzipHeader;
 
         std::optional<deflate::Block</* CRC32 */ false> > block;
@@ -729,14 +1049,25 @@ private:
                 throw std::domain_error( std::move( message ).str() );
             }
 
-            /* It is only important for performance that the deflate blocks we are matching here are the same
-             * the block finder is will find. Note that we do not have to check for a uncompressed block padding
-             * of zero because the deflate decoder counts that as an error anyway! */
+            /**
+             * Preemptive Stop Condition.
+             * @note It is only important for performance that the deflate blocks we are matching here are the same
+             *       as the block finder will find.
+             * @note We do not have to check for an uncompressed block padding of zero because the deflate decoder
+             *       counts that as an error anyway!
+             */
             if ( ( ( nextBlockOffset >= untilOffset )
                    && !block->isLastBlock()
                    && ( block->compressionType() != deflate::CompressionType::FIXED_HUFFMAN ) )
                  || ( nextBlockOffset == untilOffset ) ) {
                 break;
+            }
+
+            /* Do not push back the first boundary because it is redundant as it should contain the same encoded
+             * offset as @ref result and it also would have the same problem that the real offset is ambiguous
+             * for non-compressed blocks. */
+            if ( totalBytesRead > 0 ) {
+                result.blockBoundaries.emplace_back( BlockData::BlockBoundary{ nextBlockOffset, totalBytesRead } );
             }
 
             /* Loop until we have read the full contents of the current deflate block-> */
@@ -752,9 +1083,11 @@ private:
 
                 result.append( bufferViews );
                 streamBytesRead += bufferViews.size();
+                totalBytesRead += bufferViews.size();
             }
 
             if ( block->isLastBlock() ) {
+                const auto footerOffset = bitReader->tell();
                 const auto footer = gzip::readFooter( *bitReader );
 
                 /* We only check for the stream size and CRC32 if we have read the whole stream including the header! */
@@ -774,6 +1107,11 @@ private:
                     }
                 }
 
+                BlockData::Footer footerResult;
+                footerResult.blockBoundary = BlockData::BlockBoundary{ footerOffset, totalBytesRead };
+                footerResult.gzipFooter = footer;
+                result.footers.emplace_back( footerResult );
+
                 isAtStreamEnd = true;
                 gzipHeader = {};
                 streamBytesRead = 0;
@@ -785,8 +1123,7 @@ private:
             }
         }
 
-        result.cleanUnmarkedData();
-        result.encodedSizeInBits = nextBlockOffset - result.encodedOffsetInBits;
+        result.finalize( nextBlockOffset );
         return result;
     }
 
@@ -796,6 +1133,7 @@ private:
     double m_blockFinderTime{ 0 };
     double m_decodeTime{ 0 };
     uint64_t m_markerCount{ 0 };
+    mutable std::mutex m_statisticsMutex;
 
     std::atomic<bool> m_cancelThreads{ false };
 
@@ -810,5 +1148,7 @@ private:
     /* This is the highest found block inside BlockFinder we ever processed and put into the BlockMap.
      * After the BlockMap has been finalized, this isn't needed anymore. */
     size_t m_nextUnprocessedBlockIndex{ 0 };
+
+    std::map</* block offset */ size_t, std::future<void> > m_markersBeingReplaced;
 };
 }  // namespace pragzip

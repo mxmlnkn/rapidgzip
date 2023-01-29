@@ -795,7 +795,9 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
 
     if ( seekable() ) {
         const auto newPosition = m_file->seek( static_cast<long long int>( bytesToSeek ), SEEK_SET );
-        if ( m_file->eof() || m_file->fail() ) {
+        /* Note that the performance optimizations above allow to seek at exactly the file end without
+         * an exception. Therefore, also allow that here for consistency. */
+        if ( ( m_file->eof() && ( !m_file->seekable() || ( m_file->tell() > m_file->size() ) ) ) || m_file->fail() ) {
             std::stringstream msg;
             msg << "[BitReader] Could not seek to specified byte " << bytesToSeek
                 << " subbit " << static_cast<int>( subBitsToSeek )

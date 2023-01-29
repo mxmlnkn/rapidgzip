@@ -15,6 +15,7 @@
 #include <memory>
 #include <numeric>
 #include <ostream>
+#include <random>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -41,7 +42,7 @@
     #pragma warning(disable : 4996)
 
     /* Ignore warnings about [[likely]], [[unlikely]], which will only work with C++20. */
-    #pragma warning(disable : C5051)
+    #pragma warning(disable : 5051)
 
     #include <sys/stat.h>
 
@@ -84,6 +85,18 @@ ceilDiv( I1 dividend,
          I2 divisor ) noexcept
 {
     return ( dividend + divisor - 1 ) / divisor;
+}
+
+
+/**
+ * Absolute difference function that also works for unsigned types for which std::abs(a-b) wouldn't work.
+ */
+template<typename T, typename V>
+[[nodiscard]] T
+absDiff( const T& a,
+         const V& b )
+{
+    return a < b ? b - a : a - b;
 }
 
 
@@ -432,12 +445,31 @@ testFlags( const uint64_t value,
 #ifndef __APPLE_CC__
 void
 createRandomTextFile( std::filesystem::path path,
-                      size_t                size )
+                      uint64_t              size )
 {
     std::ofstream textFile( path );
-    for ( size_t i = 0; i < size; ++i ) {
+    for ( uint64_t i = 0; i < size; ++i ) {
         const auto c = i % 80 == 0 ? '\n' : 'A' + ( rand() % ( 'Z' - 'A' ) );
         textFile << static_cast<char>( c );
+    }
+}
+
+
+void
+createRandomFile( std::filesystem::path path,
+                  uint64_t              size )
+{
+    std::ofstream textFile( path );
+
+    std::mt19937_64 randomEngine;
+    std::array<uint64_t, 4 * 1024> buffer;  // 32 KiB of buffer
+    for ( size_t nBytesWritten = 0; nBytesWritten < size; ) {
+        for ( auto& x : buffer ) {
+            x = randomEngine();
+        }
+        const auto nBytesToWrite = std::min<uint64_t>( buffer.size() * sizeof( buffer[0] ), size - nBytesWritten );
+        textFile.write( reinterpret_cast<const char*>( buffer.data() ), nBytesToWrite );
+        nBytesWritten += nBytesToWrite;
     }
 }
 

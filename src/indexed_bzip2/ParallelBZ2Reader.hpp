@@ -36,7 +36,7 @@ class ParallelBZ2Reader final :
     public BZ2ReaderInterface
 {
 public:
-    using BlockFetcher = ::BZ2BlockFetcher<FetchingStrategy::FetchNextSmart>;
+    using BlockFetcher = ::BZ2BlockFetcher<FetchingStrategy::FetchNextAdaptive>;
     using BlockFinder = typename BlockFetcher::BlockFinder;
     using BitReader = bzip2::BitReader;
 
@@ -178,6 +178,10 @@ public:
         size_t nBytesDecoded = 0;
         while ( ( nBytesDecoded < nBytesToRead ) && !eof() ) {
             std::shared_ptr<BlockFetcher::BlockData> blockData;
+
+        #ifdef WITH_PYTHON_SUPPORT
+            checkPythonSignalHandlers();
+        #endif
 
             auto blockInfo = m_blockMap->findDataOffset( m_currentPosition );
             if ( !blockInfo.contains( m_currentPosition ) ) {

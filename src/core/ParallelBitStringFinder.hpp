@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include "AffinityHelpers.hpp"
 #include "BitStringFinder.hpp"
 #include "BitReader.hpp"
 #include "common.hpp"
@@ -40,7 +41,7 @@ public:
 public:
     ParallelBitStringFinder( std::unique_ptr<FileReader> fileReader,
                              uint64_t bitStringToFind,
-                             size_t   parallelization = std::max( 1U, std::thread::hardware_concurrency() / 8U ),
+                             size_t   parallelization = std::max( 1U, availableCores() / 8U ),
                              size_t   requestedBytes = 0,
                              size_t   fileBufferSizeBytes = 1_Mi ) :
         BaseType( std::move( fileReader ),
@@ -240,7 +241,7 @@ ParallelBitStringFinder<bitStringSize>::find()
             //          << "buffer size: " << this->m_buffer.size() << " B\n";
 
             auto& result = m_threadResults.emplace_back();
-            result.future = m_threadPool.submitTask(
+            result.future = m_threadPool.submit(
                 [=, &result] ()
                 {
                     workerMain(

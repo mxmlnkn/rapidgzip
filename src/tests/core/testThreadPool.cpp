@@ -25,7 +25,7 @@ testThreadPool( unsigned int nThreads,
     const auto secondsToWait = 0.01;
     std::vector<std::future<unsigned int> > checksums;
     for ( unsigned int i = 0; i < nTasks; ++i ) {
-        checksums.emplace_back( threadPool.submitTask(
+        checksums.emplace_back( threadPool.submit(
             [i, secondsToWait] () {
                 std::this_thread::sleep_for( std::chrono::milliseconds( int( secondsToWait * 1000 ) ) );
                 return 1U << i;

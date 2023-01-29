@@ -42,7 +42,7 @@ alignas( 8 ) static constexpr std::array<uint8_t, MAX_PRECODE_COUNT> PRECODE_ALP
 };
 
 constexpr size_t MAX_LITERAL_OR_LENGTH_SYMBOLS = 286;
-constexpr uint8_t MAX_DISTANCE_SYMBOL_COUNT = 30;
+constexpr uint8_t MAX_DISTANCE_SYMBOL_COUNT = 32;
 /* next power of two (because binary tree) of MAX_LITERAL_OR_LENGTH_SYMBOLS. This is assuming that all symbols
  * are equally likely to appear, i.e., all codes would be encoded with the same number of bits (9). */
 constexpr size_t MAX_LITERAL_HUFFMAN_CODE_COUNT = 512;

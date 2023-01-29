@@ -85,15 +85,17 @@ struct Statistics
     }
 
     [[nodiscard]] std::string
-    formatAverageWithUncertainty( bool includeBounds = false ) const
+    formatAverageWithUncertainty( bool    includeBounds = false,
+                                  uint8_t sigmaMultiple = 1 ) const
     {
+        const auto uncertainty = standardDeviation() * sigmaMultiple;
         /* Round uncertainty and value according to DIN 1333
          * @see https://www.tu-chemnitz.de/physik/PGP/files/Allgemeines/Rundungsregeln.pdf */
 
         /* Log10: 0.1 -> -1, 1 -> 0, 2 -> 0.301, 10 -> 1.
          * In order to scale to a range [0,100), we have to divide by 10^magnitude. */
-        auto magnitude = std::floor( std::log10( standardDeviation() ) ) - 1;
-        auto scaled = standardDeviation() / std::pow( 10, magnitude );
+        auto magnitude = std::floor( std::log10( uncertainty ) ) - 1;
+        auto scaled = uncertainty / std::pow( 10, magnitude );
 
         /* Round uncertainties beginning with 1 and 2 to two significant digits and all others to only one.
          * This could probably be integrated into the magnitude calculation but it would be less readable. */
@@ -101,7 +103,7 @@ struct Statistics
             magnitude += 1;
         }
 
-        const auto roundToUnertainty =
+        const auto roundToUncertainty =
             [magnitude] ( double value )
             {
                 return std::round( value / std::pow( 10, magnitude ) ) * std::pow( 10, magnitude );
@@ -113,20 +115,23 @@ struct Statistics
          *       (13 +- 1) GB.
          */
         std::stringstream result;
+        result << std::fixed << std::setprecision( std::max( -magnitude, 0. ) );
+
         if ( includeBounds ) {
-            result << roundToUnertainty( min ) << " <= ";
+            result << roundToUncertainty( min ) << " <= ";
         }
-        result << roundToUnertainty( average() ) << " +- " << roundToUnertainty( standardDeviation() );
+        result << roundToUncertainty( average() ) << " +- " << roundToUncertainty( uncertainty );
         if ( includeBounds ) {
-            result << " <= " << roundToUnertainty( max );
+            result << " <= " << roundToUncertainty( max );
         }
 
         return result.str();
     }
 
 public:
-    T min{ std::numeric_limits<T>::infinity() };
-    T max{ -std::numeric_limits<T>::infinity() };
+    /* Note that std::numeric_limits::infinity == 0 for integers. */
+    T min{ std::numeric_limits<T>::max() };
+    T max{ std::numeric_limits<T>::lowest() };
 
     double sum{ 0 };
     double sum2{ 0 };

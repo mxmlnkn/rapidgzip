@@ -33,7 +33,7 @@ struct BlockData :
 };
 
 
-template<typename FetchingStrategy = FetchingStrategy::FetchNextSmart>
+template<typename FetchingStrategy = FetchingStrategy::FetchNextAdaptive>
 class BZ2BlockFetcher :
     public BlockFetcher<
         ::BlockFinder<ParallelBitStringFinder<bzip2::MAGIC_BITS_SIZE> >,

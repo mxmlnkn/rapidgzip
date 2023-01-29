@@ -99,7 +99,10 @@ public:
             );
             #endif
 
-            pragzip::gzip::checkHeader( bitReader );
+            const auto error = pragzip::gzip::checkHeader( bitReader );
+            if ( error != pragzip::Error::NONE ) {
+                return std::numeric_limits<size_t>::max();
+            }
             m_lastBlockOffsetReturned = bitReader.tell();
             m_blockCandidate = m_lastBlockOffsetReturned / CHAR_BIT;
             return m_lastBlockOffsetReturned;

@@ -23,8 +23,6 @@ namespace pragzip::blockfinder
  *   (filters out 2 /32 = 6.25%)
  *   Beware that the >highest< 4 bits may not be 1 but this that we requrie all 5-bits to
  *   determine validity because they are lower significant first!
- * - (Anything but 0b1111) + 1 bit
- *   Distance Code Count 1 + (5-bits) <= 30 <=> (5-bits) <= 29 -> filters out 6.25%
  * The returned position is only 0 if all of the above holds for a bitCount of 13
  * Next would be the 3-bit precode code lengths. One or two alone does not allow any filtering at all.
  * I think starting from three, it might become possible, e.g., if any two are 1, then all others must
@@ -62,12 +60,6 @@ isDeflateCandidate( uint32_t bits )
         bits >>= 5U;
         matches &= codeCount <= 29;
 
-        /* Bits 8-12: distance count */
-        if constexpr ( bitCount < 1U + 2U + 5U + 5U ) {
-            return matches;
-        }
-        const auto distanceCodeCount = bits & nLowestBitsSet<uint32_t, 5U>();
-        matches &= distanceCodeCount <= 29;
         return matches;
     }
 }
@@ -234,7 +226,6 @@ seekToNonFinalDynamicDeflateBlock( BitReader&   bitReader,
                        "It must fit into 64-bit and it also must fit the largest possible jump in the LUT." );
         auto bitBufferPrecodeBits = bitReader.read<ALL_PRECODE_BITS>();
 
-        Block block;
         for ( size_t offset = oldOffset; offset < untilOffset; ) {
             auto nextPosition = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<CACHED_BIT_COUNT>[bitBufferForLUT];
 
@@ -257,8 +248,8 @@ seekToNonFinalDynamicDeflateBlock( BitReader&   bitReader,
                     const auto oldTell = bitReader.tell();
                 #endif
 
-                    const auto literalCodeCount = 257 + ( ( bitBufferForLUT >> 3 ) & nLowestBitsSet<uint64_t, 5>() );
-                    const auto distanceCodeCount = 1 + ( ( bitBufferForLUT >> 8 ) & nLowestBitsSet<uint64_t, 5>() );
+                    const auto literalCodeCount = 257 + ( ( bitBufferForLUT >> 3U ) & nLowestBitsSet<uint64_t, 5>() );
+                    const auto distanceCodeCount = 1 + ( ( bitBufferForLUT >> 8U ) & nLowestBitsSet<uint64_t, 5>() );
                     const auto codeLengthCount = 4 + next4Bits;
                     const auto precodeBits = next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS );
 

@@ -318,7 +318,7 @@ benchmarkBitReading( const std::vector<char>& data,
 
         /* Use up bit buffer. */
         while ( bitBufferSize >= nBits ) {
-            BitBuffer result;
+            BitBuffer result{ 0 };
             if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
                 result = ( bitBuffer >> ( bitBufferSize - nBits ) ) & nLowestBitsSet<BitBuffer>( nBits );
             } else {

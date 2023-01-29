@@ -460,7 +460,7 @@ main( int    argc,
 
 
 /*
-cmake --build . -- benchmarkPigzBlockFinder && tests/benchmarkPigzBlockFinder
+cmake --build . -- benchmarkPigzBlockFinder && src/benchmarks/benchmarkPigzBlockFinder
 
 [countZeroBytes]            Searched 408430549 B in 0.099846 s -> 4091  MB/s and found 1540593 blocks.
 [findZeroBytesBitset]       Searched 408430549 B in 0.692752 s -> 590   MB/s and found 1540598 blocks.

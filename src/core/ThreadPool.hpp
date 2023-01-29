@@ -1,14 +1,21 @@
 #pragma once
 
+#include <algorithm>
+#include <atomic>
 #include <condition_variable>
 #include <deque>
 #include <future>
+#include <map>
 #include <memory>
 #include <mutex>
+#include <numeric>
+#include <optional>
 #include <thread>
 #include <utility>
+#include <unordered_map>
 #include <vector>
 
+#include "AffinityHelpers.hpp"
 #include "JoiningThread.hpp"
 
 
@@ -18,6 +25,9 @@
  */
 class ThreadPool
 {
+public:
+    using ThreadPinning = std::unordered_map</* thread Index */ size_t, /* core ID */ uint32_t>;
+
 private:
     /**
      * A small type-erasure function wrapper for non-copyable function objects with no function arguments.
@@ -81,10 +91,12 @@ private:
 
 public:
     explicit
-    ThreadPool( size_t nThreads = std::thread::hardware_concurrency() )
+    ThreadPool( size_t        nThreads = availableCores(),
+                ThreadPinning threadPinning = {} ) :
+        m_threadPinning( std::move( threadPinning ) )
     {
         for ( size_t i = 0; i < nThreads; ++i ) {
-            m_threads.emplace_back( JoiningThread( &ThreadPool::workerMain, this ) );
+            m_threads.emplace_back( JoiningThread( [this, i] () { workerMain( i ); } ) );
         }
     }
 
@@ -107,18 +119,21 @@ public:
     /**
      * Any function taking no arguments and returning any argument may be submitted to be executed.
      * The returned future can be used to access the result when it is really needed.
+     * @param priority Tasks are processed ordered by their priority, i.e., tasks with priority 0
+     *        are processed only after all tasks with priority 0 have been processed.
      */
     template<class T_Functor>
     std::future<decltype( std::declval<T_Functor>()() )>
-    submitTask( T_Functor task )
+    submit( T_Functor task,
+            int       priority = 0 )
     {
         std::lock_guard lock( m_mutex );
 
         /* Use a packaged task, which abstracts handling the return type and makes the task return void. */
         using ReturnType = decltype( std::declval<T_Functor>()() );
-        std::packaged_task<ReturnType()> packagedTask{ task };
+        std::packaged_task<ReturnType()> packagedTask{ std::move( task ) };
         auto resultFuture = packagedTask.get_future();
-        m_tasks.emplace_back( std::move( packagedTask ) );
+        m_tasks[priority].emplace_back( std::move( packagedTask ) );
 
         m_pingWorkers.notify_one();
 
@@ -132,28 +147,49 @@ public:
     }
 
     [[nodiscard]] size_t
-    unprocessedTasksCount() const
+    unprocessedTasksCount( const std::optional<int> priority = {} ) const
     {
         std::lock_guard lock( m_mutex );
-        return m_tasks.size();
+        if ( priority ) {
+            const auto tasks = m_tasks.find( *priority );
+            return tasks == m_tasks.end() ? 0 : tasks->second.size();
+        }
+        return std::accumulate( m_tasks.begin(), m_tasks.end(), size_t( 0 ),
+                                [] ( size_t sum, const auto& tasks ) { return sum + tasks.second.size(); } );
     }
 
 private:
-    void
-    workerMain()
+    /**
+     * Does not lock! Therefore it is a private method that should only be called with a lock.
+     */
+    [[nodiscard]] bool
+    hasUnprocessedTasks() const
     {
+        return std::any_of( m_tasks.begin(), m_tasks.end(),
+                            [] ( const auto& tasks ) { return !tasks.second.empty(); } );
+    }
+
+    void
+    workerMain( size_t threadIndex )
+    {
+        if ( const auto pinning = m_threadPinning.find( threadIndex ); pinning != m_threadPinning.end() ) {
+            pinThreadToLogicalCore( static_cast<int>( pinning->second ) );
+        }
+
         while ( m_threadPoolRunning )
         {
             std::unique_lock<std::mutex> tasksLock( m_mutex );
-            m_pingWorkers.wait( tasksLock, [this] () { return !m_tasks.empty() || !m_threadPoolRunning; } );
+            m_pingWorkers.wait( tasksLock, [this] () { return hasUnprocessedTasks() || !m_threadPoolRunning; } );
 
             if ( !m_threadPoolRunning ) {
                 break;
             }
 
-            if ( !m_tasks.empty() ) {
-                auto task = std::move( m_tasks.front() );
-                m_tasks.pop_front();
+            const auto nonEmptyTasks = std::find_if( m_tasks.begin(), m_tasks.end(),
+                                                     [] ( const auto& tasks ) { return !tasks.second.empty(); } );
+            if ( nonEmptyTasks != m_tasks.end() ) {
+                auto task = std::move( nonEmptyTasks->second.front() );
+                nonEmptyTasks->second.pop_front();
                 tasksLock.unlock();
                 task();
             }
@@ -162,7 +198,8 @@ private:
 
 private:
     std::atomic<bool> m_threadPoolRunning = true;
-    std::deque<PackagedTaskWrapper> m_tasks;
+    const ThreadPinning m_threadPinning;
+    std::map</* priority */ int, std::deque<PackagedTaskWrapper> > m_tasks;
     /** necessary for m_tasks AND m_pingWorkers or else the notify_all might go unnoticed! */
     mutable std::mutex m_mutex;
     std::condition_variable m_pingWorkers;

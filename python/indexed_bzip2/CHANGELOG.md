@@ -1,4 +1,9 @@
 
+# Version 1.4.1 built on 2023-mm-dd
+
+ - Fix wrong version number returned by ibzip2 --version.
+ - Use the number of cores the process has affinity for as default parallelism.
+
 # Version 1.4.0 built on 2022-11-12
 
  - Add command line CLI entrypoint ibzip2 to be used as a standalone parallel bzip2 decoder as replacement for bzip2.
