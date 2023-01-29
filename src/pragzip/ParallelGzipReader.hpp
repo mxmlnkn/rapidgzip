@@ -55,46 +55,84 @@ public:
 
 public:
     /**
-     * Quick benchmarks for spacing:
+     * Quick benchmarks for spacing on AMD Ryzen 3900X 12-core.
      *
      * @verbatim
      * base64 /dev/urandom | head -c $(( 4 * 1024 * 1024 * 1024 )) > 4GiB-base64
      * gzip 4GiB-base64
      *
-     * function benchmarkWcl()
+     * function benchmarkWc()
      * {
      *     for chunkSize in 128 $(( 1*1024 )) $(( 2*1024 )) $(( 4*1024 )) $(( 8*1024 )) $(( 16*1024 )) $(( 32*1024 )); do
      *         echo "Chunk Size: $chunkSize KiB"
      *         for i in $( seq 5 ); do
-     *             src/tools/pragzip --chunk-size $chunkSize -P 0 -d -c "$1" 2>pragzip.log | wc -l
+     *             src/tools/pragzip --chunk-size $chunkSize -P 0 -d -c "$1" 2>pragzip.log | wc -c
      *             grep "Decompressed in total" pragzip.log
      *         done
      *     done
      * }
      *
      * m pragzip
-     * benchmarkWcl 4GiB-base64.gz
+     * benchmarkWc 4GiB-base64.gz
      *
      *
      * spacing | bandwidth / (MB/s) | file read multiplier
      * --------+--------------------+----------------------
-     * 128 KiB | ~1250              | 2.08337
-     *   1 MiB | ~2250              | 1.13272
-     *   2 MiB | ~2550              | 1.06601
-     *   4 MiB | ~2650              | 1.03457
-     *   8 MiB | ~2650              | 1.0169
-     *  16 MiB | ~2550              | 1.00799
-     *  32 MiB | ~2250              | 1.00429
+     * 128 KiB | ~1200              | 2.08337
+     *   1 MiB | ~2500              | 1.13272
+     *   2 MiB | ~2700              | 1.06601
+     *   4 MiB | ~2800              | 1.03457
+     *   8 MiB | ~2750              | 1.0169
+     *  16 MiB | ~2600              | 1.00799
+     *  32 MiB | ~2300              | 1.00429
      * @endverbatim
      *
-     * For higher chunk sizes, the bandwidths become very uncertain,
+     * For higher chunk sizes, the bandwidths become very unstable,
      * probably because even work division becomes a problem realtive to the file size.
+     * Furthermore, caching behavior might worsen for larger chunk sizes.
+     *
+     * @verbatim
+     * wget https://sun.aei.polsl.pl/~sdeor/corpus/silesia.zip
+     * mkdir -p silesia && ( cd silesia && unzip ../silesia.zip )
+     * tar -cf silesia.tar silesia/  # 211957760 B -> 212 MB, 203 MiB, gzip 66 MiB -> compression factor: 3.08
+     * for (( i=0; i<40; ++i )); do cat 'silesia.tar'; done | pigz > 40xsilesia.tar.gz
+     * m pragzip
+     * benchmarkWc 40xsilesia.tar.gz
+     *
+     * spacing | bandwidth / (MB/s)
+     * --------+--------------------
+     * 128 KiB | ~1150
+     *   1 MiB | ~1950
+     *   2 MiB | ~2150
+     *   4 MiB | ~2300
+     *   8 MiB | ~2400
+     *  16 MiB | ~2400
+     *  32 MiB | ~2300
+     * @endverbatim
+     *
+     * Beware, on 2xAMD EPYC CPU 7702, when decoding with more than 64 cores, the optimal is
+     * at 2 MiB instead of 4-8 MiB! Maybe these are NUMA domain + caching issues combined?
+     *
+     * AMD Ryzen 3900X Caches:
+     *  - L1: 64 kiB (50:50 instruction:cache) per core -> 768 kiB
+     *  - L2: 512 kiB per core -> 6 MiB
+     *  - L3: 64 MiB shared (~5.3 MiB per core)
+     *
+     * AMD EPYC CPU 7702:
+     *  - L1: 64 kiB (50:50 instruction:cache) per core -> 4 MiB
+     *  - L2: 512 kiB per core -> 32 MiB
+     *  - L3: 256 MiB shared (4 MiB per core)
+     *
+     * -> That EPYC processor is the same generation Zen 2 and therefore has identical L1 and L2 caches
+     *    and the L3 cache size is even higher, so it must be a NUMA issue.
+     *
+     * Non-compressible data is a special case because it only needs to do a memcpy.
      *
      * @verbatim
      * head -c $(( 4 * 1024 * 1024 * 1024 )) /dev/urandom > 4GiB-random
      * gzip 4GiB-random.gz
      * m pragzip
-     * benchmarkWcl 4GiB-random.gz
+     * benchmarkWc 4GiB-random.gz
      *
      * spacing | bandwidth / (MB/s) | file read multiplier
      * --------+--------------------+----------------------
@@ -124,13 +162,13 @@ public:
      *
      * spacing | bandwidth / (MB/s)
      * --------+--------------------
-     * 128 KiB | ~1350
-     *   1 MiB | ~3000
-     *   2 MiB | ~3300
-     *   4 MiB | ~3400
-     *   8 MiB | ~3400
-     *  16 MiB | ~3300
-     *  32 MiB | ~2900
+     * 128 KiB | ~1550
+     *   1 MiB | ~3200
+     *   2 MiB | ~3400
+     *   4 MiB | ~3600
+     *   8 MiB | ~3800
+     *  16 MiB | ~3800
+     *  32 MiB | ~3600
      * @endverbatim
      *
      * The factor 2 amount of read data can be explained with the BitReader always buffering 128 KiB!

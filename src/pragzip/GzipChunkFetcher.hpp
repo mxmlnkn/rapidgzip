@@ -626,7 +626,7 @@ private:
                  size_t nextBlockOffset ) const override
     {
         /* The decoded size of the block is only for optimization purposes. Therefore, we do not have to take care
-         * about the correct ordering between BlockMap accesses and mofications (the BlockMap is still thread-safe). */
+         * of the correct ordering between BlockMap accesses and modifications (the BlockMap is still thread-safe). */
         const auto blockInfo = m_blockMap->getEncodedOffset( blockOffset );
         return decodeBlock( m_bitReader, blockOffset, nextBlockOffset,
                             m_isBgzfFile ? std::make_optional( WindowView{} ) : m_windowMap->get( blockOffset ),
