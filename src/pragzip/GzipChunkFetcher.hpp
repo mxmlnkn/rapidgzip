@@ -763,7 +763,11 @@ public:
         const auto tBlockFinderStart = now();
         static constexpr auto CHUNK_SIZE = 8_Ki * BYTE_SIZE;
         for ( auto chunkBegin = blockOffset; chunkBegin < untilOffset; chunkBegin += CHUNK_SIZE ) {
-            if ( cancelThreads ) {
+            /* Only look in the first 512 KiB of data. If nothing can be found there, then something is likely
+             * to be wrong with the file and looking in the rest will also likely fail. And looking in the whole
+             * range to be decompressed is multiple times slower than decompression because of the slower
+             * block finder and because it requires intensive seeking for false non-compressed block positives. */
+            if ( cancelThreads || ( chunkBegin - blockOffset >= 512_Ki * BYTE_SIZE ) ) {
                 break;
             }
 
