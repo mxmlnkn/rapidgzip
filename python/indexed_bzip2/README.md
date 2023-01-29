@@ -280,26 +280,19 @@ Click [here](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/resu
 # Tracing the Decoder
 
 Performance profiling and tracing is done with [Score-P](https://www.vi-hps.org/projects/score-p/) for instrumentation and [Vampir](https://vampir.eu/) for visualization.
-This is one way, you could install Score-P with most of the functionalities on Debian 10.
+This is one way, you could install Score-P with most of the functionalities on Ubuntu 22.04.
 
 ```bash
-# Install PAPI
-wget http://icl.utk.edu/projects/papi/downloads/papi-5.7.0.tar.gz
-tar -xf papi-5.7.0.tar.gz
-cd papi-5.7.0/src
-./configure
-make -j
-sudo make install
-
-# Install Dependencies
-sudo apt-get install libopenmpi-dev openmpi gcc-8-plugin-dev llvm-dev libclang-dev libunwind-dev libopen-trace-format-dev otf-trace
+sudo apt-get install libopenmpi-dev openmpi-bin gcc-11-plugin-dev llvm-dev libclang-dev libunwind-dev \
+                     libopen-trace-format-dev otf-trace libpapi-dev
 
 # Install Score-P (to /opt/scorep)
-wget https://www.vi-hps.org/cms/upload/packages/scorep/scorep-6.0.tar.gz
-tar -xf scorep-6.0.tar.gz
-cd scorep-6.0
-./configure --with-mpi=openmpi --enable-shared
-make -j
+SCOREP_VERSION=8.0
+wget "https://perftools.pages.jsc.fz-juelich.de/cicd/scorep/tags/scorep-${SCOREP_VERSION}/scorep-${SCOREP_VERSION}.tar.gz"
+tar -xf "scorep-${SCOREP_VERSION}.tar.gz"
+cd "scorep-${SCOREP_VERSION}"
+./configure --with-mpi=openmpi --enable-shared --without-llvm --without-shmem --without-cubelib --prefix="/opt/scorep-${SCOREP_VERSION}"
+make -j $( nproc )
 make install
 
 # Add /opt/scorep to your path variables on shell start
@@ -310,6 +303,8 @@ if test -d /opt/scorep; then
     export LD_LIBRARY_PATH=$SCOREP_ROOT/lib:$LD_LIBRARY_PATH
 fi
 EOF
+
+echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
 
 # Check whether it works
 scorep --version

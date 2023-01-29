@@ -289,3 +289,53 @@ If you have suggestions and wishes like support with CMake or Conan, please open
 # Internal Architecture
 
 The main part of the [internal architecture](https://github.com/mxmlnkn/indexed_bzip2/tree/master/python/indexed_bzip2#internal-architecture) used for parallelizing is the same as used for [indexed_bzip2](https://github.com/mxmlnkn/indexed_bzip2).
+
+
+# Tracing the Decoder
+
+
+Performance profiling and tracing is done with [Score-P](https://www.vi-hps.org/projects/score-p/) for instrumentation and [Vampir](https://vampir.eu/) for visualization.
+This is one way, you could install Score-P with most of the functionalities on Ubuntu 22.04.
+
+## Installation of Dependencies
+
+<details>
+<summary>Installation steps for Score-P</summary>
+
+```bash
+sudo apt-get install libopenmpi-dev openmpi-bin gcc-11-plugin-dev llvm-dev libclang-dev libunwind-dev \
+                     libopen-trace-format-dev otf-trace libpapi-dev
+
+# Install Score-P (to /opt/scorep)
+SCOREP_VERSION=8.0
+wget "https://perftools.pages.jsc.fz-juelich.de/cicd/scorep/tags/scorep-${SCOREP_VERSION}/scorep-${SCOREP_VERSION}.tar.gz"
+tar -xf "scorep-${SCOREP_VERSION}.tar.gz"
+cd "scorep-${SCOREP_VERSION}"
+./configure --with-mpi=openmpi --enable-shared --without-llvm --without-shmem --without-cubelib --prefix="/opt/scorep-${SCOREP_VERSION}"
+make -j $( nproc )
+make install
+
+# Add /opt/scorep to your path variables on shell start
+cat <<EOF >> ~/.bashrc
+if test -d /opt/scorep; then
+    export SCOREP_ROOT=/opt/scorep
+    export PATH=$SCOREP_ROOT/bin:$PATH
+    export LD_LIBRARY_PATH=$SCOREP_ROOT/lib:$LD_LIBRARY_PATH
+fi
+EOF
+
+echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
+
+# Check whether it works
+scorep --version
+scorep-info config-summary
+```
+
+</details>
+
+## Tracing
+
+### Results for a version from 2023-02-04
+
+![](results/Screenshot_2023-01-28_17-16-49.png)
+
