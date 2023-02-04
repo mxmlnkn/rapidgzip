@@ -174,13 +174,12 @@ public:
 protected:
     BlockFetcher( std::shared_ptr<BlockFinder> blockFinder,
                   size_t                       parallelization ) :
-        m_parallelization( parallelization == 0
-                           ? std::max<size_t>( 1U, availableCores() )
-                           : parallelization ),
-        m_blockFinder    ( std::move( blockFinder ) ),
-        m_cache          ( std::max( size_t( 16 ), m_parallelization ) ),
-        m_prefetchCache  ( 2 * m_parallelization /* Only m_parallelization would lead to lot of cache pollution! */ ),
-        m_threadPool     ( m_parallelization )
+        m_parallelization( parallelization == 0 ? std::max<size_t>( 1U, availableCores() ) : parallelization ),
+        m_blockFinder( std::move( blockFinder ) ),
+        m_cache( std::max( size_t( 16 ), m_parallelization ) ),
+        m_prefetchCache( 2 * m_parallelization /* Only m_parallelization would lead to lot of cache pollution! */ ),
+        m_failedPrefetchCache( m_prefetchCache.capacity() ),
+        m_threadPool( m_parallelization )
     {
         if ( !m_blockFinder ) {
             throw std::invalid_argument( "BlockFinder must be valid!" );
@@ -315,13 +314,19 @@ private:
         m_cache.insert( blockOffset, std::move( blockData ) );
     }
 
-
     [[nodiscard]] bool
     isInCacheOrQueue( const size_t blockOffset ) const
     {
         return ( m_prefetching.find( blockOffset ) != m_prefetching.end() )
                || m_cache.test( blockOffset )
                || m_prefetchCache.test( blockOffset );
+    }
+
+    [[nodiscard]] bool
+    isFailedPrefetch( const size_t blockOffset ) const
+    {
+        std::scoped_lock lock( m_failedPrefetchCacheMutex );
+        return m_failedPrefetchCache.test( blockOffset );
     }
 
     /**
@@ -390,6 +395,8 @@ private:
                 } catch ( ... ) {
                     /* Prefetching failed, ignore result and error. If the error was a real one, then it will
                      * will be rethrown when the task is requested directly and run directly. */
+                    std::scoped_lock lock( m_failedPrefetchCacheMutex );
+                    m_failedPrefetchCache.insert( prefetchedBlockOffset, /* value does not matter */ true );
                 }
                 it = m_prefetching.erase( it );
             } else {
@@ -482,7 +489,8 @@ private:
                  || !nextPrefetchBlockOffset.has_value()
                  || isInCacheOrQueue( *prefetchBlockOffset )
                  || ( getPartitionOffsetFromOffset
-                      && isInCacheOrQueue( getPartitionOffsetFromOffset( *prefetchBlockOffset ) ) ) )
+                      && isInCacheOrQueue( getPartitionOffsetFromOffset( *prefetchBlockOffset ) ) )
+                 || isFailedPrefetch( *prefetchBlockOffset ) )
             {
                 continue;
             }
@@ -616,6 +624,8 @@ private:
     BlockCache m_cache;
     BlockCache m_prefetchCache;
     FetchingStrategy m_fetchingStrategy;
+    Cache</* block offset in bits */ size_t, bool> m_failedPrefetchCache;
+    mutable std::mutex m_failedPrefetchCacheMutex;
 
     std::map</* block offset */ size_t, std::future<BlockData> > m_prefetching;
     ThreadPool m_threadPool;
