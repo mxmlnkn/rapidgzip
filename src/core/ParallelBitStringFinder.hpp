@@ -2,6 +2,7 @@
 
 #include <climits>
 #include <cmath>
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
