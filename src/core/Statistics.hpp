@@ -158,8 +158,18 @@ public:
             }
         }
 
-        if ( m_statistics.min == m_statistics.max ) {
+        if ( container.empty() ) {
+            m_bins.clear();
             return;
+        }
+
+        if constexpr ( std::is_integral_v<T> ) {
+            /* It seems almost impossible to me to fully avoid overflows here without casting to floating point. */
+            const auto range = static_cast<double>( m_statistics.max ) - static_cast<double>( m_statistics.min );
+            const auto usefulBinCount = static_cast<size_t>( range + 1.0 );
+            if ( usefulBinCount < binCount ) {
+                m_bins.resize( usefulBinCount, 0 );
+            }
         }
 
         for ( const auto value : container ) {
@@ -200,19 +210,22 @@ public:
     [[nodiscard]] constexpr double
     binStart( size_t binNumber ) const noexcept
     {
-        return m_statistics.min + ( m_statistics.max - m_statistics.min ) / m_bins.size() * binNumber;
+        return m_statistics.min + static_cast<double>( m_statistics.max - m_statistics.min )
+               / m_bins.size() * binNumber;
     }
 
     [[nodiscard]] constexpr double
     binCenter( size_t binNumber ) const noexcept
     {
-        return m_statistics.min + ( m_statistics.max - m_statistics.min ) / m_bins.size() * ( binNumber + 0.5 );
+        return m_statistics.min + static_cast<double>( m_statistics.max - m_statistics.min )
+               / m_bins.size() * ( binNumber + 0.5 );
     }
 
     [[nodiscard]] constexpr double
     binEnd( size_t binNumber ) const noexcept
     {
-        return m_statistics.min + ( m_statistics.max - m_statistics.min ) / m_bins.size() * ( binNumber + 1 );
+        return m_statistics.min + static_cast<double>( m_statistics.max - m_statistics.min )
+               / m_bins.size() * ( binNumber + 1 );
     }
 
     [[nodiscard]] constexpr const auto&
@@ -224,7 +237,7 @@ public:
     [[nodiscard]] std::string
     plot() const
     {
-        if ( m_bins.size() <= 1 ) {
+        if ( m_bins.size() < 1 ) {
             return {};
         }
 

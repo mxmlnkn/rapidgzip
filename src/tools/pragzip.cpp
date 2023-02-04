@@ -45,6 +45,10 @@ analyze( std::unique_ptr<FileReader> inputFile )
 
     size_t headerOffset = 0;
 
+    std::vector<size_t> precodeCodeLengths;
+    std::vector<size_t> distanceCodeLengths;
+    std::vector<size_t> literalCodeLengths;
+
     std::vector<size_t> encodedBlockSizes;
     std::vector<size_t> decodedBlockSizes;
     std::vector<double> compressionRatios;
@@ -160,7 +164,8 @@ analyze( std::unique_ptr<FileReader> inputFile )
         }
 
         const auto printCodeLengthStatistics =
-            [] ( const auto& codeLenghts )
+            [] ( const auto&  codeLenghts,
+                 const size_t codeLenghtCountRead )
             {
                 auto min = std::numeric_limits<uint32_t>::max();
                 auto max = std::numeric_limits<uint32_t>::min();
@@ -178,7 +183,7 @@ analyze( std::unique_ptr<FileReader> inputFile )
                 }
 
                 std::stringstream result;
-                result << nonZeroCount << " CLs in [" << min << ", " << max << "] out of " << codeLenghts.size()
+                result << nonZeroCount << " CLs in [" << min << ", " << max << "] out of " << codeLenghtCountRead
                        << ": CL:Count, ";
                 bool requiresComma{ false };
                 for ( size_t codeLength = 0; codeLength < lengthCounts.size(); ++codeLength ) {
@@ -196,15 +201,6 @@ analyze( std::unique_ptr<FileReader> inputFile )
 
                 return std::move( result ).str();
             };
-
-        const VectorView<uint8_t> precodeCL{ block.precodeCL().data(), block.precodeCL().size() };
-        const VectorView<uint8_t> distanceCL{ block.distanceAndLiteralCL().data() + block.codeCounts.literal,
-                                              block.codeCounts.distance };
-        const VectorView<uint8_t> literalCL{ block.distanceAndLiteralCL().data(), block.codeCounts.literal };
-
-        precodeCodings[static_cast<std::vector<uint8_t> >( precodeCL )]++;
-        distanceCodings[static_cast<std::vector<uint8_t> >( distanceCL )]++;
-        literalCodings[static_cast<std::vector<uint8_t> >( literalCL )]++;
 
         const auto formatSymbolType =
             [total = block.symbolTypes.literal + block.symbolTypes.backreference] ( const auto count )
@@ -230,11 +226,24 @@ analyze( std::unique_ptr<FileReader> inputFile )
             << "    Uncompressed Size       : " << uncompressedBlockSize << " B\n"
             << "    Compression Ratio       : " << compressionRatio << "\n";
         if ( block.compressionType() == deflate::CompressionType::DYNAMIC_HUFFMAN ) {
+            const VectorView<uint8_t> precodeCL{ block.precodeCL().data(), block.precodeCL().size() };
+            const VectorView<uint8_t> distanceCL{ block.distanceAndLiteralCL().data() + block.codeCounts.literal,
+                                                  block.codeCounts.distance };
+            const VectorView<uint8_t> literalCL{ block.distanceAndLiteralCL().data(), block.codeCounts.literal };
+
+            precodeCodings[static_cast<std::vector<uint8_t> >( precodeCL )]++;
+            distanceCodings[static_cast<std::vector<uint8_t> >( distanceCL )]++;
+            literalCodings[static_cast<std::vector<uint8_t> >( literalCL )]++;
+
+            precodeCodeLengths.emplace_back( block.codeCounts.precode );
+            distanceCodeLengths.emplace_back( block.codeCounts.distance );
+            literalCodeLengths.emplace_back( block.codeCounts.literal );
+
             std::cout
                 << "    Huffman Alphabets:\n"
-                << "        Precode  : " << printCodeLengthStatistics( precodeCL ) << "\n"
-                << "        Distance : " << printCodeLengthStatistics( distanceCL ) << "\n"
-                << "        Literals : " << printCodeLengthStatistics( literalCL ) << "\n";
+                << "        Precode  : " << printCodeLengthStatistics( precodeCL, block.codeCounts.precode ) << "\n"
+                << "        Distance : " << printCodeLengthStatistics( distanceCL, block.codeCounts.distance ) << "\n"
+                << "        Literals : " << printCodeLengthStatistics( literalCL, block.codeCounts.literal ) << "\n";
         }
         if ( block.compressionType() != deflate::CompressionType::UNCOMPRESSED ) {
             std::cout
@@ -327,6 +336,18 @@ analyze( std::unique_ptr<FileReader> inputFile )
         << "Precode  : " << printAlphabetStatistics( precodeCodings ) << "\n"
         << "Distance : " << printAlphabetStatistics( distanceCodings ) << "\n"
         << "Literals : " << printAlphabetStatistics( literalCodings ) << "\n"
+        << "\n"
+        << "== Precode Code Length Count Distribution ==\n"
+        << "\n"
+        << Histogram<size_t>{ precodeCodeLengths, /* bin count */ 8 }.plot()
+        << "\n"
+        << "== Distance Code Length Count Distribution ==\n"
+        << "\n"
+        << Histogram<size_t>{ distanceCodeLengths, /* bin count */ 8 }.plot()
+        << "\n"
+        << "== Literal Code Length Count Distribution ==\n"
+        << "\n"
+        << Histogram<size_t>{ literalCodeLengths, /* bin count */ 8 }.plot()
         << "\n"
         << "\n"
         << "== Encoded Block Size Distribution ==\n"

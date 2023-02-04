@@ -146,7 +146,7 @@ public:
             m_sizeInChunk = 0;
 
             if ( m_processedSize > m_size ) {
-                throw std::logic_error( "Iterated over mroe bytes than was requested!" );
+                throw std::logic_error( "Iterated over more bytes than was requested!" );
             }
 
             if ( !static_cast<bool>( *this ) ) {
