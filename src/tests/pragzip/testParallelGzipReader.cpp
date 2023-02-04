@@ -325,6 +325,32 @@ testWithLargeFiles( const TemporaryDirectory& tmpFolder )
 
 
 void
+testPerformance( const std::string& encodedFilePath,
+                 const size_t       bufferSize,
+                 const size_t       parallelization )
+{
+    pragzip::ParallelGzipReader</* ENABLE_STATISTICS */ true> reader(
+        std::make_unique<StandardFileReader>( encodedFilePath ),
+        parallelization );
+
+    std::vector<char> result( bufferSize );
+    while ( true ) {
+        const auto nBytesRead = reader.read( result.data(), result.size() );
+        if ( nBytesRead == 0 ) {
+            break;
+        }
+    }
+
+    const auto statistics = reader.statistics();
+    REQUIRE( statistics.blockCountFinalized );
+    std::cerr << "statistics.blockCount:" << statistics.blockCount <<", statistics.prefetchCount:"
+              << statistics.prefetchCount << ", statistics.onDemandFetchCount:" << statistics.onDemandFetchCount
+              << "\n";
+    REQUIRE_EQUAL( statistics.blockCount, statistics.prefetchCount + statistics.onDemandFetchCount );
+}
+
+
+void
 testPerformance( const TemporaryDirectory& tmpFolder )
 {
     const std::string fileName = std::filesystem::absolute( tmpFolder.path() / "random-base64" );
@@ -334,21 +360,10 @@ testPerformance( const TemporaryDirectory& tmpFolder )
         const auto& [name, getVersion, command, extension] = TEST_ENCODERS.front();
         const auto encodedFilePath = encodeTestFile( fileName, tmpFolder, command );
 
-        for ( const auto bufferSize : { 64_Mi, 4_Mi, 32_Ki } ) {
-            pragzip::ParallelGzipReader</* ENABLE_STATISTICS */ true> reader(
-                std::make_unique<StandardFileReader>( encodedFilePath ) );
-
-            std::vector<char> result( bufferSize );
-            while ( true ) {
-                const auto nBytesRead = reader.read( result.data(), result.size() );
-                if ( nBytesRead == 0 ) {
-                    break;
-                }
+        for ( const auto parallelization : { 1, 2, 3, 4, 8 } ) {
+            for ( const auto bufferSize : { 64_Mi, 4_Mi, 32_Ki, 1_Ki } ) {
+                testPerformance( encodedFilePath, bufferSize, parallelization );
             }
-
-            const auto statistics = reader.statistics();
-            REQUIRE( statistics.blockCountFinalized );
-            REQUIRE_EQUAL( statistics.blockCount, statistics.prefetchCount + statistics.onDemandFetchCount );
         }
     } catch ( const std::exception& exception ) {
         /* Note that the destructor for TemporaryDirectory might not be called for uncaught exceptions!

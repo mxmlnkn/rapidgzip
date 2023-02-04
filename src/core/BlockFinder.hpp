@@ -97,14 +97,16 @@ public:
         return m_blockOffsets.finalized();
     }
 
+    using BlockFinderInterface::get;
+
     /**
      * This call will track the requested block so that the finder loop will look up to that block.
      * Per default, with the infinite timeout, either a result can be returned or if not it means
      * we are finalized and the requested block is out of range!
      */
-    [[nodiscard]] std::optional<size_t>
+    [[nodiscard]] std::pair<std::optional<size_t>, GetReturnCode>
     get( size_t blockNumber,
-         double timeoutInSeconds = std::numeric_limits<double>::infinity() ) override
+         double timeoutInSeconds ) override
     {
         if ( !m_blockOffsets.finalized() ) {
             startThreads();

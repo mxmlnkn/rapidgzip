@@ -110,15 +110,17 @@ public:
         insertUnsafe( blockOffset );
     }
 
+    using BlockFinderInterface::get;
+
     /**
      * @return The block offset to the given block index or nothing when the block finder is finalized and the
      *         requested block out of range. When the requested block index is not a known one, a guess will
      *         be returned based on @ref m_spacingInBits.
      * @todo ADD TESTS FOR THIS
      */
-    [[nodiscard]] std::optional<size_t>
+    [[nodiscard]] std::pair<std::optional<size_t>, GetReturnCode>
     get( size_t                  blockIndex,
-         [[maybe_unused]] double timeoutInSeconds = std::numeric_limits<double>::infinity() ) override
+         [[maybe_unused]] double timeoutInSeconds ) override
     {
         std::scoped_lock lock( m_mutex );
 
@@ -127,7 +129,7 @@ public:
         }
 
         if ( blockIndex < m_blockOffsets.size() ) {
-            return m_blockOffsets[blockIndex];
+            return { m_blockOffsets[blockIndex], GetReturnCode::SUCCESS };
         };
 
         assert( !m_blockOffsets.empty() );
@@ -135,18 +137,19 @@ public:
         const auto partitionIndex = firstPartitionIndex() + blockIndexOutside;
         const auto blockOffset = partitionIndex * m_spacingInBits;
         if ( blockOffset < m_fileSizeInBits ) {
-            return blockOffset;
+            return { blockOffset, GetReturnCode::SUCCESS };
         }
 
-        /* As the last offset (one after the last valid one), return the file size. */
+        /* Return the file size as offset for all indexes past the file.
+         * This avoids:
+         *  - the BlockFetcher waiting until this index becomes "available"
+         *  - the previous index offset not being used because there is no untilOffset for it */
         if ( partitionIndex > 0 ) {
-            const auto previousBlockOffset = ( partitionIndex - 1U ) * m_spacingInBits;
-            if ( previousBlockOffset < m_fileSizeInBits ) {
-                return m_fileSizeInBits;
-            }
+            return { m_fileSizeInBits, GetReturnCode::FAILURE };
         }
 
-        return std::nullopt;
+        /* This shouldn't happen. */
+        return { 0, GetReturnCode::FAILURE };
     }
 
     /**

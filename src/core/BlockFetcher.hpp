@@ -423,7 +423,7 @@ private:
         std::vector<size_t> blockOffsetsToPrefetch( blockIndexesToPrefetch.size() );
         for ( auto blockIndexToPrefetch : blockIndexesToPrefetch ) {
             /* If we don't find the offset in the timeout of 0, then we very likely also don't have it cached yet. */
-            const auto blockOffset = m_blockFinder->get( blockIndexToPrefetch, /* timeout */ 0 );
+            const auto [blockOffset, _] = m_blockFinder->get( blockIndexToPrefetch, /* timeout */ 0 );
             if ( !blockOffset ) {
                 continue;
             }
@@ -464,19 +464,21 @@ private:
 
             /* If the block with the requested index has not been found yet and if we have to wait on the requested
              * result future anyway, then wait a non-zero amount of time on the BlockFinder! */
+            using GetReturnCode = BlockFinderInterface::GetReturnCode;
             std::optional<size_t> prefetchBlockOffset;
+            auto prefetchGetReturnCode = GetReturnCode::FAILURE;
             std::optional<size_t> nextPrefetchBlockOffset;
+            auto nextPrefetchGetReturnCode = GetReturnCode::FAILURE;
             do
             {
-                prefetchBlockOffset = m_blockFinder->get( blockIndexToPrefetch, stopPrefetching() ? 0 : 0.0001 );
-                const auto wasFinalized = m_blockFinder->finalized();
-                nextPrefetchBlockOffset = m_blockFinder->get( blockIndexToPrefetch + 1,
-                                                              stopPrefetching() ? 0 : 0.0001 );
-                if ( wasFinalized && !nextPrefetchBlockOffset ) {
-                    nextPrefetchBlockOffset = std::numeric_limits<size_t>::max();
-                }
+                std::tie( prefetchBlockOffset, prefetchGetReturnCode ) =
+                    m_blockFinder->get( blockIndexToPrefetch, stopPrefetching() ? 0 : 0.0001 );
+                std::tie( nextPrefetchBlockOffset, nextPrefetchGetReturnCode ) =
+                    m_blockFinder->get( blockIndexToPrefetch + 1, stopPrefetching() ? 0 : 0.0001 );
             }
-            while ( !prefetchBlockOffset && !nextPrefetchBlockOffset && !stopPrefetching() );
+            while ( !prefetchBlockOffset && ( prefetchGetReturnCode != GetReturnCode::FAILURE )
+                    && !nextPrefetchBlockOffset && ( nextPrefetchGetReturnCode != GetReturnCode::FAILURE )
+                    && !stopPrefetching() );
 
             if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
                 if ( !prefetchBlockOffset.has_value() ) {
@@ -486,6 +488,7 @@ private:
 
             /* Do not prefetch already cached/prefetched blocks or block indexes which are not yet in the block map. */
             if ( !prefetchBlockOffset.has_value()
+                 || ( prefetchGetReturnCode == GetReturnCode::FAILURE )
                  || !nextPrefetchBlockOffset.has_value()
                  || isInCacheOrQueue( *prefetchBlockOffset )
                  || ( getPartitionOffsetFromOffset
