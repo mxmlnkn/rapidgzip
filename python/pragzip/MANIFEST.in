@@ -9,7 +9,7 @@ include tools/licenses.cpp
 include tools/pragzip.cpp
 include external/cxxopts/LICENSE
 include external/cxxopts/include/cxxopts.hpp
-include external/zlib/README
+include external/zlib/LICENSE
 include external/zlib/inflate.c
 include external/zlib/inflate.h
 include external/zlib/crc32.c
