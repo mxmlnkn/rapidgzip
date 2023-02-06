@@ -216,6 +216,7 @@ public:
     /* Benchmark results */
     double blockFinderDuration{ 0 };
     double decodeDuration{ 0 };
+    double appendDuration{ 0 };
 };
 
 
@@ -351,6 +352,7 @@ public:
             out << "[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:\n";
             out << "    Time spent in block finder          : " << m_blockFinderTime << " s\n";
             out << "    Time spent decoding                 : " << m_decodeTime << " s\n";
+            out << "    Time spent allocating and copying   : " << m_appendTime << " s\n";
             out << "    Time spent applying the last window : " << m_applyWindowTime << " s\n";
             out << "    Replaced marker bytes               : " << formatBytes( m_markerCount ) << "\n";
             std::cerr << std::move( out ).str();
@@ -395,6 +397,7 @@ public:
                 std::scoped_lock lock( m_statisticsMutex );
                 m_blockFinderTime += blockData->blockFinderDuration;
                 m_decodeTime += blockData->decodeDuration;
+                m_appendTime += blockData->appendDuration;
             }
 
             /* This should also work for multi-stream gzip files because encodedSizeInBits is such that it
@@ -1085,7 +1088,9 @@ private:
                     throw std::domain_error( std::move( message ).str() );
                 }
 
+                const auto tAppendStart = now();
                 result.append( bufferViews );
+                result.appendDuration += duration( tAppendStart );
                 streamBytesRead += bufferViews.size();
                 totalBytesRead += bufferViews.size();
             }
@@ -1136,6 +1141,7 @@ private:
     double m_applyWindowTime{ 0 };
     double m_blockFinderTime{ 0 };
     double m_decodeTime{ 0 };
+    double m_appendTime{ 0 };
     uint64_t m_markerCount{ 0 };
     mutable std::mutex m_statisticsMutex;
 
