@@ -23,6 +23,8 @@
 #include <ParallelBZ2Reader.hpp>
 #include <ParallelBitStringFinder.hpp>
 
+#include "licenses.cpp"
+
 
 /* Check whether the found offsets actually point to BZ2 magic bytes. */
 void
@@ -214,6 +216,7 @@ ibzip2CLI( int argc, char** argv )
         ( "q,quiet"  , "Suppress noncritical error messages." )
         ( "v,verbose", "Be verbose. A second -v (or shorthand -vv) gives even more verbosity." )
         ( "V,version", "Display software version." )
+        ( "oss-attributions", "Display open-source software licenses." )
         ( "l,list-compressed-offsets",
           "List only the bzip2 block offsets given in bits one per line to the specified output file. "
           "If no file is given, it will print to stdout or to stderr if the decoded data is already written to stdout. "
@@ -267,6 +270,11 @@ ibzip2CLI( int argc, char** argv )
 
     if ( parsedArgs.count( "version" ) > 0 ) {
         std::cout << "ibzip2, CLI to the indexed and seekable bzip2 decoding library indexed-bzip2 version 1.4.1.\n";
+        return 0;
+    }
+
+    if ( parsedArgs.count( "oss-attributions" ) > 0 ) {
+        std::cout << licenses::CXXOPTS;
         return 0;
     }
 

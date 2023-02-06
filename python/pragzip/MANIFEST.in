@@ -5,7 +5,9 @@ include CHANGELOG.md
 include pragzip.pyx
 recursive-include core *.hpp
 recursive-include pragzip *.hpp
+include tools/licenses.cpp
 include tools/pragzip.cpp
+include external/cxxopts/LICENSE
 include external/cxxopts/include/cxxopts.hpp
 include external/zlib/README
 include external/zlib/inflate.c

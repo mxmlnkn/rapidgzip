@@ -22,6 +22,8 @@
 #include <ParallelGzipReader.hpp>
 #include <Statistics.hpp>
 
+#include "licenses.cpp"
+
 
 [[nodiscard]] pragzip::Error
 analyze( std::unique_ptr<FileReader> inputFile )
@@ -432,7 +434,8 @@ pragzipCLI( int argc, char** argv )
         ( "h,help"   , "Print this help mesage." )
         ( "q,quiet"  , "Suppress noncritical error messages." )
         ( "v,verbose", "Be verbose. A second -v (or shorthand -vv) gives even more verbosity." )
-        ( "V,version", "Display software version." );
+        ( "V,version", "Display software version." )
+        ( "oss-attributions", "Display open-source software licenses." );
 
     /* These options are offered because just piping to other tools can already bottleneck everything! */
     options.add_options( "Processing" )
@@ -474,6 +477,13 @@ pragzipCLI( int argc, char** argv )
     if ( parsedArgs.count( "version" ) > 0 ) {
         std::cout << "pragzip, CLI to the parallelized, indexed, and seekable gzip decoding library pragzip "
                   << "version 0.5.0.\n";
+        return 0;
+    }
+
+    if ( parsedArgs.count( "oss-attributions" ) > 0 ) {
+        std::cout << licenses::CXXOPTS << "\n"
+                  << licenses::RPMALLOC << "\n"
+                  << licenses::ZLIB;
         return 0;
     }
 
