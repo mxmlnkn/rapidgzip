@@ -164,8 +164,8 @@ analyze( std::unique_ptr<FileReader> inputFile )
         }
 
         const auto printCodeLengthStatistics =
-            [] ( const auto&  codeLenghts,
-                 const size_t codeLenghtCountRead )
+            [] ( const auto&  codeLengths,
+                 const size_t codeLengthCountRead )
             {
                 auto min = std::numeric_limits<uint32_t>::max();
                 auto max = std::numeric_limits<uint32_t>::min();
@@ -173,7 +173,7 @@ analyze( std::unique_ptr<FileReader> inputFile )
 
                 std::array<size_t, 128> lengthCounts{};
 
-                for ( const auto codeLength : codeLenghts ) {
+                for ( const auto codeLength : codeLengths ) {
                     if ( codeLength > 0 ) {
                         min = std::min( min, static_cast<uint32_t>( codeLength ) );
                         max = std::max( max, static_cast<uint32_t>( codeLength ) );
@@ -183,7 +183,7 @@ analyze( std::unique_ptr<FileReader> inputFile )
                 }
 
                 std::stringstream result;
-                result << nonZeroCount << " CLs in [" << min << ", " << max << "] out of " << codeLenghtCountRead
+                result << nonZeroCount << " CLs in [" << min << ", " << max << "] out of " << codeLengthCountRead
                        << ": CL:Count, ";
                 bool requiresComma{ false };
                 for ( size_t codeLength = 0; codeLength < lengthCounts.size(); ++codeLength ) {
