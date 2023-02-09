@@ -14,6 +14,7 @@
 #include <thread>
 #include <utility>
 
+#include <AffinityHelpers.hpp>
 #include <BlockFinder.hpp>
 #include <BlockMap.hpp>
 #include <common.hpp>
@@ -47,10 +48,7 @@ public:
     ParallelBZ2Reader( std::unique_ptr<FileReader> fileReader,
                        size_t                      parallelization = 0 ) :
         m_bitReader( std::move( fileReader ) ),
-        m_fetcherParallelization(
-            parallelization == 0
-            ? std::max<size_t>( 1U, std::thread::hardware_concurrency() )
-            : parallelization ),
+        m_fetcherParallelization( parallelization == 0 ? availableCores() : parallelization ),
         m_startBlockFinder(
             [&] ()
             {

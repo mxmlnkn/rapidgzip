@@ -15,6 +15,7 @@
 #include <utility>
 #include <vector>
 
+#include <AffinityHelpers.hpp>
 #include <BlockMap.hpp>
 #include <common.hpp>
 #include <filereader/FileReader.hpp>
@@ -194,10 +195,7 @@ public:
                         size_t                      parallelization = 0,
                         uint64_t                    chunkSize = 4_Mi ) :
         m_bitReader( std::move( fileReader ) ),
-        m_fetcherParallelization(
-            parallelization == 0
-            ? std::max<size_t>( 1U, std::thread::hardware_concurrency() )
-            : parallelization ),
+        m_fetcherParallelization( parallelization == 0 ? availableCores() : parallelization ),
         m_startBlockFinder(
             [this, chunkSize] () {
                 return std::make_unique<BlockFinder>(
