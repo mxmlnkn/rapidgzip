@@ -13,9 +13,11 @@
 #include <optional>
 #include <stdexcept>
 #include <thread>
+#include <type_traits>
 #include <utility>
 
 #include <AffinityHelpers.hpp>
+#include <BlockFinderInterface.hpp>
 #include <Cache.hpp>
 #include <common.hpp>
 #include <Prefetcher.hpp>
@@ -38,6 +40,9 @@ public:
     using BlockFinder = T_BlockFinder;
     using BlockData = T_BlockData;
     using BlockCache = Cache</** block offset in bits */ size_t, std::shared_ptr<BlockData> >;
+
+    static_assert( std::is_base_of_v<BlockFinderInterface, BlockFinder>,
+                   "Block finder must derive from the abstract interface." );
 
     using GetPartitionOffset = std::function<size_t( size_t )>;
 

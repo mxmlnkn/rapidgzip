@@ -10,8 +10,10 @@
 #include <utility>
 #include <vector>
 
+#include <BlockFinderInterface.hpp>
+#include <common.hpp>
+
 #include "blockfinder/Bgzf.hpp"
-#include "common.hpp"
 #include "deflate.hpp"
 
 
@@ -27,7 +29,8 @@ namespace pragzip
  * However, care has to be taken in its usage because block confirmation effectively invalidates block
  * previous indexes!
  */
-class GzipBlockFinder
+class GzipBlockFinder :
+    public BlockFinderInterface
 {
 public:
     using BlockOffsets = std::vector<size_t>;
@@ -70,7 +73,7 @@ public:
      * @return number of block offsets. This number may increase as long as it is not finalized yet.
      */
     [[nodiscard]] size_t
-    size() const
+    size() const override
     {
         std::scoped_lock lock( m_mutex );
         return m_blockOffsets.size();
@@ -84,7 +87,7 @@ public:
     }
 
     [[nodiscard]] bool
-    finalized() const
+    finalized() const override
     {
         std::scoped_lock lock( m_mutex );
         return m_finalized;
@@ -115,7 +118,7 @@ public:
      */
     [[nodiscard]] std::optional<size_t>
     get( size_t                  blockIndex,
-         [[maybe_unused]] double timeoutInSeconds = std::numeric_limits<double>::infinity() )
+         [[maybe_unused]] double timeoutInSeconds = std::numeric_limits<double>::infinity() ) override
     {
         std::scoped_lock lock( m_mutex );
 
@@ -150,7 +153,7 @@ public:
      * @return Index for the block at the requested offset.
      */
     [[nodiscard]] size_t
-    find( size_t encodedBlockOffsetInBits ) const
+    find( size_t encodedBlockOffsetInBits ) const override
     {
         std::scoped_lock lock( m_mutex );
 

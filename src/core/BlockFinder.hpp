@@ -13,6 +13,7 @@
 #include <thread>
 #include <utility>
 
+#include <BlockFinderInterface.hpp>
 #include <filereader/FileReader.hpp>
 #include <JoiningThread.hpp>
 #include <StreamedResults.hpp>
@@ -28,7 +29,8 @@
  * @tparam RawBlockFinder Must implement a `size_t find()` method which returns block offsets.
  */
 template<typename T_RawBlockFinder>
-class BlockFinder
+class BlockFinder :
+    public BlockFinderInterface
 {
 public:
     using RawBlockFinder = T_RawBlockFinder;
@@ -75,7 +77,7 @@ public:
     }
 
     [[nodiscard]] size_t
-    size() const
+    size() const override
     {
         return m_blockOffsets.size();
     }
@@ -90,7 +92,7 @@ public:
     }
 
     [[nodiscard]] bool
-    finalized() const
+    finalized() const override
     {
         return m_blockOffsets.finalized();
     }
@@ -102,7 +104,7 @@ public:
      */
     [[nodiscard]] std::optional<size_t>
     get( size_t blockNumber,
-         double timeoutInSeconds = std::numeric_limits<double>::infinity() )
+         double timeoutInSeconds = std::numeric_limits<double>::infinity() ) override
     {
         if ( !m_blockOffsets.finalized() ) {
             startThreads();
@@ -119,7 +121,7 @@ public:
 
     /** @return Index for the block at the requested offset. */
     [[nodiscard]] size_t
-    find( size_t encodedBlockOffsetInBits ) const
+    find( size_t encodedBlockOffsetInBits ) const override
     {
         std::scoped_lock lock( m_mutex );
 
