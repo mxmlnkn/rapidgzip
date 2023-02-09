@@ -437,20 +437,10 @@ private:
             }
         }
 
-        const auto touchInCacheIfExists =
-            [this] ( size_t prefetchBlockOffset )
-            {
-                if ( m_prefetchCache.test( prefetchBlockOffset ) ) {
-                    m_prefetchCache.touch( prefetchBlockOffset );
-                }
-                if ( m_cache.test( prefetchBlockOffset ) ) {
-                    m_cache.touch( prefetchBlockOffset );
-                }
-            };
-
         /* Touch all blocks to be prefetched to avoid evicting them while doing the prefetching of other blocks! */
         for ( auto offset = blockOffsetsToPrefetch.rbegin(); offset != blockOffsetsToPrefetch.rend(); ++offset ) {
-            touchInCacheIfExists( *offset );
+            m_prefetchCache.touch( *offset );
+            m_cache.touch( *offset );
         }
 
         for ( auto blockIndexToPrefetch : blockIndexesToPrefetch ) {

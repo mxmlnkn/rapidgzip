@@ -178,7 +178,9 @@ public:
     void
     touch( const Key& key )
     {
-        m_cacheStrategy.touch( key );
+        if ( test( key ) ) {
+            m_cacheStrategy.touch( key );
+        }
     }
 
     [[nodiscard]] bool
