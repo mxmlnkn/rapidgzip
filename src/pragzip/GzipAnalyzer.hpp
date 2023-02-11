@@ -14,7 +14,7 @@
 #include <vector>
 
 #include <BitReader.hpp>
-#include <FileReader.hpp>
+#include <filereader/FileReader.hpp>
 #include <Statistics.hpp>
 
 #include "deflate.hpp"

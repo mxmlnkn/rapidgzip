@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <iostream>
 #include <limits>
 #include <memory>
 #include <optional>

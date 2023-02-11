@@ -11,6 +11,8 @@
 #include <utility>
 #include <vector>
 
+#include <common.hpp>
+
 
 /**
  * Should get block offsets and decoded sizes and will do conversions between decoded and encoded offsets!

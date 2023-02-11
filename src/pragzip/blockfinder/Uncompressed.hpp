@@ -1,8 +1,8 @@
 #pragma once
 
-#include <atomic>
+#include <algorithm>
 #include <limits>
-#include <vector>
+#include <utility>
 
 #include <BitManipulation.hpp>
 #include <BitReader.hpp>
