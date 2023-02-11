@@ -71,7 +71,7 @@
     #define forceinline __forceinline
 #elif defined( __clang__ ) || defined( __GNUC__ )
 /* https://stackoverflow.com/questions/38499462/how-to-tell-clang-to-stop-pretending-to-be-other-compilers */
-    #define forceinline __attribute__(( always_inline ))
+    #define forceinline __attribute__(( always_inline )) inline
 #endif
 
 template<typename I1,

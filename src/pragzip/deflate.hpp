@@ -268,7 +268,7 @@ namespace
  *       > _ZTSZN7pragzip7deflate5BlockILb0ELb0EE33readDistanceAndLiteralCodeLengthsERSt5arrayIhLm572EER9BitReader
  *       > ILb0EmERKNS_41HuffmanCodingReversedBitsCachedCompressedIhLh7EhLm19EEEmRKSt8functionIFhhEEEd_UlhE_ []’
  */
-[[nodiscard]] forceinline inline Error
+[[nodiscard]] forceinline Error
 readDistanceAndLiteralCodeLengths( LiteralAndDistanceCLBuffer&              literalCL,
                                    BitReader&                               bitReader,
                                    const PrecodeHuffmanCoding&              precodeCoding,

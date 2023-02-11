@@ -135,7 +135,7 @@ public:
                                 ? std::min( nMaxBytesToRead, size() - tell() )
                                 : std::fread( buffer, /* element size */ 1, nMaxBytesToRead, m_file.get() );
         if ( buffer == nullptr ) {
-            std::fseek( m_file.get(), nBytesRead, SEEK_CUR );
+            std::fseek( m_file.get(), static_cast<long>( nBytesRead ), SEEK_CUR );
         }
 
         if ( nBytesRead == 0 ) {
@@ -182,7 +182,11 @@ public:
             throw std::invalid_argument( "Invalid or file can't be seeked!" );
         }
 
-        const auto returnCode = std::fseek( m_file.get(), offset, origin );
+        if ( offset > static_cast<long long int>( std::numeric_limits<long>::max() ) ) {
+            throw std::out_of_range( "std::fseek only takes long int, try compiling for 64 bit." );
+        }
+
+        const auto returnCode = std::fseek( m_file.get(), static_cast<long>( offset ), origin );
         if ( returnCode != 0 ) {
             throw std::runtime_error( "Seeking failed!" );
         }

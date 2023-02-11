@@ -245,7 +245,7 @@ checkPrecode( const uint64_t             next4Bits,
         const auto frequency = ( bitLengthFrequencies >> ( bitLength * UNIFORM_FREQUENCY_BITS ) )
                                & nLowestBitsSet<CompressedHistogram, UNIFORM_FREQUENCY_BITS>();
         invalidCodeLength |= frequency > unusedSymbolCount;
-        unusedSymbolCount -= frequency;
+        unusedSymbolCount -= static_cast<uint32_t>( frequency );
         unusedSymbolCount *= 2;  /* Because we go down one more level for all unused tree nodes! */
     }
     if ( invalidCodeLength ) {
