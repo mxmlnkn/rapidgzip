@@ -19,6 +19,10 @@
 #ifdef _MSC_VER
     #define NOMINMAX
     #include <Windows.h>
+
+    #include <fcntl.h>  // _O_BINARY
+    #include <stdio.h>  // stdout
+    #include <io.h>     // _setmode
 #else
     #ifndef _GNU_SOURCE
         #define _GNU_SOURCE
@@ -692,3 +696,88 @@ writeAll( const int         outputFileDescriptor,
         std::memcpy( outputBuffer, dataToWrite, dataToWriteSize );
     }
 }
+
+
+/**
+ * Wrapper to open either stdout, a given existing file without truncation for better performance, or a new file.
+ */
+class OutputFile
+{
+public:
+    explicit
+    OutputFile( const std::string& filePath ) :
+        m_writingToStdout( filePath.empty() )
+    {
+        if ( filePath.empty() ) {
+        #ifdef _MSC_VER
+            m_fileDescriptor = _fileno( stdout );
+            _setmode( m_fileDescriptor, _O_BINARY );
+        #else
+            m_fileDescriptor = ::fileno( stdout );
+        #endif
+        } else {
+        #ifndef _MSC_VER
+            if ( fileExists( filePath ) ) {
+                m_oldOutputFileSize = fileSize( filePath );
+                /* Opening an existing file and overwriting its data can be much slower because posix_fallocate
+                 * can be relatively slow compared to the decoding speed and memory bandwidth! Note that std::fopen
+                 * would open a file with O_TRUNC, deallocating all its contents before it has to be reallocated. */
+                m_fileDescriptor = ::open( filePath.c_str(), O_WRONLY );
+                m_ownedFd = unique_file_descriptor( m_fileDescriptor );
+            }
+        #endif
+
+            if ( m_fileDescriptor == -1 ) {
+                m_outputFile = make_unique_file_ptr( filePath.c_str(), "wb" );
+                if ( !m_outputFile ) {
+                    std::cerr << "Could not open output file: " << filePath << " for writing!\n";
+                    throw std::runtime_error( "File could not be opened." );
+                }
+                m_fileDescriptor = ::fileno( m_outputFile.get() );
+            }
+        }
+    }
+
+    void
+    truncate( size_t size )
+    {
+    #ifndef _MSC_VER
+        if ( ( m_fileDescriptor != -1 ) && ( size < m_oldOutputFileSize ) ) {
+            if ( ::ftruncate( m_fileDescriptor, size ) == -1 ) {
+                std::cerr << "[Error] Failed to truncate file because of: " << strerror( errno )
+                          << " (" << errno << ")\n";
+            }
+        }
+    #endif
+    }
+
+    [[nodiscard]] bool
+    writingToStdout() const noexcept
+    {
+        return m_writingToStdout;
+    }
+
+    [[nodiscard]] int
+    fd() const noexcept
+    {
+        return m_fileDescriptor;
+    }
+
+private:
+    const bool m_writingToStdout;
+
+    int m_fileDescriptor{ -1 };  // Use this for file access.
+
+    /** This is used to decide whether to truncate the file to a smaller (decompressed) size before closing. */
+    size_t m_oldOutputFileSize{ 0 };
+
+    /**
+     * These should not be used. They are only for automatic closing!
+     * Two of them because a file may either be opened from an existing file without truncation,
+     * which does not fit into unique_file_ptr, or it might be newly created.
+     */
+    unique_file_ptr m_outputFile;
+#ifndef _MSC_VER
+    unique_file_descriptor m_ownedFd;  // This should not be used, it is only for automatic closing!
+#endif
+};
