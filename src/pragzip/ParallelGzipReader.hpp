@@ -784,4 +784,7 @@ private:
     std::shared_ptr<WindowMap> const m_windowMap{ std::make_shared<WindowMap>() };
     std::unique_ptr<ChunkFetcher>    m_chunkFetcher;
 };
+
+
+using ParallelGzipReaderWithDebugOutput = ParallelGzipReader<true, true>;
 }  // namespace pragzip
