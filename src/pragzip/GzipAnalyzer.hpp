@@ -17,6 +17,10 @@
 #include <filereader/FileReader.hpp>
 #include <Statistics.hpp>
 
+#ifdef WITH_PYTHON_SUPPORT
+    #include <filereader/Python.hpp>
+#endif
+
 #include "deflate.hpp"
 #include "Error.hpp"
 
@@ -57,6 +61,10 @@ analyze( std::unique_ptr<FileReader> inputFile )
     std::map<std::vector<uint8_t>, size_t> literalCodings;
 
     while ( true ) {
+        #ifdef WITH_PYTHON_SUPPORT
+            checkPythonSignalHandlers();
+        #endif
+
         if ( !gzipHeader ) {
             headerOffset = bitReader.tell();
 
