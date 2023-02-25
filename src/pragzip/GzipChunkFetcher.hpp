@@ -579,8 +579,9 @@ private:
 
         std::shared_ptr<BlockData> blockData;
         try {
-            blockData = BaseType::get( partitionOffset, blockIndex, /* only check caches */ true,
-                                       getPartitionOffsetFromOffset );
+            if ( BaseType::test( partitionOffset ) ) {
+                blockData = BaseType::get( partitionOffset, blockIndex, getPartitionOffsetFromOffset );
+            }
         } catch ( const NoBlockInRange& ) {
             /* Trying to get the next block based on the partition offset is only a performance optimization.
              * It should succeed most of the time for good performance but is not required to and also might
@@ -605,8 +606,7 @@ private:
             }
             /* This call given the exact block offset must always yield the correct data and should be equivalent
              * to directly call @ref decodeBlock with that offset. */
-            blockData = BaseType::get( blockOffset, blockIndex, /* only check caches */ false,
-                                       getPartitionOffsetFromOffset );
+            blockData = BaseType::get( blockOffset, blockIndex, getPartitionOffsetFromOffset );
         }
 
         if ( !blockData || ( blockData->encodedOffsetInBits == std::numeric_limits<size_t>::max() ) ) {
@@ -782,6 +782,7 @@ public:
                     break;
                 }
 
+                /* Choose the lower offset to test next. */
                 std::pair<size_t, size_t> offsetToTest;
                 if ( dynamicHuffmanOffset < uncompressedOffsetRange.first ) {
                     offsetToTest = { dynamicHuffmanOffset, dynamicHuffmanOffset };
@@ -791,6 +792,7 @@ public:
                     uncompressedOffsetRange = findNextUncompressed( uncompressedOffsetRange.second + 1, chunkEnd );
                 }
 
+                /* Try decoding and measure the time. */
                 const auto tBlockFinderStop = now();
                 if ( auto result = tryToDecode( offsetToTest ); result ) {
                     result->blockFinderDuration = duration( tBlockFinderStart, tBlockFinderStop );

@@ -202,6 +202,14 @@ public:
         }
     }
 
+    [[nodiscard]] bool
+    test( const size_t blockOffset ) const
+    {
+        return ( m_prefetching.find( blockOffset ) != m_prefetching.end() )
+               || m_cache.test( blockOffset )
+               || m_prefetchCache.test( blockOffset );
+    }
+
     /**
      * Fetches, prefetches, caches, and returns result.
      * @param dataBlockIndex Only used to determine which block indexes to prefetch. If not specified, will
@@ -216,7 +224,6 @@ public:
     [[nodiscard]] std::shared_ptr<BlockData>
     get( const size_t                blockOffset,
          const std::optional<size_t> dataBlockIndex = std::nullopt,
-         const bool                  onlyCheckCaches = false,
          const GetPartitionOffset&   getPartitionOffsetFromOffset = {} )
     {
         [[maybe_unused]] const auto tGetStart = now();
@@ -236,9 +243,6 @@ public:
 
         /* Start requested calculation if necessary. */
         if ( !cachedResult.has_value() && !queuedResult.valid() ) {
-            if ( onlyCheckCaches ) {
-                return {};
-            }
             queuedResult = submitOnDemandTask( blockOffset, nextBlockOffset );
         }
 

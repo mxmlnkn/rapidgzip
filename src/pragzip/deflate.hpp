@@ -390,7 +390,7 @@ public:
 
 /**
  * @todo Silesia is ~70% slower when writing back and calculating CRC32.
- * When only only writing the result and not calculating CRC32, then it is ~60% slower.
+ * When only writing the result and not calculating CRC32, then it is ~60% slower.
  * Both, LZ77 back-references and CRC32 calculation can still be improved upon by a lot, I think.
  * Silesia contains a lot of 258 length back-references with distance 1, which could be replaced with memset
  * with the last byte.
