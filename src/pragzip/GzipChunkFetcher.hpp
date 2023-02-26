@@ -372,14 +372,14 @@ public:
             return std::make_pair( blockInfo, getBlock( blockInfo.encodedOffsetInBits, blockInfo.blockIndex ) );
         }
 
-        if ( m_blockMap->finalized() ) {
-            return std::nullopt;
-        }
-
         /* If the requested offset lies outside the last known block, then we need to keep fetching the next blocks
          * and filling the block- and window map until the end of the file is reached or we found the correct block. */
         std::shared_ptr<BlockData> blockData;
         for ( ; !blockInfo.contains( offset ); blockInfo = m_blockMap->findDataOffset( offset ) ) {
+            if ( m_blockMap->finalized() ) {
+                return std::nullopt;
+            }
+
             const auto nextBlockOffset = m_blockFinder->get( m_nextUnprocessedBlockIndex );
             if ( !nextBlockOffset ) {
                 m_blockMap->finalize();

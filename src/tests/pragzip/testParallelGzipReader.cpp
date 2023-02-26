@@ -79,7 +79,7 @@ testParallelDecoder( std::unique_ptr<FileReader> encoded,
     }
 
     std::vector<char> result( decoded->size() * 2 );
-    const auto nBytesRead = reader.read( result.data(), result.size() );
+    const auto nBytesRead = reader.read( result.data(), std::max( size_t( 1 ), result.size() ) );
     REQUIRE( nBytesRead == decoded->size() );
     result.resize( nBytesRead );
     REQUIRE( reader.eof() );
@@ -399,6 +399,8 @@ main( int    argc,
     testPerformance( tmpFolder );
 
     testParallelDecoderNano();
+
+    testParallelDecoder( rootFolder / "empty.gz" );
 
     testParallelDecoder( rootFolder / "base64-256KiB.pgz" );
 
