@@ -52,7 +52,7 @@ public:
     using ChunkFetcher = pragzip::GzipChunkFetcher<FetchingStrategy::FetchMultiStream, ENABLE_STATISTICS, SHOW_PROFILE>;
     using BlockFinder = typename ChunkFetcher::BlockFinder;
     using BitReader = pragzip::BitReader;
-    using WriteFunctor = std::function<void ( const std::shared_ptr<BlockData>&, size_t, size_t )>;
+    using WriteFunctor = std::function<void ( const std::shared_ptr<ChunkData>&, size_t, size_t )>;
 
 public:
     /**
@@ -329,7 +329,7 @@ public:
     {
         const auto writeFunctor =
             [nBytesDecoded = uint64_t( 0 ), outputFileDescriptor, outputBuffer]
-            ( const std::shared_ptr<BlockData>& blockData,
+            ( const std::shared_ptr<ChunkData>& chunkData,
               size_t const                      offsetInBlock,
               size_t const                      dataToWriteSize ) mutable
             {
@@ -337,13 +337,13 @@ public:
                     return;
                 }
 
-                writeAll( blockData, outputFileDescriptor, offsetInBlock, dataToWriteSize );
+                writeAll( chunkData, outputFileDescriptor, offsetInBlock, dataToWriteSize );
 
                 if ( outputBuffer != nullptr ) {
                     using pragzip::deflate::DecodedData;
 
                     size_t nBytesCopied{ 0 };
-                    for ( auto it = DecodedData::Iterator( *blockData, offsetInBlock, dataToWriteSize );
+                    for ( auto it = DecodedData::Iterator( *chunkData, offsetInBlock, dataToWriteSize );
                           static_cast<bool>( it ); ++it )
                     {
                         const auto& [buffer, size] = *it;
@@ -378,29 +378,29 @@ public:
                 m_atEndOfFile = true;
                 break;
             }
-            const auto& [blockInfo, blockData] = *blockResult;
+            const auto& [blockInfo, chunkData] = *blockResult;
 
-            if ( !blockData->dataWithMarkers.empty() ) {
+            if ( !chunkData->dataWithMarkers.empty() ) {
                 throw std::logic_error( "Did not expect to get results with markers!" );
             }
 
             /* Copy data from fetched block to output. */
 
             const auto offsetInBlock = m_currentPosition - blockInfo.decodedOffsetInBytes;
-            const auto blockSize = blockData->decodedSizeInBytes;
+            const auto blockSize = chunkData->decodedSizeInBytes;
             if ( offsetInBlock >= blockSize ) {
                 std::stringstream message;
                 message << "[ParallelGzipReader] Block does not contain the requested offset! "
                         << "Requested offset from chunk fetcher: " << formatBytes( m_currentPosition )
                         << ", returned block info from block map: " << blockInfo
-                        << ", block data encoded offset: " << formatBits( blockData->encodedOffsetInBits )
-                        << ", block data encoded size: " << formatBits( blockData->encodedSizeInBits )
-                        << ", block data size: " << formatBytes( blockData->decodedSizeInBytes )
-                        << " markers: " << blockData->dataWithMarkersSize();
+                        << ", block data encoded offset: " << formatBits( chunkData->encodedOffsetInBits )
+                        << ", block data encoded size: " << formatBits( chunkData->encodedSizeInBits )
+                        << ", block data size: " << formatBytes( chunkData->decodedSizeInBytes )
+                        << " markers: " << chunkData->dataWithMarkersSize();
                 throw std::logic_error( std::move( message ).str() );
             }
 
-            if ( blockData->data.empty() ) {
+            if ( chunkData->data.empty() ) {
                 throw std::logic_error( "Did not expect empty block. Cannot proceed!" );
             }
 
@@ -413,7 +413,7 @@ public:
             if ( writeFunctor ) {
                 [[maybe_unused]] const auto tWriteStart = now();
 
-                writeFunctor( blockData, offsetInBlock, nBytesToDecode );
+                writeFunctor( chunkData, offsetInBlock, nBytesToDecode );
 
                 if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
                     m_writeOutputTime += duration( tWriteStart );

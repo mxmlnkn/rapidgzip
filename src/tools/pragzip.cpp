@@ -311,14 +311,14 @@ pragzipCLI( int argc, char** argv )
         } else {
             const auto writeAndCount =
                 [outputFileDescriptor, countLines, &newlineCount]
-                ( const std::shared_ptr<pragzip::BlockData>& blockData,
+                ( const std::shared_ptr<pragzip::ChunkData>& chunkData,
                   size_t const                               offsetInBlock,
                   size_t const                               dataToWriteSize )
                 {
-                    writeAll( blockData, outputFileDescriptor, offsetInBlock, dataToWriteSize );
+                    writeAll( chunkData, outputFileDescriptor, offsetInBlock, dataToWriteSize );
                     if ( countLines ) {
                         using pragzip::deflate::DecodedData;
-                        for ( auto it = DecodedData::Iterator( *blockData, offsetInBlock, dataToWriteSize );
+                        for ( auto it = DecodedData::Iterator( *chunkData, offsetInBlock, dataToWriteSize );
                               static_cast<bool>( it ); ++it )
                         {
                             const auto& [buffer, size] = *it;

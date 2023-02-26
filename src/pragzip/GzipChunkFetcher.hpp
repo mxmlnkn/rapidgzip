@@ -22,6 +22,7 @@
 
 #include "blockfinder/DynamicHuffman.hpp"
 #include "blockfinder/Uncompressed.hpp"
+#include "ChunkData.hpp"
 #include "DecodedData.hpp"
 #include "deflate.hpp"
 #include "gzip.hpp"
@@ -50,263 +51,14 @@ public:
 };
 
 
-struct BlockData :
-    public deflate::DecodedData
-{
-    struct BlockBoundary
-    {
-        size_t encodedOffset;
-        size_t decodedOffset;
-
-        [[nodiscard]] bool
-        operator==( const BlockBoundary& other ) const
-        {
-            return ( encodedOffset == other.encodedOffset ) && ( decodedOffset == other.decodedOffset );
-        }
-    };
-
-    struct Footer
-    {
-        BlockBoundary blockBoundary;
-        gzip::Footer gzipFooter;
-    };
-
-    struct Subblock
-    {
-        size_t encodedOffset{ 0 };
-        size_t encodedSize{ 0 };
-        size_t decodedSize{ 0 };
-
-        [[nodiscard]] bool
-        operator==( const Subblock& other ) const
-        {
-            return ( encodedOffset == other.encodedOffset )
-                   && ( encodedSize == other.encodedSize )
-                   && ( decodedSize == other.decodedSize );
-        }
-    };
-
-public:
-    [[nodiscard]] bool
-    matchesEncodedOffset( size_t offset )
-    {
-        if ( maxEncodedOffsetInBits == std::numeric_limits<size_t>::max() ) {
-            return offset == encodedOffsetInBits;
-        }
-        return ( encodedOffsetInBits <= offset ) && ( offset <= maxEncodedOffsetInBits );
-    }
-
-    void
-    setEncodedOffset( size_t offset )
-    {
-        if ( !matchesEncodedOffset( offset ) ) {
-            throw std::invalid_argument( "The real offset to correct to should lie inside the offset range!" );
-        }
-
-        if ( maxEncodedOffsetInBits == std::numeric_limits<size_t>::max() ) {
-            maxEncodedOffsetInBits = encodedOffsetInBits;
-        }
-
-        /* Correct the encoded size "assuming" (it must be ensured!) that it was calculated from
-         * maxEncodedOffsetInBits. */
-        encodedSizeInBits += maxEncodedOffsetInBits - offset;
-
-        encodedOffsetInBits = offset;
-        maxEncodedOffsetInBits = offset;
-    }
-
-    [[nodiscard]] std::vector<Subblock>
-    split( [[maybe_unused]] const size_t spacing ) const
-    {
-        if ( encodedOffsetInBits != maxEncodedOffsetInBits ) {
-            throw std::invalid_argument( "BlockData::split may only be called after setEncodedOffset!" );
-        }
-
-        if ( spacing == 0 ) {
-            throw std::invalid_argument( "Spacing must be a positive number of bytes." );
-        }
-
-        /* blockBoundaries does not contain the first block begin but all thereafter including the boundary after
-         * the last block, i.e., the begin of the next deflate block not belonging to this BlockData. */
-        const auto decompressedSize = decodedSizeInBytes;
-        const auto nBlocks = static_cast<size_t>( std::round( static_cast<double>( decompressedSize )
-                                                              / static_cast<double>( spacing ) ) );
-        if ( ( nBlocks <= 1 ) || blockBoundaries.empty() ) {
-            Subblock subblock;
-            subblock.encodedOffset = encodedOffsetInBits;
-            subblock.encodedSize = encodedSizeInBits;
-            subblock.decodedSize = decompressedSize;
-            if ( ( encodedSizeInBits == 0 ) && ( decompressedSize == 0 ) ) {
-                return {};
-            }
-            return { subblock };
-        }
-
-        /* The idea for partitioning is: Divide the size evenly and into subblocks and then choose the block boundary
-         * that is closest to that value. */
-        const auto perfectSpacing = static_cast<double>( decompressedSize ) / static_cast<double>( nBlocks );
-
-        std::vector<BlockBoundary> selectedBlockBoundaries;
-        selectedBlockBoundaries.reserve( nBlocks + 1 );
-        selectedBlockBoundaries.push_back( BlockBoundary{ encodedOffsetInBits, 0 } );
-        /* The first and last boundaries are static, so we only need to find nBlocks - 1 further boundaries. */
-        for ( size_t iSubblock = 1; iSubblock < nBlocks; ++iSubblock ) {
-            const auto perfectDecompressedOffset = static_cast<size_t>( iSubblock * perfectSpacing );
-            const auto isCloser =
-                [perfectDecompressedOffset] ( const auto& b1, const auto& b2 )
-                {
-                    return absDiff( b1.decodedOffset, perfectDecompressedOffset )
-                           < absDiff( b2.decodedOffset, perfectDecompressedOffset );
-                };
-            const auto closest = std::min_element( blockBoundaries.begin(), blockBoundaries.end(), isCloser );
-            selectedBlockBoundaries.emplace_back( *closest );
-        }
-        selectedBlockBoundaries.push_back( BlockBoundary{ encodedOffsetInBits + encodedSizeInBits, decompressedSize } );
-
-        /* Clean up duplicate boundaries, which might happen for very large deflate blocks.
-         * Note that selectedBlockBoundaries should already be sorted because we push always the closest
-         * of an already sorted "input vector". */
-        selectedBlockBoundaries.erase( std::unique( selectedBlockBoundaries.begin(), selectedBlockBoundaries.end() ),
-                                       selectedBlockBoundaries.end() );
-
-        /* Convert subsequent boundaries into blocks. */
-        std::vector<Subblock> subblocks( selectedBlockBoundaries.size() - 1 );
-        for ( size_t i = 0; i + 1 < selectedBlockBoundaries.size(); ++i ) {
-            assert( selectedBlockBoundaries[i + 1].encodedOffset > selectedBlockBoundaries[i].encodedOffset );
-            assert( selectedBlockBoundaries[i + 1].decodedOffset > selectedBlockBoundaries[i].decodedOffset );
-
-            subblocks[i].encodedOffset = selectedBlockBoundaries[i].encodedOffset;
-            subblocks[i].encodedSize = selectedBlockBoundaries[i + 1].encodedOffset
-                                       - selectedBlockBoundaries[i].encodedOffset;
-            subblocks[i].decodedSize = selectedBlockBoundaries[i + 1].decodedOffset
-                                       - selectedBlockBoundaries[i].decodedOffset;
-        }
-
-        return subblocks;
-    }
-
-    void
-    finalize( size_t blockEndOffsetInBits )
-    {
-        cleanUnmarkedData();
-        encodedSizeInBits = blockEndOffsetInBits - encodedOffsetInBits;
-        decodedSizeInBytes = deflate::DecodedData::size();
-    }
-
-    [[nodiscard]] constexpr size_t
-    size() const noexcept = delete;
-
-    [[nodiscard]] constexpr size_t
-    dataSize() const noexcept = delete;
-
-public:
-    /* This should only be evaluated when it is unequal std::numeric_limits<size_t>::max() and unequal
-     * Base::encodedOffsetInBits. Then, [Base::encodedOffsetInBits, maxEncodedOffsetInBits] specifies a valid range
-     * for the block offset. Such a range might happen for finding uncompressed deflate blocks because of the
-     * byte-padding. */
-    size_t maxEncodedOffsetInBits{ std::numeric_limits<size_t>::max() };
-    /* Initialized with size() after thread has finished writing into BlockData. Redundant but avoids a lock
-     * because the marker replacement will momentarily lead to different results returned by size! */
-    size_t decodedSizeInBytes{ std::numeric_limits<size_t>::max() };
-
-    /* Decoded offsets are relative to the decoded offset of this BlockData because that might not be known
-     * during first-pass decompression. */
-    std::vector<BlockBoundary> blockBoundaries;
-    std::vector<Footer> footers;
-
-    /* Benchmark results */
-    double blockFinderDuration{ 0 };
-    double decodeDuration{ 0 };
-    double appendDuration{ 0 };
-};
-
-
-/**
- * Tries to use writeAllSpliceUnsafe and, if successful, also extends lifetime by adding the block data
- * shared_ptr into a list.
- *
- * @note Limitations:
- *  - To avoid querying the pipe buffer size, it is only done once. This might introduce subtle errors when it is
- *    dynamically changed after this point.
- *  - The lifetime can only be extended on block granularity even though chunks would be more suited.
- *    This results in larger peak memory than strictly necessary.
- *  - In the worst case we would read only 1B out of each block, which would extend the lifetime
- *    of thousands of large blocks resulting in an out of memory issue.
- *    - This would only be triggerable by using the API. The current CLI and not even the Python
- *      interface would trigger this because either they don't splice to a pipe or only read
- *      sequentially.
- * @note It *does* account for pages to be spliced into yet another pipe buffer. This is exactly what the
- *       SPLICE_F_GIFT flag is for. Without that being set, pages will not be spliced but copied into further
- *       pipe buffers. So, without this flag, there is no danger of extending the lifetime of those pages
- *       arbitarily.
- */
-[[nodiscard]] bool
-writeAllSplice( const int                         outputFileDescriptor,
-                const void* const                 dataToWrite,
-                size_t const                      dataToWriteSize,
-                const std::shared_ptr<BlockData>& blockData )
-{
-#if defined( HAVE_VMSPLICE )
-    return SpliceVault::getInstance( outputFileDescriptor ).first->splice( dataToWrite, dataToWriteSize, blockData );
-#else
-    return false;
-#endif
-}
-
-
-#if defined( HAVE_VMSPLICE )
-[[nodiscard]] bool
-writeAllSplice( [[maybe_unused]] const int                         outputFileDescriptor,
-                [[maybe_unused]] const std::shared_ptr<BlockData>& blockData,
-                [[maybe_unused]] const std::vector<::iovec>&       buffersToWrite )
-{
-    return SpliceVault::getInstance( outputFileDescriptor ).first->splice( buffersToWrite, blockData );
-}
-#endif  // HAVE_VMSPLICE
-
-
-void
-writeAll( const std::shared_ptr<BlockData>& blockData,
-          const int                         outputFileDescriptor,
-          const size_t                      offsetInBlock,
-          const size_t                      dataToWriteSize )
-{
-    if ( ( outputFileDescriptor < 0 ) || ( dataToWriteSize == 0 ) ) {
-        return;
-    }
-
-#ifdef HAVE_IOVEC
-    const auto buffersToWrite = toIoVec( *blockData, offsetInBlock, dataToWriteSize );
-    if ( !writeAllSplice( outputFileDescriptor, blockData, buffersToWrite ) ) {
-        writeAllToFdVector( outputFileDescriptor, buffersToWrite );
-    }
-#else
-    using pragzip::deflate::DecodedData;
-
-    bool splicable = true;
-    for ( auto it = DecodedData::Iterator( *blockData, offsetInBlock, dataToWriteSize );
-          static_cast<bool>( it ); ++it )
-    {
-        const auto& [buffer, size] = *it;
-        if ( splicable ) {
-            splicable = writeAllSplice( outputFileDescriptor, buffer, size, blockData );
-        }
-        if ( !splicable ) {
-            writeAllToFd( outputFileDescriptor, buffer, size);
-        }
-    }
-#endif
-}
-
-
 template<typename FetchingStrategy,
          bool     ENABLE_STATISTICS = false,
          bool     SHOW_PROFILE = false>
 class GzipChunkFetcher :
-    public BlockFetcher<GzipBlockFinder, BlockData, FetchingStrategy, ENABLE_STATISTICS, SHOW_PROFILE>
+    public BlockFetcher<GzipBlockFinder, ChunkData, FetchingStrategy, ENABLE_STATISTICS, SHOW_PROFILE>
 {
 public:
-    using BaseType = BlockFetcher<GzipBlockFinder, BlockData, FetchingStrategy, ENABLE_STATISTICS, SHOW_PROFILE>;
+    using BaseType = BlockFetcher<GzipBlockFinder, ChunkData, FetchingStrategy, ENABLE_STATISTICS, SHOW_PROFILE>;
     using BitReader = pragzip::BitReader;
     using WindowView = VectorView<uint8_t>;
     using BlockFinder = typename BaseType::BlockFinder;
@@ -363,7 +115,7 @@ public:
     /**
      * @param offset The current offset in the decoded data. (Does not have to be a block offset!)
      */
-    [[nodiscard]] std::optional<std::pair<BlockMap::BlockInfo, std::shared_ptr<BlockData> > >
+    [[nodiscard]] std::optional<std::pair<BlockMap::BlockInfo, std::shared_ptr<ChunkData> > >
     get( size_t offset )
     {
         /* In case we already have decoded the block once, we can simply query it from the block map and the fetcher. */
@@ -374,7 +126,7 @@ public:
 
         /* If the requested offset lies outside the last known block, then we need to keep fetching the next blocks
          * and filling the block- and window map until the end of the file is reached or we found the correct block. */
-        std::shared_ptr<BlockData> blockData;
+        std::shared_ptr<ChunkData> chunkData;
         for ( ; !blockInfo.contains( offset ); blockInfo = m_blockMap->findDataOffset( offset ) ) {
             if ( m_blockMap->finalized() ) {
                 return std::nullopt;
@@ -387,23 +139,23 @@ public:
                 return std::nullopt;
             }
 
-            blockData = getBlock( *nextBlockOffset, m_nextUnprocessedBlockIndex );
+            chunkData = getBlock( *nextBlockOffset, m_nextUnprocessedBlockIndex );
 
-            const auto subblocks = blockData->split( m_blockFinder->spacingInBits() / 8U );
+            const auto subblocks = chunkData->split( m_blockFinder->spacingInBits() / 8U );
             for ( const auto boundary : subblocks ) {
                 m_blockMap->push( boundary.encodedOffset, boundary.encodedSize, boundary.decodedSize );
             }
 
             if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
                 std::scoped_lock lock( m_statisticsMutex );
-                m_blockFinderTime += blockData->blockFinderDuration;
-                m_decodeTime += blockData->decodeDuration;
-                m_appendTime += blockData->appendDuration;
+                m_blockFinderTime += chunkData->blockFinderDuration;
+                m_decodeTime += chunkData->decodeDuration;
+                m_appendTime += chunkData->appendDuration;
             }
 
             /* This should also work for multi-stream gzip files because encodedSizeInBits is such that it
              * points across the gzip footer and next header to the next deflate block. */
-            const auto blockOffsetAfterNext = blockData->encodedOffsetInBits + blockData->encodedSizeInBits;
+            const auto blockOffsetAfterNext = chunkData->encodedOffsetInBits + chunkData->encodedSizeInBits;
             m_blockFinder->insert( blockOffsetAfterNext );
             if ( blockOffsetAfterNext >= m_bitReader.size() ) {
                 m_blockMap->finalize();
@@ -423,18 +175,18 @@ public:
             /* Because this is a new block, it might contain markers that we have to replace with the window
              * of the last block. The very first block should not contain any markers, ensuring that we
              * can successively propagate the window through all blocks. */
-            auto lastWindow = m_windowMap->get( blockData->encodedOffsetInBits );
+            auto lastWindow = m_windowMap->get( chunkData->encodedOffsetInBits );
             if ( !lastWindow ) {
                 std::stringstream message;
-                message << "The window of the last block at " << formatBits( blockData->encodedOffsetInBits )
+                message << "The window of the last block at " << formatBits( chunkData->encodedOffsetInBits )
                         << " should exist at this point!";
                 throw std::logic_error( std::move( message ).str() );
             }
 
             if constexpr ( REPLACE_MARKERS_IN_PARALLEL ) {
-                waitForReplacedMarkers( blockData, *lastWindow );
+                waitForReplacedMarkers( chunkData, *lastWindow );
             } else {
-                replaceMarkers( blockData, *lastWindow );
+                replaceMarkers( chunkData, *lastWindow );
             }
 
             size_t decodedOffsetInBlock{ 0 };
@@ -443,23 +195,23 @@ public:
                 const auto windowOffset = subblock.encodedOffset + subblock.encodedSize;
                 /* Avoid recalculating what we already emplaced in waitForReplacedMarkers when calling getLastWindow. */
                 if ( !m_windowMap->get( windowOffset ) ) {
-                    m_windowMap->emplace( windowOffset, blockData->getWindowAt( *lastWindow, decodedOffsetInBlock ) );
+                    m_windowMap->emplace( windowOffset, chunkData->getWindowAt( *lastWindow, decodedOffsetInBlock ) );
                 }
             }
         }
 
-        return std::make_pair( blockInfo, blockData );
+        return std::make_pair( blockInfo, chunkData );
     }
 
 private:
     void
-    waitForReplacedMarkers( const std::shared_ptr<BlockData>& blockData,
+    waitForReplacedMarkers( const std::shared_ptr<ChunkData>& chunkData,
                             const WindowView                  lastWindow )
     {
         using namespace std::chrono_literals;
 
-        auto markerReplaceFuture = m_markersBeingReplaced.find( blockData->encodedOffsetInBits );
-        if ( ( markerReplaceFuture == m_markersBeingReplaced.end() ) && blockData->dataWithMarkers.empty() ) {
+        auto markerReplaceFuture = m_markersBeingReplaced.find( chunkData->encodedOffsetInBits );
+        if ( ( markerReplaceFuture == m_markersBeingReplaced.end() ) && chunkData->dataWithMarkers.empty() ) {
             return;
         }
 
@@ -467,15 +219,15 @@ private:
         std::optional<std::future<void> > queuedFuture;
         if ( markerReplaceFuture == m_markersBeingReplaced.end() ) {
             /* First, we need to emplace the last window or else we cannot queue further blocks. */
-            const auto windowOffset = blockData->encodedOffsetInBits + blockData->encodedSizeInBits;
+            const auto windowOffset = chunkData->encodedOffsetInBits + chunkData->encodedSizeInBits;
             if ( !m_windowMap->get( windowOffset ) ) {
-                m_windowMap->emplace( windowOffset, blockData->getLastWindow( lastWindow ) );
+                m_windowMap->emplace( windowOffset, chunkData->getLastWindow( lastWindow ) );
             }
 
             markerReplaceFuture = m_markersBeingReplaced.emplace(
-                blockData->encodedOffsetInBits,
+                chunkData->encodedOffsetInBits,
                 this->submitTaskWithHighPriority(
-                    [this, blockData, lastWindow] () { replaceMarkers( blockData, lastWindow ); }
+                    [this, chunkData, lastWindow] () { replaceMarkers( chunkData, lastWindow ); }
                 )
             ).first;
         }
@@ -512,33 +264,33 @@ private:
                         [] ( const auto& keyValue ) { return keyValue.first; } );
         std::sort( sortedOffsets.begin(), sortedOffsets.end() );
         for ( const auto triedStartOffset : sortedOffsets ) {
-            const auto blockData = cacheElements.at( triedStartOffset );
+            const auto chunkData = cacheElements.at( triedStartOffset );
 
             /* Ignore ready blocks. */
-            if ( blockData->dataWithMarkers.empty() )  {
+            if ( chunkData->dataWithMarkers.empty() )  {
                 continue;
             }
 
             /* Ignore blocks already enqueued for marker replacement. */
-            if ( m_markersBeingReplaced.find( blockData->encodedOffsetInBits ) != m_markersBeingReplaced.end() ) {
+            if ( m_markersBeingReplaced.find( chunkData->encodedOffsetInBits ) != m_markersBeingReplaced.end() ) {
                 continue;
             }
 
             /* Check for previous window. */
-            const auto previousWindow = m_windowMap->get( blockData->encodedOffsetInBits );
+            const auto previousWindow = m_windowMap->get( chunkData->encodedOffsetInBits );
             if ( !previousWindow ) {
                 continue;
             }
 
-            const auto windowOffset = blockData->encodedOffsetInBits + blockData->encodedSizeInBits;
+            const auto windowOffset = chunkData->encodedOffsetInBits + chunkData->encodedSizeInBits;
             if ( !m_windowMap->get( windowOffset ) ) {
-                m_windowMap->emplace( windowOffset, blockData->getLastWindow( *previousWindow ) );
+                m_windowMap->emplace( windowOffset, chunkData->getLastWindow( *previousWindow ) );
             }
 
             m_markersBeingReplaced.emplace(
-                blockData->encodedOffsetInBits,
+                chunkData->encodedOffsetInBits,
                 this->submitTaskWithHighPriority(
-                    [this, blockData, previousWindow] () { replaceMarkers( blockData, *previousWindow ); }
+                    [this, chunkData, previousWindow] () { replaceMarkers( chunkData, *previousWindow ); }
                 )
             );
         }
@@ -548,12 +300,12 @@ private:
      * Must be thread-safe because it is submitted to the thread pool.
      */
     void
-    replaceMarkers( const std::shared_ptr<BlockData>& blockData,
+    replaceMarkers( const std::shared_ptr<ChunkData>& chunkData,
                     const WindowView                  previousWindow )
     {
-        [[maybe_unused]] const auto markerCount = blockData->dataWithMarkersSize();
+        [[maybe_unused]] const auto markerCount = chunkData->dataWithMarkersSize();
         [[maybe_unused]] const auto tApplyStart = now();
-        blockData->applyWindow( previousWindow );
+        chunkData->applyWindow( previousWindow );
         if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
             std::scoped_lock lock( m_statisticsMutex );
             if ( markerCount > 0 ) {
@@ -567,9 +319,9 @@ private:
      * First, tries to look up the given block offset by its partition offset and then by its real offset.
      *
      * @param blockOffset The real block offset, not a guessed one, i.e., also no partition offset!
-     *        This is important because this offset is stored in the returned BlockData as the real one.
+     *        This is important because this offset is stored in the returned ChunkData as the real one.
      */
-    [[nodiscard]] std::shared_ptr<BlockData>
+    [[nodiscard]] std::shared_ptr<ChunkData>
     getBlock( const size_t blockOffset,
               const size_t blockIndex )
     {
@@ -577,10 +329,10 @@ private:
             [this] ( auto offset ) { return m_blockFinder->partitionOffsetContainingOffset( offset ); };
         const auto partitionOffset = getPartitionOffsetFromOffset( blockOffset );
 
-        std::shared_ptr<BlockData> blockData;
+        std::shared_ptr<ChunkData> chunkData;
         try {
             if ( BaseType::test( partitionOffset ) ) {
-                blockData = BaseType::get( partitionOffset, blockIndex, getPartitionOffsetFromOffset );
+                chunkData = BaseType::get( partitionOffset, blockIndex, getPartitionOffsetFromOffset );
             }
         } catch ( const NoBlockInRange& ) {
             /* Trying to get the next block based on the partition offset is only a performance optimization.
@@ -591,31 +343,31 @@ private:
 
         /* If we got no block or one with the wrong data, then try again with the real offset, not the
          * speculatively prefetched one. */
-        if ( !blockData
-             || ( !blockData->matchesEncodedOffset( blockOffset )
+        if ( !chunkData
+             || ( !chunkData->matchesEncodedOffset( blockOffset )
                   && ( partitionOffset != blockOffset ) ) ) {
-            if ( blockData ) {
+            if ( chunkData ) {
                 std::cerr << "[Info] Detected a performance problem. Decoding might take longer than necessary. "
                           << "Please consider opening a performance bug report with "
                           << "a reproducing compressed file. Detailed information:\n"
                           << "[Info] Found mismatching block. Need offset " << formatBits( blockOffset )
                           << ". Look in partition offset: " << formatBits( partitionOffset )
                           << ". Found possible range: ["
-                          << formatBits( blockData->encodedOffsetInBits ) << ", "
-                          << formatBits( blockData->maxEncodedOffsetInBits ) << "]\n";
+                          << formatBits( chunkData->encodedOffsetInBits ) << ", "
+                          << formatBits( chunkData->maxEncodedOffsetInBits ) << "]\n";
             }
             /* This call given the exact block offset must always yield the correct data and should be equivalent
              * to directly call @ref decodeBlock with that offset. */
-            blockData = BaseType::get( blockOffset, blockIndex, getPartitionOffsetFromOffset );
+            chunkData = BaseType::get( blockOffset, blockIndex, getPartitionOffsetFromOffset );
         }
 
-        if ( !blockData || ( blockData->encodedOffsetInBits == std::numeric_limits<size_t>::max() ) ) {
+        if ( !chunkData || ( chunkData->encodedOffsetInBits == std::numeric_limits<size_t>::max() ) ) {
             std::stringstream message;
             message << "Decoding failed at block offset " << formatBits( blockOffset ) << "!";
             throw std::domain_error( std::move( message ).str() );
         }
 
-        if ( !blockData->matchesEncodedOffset( blockOffset ) ) {
+        if ( !chunkData->matchesEncodedOffset( blockOffset ) ) {
             std::stringstream message;
             message << "Got wrong block to searched offset! Looked for " << std::to_string( blockOffset )
                     << " and looked up cache successively for estimated offset "
@@ -625,11 +377,11 @@ private:
         }
 
         /* Care has to be taken that we store the correct block offset not the speculative possible range! */
-        blockData->setEncodedOffset( blockOffset );
-        return blockData;
+        chunkData->setEncodedOffset( blockOffset );
+        return chunkData;
     }
 
-    [[nodiscard]] BlockData
+    [[nodiscard]] ChunkData
     decodeBlock( size_t blockOffset,
                  size_t nextBlockOffset ) const override
     {
@@ -650,7 +402,7 @@ public:
      * @param initialWindow Required to resume decoding. Can be empty if, e.g., the blockOffset is at the gzip stream
      *                      start.
      */
-    [[nodiscard]] static BlockData
+    [[nodiscard]] static ChunkData
     decodeBlock( BitReader                const& originalBitReader,
                  size_t                    const blockOffset,
                  size_t                    const untilOffset,
@@ -673,7 +425,7 @@ public:
         }
 
         const auto tryToDecode =
-            [&] ( const std::pair<size_t, size_t>& offset ) -> std::optional<BlockData>
+            [&] ( const std::pair<size_t, size_t>& offset ) -> std::optional<ChunkData>
             {
                 try {
                     /* For decoding, it does not matter whether we seek to offset.first or offset.second but it DOES
@@ -971,7 +723,7 @@ private:
     };
 
 private:
-    [[nodiscard]] static BlockData
+    [[nodiscard]] static ChunkData
     decodeBlockWithZlib( const BitReader& originalBitReader,
                          size_t           blockOffset,
                          size_t           untilOffset,
@@ -983,7 +735,7 @@ private:
         ZlibDeflateWrapper deflateWrapper( std::move( bitReader ) );
         deflateWrapper.setWindow( initialWindow );
 
-        BlockData result;
+        ChunkData result;
         result.encodedOffsetInBits = blockOffset;
 
         FasterVector<uint8_t> decoded( decodedSize );
@@ -998,7 +750,7 @@ private:
         return result;
     }
 
-    [[nodiscard]] static BlockData
+    [[nodiscard]] static ChunkData
     decodeBlockWithPragzip( BitReader*                      bitReader,
                             size_t                          untilOffset,
                             std::optional<WindowView> const initialWindow )
@@ -1022,7 +774,7 @@ private:
             block->setInitialWindow( *initialWindow );
         }
 
-        BlockData result;
+        ChunkData result;
         result.encodedOffsetInBits = bitReader->tell();
 
         /* Loop over possibly gzip streams and deflate blocks. We cannot use GzipReader even though it does
@@ -1081,7 +833,7 @@ private:
              * offset as @ref result and it also would have the same problem that the real offset is ambiguous
              * for non-compressed blocks. */
             if ( totalBytesRead > 0 ) {
-                result.blockBoundaries.emplace_back( BlockData::BlockBoundary{ nextBlockOffset, totalBytesRead } );
+                result.blockBoundaries.emplace_back( ChunkData::BlockBoundary{ nextBlockOffset, totalBytesRead } );
             }
 
             /* Loop until we have read the full contents of the current deflate block-> */
@@ -1123,8 +875,8 @@ private:
                     }
                 }
 
-                BlockData::Footer footerResult;
-                footerResult.blockBoundary = BlockData::BlockBoundary{ footerOffset, totalBytesRead };
+                ChunkData::Footer footerResult;
+                footerResult.blockBoundary = ChunkData::BlockBoundary{ footerOffset, totalBytesRead };
                 footerResult.gzipFooter = footer;
                 result.footers.emplace_back( footerResult );
 

@@ -93,11 +93,11 @@ testAutomaticMarkerResolution( const std::filesystem::path& filePath,
 
 std::ostream&
 operator<<( std::ostream&                                    out,
-            const std::vector<pragzip::BlockData::Subblock>& blocks )
+            const std::vector<pragzip::ChunkData::Subblock>& chunks )
 {
     out << "{";
-    for ( const auto block : blocks ) {
-        out << " (" << block.encodedOffset << ", " << block.encodedSize << ", " << block.decodedSize << ")";
+    for ( const auto chunk : chunks ) {
+        out << " (" << chunk.encodedOffset << ", " << chunk.encodedSize << ", " << chunk.decodedSize << ")";
     }
     out << " }";
     return out;
@@ -107,41 +107,41 @@ operator<<( std::ostream&                                    out,
 void
 testBlockSplit()
 {
-    BlockData block;
-    block.encodedOffsetInBits = 0;
-    block.maxEncodedOffsetInBits = 0;
-    block.encodedSizeInBits = 0;
+    ChunkData chunk;
+    chunk.encodedOffsetInBits = 0;
+    chunk.maxEncodedOffsetInBits = 0;
+    chunk.encodedSizeInBits = 0;
 
-    using Subblock = pragzip::BlockData::Subblock;
-    using BlockBoundary = pragzip::BlockData::BlockBoundary;
-    block.finalize( 0 );
-    REQUIRE( block.split( 1 ).empty() );
+    using Subblock = pragzip::ChunkData::Subblock;
+    using BlockBoundary = pragzip::ChunkData::BlockBoundary;
+    chunk.finalize( 0 );
+    REQUIRE( chunk.split( 1 ).empty() );
 
-    block.data.emplace_back();
-    block.data.back().resize( 1 );
-    block.finalize( 8 );
+    chunk.data.emplace_back();
+    chunk.data.back().resize( 1 );
+    chunk.finalize( 8 );
     std::vector<Subblock> expected = { Subblock{ 0, 8, 1 } };
-    REQUIRE( block.split( 1 ) == expected );
-    REQUIRE( block.split( 2 ) == expected );
-    REQUIRE( block.split( 10 ) == expected );
+    REQUIRE( chunk.split( 1 ) == expected );
+    REQUIRE( chunk.split( 2 ) == expected );
+    REQUIRE( chunk.split( 10 ) == expected );
 
-    block.data.back().resize( 1024 );
-    block.blockBoundaries = { BlockBoundary{ 128, 1024 } };
-    block.finalize( 128 );
+    chunk.data.back().resize( 1024 );
+    chunk.blockBoundaries = { BlockBoundary{ 128, 1024 } };
+    chunk.finalize( 128 );
     expected = { Subblock{ 0, 128, 1024 } };
-    REQUIRE( block.split( 1 ) == expected );
-    REQUIRE( block.split( 1024 ) == expected );
-    REQUIRE( block.split( 10000 ) == expected );
+    REQUIRE( chunk.split( 1 ) == expected );
+    REQUIRE( chunk.split( 1024 ) == expected );
+    REQUIRE( chunk.split( 10000 ) == expected );
 
-    block.blockBoundaries = { BlockBoundary{ 30, 300 }, BlockBoundary{ 128, 1024 } };
-    REQUIRE( block.split( 1024 ) == expected );
-    REQUIRE( block.split( 10000 ) == expected );
+    chunk.blockBoundaries = { BlockBoundary{ 30, 300 }, BlockBoundary{ 128, 1024 } };
+    REQUIRE( chunk.split( 1024 ) == expected );
+    REQUIRE( chunk.split( 10000 ) == expected );
 
     expected = { Subblock{ 0, 30, 300 }, Subblock{ 30, 128 - 30, 1024 - 300 } };
-    REQUIRE( block.split( 400 ) == expected );
-    REQUIRE( block.split( 512 ) == expected );
-    REQUIRE( block.split( 600 ) == expected );
-    REQUIRE( block.split( 1 ) == expected );
+    REQUIRE( chunk.split( 400 ) == expected );
+    REQUIRE( chunk.split( 512 ) == expected );
+    REQUIRE( chunk.split( 600 ) == expected );
+    REQUIRE( chunk.split( 1 ) == expected );
 }
 
 
