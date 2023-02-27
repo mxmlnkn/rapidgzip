@@ -89,7 +89,7 @@ pragzipCLI( int argc, char** argv )
         ( "analyze"      , "Print output about the internal file format structure like the block types." )
 
         ( "chunk-size"   , "The chunk size decoded by the parallel workers in KiB.",
-          cxxopts::value<unsigned int>()->default_value( "0" ) )
+          cxxopts::value<unsigned int>()->default_value( "4096" ) )
 
         ( "P,decoder-parallelism",
           "Use the parallel decoder. "
@@ -362,17 +362,13 @@ pragzipCLI( int argc, char** argv )
 
             if ( verbose ) {
                 using GzipReader = pragzip::ParallelGzipReader</* enable statistics */ true, /* show profile */ true>;
-                auto reader =
-                    chunkSize > 0
-                    ? std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism, chunkSize * 1024 )
-                    : std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism );
+                auto reader = std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism,
+                                                            chunkSize * 1024 );
                 decompressParallel( std::move( reader ) );
             } else {
                 using GzipReader = pragzip::ParallelGzipReader</* enable statistics */ false, /* show profile */ false>;
-                auto reader =
-                    chunkSize > 0
-                    ? std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism, chunkSize * 1024 )
-                    : std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism );
+                auto reader = std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism,
+                                                            chunkSize * 1024 );
                 decompressParallel( std::move( reader ) );
             }
 
