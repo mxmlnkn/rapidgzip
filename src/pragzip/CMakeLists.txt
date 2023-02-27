@@ -8,6 +8,7 @@ target_sources(libpragzip INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/crc32.hpp
     ${CMAKE_CURRENT_LIST_DIR}/ChunkData.hpp
     ${CMAKE_CURRENT_LIST_DIR}/DecodedData.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/DecodedDataView.hpp
     ${CMAKE_CURRENT_LIST_DIR}/definitions.hpp
     ${CMAKE_CURRENT_LIST_DIR}/deflate.hpp
     ${CMAKE_CURRENT_LIST_DIR}/Error.hpp
@@ -17,6 +18,7 @@ target_sources(libpragzip INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/GzipChunkFetcher.hpp
     ${CMAKE_CURRENT_LIST_DIR}/GzipReader.hpp
     ${CMAKE_CURRENT_LIST_DIR}/IndexFileFormat.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/MarkerReplacement.hpp
     ${CMAKE_CURRENT_LIST_DIR}/ParallelGzipReader.hpp
     ${CMAKE_CURRENT_LIST_DIR}/pragzip.hpp
     ${CMAKE_CURRENT_LIST_DIR}/precode.hpp

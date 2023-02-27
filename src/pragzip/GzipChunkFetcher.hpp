@@ -23,7 +23,6 @@
 #include "blockfinder/DynamicHuffman.hpp"
 #include "blockfinder/Uncompressed.hpp"
 #include "ChunkData.hpp"
-#include "DecodedData.hpp"
 #include "deflate.hpp"
 #include "gzip.hpp"
 #include "GzipBlockFinder.hpp"

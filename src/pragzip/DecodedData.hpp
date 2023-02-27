@@ -12,95 +12,13 @@
 #include <FasterVector.hpp>
 #include <VectorView.hpp>
 
+#include "DecodedDataView.hpp"
 #include "definitions.hpp"
+#include "MarkerReplacement.hpp"
 
 
 namespace pragzip::deflate
 {
-template<bool FULL_WINDOW>
-struct MapMarkers
-{
-    MapMarkers( VectorView<uint8_t> const& window ) :
-        m_window( window )
-    {
-        assert( ( m_window.size() >= MAX_WINDOW_SIZE ) == FULL_WINDOW );
-    }
-
-    [[nodiscard]] constexpr uint8_t
-    operator()( uint16_t value ) const
-    {
-        if ( value <= std::numeric_limits<uint8_t>::max() ) {
-            return static_cast<uint8_t>( value );
-        }
-
-        if ( value < MAX_WINDOW_SIZE ) {
-            throw std::invalid_argument( "Cannot replace unknown 2 B code!" );
-        }
-
-        if constexpr ( !FULL_WINDOW  ) {
-            if ( value - MAX_WINDOW_SIZE >= m_window.size() ) {
-                throw std::invalid_argument( "Window too small!" );
-            }
-        }
-
-        return m_window[value - MAX_WINDOW_SIZE];
-    }
-
-private:
-    const VectorView<uint8_t> m_window;
-};
-
-
-void
-replaceMarkerBytes( WeakVector<std::uint16_t>  buffer,
-                    VectorView<uint8_t> const& window )
-{
-    /* For maximum size windows, we can skip one check because even UINT16_MAX is valid. */
-    if ( window.size() >= MAX_WINDOW_SIZE ) {
-        std::transform( buffer.begin(), buffer.end(), buffer.begin(), MapMarkers<true>( window ) );
-    } else {
-        std::transform( buffer.begin(), buffer.end(), buffer.begin(), MapMarkers<false>( window ) );
-    }
-}
-
-
-/**
- * Only one of the two will contain non-empty VectorViews depending on whether marker bytes might appear.
- * @ref dataWithMarkers will be empty when @ref setInitialWindow has been called.
- */
-struct DecodedDataView
-{
-public:
-    [[nodiscard]] constexpr size_t
-    size() const noexcept
-    {
-        return dataWithMarkers[0].size() + dataWithMarkers[1].size() + data[0].size() + data[1].size();
-    }
-
-    [[nodiscard]] size_t
-    dataSize() const
-    {
-        return data[0].size() + data[1].size();
-    }
-
-    [[nodiscard]] size_t
-    dataWithMarkersSize() const
-    {
-        return dataWithMarkers[0].size() + dataWithMarkers[1].size();
-    }
-
-    [[nodiscard]] constexpr bool
-    containsMarkers() const noexcept
-    {
-        return !dataWithMarkers[0].empty() || !dataWithMarkers[1].empty();
-    }
-
-public:
-    std::array<VectorView<uint16_t>, 2> dataWithMarkers;
-    std::array<VectorView<uint8_t>, 2> data;
-};
-
-
 using MarkerVector = FasterVector<uint16_t>;
 using DecodedVector = FasterVector<uint8_t>;
 

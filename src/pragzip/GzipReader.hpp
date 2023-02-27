@@ -11,7 +11,7 @@
 #include <stdexcept>
 #include <utility>
 
-#include <DecodedData.hpp>
+#include <DecodedDataView.hpp>
 #include <FileUtils.hpp>
 #include <filereader/FileReader.hpp>
 #include <filereader/Standard.hpp>

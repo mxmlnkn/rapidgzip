@@ -32,10 +32,11 @@
 #include <HuffmanCodingReversedCodesPerLength.hpp>
 
 #include "crc32.hpp"
-#include "DecodedData.hpp"
+#include "DecodedDataView.hpp"
 #include "definitions.hpp"
 #include "Error.hpp"
 #include "gzip.hpp"
+#include "MarkerReplacement.hpp"
 
 
 namespace pragzip
