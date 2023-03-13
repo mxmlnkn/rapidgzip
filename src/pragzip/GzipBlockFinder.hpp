@@ -124,13 +124,13 @@ public:
     {
         std::scoped_lock lock( m_mutex );
 
-        if ( m_isBgzfFile && m_bgzfBlockFinder && !m_finalized ) {
-            gatherMoreBgzfBlocks( blockIndex );
+        if ( m_isBgzfFile ) {
+            return getBgzfBlock( blockIndex );
         }
 
         if ( blockIndex < m_blockOffsets.size() ) {
             return { m_blockOffsets[blockIndex], GetReturnCode::SUCCESS };
-        };
+        }
 
         assert( !m_blockOffsets.empty() );
         const auto blockIndexOutside = blockIndex - m_blockOffsets.size();  // >= 0
@@ -220,9 +220,9 @@ private:
     }
 
     void
-    gatherMoreBgzfBlocks( size_t blockNumber )
+    gatherMoreBgzfBlocks( size_t blockIndex )
     {
-        while ( blockNumber + m_batchFetchCount >= m_blockOffsets.size() ) {
+        while ( blockIndex + m_batchFetchCount >= m_blockOffsets.size() ) {
             const auto nextOffset = m_bgzfBlockFinder->find();
             if ( nextOffset < m_blockOffsets.back() + m_spacingInBits ) {
                 continue;
@@ -232,6 +232,20 @@ private:
             }
             insertUnsafe( nextOffset );
         }
+    }
+
+    [[nodiscard]] std::pair<std::optional<size_t>, GetReturnCode>
+    getBgzfBlock( size_t blockIndex )
+    {
+        if ( m_bgzfBlockFinder && !m_finalized ) {
+            gatherMoreBgzfBlocks( blockIndex );
+        }
+
+        if ( blockIndex < m_blockOffsets.size() ) {
+            return { m_blockOffsets[blockIndex], GetReturnCode::SUCCESS };
+        }
+
+        return { m_fileSizeInBits, GetReturnCode::FAILURE };
     }
 
     /**
