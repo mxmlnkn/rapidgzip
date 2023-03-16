@@ -29,6 +29,7 @@ struct Arguments
     std::string indexLoadPath;
     std::string indexSavePath;
     bool verbose{ false };
+    bool crc32Enabled{ true };
 };
 
 
@@ -200,13 +201,17 @@ pragzipCLI( int argc, char** argv )
           "If 0 is given, then the parallelism will be determiend automatically.",
           cxxopts::value<unsigned int>()->default_value( "0" ) )
 
+        ( "verify", "Verify CRC32 checksum. Will slow down decompression and there are already some implicit "
+                    "and explicit checks like whether the end of the file could be reached and whether the stream "
+                    "size is correct. ")
+
         ( "import-index", "Uses an existing gzip index.", cxxopts::value<std::string>() )
         ( "export-index", "Write out a gzip index file.", cxxopts::value<std::string>() );
 
     options.add_options( "Output" )
         ( "h,help"   , "Print this help mesage." )
         ( "q,quiet"  , "Suppress noncritical error messages." )
-        ( "v,verbose", "Be verbose. A second -v (or shorthand -vv) gives even more verbosity." )
+        ( "v,verbose", "Print debug output and profiling statistics." )
         ( "V,version", "Display software version." )
         ( "oss-attributions", "Display open-source software licenses." );
 
@@ -229,6 +234,7 @@ pragzipCLI( int argc, char** argv )
     const auto force = parsedArgs["force"].as<bool>();
     const auto quiet = parsedArgs["quiet"].as<bool>();
     args.verbose = parsedArgs["verbose"].as<bool>();
+    args.crc32Enabled = parsedArgs["verify"].as<bool>();
 
     const auto getParallelism = [] ( const auto p ) { return p > 0 ? p : availableCores(); };
     args.decoderParallelism = getParallelism( parsedArgs["decoder-parallelism"].as<unsigned int>() );
@@ -375,7 +381,8 @@ pragzipCLI( int argc, char** argv )
                     }
                 };
 
-            pragzip::GzipReader</* CRC32 */ false> gzipReader{ std::move( inputFile ) };
+            pragzip::GzipReader gzipReader{ std::move( inputFile ) };
+            gzipReader.setCRC32Enabled( args.crc32Enabled );
             totalBytesRead = gzipReader.read( writeAndCount );
         } else {
             const auto writeAndCount =
