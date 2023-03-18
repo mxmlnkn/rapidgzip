@@ -1,10 +1,7 @@
 #include <algorithm>
-#include <cassert>
 #include <cstdio>
-#include <fstream>
 #include <iostream>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -12,6 +9,7 @@
 #include <filereader/Buffered.hpp>
 #include <filereader/FileReader.hpp>
 #include <filereader/Standard.hpp>
+#include <FileUtils.hpp>
 #include <TestHelpers.hpp>
 
 

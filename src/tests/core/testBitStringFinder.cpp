@@ -1,14 +1,14 @@
-#include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <utility>
 #include <vector>
 
-#include <unistd.h>
-
 #include <BitStringFinder.hpp>
 #include <common.hpp>
+#include <filereader/Standard.hpp>
 #include <TestHelpers.hpp>
 
 

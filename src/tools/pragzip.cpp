@@ -1,26 +1,22 @@
-#include <cassert>
-#include <cstdlib>
+#include <cstdio>
 #include <iostream>
-#include <fstream>
+#include <functional>
+#include <iterator>
 #include <map>
-#include <set>
+#include <optional>
 #include <stdexcept>
-#include <sstream>
 #include <string>
-#include <thread>
 #include <utility>
 #include <vector>
 
 #include <cxxopts.hpp>
 
 #include <AffinityHelpers.hpp>
-#include <blockfinder/Bgzf.hpp>
 #include <common.hpp>
 #include <filereader/Standard.hpp>
 #include <FileUtils.hpp>
 #include <GzipAnalyzer.hpp>
 #include <pragzip.hpp>
-#include <ParallelGzipReader.hpp>
 #include <Statistics.hpp>
 
 #include "licenses.cpp"

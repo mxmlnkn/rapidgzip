@@ -8,6 +8,7 @@
 #include <vector>
 
 #include <DecodedData.hpp>
+#include <gzip.hpp>
 
 
 namespace pragzip

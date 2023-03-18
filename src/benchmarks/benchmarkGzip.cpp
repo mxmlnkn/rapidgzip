@@ -1,9 +1,5 @@
-
 #include <cstdio>
-#include <cstring>
-#include <iomanip>
 #include <iostream>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -11,12 +7,10 @@
 #include <archive.h>
 #include <zlib.h>
 
-#include <BitReader.hpp>
 #include <common.hpp>
-#include <filereader/Memory.hpp>
 #include <filereader/Standard.hpp>
 #include <FileUtils.hpp>
-#include <pragzip.hpp>
+#include <GzipReader.hpp>
 #include <Statistics.hpp>
 #include <TestHelpers.hpp>
 

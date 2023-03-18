@@ -7,23 +7,33 @@ https://www.ietf.org/rfc/rfc1952.txt
 */
 
 
+#include <algorithm>
 #include <array>
-#include <cmath>
+#include <cassert>
 #include <cstdio>
-#include <cstring>
+#include <cstdint>
+#include <cstdlib>
+#include <filesystem>
+#include <functional>
 #include <iomanip>
 #include <iostream>
+#include <iterator>
 #include <limits>
+#include <map>
 #include <memory>
-#include <sstream>
+#include <numeric>
 #include <stdexcept>
 #include <string>
+#include <string_view>
+#include <tuple>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include <zlib.h>
 
+#include <BitManipulation.hpp>
 #include <BitReader.hpp>
 #include <blockfinder/Bgzf.hpp>
 #include <blockfinder/DynamicHuffman.hpp>
@@ -34,8 +44,9 @@ https://www.ietf.org/rfc/rfc1952.txt
 #include <blockfinder/precodecheck/WithoutLUT.hpp>
 #include <common.hpp>
 #include <filereader/Buffered.hpp>
+#include <filereader/Standard.hpp>
 #include <HuffmanCodingCheckOnly.hpp>
-#include <pragzip.hpp>
+#include <precode.hpp>
 #include <Statistics.hpp>
 #include <TestHelpers.hpp>
 

@@ -4,7 +4,8 @@
 #include <iomanip>
 #include <iostream>
 #include <filesystem>
-#include <optional>
+#include <functional>
+#include <future>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -15,6 +16,7 @@
 
 #include <AlignedAllocator.hpp>
 #include <common.hpp>
+#include <FileUtils.hpp>
 #include <Statistics.hpp>
 #include <ThreadPool.hpp>
 

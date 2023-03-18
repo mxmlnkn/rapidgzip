@@ -1,16 +1,21 @@
 #include <algorithm>
+#include <atomic>
 #include <filesystem>
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <optional>
+#include <sstream>
 #include <string>
 #include <vector>
 
 #include <common.hpp>
-#include <filereader/Buffered.hpp>
+#include <ChunkData.hpp>
+#include <definitions.hpp>
 #include <filereader/Standard.hpp>
-#include <ParallelGzipReader.hpp>
-#include <pragzip.hpp>
+#include <FileUtils.hpp>
+#include <GzipReader.hpp>
+#include <Prefetcher.hpp>
 #include <TestHelpers.hpp>
 
 

@@ -1,13 +1,14 @@
+#include <algorithm>
 #include <cassert>
+#include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <iostream>
-#include <fstream>
+#include <limits>
 #include <map>
 #include <set>
 #include <stdexcept>
-#include <sstream>
 #include <string>
-#include <thread>
 #include <utility>
 #include <vector>
 
@@ -18,6 +19,7 @@
 #include <BitReader.hpp>
 #include <BitStringFinder.hpp>
 #include <BZ2Reader.hpp>
+#include <common.hpp>
 #include <filereader/Standard.hpp>
 #include <FileUtils.hpp>
 #include <ParallelBZ2Reader.hpp>

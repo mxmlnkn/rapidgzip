@@ -1,8 +1,15 @@
+#include <algorithm>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <filesystem>
+#include <memory>
 #include <string>
+#include <vector>
 
 #include <common.hpp>
+#include <FileUtils.hpp>
 
 
 /* Create a temporary file for benchmarking that is cleaned up with RAII. */

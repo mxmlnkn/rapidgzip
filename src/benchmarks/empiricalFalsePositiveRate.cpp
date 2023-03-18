@@ -1,15 +1,21 @@
 #include <algorithm>
 #include <array>
 #include <bitset>
+#include <cstdint>
+#include <cstdlib>
+#include <future>
 #include <iostream>
+#include <limits>
 #include <random>
-#include <stdexcept>
 #include <sstream>
+#include <stdexcept>
+#include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include <common.hpp>
+#include <BitManipulation.hpp>
 #include <BitReader.hpp>
 #include <blockfinder/DynamicHuffman.hpp>
 #include <blockfinder/Uncompressed.hpp>

@@ -1,4 +1,6 @@
+#include <array>
 #include <algorithm>
+#include <cstdint>
 #include <filesystem>
 #include <iostream>
 #include <limits>
@@ -11,8 +13,8 @@
 #include <blockfinder/DynamicHuffman.hpp>
 #include <blockfinder/Uncompressed.hpp>
 #include <common.hpp>
-#include <deflate.hpp>
 #include <filereader/Standard.hpp>
+#include <FileUtils.hpp>
 #include <TestHelpers.hpp>
 
 

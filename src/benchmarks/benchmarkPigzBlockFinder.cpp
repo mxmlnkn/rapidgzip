@@ -1,9 +1,10 @@
+#include <algorithm>
 #include <array>
 #include <bitset>
+#include <cstdint>
 #include <cstdio>
 #include <iostream>
 #include <filesystem>
-#include <fstream>
 #include <limits>
 #include <memory>
 #include <optional>

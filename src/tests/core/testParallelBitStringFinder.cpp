@@ -1,4 +1,4 @@
-#include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <iostream>
 #include <limits>
@@ -7,10 +7,10 @@
 #include <utility>
 #include <vector>
 
-#include <unistd.h>
-
 #include <ParallelBitStringFinder.hpp>
 #include <filereader/Memory.hpp>
+#include <filereader/Standard.hpp>
+#include <FileUtils.hpp>
 #include <common.hpp>
 #include <TestHelpers.hpp>
 

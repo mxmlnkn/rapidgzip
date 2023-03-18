@@ -1,10 +1,7 @@
-#include <cassert>
-#include <chrono>
+#include <cstdint>
 #include <iostream>
-#include <thread>
 #include <vector>
 
-#include <Cache.hpp>
 #include <common.hpp>
 #include <TestHelpers.hpp>
 
