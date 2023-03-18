@@ -8,6 +8,7 @@
 #include <type_traits>
 #include <vector>
 
+#include <crc32.hpp>
 #include <DecodedData.hpp>
 #include <gzip.hpp>
 
@@ -37,6 +38,8 @@ namespace pragzip
 struct ChunkData :
     public deflate::DecodedData
 {
+    using BaseType = deflate::DecodedData;
+
     struct BlockBoundary
     {
         size_t encodedOffset;
@@ -71,6 +74,47 @@ struct ChunkData :
     };
 
 public:
+    void
+    append( deflate::DecodedVector&& toAppend )
+    {
+        crc32s.back().update( toAppend.data(), toAppend.size() );
+
+        BaseType::append( std::move( toAppend ) );
+    }
+
+    void
+    append( deflate::DecodedDataView const& toAppend )
+    {
+        /* Ignore data with markers. Those will be CRC32 computed inside @ref applyWindow. */
+        for ( const auto& buffer : toAppend.data ) {
+            crc32s.back().update( buffer.data(), buffer.size() );
+        }
+
+        BaseType::append( toAppend );
+    }
+
+    void
+    applyWindow( WindowView const& window )
+    {
+        BaseType::applyWindow( window );
+
+        const auto alreadyProcessedSize = crc32s.front().streamSize();
+        if ( crc32s.front().enabled() && ( alreadyProcessedSize < BaseType::dataSize() ) ) {
+            /* Markers should only appear up to the first gzip footer because otherwise a new gzip stream
+             * would have started. A new gzip stream must not contain markers because there are no unresolvable
+             * back-references! Because of this, it is safe to only update the first CRC32.
+             * Beware that we do not only have to compute the CRC32 of markers but also for data that has been
+             * been converted from dataWithMarkers inside DecodedData::cleanUnmarkedData. */
+            const auto toProcessSize = BaseType::dataSize() - alreadyProcessedSize;
+            CRC32Calculator crc32;
+            for ( size_t i = 0; ( i < data.size() ) && ( crc32.streamSize() < toProcessSize ); ++i ) {
+                crc32.update( data[i].data(),
+                              std::min<uint64_t>( toProcessSize - crc32.streamSize(), data[i].size() ) );
+            }
+            crc32s.front().prepend( crc32 );
+        }
+    }
+
     [[nodiscard]] bool
     matchesEncodedOffset( size_t offset ) const noexcept
     {
@@ -94,7 +138,7 @@ public:
     {
         cleanUnmarkedData();
         encodedSizeInBits = blockEndOffsetInBits - encodedOffsetInBits;
-        decodedSizeInBytes = deflate::DecodedData::size();
+        decodedSizeInBytes = BaseType::size();
     }
 
     [[nodiscard]] constexpr size_t
@@ -125,6 +169,18 @@ public:
         footerResult.blockBoundary = { encodedOffset, decodedOffset };
         footerResult.gzipFooter = footer;
         footers.emplace_back( footerResult );
+
+        const auto wasEnabled = crc32s.back().enabled();
+        crc32s.emplace_back();
+        crc32s.back().setEnabled( wasEnabled );
+    }
+
+    void
+    setCRC32Enabled( bool enabled )
+    {
+        for ( auto& calculator : crc32s ) {
+            calculator.setEnabled( enabled );
+        }
     }
 
 public:
@@ -141,6 +197,8 @@ public:
      * during first-pass decompression. */
     std::vector<BlockBoundary> blockBoundaries;
     std::vector<Footer> footers;
+    /* There will be ( footers.size() + 1 ) CRC32 calculators. */
+    std::vector<CRC32Calculator> crc32s{ std::vector<CRC32Calculator>( 1 ) };
 
     /* Benchmark results */
     double blockFinderDuration{ 0 };

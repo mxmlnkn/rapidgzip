@@ -155,14 +155,16 @@ decompressParallel( const Arguments&            args,
 {
     if ( args.verbose ) {
         using Reader = pragzip::ParallelGzipReader<ChunkData, /* enable statistics */ true, /* show profile */ true>;
-        return decompressParallel(
-            std::make_unique<Reader>( std::move( inputFile ), args.decoderParallelism, args.chunkSize ),
-            args.indexLoadPath, args.indexSavePath, writeFunctor, args.verbose );
+        auto reader = std::make_unique<Reader>( std::move( inputFile ), args.decoderParallelism, args.chunkSize );
+        reader->setCRC32Enabled( args.crc32Enabled );
+        return decompressParallel( std::move( reader ), args.indexLoadPath, args.indexSavePath, writeFunctor,
+                                   args.verbose );
     } else {
         using Reader = pragzip::ParallelGzipReader<ChunkData, /* enable statistics */ false, /* show profile */ false>;
-        return decompressParallel(
-            std::make_unique<Reader>( std::move( inputFile ), args.decoderParallelism, args.chunkSize ),
-            args.indexLoadPath, args.indexSavePath, writeFunctor, args.verbose );
+        auto reader = std::make_unique<Reader>( std::move( inputFile ), args.decoderParallelism, args.chunkSize );
+        reader->setCRC32Enabled( args.crc32Enabled );
+        return decompressParallel( std::move( reader ), args.indexLoadPath, args.indexSavePath, writeFunctor,
+                                   args.verbose );
     }
 }
 

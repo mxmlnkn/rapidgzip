@@ -24,6 +24,7 @@
     #include <filereader/Python.hpp>
 #endif
 
+#include "crc32.hpp"
 #include "GzipChunkFetcher.hpp"
 #include "GzipBlockFinder.hpp"
 #include "gzip.hpp"
@@ -40,6 +41,7 @@ template<typename T_ChunkData = ChunkData,
          bool SHOW_PROFILE = false>
 class ParallelGzipReader final :
     public FileReader
+
 {
 public:
     using ChunkData = T_ChunkData;
@@ -240,7 +242,9 @@ public:
     {
         if constexpr ( SHOW_PROFILE ) {
             std::cerr << "[ParallelGzipReader] Time spent:";
-            std::cerr << "\n    Writing to output: " << m_writeOutputTime << " s";
+            std::cerr << "\n    Writing to output         : " << m_writeOutputTime << " s";
+            std::cerr << "\n    Computing CRC32           : " << m_crc32Time << " s";
+            std::cerr << "\n    Number of verified CRC32s : " << m_verifiedCRC32Count;
             std::cerr << std::endl;
         }
     }
@@ -410,11 +414,15 @@ public:
 
             const auto nBytesToDecode = std::min( blockSize - offsetInBlock, nBytesToRead - nBytesDecoded );
 
+            [[maybe_unused]] const auto tCRC32Start = now();
+            processCRC32( chunkData, offsetInBlock, nBytesToDecode );
+            if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+                m_crc32Time += duration( tCRC32Start );
+            }
+
             if ( writeFunctor ) {
                 [[maybe_unused]] const auto tWriteStart = now();
-
                 writeFunctor( chunkData, offsetInBlock, nBytesToDecode );
-
                 if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
                     m_writeOutputTime += duration( tWriteStart );
                 }
@@ -578,6 +586,19 @@ public:
         return m_chunkFetcher->statistics();
     }
 
+    void
+    setCRC32Enabled( bool enabled )
+    {
+        if ( m_crc32.enabled() == enabled ) {
+            return;
+        }
+
+        m_crc32.setEnabled( enabled && ( tell() == 0 ) );
+        if ( m_chunkFetcher ) {
+            m_chunkFetcher->setCRC32Enabled( m_crc32.enabled() );
+        }
+    }
+
 private:
     void
     setBlockOffsets( std::map<size_t, size_t> offsets )
@@ -732,6 +753,8 @@ private:
             throw std::logic_error( "Block fetcher should have been initialized!" );
         }
 
+        m_chunkFetcher->setCRC32Enabled( m_crc32.enabled() );
+
         return *m_chunkFetcher;
     }
 
@@ -756,6 +779,41 @@ private:
         blockFinder().setBlockOffsets( std::move( encodedBlockOffsets ) );
     }
 
+    void
+    processCRC32( const std::shared_ptr<ChunkData>& chunkData,
+                  [[maybe_unused]] size_t const     offsetInBlock,
+                  [[maybe_unused]] size_t const     dataToWriteSize )
+    {
+        if ( ( m_nextCRC32ChunkOffset == 0 ) && m_blockFinder ) {
+            const auto [offset, errorCode] = m_blockFinder->get( /* block index */ 0, /* timeout */ 0 );
+            if ( offset && ( errorCode == BlockFinder::GetReturnCode::SUCCESS ) ) {
+                m_nextCRC32ChunkOffset = *offset;
+            }
+        }
+
+        if ( !m_crc32.enabled()
+             || ( m_nextCRC32ChunkOffset != chunkData->encodedOffsetInBits )
+             || chunkData->crc32s.empty() ) {
+            return;
+        }
+
+        m_nextCRC32ChunkOffset = chunkData->encodedOffsetInBits + chunkData->encodedSizeInBits;
+
+        /* As long as CRC32 is enabled, this should not happen and we filter above for !m_crc32.enabled(). */
+        if ( chunkData->crc32s.size() != chunkData->footers.size() + 1 ) {
+            throw std::logic_error( "Fewer CRC32s in chunk than expected based on the gzip footers!" );
+        }
+
+        /* Process CRC32 of chunk. */
+        m_crc32.append( chunkData->crc32s.front() );
+        for ( size_t i = 0; i < chunkData->footers.size(); ++i ) {
+            if ( m_crc32.verify( chunkData->footers[i].gzipFooter.crc32 ) ) {
+                m_verifiedCRC32Count++;
+            }
+            m_crc32 = chunkData->crc32s.at( i + 1 );
+        }
+    }
+
 private:
     BitReader m_bitReader;
 
@@ -764,6 +822,8 @@ private:
 
     /** Benchmarking */
     double m_writeOutputTime{ 0 };
+    double m_crc32Time{ 0 };
+    uint64_t m_verifiedCRC32Count{ 0 };
 
     size_t const m_fetcherParallelization;
     /** The block finder is much faster than the fetcher and therefore does not require es much parallelization! */
@@ -782,6 +842,9 @@ private:
      * in order into @ref m_blockMap.
      */
     std::shared_ptr<WindowMap> const m_windowMap{ std::make_shared<WindowMap>() };
-    std::unique_ptr<ChunkFetcher>    m_chunkFetcher;
+    std::unique_ptr<ChunkFetcher> m_chunkFetcher;
+
+    CRC32Calculator m_crc32;
+    uint64_t m_nextCRC32ChunkOffset{ 0 };
 };
 }  // namespace pragzip

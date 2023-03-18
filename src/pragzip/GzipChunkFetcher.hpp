@@ -205,6 +205,12 @@ public:
         return std::make_pair( blockInfo, chunkData );
     }
 
+    void
+    setCRC32Enabled( bool enabled )
+    {
+        m_crc32Enabled = enabled;
+    }
+
 private:
     void
     waitForReplacedMarkers( const std::shared_ptr<ChunkData>& chunkData,
@@ -393,7 +399,7 @@ private:
         return decodeBlock( m_bitReader, blockOffset, nextBlockOffset,
                             m_isBgzfFile ? std::make_optional( WindowView{} ) : m_windowMap->get( blockOffset ),
                             blockInfo ? blockInfo->decodedSizeInBytes : std::optional<size_t>{},
-                            m_cancelThreads );
+                            m_cancelThreads, m_crc32Enabled );
     }
 
 public:
@@ -410,20 +416,22 @@ public:
                  size_t                    const untilOffset,
                  std::optional<WindowView> const initialWindow,
                  std::optional<size_t>     const decodedSize,
-                 std::atomic<bool>        const& cancelThreads )
+                 std::atomic<bool>        const& cancelThreads,
+                 bool                      const crc32Enabled = false )
     {
         if ( initialWindow && decodedSize && ( *decodedSize > 0 ) ) {
             return decodeBlockWithZlib( originalBitReader,
                                         blockOffset,
                                         std::min( untilOffset, originalBitReader.size() ),
                                         *initialWindow,
-                                        *decodedSize );
+                                        *decodedSize,
+                                        crc32Enabled );
         }
 
         BitReader bitReader( originalBitReader );
         if ( initialWindow ) {
             bitReader.seek( blockOffset );
-            return decodeBlockWithPragzip( &bitReader, untilOffset, initialWindow );
+            return decodeBlockWithPragzip( &bitReader, untilOffset, initialWindow, crc32Enabled );
         }
 
         const auto tryToDecode =
@@ -433,7 +441,7 @@ public:
                     /* For decoding, it does not matter whether we seek to offset.first or offset.second but it DOES
                      * matter a lot for interpreting and correcting the encodedSizeInBits in GzipBlockFetcer::get! */
                     bitReader.seek( offset.second );
-                    auto result = decodeBlockWithPragzip( &bitReader, untilOffset, initialWindow );
+                    auto result = decodeBlockWithPragzip( &bitReader, untilOffset, initialWindow, crc32Enabled );
                     result.encodedOffsetInBits = offset.first;
                     result.maxEncodedOffsetInBits = offset.second;
                     /** @todo Avoid out of memory issues for very large compression ratios by using a simple runtime
@@ -730,7 +738,8 @@ private:
                          size_t           blockOffset,
                          size_t           untilOffset,
                          WindowView       initialWindow,
-                         size_t           decodedSize )
+                         size_t           decodedSize,
+                         bool             crc32Enabled )
     {
         BitReader bitReader( originalBitReader );
         bitReader.seek( blockOffset );
@@ -738,6 +747,7 @@ private:
         deflateWrapper.setWindow( initialWindow );
 
         ChunkData result;
+        result.setCRC32Enabled( crc32Enabled );
         result.encodedOffsetInBits = blockOffset;
 
         FasterVector<uint8_t> decoded( decodedSize );
@@ -755,7 +765,8 @@ private:
     [[nodiscard]] static ChunkData
     decodeBlockWithPragzip( BitReader*                      bitReader,
                             size_t                          untilOffset,
-                            std::optional<WindowView> const initialWindow )
+                            std::optional<WindowView> const initialWindow,
+                            bool                            crc32Enabled )
     {
         if ( bitReader == nullptr ) {
             throw std::invalid_argument( "BitReader must be non-null!" );
@@ -777,6 +788,7 @@ private:
         }
 
         ChunkData result;
+        result.setCRC32Enabled( crc32Enabled );
         result.encodedOffsetInBits = bitReader->tell();
 
         /* Loop over possibly gzip streams and deflate blocks. We cannot use GzipReader even though it does
@@ -897,6 +909,7 @@ private:
     mutable std::mutex m_statisticsMutex;
 
     std::atomic<bool> m_cancelThreads{ false };
+    std::atomic<bool> m_crc32Enabled{ true };
 
     /* Variables required by decodeBlock and which therefore should be either const or locked. */
     const BitReader m_bitReader;

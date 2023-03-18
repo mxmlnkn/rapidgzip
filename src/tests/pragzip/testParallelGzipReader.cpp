@@ -71,6 +71,7 @@ testParallelDecoder( std::unique_ptr<FileReader> encoded,
     /* Test a simple full read. */
 
     ParallelGzipReader reader( std::move( encoded ), /* 32 KiB chunks to skip. */ nBlocksToSkip );
+    reader.setCRC32Enabled( true );
     if ( index ) {
         reader.setBlockOffsets( *index );
         REQUIRE( reader.blockOffsetsComplete() );
@@ -180,6 +181,7 @@ testParallelDecodingWithIndex( const TemporaryDirectory& tmpFolder )
 
     std::cerr << "Test exporting and reimporting index.\n";
     ParallelGzipReader reader( std::make_unique<StandardFileReader>( encodedFile ) );
+    reader.setCRC32Enabled( true );
     reader.setBlockOffsets( realIndex );
 
     const auto reconstructedIndex = reader.gzipIndex();
@@ -329,6 +331,7 @@ testPerformance( const std::string& encodedFilePath,
     pragzip::ParallelGzipReader<pragzip::ChunkData, /* ENABLE_STATISTICS */ true> reader(
         std::make_unique<StandardFileReader>( encodedFilePath ),
         parallelization );
+    reader.setCRC32Enabled( true );
 
     std::vector<char> result( bufferSize );
     while ( true ) {
