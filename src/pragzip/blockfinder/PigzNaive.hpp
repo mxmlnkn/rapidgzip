@@ -23,7 +23,7 @@ namespace pragzip::blockfinder
  *       my decoder (~90 MB/s) and ~6 cores for zlib decompression (~200 MB/s).
  * @deprecated Use blockfinder::PigzStringView instead because it achieves more than 8 GB/s!
  */
-class PigzNaive :
+class PigzNaive final :
     public Interface
 {
 public:

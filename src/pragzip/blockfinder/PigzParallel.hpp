@@ -83,7 +83,7 @@ namespace pragzip::blockfinder
  *      sys	0m0.627s                                               speed up a lot beause it is not the critical path!
  *
  */
-class PigzParallel :
+class PigzParallel final :
     public Interface
 {
 public:

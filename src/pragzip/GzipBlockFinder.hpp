@@ -29,7 +29,7 @@ namespace pragzip
  * However, care has to be taken in its usage because block confirmation effectively invalidates block
  * previous indexes!
  */
-class GzipBlockFinder :
+class GzipBlockFinder final :
     public BlockFinderInterface
 {
 public:

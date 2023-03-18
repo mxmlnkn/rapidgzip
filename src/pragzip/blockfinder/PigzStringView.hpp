@@ -25,7 +25,7 @@
  */
 namespace pragzip::blockfinder
 {
-class PigzStringView :
+class PigzStringView final :
     public Interface
 {
 public:

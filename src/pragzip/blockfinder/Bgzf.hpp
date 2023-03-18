@@ -81,7 +81,7 @@ namespace pragzip::blockfinder
  * EOF is the end of the file as intended by the program that wrote it. Empty BGZF blocks are not otherwise
  * special; in particular, the presence of an EOF marker block does not by itself signal end of file.
  */
-class Bgzf :
+class Bgzf final :
     public Interface
 {
 public:

@@ -25,7 +25,7 @@
 #endif
 
 
-class BZ2Reader :
+class BZ2Reader final :
     public BZ2ReaderInterface
 {
 public:

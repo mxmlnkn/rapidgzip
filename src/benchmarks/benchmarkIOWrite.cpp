@@ -323,7 +323,7 @@ benchmarkVectorizedWrite( const std::string&       filePath,
     auto ufd = openFile( filePath, data.size(), fileInitialization );
     const auto fd = *ufd;
 
-    size_t nBytesWritten{ 0 };
+    [[maybe_unused]] size_t nBytesWritten{ 0 };
 
     const auto t0 = now();
     for ( size_t i = 0; i < data.size(); ) {

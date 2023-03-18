@@ -29,7 +29,7 @@
  * @tparam RawBlockFinder Must implement a `size_t find()` method which returns block offsets.
  */
 template<typename T_RawBlockFinder>
-class BlockFinder :
+class BlockFinder final :
     public BlockFinderInterface
 {
 public:
