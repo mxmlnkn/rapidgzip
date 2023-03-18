@@ -215,7 +215,7 @@ ParallelBitStringFinder<bitStringSize>::find()
         /* For very sub chunk sizes, it is more sensible to not parallelize them using threads! */
         const auto minSubChunkSizeInBytes = std::max<size_t>( 8 * bitStringSize, 4096 );
         const auto subChunkStrideInBytes =
-            std::max<size_t>( minSubChunkSizeInBytes, ceilDiv( this->m_buffer.size(), m_threadPool.size() ) );
+            std::max<size_t>( minSubChunkSizeInBytes, ceilDiv( this->m_buffer.size(), m_threadPool.capacity() ) );
 
         /* Start worker threads using the thread pool and the current buffer. */
         for ( ; !this->bufferEof(); this->m_bufferBitsRead += subChunkStrideInBytes * CHAR_BIT ) {

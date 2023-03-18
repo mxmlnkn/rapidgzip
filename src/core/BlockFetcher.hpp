@@ -423,7 +423,9 @@ private:
         processReadyPrefetches();
 
         const auto threadPoolSaturated =
-            [&] () { return m_prefetching.size() + /* thread with the requested block */ 1 >= m_threadPool.size(); };
+            [&] () {
+                return m_prefetching.size() + /* thread with the requested block */ 1 >= m_threadPool.capacity();
+            };
 
         if ( threadPoolSaturated() ) {
             return;

@@ -244,7 +244,7 @@ public:
 
         const auto minSubBufferSizeInBytes = std::max<size_t>( nBytesToRetain, 4096 );
         size_t subBufferStrideInBytes = m_buffer.size();
-        for ( size_t i = 2; i <= m_threadPool.size(); ++i ) {
+        for ( size_t i = 2; i <= m_threadPool.capacity(); ++i ) {
             const auto candidateSubBufferStride = ceilDiv( m_buffer.size(), i );
             if ( candidateSubBufferStride >= minSubBufferSizeInBytes ) {
                 subBufferStrideInBytes = candidateSubBufferStride;

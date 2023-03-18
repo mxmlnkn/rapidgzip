@@ -524,7 +524,7 @@ benchmarkMmapWriteParallel( const std::string&       filePath,
 
     const auto t0 = now();
 
-    const auto chunkSize = data.size() / threadPool.size();
+    const auto chunkSize = data.size() / threadPool.capacity();
     std::vector<std::future<void> > futures;
     for ( size_t i = 0; i < threadCount; ++i ) {
         const auto offset = i * chunkSize;
@@ -625,7 +625,7 @@ benchmarkPwriteParallel( const std::string&       filePath,
 
     const auto t0 = now();
 
-    const auto chunkSize = data.size() / threadPool.size();
+    const auto chunkSize = data.size() / threadPool.capacity();
     std::vector<std::future<void> > futures;
     for ( size_t offset = 0; offset < data.size(); offset += chunkSize ) {
         futures.emplace_back( threadPool.submit( [offset, chunkSize, &data, fd = *ufd] () {
