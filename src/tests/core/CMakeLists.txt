@@ -10,6 +10,12 @@ target_link_libraries(testBitReader PRIVATE core)
 add_test(NAME Test-Bit-Reader COMMAND testBitReader)
 add_dependencies(all_tests testBitReader)
 
+add_executable(testBitManipulation)
+target_sources(testBitManipulation PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testBitManipulation.cpp)
+target_link_libraries(testBitManipulation PRIVATE core)
+add_test(NAME Test-Bit-Manipulation COMMAND testBitManipulation)
+add_dependencies(all_tests testBitManipulation)
+
 add_executable(testBitStringFinder)
 target_sources(testBitStringFinder PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testBitStringFinder.cpp)
 target_link_libraries(testBitStringFinder PRIVATE core)
