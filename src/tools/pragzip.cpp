@@ -22,6 +22,16 @@
 #include "licenses.cpp"
 
 
+struct Arguments
+{
+    unsigned int decoderParallelism{ 0 };
+    unsigned int chunkSize{ 4_Mi };
+    std::string indexLoadPath;
+    std::string indexSavePath;
+    bool verbose{ false };
+};
+
+
 void
 printHelp( const cxxopts::Options& options )
 {
@@ -148,14 +158,17 @@ pragzipCLI( int argc, char** argv )
 
     const auto parsedArgs = options.parse( argc, argv );
 
-    const auto force   = parsedArgs["force"  ].as<bool>();
-    const auto quiet   = parsedArgs["quiet"  ].as<bool>();
-    const auto verbose = parsedArgs["verbose"].as<bool>();
+    /* Cleaned, checked, and typed arguments. */
+    Arguments args;
+
+    const auto force = parsedArgs["force"].as<bool>();
+    const auto quiet = parsedArgs["quiet"].as<bool>();
+    args.verbose = parsedArgs["verbose"].as<bool>();
 
     const auto getParallelism = [] ( const auto p ) { return p > 0 ? p : availableCores(); };
-    const auto decoderParallelism = getParallelism( parsedArgs["decoder-parallelism"].as<unsigned int>() );
+    args.decoderParallelism = getParallelism( parsedArgs["decoder-parallelism"].as<unsigned int>() );
 
-    if ( verbose ) {
+    if ( args.verbose ) {
         for ( auto const* const path : { "input", "output" } ) {
             std::string value = "<none>";
             try {
@@ -241,19 +254,19 @@ pragzipCLI( int argc, char** argv )
         return 1;
     }
 
-    const auto indexLoadPath = parsedArgs.count( "import-index" ) > 0
-                               ? parsedArgs["import-index"].as<std::string>()
-                               : std::string();
-    const auto indexSavePath = parsedArgs.count( "export-index" ) > 0
-                               ? parsedArgs["export-index"].as<std::string>()
-                               : std::string();
-    if ( !indexLoadPath.empty() && !indexSavePath.empty() ) {
+    args.indexLoadPath = parsedArgs.count( "import-index" ) > 0
+                         ? parsedArgs["import-index"].as<std::string>()
+                         : std::string();
+    args.indexSavePath = parsedArgs.count( "export-index" ) > 0
+                         ? parsedArgs["export-index"].as<std::string>()
+                         : std::string();
+    if ( !args.indexLoadPath.empty() && !args.indexSavePath.empty() ) {
         std::cerr << "[Warning] Importing and exporting an index makes limited sense.\n";
     }
-    if ( ( !indexLoadPath.empty() || !indexSavePath.empty() ) && ( decoderParallelism == 1 ) ) {
+    if ( ( !args.indexLoadPath.empty() || !args.indexSavePath.empty() ) && ( args.decoderParallelism == 1 ) ) {
         std::cerr << "[Warning] The index only has an effect for parallel decoding.\n";
     }
-    if ( !indexLoadPath.empty() && !fileExists( indexLoadPath ) ) {
+    if ( !args.indexLoadPath.empty() && !fileExists( args.indexLoadPath ) ) {
         std::cerr << "The index to import was not found!\n";
         return 1;
     }
@@ -261,7 +274,7 @@ pragzipCLI( int argc, char** argv )
     /* Actually do things as requested. */
 
     if ( decompress || countBytes || countLines ) {
-        if ( decompress && verbose ) {
+        if ( decompress && args.verbose ) {
             std::cerr << "Decompress " << ( inputFilePath.empty() ? "<stdin>" : inputFilePath.c_str() )
                       << " -> " << ( outputFilePath.empty() ? "<stdout>" : outputFilePath.c_str() ) << "\n";
         }
@@ -282,7 +295,7 @@ pragzipCLI( int argc, char** argv )
         const auto t0 = now();
 
         size_t totalBytesRead{ 0 };
-        if ( decoderParallelism == 1 ) {
+        if ( args.decoderParallelism == 1 ) {
             const auto writeAndCount =
                 [outputFileDescriptor, countLines, &newlineCount]
                 ( const void* const buffer,
@@ -323,16 +336,16 @@ pragzipCLI( int argc, char** argv )
             const auto decompressParallel =
                 [&] ( const auto& reader )
                 {
-                    if ( !indexLoadPath.empty() ) {
+                    if ( !args.indexLoadPath.empty() ) {
                         reader->setBlockOffsets(
-                            readGzipIndex( std::make_unique<StandardFileReader>( indexLoadPath ) ) );
+                            readGzipIndex( std::make_unique<StandardFileReader>( args.indexLoadPath ) ) );
                         printIndexAnalytics( reader );
                     }
 
                     totalBytesRead = reader->read( writeAndCount );
 
-                    if ( !indexSavePath.empty() ) {
-                        const auto file = throwingOpen( indexSavePath, "wb" );
+                    if ( !args.indexSavePath.empty() ) {
+                        const auto file = throwingOpen( args.indexSavePath, "wb" );
 
                         const auto checkedWrite =
                             [&file] ( const void* buffer, size_t size )
@@ -345,20 +358,20 @@ pragzipCLI( int argc, char** argv )
                         writeGzipIndex( reader->gzipIndex(), checkedWrite );
                     }
 
-                    if ( indexLoadPath.empty() ) {
+                    if ( args.indexLoadPath.empty() ) {
                         printIndexAnalytics( reader );
                     }
                 };
 
 
-            if ( verbose ) {
+            if ( args.verbose ) {
                 using GzipReader = pragzip::ParallelGzipReader</* enable statistics */ true, /* show profile */ true>;
-                auto reader = std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism,
+                auto reader = std::make_unique<GzipReader>( std::move( inputFile ), args.decoderParallelism,
                                                             chunkSize * 1024 );
                 decompressParallel( std::move( reader ) );
             } else {
                 using GzipReader = pragzip::ParallelGzipReader</* enable statistics */ false, /* show profile */ false>;
-                auto reader = std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism,
+                auto reader = std::make_unique<GzipReader>( std::move( inputFile ), args.decoderParallelism,
                                                             chunkSize * 1024 );
                 decompressParallel( std::move( reader ) );
             }
