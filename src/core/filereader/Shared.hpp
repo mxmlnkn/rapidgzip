@@ -230,6 +230,20 @@ public:
         size_t nBytesRead{ 0 };
     #ifndef _MSC_VER
         if ( m_fileDescriptor >= 0 ) {
+            /* This statistic only approximates the actual pread behavior. The OS can probably reorder
+             * concurrent pread calls and we would have to enclose pread itself in a lock, which defeats
+             * the purpose of pread for speed. */
+            if ( m_statistics ) {
+                const std::scoped_lock lock{ m_statistics->mutex };
+                const auto oldOffset = m_statistics->lastAccessOffset;
+                if ( m_currentPosition > oldOffset ) {
+                    m_statistics->seekForward.merge( m_currentPosition - oldOffset );
+                } else if ( m_currentPosition < oldOffset ) {
+                    m_statistics->seekBack.merge( oldOffset - m_currentPosition );
+                }
+                m_statistics->lastAccessOffset = m_currentPosition;
+            }
+
             const auto nBytesReadWithPread = ::pread( m_sharedFile->fileno(), buffer, nMaxBytesToRead,
                                                       m_currentPosition );
             if ( nBytesReadWithPread < 0 ) {
@@ -293,6 +307,7 @@ private:
 
 private:
     struct AccessStatistics {
+        uint64_t lastAccessOffset{ 0 };  // necessary for pread because tell() won't work
         Statistics<uint64_t> read;
         Statistics<uint64_t> seekBack;
         Statistics<uint64_t> seekForward;
