@@ -60,6 +60,37 @@ getFilePath( cxxopts::ParseResult const& parsedArgs,
 }
 
 
+template<typename Reader>
+void
+printIndexAnalytics( const Reader& reader )
+{
+    const auto offsets = reader->blockOffsets();
+    if ( offsets.size() <= 1 ) {
+        return;
+    }
+
+    Statistics<double> encodedOffsetSpacings;
+    Statistics<double> decodedOffsetSpacings;
+    for ( auto it = offsets.begin(), nit = std::next( offsets.begin() ); nit != offsets.end(); ++it, ++nit ) {
+        const auto& [encodedOffset, decodedOffset] = *it;
+        const auto& [nextEncodedOffset, nextDecodedOffset] = *nit;
+        if ( nextEncodedOffset - encodedOffset > 0 ) {
+            encodedOffsetSpacings.merge( static_cast<double>( nextEncodedOffset - encodedOffset ) / CHAR_BIT / 1e6 );
+            decodedOffsetSpacings.merge( static_cast<double>( nextDecodedOffset - decodedOffset ) / 1e6 );
+        }
+    }
+
+    std::cerr
+        << "[Seekpoints Index]\n"
+        << "    Encoded offset spacings: ( min: " << encodedOffsetSpacings.min << ", "
+        << encodedOffsetSpacings.formatAverageWithUncertainty()
+        << ", max: " << encodedOffsetSpacings.max << " ) MB\n"
+        << "    Decoded offset spacings: ( min: " << decodedOffsetSpacings.min << ", "
+        << decodedOffsetSpacings.formatAverageWithUncertainty()
+        << ", max: " << decodedOffsetSpacings.max << " ) MB\n";
+}
+
+
 int
 pragzipCLI( int argc, char** argv )
 {
@@ -245,42 +276,6 @@ pragzipCLI( int argc, char** argv )
             m_outputFile = std::make_unique<OutputFile>( outputFilePath );
         }
         const auto outputFileDescriptor = m_outputFile ? m_outputFile->fd() : -1;
-
-        const auto printIndexAnalytics =
-            [&] ( const auto& reader )
-            {
-                if ( !verbose || ( indexSavePath.empty() && indexLoadPath.empty() ) ) {
-                    return;
-                }
-
-                const auto offsets = reader->blockOffsets();
-                if ( offsets.size() <= 1 ) {
-                    return;
-                }
-
-                Statistics<double> encodedOffsetSpacings;
-                Statistics<double> decodedOffsetSpacings;
-                for ( auto it = offsets.begin(), nit = std::next( offsets.begin() );
-                      nit != offsets.end(); ++it, ++nit ) {
-                    const auto& [encodedOffset, decodedOffset] = *it;
-                    const auto& [nextEncodedOffset, nextDecodedOffset] = *nit;
-                    if ( nextEncodedOffset - encodedOffset > 0 ) {
-                        encodedOffsetSpacings.merge( static_cast<double>( nextEncodedOffset - encodedOffset )
-                                                     / CHAR_BIT / 1e6 );
-                        decodedOffsetSpacings.merge( static_cast<double>( nextDecodedOffset - decodedOffset )
-                                                     / 1e6 );
-                    }
-                }
-
-                std::cerr
-                    << "[Seekpoints Index]\n"
-                    << "    Encoded offset spacings: ( min: " << encodedOffsetSpacings.min << ", "
-                    << encodedOffsetSpacings.formatAverageWithUncertainty()
-                    << ", max: " << encodedOffsetSpacings.max << " ) MB\n"
-                    << "    Decoded offset spacings: ( min: " << decodedOffsetSpacings.min << ", "
-                    << decodedOffsetSpacings.formatAverageWithUncertainty()
-                    << ", max: " << decodedOffsetSpacings.max << " ) MB\n";
-            };
 
         uint64_t newlineCount{ 0 };
 
