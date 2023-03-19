@@ -140,6 +140,7 @@ public:
      * This is used to determine whether it is necessary to call applyWindow.
      * Testing for @ref dataWithMarkers.empty() is not sufficient because markers could be contained
      * in other members for derived classes! In that case @ref containsMarkers will be overriden.
+     * @note Probably should not be called internally because it is allowed to be shadowed by a child class method.
      */
     [[nodiscard]] bool
     containsMarkers() const noexcept
@@ -168,6 +169,7 @@ public:
      *        A value of 0 would simply return @p previousWindow while a value equal to size() would return
      *        the window as it would be after this whole block.
      * @note Should only be called after @ref applyWindow because @p skipBytes larger than @ref dataSize will throw.
+     * @note Probably should not be called internally because it is allowed to be shadowed by a child class method.
      */
     [[nodiscard]] DecodedVector
     getWindowAt( WindowView const& previousWindow,

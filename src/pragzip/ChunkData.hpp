@@ -21,6 +21,18 @@ namespace pragzip
  * gzip streams. It is used to hold the chunk data for parallel decompression.
  * It also adds some further metadata like deflate block and stream boundaries and helpers for creating
  * evenly distributed checkpoints for a gzip seek index.
+ *
+ * Specialized use cases can optimize memory usage or add post-processing steps by implementing the two
+ * @ref append methods, @ref applyWindow, and @ref finalize. The shadowed methods in the base class
+ * should be called from the reimplemented methods in order to keep default functionality. This call
+ * can also be knowingly omitted, e.g., for only counting bytes instead of appending them.
+ *
+ * - @ref append is called by @ref GzipChunkFetcher after each deflate::Block call back, which could be
+ *   every block or up to maximum 32 KiB of decompressed data.
+ * - @ref finalize is called after the first stage of decompression has finished.
+ *   At this point, the number of elements in the chunk is finalized. Elements can be 16-bit wide markers.
+ * - @ref applyWindow is called during the second decompression stage and the ChunkData will hold the fully
+ *   decompressed data after this call.
  */
 struct ChunkData :
     public deflate::DecodedData
@@ -74,6 +86,9 @@ public:
     [[nodiscard]] std::vector<Subblock>
     split( [[maybe_unused]] const size_t spacing ) const;
 
+    /**
+     * @note Probably should not be called internally because it is allowed to be shadowed by a child class method.
+     */
     void
     finalize( size_t blockEndOffsetInBits )
     {
@@ -310,4 +325,43 @@ writeAll( const std::shared_ptr<ChunkData>& chunkData,
     }
 #endif
 }
+
+
+/**
+ * This subclass of @ref ChunkData only counts the decompressed bytes and does not store them.
+ */
+struct ChunkDataCounter final :
+    public ChunkData
+{
+    void
+    append( deflate::DecodedVector&& toAppend )
+    {
+        decodedSizeInBytes += toAppend.size();
+    }
+
+    void
+    append( deflate::DecodedDataView const& toAppend )
+    {
+        decodedSizeInBytes += toAppend.size();
+    }
+
+    void
+    finalize( size_t blockEndOffsetInBits )
+    {
+        encodedSizeInBits = blockEndOffsetInBits - encodedOffsetInBits;
+        /* Do not overwrite decodedSizeInBytes like is done in the base class
+         * because DecodedData::size() would return 0! Instead, it is updated inside append. */
+    }
+
+    /**
+     * The internal index will only contain the offsets and empty windows but that is fine because
+     * this subclass does never require windows. The index should not be exported when this is used.
+     */
+    [[nodiscard]] deflate::DecodedVector
+    getWindowAt( WindowView const& /* previousWindow */,
+                 size_t            /* skipBytes */ ) const
+    {
+        return {};
+    }
+};
 }  // namespace pragzip

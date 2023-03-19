@@ -50,13 +50,16 @@ public:
 };
 
 
-template<typename FetchingStrategy,
+template<typename T_FetchingStrategy,
+         typename T_ChunkData = ChunkData,
          bool     ENABLE_STATISTICS = false,
          bool     SHOW_PROFILE = false>
 class GzipChunkFetcher :
-    public BlockFetcher<GzipBlockFinder, ChunkData, FetchingStrategy, ENABLE_STATISTICS, SHOW_PROFILE>
+    public BlockFetcher<GzipBlockFinder, T_ChunkData, T_FetchingStrategy, ENABLE_STATISTICS, SHOW_PROFILE>
 {
 public:
+    using FetchingStrategy = T_FetchingStrategy;
+    using ChunkData = T_ChunkData;
     using BaseType = BlockFetcher<GzipBlockFinder, ChunkData, FetchingStrategy, ENABLE_STATISTICS, SHOW_PROFILE>;
     using BitReader = pragzip::BitReader;
     using WindowView = VectorView<uint8_t>;

@@ -153,12 +153,12 @@ decompressParallel( const Arguments&            args,
                     const WriteFunctor&         writeFunctor )
 {
     if ( args.verbose ) {
-        using Reader = pragzip::ParallelGzipReader</* enable statistics */ true, /* show profile */ true>;
+        using Reader = pragzip::ParallelGzipReader<ChunkData, /* enable statistics */ true, /* show profile */ true>;
         return decompressParallel(
             std::make_unique<Reader>( std::move( inputFile ), args.decoderParallelism, args.chunkSize ),
             args.indexLoadPath, args.indexSavePath, writeFunctor, args.verbose );
     } else {
-        using Reader = pragzip::ParallelGzipReader</* enable statistics */ false, /* show profile */ false>;
+        using Reader = pragzip::ParallelGzipReader<ChunkData, /* enable statistics */ false, /* show profile */ false>;
         return decompressParallel(
             std::make_unique<Reader>( std::move( inputFile ), args.decoderParallelism, args.chunkSize ),
             args.indexLoadPath, args.indexSavePath, writeFunctor, args.verbose );
@@ -398,7 +398,15 @@ pragzipCLI( int argc, char** argv )
 
             args.chunkSize = parsedArgs["chunk-size"].as<unsigned int>() * 1_Ki;
 
-            totalBytesRead = decompressParallel<pragzip::ChunkData>( args, std::move( inputFile ), writeAndCount );
+            if ( ( outputFileDescriptor == -1 ) && args.indexSavePath.empty() && countBytes ) {
+                /* Need to do nothing with the chunks because decompressParallel returns the decompressed size. */
+                const auto doNothing = [] ( const auto&, size_t, size_t ) {};
+
+                totalBytesRead = decompressParallel<pragzip::ChunkDataCounter>(
+                    args, std::move( inputFile ), doNothing );
+            } else {
+                totalBytesRead = decompressParallel<pragzip::ChunkData>( args, std::move( inputFile ), writeAndCount );
+            }
         }
 
         const auto writeToStdErr = m_outputFile && m_outputFile->writingToStdout();

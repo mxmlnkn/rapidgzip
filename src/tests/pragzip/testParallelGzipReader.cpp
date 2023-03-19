@@ -326,7 +326,7 @@ testPerformance( const std::string& encodedFilePath,
                  const size_t       bufferSize,
                  const size_t       parallelization )
 {
-    pragzip::ParallelGzipReader</* ENABLE_STATISTICS */ true> reader(
+    pragzip::ParallelGzipReader<pragzip::ChunkData, /* ENABLE_STATISTICS */ true> reader(
         std::make_unique<StandardFileReader>( encodedFilePath ),
         parallelization );
 

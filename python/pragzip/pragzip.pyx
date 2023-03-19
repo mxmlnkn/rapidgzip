@@ -23,7 +23,9 @@ cdef extern from "tools/pragzip.cpp":
     int pragzipCLI(int, char**) except +
 
 cdef extern from "pragzip/ParallelGzipReader.hpp" namespace "pragzip":
-    cppclass ParallelGzipReader[ENABLE_STATISTICS=*, SHOW_PROFILE=*]:
+    cppclass ChunkData
+
+    cppclass ParallelGzipReader[ChunkData, ENABLE_STATISTICS=*, SHOW_PROFILE=*]:
         ParallelGzipReader(string, size_t) except +
         ParallelGzipReader(int, size_t) except +
         ParallelGzipReader(PyObject*, size_t) except +
@@ -52,8 +54,11 @@ cdef extern from "pragzip/ParallelGzipReader.hpp" namespace "pragzip":
     # "true", which does not compile.
     cdef cppclass TrueValue "true":
         pass
+    cdef cppclass PragzipChunkData "pragzip::ChunkData":
+        pass
 
-ctypedef ParallelGzipReader[TrueValue, TrueValue] ParallelGzipReaderVerbose
+ctypedef ParallelGzipReader[PragzipChunkData, TrueValue, TrueValue] ParallelGzipReaderVerbose
+ctypedef ParallelGzipReader[PragzipChunkData] ParallelGzipReaderNonVerbose
 
 
 def _isFileObject(file):
@@ -75,7 +80,7 @@ def _hasValidFileno(file):
         return False
 
 cdef class _PragzipFile():
-    cdef ParallelGzipReader* gzipReader
+    cdef ParallelGzipReaderNonVerbose* gzipReader
     cdef ParallelGzipReaderVerbose* gzipReaderVerbose
 
     def __cinit__(self, file, parallelization, verbose = False):
@@ -103,14 +108,14 @@ cdef class _PragzipFile():
                 self.gzipReaderVerbose = new ParallelGzipReaderVerbose(<string>file.encode(), <int>parallelization)
         else:
             if isinstance(file, int):
-                self.gzipReader = new ParallelGzipReader(<int>file, <int>parallelization)
+                self.gzipReader = new ParallelGzipReaderNonVerbose(<int>file, <int>parallelization)
             elif _hasValidFileno(file):
-                self.gzipReader = new ParallelGzipReader(<int>file.fileno(), <int>parallelization)
+                self.gzipReader = new ParallelGzipReaderNonVerbose(<int>file.fileno(), <int>parallelization)
             elif _isFileObject(file):
-                self.gzipReader = new ParallelGzipReader(<PyObject*>file, <int>parallelization)
+                self.gzipReader = new ParallelGzipReaderNonVerbose(<PyObject*>file, <int>parallelization)
             elif isinstance(file, basestring) and hasattr(file, 'encode'):
                 # Note that BytesIO also is an instance of basestring but fortunately has no encode method!
-                self.gzipReader = new ParallelGzipReader(<string>file.encode(), <int>parallelization)
+                self.gzipReader = new ParallelGzipReaderNonVerbose(<string>file.encode(), <int>parallelization)
 
         if self.gzipReader == NULL and self.gzipReaderVerbose == NULL:
             raise Exception("Expected file name string, file descriptor integer, "
