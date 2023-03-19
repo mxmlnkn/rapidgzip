@@ -6,6 +6,7 @@
 #include <cstring>
 #include <iterator>
 #include <limits>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -455,6 +456,15 @@ DecodedData::cleanUnmarkedData()
 
     shrinkToFit();
 }
+
+
+/**
+ * m pragzip && src/tools/pragzip -v -d -c -P 0 4GiB-base64.gz | wc -c
+ * Non-polymorphic: Decompressed in total 4294967296 B in 1.49444 s -> 2873.96 MB/s
+ * With virtual ~DecodedData() = default: Decompressed in total 4294967296 B in 3.58325 s -> 1198.62 MB/s
+ * I don't know why it happens. Maybe it affects inline of function calls or moves of instances.
+ */
+static_assert( !std::is_polymorphic_v<DecodedData>, "Simply making it polymorphic halves performance!" );
 
 
 #ifdef HAVE_IOVEC
