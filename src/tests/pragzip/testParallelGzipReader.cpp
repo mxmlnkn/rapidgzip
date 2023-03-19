@@ -119,7 +119,6 @@ testParallelDecoder( const std::filesystem::path& encoded,
                      ? std::nullopt
                      : std::make_optional( readGzipIndex( std::make_unique<StandardFileReader>( index.string() ) ) );
     for ( const size_t nBlocksToSkip : { 0, 1, 2, 4, 8, 16, 24, 32, 64, 128 } ) {
-        std::cerr << "  Testing with " << nBlocksToSkip << " blocks to skip\n";
         testParallelDecoder( std::make_unique<StandardFileReader>( encoded.string() ),
                              std::make_unique<StandardFileReader>( decodedFilePath.string() ),
                              indexData,
@@ -360,7 +359,14 @@ testPerformance( const TemporaryDirectory& tmpFolder )
 
         for ( const auto parallelization : { 1, 2, 3, 4, 8 } ) {
             for ( const auto bufferSize : { 64_Mi, 4_Mi, 32_Ki, 1_Ki } ) {
-                testPerformance( encodedFilePath, bufferSize, parallelization );
+                try {
+                    testPerformance( encodedFilePath, bufferSize, parallelization );
+                } catch ( const std::exception& exception ) {
+                    std::cerr << "Caught exception: " << exception.what() << " while trying to test with a base64 "
+                        << "example decompressed with " << parallelization << " threads and "
+                        << formatBytes( bufferSize ) << " buffer.\n";
+                    throw;
+                }
             }
         }
     } catch ( const std::exception& exception ) {
@@ -398,11 +404,21 @@ main( int    argc,
 
     testParallelDecoderNano();
 
-    testParallelDecoder( rootFolder / "empty.gz" );
+    using namespace std::string_literals;
 
-    testParallelDecoder( rootFolder / "base64-256KiB.pgz" );
-
-    testParallelDecoder( rootFolder / "base64-256KiB.bgz" );
+    for ( const auto& extension : { ".gz"s, ".bgz"s, ".igz"s, ".pgz"s } ) {
+        testParallelDecoder( rootFolder / ( "empty" + extension ) );
+        testParallelDecoder( rootFolder / ( "1B" + extension ) );
+        testParallelDecoder( rootFolder / ( "256B-extended-ASCII-table-in-utf8-dynamic-Huffman" + extension ) );
+        testParallelDecoder( rootFolder / ( "256B-extended-ASCII-table-uncompressed" + extension ) );
+        testParallelDecoder( rootFolder / ( "32A-fixed-Huffman" + extension ) );
+        testParallelDecoder( rootFolder / ( "base64-32KiB" + extension ) );
+        testParallelDecoder( rootFolder / ( "base64-256KiB" + extension ) );
+        testParallelDecoder( rootFolder / ( "dolorem-ipsum.txt" + extension ) );
+        testParallelDecoder( rootFolder / ( "numbers-10,65-90" + extension ) );
+        testParallelDecoder( rootFolder / ( "random-128KiB" + extension ) );
+        testParallelDecoder( rootFolder / ( "zeros" + extension ) );
+    }
 
     testParallelDecoder( rootFolder / "base64-256KiB.gz",
                          rootFolder / "base64-256KiB",
