@@ -196,36 +196,22 @@ reverseBitsWithoutLUT( uint64_t data )
 }
 
 
-alignas( 8 ) static constexpr auto REVERSED_8_BITS_LUT =
-    [] () {
-        std::array<uint8_t, 1ULL << std::numeric_limits<uint8_t>::digits> result{};
-        for ( size_t i = 0; i < result.size(); ++i ) {
-            result[i] = reverseBitsWithoutLUT( static_cast<uint8_t>( i ) );
-        }
-        return result;
-    }();
+template<typename T>
+[[nodiscard]] constexpr auto
+createReversedBitsLUT()
+{
+    static_assert( std::is_unsigned_v<T> && std::is_integral_v<T> );
+
+    std::array<T, 1ULL << std::numeric_limits<T>::digits> result{};
+    for ( size_t i = 0; i < result.size(); ++i ) {
+        result[i] = reverseBitsWithoutLUT( static_cast<T>( i ) );
+    }
+    return result;
+}
+
 
 template<typename T>
-alignas( 8 ) static constexpr std::array<uint16_t, 1ULL << std::numeric_limits<uint16_t>::digits> REVERSED_BITS_LUT{};
-
-template<>
-constexpr auto REVERSED_BITS_LUT<uint8_t> = REVERSED_8_BITS_LUT;
-
-template<>
-constexpr auto REVERSED_BITS_LUT<uint16_t> =
-    [] () {
-        constexpr int DIGITS = std::numeric_limits<uint16_t>::digits;
-        std::array<uint16_t, 1ULL << DIGITS> result{};
-
-        for ( size_t i = 0; i < result.size(); ++i ) {
-            auto toReverse = static_cast<uint16_t>( i );
-            for ( size_t j = 0; j < DIGITS; j += 8 ) {
-                result[i] = ( result[i] << 8U ) | REVERSED_8_BITS_LUT[toReverse & 0xFFU];
-                toReverse >>= 8U;
-            }
-        }
-        return result;
-    }();
+alignas( 8 ) static constexpr auto REVERSED_BITS_LUT = createReversedBitsLUT<T>();
 
 
 template<typename T>
