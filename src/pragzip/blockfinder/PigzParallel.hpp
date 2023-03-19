@@ -87,7 +87,7 @@ class PigzParallel final :
     public Interface
 {
 public:
-    using DeflateBlock = pragzip::deflate::Block</* CRC32 */ false>;
+    using DeflateBlock = pragzip::deflate::Block<>;
 
     /**
      * Should probably be larger than the I/O block size of 4096 B and smaller than most L1 cache sizes.

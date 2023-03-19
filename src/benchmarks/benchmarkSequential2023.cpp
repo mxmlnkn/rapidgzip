@@ -406,7 +406,7 @@ benchmarkDynamicBlockFinderZlib()
 [[nodiscard]] std::pair<double, uint64_t>
 findDeflateBlocksPragzip( const std::vector<char>& buffer )
 {
-    using DeflateBlock = pragzip::deflate::Block</* CRC32 */ false>;
+    using DeflateBlock = pragzip::deflate::Block<>;
 
     const auto nBitsToTest = buffer.size() * CHAR_BIT;
     pragzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( buffer ) );
@@ -461,7 +461,7 @@ benchmarkDynamicBlockFinderPragzip()
 [[nodiscard]] std::pair<double, uint64_t>
 findDeflateBlocksPragzipLUT( const std::vector<char>& buffer )
 {
-    using DeflateBlock = pragzip::deflate::Block</* CRC32 */ false>;
+    using DeflateBlock = pragzip::deflate::Block<>;
     constexpr auto CACHED_BIT_COUNT = pragzip::blockfinder::OPTIMAL_NEXT_DEFLATE_LUT_SIZE;
 
     /* Testing a dozen positions less should not make a difference but avoid EOF exceptions. */

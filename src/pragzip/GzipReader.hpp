@@ -11,6 +11,7 @@
 #include <stdexcept>
 #include <utility>
 
+#include <crc32.hpp>
 #include <DecodedDataView.hpp>
 #include <FileUtils.hpp>
 #include <filereader/FileReader.hpp>
@@ -39,12 +40,11 @@ enum StoppingPoint : uint32_t
  * A strictly sequential gzip interface that can iterate over multiple gzip streams and of course deflate blocks.
  * It cannot seek back nor is it parallelized but it can be used to implement a parallelization scheme.
  */
-template<bool CALCULATE_CRC32 = false>
 class GzipReader :
     public FileReader
 {
 public:
-    using DeflateBlock = typename deflate::Block<CALCULATE_CRC32>;
+    using DeflateBlock = typename deflate::Block<>;
     using WriteFunctor = std::function<void ( const void*, uint64_t )>;
 
 public:
@@ -155,13 +155,11 @@ public:
         return read( -1, outputBuffer, nBytesToRead );
     }
 
-
     /* Gzip specific methods */
 
     /**
-     * @return number of processed bits of compressed bzip2 input file stream
-     * @note Bzip2 is block based and blocks are currently read fully, meaning that the granularity
-     *       of the returned position is ~100-900kB. It's only useful for a rough estimate.
+     * @return number of processed bits of compressed input file stream.
+     * @note It's only useful for a rough estimate because of buffering and because deflate is block based.
      */
     [[nodiscard]] size_t
     tellCompressed() const
@@ -284,6 +282,12 @@ public:
         return nBytesDecoded;
     }
 
+    void
+    setCRC32Enabled( bool enabled )
+    {
+        m_crc32Calculator.setEnabled( enabled );
+    }
+
 private:
     /**
      * @note Only to be used by readBlock!
@@ -332,6 +336,7 @@ private:
         m_currentDeflateBlock->setInitialWindow();
         m_streamBytesCount = 0;
         m_currentPoint = StoppingPoint::END_OF_STREAM_HEADER;
+        m_crc32Calculator.reset();
     }
 
     void
@@ -350,13 +355,12 @@ private:
                || ( bufferHasBeenFlushed() && m_currentDeflateBlock->eos() );
     }
 
-protected:
+private:
     pragzip::BitReader m_bitReader;
 
     size_t m_currentPosition{ 0 }; /** the current position as can only be modified with read or seek calls. */
     bool m_atEndOfFile{ false };
 
-private:
     pragzip::gzip::Header m_lastGzipHeader;
     /**
      * The deflate block will be reused during a gzip stream because each block depends on the last output
@@ -381,13 +385,14 @@ private:
      * I.e., things which would not be necessary with coroutines supports. This optional has no value
      * iff there is no current deflate block or if we have read all data from it already. */
     std::optional<size_t> m_offsetInLastBuffers;
+
+    CRC32Calculator m_crc32Calculator;
 };
 
 
-template<bool CALCULATE_CRC32>
 inline size_t
-GzipReader<CALCULATE_CRC32>::flushOutputBuffer( const WriteFunctor& writeFunctor,
-                                                const size_t        maxBytesToFlush )
+GzipReader::flushOutputBuffer( const WriteFunctor& writeFunctor,
+                               const size_t        maxBytesToFlush )
 {
     if ( !m_offsetInLastBuffers.has_value()
          || !m_currentDeflateBlock.has_value()
@@ -401,6 +406,8 @@ GzipReader<CALCULATE_CRC32>::flushOutputBuffer( const WriteFunctor& writeFunctor
         if ( ( *m_offsetInLastBuffers >= bufferOffset ) && ( *m_offsetInLastBuffers < bufferOffset + buffer.size() ) ) {
             const auto offsetInBuffer = *m_offsetInLastBuffers - bufferOffset;
             const auto nBytesToWrite = std::min( buffer.size() - offsetInBuffer, maxBytesToFlush - totalBytesFlushed );
+
+            m_crc32Calculator.update( reinterpret_cast<const char*>( buffer.data() + offsetInBuffer ), nBytesToWrite );
 
             if ( writeFunctor ) {
                 writeFunctor( buffer.data() + offsetInBuffer, nBytesToWrite );
@@ -426,10 +433,9 @@ GzipReader<CALCULATE_CRC32>::flushOutputBuffer( const WriteFunctor& writeFunctor
 }
 
 
-template<bool CALCULATE_CRC32>
 inline size_t
-GzipReader<CALCULATE_CRC32>::readBlock( const WriteFunctor& writeFunctor,
-                                        const size_t        nMaxBytesToDecode )
+GzipReader::readBlock( const WriteFunctor& writeFunctor,
+                       const size_t        nMaxBytesToDecode )
 {
     if ( eof() || ( nMaxBytesToDecode == 0 ) ) {
         return 0;
@@ -487,9 +493,8 @@ GzipReader<CALCULATE_CRC32>::readBlock( const WriteFunctor& writeFunctor,
 }
 
 
-template<bool CALCULATE_CRC32>
 inline void
-GzipReader<CALCULATE_CRC32>::readGzipFooter()
+GzipReader::readGzipFooter()
 {
     const auto footer = pragzip::gzip::readFooter( m_bitReader );
 
@@ -505,12 +510,7 @@ GzipReader<CALCULATE_CRC32>::readGzipFooter()
         throw std::logic_error( "Call readGzipHeader and readBlockHeader before readGzipFooter!" );
     }
 
-    if ( ( m_currentDeflateBlock->crc32() != 0 ) && ( m_currentDeflateBlock->crc32() != footer.crc32 ) ) {
-        std::stringstream message;
-        message << "Mismatching CRC32 (0x" << std::hex << m_currentDeflateBlock->crc32()
-                << " <-> stored: 0x" << footer.crc32 << ") for gzip stream!";
-        throw std::domain_error( std::move( message ).str() );
-    }
+    m_crc32Calculator.verify( footer.crc32 );
 
     if ( m_bitReader.eof() ) {
         m_atEndOfFile = true;

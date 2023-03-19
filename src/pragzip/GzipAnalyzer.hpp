@@ -21,6 +21,7 @@
     #include <filereader/Python.hpp>
 #endif
 
+#include "crc32.hpp"
 #include "deflate.hpp"
 #include "Error.hpp"
 
@@ -31,7 +32,7 @@ namespace pragzip::deflate
 analyze( std::unique_ptr<FileReader> inputFile )
 {
     using namespace pragzip;
-    using Block = pragzip::deflate::Block</* CRC32 */ false, /* Statistics */ true>;
+    using Block = pragzip::deflate::Block</* Statistics */ true>;
 
     pragzip::BitReader bitReader{ std::move( inputFile ) };
 
@@ -60,6 +61,8 @@ analyze( std::unique_ptr<FileReader> inputFile )
     std::map<std::vector<uint8_t>, size_t> distanceCodings;
     std::map<std::vector<uint8_t>, size_t> literalCodings;
 
+    CRC32Calculator crc32Calculator;
+
     while ( true ) {
         #ifdef WITH_PYTHON_SUPPORT
             checkPythonSignalHandlers();
@@ -75,6 +78,7 @@ analyze( std::unique_ptr<FileReader> inputFile )
                 return error;
             }
 
+            crc32Calculator.reset();
             gzipHeader = header;
             block.setInitialWindow();
 
@@ -140,8 +144,7 @@ analyze( std::unique_ptr<FileReader> inputFile )
             const auto [buffers, error] = block.read( bitReader, std::numeric_limits<size_t>::max() );
             const auto nBytesRead = buffers.size();
             if ( error != Error::NONE ) {
-                std::cerr << "Encountered error: " << toString( error )
-                          << " while decompressing deflate block.\n";
+                std::cerr << "Encountered error: " << toString( error ) << " while decompressing deflate block.\n";
             }
             totalBytesRead += nBytesRead;
             streamBytesRead += nBytesRead;
@@ -149,6 +152,10 @@ analyze( std::unique_ptr<FileReader> inputFile )
             /* No output necessary for analysis. */
 
             uncompressedBlockSize += nBytesRead;
+
+            for ( const auto& buffer : buffers.data ) {
+                crc32Calculator.update( reinterpret_cast<const char*>( buffer.data() ), buffer.size() );
+            }
         }
 
         /* Analysis Information */
@@ -269,16 +276,8 @@ analyze( std::unique_ptr<FileReader> inputFile )
                 throw std::runtime_error( std::move( message ).str() );
             }
 
-            if ( ( block.crc32() != 0 ) && ( block.crc32() != footer.crc32 ) ) {
-                std::stringstream message;
-                message << "Mismatching CRC32 (0x" << std::hex << block.crc32() << " <-> stored: 0x" << footer.crc32
-                        << ") for gzip stream!";
-            }
-
-            if ( block.crc32() != 0 ) {
-                std::stringstream message;
-                message << "Validated CRC32 0x" << std::hex << block.crc32() << " for gzip stream!\n";
-                std::cerr << message.str();
+            if ( crc32Calculator.verify( footer.crc32 ) ) {
+                std::cerr << "Validated CRC32 0x" << std::hex << crc32Calculator.crc32() << " for gzip stream!\n";
             }
 
             gzipHeader = {};

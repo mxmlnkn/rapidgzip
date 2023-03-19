@@ -770,7 +770,7 @@ private:
         size_t totalBytesRead = 0;
         std::optional<gzip::Header> gzipHeader;
 
-        std::optional<deflate::Block</* CRC32 */ false> > block;
+        std::optional<deflate::Block<> > block;
         block.emplace();
         if ( initialWindow ) {
             block->setInitialWindow( *initialWindow );
@@ -866,13 +866,6 @@ private:
                         std::stringstream message;
                         message << "Mismatching size (" << streamBytesRead << " <-> footer: "
                                 << footer.uncompressedSize << ") for gzip stream!";
-                        throw std::runtime_error( std::move( message ).str() );
-                    }
-
-                    if ( ( block->crc32() != 0 ) && ( block->crc32() != footer.crc32 ) ) {
-                        std::stringstream message;
-                        message << "Mismatching CRC32 (0x" << std::hex << block->crc32() << " <-> stored: 0x"
-                                << footer.crc32 << ") for gzip stream!";
                         throw std::runtime_error( std::move( message ).str() );
                     }
                 }

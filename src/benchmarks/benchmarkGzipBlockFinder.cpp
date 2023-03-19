@@ -563,7 +563,7 @@ findDeflateBlocksZlibOptimized( BufferedFileReader::AlignedBuffer buffer )
 [[nodiscard]] std::vector<size_t>
 findDeflateBlocksPragzip( BufferedFileReader::AlignedBuffer buffer )
 {
-    using DeflateBlock = pragzip::deflate::Block</* CRC32 */ false>;
+    using DeflateBlock = pragzip::deflate::Block<>;
 
     const auto nBitsToTest = buffer.size() * CHAR_BIT;
     pragzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( buffer ) ) );
@@ -1212,7 +1212,7 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
 
     size_t offsetsTestedMoreInDepth{ 0 };
     std::unordered_map<pragzip::Error, uint64_t> errorCounts;
-    pragzip::deflate::Block</* CRC32 */ false, /* enable analysis */ true> block;
+    pragzip::deflate::Block</* enable analysis */ true> block;
     size_t checkPrecodeFails{ 0 };
     size_t passedDeflateHeaderTest{ 0 };
     for ( size_t offset = 0; offset <= nBitsToTest; ) {

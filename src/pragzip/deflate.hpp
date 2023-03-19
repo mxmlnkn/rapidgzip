@@ -31,7 +31,6 @@
 #include <HuffmanCodingReversedBitsCached.hpp>
 #include <HuffmanCodingReversedCodesPerLength.hpp>
 
-#include "crc32.hpp"
 #include "DecodedDataView.hpp"
 #include "definitions.hpp"
 #include "Error.hpp"
@@ -396,8 +395,7 @@ public:
  * Silesia contains a lot of 258 length back-references with distance 1, which could be replaced with memset
  * with the last byte.
  */
-template<bool CALCULATE_CRC32 = false,
-         bool ENABLE_STATISTICS = false>
+template<bool ENABLE_STATISTICS = false>
 class Block :
     public BlockStatistics
 {
@@ -473,13 +471,6 @@ public:
     {
         return m_window;
     }
-
-    [[nodiscard]] constexpr uint32_t
-    crc32() const noexcept
-    {
-        return ~m_crc32;
-    }
-
 
     [[nodiscard]] constexpr size_t
     uncompressedSize() const noexcept
@@ -637,7 +628,6 @@ private:
     }
 
 private:
-    uint32_t m_crc32 = ~uint32_t( 0 );
     uint16_t m_uncompressedSize = 0;
 
 private:
@@ -696,11 +686,10 @@ private:
 };
 
 
-template<bool CALCULATE_CRC32,
-         bool ENABLE_STATISTICS>
+template<bool ENABLE_STATISTICS>
 template<bool treatLastBlockAsError>
 Error
-Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readHeader( BitReader& bitReader )
+Block<ENABLE_STATISTICS>::readHeader( BitReader& bitReader )
 {
     m_isLastBlock = bitReader.read<1>();
     if constexpr ( treatLastBlockAsError ) {
@@ -752,10 +741,9 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readHeader( BitReader& bitReader )
 
 
 
-template<bool CALCULATE_CRC32,
-         bool ENABLE_STATISTICS>
+template<bool ENABLE_STATISTICS>
 Error
-Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& bitReader )
+Block<ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& bitReader )
 {
     if constexpr ( ENABLE_STATISTICS ) {
         times.readDynamicStart = now();
@@ -869,11 +857,10 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& 
 }
 
 
-template<bool CALCULATE_CRC32,
-         bool ENABLE_STATISTICS>
+template<bool ENABLE_STATISTICS>
 uint16_t
-Block<CALCULATE_CRC32, ENABLE_STATISTICS>::getLength( uint16_t   code,
-                                                      BitReader& bitReader )
+Block<ENABLE_STATISTICS>::getLength( uint16_t   code,
+                                     BitReader& bitReader )
 {
     if ( code <= 264 ) {
         return code - 257U + 3U;
@@ -889,10 +876,9 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::getLength( uint16_t   code,
 }
 
 
-template<bool CALCULATE_CRC32,
-         bool ENABLE_STATISTICS>
+template<bool ENABLE_STATISTICS>
 std::pair<uint16_t, Error>
-Block<CALCULATE_CRC32, ENABLE_STATISTICS>::getDistance( BitReader& bitReader ) const
+Block<ENABLE_STATISTICS>::getDistance( BitReader& bitReader ) const
 {
     uint16_t distance = 0;
     if ( m_compressionType == CompressionType::FIXED_HUFFMAN ) {
@@ -919,11 +905,10 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::getDistance( BitReader& bitReader ) c
 }
 
 
-template<bool CALCULATE_CRC32,
-         bool ENABLE_STATISTICS>
+template<bool ENABLE_STATISTICS>
 std::pair<DecodedDataView, Error>
-Block<CALCULATE_CRC32, ENABLE_STATISTICS>::read( BitReader& bitReader,
-                                                 size_t     nMaxToDecode )
+Block<ENABLE_STATISTICS>::read( BitReader& bitReader,
+                                size_t     nMaxToDecode )
 {
     if ( eob() ) {
         return { {}, Error::NONE };
@@ -992,14 +977,6 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::read( BitReader& bitReader,
 
             result.data = lastBuffers( m_window, m_windowPosition, *nBytesRead );
 
-            if constexpr ( CALCULATE_CRC32 ) {
-                for ( const auto& buffer : result.data ) {
-                    for ( size_t i = 0; i < buffer.size(); ++i ) {
-                        m_crc32 = updateCRC32( m_crc32, buffer[i] );
-                    }
-                }
-            }
-
             if constexpr ( ENABLE_STATISTICS ) {
                 durations.readData += duration( times.readDataStart );
             }
@@ -1038,18 +1015,13 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::read( BitReader& bitReader,
 }
 
 
-template<bool CALCULATE_CRC32,
-         bool ENABLE_STATISTICS>
+template<bool ENABLE_STATISTICS>
 template<typename Window>
 inline void
-Block<CALCULATE_CRC32, ENABLE_STATISTICS>::appendToWindow( Window&                     window,
-                                                           typename Window::value_type decodedSymbol )
+Block<ENABLE_STATISTICS>::appendToWindow( Window&                     window,
+                                          typename Window::value_type decodedSymbol )
 {
     constexpr bool containsMarkerBytes = std::is_same_v<std::decay_t<typename Window::value_type>, uint16_t>;
-
-    if constexpr ( CALCULATE_CRC32 && !containsMarkerBytes ) {
-        m_crc32 = updateCRC32( m_crc32, decodedSymbol );
-    }
 
     if constexpr ( containsMarkerBytes ) {
         if ( decodedSymbol > std::numeric_limits<uint8_t>::max() ) {
@@ -1065,13 +1037,12 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::appendToWindow( Window&              
 }
 
 
-template<bool CALCULATE_CRC32,
-         bool ENABLE_STATISTICS>
+template<bool ENABLE_STATISTICS>
 template<typename Window>
 std::pair<size_t, Error>
-Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readInternal( BitReader& bitReader,
-                                                         size_t     nMaxToDecode,
-                                                         Window&    window )
+Block<ENABLE_STATISTICS>::readInternal( BitReader& bitReader,
+                                        size_t     nMaxToDecode,
+                                        Window&    window )
 {
     if ( m_compressionType == CompressionType::UNCOMPRESSED ) {
         /* This does not take into account nMaxToDecode to avoid additional state to keep track off. */
@@ -1085,12 +1056,11 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readInternal( BitReader& bitReader,
 }
 
 
-template<bool CALCULATE_CRC32,
-         bool ENABLE_STATISTICS>
+template<bool ENABLE_STATISTICS>
 template<typename Window>
 std::pair<size_t, Error>
-Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readInternalUncompressed( BitReader& bitReader,
-                                                                     Window&    window )
+Block<ENABLE_STATISTICS>::readInternalUncompressed( BitReader& bitReader,
+                                                    Window&    window )
 {
     /**
      * Because the non-compressed deflate block size is 16-bit, the uncompressed data is limited to 65535 B!
@@ -1129,15 +1099,14 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readInternalUncompressed( BitReader& 
 }
 
 
-template<bool CALCULATE_CRC32,
-         bool ENABLE_STATISTICS>
+template<bool ENABLE_STATISTICS>
 template<typename Window,
          typename HuffmanCoding>
 std::pair<size_t, Error>
-Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readInternalCompressed( BitReader&           bitReader,
-                                                                   size_t               nMaxToDecode,
-                                                                   Window&              window,
-                                                                   const HuffmanCoding& coding )
+Block<ENABLE_STATISTICS>::readInternalCompressed( BitReader&           bitReader,
+                                                  size_t               nMaxToDecode,
+                                                  Window&              window,
+                                                  const HuffmanCoding& coding )
 {
     if ( !coding.isValid() ) {
         throw std::invalid_argument( "No Huffman coding loaded! Call readHeader first!" );
@@ -1220,10 +1189,9 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readInternalCompressed( BitReader&   
 
 
 
-template<bool CALCULATE_CRC32,
-         bool ENABLE_STATISTICS>
+template<bool ENABLE_STATISTICS>
 void
-Block<CALCULATE_CRC32, ENABLE_STATISTICS>::setInitialWindow( VectorView<uint8_t> const& initialWindow )
+Block<ENABLE_STATISTICS>::setInitialWindow( VectorView<uint8_t> const& initialWindow )
 {
     if ( !m_containsMarkerBytes ) {
         return;

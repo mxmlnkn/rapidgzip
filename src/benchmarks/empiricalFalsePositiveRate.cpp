@@ -273,7 +273,7 @@ public:
     // NOLINTBEGIN(misc-non-private-member-variables-in-classes)
     // NOLINTBEGIN(cppcoreguidelines-non-private-member-variables-in-classes)
 
-    pragzip::deflate::Block</* CRC32 */ false, /* enable analysis */ true> block;
+    pragzip::deflate::Block</* enable analysis */ true> block;
 
     const size_t experimentCount;
 

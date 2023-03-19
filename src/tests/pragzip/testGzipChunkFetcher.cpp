@@ -26,7 +26,7 @@ using namespace pragzip;
 getBlockOffset( const std::string& filePath,
                 size_t             blockIndex )
 {
-    GzipReader</* CRC32 */ false> gzipReader( std::make_unique<StandardFileReader>( filePath ) );
+    GzipReader gzipReader( std::make_unique<StandardFileReader>( filePath ) );
     for ( size_t i = 0; ( i <= blockIndex ) && !gzipReader.eof(); ++i ) {
         [[maybe_unused]] const auto nBytesRead =
             gzipReader.read( -1, nullptr, std::numeric_limits<size_t>::max(),
