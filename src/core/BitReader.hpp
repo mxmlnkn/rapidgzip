@@ -469,6 +469,14 @@ public:
         return m_bufferRefillCount;
     }
 
+    void
+    setStatisticsEnabled( bool enabled )
+    {
+        if ( auto* const sharedFile = dynamic_cast<SharedFileReader*>( m_file.get() ); sharedFile != nullptr ) {
+            sharedFile->setStatisticsEnabled( enabled );
+        }
+    }
+
 private:
     [[nodiscard]] size_t
     tellBuffer() const

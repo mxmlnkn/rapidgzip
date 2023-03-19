@@ -21,9 +21,6 @@
 class SharedFileReader final :
     public FileReader
 {
-public:
-    static constexpr bool SHOW_PROFILE{ false };
-
 private:
     /**
      * Create a new shared file reader from an existing FileReader. Takes ownership of the given FileReader!
@@ -31,7 +28,7 @@ private:
     explicit
     SharedFileReader( FileReader* file ) :
         m_statistics( dynamic_cast<SharedFileReader*>( file ) == nullptr
-                      ? ( SHOW_PROFILE ? std::make_shared<AccessStatistics>() : std::shared_ptr<AccessStatistics>() )
+                      ? std::shared_ptr<AccessStatistics>()
                       : dynamic_cast<SharedFileReader*>( file )->m_statistics ),
         m_mutex( dynamic_cast<SharedFileReader*>( file ) == nullptr
                  ? std::make_shared<std::mutex>()
@@ -80,22 +77,21 @@ public:
 
     ~SharedFileReader()
     {
-        if constexpr ( SHOW_PROFILE ) {
-            if ( m_statistics.use_count() == 1 ) {
-                std::cerr << ( ThreadSafeOutput()
-                    << "[SharedFileReader::~SharedFileReader]\n"
-                    << "   seeks back    : (" << m_statistics->seekBack.formatAverageWithUncertainty( true )
-                    << " ) B (" << m_statistics->seekBack.count << "calls)\n"
-                    << "   seeks forward : (" << m_statistics->seekForward.formatAverageWithUncertainty( true )
-                    << " ) B (" << m_statistics->seekForward.count << "calls)\n"
-                    << "   reads         : (" << m_statistics->read.formatAverageWithUncertainty( true )
-                    << " ) B (" << m_statistics->read.count << "calls)\n"
-                    << "   locks         :" << m_statistics->locks << "\n"
-                    << "   read in total" << m_statistics->read.sum << "B out of" << m_fileSizeBytes << "B,"
-                    << "i.e., read the file" << m_statistics->read.sum / m_fileSizeBytes << "times\n"
-                    << "   time spent seeking and reading:" << m_statistics->readingTime << "s\n"
-                );
-            }
+        if ( m_statistics && ( m_statistics.use_count() == 1 ) ) {
+            std::cerr << ( ThreadSafeOutput()
+                << "[SharedFileReader::~SharedFileReader]\n"
+                << "   seeks back    : (" << m_statistics->seekBack.formatAverageWithUncertainty( true )
+                << " ) B (" << m_statistics->seekBack.count << "calls )\n"
+                << "   seeks forward : (" << m_statistics->seekForward.formatAverageWithUncertainty( true )
+                << " ) B (" << m_statistics->seekForward.count << "calls )\n"
+                << "   reads         : (" << m_statistics->read.formatAverageWithUncertainty( true )
+                << " ) B (" << m_statistics->read.count << "calls )\n"
+                << "   locks         :" << m_statistics->locks << "\n"
+                << "   read in total" << static_cast<uint64_t>( m_statistics->read.sum )
+                << "B out of" << m_fileSizeBytes << "B,"
+                << "i.e., read the file" << m_statistics->read.sum / m_fileSizeBytes << "times\n"
+                << "   time spent seeking and reading:" << m_statistics->readingTime << "s\n"
+            );
         }
     }
 
@@ -106,6 +102,16 @@ public:
     clone() const override
     {
         return new SharedFileReader( *this );
+    }
+
+    void
+    setStatisticsEnabled( bool enabled )
+    {
+        if ( enabled && !m_statistics ) {
+            m_statistics = std::make_shared<AccessStatistics>();
+        } else if ( !enabled && m_statistics ) {
+            m_statistics.reset();
+        }
     }
 
 private:
@@ -235,7 +241,7 @@ public:
         {
             const auto fileLock = getLock();
 
-            if constexpr ( SHOW_PROFILE ) {
+            if ( m_statistics ) {
                 const std::scoped_lock lock{ m_statistics->mutex };
                 const auto oldOffset = m_sharedFile->tell();
                 if ( m_currentPosition > oldOffset ) {
@@ -251,7 +257,7 @@ public:
             nBytesRead = m_sharedFile->read( buffer, nMaxBytesToRead );
         }
 
-        if constexpr ( SHOW_PROFILE ) {
+        if ( m_statistics ) {
             const std::scoped_lock lock{ m_statistics->mutex };
             m_statistics->read.merge( nBytesRead );
             m_statistics->readingTime += duration( t0 );
@@ -279,7 +285,7 @@ private:
     [[nodiscard]] std::scoped_lock<std::mutex>
     getLock() const
     {
-        if constexpr ( SHOW_PROFILE ) {
+        if ( m_statistics ) {
             ++m_statistics->locks;
         }
         return std::scoped_lock( *m_mutex );

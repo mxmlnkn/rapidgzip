@@ -204,6 +204,7 @@ public:
             }
         )
     {
+        m_bitReader.setStatisticsEnabled( ENABLE_STATISTICS && SHOW_PROFILE );
         if ( !m_bitReader.seekable() ) {
             throw std::invalid_argument( "Parallel BZ2 Reader will not work on non-seekable input like stdin (yet)!" );
         }
