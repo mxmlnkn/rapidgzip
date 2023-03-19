@@ -381,7 +381,7 @@ public:
             }
             const auto& [blockInfo, chunkData] = *blockResult;
 
-            if ( !chunkData->dataWithMarkers.empty() ) {
+            if ( chunkData->containsMarkers() ) {
                 throw std::logic_error( "Did not expect to get results with markers!" );
             }
 
@@ -399,10 +399,6 @@ public:
                         << ", block data size: " << formatBytes( chunkData->decodedSizeInBytes )
                         << " markers: " << chunkData->dataWithMarkersSize();
                 throw std::logic_error( std::move( message ).str() );
-            }
-
-            if ( chunkData->data.empty() ) {
-                throw std::logic_error( "Did not expect empty block. Cannot proceed!" );
             }
 
         #ifdef WITH_PYTHON_SUPPORT
@@ -785,7 +781,4 @@ private:
     std::shared_ptr<WindowMap> const m_windowMap{ std::make_shared<WindowMap>() };
     std::unique_ptr<ChunkFetcher>    m_chunkFetcher;
 };
-
-
-using ParallelGzipReaderWithDebugOutput = ParallelGzipReader<true, true>;
 }  // namespace pragzip

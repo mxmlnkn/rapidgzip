@@ -59,7 +59,7 @@ struct ChunkData :
 
 public:
     [[nodiscard]] bool
-    matchesEncodedOffset( size_t offset )
+    matchesEncodedOffset( size_t offset ) const noexcept
     {
         if ( maxEncodedOffsetInBits == std::numeric_limits<size_t>::max() ) {
             return offset == encodedOffsetInBits;
@@ -87,6 +87,30 @@ public:
     [[nodiscard]] constexpr size_t
     dataSize() const noexcept = delete;
 
+    /**
+     * Appends a deflate block boundary.
+     */
+    void
+    appendDeflateBlockBoundary( const size_t encodedOffset,
+                                const size_t decodedOffset )
+    {
+        blockBoundaries.emplace_back( BlockBoundary{ encodedOffset, decodedOffset } );
+    }
+
+    /**
+     * Appends gzip footer information at the given offset.
+     */
+    void
+    appendFooter( const size_t encodedOffset,
+                  const size_t decodedOffset,
+                  gzip::Footer footer )
+    {
+        typename ChunkData::Footer footerResult;
+        footerResult.blockBoundary = { encodedOffset, decodedOffset };
+        footerResult.gzipFooter = footer;
+        footers.emplace_back( footerResult );
+    }
+
 public:
     /* This should only be evaluated when it is unequal std::numeric_limits<size_t>::max() and unequal
      * Base::encodedOffsetInBits. Then, [Base::encodedOffsetInBits, maxEncodedOffsetInBits] specifies a valid range
@@ -95,7 +119,7 @@ public:
     size_t maxEncodedOffsetInBits{ std::numeric_limits<size_t>::max() };
     /* Initialized with size() after thread has finished writing into ChunkData. Redundant but avoids a lock
      * because the marker replacement will momentarily lead to different results returned by size! */
-    size_t decodedSizeInBytes{ std::numeric_limits<size_t>::max() };
+    size_t decodedSizeInBytes{ 0 };
 
     /* Decoded offsets are relative to the decoded offset of this ChunkData because that might not be known
      * during first-pass decompression. */

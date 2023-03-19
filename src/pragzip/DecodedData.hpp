@@ -135,6 +135,21 @@ public:
         return dataSize() * sizeof( uint8_t ) + dataWithMarkersSize() * sizeof( uint16_t );
     }
 
+    /**
+     * This is used to determine whether it is necessary to call applyWindow.
+     * Testing for @ref dataWithMarkers.empty() is not sufficient because markers could be contained
+     * in other members for derived classes! In that case @ref containsMarkers will be overriden.
+     */
+    [[nodiscard]] bool
+    containsMarkers() const noexcept
+    {
+        return !dataWithMarkers.empty();
+    }
+
+    /**
+     * Replaces all 16-bit wide marker symbols by looking up the referenced 8-bit symbols in @p window.
+     * @note Probably should not be called internally because it is allowed to be shadowed by a child class method.
+     */
     void
     applyWindow( WindowView const& window );
 
@@ -169,7 +184,7 @@ public:
     }
 
     /**
-     * Check decoded blocks that account for possible markers whether they actually contain markers and if not so
+     * Check decoded blocks that account for possible markers whether they actually contain markers and, if not so,
      * convert and move them to actual decoded data.
      */
     void

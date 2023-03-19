@@ -210,7 +210,7 @@ private:
         using namespace std::chrono_literals;
 
         auto markerReplaceFuture = m_markersBeingReplaced.find( chunkData->encodedOffsetInBits );
-        if ( ( markerReplaceFuture == m_markersBeingReplaced.end() ) && chunkData->dataWithMarkers.empty() ) {
+        if ( ( markerReplaceFuture == m_markersBeingReplaced.end() ) && !chunkData->containsMarkers() ) {
             return;
         }
 
@@ -266,7 +266,7 @@ private:
             const auto chunkData = cacheElements.at( triedStartOffset );
 
             /* Ignore ready blocks. */
-            if ( chunkData->dataWithMarkers.empty() )  {
+            if ( !chunkData->containsMarkers() )  {
                 continue;
             }
 
@@ -832,7 +832,7 @@ private:
              * offset as @ref result and it also would have the same problem that the real offset is ambiguous
              * for non-compressed blocks. */
             if ( totalBytesRead > 0 ) {
-                result.blockBoundaries.emplace_back( ChunkData::BlockBoundary{ nextBlockOffset, totalBytesRead } );
+                result.appendDeflateBlockBoundary( nextBlockOffset, totalBytesRead );
             }
 
             /* Loop until we have read the full contents of the current deflate block-> */
@@ -874,10 +874,7 @@ private:
                     }
                 }
 
-                ChunkData::Footer footerResult;
-                footerResult.blockBoundary = ChunkData::BlockBoundary{ footerOffset, totalBytesRead };
-                footerResult.gzipFooter = footer;
-                result.footers.emplace_back( footerResult );
+                result.appendFooter( footerOffset, totalBytesRead, footer );
 
                 isAtStreamEnd = true;
                 gzipHeader = {};
