@@ -21,8 +21,6 @@
 #include <BitManipulation.hpp>
 #include <common.hpp>
 #include <filereader/FileReader.hpp>
-#include <filereader/Standard.hpp>
-#include <filereader/Shared.hpp>
 
 
 /**
@@ -84,9 +82,7 @@ public:
 public:
     explicit
     BitReader( std::unique_ptr<FileReader> fileReader ) :
-        m_file( dynamic_cast<SharedFileReader*>( fileReader.get() ) == nullptr
-                ? std::unique_ptr<FileReader>( std::make_unique<SharedFileReader>( std::move( fileReader ) ) )
-                : std::move( fileReader ) )
+        m_file( std::move( fileReader ) )
     {}
 
     BitReader( BitReader&& other ) = default;
@@ -102,12 +98,6 @@ public:
             throw std::invalid_argument( "Copying BitReader to unseekable file not supported yet!" );
         }
         seek( other.tell() );
-    }
-
-    [[nodiscard]] std::unique_ptr<FileReader>
-    cloneSharedFileReader() const
-    {
-        return std::unique_ptr<FileReader>( m_file->clone() );
     }
 
     /* File Reader Interface Implementation */
@@ -467,14 +457,6 @@ public:
     bufferRefillCount() const
     {
         return m_bufferRefillCount;
-    }
-
-    void
-    setStatisticsEnabled( bool enabled )
-    {
-        if ( auto* const sharedFile = dynamic_cast<SharedFileReader*>( m_file.get() ); sharedFile != nullptr ) {
-            sharedFile->setStatisticsEnabled( enabled );
-        }
     }
 
 private:

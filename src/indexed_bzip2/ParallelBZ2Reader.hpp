@@ -19,6 +19,7 @@
 #include <BlockMap.hpp>
 #include <common.hpp>
 #include <filereader/FileReader.hpp>
+#include <filereader/Shared.hpp>
 #include <ParallelBitStringFinder.hpp>
 
 #include "BZ2BlockFetcher.hpp"
@@ -27,6 +28,7 @@
 
 #ifdef WITH_PYTHON_SUPPORT
     #include <filereader/Python.hpp>
+    #include <filereader/Standard.hpp>
 #endif
 
 
@@ -47,14 +49,14 @@ public:
     explicit
     ParallelBZ2Reader( std::unique_ptr<FileReader> fileReader,
                        size_t                      parallelization = 0 ) :
-        m_bitReader( std::move( fileReader ) ),
+        m_sharedFileReader( ensureSharedFileReader( std::move( fileReader ) ) ),
         m_fetcherParallelization( parallelization == 0 ? availableCores() : parallelization ),
         m_startBlockFinder(
             [&] ()
             {
                 return std::make_shared<BlockFinder>(
                     std::make_unique<ParallelBitStringFinder<bzip2::MAGIC_BITS_SIZE> >(
-                        m_bitReader.cloneSharedFileReader(),
+                        std::unique_ptr<FileReader>( m_sharedFileReader->clone() ),
                         bzip2::MAGIC_BITS_BLOCK,
                         m_finderParallelization
                 ) );
@@ -485,7 +487,8 @@ private:
     }
 
 private:
-    BitReader m_bitReader;
+    const std::unique_ptr<SharedFileReader> m_sharedFileReader;
+    BitReader m_bitReader{ std::unique_ptr<FileReader>( m_sharedFileReader->clone() ) };
 
     size_t m_currentPosition = 0; /**< the current position as can only be modified with read or seek calls. */
     bool m_atEndOfFile = false;
