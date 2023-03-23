@@ -5,12 +5,15 @@
 [![PyPI version](https://badge.fury.io/py/indexed-bzip2.svg)](https://badge.fury.io/py/indexed-bzip2)
 [![Python Version](https://img.shields.io/pypi/pyversions/indexed_bzip2)](https://pypi.org/project/indexed-bzip2/)
 [![PyPI Platforms](https://img.shields.io/badge/pypi-linux%20%7C%20macOS%20%7C%20Windows-brightgreen)](https://pypi.org/project/indexed-bzip2/)
-[![Conda Platforms](https://img.shields.io/conda/pn/mxmlnkn/indexed_bzip2?color=brightgreen&label=conda)](https://anaconda.org/mxmlnkn/indexed_bzip2)
 [![Downloads](https://pepy.tech/badge/indexed-bzip2/month)](https://pepy.tech/project/indexed-bzip2)
+<br>
+[![Conda Platforms](https://img.shields.io/conda/v/conda-forge/indexed_bzip2?color=brightgreen)](https://anaconda.org/conda-forge/indexed_bzip2)
+[![Conda Platforms](https://img.shields.io/conda/pn/conda-forge/indexed_bzip2?color=brightgreen)](https://anaconda.org/conda-forge/indexed_bzip2)
+<br>
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](http://opensource.org/licenses/MIT)
 [![Build Status](https://github.com/mxmlnkn/indexed_bzip2/workflows/tests/badge.svg)](https://github.com/mxmlnkn/indexed_bzip2/actions)
 [![codecov](https://codecov.io/gh/mxmlnkn/indexed_bzip2/branch/master/graph/badge.svg?token=94ZD4UTZQW)](https://codecov.io/gh/mxmlnkn/indexed_bzip2)
-![C++17](https://img.shields.io/badge/C++-17-blue.svg?style=flat-square)
+![C++17](https://img.shields.io/badge/C++-17-blue.svg)
 
 </div>
 
@@ -109,6 +112,12 @@ You can simply install it from PyPI:
 ```bash
 python3 -m pip install --upgrade pip  # Recommended for newer manylinux wheels
 python3 -m pip install indexed_bzip2
+```
+
+To install with conda:
+
+```bash
+conda install -c conda-forge indexed_bzip2
 ```
 
 The latest unreleased development version can be tested out with:
