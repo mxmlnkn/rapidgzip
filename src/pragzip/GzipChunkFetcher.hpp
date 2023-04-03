@@ -107,11 +107,12 @@ public:
         if constexpr ( SHOW_PROFILE ) {
             std::stringstream out;
             out << "[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:\n";
-            out << "    Time spent in block finder          : " << m_blockFinderTime << " s\n";
-            out << "    Time spent decoding                 : " << m_decodeTime << " s\n";
-            out << "    Time spent allocating and copying   : " << m_appendTime << " s\n";
-            out << "    Time spent applying the last window : " << m_applyWindowTime << " s\n";
-            out << "    Replaced marker bytes               : " << formatBytes( m_markerCount ) << "\n";
+            out << "    Time spent in block finder              : " << m_blockFinderTime << " s\n";
+            out << "    Time spent decoding                     : " << m_decodeTime << " s\n";
+            out << "    Time spent allocating and copying       : " << m_appendTime << " s\n";
+            out << "    Time spent applying the last window     : " << m_applyWindowTime << " s\n";
+            out << "    Replaced marker bytes                   : " << formatBytes( m_markerCount ) << "\n";
+            out << "    Chunks exceeding max. compression ratio : " << m_preemptiveStopCount << "\n";
             std::cerr << std::move( out ).str();
         }
     }
@@ -176,6 +177,8 @@ public:
             /* This should also work for multi-stream gzip files because encodedSizeInBits is such that it
              * points across the gzip footer and next header to the next deflate block. */
             const auto blockOffsetAfterNext = chunkData->encodedOffsetInBits + chunkData->encodedSizeInBits;
+
+            m_preemptiveStopCount += chunkData->stoppedPreemptively ? 1 : 0;
 
             const auto subblocks = chunkData->split( m_blockFinder->spacingInBits() / 8U );
             for ( const auto boundary : subblocks ) {
@@ -257,6 +260,18 @@ public:
     setCRC32Enabled( bool enabled )
     {
         m_crc32Enabled = enabled;
+    }
+
+    void
+    setMaxDecompressedChunkSize( size_t maxDecompressedChunkSize )
+    {
+        m_maxDecompressedChunkSize = maxDecompressedChunkSize;
+    }
+
+    [[nodiscard]] size_t
+    maxDecompressedChunkSize( size_t maxDecompressedChunkSize ) const
+    {
+        return m_maxDecompressedChunkSize;
     }
 
 private:
@@ -397,21 +412,35 @@ private:
              * partition, e.g., because it only contains fixed Huffman blocks. */
         }
 
+        /* If we got a chunk matching the partition offset but the chunk does not match the actual desired offset,
+         * then give a warning. No error, because below we simply request the actual offset directly in that case.
+         * This warning will also appear when a chunk has preemptively quit decompressing, e.g., because the
+         * compression ratio was too large. In that case, requests for the offset where the chunk has stopped,
+         * will return the partition offset of the previous chunk and therefore will return a mismatching chunk.
+         * Suppress this relative benign case.
+         * @todo Get rid of the partition offset altogether and "simply" look in the chunk cache for ones where
+         *       matchesEncodedOffset returns true. Note that this has problems when the chunk to test for has not
+         *       yet found a viable start position. Therefore, it requires some locking and in the worst-case
+         *       waiting or if we don't wait, it might result in the same chunk being decompressed twice, once
+         *       as a prefetch starting from a guessed position and once as an on-demand fetch given the exact
+         *       position. */
+        if ( chunkData && !chunkData->matchesEncodedOffset( blockOffset ) && ( partitionOffset != blockOffset )
+             && ( m_preemptiveStopCount == 0 ) ) {
+            std::cerr << "[Info] Detected a performance problem. Decoding might take longer than necessary. "
+                      << "Please consider opening a performance bug report with "
+                      << "a reproducing compressed file. Detailed information:\n"
+                      << "[Info] Found mismatching block. Need offset " << formatBits( blockOffset )
+                      << ". Look in partition offset: " << formatBits( partitionOffset )
+                      << ". Found possible range: ["
+                      << formatBits( chunkData->encodedOffsetInBits ) << ", "
+                      << formatBits( chunkData->maxEncodedOffsetInBits ) << "]\n";
+        }
+
         /* If we got no block or one with the wrong data, then try again with the real offset, not the
          * speculatively prefetched one. */
         if ( !chunkData
              || ( !chunkData->matchesEncodedOffset( blockOffset )
                   && ( partitionOffset != blockOffset ) ) ) {
-            if ( chunkData ) {
-                std::cerr << "[Info] Detected a performance problem. Decoding might take longer than necessary. "
-                          << "Please consider opening a performance bug report with "
-                          << "a reproducing compressed file. Detailed information:\n"
-                          << "[Info] Found mismatching block. Need offset " << formatBits( blockOffset )
-                          << ". Look in partition offset: " << formatBits( partitionOffset )
-                          << ". Found possible range: ["
-                          << formatBits( chunkData->encodedOffsetInBits ) << ", "
-                          << formatBits( chunkData->maxEncodedOffsetInBits ) << "]\n";
-            }
             /* This call given the exact block offset must always yield the correct data and should be equivalent
              * to directly call @ref decodeBlock with that offset. */
             chunkData = BaseType::get( blockOffset, blockIndex, getPartitionOffsetFromOffset );
@@ -447,7 +476,7 @@ private:
         return decodeBlock( m_bitReader, blockOffset, nextBlockOffset,
                             m_isBgzfFile ? std::make_optional( WindowView{} ) : m_windowMap->get( blockOffset ),
                             blockInfo ? blockInfo->decodedSizeInBytes : std::optional<size_t>{},
-                            m_cancelThreads, m_crc32Enabled );
+                            m_cancelThreads, m_crc32Enabled, m_maxDecompressedChunkSize );
     }
 
 public:
@@ -465,7 +494,8 @@ public:
                  std::optional<WindowView> const initialWindow,
                  std::optional<size_t>     const decodedSize,
                  std::atomic<bool>        const& cancelThreads,
-                 bool                      const crc32Enabled = false )
+                 bool                      const crc32Enabled = false,
+                 size_t                    const maxDecompressedChunkSize = std::numeric_limits<size_t>::max() )
     {
         if ( initialWindow && decodedSize && ( *decodedSize > 0 ) ) {
             return decodeBlockWithZlib( originalBitReader,
@@ -479,7 +509,8 @@ public:
         BitReader bitReader( originalBitReader );
         if ( initialWindow ) {
             bitReader.seek( blockOffset );
-            return decodeBlockWithPragzip( &bitReader, untilOffset, initialWindow, crc32Enabled );
+            return decodeBlockWithPragzip( &bitReader, untilOffset, initialWindow, crc32Enabled,
+                                           maxDecompressedChunkSize );
         }
 
         const auto tryToDecode =
@@ -489,7 +520,8 @@ public:
                     /* For decoding, it does not matter whether we seek to offset.first or offset.second but it DOES
                      * matter a lot for interpreting and correcting the encodedSizeInBits in GzipBlockFetcer::get! */
                     bitReader.seek( offset.second );
-                    auto result = decodeBlockWithPragzip( &bitReader, untilOffset, initialWindow, crc32Enabled );
+                    auto result = decodeBlockWithPragzip( &bitReader, untilOffset, initialWindow, crc32Enabled,
+                                                          maxDecompressedChunkSize );
                     result.encodedOffsetInBits = offset.first;
                     result.maxEncodedOffsetInBits = offset.second;
                     /** @todo Avoid out of memory issues for very large compression ratios by using a simple runtime
@@ -709,7 +741,8 @@ private:
     decodeBlockWithPragzip( BitReader*                      bitReader,
                             size_t                          untilOffset,
                             std::optional<WindowView> const initialWindow,
-                            bool                            crc32Enabled )
+                            bool                            crc32Enabled,
+                            size_t                          maxDecompressedChunkSize )
     {
         if ( bitReader == nullptr ) {
             throw std::invalid_argument( "BitReader must be non-null!" );
@@ -763,6 +796,11 @@ private:
             }
 
             nextBlockOffset = bitReader->tell();
+
+            if ( totalBytesRead >= maxDecompressedChunkSize ) {
+                result.stoppedPreemptively = true;
+                break;
+            }
 
             if ( auto error = block->readHeader( *bitReader ); error != Error::NONE ) {
                 std::stringstream message;
@@ -849,6 +887,7 @@ private:
     double m_decodeTime{ 0 };
     double m_appendTime{ 0 };
     uint64_t m_markerCount{ 0 };
+    uint64_t m_preemptiveStopCount{ 0 };
     mutable std::mutex m_statisticsMutex;
 
     std::atomic<bool> m_cancelThreads{ false };
@@ -861,6 +900,7 @@ private:
     std::shared_ptr<WindowMap> const m_windowMap;
 
     const bool m_isBgzfFile;
+    std::atomic<size_t> m_maxDecompressedChunkSize{ std::numeric_limits<size_t>::max() };
 
     /* This is the highest found block inside BlockFinder we ever processed and put into the BlockMap.
      * After the BlockMap has been finalized, this isn't needed anymore. */

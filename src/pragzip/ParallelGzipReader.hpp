@@ -201,13 +201,15 @@ public:
     ParallelGzipReader( UniqueFileReader fileReader,
                         size_t           parallelization = 0,
                         uint64_t         chunkSizeInBytes = 4_Mi ) :
+        m_chunkSizeInBytes( chunkSizeInBytes ),
+        m_maxDecompressedChunkSize( 20U * m_chunkSizeInBytes ),
         m_sharedFileReader( ensureSharedFileReader( std::move( fileReader ) ) ),
         m_fetcherParallelization( parallelization == 0 ? availableCores() : parallelization ),
         m_startBlockFinder(
-            [this, chunkSizeInBytes] () {
+            [this] () {
                 return std::make_unique<BlockFinder>(
                     UniqueFileReader( m_sharedFileReader->clone() ),
-                    /* spacing in bytes */ std::max( 8_Ki, chunkSizeInBytes ) );
+                    /* spacing in bytes */ std::max( 8_Ki, m_chunkSizeInBytes ) );
             }
         )
     {
@@ -602,6 +604,23 @@ public:
         }
     }
 
+    void
+    setMaxDecompressedChunkSize( uint64_t maxDecompressedChunkSize )
+    {
+        /* Anything smaller than the chunk size doesn't make much sense. Even that would be questionable.
+         * as it would lead to slow downs in almost every case. */
+        m_maxDecompressedChunkSize = std::max( m_chunkSizeInBytes, maxDecompressedChunkSize );
+        if ( m_chunkFetcher ) {
+            m_chunkFetcher->setMaxDecompressedChunkSize( m_maxDecompressedChunkSize );
+        }
+    }
+
+    [[nodiscard]] uint64_t
+    maxDecompressedChunkSize() const noexcept
+    {
+        return m_maxDecompressedChunkSize;
+    }
+
 private:
     void
     setBlockOffsets( std::map<size_t, size_t> offsets )
@@ -758,6 +777,7 @@ private:
         }
 
         m_chunkFetcher->setCRC32Enabled( m_crc32.enabled() );
+        m_chunkFetcher->setMaxDecompressedChunkSize( m_maxDecompressedChunkSize );
 
         return *m_chunkFetcher;
     }
@@ -830,6 +850,9 @@ private:
     }
 
 private:
+    uint64_t m_chunkSizeInBytes{ 4_Mi };
+    uint64_t m_maxDecompressedChunkSize{ std::numeric_limits<size_t>::max() };
+
     std::unique_ptr<SharedFileReader> m_sharedFileReader;
     BitReader m_bitReader{ UniqueFileReader( m_sharedFileReader->clone() ) };
 

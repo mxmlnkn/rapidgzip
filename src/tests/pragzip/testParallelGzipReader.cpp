@@ -539,8 +539,9 @@ testCachedChunkReuseAfterSplit()
     pragzip::ParallelGzipReader<pragzip::ChunkData, /* ENABLE_STATISTICS */ true> reader(
         std::make_unique<BufferViewFileReader>( compressedZeros ), /* parallelization */ 8, /* chunk size */ 1_Mi );
     reader.setCRC32Enabled( true );
+    reader.setMaxDecompressedChunkSize( 128_Mi );
 
-    /* As there is only one chunk, this read call will cache it.  */
+    /* As there is only one chunk, this read call will cache it. */
     reader.read( -1, nullptr, 16_Mi );
     REQUIRE_EQUAL( reader.statistics().onDemandFetchCount, 1U );
 

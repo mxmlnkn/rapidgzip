@@ -221,6 +221,8 @@ public:
     double blockFinderDuration{ 0 };
     double decodeDuration{ 0 };
     double appendDuration{ 0 };
+
+    bool stoppedPreemptively{ false };
 };
 
 
