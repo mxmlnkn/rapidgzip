@@ -269,6 +269,12 @@ analyze( std::unique_ptr<FileReader> inputFile )
         if ( block.isLastBlock() ) {
             const auto footer = gzip::readFooter( bitReader );
 
+            std::stringstream crcAsString;
+            crcAsString << "0x" << std::hex << std::setw( 8 ) << std::setfill( '0' ) << footer.crc32;
+            std::cout << "Gzip footer:\n";
+            std::cout << "    Decompressed Size % 2^32  : " << footer.uncompressedSize << "\n";
+            std::cout << "    CRC32                     : " << std::move( crcAsString ).str() << "\n";
+
             if ( static_cast<uint32_t>( streamBytesRead ) != footer.uncompressedSize ) {
                 std::stringstream message;
                 message << "Mismatching size (" << static_cast<uint32_t>( streamBytesRead )
