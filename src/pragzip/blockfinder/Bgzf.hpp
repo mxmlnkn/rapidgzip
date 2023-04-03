@@ -105,7 +105,7 @@ public:
 
 public:
     explicit
-    Bgzf( std::unique_ptr<FileReader> fileReader ) :
+    Bgzf( UniqueFileReader fileReader ) :
         m_fileReader( std::move( fileReader ) )
     {
         HeaderBytes header;
@@ -133,7 +133,7 @@ public:
     }
 
     [[nodiscard]] static bool
-    isBgzfFile( const std::unique_ptr<FileReader>& file )
+    isBgzfFile( const UniqueFileReader& file )
     {
         const auto oldPos = file->tell();
 
@@ -226,7 +226,7 @@ public:
     }
 
 private:
-    const std::unique_ptr<FileReader> m_fileReader;
+    const UniqueFileReader m_fileReader;
     size_t m_currentBlockOffset = 0;  /**< in bytes because these are gzip stream offsets */
 };
 }  // pragzip::blockfinder

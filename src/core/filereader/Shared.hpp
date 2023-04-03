@@ -71,7 +71,7 @@ private:
 
 public:
     explicit
-    SharedFileReader( std::unique_ptr<FileReader> file ) :
+    SharedFileReader( UniqueFileReader file ) :
         SharedFileReader( file.release() )
     {}
 
@@ -335,7 +335,7 @@ private:
 
 
 [[nodiscard]] std::unique_ptr<SharedFileReader>
-ensureSharedFileReader( std::unique_ptr<FileReader>&& fileReader )
+ensureSharedFileReader( UniqueFileReader&& fileReader )
 {
     if ( !fileReader ) {
         throw std::invalid_argument( "File reader must not be null!" );

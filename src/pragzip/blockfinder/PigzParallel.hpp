@@ -100,7 +100,7 @@ public:
 
 public:
     explicit
-    PigzParallel( std::unique_ptr<FileReader> fileReader ) :
+    PigzParallel( UniqueFileReader fileReader ) :
         m_fileReader( std::move( fileReader ) )
     {}
 
@@ -298,7 +298,7 @@ private:
     }
 
 private:
-    const std::unique_ptr<FileReader> m_fileReader;
+    const UniqueFileReader m_fileReader;
     BufferedFileReader::AlignedBuffer m_buffer;
     size_t m_lastBlockOffsetReturned{ 0 };  /**< absolute offset in bits */
 

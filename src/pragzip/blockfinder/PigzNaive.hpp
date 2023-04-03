@@ -37,7 +37,7 @@ public:
 
 public:
     explicit
-    PigzNaive( std::unique_ptr<FileReader> fileReader ) :
+    PigzNaive( UniqueFileReader fileReader ) :
         m_fileReader( std::move( fileReader ) )
     {}
 
@@ -165,7 +165,7 @@ public:
     }
 
 private:
-    const std::unique_ptr<FileReader> m_fileReader;
+    const UniqueFileReader m_fileReader;
     alignas( 64 ) std::array<char, BUFFER_SIZE> m_buffer;
     size_t m_bufferSize{ 0 };
     size_t m_lastBlockOffsetReturned{ 0 };  /**< absolute offset in bits */

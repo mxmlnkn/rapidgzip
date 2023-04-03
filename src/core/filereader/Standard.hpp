@@ -274,7 +274,7 @@ protected:
 };
 
 
-[[nodiscard]] std::unique_ptr<FileReader>
+[[nodiscard]] UniqueFileReader
 openFileOrStdin( const std::string& inputFilePath )
 {
     if ( !inputFilePath.empty() ) {

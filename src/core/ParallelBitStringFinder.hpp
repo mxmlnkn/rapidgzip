@@ -40,11 +40,11 @@ public:
     static_assert( bitStringSize > 0, "Bit string to find must have positive length!" );
 
 public:
-    ParallelBitStringFinder( std::unique_ptr<FileReader> fileReader,
-                             uint64_t bitStringToFind,
-                             size_t   parallelization = std::max( 1U, availableCores() / 8U ),
-                             size_t   requestedBytes = 0,
-                             size_t   fileBufferSizeBytes = 1_Mi ) :
+    ParallelBitStringFinder( UniqueFileReader fileReader,
+                             uint64_t         bitStringToFind,
+                             size_t           parallelization = std::max( 1U, availableCores() / 8U ),
+                             size_t           requestedBytes = 0,
+                             size_t           fileBufferSizeBytes = 1_Mi ) :
         BaseType( std::move( fileReader ),
                   bitStringToFind,
                   chunkSize( fileBufferSizeBytes, requestedBytes, parallelization ) ),
@@ -56,7 +56,7 @@ public:
                              size_t      size,
                              uint64_t    bitStringToFind,
                              size_t      parallelization ) :
-        BaseType( std::unique_ptr<FileReader>(), bitStringToFind ),
+        BaseType( UniqueFileReader(), bitStringToFind ),
         m_threadPool( parallelization )
     {
         this->m_buffer.assign( buffer, buffer + size );

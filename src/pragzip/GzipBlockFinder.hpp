@@ -37,13 +37,13 @@ public:
 
 public:
     explicit
-    GzipBlockFinder( std::unique_ptr<FileReader> fileReader,
-                     size_t                      spacing ) :
+    GzipBlockFinder( UniqueFileReader fileReader,
+                     size_t           spacing ) :
         m_fileSizeInBits( fileReader->size() * CHAR_BIT ),
         m_spacingInBits( spacing * CHAR_BIT ),
         m_isBgzfFile( blockfinder::Bgzf::isBgzfFile( fileReader ) ),
         m_bgzfBlockFinder( m_isBgzfFile
-                           ? std::make_unique<blockfinder::Bgzf>( std::unique_ptr<FileReader>( fileReader->clone() ) )
+                           ? std::make_unique<blockfinder::Bgzf>( UniqueFileReader( fileReader->clone() ) )
                            : std::unique_ptr<blockfinder::Bgzf>() )
     {
         if ( m_spacingInBits < 32_Ki ) {

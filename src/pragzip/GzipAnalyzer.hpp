@@ -29,7 +29,7 @@
 namespace pragzip::deflate
 {
 [[nodiscard]] pragzip::Error
-analyze( std::unique_ptr<FileReader> inputFile )
+analyze( UniqueFileReader inputFile )
 {
     using namespace pragzip;
     using Block = pragzip::deflate::Block</* Statistics */ true>;

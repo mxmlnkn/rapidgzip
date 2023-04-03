@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdio>
+#include <memory>
 
 
 /**
@@ -62,3 +63,6 @@ public:
     virtual void
     clearerr() = 0;
 };
+
+
+using UniqueFileReader = std::unique_ptr<FileReader>;

@@ -81,7 +81,7 @@ public:
 
 public:
     explicit
-    BitReader( std::unique_ptr<FileReader> fileReader ) :
+    BitReader( UniqueFileReader fileReader ) :
         m_file( std::move( fileReader ) )
     {}
 
@@ -640,7 +640,7 @@ private:
     }
 
 private:
-    std::unique_ptr<FileReader> m_file;
+    UniqueFileReader m_file;
 
     std::vector<uint8_t> m_inputBuffer;
     size_t m_inputBufferPosition = 0; /** stores current position of first valid byte in buffer */

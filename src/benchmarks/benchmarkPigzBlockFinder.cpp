@@ -29,7 +29,7 @@ struct BenchmarkResults
 
 
 size_t
-findZeroBytesBitset( const std::unique_ptr<FileReader>& file )
+findZeroBytesBitset( const UniqueFileReader& file )
 {
     static constexpr size_t BUFFER_SIZE = 4096;
     alignas( 64 ) std::array<char, BUFFER_SIZE> buffer{};
@@ -50,7 +50,7 @@ findZeroBytesBitset( const std::unique_ptr<FileReader>& file )
 
 
 size_t
-findZeroBytesVector( const std::unique_ptr<FileReader>& file )
+findZeroBytesVector( const UniqueFileReader& file )
 {
     static constexpr size_t BUFFER_SIZE = 4096;
     alignas( 64 ) std::array<char, BUFFER_SIZE> buffer{};
@@ -68,7 +68,7 @@ findZeroBytesVector( const std::unique_ptr<FileReader>& file )
 
 
 size_t
-testZeroBytesToChar( const std::unique_ptr<FileReader>& file )
+testZeroBytesToChar( const UniqueFileReader& file )
 {
     static constexpr size_t BUFFER_SIZE = 4096;
     alignas( 64 ) std::array<char, BUFFER_SIZE> buffer{};
@@ -86,7 +86,7 @@ testZeroBytesToChar( const std::unique_ptr<FileReader>& file )
 
 
 size_t
-findZeroBytesBuffers( const std::unique_ptr<FileReader>& file )
+findZeroBytesBuffers( const UniqueFileReader& file )
 {
     static constexpr size_t BUFFER_SIZE = 4_Ki;
     alignas( 64 ) std::array<char, BUFFER_SIZE> buffer{};
@@ -113,7 +113,7 @@ findZeroBytesBuffers( const std::unique_ptr<FileReader>& file )
 
 
 size_t
-findZeroBytes64Bit( const std::unique_ptr<FileReader>& file )
+findZeroBytes64Bit( const UniqueFileReader& file )
 {
     static constexpr size_t BUFFER_SIZE = 4_Ki;
     alignas( 64 ) std::array<char, BUFFER_SIZE> buffer{};
@@ -156,7 +156,7 @@ findZeroBytes64Bit( const std::unique_ptr<FileReader>& file )
 
 
 size_t
-findZeroBytes64BitLUT( const std::unique_ptr<FileReader>& file )
+findZeroBytes64BitLUT( const UniqueFileReader& file )
 {
     static constexpr size_t BUFFER_SIZE = 128_Ki;
     alignas( 64 ) std::array<char, BUFFER_SIZE> buffer{};
@@ -213,7 +213,7 @@ findZeroBytes64BitLUT( const std::unique_ptr<FileReader>& file )
 
 
 size_t
-findStringView( const std::unique_ptr<FileReader>& file )
+findStringView( const UniqueFileReader& file )
 {
     static constexpr size_t BUFFER_SIZE = 4096;
     alignas( 64 ) std::array<char, BUFFER_SIZE> buffer{};
@@ -238,7 +238,7 @@ findStringView( const std::unique_ptr<FileReader>& file )
 
 #if 0
 size_t
-findZeroBytes128Bit( const std::unique_ptr<FileReader>& file )
+findZeroBytes128Bit( const UniqueFileReader& file )
 {
     /**
      * extern __inline __m128i __attribute__((__gnu_inline__, __always_inline__, __artificial__))
@@ -255,7 +255,7 @@ findZeroBytes128Bit( const std::unique_ptr<FileReader>& file )
 
 
 size_t
-countZeroBytes( const std::unique_ptr<FileReader>& file )
+countZeroBytes( const UniqueFileReader& file )
 {
     static constexpr size_t BUFFER_SIZE = 4096;
     alignas( 64 ) std::array<char, BUFFER_SIZE> buffer{};
@@ -275,8 +275,8 @@ countZeroBytes( const std::unique_ptr<FileReader>& file )
 
 template<typename BlockFinder>
 BenchmarkResults
-measureByteComparison( const std::unique_ptr<FileReader>& file,
-                       BlockFinder                        blockFinder )
+measureByteComparison( const UniqueFileReader& file,
+                       BlockFinder             blockFinder )
 {
     file->seek( 0 );
     BenchmarkResults result;
@@ -301,7 +301,7 @@ measureByteComparison( const std::string& fileName,
     if ( nBytesRead != contents.size() ) {
         throw std::runtime_error( "Failed to read full file!" );
     }
-    std::unique_ptr<FileReader> const fileReader = std::make_unique<BufferedFileReader>( std::move( contents ) );
+    UniqueFileReader const fileReader = std::make_unique<BufferedFileReader>( std::move( contents ) );
 
     double minTime = std::numeric_limits<double>::infinity();
     BenchmarkResults result;

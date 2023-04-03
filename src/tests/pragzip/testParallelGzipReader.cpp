@@ -63,10 +63,10 @@ duplicateNanoStream( size_t multiples )
 
 
 void
-testParallelDecoder( std::unique_ptr<FileReader> encoded,
-                     std::unique_ptr<FileReader> decoded,
-                     std::optional<GzipIndex>    index = {},
-                     size_t                      nBlocksToSkip = 31 )
+testParallelDecoder( UniqueFileReader         encoded,
+                     UniqueFileReader         decoded,
+                     std::optional<GzipIndex> index = {},
+                     size_t                   nBlocksToSkip = 31 )
 {
     /* Test a simple full read. */
 

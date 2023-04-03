@@ -37,7 +37,7 @@ public:
 
 public:
     explicit
-    BZ2Reader( std::unique_ptr<FileReader> fileReader ) :
+    BZ2Reader( UniqueFileReader fileReader ) :
         m_bitReader( std::move( fileReader ) )
     {}
 

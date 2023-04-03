@@ -104,7 +104,7 @@ readValue( FileReader* file )
 
 
 [[nodiscard]] inline GzipIndex
-readGzipIndex( std::unique_ptr<FileReader> file )
+readGzipIndex( UniqueFileReader file )
 {
     GzipIndex index;
 

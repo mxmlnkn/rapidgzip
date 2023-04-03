@@ -21,8 +21,8 @@ public:
 
 public:
     explicit
-    BufferedFileReader( std::unique_ptr<FileReader> fileReader,
-                        size_t                      bufferSize = 128_Ki ) :
+    BufferedFileReader( UniqueFileReader fileReader,
+                        size_t           bufferSize = 128_Ki ) :
         m_maxBufferSize( bufferSize ),
         m_file( std::move( fileReader ) )
     {}
@@ -234,7 +234,7 @@ private:
 
 protected:
     const size_t m_maxBufferSize;
-    std::unique_ptr<FileReader> m_file;
+    UniqueFileReader m_file;
 
     size_t m_originalBufferOffset{ 0 };
     AlignedBuffer m_buffer;

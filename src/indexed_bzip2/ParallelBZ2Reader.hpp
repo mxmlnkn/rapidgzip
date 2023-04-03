@@ -47,8 +47,8 @@ public:
     /* Constructors */
 
     explicit
-    ParallelBZ2Reader( std::unique_ptr<FileReader> fileReader,
-                       size_t                      parallelization = 0 ) :
+    ParallelBZ2Reader( UniqueFileReader fileReader,
+                       size_t           parallelization = 0 ) :
         m_sharedFileReader( ensureSharedFileReader( std::move( fileReader ) ) ),
         m_fetcherParallelization( parallelization == 0 ? availableCores() : parallelization ),
         m_startBlockFinder(
@@ -56,7 +56,7 @@ public:
             {
                 return std::make_shared<BlockFinder>(
                     std::make_unique<ParallelBitStringFinder<bzip2::MAGIC_BITS_SIZE> >(
-                        std::unique_ptr<FileReader>( m_sharedFileReader->clone() ),
+                        UniqueFileReader( m_sharedFileReader->clone() ),
                         bzip2::MAGIC_BITS_BLOCK,
                         m_finderParallelization
                 ) );
@@ -488,7 +488,7 @@ private:
 
 private:
     const std::unique_ptr<SharedFileReader> m_sharedFileReader;
-    BitReader m_bitReader{ std::unique_ptr<FileReader>( m_sharedFileReader->clone() ) };
+    BitReader m_bitReader{ UniqueFileReader( m_sharedFileReader->clone() ) };
 
     size_t m_currentPosition = 0; /**< the current position as can only be modified with read or seek calls. */
     bool m_atEndOfFile = false;

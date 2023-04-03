@@ -39,7 +39,7 @@ public:
 
 public:
     explicit
-    PigzStringView( std::unique_ptr<FileReader> fileReader ) :
+    PigzStringView( UniqueFileReader fileReader ) :
         m_fileReader( std::move( fileReader ) ),
         m_fileSize( m_fileReader->size() )
     {}
@@ -159,7 +159,7 @@ private:
     }
 
 private:
-    const std::unique_ptr<FileReader> m_fileReader;
+    const UniqueFileReader m_fileReader;
     const std::size_t m_fileSize;
 
     alignas( 64 ) std::array<char, BUFFER_SIZE> m_buffer;

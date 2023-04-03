@@ -149,9 +149,9 @@ decompressParallel( const Reader&       reader,
 template<typename ChunkData,
          typename WriteFunctor = std::function<void ( const std::shared_ptr<ChunkData>&, size_t, size_t )> >
 size_t
-decompressParallel( const Arguments&            args,
-                    std::unique_ptr<FileReader> inputFile,
-                    const WriteFunctor&         writeFunctor )
+decompressParallel( const Arguments&    args,
+                    UniqueFileReader    inputFile,
+                    const WriteFunctor& writeFunctor )
 {
     if ( args.verbose ) {
         using Reader = pragzip::ParallelGzipReader<ChunkData, /* enable statistics */ true, /* show profile */ true>;

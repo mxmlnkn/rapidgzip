@@ -49,7 +49,7 @@ public:
 
 public:
     explicit
-    GzipReader( std::unique_ptr<FileReader> fileReader ) :
+    GzipReader( UniqueFileReader fileReader ) :
         m_bitReader( std::move( fileReader ) )
     {}
 

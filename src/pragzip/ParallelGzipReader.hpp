@@ -198,15 +198,15 @@ public:
      *       finder might enable smaller chunk sizes.
      */
     explicit
-    ParallelGzipReader( std::unique_ptr<FileReader> fileReader,
-                        size_t                      parallelization = 0,
-                        uint64_t                    chunkSizeInBytes = 4_Mi ) :
+    ParallelGzipReader( UniqueFileReader fileReader,
+                        size_t           parallelization = 0,
+                        uint64_t         chunkSizeInBytes = 4_Mi ) :
         m_sharedFileReader( ensureSharedFileReader( std::move( fileReader ) ) ),
         m_fetcherParallelization( parallelization == 0 ? availableCores() : parallelization ),
         m_startBlockFinder(
             [this, chunkSizeInBytes] () {
                 return std::make_unique<BlockFinder>(
-                    std::unique_ptr<FileReader>( m_sharedFileReader->clone() ),
+                    UniqueFileReader( m_sharedFileReader->clone() ),
                     /* spacing in bytes */ std::max( 8_Ki, chunkSizeInBytes ) );
             }
         )
@@ -818,7 +818,7 @@ private:
 
 private:
     const std::unique_ptr<SharedFileReader> m_sharedFileReader;
-    BitReader m_bitReader{ std::unique_ptr<FileReader>( m_sharedFileReader->clone() ) };
+    BitReader m_bitReader{ UniqueFileReader( m_sharedFileReader->clone() ) };
 
     size_t m_currentPosition = 0; /**< the current position as can only be modified with read or seek calls. */
     bool m_atEndOfFile = false;
