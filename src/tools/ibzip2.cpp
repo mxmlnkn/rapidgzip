@@ -319,11 +319,13 @@ ibzip2CLI( int argc, char** argv )
 
     /* Parse other arguments. */
 
-    const auto decompress = ( ( parsedArgs.count( "decompress" ) > 0 )
-                              && ( ( outputFilePath.empty() && !stdoutIsDevNull() )
-                                   || ( !outputFilePath.empty() && ( outputFilePath != "/dev/null" ) ) ) )
-                            || ( parsedArgs.count( "list-offsets" ) > 0 )
-                            || force;
+    const auto listOffsets = parsedArgs.count( "list-offsets" ) > 0;
+    const auto decompress = parsedArgs.count( "decompress" ) > 0;
+
+    if ( decompress && ( outputFilePath != "/dev/null" ) && fileExists( outputFilePath ) && !force ) {
+        std::cerr << "Output file '" << outputFilePath << "' already exists! Use --force to overwrite.\n";
+        return 1;
+    }
 
     const auto bufferSize = parsedArgs["buffer-size"].as<unsigned int>();
 
@@ -343,7 +345,7 @@ ibzip2CLI( int argc, char** argv )
 
     /* Actually do things as requested. */
 
-    if ( decompress ) {
+    if ( decompress || listOffsets ) {
         if ( verbose ) {
             std::cerr << "Decompress " << inputFilePath << " -> " << outputFilePath << " with " << decoderParallelism
                       << " threads\n";
