@@ -320,7 +320,7 @@ pragzipCLI( int argc, char** argv )
 
     const auto countBytes = parsedArgs.count( "count" ) > 0;
     const auto countLines = parsedArgs.count( "count-lines" ) > 0;
-    const auto decompress = ( parsedArgs.count( "decompress" ) > 0 ) || ( !countBytes && !countLines );
+    const auto decompress = parsedArgs.count( "decompress" ) > 0;
 
     if ( decompress && ( outputFilePath != "/dev/null" ) && fileExists( outputFilePath ) && !force ) {
         std::cerr << "Output file '" << outputFilePath << "' already exists! Use --force to overwrite.\n";
@@ -346,7 +346,7 @@ pragzipCLI( int argc, char** argv )
 
     /* Actually do things as requested. */
 
-    if ( decompress || countBytes || countLines ) {
+    if ( decompress || countBytes || countLines || !args.indexSavePath.empty() ) {
         if ( decompress && args.verbose ) {
             std::cerr << "Decompress " << ( inputFilePath.empty() ? "<stdin>" : inputFilePath.c_str() )
                       << " -> " << ( outputFilePath.empty() ? "<stdout>" : outputFilePath.c_str() ) << "\n";
