@@ -384,6 +384,8 @@ ibzip2CLI( int argc, char** argv )
             nBytesWrittenTotal = reader->read( outputFileDescriptor );
         }
 
+        const auto writeToStdErr = outputFile && outputFile->writingToStdout();
+        auto& out = writeToStdErr ? std::cerr : std::cout;
         if ( outputFile ) {
             outputFile->truncate( nBytesWrittenTotal );
             outputFile.reset();  // Close the file here to include it in the time measurement.
@@ -399,7 +401,7 @@ ibzip2CLI( int argc, char** argv )
         }
 
         if ( verbose ) {
-            std::cout << "Found " << offsets.size() << " blocks\n";
+            out << "Found " << offsets.size() << " blocks\n";
         }
 
         if ( test ) {
