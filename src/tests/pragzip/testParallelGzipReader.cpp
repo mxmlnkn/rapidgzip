@@ -530,6 +530,44 @@ testCRC32AndCleanUnmarkedData()
 }
 
 
+void
+testPrefetchingAfterSplit()
+{
+    /* As there are 4 symbols, 2 bits per symbol should suffice and as the data is random, almost no backreferences
+     * should be viable. This leads to a compression ratio of ~4, which is large enough for splitting and benign
+     * enough to have multiple chunks with fairly little uncompressed data. */
+    const auto compressedRandomDNA = compressWithZlib( createRandomData( 64_Mi, DNA_SYMBOLS ),
+                                                       CompressionStrategy::HUFFMAN_ONLY );
+
+    pragzip::ParallelGzipReader<pragzip::ChunkData, /* ENABLE_STATISTICS */ true> reader(
+        std::make_unique<BufferViewFileReader>( compressedRandomDNA ), /* parallelization */ 2, /* chunk size */ 1_Mi );
+    reader.setCRC32Enabled( true );
+
+    /* Read everything. The data should contain sufficient chunks such that the first one have been evicted. */
+    reader.read( -1, nullptr, std::numeric_limits<size_t>::max() );
+    REQUIRE_EQUAL( reader.statistics().onDemandFetchCount, 1U );
+    REQUIRE_EQUAL( reader.tell(), 64_Mi );
+
+    reader.seek( 0 );
+    std::cerr << "Current position after decompression: " << formatBytes( reader.tell() ) << "\n";
+    reader.read( -1, nullptr, std::numeric_limits<size_t>::max() );
+    /* It might require two cache misses until the prefetcher recognizes it as a sequential access! */
+    REQUIRE( reader.statistics().onDemandFetchCount <= 3U );
+
+    /* Test with export and load */
+
+    pragzip::ParallelGzipReader<pragzip::ChunkData, /* ENABLE_STATISTICS */ true> reader2(
+        std::make_unique<BufferViewFileReader>( compressedRandomDNA ), /* parallelization */ 2, /* chunk size */ 1_Mi );
+    reader2.setCRC32Enabled( true );
+    reader2.setBlockOffsets( reader.gzipIndex() );
+    std::cerr << "File was split into " << reader.blockOffsets().size() - 1 << " chunks\n";
+
+    reader2.read( -1, nullptr, std::numeric_limits<size_t>::max() );
+    REQUIRE_EQUAL( reader2.statistics().onDemandFetchCount, 1U );
+
+}
+
+
 int
 main( int    argc,
       char** argv )
@@ -551,6 +589,7 @@ main( int    argc,
         ) / "src" / "tests" / "data";
 
     testCRC32AndCleanUnmarkedData();
+    testPrefetchingAfterSplit();
 
     const auto tmpFolder = createTemporaryDirectory( "pragzip.testParallelGzipReader" );
 

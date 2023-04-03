@@ -613,9 +613,11 @@ protected:
     mutable double m_readBlockDataTotalTime{ 0 };
     mutable std::mutex m_analyticsMutex;
 
-private:
     const size_t m_parallelization;
 
+    FetchingStrategy m_fetchingStrategy;
+
+private:
     /**
      * The block finder is used to prefetch blocks among others.
      * But, in general, it only returns unconfirmed guesses for block offsets (at first)!
@@ -629,7 +631,6 @@ private:
 
     BlockCache m_cache;
     BlockCache m_prefetchCache;
-    FetchingStrategy m_fetchingStrategy;
     Cache</* block offset in bits */ size_t, bool> m_failedPrefetchCache;
     mutable std::mutex m_failedPrefetchCacheMutex;
 

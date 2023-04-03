@@ -144,10 +144,20 @@ public:
 
             chunkData = getBlock( *nextBlockOffset, m_nextUnprocessedBlockIndex );
 
+            /* This should also work for multi-stream gzip files because encodedSizeInBits is such that it
+             * points across the gzip footer and next header to the next deflate block. */
+            const auto blockOffsetAfterNext = chunkData->encodedOffsetInBits + chunkData->encodedSizeInBits;
+
             const auto subblocks = chunkData->split( m_blockFinder->spacingInBits() / 8U );
             for ( const auto boundary : subblocks ) {
                 m_blockMap->push( boundary.encodedOffset, boundary.encodedSize, boundary.decodedSize );
+                m_blockFinder->insert( boundary.encodedOffset + boundary.encodedSize );
             }
+
+            if ( subblocks.size() > 1 ) {
+                BaseType::m_fetchingStrategy.splitIndex( m_nextUnprocessedBlockIndex, subblocks.size() );
+            }
+            m_nextUnprocessedBlockIndex += subblocks.size();
 
             if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
                 std::scoped_lock lock( m_statisticsMutex );
@@ -156,16 +166,11 @@ public:
                 m_appendTime += chunkData->appendDuration;
             }
 
-            /* This should also work for multi-stream gzip files because encodedSizeInBits is such that it
-             * points across the gzip footer and next header to the next deflate block. */
-            const auto blockOffsetAfterNext = chunkData->encodedOffsetInBits + chunkData->encodedSizeInBits;
-            m_blockFinder->insert( blockOffsetAfterNext );
             if ( blockOffsetAfterNext >= m_bitReader.size() ) {
                 m_blockMap->finalize();
                 m_blockFinder->finalize();
             }
 
-            ++m_nextUnprocessedBlockIndex;
             if ( const auto insertedNextBlockOffset = m_blockFinder->get( m_nextUnprocessedBlockIndex );
                  !m_blockFinder->finalized()
                  && ( !insertedNextBlockOffset.has_value() || ( *insertedNextBlockOffset != blockOffsetAfterNext ) ) )
