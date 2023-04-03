@@ -357,11 +357,11 @@ pragzipCLI( int argc, char** argv )
             return 1;
         }
 
-        std::unique_ptr<OutputFile> m_outputFile;
+        std::unique_ptr<OutputFile> outputFile;
         if ( decompress ) {
-            m_outputFile = std::make_unique<OutputFile>( outputFilePath );
+            outputFile = std::make_unique<OutputFile>( outputFilePath );
         }
-        const auto outputFileDescriptor = m_outputFile ? m_outputFile->fd() : -1;
+        const auto outputFileDescriptor = outputFile ? outputFile->fd() : -1;
 
         uint64_t newlineCount{ 0 };
 
@@ -418,10 +418,10 @@ pragzipCLI( int argc, char** argv )
             }
         }
 
-        const auto writeToStdErr = m_outputFile && m_outputFile->writingToStdout();
-        if ( m_outputFile ) {
-            m_outputFile->truncate( totalBytesRead );
-            m_outputFile.reset();  // Close the file here to include it in the time measurement.
+        const auto writeToStdErr = outputFile && outputFile->writingToStdout();
+        if ( outputFile ) {
+            outputFile->truncate( totalBytesRead );
+            outputFile.reset();  // Close the file here to include it in the time measurement.
         }
 
         const auto t1 = now();
