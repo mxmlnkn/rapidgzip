@@ -353,26 +353,17 @@ ibzip2CLI( int argc, char** argv )
 
         auto fileReader = openFileOrStdin( inputFilePath );
 
+        std::unique_ptr<OutputFile> outputFile;
+        if ( decompress ) {
+            outputFile = std::make_unique<OutputFile>( outputFilePath );
+        }
+        const auto outputFileDescriptor = outputFile ? outputFile->fd() : -1;
+
         std::unique_ptr<BZ2ReaderInterface> reader;
         if ( decoderParallelism == 1 ) {
             reader = std::make_unique<BZ2Reader>( std::move( fileReader ) );
         } else {
             reader = std::make_unique<ParallelBZ2Reader>( std::move( fileReader ), decoderParallelism );
-        }
-
-    #ifdef _MSC_VER
-        auto outputFileDescriptor = _fileno( stdout );
-        if ( outputFilePath.empty() ) {
-            _setmode( outputFileDescriptor, _O_BINARY );
-        }
-    #else
-        auto outputFileDescriptor = ::fileno( stdout );
-    #endif
-
-        unique_file_ptr outputFile;
-        if ( !outputFilePath.empty() ) {
-            outputFile = make_unique_file_ptr( outputFilePath.c_str(), "wb" );
-            outputFileDescriptor = ::fileno( outputFile.get() );
         }
 
         size_t nBytesWrittenTotal = 0;
@@ -391,6 +382,11 @@ ibzip2CLI( int argc, char** argv )
             } while ( !reader->eof() );
         } else {
             nBytesWrittenTotal = reader->read( outputFileDescriptor );
+        }
+
+        if ( outputFile ) {
+            outputFile->truncate( nBytesWrittenTotal );
+            outputFile.reset();  // Close the file here to include it in the time measurement.
         }
 
 
