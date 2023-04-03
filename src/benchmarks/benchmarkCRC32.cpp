@@ -255,4 +255,17 @@ Unroll 4:
 
 Unroll 8:
 [Compute CRC32 (slice by 16)] ( min: 3970.89, 4470 +- 180, max: 4570.67 ) MB/s -> Result: 0xFBA351D8
+
+
+Benchmarks on AMD EPYC 7702 64-Core Processor at 2.0 GHz
+
+[Compute CRC32 (LUT)]         ( min:  402.787,  407 +- 4 , max:  413.8  ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (slice by 4)]  ( min: 1145.26 , 1155 +- 5 , max: 1161.87 ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (slice by 8)]  ( min: 2171.20 , 2179 +- 7 , max: 2193.91 ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (slice by 12)] ( min: 3243.96 , 3269 +- 12, max: 3285.04 ) MB/s -> Result: 0xFBA351D8 <-
+[Compute CRC32 (slice by 16)] ( min: 2980.60 , 2995 +- 12, max: 3013.38 ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (slice by 20)] ( min: 2101.17 , 2109 +- 6 , max: 2116.93 ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (slice by 24)] ( min: 2192.88 , 2199 +- 6 , max: 2211.52 ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (slice by 32)] ( min: 2185.12 , 2194 +- 6 , max: 2206.73 ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (slice by 64)] ( min: 1473.50 , 1484 +- 7 , max: 1492.82 ) MB/s -> Result: 0xFBA351D8
 */
