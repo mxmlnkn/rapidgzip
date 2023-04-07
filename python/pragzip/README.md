@@ -13,9 +13,14 @@
 [![codecov](https://codecov.io/gh/mxmlnkn/indexed_bzip2/branch/master/graph/badge.svg?token=94ZD4UTZQW)](https://codecov.io/gh/mxmlnkn/pragzip)
 ![C++17](https://img.shields.io/badge/C++-17-blue.svg?style=flat-square)
 
+![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/asciinema/pragzip-comparison.gif)
+
 </div>
 
-This module provides a PragzipFile class, which can be used to seek inside gzip files without having to decompress them first.
+
+This repository contains the command line tool `pragzip`, which can be used for parallel decompression of almost any gzip file.
+
+The Python module provides a `PragzipFile` class, which can be used to seek inside gzip files without having to decompress them first.
 Alternatively, you can use this simply as a **parallelized** gzip decoder as a replacement for Python's builtin `gzip` module in order to fully utilize all your cores.
 
 The random seeking support is the same as provided by [indexed_gzip](https://github.com/pauldmccarthy/indexed_gzip) but further speedups are realized at the cost of higher memory usage thanks to a least-recently-used cache in combination with a parallelized prefetcher.
