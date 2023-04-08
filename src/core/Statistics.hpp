@@ -105,9 +105,10 @@ struct Statistics
         }
 
         const auto roundToUncertainty =
-            [magnitude] ( double value )
+            [magnitude] ( auto value )
             {
-                return std::round( value / std::pow( 10, magnitude ) ) * std::pow( 10, magnitude );
+                return std::round( static_cast<double>( value ) / std::pow( 10, magnitude ) )
+                       * std::pow( 10, magnitude );
             };
 
         /**
@@ -116,7 +117,7 @@ struct Statistics
          *       (13 +- 1) GB.
          */
         std::stringstream result;
-        result << std::fixed << std::setprecision( std::max( -magnitude, 0. ) );
+        result << std::fixed << std::setprecision( static_cast<int>( std::max( -magnitude, 0. ) ) );
 
         if ( includeBounds ) {
             result << roundToUncertainty( min ) << " <= ";

@@ -560,9 +560,13 @@ writeAllToFd( const int         outputFileDescriptor,
     for ( uint64_t nTotalWritten = 0; nTotalWritten < dataToWriteSize; ) {
         const auto currentBufferPosition =
             reinterpret_cast<const void*>( reinterpret_cast<uintptr_t>( dataToWrite ) + nTotalWritten );
-        const auto nBytesWritten = ::write( outputFileDescriptor,
-                                            currentBufferPosition,
-                                            dataToWriteSize - nTotalWritten );
+
+        const auto nBytesToWritePerCall =
+            static_cast<unsigned int>(
+                std::min( static_cast<uint64_t>( std::numeric_limits<unsigned int>::max() ),
+                dataToWriteSize - nTotalWritten ) );
+
+        const auto nBytesWritten = ::write( outputFileDescriptor, currentBufferPosition, nBytesToWritePerCall );
         if ( nBytesWritten <= 0 ) {
             std::stringstream message;
             message << "Unable to write all data to the given file descriptor. Wrote " << nTotalWritten << " out of "

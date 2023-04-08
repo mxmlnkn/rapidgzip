@@ -279,7 +279,7 @@ public:
 
             /* 1. Empty bit buffer */
             for ( ; ( nBytesRead < nBytesToRead ) && ( m_bitBufferSize >= CHAR_BIT ); ++nBytesRead ) {
-                outputBuffer[nBytesRead] = peekUnsafe( CHAR_BIT );
+                outputBuffer[nBytesRead] = static_cast<char>( peekUnsafe( CHAR_BIT ) );
                 seekAfterPeek( CHAR_BIT );
             }
 
@@ -737,7 +737,7 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
     const auto relativeOffsets = offsetBits - static_cast<long long int>( tell() );
     if ( relativeOffsets >= 0 ) {
         if ( relativeOffsets <= m_bitBufferSize ) {
-            m_bitBufferSize -= relativeOffsets;
+            m_bitBufferSize -= static_cast<decltype( m_bitBufferSize )>( relativeOffsets );
             return static_cast<size_t>( offsetBits );
         }
 
@@ -754,19 +754,19 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
         }
     } else {
         if ( static_cast<size_t>( -relativeOffsets ) + m_bitBufferSize <= m_originalBitBufferSize ) {
-            m_bitBufferSize += -relativeOffsets;
+            m_bitBufferSize += static_cast<decltype( m_bitBufferSize )>( -relativeOffsets );
             return static_cast<size_t>( offsetBits );
         }
 
         const auto seekBackWithBuffer = -relativeOffsets + m_bitBufferSize;
         const auto bytesToSeekBack = static_cast<size_t>( ceilDiv( seekBackWithBuffer, CHAR_BIT ) );
         if ( bytesToSeekBack <= m_inputBufferPosition ) {
-            m_inputBufferPosition -= bytesToSeekBack;
+            m_inputBufferPosition -= static_cast<decltype( m_inputBufferPosition )>( bytesToSeekBack );
             clearBitBuffer();
 
             const auto bitsToSeekForward = bytesToSeekBack * CHAR_BIT - seekBackWithBuffer;
             if ( bitsToSeekForward > 0 ) {
-                read( bitsToSeekForward );
+                read( static_cast<uint8_t>( bitsToSeekForward ) );
             }
 
             return static_cast<size_t>( offsetBits );

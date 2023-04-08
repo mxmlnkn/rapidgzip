@@ -370,7 +370,7 @@ ibzip2CLI( int argc, char** argv )
         if ( bufferSize > 0 ) {
             do {
                 std::vector<char> buffer( bufferSize, 0 );
-                const size_t nBytesRead = reader->read( -1, buffer.data(), buffer.size() );
+                const auto nBytesRead = reader->read( -1, buffer.data(), buffer.size() );
                 assert( nBytesRead <= buffer.size() );
 
                 const auto nBytesWritten = write( outputFileDescriptor, buffer.data(), nBytesRead );
