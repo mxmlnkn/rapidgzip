@@ -49,7 +49,9 @@ testAutomaticMarkerResolution( const std::filesystem::path& filePath,
     std::cerr << "Test Automatic Marker Resolution with: " << filePath.filename()
               << " starting from block " << blockIndex << "\n";
 
-    pragzip::BitReader bitReader( std::make_unique<StandardFileReader>( filePath ) );
+    pragzip::BitReader bitReader(
+        std::make_unique<SharedFileReader>(
+            std::make_unique<StandardFileReader>( filePath ) ) );
     const auto blockOffset = getBlockOffset( filePath, blockIndex );
     try {
         std::atomic<bool> cancel{ false };

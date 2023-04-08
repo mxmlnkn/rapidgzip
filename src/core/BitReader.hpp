@@ -83,9 +83,7 @@ public:
 public:
     explicit
     BitReader( UniqueFileReader fileReader ) :
-        /* Make it a SharedFileReader if it isn't already.
-         * Necessary for corrections of the copy constructor! */
-        m_file( ensureSharedFileReader( std::move( fileReader ) ) )
+        m_file( std::move( fileReader ) )
     {}
 
     BitReader( BitReader&& other ) = default;
@@ -96,6 +94,10 @@ public:
         m_file( other.m_file ? other.m_file->clone() : nullptr ),
         m_inputBuffer( other.m_inputBuffer )
     {
+        if ( dynamic_cast<const SharedFileReader*>( other.m_file.get() ) == nullptr ) {
+            throw std::invalid_argument( "Cannot copy BitReader if does not contain a SharedFileReader!" );
+        }
+
         assert( static_cast<bool>( m_file ) == static_cast<bool>( other.m_file ) );
         if ( UNLIKELY( m_file && !m_file->seekable() ) ) [[unlikely]] {
             throw std::invalid_argument( "Copying BitReader to unseekable file not supported yet!" );
