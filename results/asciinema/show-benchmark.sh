@@ -20,3 +20,16 @@ tmux new-session '
 # Edit the asciinema recording:
 #  - Remove everything after the first "exit" command
 #  - Retime all setup stuff to happen at t = 0.0s instead of various t < 0.4s
+# Further post-processing in Gimp:
+#  - Remove the top 20 pixels:
+#    1. Select all but those
+#    2. Image -> Fit Canvas to Selection
+#  - Round the edges:
+#    1. Go to Background layer (a the bottom)
+#    2. Right Mouse Button (RMB) -> Add Alpha Channel
+#    3. Ctrl + A
+#    4. Menu->Select->Rounded Rectangle->Radius (%): 10
+#    5. Ctrl + I
+#    6. Press Delete
+#  - Export as GIF
+#    1. Be sure to uncheck the comment and check the "Save as Animation"
