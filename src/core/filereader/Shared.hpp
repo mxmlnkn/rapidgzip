@@ -332,3 +332,18 @@ private:
      */
     size_t m_currentPosition{ 0 };
 };
+
+
+[[nodiscard]] std::unique_ptr<SharedFileReader>
+ensureSharedFileReader( UniqueFileReader&& fileReader )
+{
+    if ( !fileReader ) {
+        throw std::invalid_argument( "File reader must not be null!" );
+    }
+
+    if ( auto* const casted = dynamic_cast<SharedFileReader*>( fileReader.get() ); casted != nullptr ) {
+        fileReader.release();
+        return std::unique_ptr<SharedFileReader>( casted );
+    }
+    return std::make_unique<SharedFileReader>( std::move( fileReader ) );
+}

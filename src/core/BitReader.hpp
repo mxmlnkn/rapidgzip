@@ -84,9 +84,9 @@ public:
 public:
     explicit
     BitReader( UniqueFileReader fileReader ) :
-        m_file( dynamic_cast<SharedFileReader*>( fileReader.get() ) == nullptr
-                ? UniqueFileReader( std::make_unique<SharedFileReader>( std::move( fileReader ) ) )
-                : std::move( fileReader ) )
+        /* Make it a SharedFileReader if it isn't already.
+         * Necessary for corrections of the copy constructor! */
+        m_file( ensureSharedFileReader( std::move( fileReader ) ) )
     {}
 
     BitReader( BitReader&& other ) = default;
