@@ -19,6 +19,7 @@
 #include <BlockMap.hpp>
 #include <common.hpp>
 #include <filereader/FileReader.hpp>
+#include <filereader/Shared.hpp>
 
 #ifdef WITH_PYTHON_SUPPORT
     #include <filereader/Python.hpp>
@@ -200,17 +201,17 @@ public:
     ParallelGzipReader( UniqueFileReader fileReader,
                         size_t           parallelization = 0,
                         uint64_t         chunkSizeInBytes = 4_Mi ) :
-        m_bitReader( std::move( fileReader ) ),
+        m_sharedFileReader( ensureSharedFileReader( std::move( fileReader ) ) ),
         m_fetcherParallelization( parallelization == 0 ? availableCores() : parallelization ),
         m_startBlockFinder(
             [this, chunkSizeInBytes] () {
                 return std::make_unique<BlockFinder>(
-                    m_bitReader.cloneSharedFileReader(),
+                    UniqueFileReader( m_sharedFileReader->clone() ),
                     /* spacing in bytes */ std::max( 8_Ki, chunkSizeInBytes ) );
             }
         )
     {
-        m_bitReader.setStatisticsEnabled( ENABLE_STATISTICS && SHOW_PROFILE );
+        m_sharedFileReader->setStatisticsEnabled( ENABLE_STATISTICS && SHOW_PROFILE );
         if ( !m_bitReader.seekable() ) {
             throw std::invalid_argument( "Parallel BZ2 Reader will not work on non-seekable input like stdin (yet)!" );
         }
@@ -273,9 +274,10 @@ public:
     void
     close() override
     {
-        m_chunkFetcher = {};
-        m_blockFinder = {};
+        m_chunkFetcher.reset();
+        m_blockFinder.reset();
         m_bitReader.close();
+        m_sharedFileReader.reset();
     }
 
     [[nodiscard]] bool
@@ -816,7 +818,8 @@ private:
     }
 
 private:
-    BitReader m_bitReader;
+    std::unique_ptr<SharedFileReader> m_sharedFileReader;
+    BitReader m_bitReader{ UniqueFileReader( m_sharedFileReader->clone() ) };
 
     size_t m_currentPosition = 0; /**< the current position as can only be modified with read or seek calls. */
     bool m_atEndOfFile = false;

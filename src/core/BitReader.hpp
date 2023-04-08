@@ -103,12 +103,6 @@ public:
         seek( other.tell() );
     }
 
-    [[nodiscard]] UniqueFileReader
-    cloneSharedFileReader() const
-    {
-        return UniqueFileReader( m_file->clone() );
-    }
-
     /* File Reader Interface Implementation */
 
     [[nodiscard]] FileReader*
@@ -466,14 +460,6 @@ public:
     bufferRefillCount() const
     {
         return m_bufferRefillCount;
-    }
-
-    void
-    setStatisticsEnabled( bool enabled )
-    {
-        if ( auto* const sharedFile = dynamic_cast<SharedFileReader*>( m_file.get() ); sharedFile != nullptr ) {
-            sharedFile->setStatisticsEnabled( enabled );
-        }
     }
 
 private:
