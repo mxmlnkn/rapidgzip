@@ -16,6 +16,9 @@
 #include <Statistics.hpp>
 
 #include "FileReader.hpp"
+#ifndef _MSC_VER
+    #include "Standard.hpp"
+#endif
 
 
 class SharedFileReader final :

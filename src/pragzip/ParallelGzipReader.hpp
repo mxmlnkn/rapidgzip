@@ -22,6 +22,7 @@
 
 #ifdef WITH_PYTHON_SUPPORT
     #include <filereader/Python.hpp>
+    #include <filereader/Standard.hpp>
 #endif
 
 #include "crc32.hpp"
