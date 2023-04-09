@@ -100,6 +100,17 @@ absDiff( const T& a,
 }
 
 
+template<typename U>
+[[nodiscard]] constexpr U
+saturatingAddition( const U a,
+                    const U b )
+{
+    static_assert( std::is_unsigned_v<U>, "Only intended for unsigned addition!" );
+    auto result = a + b;
+    return result < a ? std::numeric_limits<U>::max() : result;
+}
+
+
 template<typename S, typename T>
 std::ostream&
 operator<<( std::ostream&   out,
