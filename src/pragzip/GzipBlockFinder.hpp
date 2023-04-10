@@ -43,7 +43,7 @@ public:
         m_spacingInBits( spacing * CHAR_BIT ),
         m_isBgzfFile( blockfinder::Bgzf::isBgzfFile( fileReader ) ),
         m_bgzfBlockFinder( m_isBgzfFile
-                           ? std::make_unique<blockfinder::Bgzf>( UniqueFileReader( fileReader->clone() ) )
+                           ? std::make_unique<blockfinder::Bgzf>( fileReader->clone() )
                            : std::unique_ptr<blockfinder::Bgzf>() )
     {
         if ( m_spacingInBits < 32_Ki ) {

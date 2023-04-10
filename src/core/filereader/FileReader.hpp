@@ -5,6 +5,11 @@
 #include <memory>
 
 
+class FileReader;
+
+using UniqueFileReader = std::unique_ptr<FileReader>;
+
+
 /**
  * This file interface is heavily inspired by IOBase from Python because it is to be used from Python.
  * However, it strips anything related to file modification resulting a read-only file object.
@@ -25,7 +30,7 @@ public:
     FileReader& operator=( const FileReader& ) = delete;
     FileReader& operator=( FileReader&& ) = delete;
 
-    [[nodiscard]] virtual FileReader*
+    [[nodiscard]] virtual UniqueFileReader
     clone() const = 0;
 
     virtual void
@@ -63,6 +68,3 @@ public:
     virtual void
     clearerr() = 0;
 };
-
-
-using UniqueFileReader = std::unique_ptr<FileReader>;

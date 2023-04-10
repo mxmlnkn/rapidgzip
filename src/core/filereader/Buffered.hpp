@@ -48,7 +48,7 @@ public:
         m_buffer( std::move( inMemoryFileContents ) )
     {}
 
-    [[nodiscard]] FileReader*
+    [[nodiscard]] UniqueFileReader
     clone() const override
     {
         throw std::invalid_argument( "Cloning this file reader is not allowed because the internal file position "

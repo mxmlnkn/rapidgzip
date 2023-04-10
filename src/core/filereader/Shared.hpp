@@ -101,10 +101,10 @@ public:
     /**
      * Creates a shallow copy of this file reader with an independent file position to access the underlying file.
      */
-    [[nodiscard]] FileReader*
+    [[nodiscard]] UniqueFileReader
     clone() const override
     {
-        return new SharedFileReader( *this );
+        return UniqueFileReader( new SharedFileReader( *this ) );
     }
 
     void

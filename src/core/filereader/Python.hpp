@@ -166,7 +166,7 @@ public:
         close();
     }
 
-    [[nodiscard]] FileReader*
+    [[nodiscard]] UniqueFileReader
     clone() const override
     {
         throw std::invalid_argument( "Cloning file path reader not allowed because the internal file position "

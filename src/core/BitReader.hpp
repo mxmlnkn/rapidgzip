@@ -91,7 +91,7 @@ public:
     BitReader& operator=( const BitReader& other ) = delete;
 
     BitReader( const BitReader& other ) :
-        m_file( other.m_file ? other.m_file->clone() : nullptr ),
+        m_file( other.m_file ? other.m_file->clone() : UniqueFileReader() ),
         m_inputBuffer( other.m_inputBuffer )
     {
         if ( dynamic_cast<const SharedFileReader*>( other.m_file.get() ) == nullptr ) {
@@ -107,10 +107,10 @@ public:
 
     /* File Reader Interface Implementation */
 
-    [[nodiscard]] FileReader*
+    [[nodiscard]] UniqueFileReader
     clone() const override final
     {
-        return new BitReader( *this );
+        return std::make_unique<BitReader>( *this );
     }
 
     [[nodiscard]] bool

@@ -56,7 +56,7 @@ public:
             {
                 return std::make_shared<BlockFinder>(
                     std::make_unique<ParallelBitStringFinder<bzip2::MAGIC_BITS_SIZE> >(
-                        UniqueFileReader( m_sharedFileReader->clone() ),
+                        m_sharedFileReader->clone(),
                         bzip2::MAGIC_BITS_BLOCK,
                         m_finderParallelization
                 ) );
@@ -89,7 +89,7 @@ public:
 
     /* FileReader overrides */
 
-    [[nodiscard]] FileReader*
+    [[nodiscard]] UniqueFileReader
     clone() const override
     {
         throw std::logic_error( "Not implemented!" );
@@ -489,7 +489,7 @@ private:
 
 private:
     std::unique_ptr<SharedFileReader> m_sharedFileReader;
-    BitReader m_bitReader{ UniqueFileReader( m_sharedFileReader->clone() ) };
+    BitReader m_bitReader{ m_sharedFileReader->clone() };
 
     size_t m_currentPosition = 0; /**< the current position as can only be modified with read or seek calls. */
     bool m_atEndOfFile = false;

@@ -72,7 +72,7 @@ public:
 
     /* FileReader finals */
 
-    [[nodiscard]] FileReader*
+    [[nodiscard]] UniqueFileReader
     clone() const final
     {
         throw std::logic_error( "Not implemented!" );

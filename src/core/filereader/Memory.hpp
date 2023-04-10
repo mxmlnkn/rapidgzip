@@ -18,10 +18,10 @@ public:
         m_data( std::move( data ) )
     {}
 
-    [[nodiscard]] FileReader*
+    [[nodiscard]] UniqueFileReader
     clone() const override
     {
-        return new MemoryFileReader( m_data );
+        return std::make_unique<MemoryFileReader>( m_data );
     }
 
     void

@@ -253,7 +253,7 @@ public:
 
     /* FileReader overrides */
 
-    [[nodiscard]] FileReader*
+    [[nodiscard]] UniqueFileReader
     clone() const override
     {
         throw std::logic_error( "Not implemented!" );
