@@ -6,6 +6,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -288,6 +289,10 @@ pragzipCLI( int argc, char** argv )
     std::string inputFilePath; /* Can be empty. Then, read from STDIN. */
     if ( parsedArgs.count( "input" ) == 1 ) {
         inputFilePath = parsedArgs["input"].as<std::string>();
+        if ( !inputFilePath.empty() && !fileExists( inputFilePath ) ) {
+            std::cerr << "Input file could not be found! Specified path: " << inputFilePath << "\n";
+            return 1;
+        }
     }
 
     auto inputFile = openFileOrStdin( inputFilePath );
@@ -311,7 +316,7 @@ pragzipCLI( int argc, char** argv )
         } else {
             outputFilePath = inputFilePath + ".out";
             if ( !quiet ) {
-                std::cerr << "Could not deduce output file name. Will write to '" << outputFilePath << "'\n";
+                std::cerr << "[Warning] Could not deduce output file name. Will write to '" << outputFilePath << "'\n";
             }
         }
     }
@@ -462,7 +467,12 @@ main( int argc, char** argv )
     }
     catch ( const std::exception& exception )
     {
-        std::cerr << "Caught exception:\n" << exception.what() << ", typeid: " << typeid( exception ).name() << "\n";
+        const std::string_view message{ exception.what() };
+        if ( message.empty() ) {
+            std::cerr << "Caught exception with typeid: " << typeid( exception ).name() << "\n";
+        } else {
+            std::cerr << message << "\n";
+        }
         return 1;
     }
 

@@ -9,6 +9,9 @@ namespace pragzip
 enum class [[nodiscard]] Error
 {
     NONE                        = 0x00,
+    /* No error, there simply is no data at all for e.g. reading the gzip header,
+     * which might indicate a valid end of file. */
+    END_OF_FILE                 = 0x01,
 
     EOF_ZERO_STRING             = 0x10,
     EOF_UNCOMPRESSED            = 0x11,
@@ -27,11 +30,13 @@ enum class [[nodiscard]] Error
     INVALID_CL_BACKREFERENCE    = 0x44,
     INVALID_BACKREFERENCE       = 0x45,
     EMPTY_ALPHABET              = 0x46,
-    INVALID_GZIP_HEADER         = 0x47,
-    INVALID_CODE_LENGTHS        = 0x48,
-    BLOATING_HUFFMAN_CODING     = 0x49,
+    INVALID_CODE_LENGTHS        = 0x47,
+    BLOATING_HUFFMAN_CODING     = 0x48,
 
-    UNEXPECTED_LAST_BLOCK       = 0x50,
+    INVALID_GZIP_HEADER         = 0x60,
+    INCOMPLETE_GZIP_HEADER      = 0x61,
+
+    UNEXPECTED_LAST_BLOCK       = 0x80,
 };
 
 
@@ -68,6 +73,8 @@ toString( Error error )
         return "Backreferenced data does not exist!";
     case Error::INVALID_GZIP_HEADER:
         return "Invalid gzip magic bytes!";
+    case Error::INCOMPLETE_GZIP_HEADER:
+        return "Incomplete gzip header!";
     case Error::INVALID_CODE_LENGTHS:
         return "Constructing a Huffman coding from the given code length sequence failed!";
     case Error::BLOATING_HUFFMAN_CODING:
@@ -78,6 +85,8 @@ toString( Error error )
         return "The backreferenced distance lies outside the window buffer!";
     case Error::NONE:
         return "No error.";
+    case Error::END_OF_FILE:
+        return "End of file reached.";
     }
     return "Unknown error code!";
 }

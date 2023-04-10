@@ -311,7 +311,7 @@ public:
     size() const override
     {
         if ( !m_blockMap->finalized() ) {
-            throw std::invalid_argument( "Can't get stream size in BZ2 when not finished reading at least once!" );
+            throw std::invalid_argument( "Cannot get stream size in gzip when not finished reading at least once!" );
         }
         return m_blockMap->back().second;
     }

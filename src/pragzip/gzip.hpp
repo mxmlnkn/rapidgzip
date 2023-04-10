@@ -97,64 +97,74 @@ readHeader( BitReader& bitReader )
 {
     Header header;
 
-    const auto readBytes = bitReader.read<3 * BYTE_SIZE>();
-    if ( readBytes != MAGIC_BYTES_GZIP ) {
-        return { header, Error::INVALID_GZIP_HEADER };
+    try {
+        bitReader.peek<1>();
+    } catch ( const BitReader::EndOfFileReached& ) {
+        return { header, Error::END_OF_FILE };
     }
 
-    const auto flags = bitReader.read<BYTE_SIZE>();
-    header.modificationTime = static_cast<uint32_t>( bitReader.read<4 * BYTE_SIZE>() );
-    header.extraFlags = static_cast<uint8_t>( bitReader.read<BYTE_SIZE>() );
-    header.operatingSystem = static_cast<uint8_t>( bitReader.read<BYTE_SIZE>() );
+    try {
+        const auto readBytes = bitReader.read<3 * BYTE_SIZE>();
+        if ( readBytes != MAGIC_BYTES_GZIP ) {
+            return { header, Error::INVALID_GZIP_HEADER };
+        }
 
-    header.isLikelyASCII = ( flags & 1 ) != 0;
+        const auto flags = bitReader.read<BYTE_SIZE>();
+        header.modificationTime = static_cast<uint32_t>( bitReader.read<4 * BYTE_SIZE>() );
+        header.extraFlags = static_cast<uint8_t>( bitReader.read<BYTE_SIZE>() );
+        header.operatingSystem = static_cast<uint8_t>( bitReader.read<BYTE_SIZE>() );
 
-    const auto readZeroTerminatedString =
-        [&bitReader] () -> std::pair<std::string, Error>
-        {
-            std::string result;
-            for ( size_t i = 0; i < MAX_ALLOWED_FIELD_SIZE; ++i ) {
-                if ( bitReader.eof() ) {
-                    return { result, Error::EOF_ZERO_STRING };
+        header.isLikelyASCII = ( flags & 1 ) != 0;
+
+        const auto readZeroTerminatedString =
+            [&bitReader] () -> std::pair<std::string, Error>
+            {
+                std::string result;
+                for ( size_t i = 0; i < MAX_ALLOWED_FIELD_SIZE; ++i ) {
+                    if ( bitReader.eof() ) {
+                        return { result, Error::EOF_ZERO_STRING };
+                    }
+
+                    const auto toAppend = static_cast<char>( bitReader.read<BYTE_SIZE>() );
+                    if ( toAppend == 0 ) {
+                        break;
+                    }
+
+                    result.push_back( toAppend );
                 }
+                return { result, Error::NONE };
+            };
 
-                const auto toAppend = static_cast<char>( bitReader.read<BYTE_SIZE>() );
-                if ( toAppend == 0 ) {
-                    break;
-                }
-
-                result.push_back( toAppend );
+        if ( ( flags & ( 1U << 2U ) ) != 0 ) {
+            const auto length = bitReader.read<16>();
+            std::vector<uint8_t> extraData( static_cast<size_t>( length ) );
+            for ( auto& extraByte : extraData ) {
+                extraByte = static_cast<uint8_t>( bitReader.read<BYTE_SIZE>() );
             }
-            return { result, Error::NONE };
-        };
-
-    if ( ( flags & ( 1U << 2U ) ) != 0 ) {
-        const auto length = bitReader.read<16>();
-        std::vector<uint8_t> extraData( static_cast<size_t>( length ) );
-        for ( auto& extraByte : extraData ) {
-            extraByte = static_cast<uint8_t>( bitReader.read<BYTE_SIZE>() );
+            header.extra = std::move( extraData );
         }
-        header.extra = std::move( extraData );
-    }
 
-    Error error = Error::NONE;
+        Error error = Error::NONE;
 
-    if ( ( flags & ( 1U << 3U ) ) != 0 ) {
-        std::tie( header.fileName, error ) = readZeroTerminatedString();
-        if ( error != Error::NONE ) {
-            return { header, error };
+        if ( ( flags & ( 1U << 3U ) ) != 0 ) {
+            std::tie( header.fileName, error ) = readZeroTerminatedString();
+            if ( error != Error::NONE ) {
+                return { header, error };
+            }
         }
-    }
 
-    if ( ( flags & ( 1U << 4U ) ) != 0 ) {
-        std::tie( header.comment, error ) = readZeroTerminatedString();
-        if ( error != Error::NONE ) {
-            return { header, error };
+        if ( ( flags & ( 1U << 4U ) ) != 0 ) {
+            std::tie( header.comment, error ) = readZeroTerminatedString();
+            if ( error != Error::NONE ) {
+                return { header, error };
+            }
         }
-    }
 
-    if ( ( flags & ( 1U << 1U ) ) != 0 ) {
-        header.crc16 = bitReader.read<16>();
+        if ( ( flags & ( 1U << 1U ) ) != 0 ) {
+            header.crc16 = bitReader.read<16>();
+        }
+    } catch ( const BitReader::EndOfFileReached& ) {
+        return { header, Error::INCOMPLETE_GZIP_HEADER };
     }
 
     return { header, Error::NONE };
