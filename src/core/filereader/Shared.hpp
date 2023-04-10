@@ -32,7 +32,7 @@ private:
     explicit
     SharedFileReader( FileReader* file ) :
         m_statistics( dynamic_cast<SharedFileReader*>( file ) == nullptr
-                      ? std::shared_ptr<AccessStatistics>()
+                      ? std::make_shared<AccessStatistics>()
                       : dynamic_cast<SharedFileReader*>( file )->m_statistics ),
         m_mutex( dynamic_cast<SharedFileReader*>( file ) == nullptr
                  ? std::make_shared<std::mutex>()
@@ -81,7 +81,7 @@ public:
 
     ~SharedFileReader()
     {
-        if ( m_statistics && ( m_statistics.use_count() == 1 ) ) {
+        if ( m_statistics && m_statistics->enabled && ( m_statistics.use_count() == 1 ) ) {
             std::cerr << ( ThreadSafeOutput()
                 << "[SharedFileReader::~SharedFileReader]\n"
                 << "   seeks back    : (" << m_statistics->seekBack.formatAverageWithUncertainty( true )
@@ -111,10 +111,8 @@ public:
     void
     setStatisticsEnabled( bool enabled )
     {
-        if ( enabled && !m_statistics ) {
-            m_statistics = std::make_shared<AccessStatistics>();
-        } else if ( !enabled && m_statistics ) {
-            m_statistics.reset();
+        if ( m_statistics ) {
+            m_statistics->enabled = enabled;
         }
     }
 
@@ -237,7 +235,7 @@ public:
             /* This statistic only approximates the actual pread behavior. The OS can probably reorder
              * concurrent pread calls and we would have to enclose pread itself in a lock, which defeats
              * the purpose of pread for speed. */
-            if ( m_statistics ) {
+            if ( m_statistics && m_statistics->enabled ) {
                 const std::scoped_lock lock{ m_statistics->mutex };
                 const auto oldOffset = m_statistics->lastAccessOffset;
                 if ( m_currentPosition > oldOffset ) {
@@ -259,7 +257,7 @@ public:
         {
             const auto fileLock = getLock();
 
-            if ( m_statistics ) {
+            if ( m_statistics && m_statistics->enabled ) {
                 const std::scoped_lock lock{ m_statistics->mutex };
                 const auto oldOffset = m_sharedFile->tell();
                 if ( m_currentPosition > oldOffset ) {
@@ -275,7 +273,7 @@ public:
             nBytesRead = m_sharedFile->read( buffer, nMaxBytesToRead );
         }
 
-        if ( m_statistics ) {
+        if ( m_statistics && m_statistics->enabled ) {
             const std::scoped_lock lock{ m_statistics->mutex };
             m_statistics->read.merge( nBytesRead );
             m_statistics->readingTime += duration( t0 );
@@ -303,7 +301,7 @@ private:
     [[nodiscard]] std::scoped_lock<std::mutex>
     getLock() const
     {
-        if ( m_statistics ) {
+        if ( m_statistics && m_statistics->enabled ) {
             ++m_statistics->locks;
         }
         return std::scoped_lock( *m_mutex );
@@ -311,6 +309,7 @@ private:
 
 private:
     struct AccessStatistics {
+        bool enabled{ false };
         uint64_t lastAccessOffset{ 0 };  // necessary for pread because tell() won't work
         Statistics<uint64_t> read;
         Statistics<uint64_t> seekBack;
@@ -321,7 +320,7 @@ private:
     };
 
 private:
-    std::shared_ptr<AccessStatistics> m_statistics;
+    const std::shared_ptr<AccessStatistics> m_statistics;
 
     std::shared_ptr<FileReader> m_sharedFile;
     int m_fileDescriptor{ -1 };
