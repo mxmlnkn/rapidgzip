@@ -400,12 +400,12 @@ writeAllSpliceUnsafe( [[maybe_unused]] const int                   outputFileDes
             nBytesWritten -= dataToWrite[i].iov_len;
         }
 
-        /* Write out last partially written buffer if necessary so that we can resumefull vectorized writing
+        /* Write out last partially written buffer if necessary so that we can resume full vectorized writing
          * from the next iovec buffer. */
         if ( ( i < dataToWrite.size() ) && ( nBytesWritten > 0 ) ) {
             const auto& iovBuffer = dataToWrite[i];
 
-            assert( iovBuffer.iov_len < static_cast<size_t>( nBytesWritten ) );
+            assert( iovBuffer.iov_len > static_cast<size_t>( nBytesWritten ) );
             const auto size = iovBuffer.iov_len - nBytesWritten;
 
             const auto remainingData = reinterpret_cast<char*>( iovBuffer.iov_base ) + nBytesWritten;
