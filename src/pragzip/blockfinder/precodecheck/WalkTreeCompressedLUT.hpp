@@ -7,11 +7,11 @@
 
 #pragma once
 
-#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <limits>
-#include <stdexcept>
+#include <map>
+#include <tuple>
 #include <vector>
 
 #include <BitManipulation.hpp>

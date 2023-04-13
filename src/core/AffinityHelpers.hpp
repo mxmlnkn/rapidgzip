@@ -12,7 +12,7 @@ pinThreadToLogicalCore( int logicalCoreId )
     /** @todo */
 }
 
-[[nodiscard]] unsigned int
+[[nodiscard]] inline unsigned int
 availableCores()
 {
     return std::thread::hardware_concurrency();
@@ -98,7 +98,7 @@ pinThreadToLogicalCore( int logicalCoreId )
 }
 
 
-[[nodiscard]] unsigned int
+[[nodiscard]] inline unsigned int
 availableCores()
 {
     const auto nCpusForSufficientMask = getRequiredBitMaskSize();

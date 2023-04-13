@@ -207,7 +207,7 @@ public:
 };
 
 
-void
+inline void
 ChunkData::setEncodedOffset( size_t offset )
 {
     if ( !matchesEncodedOffset( offset ) ) {
@@ -227,7 +227,7 @@ ChunkData::setEncodedOffset( size_t offset )
 }
 
 
-[[nodiscard]] std::vector<ChunkData::Subblock>
+[[nodiscard]] inline std::vector<ChunkData::Subblock>
 ChunkData::split( [[maybe_unused]] const size_t spacing ) const
 {
     if ( encodedOffsetInBits != maxEncodedOffsetInBits ) {
@@ -326,7 +326,7 @@ static_assert( !std::is_polymorphic_v<ChunkData>, "Simply making it polymorphic 
  *       pipe buffers. So, without this flag, there is no danger of extending the lifetime of those pages
  *       arbitarily.
  */
-[[nodiscard]] bool
+[[nodiscard]] inline bool
 writeAllSplice( const int                         outputFileDescriptor,
                 const void* const                 dataToWrite,
                 size_t const                      dataToWriteSize,
@@ -341,7 +341,7 @@ writeAllSplice( const int                         outputFileDescriptor,
 
 
 #if defined( HAVE_VMSPLICE )
-[[nodiscard]] bool
+[[nodiscard]] inline bool
 writeAllSplice( [[maybe_unused]] const int                         outputFileDescriptor,
                 [[maybe_unused]] const std::shared_ptr<ChunkData>& chunkData,
                 [[maybe_unused]] const std::vector<::iovec>&       buffersToWrite )
@@ -351,7 +351,7 @@ writeAllSplice( [[maybe_unused]] const int                         outputFileDes
 #endif  // HAVE_VMSPLICE
 
 
-void
+inline void
 writeAll( const std::shared_ptr<ChunkData>& chunkData,
           const int                         outputFileDescriptor,
           const size_t                      offsetInBlock,

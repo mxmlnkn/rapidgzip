@@ -24,12 +24,12 @@
 #include <vector>
 
 #include <BitReader.hpp>
-#include <HuffmanCodingDoubleLiteralCached.hpp>
-#include <HuffmanCodingLinearSearch.hpp>
-#include <HuffmanCodingSymbolsPerLength.hpp>
-#include <HuffmanCodingReversedBitsCachedCompressed.hpp>
-#include <HuffmanCodingReversedBitsCached.hpp>
-#include <HuffmanCodingReversedCodesPerLength.hpp>
+#include <huffman/HuffmanCodingDoubleLiteralCached.hpp>
+#include <huffman/HuffmanCodingLinearSearch.hpp>
+#include <huffman/HuffmanCodingSymbolsPerLength.hpp>
+#include <huffman/HuffmanCodingReversedBitsCachedCompressed.hpp>
+#include <huffman/HuffmanCodingReversedBitsCached.hpp>
+#include <huffman/HuffmanCodingReversedCodesPerLength.hpp>
 
 #include "DecodedDataView.hpp"
 #include "definitions.hpp"

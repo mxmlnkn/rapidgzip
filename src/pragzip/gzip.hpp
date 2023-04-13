@@ -29,7 +29,7 @@ constexpr auto MAGIC_BYTES_GZIP = 0x08'8B'1FU;
 constexpr auto MAX_ALLOWED_FIELD_SIZE = 1024 * 1024;
 
 
-[[nodiscard]] std::string
+[[nodiscard]] inline std::string
 getOperatingSystemName( uint8_t code ) noexcept
 {
     switch ( code )
@@ -54,7 +54,7 @@ getOperatingSystemName( uint8_t code ) noexcept
 }
 
 
-[[nodiscard]] std::string
+[[nodiscard]] inline std::string
 getExtraFlagsDescription( uint8_t code ) noexcept
 {
     switch ( code )

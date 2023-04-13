@@ -11,6 +11,7 @@
 #include <filereader/Standard.hpp>
 #include <FileUtils.hpp>
 #include <GzipReader.hpp>
+#include <ParallelGzipReader.hpp>
 #include <Statistics.hpp>
 #include <TestHelpers.hpp>
 

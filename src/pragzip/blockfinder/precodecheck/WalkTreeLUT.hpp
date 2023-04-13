@@ -8,6 +8,7 @@
 
 #include <definitions.hpp>
 #include <BitManipulation.hpp>
+#include <Error.hpp>
 
 
 namespace pragzip::PrecodeCheck::WalkTreeLUT

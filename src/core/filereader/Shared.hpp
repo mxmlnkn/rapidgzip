@@ -5,6 +5,7 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 
@@ -337,7 +338,7 @@ private:
 };
 
 
-[[nodiscard]] std::unique_ptr<SharedFileReader>
+[[nodiscard]] inline std::unique_ptr<SharedFileReader>
 ensureSharedFileReader( UniqueFileReader&& fileReader )
 {
     if ( !fileReader ) {

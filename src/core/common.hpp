@@ -179,14 +179,14 @@ endsWith( const S& fullString,
 }
 
 
-[[nodiscard]] std::string
+[[nodiscard]] inline std::string
 formatBits( const uint64_t value )
 {
     return std::to_string( value / 8 ) + " B " + std::to_string( value % 8 ) + " b";
 }
 
 
-[[nodiscard]] std::string
+[[nodiscard]] inline std::string
 formatBytes( const uint64_t value )
 {
     const std::array<std::pair<std::string_view, uint64_t>, 4> UNITS{ {
@@ -215,7 +215,7 @@ formatBytes( const uint64_t value )
 }
 
 
-[[nodiscard]] std::chrono::time_point<std::chrono::high_resolution_clock>
+[[nodiscard]] inline std::chrono::time_point<std::chrono::high_resolution_clock>
 now() noexcept
 {
     return std::chrono::high_resolution_clock::now();
@@ -234,7 +234,7 @@ duration( const T& t0,
 }
 
 
-[[nodiscard]] uint64_t
+[[nodiscard]] inline uint64_t
 unixTime() noexcept
 {
     const auto currentTime = std::chrono::system_clock::now().time_since_epoch();
@@ -285,7 +285,7 @@ private:
 };
 
 
-std::ostream&
+inline std::ostream&
 operator<<( std::ostream&           out,
             const ThreadSafeOutput& output )
 {
@@ -294,7 +294,7 @@ operator<<( std::ostream&           out,
 }
 
 
-[[nodiscard]] std::string
+[[nodiscard]] inline std::string
 toString( std::future_status status ) noexcept
 {
     switch ( status )
@@ -454,7 +454,7 @@ testFlags( const uint64_t value,
  * Fortunately, this is only needed for the tests, so the incomplete std::filesystem support
  * is not a problem for building the manylinux wheels on the pre 10.15 macOS kernel. */
 #ifndef __APPLE_CC__
-void
+inline void
 createRandomTextFile( std::filesystem::path path,
                       uint64_t              size )
 {
@@ -466,7 +466,7 @@ createRandomTextFile( std::filesystem::path path,
 }
 
 
-void
+inline void
 createRandomFile( std::filesystem::path path,
                   uint64_t              size )
 {
@@ -521,7 +521,7 @@ private:
 };
 
 
-[[nodiscard]] TemporaryDirectory
+[[nodiscard]] inline TemporaryDirectory
 createTemporaryDirectory( const std::string& title = "tmpTest" )
 {
     const std::filesystem::path tmpFolderName = title + "." + std::to_string( unixTime() );

@@ -1,10 +1,12 @@
 #pragma once
 
 #include <algorithm>
+#include <cassert>
 #include <cstdint>
 #include <limits>
 #include <stdexcept>
 
+#include <definitions.hpp>              // MAX_WINDOW_SIZE
 #include <VectorView.hpp>
 
 
@@ -44,7 +46,7 @@ private:
 };
 
 
-void
+inline void
 replaceMarkerBytes( WeakVector<std::uint16_t>       buffer,
                     VectorView<std::uint8_t> const& window )
 {

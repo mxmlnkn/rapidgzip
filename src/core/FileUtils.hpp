@@ -55,7 +55,7 @@
 
 
 #ifdef _MSC_VER
-[[nodiscard]] bool
+[[nodiscard]] inline bool
 stdinHasInput()
 {
     const auto handle = GetStdHandle( STD_INPUT_HANDLE );
@@ -65,7 +65,7 @@ stdinHasInput()
 }
 
 
-[[nodiscard]] bool
+[[nodiscard]] inline bool
 stdoutIsDevNull()
 {
     /**
@@ -77,7 +77,7 @@ stdoutIsDevNull()
 
 #else
 
-[[nodiscard]] bool
+[[nodiscard]] inline bool
 stdinHasInput()
 {
     pollfd fds{};
@@ -87,7 +87,7 @@ stdinHasInput()
 }
 
 
-[[nodiscard]] bool
+[[nodiscard]] inline bool
 stdoutIsDevNull()
 {
     struct stat devNull{};
@@ -256,7 +256,7 @@ throwingOpen( int         fileDescriptor,
 
 
 /** dup is not strong enough to be able to independently seek in the old and the dup'ed fd! */
-[[nodiscard]] std::string
+[[nodiscard]] inline std::string
 fdFilePath( int fileDescriptor )
 {
     std::stringstream filename;
@@ -266,7 +266,7 @@ fdFilePath( int fileDescriptor )
 
 
 #ifndef __APPLE_CC__  // Missing std::filesytem::path support in wheels
-[[nodiscard]] std::string
+[[nodiscard]] inline std::string
 findParentFolderContaining( const std::string& folder,
                             const std::string& relativeFilePath )
 {
@@ -352,7 +352,7 @@ findParentFolderContaining( const std::string& folder,
  * @return true if successful and false if it could not be spliced from the beginning, e.g., because the file
  *         descriptor is not a pipe.
  */
-[[nodiscard]] bool
+[[nodiscard]] inline bool
 writeAllSpliceUnsafe( [[maybe_unused]] const int         outputFileDescriptor,
                       [[maybe_unused]] const void* const dataToWrite,
                       [[maybe_unused]] const size_t      dataToWriteSize )
@@ -377,7 +377,7 @@ writeAllSpliceUnsafe( [[maybe_unused]] const int         outputFileDescriptor,
 }
 
 
-[[nodiscard]] bool
+[[nodiscard]] inline bool
 writeAllSpliceUnsafe( [[maybe_unused]] const int                   outputFileDescriptor,
                       [[maybe_unused]] const std::vector<::iovec>& dataToWrite )
 {
@@ -552,7 +552,7 @@ private:
  * Posix write is not guaranteed to write everything and in fact was encountered to not write more than
  * 0x7ffff000 (2'147'479'552) B. To avoid this, it has to be looped over.
  */
-void
+inline void
 writeAllToFd( const int         outputFileDescriptor,
               const void* const dataToWrite,
               const uint64_t    dataToWriteSize )
@@ -579,7 +579,7 @@ writeAllToFd( const int         outputFileDescriptor,
 
 
 #ifdef HAVE_IOVEC
-void
+inline void
 pwriteAllToFd( const int         outputFileDescriptor,
                const void* const dataToWrite,
                const uint64_t    dataToWriteSize,
@@ -604,7 +604,7 @@ pwriteAllToFd( const int         outputFileDescriptor,
 }
 
 
-void
+inline void
 writeAllToFdVector( const int                   outputFileDescriptor,
                     const std::vector<::iovec>& dataToWrite )
 {
@@ -639,7 +639,7 @@ writeAllToFdVector( const int                   outputFileDescriptor,
 }
 
 
-void
+inline void
 pwriteAllToFdVector( const int                   outputFileDescriptor,
                      const std::vector<::iovec>& dataToWrite,
                      size_t                      fileOffset )
@@ -679,7 +679,7 @@ pwriteAllToFdVector( const int                   outputFileDescriptor,
 #endif  // HAVE_IOVEC
 
 
-void
+inline void
 writeAll( const int         outputFileDescriptor,
           void* const       outputBuffer,
           const void* const dataToWrite,

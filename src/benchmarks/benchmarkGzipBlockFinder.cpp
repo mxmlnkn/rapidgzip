@@ -45,7 +45,7 @@ https://www.ietf.org/rfc/rfc1952.txt
 #include <common.hpp>
 #include <filereader/Buffered.hpp>
 #include <filereader/Standard.hpp>
-#include <HuffmanCodingCheckOnly.hpp>
+#include <huffman/HuffmanCodingCheckOnly.hpp>
 #include <precode.hpp>
 #include <Statistics.hpp>
 #include <TestHelpers.hpp>

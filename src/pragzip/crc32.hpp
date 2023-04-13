@@ -200,7 +200,7 @@ xPowerModulo( uint64_t exponent )
 /**
  * @return The combined CRC32 given two CRC32s for two subsequent parts of a larger stream.
  */
-[[nodiscard]] uint32_t
+[[nodiscard]] constexpr uint32_t
 combineCRC32( uint32_t crc1,
               uint32_t crc2,
               uint64_t crc32ByteStreamLength )

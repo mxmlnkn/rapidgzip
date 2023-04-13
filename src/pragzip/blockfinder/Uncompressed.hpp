@@ -18,7 +18,7 @@ namespace pragzip::blockfinder
  * @return An inclusive range of possible offsets. Because of the byte-padding there might be multiple valid deflate
  *         block start points. Returns std::numeric_limits<size_t>::max if nothing was found.
  */
-[[nodiscard]] std::pair<size_t, size_t>
+[[nodiscard]] inline std::pair<size_t, size_t>
 seekToNonFinalUncompressedDeflateBlock( BitReader&   bitReader,
                                         size_t const untilOffset = std::numeric_limits<size_t>::max() )
 {

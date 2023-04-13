@@ -10,12 +10,12 @@
 #include <common.hpp>
 #include <filereader/Buffered.hpp>
 #include <filereader/BufferView.hpp>
-#include <HuffmanCodingDoubleLiteralCached.hpp>
-#include <HuffmanCodingLinearSearch.hpp>
-#include <HuffmanCodingReversedBitsCached.hpp>
-#include <HuffmanCodingReversedBitsCachedCompressed.hpp>
-#include <HuffmanCodingReversedCodesPerLength.hpp>
-#include <HuffmanCodingSymbolsPerLength.hpp>
+#include <huffman/HuffmanCodingDoubleLiteralCached.hpp>
+#include <huffman/HuffmanCodingLinearSearch.hpp>
+#include <huffman/HuffmanCodingReversedBitsCached.hpp>
+#include <huffman/HuffmanCodingReversedBitsCachedCompressed.hpp>
+#include <huffman/HuffmanCodingReversedCodesPerLength.hpp>
+#include <huffman/HuffmanCodingSymbolsPerLength.hpp>
 #include <TestHelpers.hpp>
 
 

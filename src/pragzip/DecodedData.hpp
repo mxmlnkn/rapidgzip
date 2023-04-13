@@ -470,7 +470,7 @@ static_assert( !std::is_polymorphic_v<DecodedData>, "Simply making it polymorphi
 
 
 #ifdef HAVE_IOVEC
-[[nodiscard]] std::vector<::iovec>
+[[nodiscard]] inline std::vector<::iovec>
 toIoVec( const DecodedData& decodedData,
          const size_t       offsetInBlock,
          const size_t       dataToWriteSize )

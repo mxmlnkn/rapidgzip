@@ -40,7 +40,7 @@ enum class [[nodiscard]] Error
 };
 
 
-[[nodiscard]] static inline std::string
+[[nodiscard]] inline std::string
 toString( Error error )
 {
     switch ( error )
@@ -92,7 +92,7 @@ toString( Error error )
 }
 
 
-std::ostream&
+inline std::ostream&
 operator<<( std::ostream&  out,
             pragzip::Error error )
 {

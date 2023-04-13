@@ -13,10 +13,11 @@
 
 #include <crc32.hpp>
 #include <DecodedDataView.hpp>
+#include <deflate.hpp>
 #include <FileUtils.hpp>
 #include <filereader/FileReader.hpp>
 #include <filereader/Standard.hpp>
-#include <pragzip.hpp>
+#include <gzip.hpp>
 
 #ifdef WITH_PYTHON_SUPPORT
     #include <filereader/Python.hpp>
@@ -520,7 +521,7 @@ GzipReader::readGzipFooter()
 }
 
 
-[[nodiscard]] std::string
+[[nodiscard]] inline std::string
 toString( StoppingPoint stoppingPoint )
 {
     // *INDENT-OFF*

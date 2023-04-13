@@ -8,9 +8,11 @@
 #include <utility>
 #include <vector>
 
-#include "AlignedAllocator.hpp"
+#include <AlignedAllocator.hpp>
+#include <common.hpp>
+#include <VectorView.hpp>
+
 #include "FileReader.hpp"
-#include "VectorView.hpp"
 
 
 class BufferedFileReader :

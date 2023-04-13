@@ -14,6 +14,7 @@
 #include <definitions.hpp>
 #include <filereader/Standard.hpp>
 #include <FileUtils.hpp>
+#include <GzipChunkFetcher.hpp>
 #include <GzipReader.hpp>
 #include <Prefetcher.hpp>
 #include <TestHelpers.hpp>

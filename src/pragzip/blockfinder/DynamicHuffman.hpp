@@ -5,7 +5,7 @@
 #include <limits>
 
 #include <BitReader.hpp>
-#include <HuffmanCodingCheckOnly.hpp>
+#include <huffman/HuffmanCodingCheckOnly.hpp>
 
 #include "deflate.hpp"
 #include "Error.hpp"
@@ -178,7 +178,7 @@ static constexpr auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT =
 /**
  * @see benchmarkLUTSize
  * This highly depends on the implementation of the for loop over the bitReader.
- * - Earliest versions withouth checkPrecode showed best results for 18 bits for this LUT.
+ * - Earliest versions without checkPrecode showed best results for 18 bits for this LUT.
  * - Versions with checkPrecode showed best results for 16 bits.
  * - The version that keeps two bit buffers to avoid back-seeks was optimal with 13 bits probably
  *   because that saves an additional shift when moving bits from one bit buffer to the other while avoiding

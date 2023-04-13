@@ -11,6 +11,8 @@
 #include <set>
 #include <vector>
 
+#include <common.hpp>       // interleave
+
 
 namespace FetchingStrategy
 {
