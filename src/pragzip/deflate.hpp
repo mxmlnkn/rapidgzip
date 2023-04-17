@@ -532,6 +532,11 @@ private:
                     typename Window::value_type decodedSymbol );
 
     template<typename Window>
+    forceinline void
+    appendToWindowUnsafe( Window&                     window,
+                          typename Window::value_type decodedSymbol );
+
+    template<typename Window>
     [[nodiscard]] std::pair<size_t, Error>
     readInternal( BitReader& bitReader,
                   size_t     nMaxToDecode,
@@ -1039,6 +1044,27 @@ Block<ENABLE_STATISTICS>::appendToWindow( Window&                     window,
 
 template<bool ENABLE_STATISTICS>
 template<typename Window>
+inline void
+Block<ENABLE_STATISTICS>::appendToWindowUnsafe( Window&                     window,
+                                                typename Window::value_type decodedSymbol )
+{
+    constexpr bool containsMarkerBytes = std::is_same_v<std::decay_t<typename Window::value_type>, uint16_t>;
+
+    if constexpr ( containsMarkerBytes ) {
+        if ( decodedSymbol > std::numeric_limits<uint8_t>::max() ) {
+            m_distanceToLastMarkerByte = 0;
+        } else {
+            ++m_distanceToLastMarkerByte;
+        }
+    }
+
+    window[m_windowPosition] = decodedSymbol;
+    m_windowPosition++;
+}
+
+
+template<bool ENABLE_STATISTICS>
+template<typename Window>
 std::pair<size_t, Error>
 Block<ENABLE_STATISTICS>::readInternal( BitReader& bitReader,
                                         size_t     nMaxToDecode,
@@ -1169,15 +1195,29 @@ Block<ENABLE_STATISTICS>::readInternalCompressed( BitReader&           bitReader
             const auto offset = ( m_windowPosition + window.size() - distance ) % window.size();
             const auto nToCopyPerRepeat = std::min( static_cast<uint16_t>( distance ), length );
             assert( nToCopyPerRepeat != 0 );
-
-            for ( size_t nCopied = 0; nCopied < length; ) {
-                for ( size_t position = offset;
-                      ( position < offset + nToCopyPerRepeat ) && ( nCopied < length );
-                      ++position, ++nCopied )
-                {
-                    const auto copiedSymbol = window[position % window.size()];
-                    appendToWindow( window, copiedSymbol );
-                    nBytesRead++;
+            /* Note: NOT "<= window.size()" but only "<" because for equality I would have to
+             *       compute modulo window.size() instead of simply: m_windowPosition += length. */
+            if ( LIKELY( m_windowPosition + length < window.size() ) ) [[likely]] {
+                for ( size_t nCopied = 0; nCopied < length; ) {
+                    for ( size_t position = offset;
+                          ( position < offset + nToCopyPerRepeat ) && ( nCopied < length );
+                          ++position, ++nCopied )
+                    {
+                        const auto copiedSymbol = window[position % window.size()];
+                        appendToWindowUnsafe( window, copiedSymbol );
+                        nBytesRead++;
+                    }
+                }
+            } else {
+                for ( size_t nCopied = 0; nCopied < length; ) {
+                    for ( size_t position = offset;
+                          ( position < offset + nToCopyPerRepeat ) && ( nCopied < length );
+                          ++position, ++nCopied )
+                    {
+                        const auto copiedSymbol = window[position % window.size()];
+                        appendToWindow( window, copiedSymbol );
+                        nBytesRead++;
+                    }
                 }
             }
         }
