@@ -279,27 +279,27 @@ main()
 /*
 cmake --build . -- benchmarkInflate && src/benchmarks/benchmarkInflate
 
-Compressed 128 MiB zeros to 127 KiB 430 B, compression ratio: 1028.66, compression strategy: Default, compression bandwidth: 276.317 MB/s
-    Runtime / s: 0.3734 <= 0.3744 +- 0.0015 <= 0.3762
-    Bandwidth on Decoded Data / (MB/s): 356.7 <= 358.4 +- 1.5 <= 359.4
+Compressed 128 MiB zeros to 127 KiB 430 B, compression ratio: 1028.66, compression strategy: Default, compression bandwidth: 277.491 MB/s
+    Runtime / s: 0.06918 <= 0.06929 +- 0.00021 <= 0.06953
+    Bandwidth on Decoded Data / (MB/s): 1930 <= 1937 +- 6 <= 1940
 
-Created 128 MiB random data in 0.225804 s
-Compressed 128 MiB random data to 128 MiB 40 KiB 23 B, compression ratio: 0.999695, compression strategy: Huffman Only, compression bandwidth: 91.5226 MB/s
-    Runtime / s: 0.07597 <= 0.07610 +- 0.00016 <= 0.07627
-    Bandwidth on Decoded Data / (MB/s): 1760 <= 1764 +- 4 <= 1767
+Created 128 MiB random data in 0.220642 s
+Compressed 128 MiB random data to 128 MiB 40 KiB 23 B, compression ratio: 0.999695, compression strategy: Huffman Only, compression bandwidth: 89.9106 MB/s
+    Runtime / s: 0.0792 <= 0.0801 +- 0.0012 <= 0.0814
+    Bandwidth on Decoded Data / (MB/s): 1648 <= 1677 +- 25 <= 1694
 
-Created 128 MiB random base64 data in 1.40477 s
-Compressed 128 MiB random base64 data to 96 MiB 850 KiB 494 B, compression ratio: 1.3219, compression strategy: Huffman Only, compression bandwidth: 89.3946 MB/s
-    Runtime / s: 0.6159 <= 0.6172 +- 0.0012 <= 0.6182
-    Bandwidth on Decoded Data / (MB/s): 217.1 <= 217.4 +- 0.4 <= 217.9
+Created 128 MiB random base64 data in 1.45205 s
+Compressed 128 MiB random base64 data to 96 MiB 850 KiB 494 B, compression ratio: 1.3219, compression strategy: Huffman Only, compression bandwidth: 86.7805 MB/s
+    Runtime / s: 0.6330 <= 0.6348 +- 0.0019 <= 0.6368
+    Bandwidth on Decoded Data / (MB/s): 210.8 <= 211.4 +- 0.6 <= 212.0
 
-Created 128 MiB random base64 data in 1.40626 s
-Compressed 128 MiB random base64 data to 127 MiB 119 KiB 122 B, compression ratio: 1.00695, compression strategy: Fixed Huffman, compression bandwidth: 30.4137 MB/s
-    Runtime / s: 0.7518 <= 0.7529 +- 0.0012 <= 0.7542
-    Bandwidth on Decoded Data / (MB/s): 177.96 <= 178.27 +- 0.28 <= 178.52
+Created 128 MiB random base64 data in 1.44896 s
+Compressed 128 MiB random base64 data to 127 MiB 119 KiB 122 B, compression ratio: 1.00695, compression strategy: Fixed Huffman, compression bandwidth: 30.0892 MB/s
+    Runtime / s: 0.7622 <= 0.7634 +- 0.0018 <= 0.7654
+    Bandwidth on Decoded Data / (MB/s): 175.4 <= 175.8 +- 0.4 <= 176.1
 
-Created 128 MiB data with random backreferences in 0.0464217 s
-Compressed 128 MiB data with random backreferences to 5 MiB 736 KiB 719 B, compression ratio: 22.3798, compression strategy: Default, compression bandwidth: 84.435 MB/s
-    Runtime / s: 0.14173 <= 0.14192 +- 0.00021 <= 0.14215
-    Bandwidth on Decoded Data / (MB/s): 944.2 <= 945.8 +- 1.4 <= 947.0
+Created 128 MiB data with random backreferences in 0.0487171 s
+Compressed 128 MiB data with random backreferences to 5 MiB 736 KiB 719 B, compression ratio: 22.3798, compression strategy: Default, compression bandwidth: 82.8308 MB/s
+    Runtime / s: 0.1458 <= 0.1466 +- 0.0006 <= 0.1470
+    Bandwidth on Decoded Data / (MB/s): 913 <= 916 +- 4 <= 920
 */

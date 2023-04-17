@@ -1090,6 +1090,12 @@ Block<ENABLE_STATISTICS>::resolveBackreference( Window&        window,
                 m_windowPosition += length;
                 return;
             }
+
+            if ( UNLIKELY( nToCopyPerRepeat == 1 ) ) [[unlikely]] {
+                std::memset( &window[m_windowPosition], window[offset], length );
+                m_windowPosition += length;
+                return;
+            }
         }
 
         for ( size_t nCopied = 0; nCopied < length; ) {
