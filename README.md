@@ -16,7 +16,7 @@ Both are built upon the same basic architecture to enable block-parallel decodin
 
 <div align="center">
 
-# pragzip
+# pragzip (alternative name: rapidgzip)
 
 [![PyPI version](https://badge.fury.io/py/pragzip.svg)](https://badge.fury.io/py/pragzip)
 [![Python Version](https://img.shields.io/pypi/pyversions/pragzip)](https://pypi.org/project/pragzip/)
@@ -28,7 +28,7 @@ Both are built upon the same basic architecture to enable block-parallel decodin
 </div>
 
 This module provides: 
- - a `pragzip` command line tool to decompress gzip files in parallel with a similar command line interface to `gzip` so that it can be used as a replacement.
+ - a `pragzip` command line tool for parallel decompression of gzip files with a similar command line interface to `gzip` so that it can be used as a replacement.
  - a `pragzip.open` Python method for reading and seeking inside gzip files using multiple threads for a speedup of **14** over the built-in gzip module using a 12-core processor.
 
 The random seeking support is similar to the one provided by [indexed_gzip](https://github.com/pauldmccarthy/indexed_gzip) and the parallel capabilities are effectively a working version of [pugz](https://github.com/Piezoid/pugz), which is only a concept and only works with a limited subset of file contents, namely non-binary (ASCII characters 0 to 127) compressed files.
