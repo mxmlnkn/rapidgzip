@@ -2,7 +2,7 @@
 
 ![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/python/pragzip/pragzip.svg)
 
-# Parallel Random Access Gzip (pragzip)
+# Pragzip: Parallel Random Access Gzip
 
 [![PyPI version](https://badge.fury.io/py/pragzip.svg)](https://badge.fury.io/py/pragzip)
 [![Python Version](https://img.shields.io/pypi/pyversions/pragzip)](https://pypi.org/project/pragzip/)
@@ -20,6 +20,7 @@
 
 </div>
 
+(Alternative Name: Rapidgzip: Random Access Parallel (Indexed) Decompression for Gzip Files)
 
 This repository contains the command line tool `pragzip`, which can be used for parallel decompression of almost any gzip file.
 
