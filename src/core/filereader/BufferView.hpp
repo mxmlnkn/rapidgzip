@@ -17,7 +17,20 @@ class BufferViewFileReader :
 public:
     explicit
     BufferViewFileReader( const std::vector<char>& buffer ) :
-        m_buffer( buffer )
+        m_buffer( reinterpret_cast<const std::byte*>( buffer.data() ) ),
+        m_size( buffer.size() )
+    {}
+
+    explicit
+    BufferViewFileReader( const std::vector<unsigned char>& buffer ) :
+        m_buffer( reinterpret_cast<const std::byte*>( buffer.data() ) ),
+        m_size( buffer.size() )
+    {}
+
+    explicit
+    BufferViewFileReader( const std::vector<std::byte>& buffer ) :
+        m_buffer( buffer.data() ),
+        m_size( buffer.size() )
     {}
 
     [[nodiscard]] UniqueFileReader
@@ -44,7 +57,7 @@ public:
     [[nodiscard]] bool
     eof() const override
     {
-        return m_bufferPosition >= m_buffer.size();
+        return m_bufferPosition >= m_size;
     }
 
     [[nodiscard]] bool
@@ -73,12 +86,12 @@ public:
             throw std::invalid_argument( "Cannot read from closed file!" );
         }
 
-        if ( ( nMaxBytesToRead == 0 ) || ( m_bufferPosition >= m_buffer.size() ) ) {
+        if ( ( nMaxBytesToRead == 0 ) || ( m_bufferPosition >= m_size ) ) {
             return 0;
         }
 
-        const auto nBytesToReadFromBuffer = std::min( m_buffer.size() - m_bufferPosition, nMaxBytesToRead );
-        std::memcpy( buffer, m_buffer.data() + m_bufferPosition, nBytesToReadFromBuffer );
+        const auto nBytesToReadFromBuffer = std::min( m_size - m_bufferPosition, nMaxBytesToRead );
+        std::memcpy( buffer, m_buffer + m_bufferPosition, nBytesToReadFromBuffer );
         m_bufferPosition += nBytesToReadFromBuffer;
         return nBytesToReadFromBuffer;
     }
@@ -109,7 +122,7 @@ public:
 
         /* Check if we can simply seek inside the buffer. */
         const auto newBufferPosition = static_cast<long long int>( m_bufferPosition ) + relativeOffset;
-        if ( ( newBufferPosition >= 0 ) && ( static_cast<size_t>( newBufferPosition ) <= m_buffer.size() ) ) {
+        if ( ( newBufferPosition >= 0 ) && ( static_cast<size_t>( newBufferPosition ) <= m_size ) ) {
             m_bufferPosition = newBufferPosition;
             return tell();
         }
@@ -120,7 +133,7 @@ public:
     [[nodiscard]] size_t
     size() const override
     {
-        return m_buffer.size();
+        return m_size;
     }
 
     [[nodiscard]] size_t
@@ -135,6 +148,7 @@ public:
 
 protected:
     bool m_closed{ false };
-    const std::vector<char>& m_buffer;
+    const std::byte* const m_buffer;
+    const size_t m_size;
     size_t m_bufferPosition{ 0 };
 };
