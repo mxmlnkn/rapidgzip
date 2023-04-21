@@ -43,6 +43,11 @@ The random seeking support is similar to the one provided by [indexed_gzip](http
 
 [See here for the extended Readme.](python/pragzip)
 
+There also exists a dedicated repository for pragzip [here](https://github.com/mxmlnkn/pragzip).
+It was created for visibility reasons and in order to keep indexed_bzip2 and pragzip releases separate.
+The main development will take place in [this](https://github.com/mxmlnkn/indexed_bzip2) repository while the pragzip repository will be updated at least for each release.
+Issues regarding pragzip should be opened at [its repository](https://github.com/mxmlnkn/pragzip/issues).
+
 
 <div align="center">
 

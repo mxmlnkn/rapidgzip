@@ -29,6 +29,11 @@ Alternatively, you can use this simply as a **parallelized** gzip decoder as a r
 
 The random seeking support is the same as provided by [indexed_gzip](https://github.com/pauldmccarthy/indexed_gzip) but further speedups are realized at the cost of higher memory usage thanks to a least-recently-used cache in combination with a parallelized prefetcher.
 
+[This](https://github.com/mxmlnkn/pragzip) repository is a light-weight fork of the [indexed_bzip2](https://github.com/mxmlnkn/indexed_bzip2) repository, in which the main development takes place.
+This repository was created for visibility reasons and in order to keep indexed_bzip2 and pragzip releases separate.
+It will be updated at least for each release.
+Issues regarding pragzip should be opened [here](https://github.com/mxmlnkn/pragzip/issues).
+
 
 # Table of Contents
 
