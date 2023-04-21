@@ -1076,17 +1076,22 @@ Block<ENABLE_STATISTICS>::resolveBackreference( Window&        window,
                                                 const uint16_t distance,
                                                 const uint16_t length )
 {
-    /**
-     * @todo use memcpy when it is not wrapping around! Note that we might be able to use lastBuffers
-     *       and write to those views to determine where it wraps around!
-     * @todo There are two kinds of wrap around! the actual buffer and when length > distance!
-     */
+    constexpr bool containsMarkerBytes = std::is_same_v<std::decay_t<decltype( *window.data() ) >, uint16_t>;
+
     const auto offset = ( m_windowPosition + window.size() - distance ) % window.size();
     const auto nToCopyPerRepeat = std::min( distance, length );
     assert( nToCopyPerRepeat != 0 );
     /* Note: NOT "<= window.size()" but only "<" because for equality I would have to
      *       compute modulo window.size() instead of simply: m_windowPosition += length. */
     if ( LIKELY( m_windowPosition + length < window.size() ) ) [[likely]] {
+        if constexpr ( !containsMarkerBytes ) {
+            if ( LIKELY( ( length <= distance ) && ( distance <= m_windowPosition ) ) ) [[likely]] {
+                std::memcpy( &window[m_windowPosition], &window[offset], length * sizeof( window.front() ) );
+                m_windowPosition += length;
+                return;
+            }
+        }
+
         for ( size_t nCopied = 0; nCopied < length; ) {
             for ( size_t position = offset;
                   ( position < offset + nToCopyPerRepeat ) && ( nCopied < length );
