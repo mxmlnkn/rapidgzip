@@ -72,6 +72,9 @@ target_link_libraries(benchmarkGzip PRIVATE zlibstatic LibArchive::LibArchive li
 
 endif()
 
+add_executable(benchmarkInflate)
+target_sources(benchmarkInflate PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkInflate.cpp)
+target_link_libraries(benchmarkInflate PRIVATE libpragzip)
 
 add_executable(benchmarkGzipBlockFinder)
 target_sources(benchmarkGzipBlockFinder PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkGzipBlockFinder.cpp)
