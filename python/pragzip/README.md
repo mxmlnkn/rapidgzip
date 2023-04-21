@@ -131,7 +131,7 @@ for parallelization in [0, 1, 2, 6, 12, 24, 32]:
 | pragzip with parallelization = 24 |  1.25       | 2620               | 14.0    |
 | pragzip with parallelization = 32 |  1.30       | 2520               | 13.5    |
 
-Note that pragzip is generally faster than given an index because it can delegate the decompression to zlib while it has to use its own gzip decompression engine when no index exists yet.
+Note that pragzip is generally faster when given an index because it can delegate the decompression to zlib while it has to use its own gzip decompression engine when no index exists yet.
 
 Note that values deviate roughly by 10% and therefore are rounded.
 
