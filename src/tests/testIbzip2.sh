@@ -3,6 +3,9 @@
 # Should be run from build folder
 
 
+IBZIP2='src/tools/ibzip2'
+
+
 function echoerr() { echo "$@" 1>&2; }
 
 function commandExists() {
@@ -27,7 +30,7 @@ function checkBz2Md5()
 
     printf .
 
-    for tool in bzip2 lbzip2 pbzip2 "tools/ibzip2 -P 1" "tools/ibzip2 -P 2" "tools/ibzip2 -P 8"; do
+    for tool in bzip2 lbzip2 pbzip2 "$IBZIP2 -P 1" "$IBZIP2 -P 2" "$IBZIP2 -P 8"; do
         if ! commandExists "$tool" && [[ ! -x "${tool%% *}" ]]; then
             echoerr "[Warning] Could not find '$tool', so will skip tests for it."
             continue
@@ -56,14 +59,14 @@ if commandExists bzip2; then tools+=( bzip2 ); fi
 if commandExists lbzip2; then tools+=( lbzip2 ); fi
 if commandExists pbzip2; then tools+=( pbzip2 ); fi
 
-if [[ ! -x tools/ibzip2 ]]; then
-    echoerr 'Could not find tools/ibzip2!'
+if [[ ! -x "$IBZIP2" ]]; then
+    echoerr "Could not find $IBZIP2"'!'
 fi
 
 
 export -f echoerr commandExists checkBz2Md5
 
-find ../external/bzip2-tests -type f -name '*.bz2' -print0 | xargs -0 -n 1 -I {} bash -c 'checkBz2Md5 "$@"' bash {}
+find ../src/external/bzip2-tests -type f -name '*.bz2' -print0 | xargs -0 -n 1 -I {} bash -c 'checkBz2Md5 "$@"' bash {}
 # If any invocation of the command exits with a status of 255, xargs will stop immediately without reading any further input.
 # An error message is issued on stderr when this happens.
 # Exit status 123 if any invocation of the command exited with status 1-125
