@@ -70,6 +70,11 @@ if(NOT USE_SYSTEM_ZLIB)
         ${ZLIB_HOME}/zutil.c
         ${ZLIB_HOME}/zutil.h
         ${ZLIB_HOME}/zlib.h
+        # Only required for compression, e.g., used for the tests and benchmarks
+        ${ZLIB_HOME}/deflate.c
+        ${ZLIB_HOME}/deflate.h
+        ${ZLIB_HOME}/trees.c
+        ${ZLIB_HOME}/trees.h
     )
     set_target_properties(zlibstatic PROPERTIES LINKER_LANGUAGE C)
 endif()

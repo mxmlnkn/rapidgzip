@@ -136,7 +136,22 @@ public:
     void
     finalize( size_t blockEndOffsetInBits )
     {
+        const auto oldMarkerSize = BaseType::dataWithMarkersSize();
         cleanUnmarkedData();
+        const auto toProcessSize = oldMarkerSize - BaseType::dataWithMarkersSize();
+        if ( toProcessSize > 0 ) {
+            CRC32Calculator crc32;
+            /* Iterate over contiguous chunks of memory. */
+            for ( size_t i = 0; ( i < data.size() ) && ( crc32.streamSize() < toProcessSize ); ++i ) {
+                crc32.update( data[i].data(),
+                              std::min<uint64_t>( toProcessSize - crc32.streamSize(), data[i].size() ) );
+            }
+            /* Note that the data with markers ought not cross footer boundaries because after a footer,
+             * a new gzip stream begins, which should be known to not contain any unresolvable backreferences.
+             * That's why we can simply merge the CRC32 for the cleaned data with the first CRC32. */
+            crc32s.front().prepend( crc32 );
+        }
+
         encodedSizeInBits = blockEndOffsetInBits - encodedOffsetInBits;
         decodedSizeInBytes = BaseType::size();
     }

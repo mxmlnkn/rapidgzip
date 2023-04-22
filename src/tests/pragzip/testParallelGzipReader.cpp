@@ -11,10 +11,12 @@
 
 #include <common.hpp>
 #include <filereader/Buffered.hpp>
+#include <filereader/BufferView.hpp>
 #include <filereader/Standard.hpp>
 #include <ParallelGzipReader.hpp>
 #include <pragzip.hpp>
 #include <TestHelpers.hpp>
+#include <zlib.hpp>
 
 
 using namespace pragzip;
@@ -381,6 +383,50 @@ testPerformance( const TemporaryDirectory& tmpFolder )
 }
 
 
+[[nodiscard]] std::vector<std::byte>
+createRandomData( uint64_t                      size,
+                  const std::vector<std::byte>& allowedSymbols )
+{
+    std::mt19937_64 randomEngine;
+    std::vector<std::byte> result( size );
+    for ( auto& x : result ) {
+        x = allowedSymbols[static_cast<size_t>( randomEngine() ) % allowedSymbols.size()];
+    }
+    return result;
+}
+
+
+void
+testCRC32AndCleanUnmarkedData()
+{
+    /* As there are 4 symbols, 2 bits per symbol should suffice and as the data is random, almost no backreferences
+     * should be viable. This leads to a compression ratio of ~4, which is large enough for splitting and benign
+     * enough to have multiple chunks with fairly little uncompressed data. */
+    using namespace std::literals;
+    constexpr auto DNA_SYMBOLS = "ACGT"sv;
+    std::vector<std::byte> allowedSymbols( DNA_SYMBOLS.size() );
+    std::transform( DNA_SYMBOLS.begin(), DNA_SYMBOLS.end(), allowedSymbols.begin(),
+                    [] ( const auto c ) { return static_cast<std::byte>( c ); } );
+    constexpr auto UNCOMPRESSED_SIZE = 10_Mi;
+    const auto randomDNA = createRandomData( UNCOMPRESSED_SIZE, allowedSymbols );
+    const auto compressedRandomDNA = compressWithZlib( randomDNA, CompressionStrategy::HUFFMAN_ONLY );
+    const auto compressionRatio = static_cast<double>( UNCOMPRESSED_SIZE )
+                                  / static_cast<double>( compressedRandomDNA.size() );
+    std::cerr << "Random DNA compression ratio: " << compressionRatio << "\n";  // 3.54874
+
+    pragzip::ParallelGzipReader<pragzip::ChunkData, /* ENABLE_STATISTICS */ true> reader(
+        std::make_unique<BufferViewFileReader>( compressedRandomDNA ), /* parallelization */ 2, /* chunk size */ 1_Mi );
+    reader.setCRC32Enabled( true );
+
+    /* Read everything. The data should contain sufficient chunks such that the first one have been evicted. */
+    std::vector<std::byte> decompressed( UNCOMPRESSED_SIZE );
+    /* In the bugged version, which did not calcualte the CRC32 for data cleaned inside cleanUnmarkedData,
+     * this call would throw an exception because CRC32 verification failed. */
+    reader.read( -1, reinterpret_cast<char*>( decompressed.data() ), std::numeric_limits<size_t>::max() );
+    REQUIRE( decompressed == randomDNA );
+}
+
+
 int
 main( int    argc,
       char** argv )
@@ -400,6 +446,8 @@ main( int    argc,
         static_cast<std::filesystem::path>(
             findParentFolderContaining( binaryFolder, "src/tests/data/base64-256KiB.bgz" )
         ) / "src" / "tests" / "data";
+
+    testCRC32AndCleanUnmarkedData();
 
     const auto tmpFolder = createTemporaryDirectory( "pragzip.testParallelGzipReader" );
 
