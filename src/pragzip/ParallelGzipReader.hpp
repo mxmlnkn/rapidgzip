@@ -807,6 +807,17 @@ private:
             throw std::logic_error( "Fewer CRC32s in chunk than expected based on the gzip footers!" );
         }
 
+        const auto totalCRC32StreamSize = std::accumulate(
+            chunkData->crc32s.begin(), chunkData->crc32s.end(), size_t( 0 ),
+            [] ( size_t sum, const auto& calculator ) { return sum + calculator.streamSize(); } );
+        if ( totalCRC32StreamSize != chunkData->decodedSizeInBytes ) {
+            std::stringstream message;
+            message << "CRC32 computation stream size (" << formatBytes( totalCRC32StreamSize ) << ") differs from "
+                    << "chunk size: " << formatBytes( chunkData->decodedSizeInBytes ) << "!\n"
+                    << "Please open an issue or disable integrated CRC32 verification as a quick workaround.";
+            throw std::logic_error( std::move( message ).str() );
+        }
+
         /* Process CRC32 of chunk. */
         m_crc32.append( chunkData->crc32s.front() );
         for ( size_t i = 0; i < chunkData->footers.size(); ++i ) {

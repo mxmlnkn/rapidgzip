@@ -620,12 +620,36 @@ private:
          * and it would also be exactly one hugepage if support for that would ever be added.
          */
         constexpr size_t ALLOCATION_CHUNK_SIZE = 1_Mi;
-        for ( size_t alreadyDecoded = 0; alreadyDecoded < decodedSize; alreadyDecoded += ALLOCATION_CHUNK_SIZE ) {
-            const auto chunkSizeToDecode = std::min( ALLOCATION_CHUNK_SIZE, decodedSize - alreadyDecoded );
-            result.data.emplace_back( chunkSizeToDecode );
-            if ( deflateWrapper.read( result.data.back().data(), result.data.back().size() ) != chunkSizeToDecode ) {
-                throw std::runtime_error( "Could not decode as much as requested!" );
+        for ( size_t alreadyDecoded = 0; alreadyDecoded < decodedSize; ) {
+            deflate::DecodedVector subchunk( std::min( ALLOCATION_CHUNK_SIZE, decodedSize - alreadyDecoded ) );
+            std::optional<gzip::Footer> footer;
+
+            /* In order for CRC32 verification to work, we have append at most one gzip stream per subchunk
+             * because the CRC32 calculator is swapped inside ChunkData::append. */
+            size_t nBytesRead = 0;
+            size_t nBytesReadPerCall{ 0 };
+            for ( ; ( nBytesRead < subchunk.size() ) && !footer; nBytesRead += nBytesReadPerCall ) {
+                std::tie( nBytesReadPerCall, footer ) = deflateWrapper.readStream( subchunk.data() + nBytesRead,
+                                                                                   subchunk.size() - nBytesRead );
+                if ( nBytesReadPerCall == 0 ) {
+                    throw std::runtime_error( "Could not decode as much as requested!" );
+                }
             }
+
+            alreadyDecoded += nBytesRead;
+
+            subchunk.resize( nBytesRead );
+            subchunk.shrink_to_fit();
+            result.append( std::move( subchunk ) );
+            if ( footer ) {
+                result.appendFooter( deflateWrapper.tellEncoded(), alreadyDecoded, *footer );
+            }
+        }
+
+        uint8_t dummy{ 0 };
+        const auto [nBytesReadPerCall, footer] = deflateWrapper.readStream( &dummy, 1 );
+        if ( ( nBytesReadPerCall == 0 ) && footer ) {
+            result.appendFooter( deflateWrapper.tellEncoded(), decodedSize, *footer );
         }
 
         /* We cannot arbitarily use bitReader.tell here, because the zlib wrapper buffers input read from BitReader.

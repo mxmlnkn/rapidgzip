@@ -160,19 +160,23 @@ public:
         }
     }
 
-    [[nodiscard]] size_t
-    read( uint8_t* const output,
-          size_t   const outputSize )
+    /**
+     * May return fewer bytes than requested. Only reads one deflate stream per call so that it can return
+     * the gzip footer appearing after each deflate stream.
+     */
+    [[nodiscard]] std::pair<size_t, std::optional<gzip::Footer> >
+    readStream( uint8_t* const output,
+                size_t   const outputSize )
     {
         m_stream.next_out = output;
         m_stream.avail_out = outputSize;
         m_stream.total_out = 0;
 
         size_t decodedSize{ 0 };
-        while ( decodedSize + m_stream.total_out < outputSize ) {
+        while ( ( decodedSize + m_stream.total_out < outputSize ) && ( m_stream.avail_out > 0 ) ) {
             refillBuffer();
             if ( m_stream.avail_in == 0 ) {
-                throw std::runtime_error( "Not enough input for requested output!" );
+                break;
             }
 
             const auto errorCode = inflate( &m_stream, Z_BLOCK );
@@ -186,10 +190,7 @@ public:
             }
 
             if ( decodedSize + m_stream.total_out > outputSize ) {
-                throw std::logic_error( "Decoded more than fits into output buffer!" );
-            }
-            if ( decodedSize + m_stream.total_out == outputSize ) {
-                return outputSize;
+                throw std::logic_error( "Decoded more than fits into the output buffer!" );
             }
 
             if ( errorCode == Z_STREAM_END ) {
@@ -197,50 +198,112 @@ public:
 
                 /* If we started with raw deflate, then we also have to skip other the gzip footer.
                  * Assuming we are decoding gzip and not zlib or multiple raw deflate streams. */
+                std::optional<gzip::Footer> footer;
                 if ( m_windowFlags < 0 ) {
-                    readGzipFooter();
-                }
-
-                /* 2^15 = 32 KiB window buffer and minus signaling raw deflate stream to decode.
-                 * > The current implementation of inflateInit2() does not process any header information --
-                 * > that is deferred until inflate() is called.
-                 * Because of this, we don't have to ensure that enough data is available and/or calling it a
-                 * second time to read the rest of the header. */
-                m_windowFlags = /* decode gzip */ 16 + /* 2^15 buffer */ 15;
-                /* Note that inflateInit and inflateReset set total_out to 0 among other things. */
-                if ( inflateReset2( &m_stream, m_windowFlags ) != Z_OK ) {
-                    throw std::runtime_error( "Probably encountered invalid gzip header!" );
+                    footer = readGzipFooter();
+                    readGzipHeader();
                 }
 
                 m_stream.next_out = output + decodedSize;
                 m_stream.avail_out = outputSize - decodedSize;
-            }
 
-            if ( m_stream.avail_out == 0 ) {
-                return outputSize;
+                return { decodedSize, footer };
             }
         }
 
-        return decodedSize;
+        return { decodedSize + m_stream.total_out, std::nullopt };
+    }
+
+    [[nodiscard]] size_t
+    tellEncoded() const
+    {
+        return m_bitReader.tell() - m_stream.avail_in * BYTE_SIZE;
     }
 
 private:
     /**
      * Only works on and modifies m_stream.avail_in and m_stream.next_in.
      */
-    void
+    gzip::Footer
     readGzipFooter()
     {
-        for ( auto stillToRemove = 8U; stillToRemove > 0; ) {
+        gzip::Footer footer{ 0, 0 };
+
+        constexpr auto FOOTER_SIZE = 8U;
+        std::array<std::byte, FOOTER_SIZE> footerBuffer;
+        size_t footerSize{ 0 };
+        for ( auto stillToRemove = FOOTER_SIZE; stillToRemove > 0; ) {
             if ( m_stream.avail_in >= stillToRemove ) {
+                std::memcpy( footerBuffer.data() + footerSize, m_stream.next_in, stillToRemove );
+                footerSize += stillToRemove;
+
                 m_stream.avail_in -= stillToRemove;
                 m_stream.next_in += stillToRemove;
                 stillToRemove = 0;
             } else {
+                std::memcpy( footerBuffer.data() + footerSize, m_stream.next_in, m_stream.avail_in );
+                footerSize += m_stream.avail_in;
+
                 stillToRemove -= m_stream.avail_in;
                 m_stream.avail_in = 0;
                 refillBuffer();
             }
+        }
+
+        /* Get CRC32 and size machine-endian-agnostically. */
+        for ( auto i = 0U; i < 4U; ++i ) {
+            const auto subbyte = static_cast<uint8_t>( footerBuffer[i] );
+            footer.crc32 += static_cast<uint32_t>( subbyte ) << ( i * BYTE_SIZE );
+        }
+        for ( auto i = 0U; i < 4U; ++i ) {
+            const auto subbyte = static_cast<uint8_t>( footerBuffer[4U + i] );
+            footer.uncompressedSize += static_cast<uint32_t>( subbyte ) << ( i * BYTE_SIZE );
+        }
+
+        return footer;
+    }
+
+    void
+    readGzipHeader()
+    {
+        const auto oldNextOut = m_stream.next_out;
+
+        /* Note that inflateInit and inflateReset set total_out to 0 among other things. */
+        if ( inflateReset2( &m_stream, /* decode gzip */ 16 + /* 2^15 buffer */ 15 ) != Z_OK ) {
+            throw std::logic_error( "Probably encountered invalid gzip header!" );
+        }
+
+        gz_header gzipHeader{};
+        if ( inflateGetHeader( &m_stream, &gzipHeader ) != Z_OK ) {
+            throw std::logic_error( "Failed to initialize gzip header structure. Inconsistent zlib stream object?" );
+        }
+
+        refillBuffer();
+        while ( ( m_stream.avail_in > 0 ) && ( gzipHeader.done == 0 ) ) {
+            const auto errorCode = inflate( &m_stream, Z_BLOCK );
+            if ( errorCode != Z_OK ) {
+                /* Even Z_STREAM_END would be unexpected here because we test for avail_in > 0. */
+                throw std::runtime_error( "Failed to parse gzip header!" );
+            }
+
+            if ( gzipHeader.done == 1 ) {
+                break;
+            }
+
+            if ( gzipHeader.done == 0 ) {
+                refillBuffer();
+                continue;
+            }
+
+            throw std::runtime_error( "Failed to parse gzip header! Is it a Zlib stream?" );
+        }
+
+        if ( m_stream.next_out != oldNextOut ) {
+            throw std::logic_error( "Zlib wrote some output even though we only wanted to read the gzip header!" );
+        }
+
+        if ( inflateReset2( &m_stream, m_windowFlags ) != Z_OK ) {
+            throw std::logic_error( "Probably encountered invalid gzip header!" );
         }
     }
 
