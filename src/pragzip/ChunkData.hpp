@@ -98,7 +98,9 @@ public:
     {
         BaseType::applyWindow( window );
 
-        const auto alreadyProcessedSize = crc32s.front().streamSize();
+        const auto alreadyProcessedSize = std::accumulate(
+            crc32s.begin(), crc32s.end(), size_t( 0 ),
+            [] ( const auto sum, const auto& crc32 ) { return sum + crc32.streamSize(); } );
         if ( crc32s.front().enabled() && ( alreadyProcessedSize < BaseType::dataSize() ) ) {
             /* Markers should only appear up to the first gzip footer because otherwise a new gzip stream
              * would have started. A new gzip stream must not contain markers because there are no unresolvable
