@@ -13,6 +13,7 @@
 #include <VectorView.hpp>
 
 #include "definitions.hpp"
+#include "gzip.hpp"
 
 
 namespace pragzip
@@ -96,7 +97,11 @@ public:
         m_bitReader( std::move( bitReader ) )
     {
         initStream();
-        /* 2^15 = 32 KiB window buffer and minus signaling raw deflate stream to decode. */
+        /* 2^15 = 32 KiB window buffer and minus signaling raw deflate stream to decode.
+         * n in [8,15]
+         * -n for raw inflate, not looking for zlib/gzip header and not generating a check value!
+         * n + 16 for gzip decoding but not zlib
+         * n + 32 for gzip or zlib decoding with automatic detection */
         m_windowFlags = -15;
         if ( inflateInit2( &m_stream, m_windowFlags ) != Z_OK ) {
             throw std::runtime_error( "Probably encountered invalid deflate data!" );
@@ -190,27 +195,10 @@ public:
             if ( errorCode == Z_STREAM_END ) {
                 decodedSize += m_stream.total_out;
 
-                const auto oldStream = m_stream;
-                inflateEnd( &m_stream );  // All dynamically allocated data structures for this stream are freed.
-                initStream();
-                m_stream.avail_in = oldStream.avail_in;
-                m_stream.next_in = oldStream.next_in;
-                m_stream.total_out = oldStream.total_out;
-
                 /* If we started with raw deflate, then we also have to skip other the gzip footer.
                  * Assuming we are decoding gzip and not zlib or multiple raw deflate streams. */
                 if ( m_windowFlags < 0 ) {
-                    for ( auto stillToRemove = 8U; stillToRemove > 0; ) {
-                        if ( m_stream.avail_in >= stillToRemove ) {
-                            m_stream.avail_in -= stillToRemove;
-                            m_stream.next_in += stillToRemove;
-                            stillToRemove = 0;
-                        } else {
-                            stillToRemove -= m_stream.avail_in;
-                            m_stream.avail_in = 0;
-                            refillBuffer();
-                        }
-                    }
+                    readGzipFooter();
                 }
 
                 /* 2^15 = 32 KiB window buffer and minus signaling raw deflate stream to decode.
@@ -219,7 +207,8 @@ public:
                  * Because of this, we don't have to ensure that enough data is available and/or calling it a
                  * second time to read the rest of the header. */
                 m_windowFlags = /* decode gzip */ 16 + /* 2^15 buffer */ 15;
-                if ( inflateInit2( &m_stream, m_windowFlags ) != Z_OK ) {
+                /* Note that inflateInit and inflateReset set total_out to 0 among other things. */
+                if ( inflateReset2( &m_stream, m_windowFlags ) != Z_OK ) {
                     throw std::runtime_error( "Probably encountered invalid gzip header!" );
                 }
 
@@ -233,6 +222,26 @@ public:
         }
 
         return decodedSize;
+    }
+
+private:
+    /**
+     * Only works on and modifies m_stream.avail_in and m_stream.next_in.
+     */
+    void
+    readGzipFooter()
+    {
+        for ( auto stillToRemove = 8U; stillToRemove > 0; ) {
+            if ( m_stream.avail_in >= stillToRemove ) {
+                m_stream.avail_in -= stillToRemove;
+                m_stream.next_in += stillToRemove;
+                stillToRemove = 0;
+            } else {
+                stillToRemove -= m_stream.avail_in;
+                m_stream.avail_in = 0;
+                refillBuffer();
+            }
+        }
     }
 
 private:
