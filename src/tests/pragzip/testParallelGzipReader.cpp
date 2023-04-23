@@ -547,6 +547,7 @@ testPrefetchingAfterSplit()
     reader.read( -1, nullptr, std::numeric_limits<size_t>::max() );
     REQUIRE_EQUAL( reader.statistics().onDemandFetchCount, 1U );
     REQUIRE_EQUAL( reader.tell(), 64_Mi );
+    REQUIRE_EQUAL( reader.tellCompressed(), compressedRandomDNA.size() * BYTE_SIZE );
 
     reader.seek( 0 );
     std::cerr << "Current position after decompression: " << formatBytes( reader.tell() ) << "\n";

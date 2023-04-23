@@ -247,6 +247,12 @@ public:
         return m_blockToDataOffsets.back();
     }
 
+    [[nodiscard]] bool
+    empty() const
+    {
+        return m_blockToDataOffsets.empty();
+    }
+
 private:
     [[nodiscard]] BlockInfo
     get( typename BlockOffsets::const_reverse_iterator blockOffset ) const

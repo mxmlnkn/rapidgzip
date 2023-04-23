@@ -689,12 +689,15 @@ public:
     [[nodiscard]] size_t
     tellCompressed() const
     {
+        if ( !m_blockMap || m_blockMap->empty() ) {
+            return 0;
+        }
 
         const auto blockInfo = m_blockMap->findDataOffset( m_currentPosition );
         if ( blockInfo.contains( m_currentPosition ) ) {
             return blockInfo.encodedOffsetInBits;
         }
-        return 0;
+        return m_blockMap->back().first;
     }
 
 
