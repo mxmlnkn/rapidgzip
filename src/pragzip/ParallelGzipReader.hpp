@@ -389,7 +389,7 @@ public:
                 m_atEndOfFile = true;
                 break;
             }
-            const auto& [blockInfo, chunkData] = *blockResult;
+            const auto& [decodedOffsetInBytes, chunkData] = *blockResult;
 
             if ( chunkData->containsMarkers() ) {
                 throw std::logic_error( "Did not expect to get results with markers!" );
@@ -397,13 +397,13 @@ public:
 
             /* Copy data from fetched block to output. */
 
-            const auto offsetInBlock = m_currentPosition - blockInfo.decodedOffsetInBytes;
+            const auto offsetInBlock = m_currentPosition - decodedOffsetInBytes;
             const auto blockSize = chunkData->decodedSizeInBytes;
             if ( offsetInBlock >= blockSize ) {
                 std::stringstream message;
                 message << "[ParallelGzipReader] Block does not contain the requested offset! "
                         << "Requested offset from chunk fetcher: " << formatBytes( m_currentPosition )
-                        << ", returned block info from block map: " << blockInfo
+                        << ", decoded offset: " << decodedOffsetInBytes
                         << ", block data encoded offset: " << formatBits( chunkData->encodedOffsetInBits )
                         << ", block data encoded size: " << formatBits( chunkData->encodedSizeInBits )
                         << ", block data size: " << formatBytes( chunkData->decodedSizeInBytes )

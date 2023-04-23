@@ -117,14 +117,42 @@ public:
 
     /**
      * @param offset The current offset in the decoded data. (Does not have to be a block offset!)
+     * Does not return the whole BlockInfo object because it might not fit the chunk from the cache
+     * because of dynamic chunk splitting. E.g., when the BlockMap already contains the smaller split
+     * chunks while the cache still contains the unsplit chunk.
      */
-    [[nodiscard]] std::optional<std::pair<BlockMap::BlockInfo, std::shared_ptr<ChunkData> > >
+    [[nodiscard]] std::optional<std::pair</* decoded offset */ size_t, std::shared_ptr<ChunkData> > >
     get( size_t offset )
     {
         /* In case we already have decoded the block once, we can simply query it from the block map and the fetcher. */
         auto blockInfo = m_blockMap->findDataOffset( offset );
         if ( blockInfo.contains( offset ) ) {
-            return std::make_pair( blockInfo, getBlock( blockInfo.encodedOffsetInBits, blockInfo.blockIndex ) );
+            const auto blockOffset = blockInfo.encodedOffsetInBits;
+            /* Try to look up the offset based on an offset of for the unsplit block.
+             * Do not use BaseType::get because it has too many side effects. Even if we know that the cache
+             * contains the chunk, the access might break the perfect sequential fetching pattern because
+             * the chunk was split into multiple indexes in the fetching strategy while we might now access
+             * an earlier index, e.g., chunk 1 split into 1,2,3, then access offset belonging to split chunk 2. */
+            if ( const auto unsplitBlock = m_unsplitBlocks.find( blockOffset );
+                 ( unsplitBlock != m_unsplitBlocks.end() ) && ( unsplitBlock->second != blockOffset ) )
+            {
+                if ( const auto chunkData = BaseType::cache().get( unsplitBlock->second ); chunkData ) {
+                    /* This will get the first split subchunk but this is fine because we only need the
+                     * decodedOffsetInBytes from this query. Normally, this should always return a valid optional! */
+                    auto unsplitBlockInfo = m_blockMap->getEncodedOffset( ( *chunkData )->encodedOffsetInBits );
+                    if ( unsplitBlockInfo
+                         /* Test whether we got the unsplit block or the first split subblock from the cache. */
+                         && ( blockOffset >= ( *chunkData )->encodedOffsetInBits )
+                         && ( blockOffset < ( *chunkData )->encodedOffsetInBits + ( *chunkData )->encodedSizeInBits ) )
+                    {
+                        return std::make_pair( unsplitBlockInfo->decodedOffsetInBytes, *chunkData );
+                    }
+                }
+            }
+
+            /* Get block normally */
+            return std::make_pair( blockInfo.decodedOffsetInBytes,
+                                   getBlock( blockInfo.encodedOffsetInBits, blockInfo.blockIndex ) );
         }
 
         /* If the requested offset lies outside the last known block, then we need to keep fetching the next blocks
@@ -156,6 +184,19 @@ public:
 
             if ( subblocks.size() > 1 ) {
                 BaseType::m_fetchingStrategy.splitIndex( m_nextUnprocessedBlockIndex, subblocks.size() );
+
+                /* Get actual key in cache, which might be the partition offset! */
+                const auto chunkOffset = chunkData->encodedOffsetInBits;
+                const auto partitionOffset = m_blockFinder->partitionOffsetContainingOffset( chunkOffset );
+                const auto lookupKey = !BaseType::test( chunkOffset ) && BaseType::test( partitionOffset )
+                                       ? partitionOffset
+                                       : chunkOffset;
+                for ( const auto boundary : subblocks ) {
+                    /* This condition could be removed but makes the map slightly smaller. */
+                    if ( boundary.encodedOffset != chunkOffset ) {
+                        m_unsplitBlocks.emplace( boundary.encodedOffset, lookupKey );
+                    }
+                }
             }
             m_nextUnprocessedBlockIndex += subblocks.size();
 
@@ -208,7 +249,7 @@ public:
             }
         }
 
-        return std::make_pair( blockInfo, chunkData );
+        return std::make_pair( blockInfo.decodedOffsetInBytes, chunkData );
     }
 
     void
@@ -823,6 +864,9 @@ private:
     /* This is the highest found block inside BlockFinder we ever processed and put into the BlockMap.
      * After the BlockMap has been finalized, this isn't needed anymore. */
     size_t m_nextUnprocessedBlockIndex{ 0 };
+
+    /* This is necessary when blocks have been split in order to find and reuse cached unsplit chunks. */
+    std::unordered_map</* block offset */ size_t, /* block offset of unsplit "parent" chunk */ size_t> m_unsplitBlocks;
 
     std::map</* block offset */ size_t, std::future<void> > m_markersBeingReplaced;
 };

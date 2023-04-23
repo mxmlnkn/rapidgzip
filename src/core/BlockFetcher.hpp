@@ -574,6 +574,12 @@ protected:
         return m_cache;
     }
 
+    [[nodiscard]] auto&
+    cache() noexcept
+    {
+        return m_cache;
+    }
+
     [[nodiscard]] const auto&
     prefetchCache() const noexcept
     {

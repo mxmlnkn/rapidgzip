@@ -531,6 +531,33 @@ testCRC32AndCleanUnmarkedData()
 
 
 void
+testCachedChunkReuseAfterSplit()
+{
+    /* This compresses with a compression ratio of ~1028! I.e. even for 1 GiB, there will be only one chunk
+     * even with a comparatively small chunk size of 1 MiB. */
+    const auto compressedZeros = compressWithZlib( std::vector<std::byte>( 128_Mi, std::byte( 0 ) ) );
+    pragzip::ParallelGzipReader<pragzip::ChunkData, /* ENABLE_STATISTICS */ true> reader(
+        std::make_unique<BufferViewFileReader>( compressedZeros ), /* parallelization */ 8, /* chunk size */ 1_Mi );
+    reader.setCRC32Enabled( true );
+
+    /* As there is only one chunk, this read call will cache it.  */
+    reader.read( -1, nullptr, 16_Mi );
+    REQUIRE_EQUAL( reader.statistics().onDemandFetchCount, 1U );
+
+    /* The chunk above will be split before inserting multiple smaller chunks into the BlockMap.
+     * This tests whether the larger unsplit chunk, which still exists in the cache, is correctly reused
+     * on the next access. */
+    while ( true ) {
+        const auto nBytesRead = reader.read( -1, nullptr, 1_Mi );
+        REQUIRE_EQUAL( reader.statistics().onDemandFetchCount, 1U );
+        if ( nBytesRead == 0 ) {
+            break;
+        }
+    }
+}
+
+
+void
 testPrefetchingAfterSplit()
 {
     /* As there are 4 symbols, 2 bits per symbol should suffice and as the data is random, almost no backreferences
@@ -550,7 +577,6 @@ testPrefetchingAfterSplit()
     REQUIRE_EQUAL( reader.tellCompressed(), compressedRandomDNA.size() * BYTE_SIZE );
 
     reader.seek( 0 );
-    std::cerr << "Current position after decompression: " << formatBytes( reader.tell() ) << "\n";
     reader.read( -1, nullptr, std::numeric_limits<size_t>::max() );
     /* It might require two cache misses until the prefetcher recognizes it as a sequential access! */
     REQUIRE( reader.statistics().onDemandFetchCount <= 3U );
@@ -591,6 +617,7 @@ main( int    argc,
 
     testCRC32AndCleanUnmarkedData();
     testPrefetchingAfterSplit();
+    testCachedChunkReuseAfterSplit();
 
     const auto tmpFolder = createTemporaryDirectory( "pragzip.testParallelGzipReader" );
 
