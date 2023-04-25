@@ -1084,13 +1084,25 @@ Block<ENABLE_STATISTICS>::resolveBackreference( Window&        window,
     /* Note: NOT "<= window.size()" but only "<" because for equality I would have to
      *       compute modulo window.size() instead of simply: m_windowPosition += length. */
     if ( LIKELY( m_windowPosition + length < window.size() ) ) [[likely]] {
-        if constexpr ( !containsMarkerBytes ) {
-            if ( LIKELY( ( length <= distance ) && ( distance <= m_windowPosition ) ) ) [[likely]] {
-                std::memcpy( &window[m_windowPosition], &window[offset], length * sizeof( window.front() ) );
-                m_windowPosition += length;
-                return;
-            }
+        if ( LIKELY( ( length <= distance ) && ( distance <= m_windowPosition ) ) ) [[likely]] {
+            std::memcpy( &window[m_windowPosition], &window[offset], length * sizeof( window.front() ) );
+            m_windowPosition += length;
 
+            if constexpr ( containsMarkerBytes ) {
+                size_t distanceToLastMarkerByte{ 0 };
+                for ( ; distanceToLastMarkerByte < length; ++distanceToLastMarkerByte ) {
+                    if ( window[m_windowPosition - 1 - distanceToLastMarkerByte]
+                         > std::numeric_limits<uint8_t>::max() ) {
+                        m_distanceToLastMarkerByte = distanceToLastMarkerByte;
+                        return;
+                    }
+                }
+                m_distanceToLastMarkerByte += length;
+            }
+            return;
+        }
+
+        if constexpr ( !containsMarkerBytes ) {
             if ( UNLIKELY( nToCopyPerRepeat == 1 ) ) [[unlikely]] {
                 std::memset( &window[m_windowPosition], window[offset], length );
                 m_windowPosition += length;
