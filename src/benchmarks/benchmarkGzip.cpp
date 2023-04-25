@@ -854,28 +854,28 @@ for (( i=0; i<20; ++i )); do cat test-files/silesia/silesia.tar; done | gzip > s
 cmake --build . -- benchmarkGzip && src/benchmarks/benchmarkGzip silesia-20x.tar.gz
 
     Decompressed 1364776140 B to 4239155200 B with libarchive:
-        Runtime / s: 10.20 <= 10.26 +- 0.09 <= 10.36
-        Bandwidth on Encoded Data / (MB/s): 131.7 <= 133.1 +- 1.1 <= 133.8
-        Bandwidth on Decoded Data / (MB/s): 409 <= 413 +- 4 <= 415
+        Runtime / s: 10.54 <= 10.59 +- 0.07 <= 10.67
+        Bandwidth on Encoded Data / (MB/s): 128.0 <= 128.9 +- 0.8 <= 129.5
+        Bandwidth on Decoded Data / (MB/s): 397.5 <= 400.5 +- 2.6 <= 402.2
     Decompressed 1364776140 B to 4239155200 B with zlib:
-        Runtime / s: 12.11 <= 12.18 +- 0.06 <= 12.23
-        Bandwidth on Encoded Data / (MB/s): 111.6 <= 112.1 +- 0.6 <= 112.7
-        Bandwidth on Decoded Data / (MB/s): 346.5 <= 348.2 +- 1.8 <= 350.2
+        Runtime / s: 12.353 <= 12.368 +- 0.013 <= 12.377
+        Bandwidth on Encoded Data / (MB/s): 110.26 <= 110.35 +- 0.12 <= 110.48
+        Bandwidth on Decoded Data / (MB/s): 342.5 <= 342.7 +- 0.4 <= 343.2
     Decoded 66040 deflate blocks
     Decoded 66040 deflate blocks
     Decoded 66040 deflate blocks
     Decompressed 1364776140 B to 4239155200 B with pragzip (serial):
-        Runtime / s: 21.02 <= 21.05 +- 0.03 <= 21.08
-        Bandwidth on Encoded Data / (MB/s): 64.75 <= 64.85 +- 0.09 <= 64.93
-        Bandwidth on Decoded Data / (MB/s): 201.11 <= 201.42 +- 0.29 <= 201.68
+        Runtime / s: 20.73 <= 20.88 +- 0.25 <= 21.16
+        Bandwidth on Encoded Data / (MB/s): 64.5 <= 65.4 +- 0.8 <= 65.8
+        Bandwidth on Decoded Data / (MB/s): 200.3 <= 203.0 +- 2.4 <= 204.5
     Decompressed 1364776140 B to 4239155200 B with pragzip (parallel):
-        Runtime / s: 2.14 <= 2.23 +- 0.13 <= 2.38
-        Bandwidth on Encoded Data / (MB/s): 570 <= 610 +- 40 <= 640
-        Bandwidth on Decoded Data / (MB/s): 1780 <= 1910 +- 110 <= 1980
+        Runtime / s: 2.03 <= 2.14 +- 0.12 <= 2.26
+        Bandwidth on Encoded Data / (MB/s): 600 <= 640 +- 30 <= 670
+        Bandwidth on Decoded Data / (MB/s): 1880 <= 1980 +- 110 <= 2090
     Decompressed 1364776140 B to 4239155200 B with pragzip (parallel + index):
-        Runtime / s: 1.037 <= 1.049 +- 0.013 <= 1.063
-        Bandwidth on Encoded Data / (MB/s): 1284 <= 1302 +- 16 <= 1316
-        Bandwidth on Decoded Data / (MB/s): 3990 <= 4040 +- 50 <= 4090
+        Runtime / s: 1.037 <= 1.043 +- 0.006 <= 1.049
+        Bandwidth on Encoded Data / (MB/s): 1301 <= 1309 +- 7 <= 1316
+        Bandwidth on Decoded Data / (MB/s): 4042 <= 4065 +- 22 <= 4087
 */
 
 /**

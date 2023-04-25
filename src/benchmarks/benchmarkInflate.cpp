@@ -164,7 +164,7 @@ benchmarkDecompression( const std::vector<std::byte>& dataToCompress,
               << " " << dataLabel << " to " << formatBytes( fileContents.size() )
               << ", compression ratio: " << compressionRatio
               << ", compression strategy: " << toString( compressionStrategy )
-              << ", compression bandwidth: " << compressionBandwidth / 1e6 << "MB/s\n";
+              << ", compression bandwidth: " << compressionBandwidth / 1e6 << " MB/s\n";
 
     const auto [size, durations] = benchmarkFunction<3>( [&fileContents] () {
         return decompressWithPragzip( std::make_unique<BufferViewFileReader>( fileContents ) );
@@ -279,27 +279,27 @@ main()
 /*
 cmake --build . -- benchmarkInflate && src/benchmarks/benchmarkInflate
 
-Compressed 128 MiB zeros to 127 KiB 430 B, compression ratio: 1028.66, compression strategy: Default, compression bandwidth: 273.897MB/s
-    Runtime / s: 0.3650 <= 0.3667 +- 0.0026 <= 0.3697
-    Bandwidth on Decoded Data / (MB/s): 363.1 <= 366.1 +- 2.6 <= 367.8
+Compressed 128 MiB zeros to 127 KiB 430 B, compression ratio: 1028.66, compression strategy: Default, compression bandwidth: 278.809 MB/s
+    Runtime / s: 0.3590 <= 0.3604 +- 0.0020 <= 0.3627
+    Bandwidth on Decoded Data / (MB/s): 370.1 <= 372.4 +- 2.0 <= 373.8
 
-Created 128 MiB random data in 0.22418 s
-Compressed 128 MiB random data to 128 MiB 40 KiB 23 B, compression ratio: 0.999695, compression strategy: Huffman Only, compression bandwidth: 92.1864MB/s
-    Runtime / s: 0.0738 <= 0.0746 +- 0.0014 <= 0.0763
-    Bandwidth on Decoded Data / (MB/s): 1760 <= 1800 +- 30 <= 1820
+Created 128 MiB random data in 0.220966 s
+Compressed 128 MiB random data to 128 MiB 40 KiB 23 B, compression ratio: 0.999695, compression strategy: Huffman Only, compression bandwidth: 93.7225 MB/s
+    Runtime / s: 0.0735 <= 0.0740 +- 0.0007 <= 0.0748
+    Bandwidth on Decoded Data / (MB/s): 1795 <= 1813 +- 16 <= 1825
 
-Created 128 MiB random base64 data in 1.3986 s
-Compressed 128 MiB random base64 data to 96 MiB 850 KiB 494 B, compression ratio: 1.3219, compression strategy: Huffman Only, compression bandwidth: 89.8339MB/s
-    Runtime / s: 0.607 <= 0.615 +- 0.009 <= 0.625
-    Bandwidth on Decoded Data / (MB/s): 215 <= 218 +- 3 <= 221
+Created 128 MiB random base64 data in 1.3888 s
+Compressed 128 MiB random base64 data to 96 MiB 850 KiB 494 B, compression ratio: 1.3219, compression strategy: Huffman Only, compression bandwidth: 91.2871 MB/s
+    Runtime / s: 0.6100 <= 0.6122 +- 0.0027 <= 0.6153
+    Bandwidth on Decoded Data / (MB/s): 218.1 <= 219.2 +- 1.0 <= 220.0
 
-Created 128 MiB random base64 data in 1.39201 s
-Compressed 128 MiB random base64 data to 127 MiB 119 KiB 122 B, compression ratio: 1.00695, compression strategy: Fixed Huffman, compression bandwidth: 29.8897MB/s
-    Runtime / s: 0.761 <= 0.770 +- 0.007 <= 0.776
-    Bandwidth on Decoded Data / (MB/s): 173.1 <= 174.4 +- 1.7 <= 176.3
+Created 128 MiB random base64 data in 1.39644 s
+Compressed 128 MiB random base64 data to 127 MiB 119 KiB 122 B, compression ratio: 1.00695, compression strategy: Fixed Huffman, compression bandwidth: 30.4721 MB/s
+    Runtime / s: 0.76995 <= 0.77008 +- 0.00015 <= 0.77024
+    Bandwidth on Decoded Data / (MB/s): 174.26 <= 174.29 +- 0.03 <= 174.32
 
-Created 128 MiB data with random backreferences in 0.0490576 s
-Compressed 128 MiB data with random backreferences to 5 MiB 736 KiB 719 B, compression ratio: 22.3798, compression strategy: Default, compression bandwidth: 74.415MB/s
-    Runtime / s: 0.3730 <= 0.3740 +- 0.0009 <= 0.3748
-    Bandwidth on Decoded Data / (MB/s): 358.2 <= 358.8 +- 0.9 <= 359.8
+Created 128 MiB data with random backreferences in 0.0473467 s
+Compressed 128 MiB data with random backreferences to 5 MiB 736 KiB 719 B, compression ratio: 22.3798, compression strategy: Default, compression bandwidth: 80.2987 MB/s
+    Runtime / s: 0.3659 <= 0.3674 +- 0.0014 <= 0.3687
+    Bandwidth on Decoded Data / (MB/s): 364.0 <= 365.3 +- 1.4 <= 366.8
 */
