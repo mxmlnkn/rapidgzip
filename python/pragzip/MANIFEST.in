@@ -1,4 +1,5 @@
-include LICENSE
+include LICENSE-APACHE
+include LICENSE-MIT
 include README.md
 include pragzip.svg
 include CHANGELOG.md
