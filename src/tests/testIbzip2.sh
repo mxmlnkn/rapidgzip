@@ -4,6 +4,7 @@
 
 
 IBZIP2='src/tools/ibzip2'
+export IBZIP2
 
 
 function echoerr() { echo "$@" 1>&2; }
