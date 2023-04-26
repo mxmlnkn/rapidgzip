@@ -471,7 +471,7 @@ main( int argc, char** argv )
         if ( message.empty() ) {
             std::cerr << "Caught exception with typeid: " << typeid( exception ).name() << "\n";
         } else {
-            std::cerr << message << "\n";
+            std::cerr << "Caught exception: " << message << "\n";
         }
         return 1;
     }
