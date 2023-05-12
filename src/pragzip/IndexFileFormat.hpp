@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include <common.hpp>                   // _Ki literals
 #include <filereader/FileReader.hpp>
 #include <FileUtils.hpp>
 
@@ -104,7 +105,7 @@ readValue( FileReader* file )
 
 
 [[nodiscard]] inline GzipIndex
-readGzipIndex( std::unique_ptr<FileReader> file )
+readGzipIndex( UniqueFileReader file )
 {
     GzipIndex index;
 
@@ -197,7 +198,7 @@ readGzipIndex( std::unique_ptr<FileReader> file )
 }
 
 
-void
+inline void
 writeGzipIndex( const GzipIndex&                                              index,
                 const std::function<void( const void* buffer, size_t size )>& checkedWrite )
 {

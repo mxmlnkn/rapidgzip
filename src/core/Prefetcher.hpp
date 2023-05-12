@@ -11,6 +11,8 @@
 #include <set>
 #include <vector>
 
+#include <common.hpp>       // interleave
+
 
 namespace FetchingStrategy
 {
@@ -177,6 +179,34 @@ public:
     prefetch( size_t maxAmountToPrefetch ) const override
     {
         return extrapolate( m_previousIndexes.begin(), m_previousIndexes.end(), maxAmountToPrefetch );
+    }
+
+    /**
+     * Updates indexes such that the given indexes is interpreted as four separate indexes from now on.
+     * This also shifts all larger indexes accordingly and might evict some indexes because of the new split ones.
+     */
+    void
+    splitIndex( size_t indexToSplit,
+                size_t splitCount )
+    {
+        if ( splitCount <= 1 ) {
+            return;
+        }
+
+        std::deque<size_t> newIndexes;
+        for ( const auto index : m_previousIndexes ) {
+            if ( index == indexToSplit ) {
+                for ( size_t i = 0; i < splitCount; ++i ) {
+                    newIndexes.push_back( index + i );
+                }
+            } else if ( index > indexToSplit ) {
+                newIndexes.push_back( index + splitCount - 1 );
+            } else {
+                newIndexes.push_back( index );
+            }
+        }
+
+        m_previousIndexes = std::move( newIndexes );
     }
 
 protected:

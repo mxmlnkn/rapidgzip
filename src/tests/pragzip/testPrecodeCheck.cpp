@@ -14,7 +14,6 @@
 #include <utility>
 #include <vector>
 
-#include <blockfinder/DynamicHuffman.hpp>
 #include <blockfinder/precodecheck/BruteForceLUT.hpp>
 #include <blockfinder/precodecheck/SingleCompressedLUT.hpp>
 #include <blockfinder/precodecheck/SingleLUT.hpp>
@@ -62,7 +61,7 @@ checkPrecodeDirectly( size_t   next4Bits,
         precodeCL[PRECODE_ALPHABET[i]] = ( precodeBits >> ( i * 3U ) ) & 0b111U;
     }
 
-    PrecodeHuffmanCoding precodeHC;
+    pragzip::deflate::precode::PrecodeHuffmanCoding precodeHC;
     return precodeHC.initializeFromLengths( VectorView<uint8_t>( precodeCL.data(), precodeCL.size() ) );
 }
 
@@ -935,7 +934,7 @@ testCachedCodingFromPrecodes( const uint64_t              precodeBits,
         codeLengthCL[PRECODE_ALPHABET[i]] = codeLength;
     }
 
-    pragzip::deflate::PrecodeHuffmanCoding precodeHC;
+    pragzip::deflate::precode::PrecodeHuffmanCoding precodeHC;
     auto error = precodeHC.initializeFromLengths( VectorView<uint8_t>( codeLengthCL.data(), codeLengthCL.size() ) );
     REQUIRE( error == pragzip::Error::NONE );
 

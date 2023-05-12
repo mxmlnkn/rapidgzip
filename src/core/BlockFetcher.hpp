@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
-#include <condition_variable>
 #include <cstddef>
 #include <functional>
 #include <future>
@@ -14,9 +13,11 @@
 #include <optional>
 #include <stdexcept>
 #include <thread>
+#include <type_traits>
 #include <utility>
 
 #include <AffinityHelpers.hpp>
+#include <BlockFinderInterface.hpp>
 #include <Cache.hpp>
 #include <common.hpp>
 #include <Prefetcher.hpp>
@@ -39,6 +40,9 @@ public:
     using BlockFinder = T_BlockFinder;
     using BlockData = T_BlockData;
     using BlockCache = Cache</** block offset in bits */ size_t, std::shared_ptr<BlockData> >;
+
+    static_assert( std::is_base_of_v<BlockFinderInterface, BlockFinder>,
+                   "Block finder must derive from the abstract interface." );
 
     using GetPartitionOffset = std::function<size_t( size_t )>;
 
@@ -170,13 +174,12 @@ public:
 protected:
     BlockFetcher( std::shared_ptr<BlockFinder> blockFinder,
                   size_t                       parallelization ) :
-        m_parallelization( parallelization == 0
-                           ? std::max<size_t>( 1U, availableCores() )
-                           : parallelization ),
-        m_blockFinder    ( std::move( blockFinder ) ),
-        m_cache          ( std::max( size_t( 16 ), m_parallelization ) ),
-        m_prefetchCache  ( 2 * m_parallelization /* Only m_parallelization would lead to lot of cache pollution! */ ),
-        m_threadPool     ( m_parallelization )
+        m_parallelization( parallelization == 0 ? std::max<size_t>( 1U, availableCores() ) : parallelization ),
+        m_blockFinder( std::move( blockFinder ) ),
+        m_cache( std::max( size_t( 16 ), m_parallelization ) ),
+        m_prefetchCache( 2 * m_parallelization /* Only m_parallelization would lead to lot of cache pollution! */ ),
+        m_failedPrefetchCache( m_prefetchCache.capacity() ),
+        m_threadPool( m_parallelization )
     {
         if ( !m_blockFinder ) {
             throw std::invalid_argument( "BlockFinder must be valid!" );
@@ -199,6 +202,14 @@ public:
         }
     }
 
+    [[nodiscard]] bool
+    test( const size_t blockOffset ) const
+    {
+        return ( m_prefetching.find( blockOffset ) != m_prefetching.end() )
+               || m_cache.test( blockOffset )
+               || m_prefetchCache.test( blockOffset );
+    }
+
     /**
      * Fetches, prefetches, caches, and returns result.
      * @param dataBlockIndex Only used to determine which block indexes to prefetch. If not specified, will
@@ -213,7 +224,6 @@ public:
     [[nodiscard]] std::shared_ptr<BlockData>
     get( const size_t                blockOffset,
          const std::optional<size_t> dataBlockIndex = std::nullopt,
-         const bool                  onlyCheckCaches = false,
          const GetPartitionOffset&   getPartitionOffsetFromOffset = {} )
     {
         [[maybe_unused]] const auto tGetStart = now();
@@ -233,9 +243,6 @@ public:
 
         /* Start requested calculation if necessary. */
         if ( !cachedResult.has_value() && !queuedResult.valid() ) {
-            if ( onlyCheckCaches ) {
-                return {};
-            }
             queuedResult = submitOnDemandTask( blockOffset, nextBlockOffset );
         }
 
@@ -311,13 +318,19 @@ private:
         m_cache.insert( blockOffset, std::move( blockData ) );
     }
 
-
     [[nodiscard]] bool
     isInCacheOrQueue( const size_t blockOffset ) const
     {
         return ( m_prefetching.find( blockOffset ) != m_prefetching.end() )
                || m_cache.test( blockOffset )
                || m_prefetchCache.test( blockOffset );
+    }
+
+    [[nodiscard]] bool
+    isFailedPrefetch( const size_t blockOffset ) const
+    {
+        std::scoped_lock lock( m_failedPrefetchCacheMutex );
+        return m_failedPrefetchCache.test( blockOffset );
     }
 
     /**
@@ -386,6 +399,8 @@ private:
                 } catch ( ... ) {
                     /* Prefetching failed, ignore result and error. If the error was a real one, then it will
                      * will be rethrown when the task is requested directly and run directly. */
+                    std::scoped_lock lock( m_failedPrefetchCacheMutex );
+                    m_failedPrefetchCache.insert( prefetchedBlockOffset, /* value does not matter */ true );
                 }
                 it = m_prefetching.erase( it );
             } else {
@@ -408,7 +423,9 @@ private:
         processReadyPrefetches();
 
         const auto threadPoolSaturated =
-            [&] () { return m_prefetching.size() + /* thread with the requested block */ 1 >= m_threadPool.size(); };
+            [&] () {
+                return m_prefetching.size() + /* thread with the requested block */ 1 >= m_threadPool.capacity();
+            };
 
         if ( threadPoolSaturated() ) {
             return;
@@ -419,7 +436,7 @@ private:
         std::vector<size_t> blockOffsetsToPrefetch( blockIndexesToPrefetch.size() );
         for ( auto blockIndexToPrefetch : blockIndexesToPrefetch ) {
             /* If we don't find the offset in the timeout of 0, then we very likely also don't have it cached yet. */
-            const auto blockOffset = m_blockFinder->get( blockIndexToPrefetch, /* timeout */ 0 );
+            const auto [blockOffset, _] = m_blockFinder->get( blockIndexToPrefetch, /* timeout */ 0 );
             if ( !blockOffset ) {
                 continue;
             }
@@ -433,20 +450,10 @@ private:
             }
         }
 
-        const auto touchInCacheIfExists =
-            [this] ( size_t prefetchBlockOffset )
-            {
-                if ( m_prefetchCache.test( prefetchBlockOffset ) ) {
-                    m_prefetchCache.touch( prefetchBlockOffset );
-                }
-                if ( m_cache.test( prefetchBlockOffset ) ) {
-                    m_cache.touch( prefetchBlockOffset );
-                }
-            };
-
         /* Touch all blocks to be prefetched to avoid evicting them while doing the prefetching of other blocks! */
         for ( auto offset = blockOffsetsToPrefetch.rbegin(); offset != blockOffsetsToPrefetch.rend(); ++offset ) {
-            touchInCacheIfExists( *offset );
+            m_prefetchCache.touch( *offset );
+            m_cache.touch( *offset );
         }
 
         for ( auto blockIndexToPrefetch : blockIndexesToPrefetch ) {
@@ -460,19 +467,21 @@ private:
 
             /* If the block with the requested index has not been found yet and if we have to wait on the requested
              * result future anyway, then wait a non-zero amount of time on the BlockFinder! */
+            using GetReturnCode = BlockFinderInterface::GetReturnCode;
             std::optional<size_t> prefetchBlockOffset;
+            auto prefetchGetReturnCode = GetReturnCode::FAILURE;
             std::optional<size_t> nextPrefetchBlockOffset;
+            auto nextPrefetchGetReturnCode = GetReturnCode::FAILURE;
             do
             {
-                prefetchBlockOffset = m_blockFinder->get( blockIndexToPrefetch, stopPrefetching() ? 0 : 0.0001 );
-                const auto wasFinalized = m_blockFinder->finalized();
-                nextPrefetchBlockOffset = m_blockFinder->get( blockIndexToPrefetch + 1,
-                                                              stopPrefetching() ? 0 : 0.0001 );
-                if ( wasFinalized && !nextPrefetchBlockOffset ) {
-                    nextPrefetchBlockOffset = std::numeric_limits<size_t>::max();
-                }
+                std::tie( prefetchBlockOffset, prefetchGetReturnCode ) =
+                    m_blockFinder->get( blockIndexToPrefetch, stopPrefetching() ? 0 : 0.0001 );
+                std::tie( nextPrefetchBlockOffset, nextPrefetchGetReturnCode ) =
+                    m_blockFinder->get( blockIndexToPrefetch + 1, stopPrefetching() ? 0 : 0.0001 );
             }
-            while ( !prefetchBlockOffset && !nextPrefetchBlockOffset && !stopPrefetching() );
+            while ( !prefetchBlockOffset && ( prefetchGetReturnCode != GetReturnCode::FAILURE )
+                    && !nextPrefetchBlockOffset && ( nextPrefetchGetReturnCode != GetReturnCode::FAILURE )
+                    && !stopPrefetching() );
 
             if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
                 if ( !prefetchBlockOffset.has_value() ) {
@@ -482,10 +491,12 @@ private:
 
             /* Do not prefetch already cached/prefetched blocks or block indexes which are not yet in the block map. */
             if ( !prefetchBlockOffset.has_value()
+                 || ( prefetchGetReturnCode == GetReturnCode::FAILURE )
                  || !nextPrefetchBlockOffset.has_value()
                  || isInCacheOrQueue( *prefetchBlockOffset )
                  || ( getPartitionOffsetFromOffset
-                      && isInCacheOrQueue( getPartitionOffsetFromOffset( *prefetchBlockOffset ) ) ) )
+                      && isInCacheOrQueue( getPartitionOffsetFromOffset( *prefetchBlockOffset ) ) )
+                 || isFailedPrefetch( *prefetchBlockOffset ) )
             {
                 continue;
             }
@@ -563,6 +574,12 @@ protected:
         return m_cache;
     }
 
+    [[nodiscard]] auto&
+    cache() noexcept
+    {
+        return m_cache;
+    }
+
     [[nodiscard]] const auto&
     prefetchCache() const noexcept
     {
@@ -602,9 +619,11 @@ protected:
     mutable double m_readBlockDataTotalTime{ 0 };
     mutable std::mutex m_analyticsMutex;
 
-private:
     const size_t m_parallelization;
 
+    FetchingStrategy m_fetchingStrategy;
+
+private:
     /**
      * The block finder is used to prefetch blocks among others.
      * But, in general, it only returns unconfirmed guesses for block offsets (at first)!
@@ -618,7 +637,8 @@ private:
 
     BlockCache m_cache;
     BlockCache m_prefetchCache;
-    FetchingStrategy m_fetchingStrategy;
+    Cache</* block offset in bits */ size_t, bool> m_failedPrefetchCache;
+    mutable std::mutex m_failedPrefetchCacheMutex;
 
     std::map</* block offset */ size_t, std::future<BlockData> > m_prefetching;
     ThreadPool m_threadPool;

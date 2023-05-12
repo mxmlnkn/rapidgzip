@@ -3,6 +3,10 @@
 #include <array>
 #include <cstdint>
 
+#include <BitManipulation.hpp>
+#include <deflate.hpp>
+#include <Error.hpp>
+
 
 namespace pragzip::PrecodeCheck::WithoutLUT
 {

@@ -15,14 +15,18 @@
 #include <utility>
 #include <vector>
 
+#include <AffinityHelpers.hpp>
 #include <BlockMap.hpp>
 #include <common.hpp>
 #include <filereader/FileReader.hpp>
+#include <filereader/Shared.hpp>
 
 #ifdef WITH_PYTHON_SUPPORT
     #include <filereader/Python.hpp>
+    #include <filereader/Standard.hpp>
 #endif
 
+#include "crc32.hpp"
 #include "GzipChunkFetcher.hpp"
 #include "GzipBlockFinder.hpp"
 #include "gzip.hpp"
@@ -34,12 +38,15 @@ namespace pragzip
 /**
  * @note Calls to this class are not thread-safe! Even though they use threads to evaluate them in parallel.
  */
-template<bool ENABLE_STATISTICS = false,
+template<typename T_ChunkData = ChunkData,
+         bool ENABLE_STATISTICS = false,
          bool SHOW_PROFILE = false>
 class ParallelGzipReader final :
     public FileReader
+
 {
 public:
+    using ChunkData = T_ChunkData;
     /**
      * The fetching strategy should support parallelization via prefetching for sequential accesses while
      * avoiding a lot of useless prefetches for random or multi-stream sequential accesses like those occuring
@@ -48,53 +55,92 @@ public:
      * because the prefetch and cache units are very large and striding or backward accessing over multiple
      * megabytes should be extremely rare.
      */
-    using ChunkFetcher = pragzip::GzipChunkFetcher<FetchingStrategy::FetchMultiStream, ENABLE_STATISTICS, SHOW_PROFILE>;
+    using ChunkFetcher = pragzip::GzipChunkFetcher<FetchingStrategy::FetchMultiStream, ChunkData,
+                                                   ENABLE_STATISTICS, SHOW_PROFILE>;
     using BlockFinder = typename ChunkFetcher::BlockFinder;
     using BitReader = pragzip::BitReader;
-    using WriteFunctor = std::function<void ( const std::shared_ptr<BlockData>&, size_t, size_t )>;
+    using WriteFunctor = std::function<void ( const std::shared_ptr<ChunkData>&, size_t, size_t )>;
 
 public:
     /**
-     * Quick benchmarks for spacing:
+     * Quick benchmarks for spacing on AMD Ryzen 3900X 12-core.
      *
      * @verbatim
      * base64 /dev/urandom | head -c $(( 4 * 1024 * 1024 * 1024 )) > 4GiB-base64
      * gzip 4GiB-base64
      *
-     * function benchmarkWcl()
+     * function benchmarkWc()
      * {
      *     for chunkSize in 128 $(( 1*1024 )) $(( 2*1024 )) $(( 4*1024 )) $(( 8*1024 )) $(( 16*1024 )) $(( 32*1024 )); do
      *         echo "Chunk Size: $chunkSize KiB"
      *         for i in $( seq 5 ); do
-     *             src/tools/pragzip --chunk-size $chunkSize -P 0 -d -c "$1" 2>pragzip.log | wc -l
+     *             src/tools/pragzip --chunk-size $chunkSize -P 0 -d -c "$1" 2>pragzip.log | wc -c
      *             grep "Decompressed in total" pragzip.log
      *         done
      *     done
      * }
      *
      * m pragzip
-     * benchmarkWcl 4GiB-base64.gz
+     * benchmarkWc 4GiB-base64.gz
      *
      *
      * spacing | bandwidth / (MB/s) | file read multiplier
      * --------+--------------------+----------------------
-     * 128 KiB | ~1250              | 2.08337
-     *   1 MiB | ~2250              | 1.13272
-     *   2 MiB | ~2550              | 1.06601
-     *   4 MiB | ~2650              | 1.03457
-     *   8 MiB | ~2650              | 1.0169
-     *  16 MiB | ~2550              | 1.00799
-     *  32 MiB | ~2250              | 1.00429
+     * 128 KiB | ~1200              | 2.08337
+     *   1 MiB | ~2500              | 1.13272
+     *   2 MiB | ~2700              | 1.06601
+     *   4 MiB | ~2800              | 1.03457
+     *   8 MiB | ~2750              | 1.0169
+     *  16 MiB | ~2600              | 1.00799
+     *  32 MiB | ~2300              | 1.00429
      * @endverbatim
      *
-     * For higher chunk sizes, the bandwidths become very uncertain,
+     * For higher chunk sizes, the bandwidths become very unstable,
      * probably because even work division becomes a problem realtive to the file size.
+     * Furthermore, caching behavior might worsen for larger chunk sizes.
+     *
+     * @verbatim
+     * wget https://sun.aei.polsl.pl/~sdeor/corpus/silesia.zip
+     * mkdir -p silesia && ( cd silesia && unzip ../silesia.zip )
+     * tar -cf silesia.tar silesia/  # 211957760 B -> 212 MB, 203 MiB, gzip 66 MiB -> compression factor: 3.08
+     * for (( i=0; i<40; ++i )); do cat 'silesia.tar'; done | pigz > 40xsilesia.tar.gz
+     * m pragzip
+     * benchmarkWc 40xsilesia.tar.gz
+     *
+     * spacing | bandwidth / (MB/s)
+     * --------+--------------------
+     * 128 KiB | ~1150
+     *   1 MiB | ~1950
+     *   2 MiB | ~2150
+     *   4 MiB | ~2300
+     *   8 MiB | ~2400
+     *  16 MiB | ~2400
+     *  32 MiB | ~2300
+     * @endverbatim
+     *
+     * Beware, on 2xAMD EPYC CPU 7702, when decoding with more than 64 cores, the optimal is
+     * at 2 MiB instead of 4-8 MiB! Maybe these are NUMA domain + caching issues combined?
+     *
+     * AMD Ryzen 3900X Caches:
+     *  - L1: 64 kiB (50:50 instruction:cache) per core -> 768 kiB
+     *  - L2: 512 kiB per core -> 6 MiB
+     *  - L3: 64 MiB shared (~5.3 MiB per core)
+     *
+     * AMD EPYC CPU 7702:
+     *  - L1: 64 kiB (50:50 instruction:cache) per core -> 4 MiB
+     *  - L2: 512 kiB per core -> 32 MiB
+     *  - L3: 256 MiB shared (4 MiB per core)
+     *
+     * -> That EPYC processor is the same generation Zen 2 and therefore has identical L1 and L2 caches
+     *    and the L3 cache size is even higher, so it must be a NUMA issue.
+     *
+     * Non-compressible data is a special case because it only needs to do a memcpy.
      *
      * @verbatim
      * head -c $(( 4 * 1024 * 1024 * 1024 )) /dev/urandom > 4GiB-random
      * gzip 4GiB-random.gz
      * m pragzip
-     * benchmarkWcl 4GiB-random.gz
+     * benchmarkWc 4GiB-random.gz
      *
      * spacing | bandwidth / (MB/s) | file read multiplier
      * --------+--------------------+----------------------
@@ -124,13 +170,13 @@ public:
      *
      * spacing | bandwidth / (MB/s)
      * --------+--------------------
-     * 128 KiB | ~1350
-     *   1 MiB | ~3000
-     *   2 MiB | ~3300
-     *   4 MiB | ~3400
-     *   8 MiB | ~3400
-     *  16 MiB | ~3300
-     *  32 MiB | ~2900
+     * 128 KiB | ~1550
+     *   1 MiB | ~3200
+     *   2 MiB | ~3400
+     *   4 MiB | ~3600
+     *   8 MiB | ~3800
+     *  16 MiB | ~3800
+     *  32 MiB | ~3600
      * @endverbatim
      *
      * The factor 2 amount of read data can be explained with the BitReader always buffering 128 KiB!
@@ -152,22 +198,20 @@ public:
      *       finder might enable smaller chunk sizes.
      */
     explicit
-    ParallelGzipReader( std::unique_ptr<FileReader> fileReader,
-                        size_t                      parallelization = 0,
-                        uint64_t                    chunkSize = 4_Mi ) :
-        m_bitReader( std::move( fileReader ) ),
-        m_fetcherParallelization(
-            parallelization == 0
-            ? std::max<size_t>( 1U, std::thread::hardware_concurrency() )
-            : parallelization ),
+    ParallelGzipReader( UniqueFileReader fileReader,
+                        size_t           parallelization = 0,
+                        uint64_t         chunkSizeInBytes = 4_Mi ) :
+        m_sharedFileReader( ensureSharedFileReader( std::move( fileReader ) ) ),
+        m_fetcherParallelization( parallelization == 0 ? availableCores() : parallelization ),
         m_startBlockFinder(
-            [this, chunkSize] () {
+            [this, chunkSizeInBytes] () {
                 return std::make_unique<BlockFinder>(
-                    m_bitReader.cloneSharedFileReader(),
-                    /* spacing in bytes */ std::max( 32_Ki, chunkSize ) );
+                    UniqueFileReader( m_sharedFileReader->clone() ),
+                    /* spacing in bytes */ std::max( 8_Ki, chunkSizeInBytes ) );
             }
         )
     {
+        m_sharedFileReader->setStatisticsEnabled( ENABLE_STATISTICS && SHOW_PROFILE );
         if ( !m_bitReader.seekable() ) {
             throw std::invalid_argument( "Parallel BZ2 Reader will not work on non-seekable input like stdin (yet)!" );
         }
@@ -200,14 +244,16 @@ public:
     {
         if constexpr ( SHOW_PROFILE ) {
             std::cerr << "[ParallelGzipReader] Time spent:";
-            std::cerr << "\n    Writing to output: " << m_writeOutputTime << " s";
+            std::cerr << "\n    Writing to output         : " << m_writeOutputTime << " s";
+            std::cerr << "\n    Computing CRC32           : " << m_crc32Time << " s";
+            std::cerr << "\n    Number of verified CRC32s : " << m_verifiedCRC32Count;
             std::cerr << std::endl;
         }
     }
 
     /* FileReader overrides */
 
-    [[nodiscard]] FileReader*
+    [[nodiscard]] UniqueFileReader
     clone() const override
     {
         throw std::logic_error( "Not implemented!" );
@@ -228,9 +274,10 @@ public:
     void
     close() override
     {
-        m_chunkFetcher = {};
-        m_blockFinder = {};
+        m_chunkFetcher.reset();
+        m_blockFinder.reset();
         m_bitReader.close();
+        m_sharedFileReader.reset();
     }
 
     [[nodiscard]] bool
@@ -264,7 +311,7 @@ public:
     size() const override
     {
         if ( !m_blockMap->finalized() ) {
-            throw std::invalid_argument( "Can't get stream size in BZ2 when not finished reading at least once!" );
+            throw std::invalid_argument( "Cannot get stream size in gzip when not finished reading at least once!" );
         }
         return m_blockMap->back().second;
     }
@@ -293,7 +340,7 @@ public:
     {
         const auto writeFunctor =
             [nBytesDecoded = uint64_t( 0 ), outputFileDescriptor, outputBuffer]
-            ( const std::shared_ptr<BlockData>& blockData,
+            ( const std::shared_ptr<ChunkData>& chunkData,
               size_t const                      offsetInBlock,
               size_t const                      dataToWriteSize ) mutable
             {
@@ -301,13 +348,13 @@ public:
                     return;
                 }
 
-                writeAll( blockData, outputFileDescriptor, offsetInBlock, dataToWriteSize );
+                writeAll( chunkData, outputFileDescriptor, offsetInBlock, dataToWriteSize );
 
                 if ( outputBuffer != nullptr ) {
                     using pragzip::deflate::DecodedData;
 
                     size_t nBytesCopied{ 0 };
-                    for ( auto it = DecodedData::Iterator( *blockData, offsetInBlock, dataToWriteSize );
+                    for ( auto it = DecodedData::Iterator( *chunkData, offsetInBlock, dataToWriteSize );
                           static_cast<bool>( it ); ++it )
                     {
                         const auto& [buffer, size] = *it;
@@ -342,30 +389,26 @@ public:
                 m_atEndOfFile = true;
                 break;
             }
-            const auto& [blockInfo, blockData] = *blockResult;
+            const auto& [decodedOffsetInBytes, chunkData] = *blockResult;
 
-            if ( !blockData->dataWithMarkers.empty() ) {
+            if ( chunkData->containsMarkers() ) {
                 throw std::logic_error( "Did not expect to get results with markers!" );
             }
 
             /* Copy data from fetched block to output. */
 
-            const auto offsetInBlock = m_currentPosition - blockInfo.decodedOffsetInBytes;
-            const auto blockSize = blockData->decodedSizeInBytes;
+            const auto offsetInBlock = m_currentPosition - decodedOffsetInBytes;
+            const auto blockSize = chunkData->decodedSizeInBytes;
             if ( offsetInBlock >= blockSize ) {
                 std::stringstream message;
                 message << "[ParallelGzipReader] Block does not contain the requested offset! "
                         << "Requested offset from chunk fetcher: " << formatBytes( m_currentPosition )
-                        << ", returned block info from block map: " << blockInfo
-                        << ", block data encoded offset: " << formatBits( blockData->encodedOffsetInBits )
-                        << ", block data encoded size: " << formatBits( blockData->encodedSizeInBits )
-                        << ", block data size: " << formatBytes( blockData->decodedSizeInBytes )
-                        << " markers: " << blockData->dataWithMarkersSize();
+                        << ", decoded offset: " << decodedOffsetInBytes
+                        << ", block data encoded offset: " << formatBits( chunkData->encodedOffsetInBits )
+                        << ", block data encoded size: " << formatBits( chunkData->encodedSizeInBits )
+                        << ", block data size: " << formatBytes( chunkData->decodedSizeInBytes )
+                        << " markers: " << chunkData->dataWithMarkersSize();
                 throw std::logic_error( std::move( message ).str() );
-            }
-
-            if ( blockData->data.empty() ) {
-                throw std::logic_error( "Did not expect empty block. Cannot proceed!" );
             }
 
         #ifdef WITH_PYTHON_SUPPORT
@@ -374,11 +417,15 @@ public:
 
             const auto nBytesToDecode = std::min( blockSize - offsetInBlock, nBytesToRead - nBytesDecoded );
 
+            [[maybe_unused]] const auto tCRC32Start = now();
+            processCRC32( chunkData, offsetInBlock, nBytesToDecode );
+            if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+                m_crc32Time += duration( tCRC32Start );
+            }
+
             if ( writeFunctor ) {
                 [[maybe_unused]] const auto tWriteStart = now();
-
-                writeFunctor( blockData, offsetInBlock, nBytesToDecode );
-
+                writeFunctor( chunkData, offsetInBlock, nBytesToDecode );
                 if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
                     m_writeOutputTime += duration( tWriteStart );
                 }
@@ -542,6 +589,19 @@ public:
         return m_chunkFetcher->statistics();
     }
 
+    void
+    setCRC32Enabled( bool enabled )
+    {
+        if ( m_crc32.enabled() == enabled ) {
+            return;
+        }
+
+        m_crc32.setEnabled( enabled && ( tell() == 0 ) );
+        if ( m_chunkFetcher ) {
+            m_chunkFetcher->setCRC32Enabled( m_crc32.enabled() );
+        }
+    }
+
 private:
     void
     setBlockOffsets( std::map<size_t, size_t> offsets )
@@ -591,7 +651,9 @@ public:
             /* For some reason, indexed_gzip also stores windows for the very last checkpoint at the end of the file,
              * which is useless because there is nothing thereafter. But, don't filter it here so that exportIndex
              * mirrors importIndex better. */
-            m_windowMap->emplace( checkpoint.compressedOffsetInBits, checkpoint.window );
+            m_windowMap->emplace( checkpoint.compressedOffsetInBits,
+                                  WindowMap::Window( checkpoint.window.data(),
+                                                     checkpoint.window.data() + checkpoint.window.size() ) );
         }
         chunkFetcher().clearCache();
     }
@@ -627,12 +689,15 @@ public:
     [[nodiscard]] size_t
     tellCompressed() const
     {
+        if ( !m_blockMap || m_blockMap->empty() ) {
+            return 0;
+        }
 
         const auto blockInfo = m_blockMap->findDataOffset( m_currentPosition );
         if ( blockInfo.contains( m_currentPosition ) ) {
             return blockInfo.encodedOffsetInBits;
         }
-        return 0;
+        return m_blockMap->back().first;
     }
 
 
@@ -694,6 +759,8 @@ private:
             throw std::logic_error( "Block fetcher should have been initialized!" );
         }
 
+        m_chunkFetcher->setCRC32Enabled( m_crc32.enabled() );
+
         return *m_chunkFetcher;
     }
 
@@ -718,14 +785,63 @@ private:
         blockFinder().setBlockOffsets( std::move( encodedBlockOffsets ) );
     }
 
+    void
+    processCRC32( const std::shared_ptr<ChunkData>& chunkData,
+                  [[maybe_unused]] size_t const     offsetInBlock,
+                  [[maybe_unused]] size_t const     dataToWriteSize )
+    {
+        if ( ( m_nextCRC32ChunkOffset == 0 ) && m_blockFinder ) {
+            const auto [offset, errorCode] = m_blockFinder->get( /* block index */ 0, /* timeout */ 0 );
+            if ( offset && ( errorCode == BlockFinder::GetReturnCode::SUCCESS ) ) {
+                m_nextCRC32ChunkOffset = *offset;
+            }
+        }
+
+        if ( !m_crc32.enabled()
+             || ( m_nextCRC32ChunkOffset != chunkData->encodedOffsetInBits )
+             || chunkData->crc32s.empty() ) {
+            return;
+        }
+
+        m_nextCRC32ChunkOffset = chunkData->encodedOffsetInBits + chunkData->encodedSizeInBits;
+
+        /* As long as CRC32 is enabled, this should not happen and we filter above for !m_crc32.enabled(). */
+        if ( chunkData->crc32s.size() != chunkData->footers.size() + 1 ) {
+            throw std::logic_error( "Fewer CRC32s in chunk than expected based on the gzip footers!" );
+        }
+
+        const auto totalCRC32StreamSize = std::accumulate(
+            chunkData->crc32s.begin(), chunkData->crc32s.end(), size_t( 0 ),
+            [] ( size_t sum, const auto& calculator ) { return sum + calculator.streamSize(); } );
+        if ( totalCRC32StreamSize != chunkData->decodedSizeInBytes ) {
+            std::stringstream message;
+            message << "CRC32 computation stream size (" << formatBytes( totalCRC32StreamSize ) << ") differs from "
+                    << "chunk size: " << formatBytes( chunkData->decodedSizeInBytes ) << "!\n"
+                    << "Please open an issue or disable integrated CRC32 verification as a quick workaround.";
+            throw std::logic_error( std::move( message ).str() );
+        }
+
+        /* Process CRC32 of chunk. */
+        m_crc32.append( chunkData->crc32s.front() );
+        for ( size_t i = 0; i < chunkData->footers.size(); ++i ) {
+            if ( m_crc32.verify( chunkData->footers[i].gzipFooter.crc32 ) ) {
+                m_verifiedCRC32Count++;
+            }
+            m_crc32 = chunkData->crc32s.at( i + 1 );
+        }
+    }
+
 private:
-    BitReader m_bitReader;
+    std::unique_ptr<SharedFileReader> m_sharedFileReader;
+    BitReader m_bitReader{ UniqueFileReader( m_sharedFileReader->clone() ) };
 
     size_t m_currentPosition = 0; /**< the current position as can only be modified with read or seek calls. */
     bool m_atEndOfFile = false;
 
     /** Benchmarking */
     double m_writeOutputTime{ 0 };
+    double m_crc32Time{ 0 };
+    uint64_t m_verifiedCRC32Count{ 0 };
 
     size_t const m_fetcherParallelization;
     /** The block finder is much faster than the fetcher and therefore does not require es much parallelization! */
@@ -744,6 +860,9 @@ private:
      * in order into @ref m_blockMap.
      */
     std::shared_ptr<WindowMap> const m_windowMap{ std::make_shared<WindowMap>() };
-    std::unique_ptr<ChunkFetcher>    m_chunkFetcher;
+    std::unique_ptr<ChunkFetcher> m_chunkFetcher;
+
+    CRC32Calculator m_crc32;
+    uint64_t m_nextCRC32ChunkOffset{ 0 };
 };
 }  // namespace pragzip

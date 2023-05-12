@@ -13,6 +13,7 @@
 #include <thread>
 #include <utility>
 
+#include <BlockFinderInterface.hpp>
 #include <filereader/FileReader.hpp>
 #include <JoiningThread.hpp>
 #include <StreamedResults.hpp>
@@ -28,7 +29,8 @@
  * @tparam RawBlockFinder Must implement a `size_t find()` method which returns block offsets.
  */
 template<typename T_RawBlockFinder>
-class BlockFinder
+class BlockFinder final :
+    public BlockFinderInterface
 {
 public:
     using RawBlockFinder = T_RawBlockFinder;
@@ -56,7 +58,7 @@ public:
         }
 
         if ( !m_blockFinder ) {
-            m_blockFinder = std::make_unique<JoiningThread>( &BlockFinder::blockFinderMain, this );
+            m_blockFinder = std::make_unique<JoiningThread>( [this] () { blockFinderMain(); } );
         }
     }
 
@@ -75,7 +77,7 @@ public:
     }
 
     [[nodiscard]] size_t
-    size() const
+    size() const override
     {
         return m_blockOffsets.size();
     }
@@ -90,19 +92,21 @@ public:
     }
 
     [[nodiscard]] bool
-    finalized() const
+    finalized() const override
     {
         return m_blockOffsets.finalized();
     }
+
+    using BlockFinderInterface::get;
 
     /**
      * This call will track the requested block so that the finder loop will look up to that block.
      * Per default, with the infinite timeout, either a result can be returned or if not it means
      * we are finalized and the requested block is out of range!
      */
-    [[nodiscard]] std::optional<size_t>
+    [[nodiscard]] std::pair<std::optional<size_t>, GetReturnCode>
     get( size_t blockNumber,
-         double timeoutInSeconds = std::numeric_limits<double>::infinity() )
+         double timeoutInSeconds ) override
     {
         if ( !m_blockOffsets.finalized() ) {
             startThreads();
@@ -119,7 +123,7 @@ public:
 
     /** @return Index for the block at the requested offset. */
     [[nodiscard]] size_t
-    find( size_t encodedBlockOffsetInBits ) const
+    find( size_t encodedBlockOffsetInBits ) const override
     {
         std::scoped_lock lock( m_mutex );
 

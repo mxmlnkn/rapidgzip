@@ -21,7 +21,6 @@
 #include <BitManipulation.hpp>
 #include <common.hpp>
 #include <filereader/FileReader.hpp>
-#include <filereader/Standard.hpp>
 #include <filereader/Shared.hpp>
 
 
@@ -83,10 +82,8 @@ public:
 
 public:
     explicit
-    BitReader( std::unique_ptr<FileReader> fileReader ) :
-        m_file( dynamic_cast<SharedFileReader*>( fileReader.get() ) == nullptr
-                ? std::unique_ptr<FileReader>( std::make_unique<SharedFileReader>( std::move( fileReader ) ) )
-                : std::move( fileReader ) )
+    BitReader( UniqueFileReader fileReader ) :
+        m_file( std::move( fileReader ) )
     {}
 
     BitReader( BitReader&& other ) = default;
@@ -94,9 +91,13 @@ public:
     BitReader& operator=( const BitReader& other ) = delete;
 
     BitReader( const BitReader& other ) :
-        m_file( other.m_file ? other.m_file->clone() : nullptr ),
+        m_file( other.m_file ? other.m_file->clone() : UniqueFileReader() ),
         m_inputBuffer( other.m_inputBuffer )
     {
+        if ( dynamic_cast<const SharedFileReader*>( other.m_file.get() ) == nullptr ) {
+            throw std::invalid_argument( "Cannot copy BitReader if does not contain a SharedFileReader!" );
+        }
+
         assert( static_cast<bool>( m_file ) == static_cast<bool>( other.m_file ) );
         if ( UNLIKELY( m_file && !m_file->seekable() ) ) [[unlikely]] {
             throw std::invalid_argument( "Copying BitReader to unseekable file not supported yet!" );
@@ -104,18 +105,12 @@ public:
         seek( other.tell() );
     }
 
-    [[nodiscard]] std::unique_ptr<FileReader>
-    cloneSharedFileReader() const
-    {
-        return std::unique_ptr<FileReader>( m_file->clone() );
-    }
-
     /* File Reader Interface Implementation */
 
-    [[nodiscard]] FileReader*
+    [[nodiscard]] UniqueFileReader
     clone() const override final
     {
-        return new BitReader( *this );
+        return std::make_unique<BitReader>( *this );
     }
 
     [[nodiscard]] bool
@@ -289,7 +284,7 @@ public:
 
             /* 1. Empty bit buffer */
             for ( ; ( nBytesRead < nBytesToRead ) && ( m_bitBufferSize >= CHAR_BIT ); ++nBytesRead ) {
-                outputBuffer[nBytesRead] = peekUnsafe( CHAR_BIT );
+                outputBuffer[nBytesRead] = static_cast<char>( peekUnsafe( CHAR_BIT ) );
                 seekAfterPeek( CHAR_BIT );
             }
 
@@ -650,7 +645,7 @@ private:
     }
 
 private:
-    std::unique_ptr<FileReader> m_file;
+    UniqueFileReader m_file;
 
     std::vector<uint8_t> m_inputBuffer;
     size_t m_inputBufferPosition = 0; /** stores current position of first valid byte in buffer */
@@ -747,7 +742,7 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
     const auto relativeOffsets = offsetBits - static_cast<long long int>( tell() );
     if ( relativeOffsets >= 0 ) {
         if ( relativeOffsets <= m_bitBufferSize ) {
-            m_bitBufferSize -= relativeOffsets;
+            m_bitBufferSize -= static_cast<decltype( m_bitBufferSize )>( relativeOffsets );
             return static_cast<size_t>( offsetBits );
         }
 
@@ -764,19 +759,19 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
         }
     } else {
         if ( static_cast<size_t>( -relativeOffsets ) + m_bitBufferSize <= m_originalBitBufferSize ) {
-            m_bitBufferSize += -relativeOffsets;
+            m_bitBufferSize += static_cast<decltype( m_bitBufferSize )>( -relativeOffsets );
             return static_cast<size_t>( offsetBits );
         }
 
         const auto seekBackWithBuffer = -relativeOffsets + m_bitBufferSize;
         const auto bytesToSeekBack = static_cast<size_t>( ceilDiv( seekBackWithBuffer, CHAR_BIT ) );
         if ( bytesToSeekBack <= m_inputBufferPosition ) {
-            m_inputBufferPosition -= bytesToSeekBack;
+            m_inputBufferPosition -= static_cast<decltype( m_inputBufferPosition )>( bytesToSeekBack );
             clearBitBuffer();
 
             const auto bitsToSeekForward = bytesToSeekBack * CHAR_BIT - seekBackWithBuffer;
             if ( bitsToSeekForward > 0 ) {
-                read( bitsToSeekForward );
+                read( static_cast<uint8_t>( bitsToSeekForward ) );
             }
 
             return static_cast<size_t>( offsetBits );

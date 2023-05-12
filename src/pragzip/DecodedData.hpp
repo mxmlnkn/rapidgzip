@@ -6,98 +6,22 @@
 #include <cstring>
 #include <iterator>
 #include <limits>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
+#include <FasterVector.hpp>
 #include <VectorView.hpp>
 
+#include "DecodedDataView.hpp"
 #include "definitions.hpp"
+#include "MarkerReplacement.hpp"
 
 
 namespace pragzip::deflate
 {
-template<bool FULL_WINDOW>
-struct MapMarkers
-{
-    MapMarkers( VectorView<uint8_t> const& window ) :
-        m_window( window )
-    {
-        assert( ( m_window.size() >= MAX_WINDOW_SIZE ) == FULL_WINDOW );
-    }
-
-    [[nodiscard]] constexpr uint8_t
-    operator()( uint16_t value ) const
-    {
-        if ( value <= std::numeric_limits<uint8_t>::max() ) {
-            return static_cast<uint8_t>( value );
-        }
-
-        if ( value < MAX_WINDOW_SIZE ) {
-            throw std::invalid_argument( "Cannot replace unknown 2 B code!" );
-        }
-
-        if constexpr ( !FULL_WINDOW  ) {
-            if ( value - MAX_WINDOW_SIZE >= m_window.size() ) {
-                throw std::invalid_argument( "Window too small!" );
-            }
-        }
-
-        return m_window[value - MAX_WINDOW_SIZE];
-    }
-
-private:
-    const VectorView<uint8_t> m_window;
-};
-
-
-void
-replaceMarkerBytes( WeakVector<std::uint16_t>  buffer,
-                    VectorView<uint8_t> const& window )
-{
-    /* For maximum size windows, we can skip one check because even UINT16_MAX is valid. */
-    if ( window.size() >= MAX_WINDOW_SIZE ) {
-        std::transform( buffer.begin(), buffer.end(), buffer.begin(), MapMarkers<true>( window ) );
-    } else {
-        std::transform( buffer.begin(), buffer.end(), buffer.begin(), MapMarkers<false>( window ) );
-    }
-}
-
-
-/**
- * Only one of the two will contain non-empty VectorViews depending on whether marker bytes might appear.
- * @ref dataWithMarkers will be empty when @ref setInitialWindow has been called.
- */
-struct DecodedDataView
-{
-public:
-    [[nodiscard]] constexpr size_t
-    size() const noexcept
-    {
-        return dataWithMarkers[0].size() + dataWithMarkers[1].size() + data[0].size() + data[1].size();
-    }
-
-    [[nodiscard]] size_t
-    dataSize() const
-    {
-        return data[0].size() + data[1].size();
-    }
-
-    [[nodiscard]] size_t
-    dataWithMarkersSize() const
-    {
-        return dataWithMarkers[0].size() + dataWithMarkers[1].size();
-    }
-
-    [[nodiscard]] constexpr bool
-    containsMarkers() const noexcept
-    {
-        return !dataWithMarkers[0].empty() || !dataWithMarkers[1].empty();
-    }
-
-public:
-    std::array<VectorView<uint16_t>, 2> dataWithMarkers;
-    std::array<VectorView<uint8_t>, 2> data;
-};
+using MarkerVector = FasterVector<uint16_t>;
+using DecodedVector = FasterVector<uint8_t>;
 
 
 struct DecodedData
@@ -146,7 +70,7 @@ public:
             m_sizeInChunk = 0;
 
             if ( m_processedSize > m_size ) {
-                throw std::logic_error( "Iterated over mroe bytes than was requested!" );
+                throw std::logic_error( "Iterated over more bytes than was requested!" );
             }
 
             if ( !static_cast<bool>( *this ) ) {
@@ -175,7 +99,7 @@ public:
 
 public:
     void
-    append( std::vector<uint8_t>&& toAppend )
+    append( DecodedVector&& toAppend )
     {
         if ( !toAppend.empty() ) {
             data.emplace_back( std::move( toAppend ) );
@@ -212,6 +136,22 @@ public:
         return dataSize() * sizeof( uint8_t ) + dataWithMarkersSize() * sizeof( uint16_t );
     }
 
+    /**
+     * This is used to determine whether it is necessary to call applyWindow.
+     * Testing for @ref dataWithMarkers.empty() is not sufficient because markers could be contained
+     * in other members for derived classes! In that case @ref containsMarkers will be overriden.
+     * @note Probably should not be called internally because it is allowed to be shadowed by a child class method.
+     */
+    [[nodiscard]] bool
+    containsMarkers() const noexcept
+    {
+        return !dataWithMarkers.empty();
+    }
+
+    /**
+     * Replaces all 16-bit wide marker symbols by looking up the referenced 8-bit symbols in @p window.
+     * @note Probably should not be called internally because it is allowed to be shadowed by a child class method.
+     */
     void
     applyWindow( WindowView const& window );
 
@@ -221,7 +161,7 @@ public:
      * with the next block. Because this is not supposed to be called very often, it returns a copy of
      * the data instead of views.
      */
-    [[nodiscard]] std::vector<std::uint8_t>
+    [[nodiscard]] DecodedVector
     getLastWindow( WindowView const& previousWindow ) const;
 
     /**
@@ -229,8 +169,9 @@ public:
      *        A value of 0 would simply return @p previousWindow while a value equal to size() would return
      *        the window as it would be after this whole block.
      * @note Should only be called after @ref applyWindow because @p skipBytes larger than @ref dataSize will throw.
+     * @note Probably should not be called internally because it is allowed to be shadowed by a child class method.
      */
-    [[nodiscard]] std::vector<std::uint8_t>
+    [[nodiscard]] DecodedVector
     getWindowAt( WindowView const& previousWindow,
                  size_t            skipBytes ) const;
 
@@ -246,7 +187,7 @@ public:
     }
 
     /**
-     * Check decoded blocks that account for possible markers whether they actually contain markers and if not so
+     * Check decoded blocks that account for possible markers whether they actually contain markers and, if not so,
      * convert and move them to actual decoded data.
      */
     void
@@ -264,8 +205,8 @@ public:
      * There is no append( DecodedData ) method because this property might not be retained after using
      * @ref cleanUnmarkedData.
      */
-    std::vector<std::vector<uint16_t> > dataWithMarkers;
-    std::vector<std::vector<uint8_t> > data;
+    std::vector<MarkerVector> dataWithMarkers;
+    std::vector<DecodedVector> data;
 };
 
 
@@ -315,7 +256,7 @@ DecodedData::applyWindow( WindowView const& window )
                 return result;
             }();
 
-        std::vector<uint8_t> downcasted( markerCount );
+        DecodedVector downcasted( markerCount );
         size_t offset{ 0 };
         for ( auto& chunk : dataWithMarkers ) {
             std::transform( chunk.begin(), chunk.end(), downcasted.begin() + offset,
@@ -328,7 +269,7 @@ DecodedData::applyWindow( WindowView const& window )
         return;
     }
 
-    std::vector<uint8_t> downcasted( markerCount );
+    DecodedVector downcasted( markerCount );
     size_t offset{ 0 };
 
     /* For maximum size windows, we can skip one check because even UINT16_MAX is valid. */
@@ -353,10 +294,10 @@ DecodedData::applyWindow( WindowView const& window )
 }
 
 
-[[nodiscard]] inline std::vector<std::uint8_t>
+[[nodiscard]] inline DecodedVector
 DecodedData::getLastWindow( WindowView const& previousWindow ) const
 {
-    std::vector<std::uint8_t> window( MAX_WINDOW_SIZE, 0 );
+    DecodedVector window( MAX_WINDOW_SIZE, 0 );
     size_t nBytesWritten{ 0 };
 
     /* Fill the result from the back with data from our buffer. */
@@ -402,7 +343,7 @@ DecodedData::getLastWindow( WindowView const& previousWindow ) const
 }
 
 
-[[nodiscard]] inline std::vector<std::uint8_t>
+[[nodiscard]] inline DecodedVector
 DecodedData::getWindowAt( WindowView const& previousWindow,
                           size_t const      skipBytes) const
 {
@@ -410,7 +351,7 @@ DecodedData::getWindowAt( WindowView const& previousWindow,
         throw std::invalid_argument( "Amount of bytes to skip is larger than this block!" );
     }
 
-    std::vector<std::uint8_t> window( MAX_WINDOW_SIZE );
+    DecodedVector window( MAX_WINDOW_SIZE );
     size_t prefilled{ 0 };
     if ( skipBytes < MAX_WINDOW_SIZE ) {
         const auto lastBytesToCopyFromPrevious = MAX_WINDOW_SIZE - skipBytes;
@@ -519,8 +460,17 @@ DecodedData::cleanUnmarkedData()
 }
 
 
+/**
+ * m pragzip && src/tools/pragzip -v -d -c -P 0 4GiB-base64.gz | wc -c
+ * Non-polymorphic: Decompressed in total 4294967296 B in 1.49444 s -> 2873.96 MB/s
+ * With virtual ~DecodedData() = default: Decompressed in total 4294967296 B in 3.58325 s -> 1198.62 MB/s
+ * I don't know why it happens. Maybe it affects inline of function calls or moves of instances.
+ */
+static_assert( !std::is_polymorphic_v<DecodedData>, "Simply making it polymorphic halves performance!" );
+
+
 #ifdef HAVE_IOVEC
-[[nodiscard]] std::vector<::iovec>
+[[nodiscard]] inline std::vector<::iovec>
 toIoVec( const DecodedData& decodedData,
          const size_t       offsetInBlock,
          const size_t       dataToWriteSize )

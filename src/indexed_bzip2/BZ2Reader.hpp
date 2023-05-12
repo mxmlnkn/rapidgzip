@@ -25,7 +25,7 @@
 #endif
 
 
-class BZ2Reader :
+class BZ2Reader final :
     public BZ2ReaderInterface
 {
 public:
@@ -37,7 +37,7 @@ public:
 
 public:
     explicit
-    BZ2Reader( std::unique_ptr<FileReader> fileReader ) :
+    BZ2Reader( UniqueFileReader fileReader ) :
         m_bitReader( std::move( fileReader ) )
     {}
 
@@ -58,9 +58,18 @@ public:
     {}
 #endif
 
+    /* Forbid copying because it is hard to get right and there is not much use for it right now. */
+    BZ2Reader( const BZ2Reader& ) = delete;
+    BZ2Reader& operator=( const BZ2Reader& ) = delete;
+
+    /* Forbid moving because it is not used right now but it could probably be defaulted as long
+     * as BitReader has a working move constructor. */
+    BZ2Reader( BZ2Reader&& ) = delete;
+    BZ2Reader& operator=( BZ2Reader&& ) = delete;
+
     /* FileReader overrides */
 
-    [[nodiscard]] FileReader*
+    [[nodiscard]] UniqueFileReader
     clone() const override
     {
         throw std::logic_error( "Not implemented!" );

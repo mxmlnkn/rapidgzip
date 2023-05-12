@@ -4,7 +4,8 @@
 #include <iomanip>
 #include <iostream>
 #include <filesystem>
-#include <optional>
+#include <functional>
+#include <future>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -15,6 +16,7 @@
 
 #include <AlignedAllocator.hpp>
 #include <common.hpp>
+#include <FileUtils.hpp>
 #include <Statistics.hpp>
 #include <ThreadPool.hpp>
 
@@ -323,7 +325,7 @@ benchmarkVectorizedWrite( const std::string&       filePath,
     auto ufd = openFile( filePath, data.size(), fileInitialization );
     const auto fd = *ufd;
 
-    size_t nBytesWritten{ 0 };
+    [[maybe_unused]] size_t nBytesWritten{ 0 };
 
     const auto t0 = now();
     for ( size_t i = 0; i < data.size(); ) {
@@ -522,7 +524,7 @@ benchmarkMmapWriteParallel( const std::string&       filePath,
 
     const auto t0 = now();
 
-    const auto chunkSize = data.size() / threadPool.size();
+    const auto chunkSize = data.size() / threadPool.capacity();
     std::vector<std::future<void> > futures;
     for ( size_t i = 0; i < threadCount; ++i ) {
         const auto offset = i * chunkSize;
@@ -623,7 +625,7 @@ benchmarkPwriteParallel( const std::string&       filePath,
 
     const auto t0 = now();
 
-    const auto chunkSize = data.size() / threadPool.size();
+    const auto chunkSize = data.size() / threadPool.capacity();
     std::vector<std::future<void> > futures;
     for ( size_t offset = 0; offset < data.size(); offset += chunkSize ) {
         futures.emplace_back( threadPool.submit( [offset, chunkSize, &data, fd = *ufd] () {

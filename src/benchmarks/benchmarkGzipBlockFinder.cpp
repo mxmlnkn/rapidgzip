@@ -7,23 +7,33 @@ https://www.ietf.org/rfc/rfc1952.txt
 */
 
 
+#include <algorithm>
 #include <array>
-#include <cmath>
+#include <cassert>
 #include <cstdio>
-#include <cstring>
+#include <cstdint>
+#include <cstdlib>
+#include <filesystem>
+#include <functional>
 #include <iomanip>
 #include <iostream>
+#include <iterator>
 #include <limits>
+#include <map>
 #include <memory>
-#include <sstream>
+#include <numeric>
 #include <stdexcept>
 #include <string>
+#include <string_view>
+#include <tuple>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include <zlib.h>
 
+#include <BitManipulation.hpp>
 #include <BitReader.hpp>
 #include <blockfinder/Bgzf.hpp>
 #include <blockfinder/DynamicHuffman.hpp>
@@ -34,8 +44,9 @@ https://www.ietf.org/rfc/rfc1952.txt
 #include <blockfinder/precodecheck/WithoutLUT.hpp>
 #include <common.hpp>
 #include <filereader/Buffered.hpp>
-#include <HuffmanCodingCheckOnly.hpp>
-#include <pragzip.hpp>
+#include <filereader/Standard.hpp>
+#include <huffman/HuffmanCodingCheckOnly.hpp>
+#include <precode.hpp>
 #include <Statistics.hpp>
 #include <TestHelpers.hpp>
 
@@ -552,7 +563,7 @@ findDeflateBlocksZlibOptimized( BufferedFileReader::AlignedBuffer buffer )
 [[nodiscard]] std::vector<size_t>
 findDeflateBlocksPragzip( BufferedFileReader::AlignedBuffer buffer )
 {
-    using DeflateBlock = pragzip::deflate::Block</* CRC32 */ false>;
+    using DeflateBlock = pragzip::deflate::Block<>;
 
     const auto nBitsToTest = buffer.size() * CHAR_BIT;
     pragzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( buffer ) ) );
@@ -1201,7 +1212,7 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
 
     size_t offsetsTestedMoreInDepth{ 0 };
     std::unordered_map<pragzip::Error, uint64_t> errorCounts;
-    pragzip::deflate::Block</* CRC32 */ false, /* enable analysis */ true> block;
+    pragzip::deflate::Block</* enable analysis */ true> block;
     size_t checkPrecodeFails{ 0 };
     size_t passedDeflateHeaderTest{ 0 };
     for ( size_t offset = 0; offset <= nBitsToTest; ) {

@@ -5,6 +5,7 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 
@@ -16,14 +17,14 @@
 #include <Statistics.hpp>
 
 #include "FileReader.hpp"
+#ifndef _MSC_VER
+    #include "Standard.hpp"
+#endif
 
 
 class SharedFileReader final :
     public FileReader
 {
-public:
-    static constexpr bool SHOW_PROFILE{ false };
-
 private:
     /**
      * Create a new shared file reader from an existing FileReader. Takes ownership of the given FileReader!
@@ -31,7 +32,7 @@ private:
     explicit
     SharedFileReader( FileReader* file ) :
         m_statistics( dynamic_cast<SharedFileReader*>( file ) == nullptr
-                      ? ( SHOW_PROFILE ? std::make_shared<AccessStatistics>() : std::shared_ptr<AccessStatistics>() )
+                      ? std::make_shared<AccessStatistics>()
                       : dynamic_cast<SharedFileReader*>( file )->m_statistics ),
         m_mutex( dynamic_cast<SharedFileReader*>( file ) == nullptr
                  ? std::make_shared<std::mutex>()
@@ -74,38 +75,45 @@ private:
 
 public:
     explicit
-    SharedFileReader( std::unique_ptr<FileReader> file ) :
+    SharedFileReader( UniqueFileReader file ) :
         SharedFileReader( file.release() )
     {}
 
     ~SharedFileReader()
     {
-        if constexpr ( SHOW_PROFILE ) {
-            if ( m_statistics.use_count() == 1 ) {
-                std::cerr << ( ThreadSafeOutput()
-                    << "[SharedFileReader::~SharedFileReader]\n"
-                    << "   seeks back    : (" << m_statistics->seekBack.formatAverageWithUncertainty( true )
-                    << " ) B (" << m_statistics->seekBack.count << "calls)\n"
-                    << "   seeks forward : (" << m_statistics->seekForward.formatAverageWithUncertainty( true )
-                    << " ) B (" << m_statistics->seekForward.count << "calls)\n"
-                    << "   reads         : (" << m_statistics->read.formatAverageWithUncertainty( true )
-                    << " ) B (" << m_statistics->read.count << "calls)\n"
-                    << "   locks         :" << m_statistics->locks << "\n"
-                    << "   read in total" << m_statistics->read.sum << "B out of" << m_fileSizeBytes << "B,"
-                    << "i.e., read the file" << m_statistics->read.sum / m_fileSizeBytes << "times\n"
-                    << "   time spent seeking and reading:" << m_statistics->readingTime << "s\n"
-                );
-            }
+        if ( m_statistics && m_statistics->enabled && ( m_statistics.use_count() == 1 ) ) {
+            std::cerr << ( ThreadSafeOutput()
+                << "[SharedFileReader::~SharedFileReader]\n"
+                << "   seeks back    : (" << m_statistics->seekBack.formatAverageWithUncertainty( true )
+                << " ) B (" << m_statistics->seekBack.count << "calls )\n"
+                << "   seeks forward : (" << m_statistics->seekForward.formatAverageWithUncertainty( true )
+                << " ) B (" << m_statistics->seekForward.count << "calls )\n"
+                << "   reads         : (" << m_statistics->read.formatAverageWithUncertainty( true )
+                << " ) B (" << m_statistics->read.count << "calls )\n"
+                << "   locks         :" << m_statistics->locks << "\n"
+                << "   read in total" << static_cast<uint64_t>( m_statistics->read.sum )
+                << "B out of" << m_fileSizeBytes << "B,"
+                << "i.e., read the file" << m_statistics->read.sum / m_fileSizeBytes << "times\n"
+                << "   time spent seeking and reading:" << m_statistics->readingTime << "s\n"
+            );
         }
     }
 
     /**
      * Creates a shallow copy of this file reader with an independent file position to access the underlying file.
      */
-    [[nodiscard]] FileReader*
+    [[nodiscard]] UniqueFileReader
     clone() const override
     {
-        return new SharedFileReader( *this );
+        return UniqueFileReader( new SharedFileReader( *this ) );
+    }
+
+    void
+    setStatisticsEnabled( bool enabled )
+    {
+        if ( m_statistics ) {
+            m_statistics->enabled = enabled;
+        }
     }
 
 private:
@@ -224,6 +232,20 @@ public:
         size_t nBytesRead{ 0 };
     #ifndef _MSC_VER
         if ( m_fileDescriptor >= 0 ) {
+            /* This statistic only approximates the actual pread behavior. The OS can probably reorder
+             * concurrent pread calls and we would have to enclose pread itself in a lock, which defeats
+             * the purpose of pread for speed. */
+            if ( m_statistics && m_statistics->enabled ) {
+                const std::scoped_lock lock{ m_statistics->mutex };
+                const auto oldOffset = m_statistics->lastAccessOffset;
+                if ( m_currentPosition > oldOffset ) {
+                    m_statistics->seekForward.merge( m_currentPosition - oldOffset );
+                } else if ( m_currentPosition < oldOffset ) {
+                    m_statistics->seekBack.merge( oldOffset - m_currentPosition );
+                }
+                m_statistics->lastAccessOffset = m_currentPosition;
+            }
+
             const auto nBytesReadWithPread = ::pread( m_sharedFile->fileno(), buffer, nMaxBytesToRead,
                                                       m_currentPosition );
             if ( nBytesReadWithPread < 0 ) {
@@ -235,7 +257,7 @@ public:
         {
             const auto fileLock = getLock();
 
-            if constexpr ( SHOW_PROFILE ) {
+            if ( m_statistics && m_statistics->enabled ) {
                 const std::scoped_lock lock{ m_statistics->mutex };
                 const auto oldOffset = m_sharedFile->tell();
                 if ( m_currentPosition > oldOffset ) {
@@ -251,7 +273,7 @@ public:
             nBytesRead = m_sharedFile->read( buffer, nMaxBytesToRead );
         }
 
-        if constexpr ( SHOW_PROFILE ) {
+        if ( m_statistics && m_statistics->enabled ) {
             const std::scoped_lock lock{ m_statistics->mutex };
             m_statistics->read.merge( nBytesRead );
             m_statistics->readingTime += duration( t0 );
@@ -279,7 +301,7 @@ private:
     [[nodiscard]] std::scoped_lock<std::mutex>
     getLock() const
     {
-        if constexpr ( SHOW_PROFILE ) {
+        if ( m_statistics && m_statistics->enabled ) {
             ++m_statistics->locks;
         }
         return std::scoped_lock( *m_mutex );
@@ -287,6 +309,8 @@ private:
 
 private:
     struct AccessStatistics {
+        bool enabled{ false };
+        uint64_t lastAccessOffset{ 0 };  // necessary for pread because tell() won't work
         Statistics<uint64_t> read;
         Statistics<uint64_t> seekBack;
         Statistics<uint64_t> seekForward;
@@ -296,7 +320,7 @@ private:
     };
 
 private:
-    std::shared_ptr<AccessStatistics> m_statistics;
+    const std::shared_ptr<AccessStatistics> m_statistics;
 
     std::shared_ptr<FileReader> m_sharedFile;
     int m_fileDescriptor{ -1 };
@@ -311,3 +335,18 @@ private:
      */
     size_t m_currentPosition{ 0 };
 };
+
+
+[[nodiscard]] inline std::unique_ptr<SharedFileReader>
+ensureSharedFileReader( UniqueFileReader&& fileReader )
+{
+    if ( !fileReader ) {
+        throw std::invalid_argument( "File reader must not be null!" );
+    }
+
+    if ( auto* const casted = dynamic_cast<SharedFileReader*>( fileReader.get() ); casted != nullptr ) {
+        fileReader.release();
+        return std::unique_ptr<SharedFileReader>( casted );
+    }
+    return std::make_unique<SharedFileReader>( std::move( fileReader ) );
+}

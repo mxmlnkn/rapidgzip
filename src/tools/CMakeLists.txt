@@ -8,4 +8,5 @@ target_link_libraries(bitpatternstats PRIVATE cxxopts indexed_bzip2_parallel)
 
 add_executable(pragzip)
 target_sources(pragzip PRIVATE ${CMAKE_CURRENT_LIST_DIR}/pragzip.cpp)
-target_link_libraries(pragzip PRIVATE cxxopts libpragzip)
+target_link_libraries(pragzip PRIVATE cxxopts libpragzip rpmalloc)
+target_compile_definitions(pragzip PRIVATE WITH_RPMALLOC)

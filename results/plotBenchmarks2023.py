@@ -6,6 +6,7 @@ import matplotlib.ticker
 from matplotlib.lines import Line2D
 from matplotlib.ticker import NullFormatter, ScalarFormatter, StrMethodFormatter
 import numpy as np
+import pandas as pd
 import os, sys
 
 
@@ -203,6 +204,8 @@ def plotComponentBandwidths():
         ("Count newlines" , "result-count-newlines.dat"),
     ]
 
+    statisticsInfo = []
+
     ticks = []
     for i, component in enumerate(components[::-1]):
         label, fname = component
@@ -216,6 +219,14 @@ def plotComponentBandwidths():
         labelWithMedian = f"{label} ({formatBytes( np.median( bandwidths ) )}/s)"
         ticks.append( (i, labelWithMedian) )
 
+        showMedian=False
+        if showMedian:
+            statisticsInfo.append( (i, f"{label:19s} & {np.quantile( bandwidths, 0.25 ) / 1e6} & "
+                                       f"{np.median( bandwidths ) / 1e6} & "
+                                       f"{np.quantile( bandwidths, 0.75 ) / 1e6}\\\\") )
+        else:
+            statisticsInfo.append( (i, f"{label:19s} & {np.mean( bandwidths ) / 1e6} & {np.std( bandwidths ) / 1e6}\\\\") )
+
         # Do not show medians because the "violin" is almost as flat as the median line
         result = ax.violinplot(bandwidths / 1e6, positions = [i], vert = False, widths = [1],
                                showextrema = False, showmedians = False)
@@ -223,6 +234,11 @@ def plotComponentBandwidths():
             body.set_zorder(3)
             body.set_alpha(1.0)
             body.set_color(colors['blue'])
+
+    print("Benchmark & 25th Percentile & Median & 75th Percentile\\\\")
+    statisticsInfo = reversed(sorted(statisticsInfo, key = lambda x: x[0]))
+    for _, info in statisticsInfo:
+        print(info)
 
     if not ticks:
         plt.close(fig)
@@ -249,9 +265,9 @@ def plotParallelDecompression(legacyPrefix, parallelPrefix, outputType='dev-null
 
     tools = [
         (f"{myImplementationName} (index)", f"{parallelPrefix}-pragzip-index-{outputType}.dat", colors['rosa']),
-        (f"{myImplementationName}", f"{parallelPrefix}-pragzip-{outputType}.dat", colors['red']),
-        ("pugz", f"{parallelPrefix}-pugz-{outputType}.dat", colors['blue']),
+        (f"{myImplementationName} (no index)", f"{parallelPrefix}-pragzip-{outputType}.dat", colors['red']),
         ("pugz (sync)", f"{parallelPrefix}-pugz-sync-{outputType}.dat", colors['green']),
+        ("pugz", f"{parallelPrefix}-pugz-{outputType}.dat", colors['blue']),
         ("pigz", f"{legacyPrefix}-pigz-{outputType}.dat", colors['sky']),
         ("igzip", f"{legacyPrefix}-igzip-{outputType}.dat", colors['black']),
         ("gzip", f"{legacyPrefix}-gzip-{outputType}.dat", colors['black']),
@@ -317,23 +333,21 @@ def plotParallelDecompression(legacyPrefix, parallelPrefix, outputType='dev-null
             symbols.append(mpatches.Patch(color = color, alpha = alpha))
         labels.append(tool)
 
+        # Add ideal scaling for comparison
+        if fileName == f"{parallelPrefix}-pragzip-{outputType}.dat":
+            threadCount = 1
+            subdata = data[data[:, 0] == threadCount]
+            bandwidths = subdata[:, 1] / subdata[:, 2] / 1e6
+            ax.plot(threadCountsTicks, np.median(bandwidths) * np.array(threadCountsTicks), linestyle = '--',
+                    color = colors['red'], alpha = alpha)
+            symbols.append(Line2D([0], [0], color = colors['red'], alpha = alpha, linestyle = '--'))
+            labels.append("linear scal. (no index)")
+
     if not labels:
         plt.close(fig)
         return
 
-    # Add ideal scaling for comparison
-    filePath = os.path.join(folder, f"{parallelPrefix}-pragzip-{outputType}.dat")
-    if os.path.isfile(filePath):
-        data = np.loadtxt(filePath, ndmin = 2)
-        threadCount = 1
-        subdata = data[data[:, 0] == threadCount]
-        bandwidths = subdata[:, 1] / subdata[:, 2] / 1e6
-        ax.plot(threadCountsTicks, np.median(bandwidths) * np.array(threadCountsTicks), linestyle = '--',
-                label = "ideal linear scaling", color = colors['black'], alpha = alpha)
-    symbols.append(Line2D([0], [0], color = colors['black'], alpha = alpha, linestyle = '--'))
-    labels.append("linear scaling")
-
-    ax.set_ylim((100, ax.get_ylim()[1]));
+    ax.set_ylim((100, 40000));
     ax.set_xticks([int(x) for x in threadCountsTicks])
     ax.minorticks_off()
     ax.xaxis.set_major_formatter(ScalarFormatter())
@@ -341,7 +355,7 @@ def plotParallelDecompression(legacyPrefix, parallelPrefix, outputType='dev-null
     ax.yaxis.set_minor_formatter(ScalarFormatter())
     ax.yaxis.set_major_formatter(ScalarFormatter())
 
-    ax.legend(symbols, labels, loc="upper left")
+    ax.legend(symbols, labels, loc="upper left", labelspacing = 0.4, ncol = 2, columnspacing = 1.0)  # framealpha = 0, bbox_to_anchor = (0, 1.2)
 
     fig.tight_layout()
 
@@ -500,11 +514,70 @@ def plotChunkSizes():
     return fig
 
 
+def formatCompressionLevelBandwidths():
+    filePath = os.path.join(folder, "compression-levels-pragzip-dev-null.dat")
+    if not os.path.isfile(filePath):
+        return
+
+    data = pd.read_csv(filePath, header=None, sep=';', comment='#')
+    if data.shape[0] == 0:
+        return
+
+    data = data.set_axis(['tool', 'P', 'size', 'time', 'csize'], axis = 1)
+    data['bandwidths'] = data['size'] / data['time'] / 1e9
+    grouped = data.groupby(['tool', 'P'])
+
+    # For those values that should be equal inside one group
+    medians = grouped.median()
+
+    result = pd.DataFrame()
+    result['mean bandwidth'] = grouped.mean()['bandwidths']
+    result['stddev bandwidth'] = grouped.std()['bandwidths']
+    result['compression ratio'] = ( medians['size'] / medians['csize'] ).round( 2 )
+
+    print(result)
+
+
+def formatCompressionFormatBandwidths():
+    filePath = os.path.join(folder, "compression-formats-dev-null.dat")
+    if not os.path.isfile(filePath):
+        return
+
+    data = pd.read_csv(filePath, header=None, sep=';', comment='#')
+    if data.shape[0] == 0:
+        return
+
+    data = data.set_axis(['compressor', 'tool', 'P', 'size', 'time', 'csize'], axis = 1)
+    # Without regex = True, it would only replace exact matches not substrings.
+    data = data.replace({
+        ' -o /dev/null': '',
+        ' -k': '',
+        ' -c': '',
+        ' -f': '',
+        '--import-index': '(index)',
+        ' -[pPn] [0-9]*': '',
+        ' --threads [0-9]*': ''
+    }, regex = True)
+    data['bandwidths'] = data['size'] / data['time'] / 1e9
+    grouped = data.groupby(['P', 'compressor', 'tool'])
+
+    # For those values that should be equal inside one group
+    medians = grouped.median()
+
+    result = pd.DataFrame()
+    result['mean bandwidth'] = grouped.mean()['bandwidths']
+    result['stddev bandwidth'] = grouped.std()['bandwidths']
+    result['compression ratio'] = ( medians['size'] / medians['csize'] ).round( 2 )
+
+    print(result)
+
+
 # Old tests as to how to plot but the samples correctly but violing plots are sufficient
 #plotBitReaderHistograms()
 #plotBitReaderSelectedHistogram([24])
 
 plotChunkSizes()
+plotParallelDecompression("result-decompression-fastq", "result-parallel-decompression-fastq", "dev-null")
 plotParallelDecompression("result-decompression-base64", "result-parallel-decompression-base64", "dev-null")
 plotParallelDecompression("result-decompression-silesia", "result-parallel-decompression-silesia", "dev-null")
 plotParallelDecompressionPerChunkSize("result-decompression-base64", "result-parallel-decompression-base64", "dev-null")
@@ -512,5 +585,8 @@ plotParallelDecompressionPerChunkSize("result-decompression-silesia", "result-pa
 plotParallelReadingBandwidths()
 plotBitReaderBandwidths()
 plotComponentBandwidths()
+
+formatCompressionLevelBandwidths()
+formatCompressionFormatBandwidths()
 
 plt.show()

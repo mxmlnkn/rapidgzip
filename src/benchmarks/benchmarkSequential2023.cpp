@@ -4,24 +4,35 @@
  *       to get an overview of the current state of pragzip.
  */
 
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <filesystem>
+#include <functional>
+#include <iterator>
+#include <limits>
+#include <numeric>
+#include <sstream>
 #include <stdexcept>
+#include <string>
+#include <optional>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
-#include <BitManipulation.hpp>
+#include <AffinityHelpers.hpp>
 #include <BitReader.hpp>
 #include <blockfinder/DynamicHuffman.hpp>
 #include <blockfinder/Uncompressed.hpp>
 #include <common.hpp>
 #include <DecodedData.hpp>
 #include <filereader/BufferView.hpp>
+#include <filereader/Standard.hpp>
+#include <FileUtils.hpp>
 #include <pragzip.hpp>
 #include <Statistics.hpp>
 #include <TestHelpers.hpp>
+#include <ThreadPool.hpp>
 
 
 constexpr size_t REPEAT_COUNT{ 100 };
@@ -395,7 +406,7 @@ benchmarkDynamicBlockFinderZlib()
 [[nodiscard]] std::pair<double, uint64_t>
 findDeflateBlocksPragzip( const std::vector<char>& buffer )
 {
-    using DeflateBlock = pragzip::deflate::Block</* CRC32 */ false>;
+    using DeflateBlock = pragzip::deflate::Block<>;
 
     const auto nBitsToTest = buffer.size() * CHAR_BIT;
     pragzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( buffer ) );
@@ -450,7 +461,7 @@ benchmarkDynamicBlockFinderPragzip()
 [[nodiscard]] std::pair<double, uint64_t>
 findDeflateBlocksPragzipLUT( const std::vector<char>& buffer )
 {
-    using DeflateBlock = pragzip::deflate::Block</* CRC32 */ false>;
+    using DeflateBlock = pragzip::deflate::Block<>;
     constexpr auto CACHED_BIT_COUNT = pragzip::blockfinder::OPTIMAL_NEXT_DEFLATE_LUT_SIZE;
 
     /* Testing a dozen positions less should not make a difference but avoid EOF exceptions. */
@@ -604,9 +615,9 @@ benchmarkFileReaderParallel( ThreadPool&        threadPool,
 
     const auto readStrided =
         [chunkSize]
-        ( const std::unique_ptr<FileReader>& fileReader,
-          const size_t                       offset,
-          const size_t                       stride ) -> uint64_t
+        ( const UniqueFileReader& fileReader,
+          const size_t            offset,
+          const size_t            stride ) -> uint64_t
         {
             std::vector<char> buffer( chunkSize );
 
@@ -624,9 +635,9 @@ benchmarkFileReaderParallel( ThreadPool&        threadPool,
         };
 
     std::vector<std::future<uint64_t> > results;
-    const auto parallelism = threadPool.size();
+    const auto parallelism = threadPool.capacity();
     for ( size_t i = 0; i < parallelism; ++i ) {
-        auto sharedFileReader = std::unique_ptr<FileReader>( shareableFileReader->clone() );
+        auto sharedFileReader = shareableFileReader->clone();
         results.emplace_back( threadPool.submit(
             [chunkSize, i, parallelism, fileReader = std::move( sharedFileReader ), &readStrided] () mutable {
                 return readStrided( fileReader, i * chunkSize, parallelism * chunkSize );

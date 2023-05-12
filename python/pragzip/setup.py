@@ -24,8 +24,9 @@ extensions = [
     Extension(
         # fmt: off
         name         = 'pragzip',
-        sources      = ['pragzip.pyx'] + zlib_sources,
-        include_dirs = ['.', 'core', 'pragzip', 'pragzip/huffman', 'external/zlib', 'external/cxxopts/include'],
+        sources      = ['pragzip.pyx'] + zlib_sources + ['external/rpmalloc/rpmalloc/rpmalloc.c'],
+        include_dirs = ['.', 'core', 'pragzip', 'pragzip/huffman', 'external/zlib', 'external/cxxopts/include',
+                        'external/rpmalloc/rpmalloc'],
         language     = 'c++',
         # fmt: on
     ),
@@ -93,6 +94,7 @@ class Build(build_ext):
                 '-O3',
                 '-DNDEBUG',
                 '-DWITH_PYTHON_SUPPORT',
+                '-DWITH_RPMALLOC',
                 '-D_LARGEFILE64_SOURCE=1',
             ]
 
@@ -118,8 +120,11 @@ class Build(build_ext):
                     '/O2',
                     '/DNDEBUG',
                     '/DWITH_PYTHON_SUPPORT',
+                    '/DWITH_RPMALLOC',
                     '/constexpr:steps99000100',
                 ]
+                # This list is from rpmalloc/build/ninja/msvc.py
+                ext.libraries = ['kernel32', 'user32', 'shell32', 'advapi32']
             else:
                 # The default limit is ~33 M (1<<25) and 99 M seem to be enough to compile currently on GCC 11.
                 if supportsFlag(self.compiler, '-fconstexpr-ops-limit=99000100'):

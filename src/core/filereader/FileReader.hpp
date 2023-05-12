@@ -2,6 +2,12 @@
 
 #include <cstddef>
 #include <cstdio>
+#include <memory>
+
+
+class FileReader;
+
+using UniqueFileReader = std::unique_ptr<FileReader>;
 
 
 /**
@@ -24,7 +30,7 @@ public:
     FileReader& operator=( const FileReader& ) = delete;
     FileReader& operator=( FileReader&& ) = delete;
 
-    [[nodiscard]] virtual FileReader*
+    [[nodiscard]] virtual UniqueFileReader
     clone() const = 0;
 
     virtual void

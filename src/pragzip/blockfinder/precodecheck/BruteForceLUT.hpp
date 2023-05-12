@@ -10,6 +10,10 @@
 #include <cstdint>
 #include <limits>
 
+#include <BitManipulation.hpp>
+#include <common.hpp>
+#include <Error.hpp>
+
 
 namespace pragzip::PrecodeCheck::BruteForceLUT
 {

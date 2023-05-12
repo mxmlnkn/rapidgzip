@@ -233,10 +233,12 @@ make && time ./blockfinder /dev/shm/large.bz2
     sys	0m0.276s
 */
 
-#include <fstream>
+#include <cstdint>
+#include <iostream>
 #include <future>
 #include <limits>
 #include <list>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -247,6 +249,8 @@ make && time ./blockfinder /dev/shm/large.bz2
 
 #include <BitReader.hpp>
 #include <common.hpp>
+#include <filereader/Standard.hpp>
+#include <FileUtils.hpp>
 
 
 std::vector<size_t>

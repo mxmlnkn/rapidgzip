@@ -14,6 +14,8 @@
 #include <utility>
 #include <vector>
 
+#include <BlockFinderInterface.hpp>
+
 
 /**
  * Stores results in the order they are pushed and also stores a flag signaling that nothing will be pushed anymore.
@@ -29,6 +31,8 @@ public:
      * For the index access operations, a container with random access iterator, would yield better performance.
      */
     using Values = std::deque<Value>;
+
+    using GetReturnCode = BlockFinderInterface::GetReturnCode;
 
     class ResultsView
     {
@@ -66,7 +70,7 @@ public:
      * @param timeoutInSeconds Use infinity or 0 to wait forever or not wait at all.
      * @return the result at the requested position.
      */
-    [[nodiscard]] std::optional<Value>
+    [[nodiscard]] std::pair<std::optional<size_t>, GetReturnCode>
     get( size_t position,
          double timeoutInSeconds = std::numeric_limits<double>::infinity() ) const
     {
@@ -84,9 +88,9 @@ public:
         }
 
         if ( position < m_results.size() ) {
-            return m_results[position];
+            return { m_results[position], GetReturnCode::SUCCESS };
         }
-        return std::nullopt;
+        return { std::nullopt, m_finalized ? GetReturnCode::FAILURE : GetReturnCode::TIMEOUT };
     }
 
     void

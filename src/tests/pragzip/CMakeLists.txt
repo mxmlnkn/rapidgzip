@@ -52,3 +52,15 @@ target_sources(testPrecodeCheck PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testPrecodeChe
 target_link_libraries(testPrecodeCheck PRIVATE libpragzip)
 add_test(NAME Test-Precode-Check COMMAND testPrecodeCheck)
 add_dependencies(all_tests testPrecodeCheck)
+
+add_executable(testCRC32)
+target_sources(testCRC32 PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testCRC32.cpp)
+target_link_libraries(testCRC32 PRIVATE libpragzip)
+add_test(NAME Test-CRC32 COMMAND testCRC32)
+add_dependencies(all_tests testCRC32)
+
+add_executable(testZlib)
+target_sources(testZlib PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testZlib.cpp)
+target_link_libraries(testZlib PRIVATE libpragzip)
+add_test(NAME Test-Zlib COMMAND testZlib)
+add_dependencies(all_tests testZlib)

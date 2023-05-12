@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <iostream>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -80,7 +81,7 @@ namespace pragzip::blockfinder
  * EOF is the end of the file as intended by the program that wrote it. Empty BGZF blocks are not otherwise
  * special; in particular, the presence of an EOF marker block does not by itself signal end of file.
  */
-class Bgzf :
+class Bgzf final :
     public Interface
 {
 public:
@@ -104,7 +105,7 @@ public:
 
 public:
     explicit
-    Bgzf( std::unique_ptr<FileReader> fileReader ) :
+    Bgzf( UniqueFileReader fileReader ) :
         m_fileReader( std::move( fileReader ) )
     {
         HeaderBytes header;
@@ -132,7 +133,7 @@ public:
     }
 
     [[nodiscard]] static bool
-    isBgzfFile( const std::unique_ptr<FileReader>& file )
+    isBgzfFile( const UniqueFileReader& file )
     {
         const auto oldPos = file->tell();
 
@@ -225,7 +226,7 @@ public:
     }
 
 private:
-    const std::unique_ptr<FileReader> m_fileReader;
+    const UniqueFileReader m_fileReader;
     size_t m_currentBlockOffset = 0;  /**< in bytes because these are gzip stream offsets */
 };
 }  // pragzip::blockfinder

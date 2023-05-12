@@ -227,22 +227,6 @@ reverseBits( T value )
     }
 }
 
-static_assert( REVERSED_BITS_LUT<uint8_t>.size() == 256 );
-
-static_assert( REVERSED_BITS_LUT<uint8_t>[0b1111'0000U] == 0b0000'1111U );
-static_assert( REVERSED_BITS_LUT<uint8_t>[0b1010'1010U] == 0b0101'0101U );
-static_assert( reverseBitsWithoutLUT( uint8_t( 0b1111'0000 ) ) == 0b0000'1111U );
-static_assert( reverseBitsWithoutLUT( uint8_t( 0b1010'1010 ) ) == 0b0101'0101U );
-static_assert( reverseBits( uint8_t( 0b1111'0000 ) ) == 0b0000'1111U );
-static_assert( reverseBits( uint8_t( 0b1010'1010 ) ) == 0b0101'0101U );
-
-static_assert( REVERSED_BITS_LUT<uint16_t>[0b1111'0000'1111'0000U] == 0b0000'1111'0000'1111U );
-static_assert( REVERSED_BITS_LUT<uint16_t>[0b1010'1010'1010'1010U] == 0b0101'0101'0101'0101U );
-static_assert( reverseBitsWithoutLUT( uint16_t( 0b1111'0000'1111'0000 ) ) == 0b0000'1111'0000'1111U );
-static_assert( reverseBitsWithoutLUT( uint16_t( 0b1010'1010'1010'1010 ) ) == 0b0101'0101'0101'0101U );
-static_assert( reverseBits( uint16_t( 0b1111'0000'1111'0000 ) ) == 0b0000'1111'0000'1111U );
-static_assert( reverseBits( uint16_t( 0b1010'1010'1010'1010 ) ) == 0b0101'0101'0101'0101U );
-
 
 /**
  * Reverses the lowest @p bitCount bits. The highest bits are set to 0 and are assumed to be zero in the input.

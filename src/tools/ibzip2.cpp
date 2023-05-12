@@ -1,13 +1,14 @@
+#include <algorithm>
 #include <cassert>
+#include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <iostream>
-#include <fstream>
+#include <limits>
 #include <map>
 #include <set>
 #include <stdexcept>
-#include <sstream>
 #include <string>
-#include <thread>
 #include <utility>
 #include <vector>
 
@@ -18,10 +19,13 @@
 #include <BitReader.hpp>
 #include <BitStringFinder.hpp>
 #include <BZ2Reader.hpp>
+#include <common.hpp>
 #include <filereader/Standard.hpp>
 #include <FileUtils.hpp>
 #include <ParallelBZ2Reader.hpp>
 #include <ParallelBitStringFinder.hpp>
+
+#include "licenses.cpp"
 
 
 /* Check whether the found offsets actually point to BZ2 magic bytes. */
@@ -214,6 +218,7 @@ ibzip2CLI( int argc, char** argv )
         ( "q,quiet"  , "Suppress noncritical error messages." )
         ( "v,verbose", "Be verbose. A second -v (or shorthand -vv) gives even more verbosity." )
         ( "V,version", "Display software version." )
+        ( "oss-attributions", "Display open-source software licenses." )
         ( "l,list-compressed-offsets",
           "List only the bzip2 block offsets given in bits one per line to the specified output file. "
           "If no file is given, it will print to stdout or to stderr if the decoded data is already written to stdout. "
@@ -270,6 +275,11 @@ ibzip2CLI( int argc, char** argv )
         return 0;
     }
 
+    if ( parsedArgs.count( "oss-attributions" ) > 0 ) {
+        std::cout << licenses::CXXOPTS;
+        return 0;
+    }
+
     /* Parse input and output file specifications. */
 
     if ( parsedArgs.count( "input" ) > 1 ) {
@@ -309,11 +319,13 @@ ibzip2CLI( int argc, char** argv )
 
     /* Parse other arguments. */
 
-    const auto decompress = ( ( parsedArgs.count( "decompress" ) > 0 )
-                              && ( ( outputFilePath.empty() && !stdoutIsDevNull() )
-                                   || ( !outputFilePath.empty() && ( outputFilePath != "/dev/null" ) ) ) )
-                            || ( parsedArgs.count( "list-offsets" ) > 0 )
-                            || force;
+    const auto listOffsets = parsedArgs.count( "list-offsets" ) > 0;
+    const auto decompress = parsedArgs.count( "decompress" ) > 0;
+
+    if ( decompress && ( outputFilePath != "/dev/null" ) && fileExists( outputFilePath ) && !force ) {
+        std::cerr << "Output file '" << outputFilePath << "' already exists! Use --force to overwrite.\n";
+        return 1;
+    }
 
     const auto bufferSize = parsedArgs["buffer-size"].as<unsigned int>();
 
@@ -333,13 +345,19 @@ ibzip2CLI( int argc, char** argv )
 
     /* Actually do things as requested. */
 
-    if ( decompress ) {
+    if ( decompress || listOffsets ) {
         if ( verbose ) {
             std::cerr << "Decompress " << inputFilePath << " -> " << outputFilePath << " with " << decoderParallelism
                       << " threads\n";
         }
 
         auto fileReader = openFileOrStdin( inputFilePath );
+
+        std::unique_ptr<OutputFile> outputFile;
+        if ( decompress ) {
+            outputFile = std::make_unique<OutputFile>( outputFilePath );
+        }
+        const auto outputFileDescriptor = outputFile ? outputFile->fd() : -1;
 
         std::unique_ptr<BZ2ReaderInterface> reader;
         if ( decoderParallelism == 1 ) {
@@ -348,26 +366,11 @@ ibzip2CLI( int argc, char** argv )
             reader = std::make_unique<ParallelBZ2Reader>( std::move( fileReader ), decoderParallelism );
         }
 
-    #ifdef _MSC_VER
-        auto outputFileDescriptor = _fileno( stdout );
-        if ( outputFilePath.empty() ) {
-            _setmode( outputFileDescriptor, _O_BINARY );
-        }
-    #else
-        auto outputFileDescriptor = ::fileno( stdout );
-    #endif
-
-        unique_file_ptr outputFile;
-        if ( !outputFilePath.empty() ) {
-            outputFile = make_unique_file_ptr( outputFilePath.c_str(), "wb" );
-            outputFileDescriptor = ::fileno( outputFile.get() );
-        }
-
         size_t nBytesWrittenTotal = 0;
         if ( bufferSize > 0 ) {
             do {
                 std::vector<char> buffer( bufferSize, 0 );
-                const size_t nBytesRead = reader->read( -1, buffer.data(), buffer.size() );
+                const auto nBytesRead = reader->read( -1, buffer.data(), buffer.size() );
                 assert( nBytesRead <= buffer.size() );
 
                 const auto nBytesWritten = write( outputFileDescriptor, buffer.data(), nBytesRead );
@@ -381,6 +384,13 @@ ibzip2CLI( int argc, char** argv )
             nBytesWrittenTotal = reader->read( outputFileDescriptor );
         }
 
+        const auto writeToStdErr = outputFile && outputFile->writingToStdout();
+        auto& out = writeToStdErr ? std::cerr : std::cout;
+        if ( outputFile ) {
+            outputFile->truncate( nBytesWrittenTotal );
+            outputFile.reset();  // Close the file here to include it in the time measurement.
+        }
+
 
         const auto offsets = reader->blockOffsets();
 
@@ -391,7 +401,7 @@ ibzip2CLI( int argc, char** argv )
         }
 
         if ( verbose ) {
-            std::cout << "Found " << offsets.size() << " blocks\n";
+            out << "Found " << offsets.size() << " blocks\n";
         }
 
         if ( test ) {

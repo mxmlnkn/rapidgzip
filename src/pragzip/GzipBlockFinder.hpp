@@ -10,8 +10,10 @@
 #include <utility>
 #include <vector>
 
+#include <BlockFinderInterface.hpp>
+#include <common.hpp>
+
 #include "blockfinder/Bgzf.hpp"
-#include "common.hpp"
 #include "deflate.hpp"
 
 
@@ -27,20 +29,21 @@ namespace pragzip
  * However, care has to be taken in its usage because block confirmation effectively invalidates block
  * previous indexes!
  */
-class GzipBlockFinder
+class GzipBlockFinder final :
+    public BlockFinderInterface
 {
 public:
     using BlockOffsets = std::vector<size_t>;
 
 public:
     explicit
-    GzipBlockFinder( std::unique_ptr<FileReader> fileReader,
-                     size_t                      spacing ) :
+    GzipBlockFinder( UniqueFileReader fileReader,
+                     size_t           spacing ) :
         m_fileSizeInBits( fileReader->size() * CHAR_BIT ),
         m_spacingInBits( spacing * CHAR_BIT ),
         m_isBgzfFile( blockfinder::Bgzf::isBgzfFile( fileReader ) ),
         m_bgzfBlockFinder( m_isBgzfFile
-                           ? std::make_unique<blockfinder::Bgzf>( std::unique_ptr<FileReader>( fileReader->clone() ) )
+                           ? std::make_unique<blockfinder::Bgzf>( fileReader->clone() )
                            : std::unique_ptr<blockfinder::Bgzf>() )
     {
         if ( m_spacingInBits < 32_Ki ) {
@@ -70,7 +73,7 @@ public:
      * @return number of block offsets. This number may increase as long as it is not finalized yet.
      */
     [[nodiscard]] size_t
-    size() const
+    size() const override
     {
         std::scoped_lock lock( m_mutex );
         return m_blockOffsets.size();
@@ -84,7 +87,7 @@ public:
     }
 
     [[nodiscard]] bool
-    finalized() const
+    finalized() const override
     {
         std::scoped_lock lock( m_mutex );
         return m_finalized;
@@ -107,50 +110,53 @@ public:
         insertUnsafe( blockOffset );
     }
 
+    using BlockFinderInterface::get;
+
     /**
      * @return The block offset to the given block index or nothing when the block finder is finalized and the
      *         requested block out of range. When the requested block index is not a known one, a guess will
      *         be returned based on @ref m_spacingInBits.
      * @todo ADD TESTS FOR THIS
      */
-    [[nodiscard]] std::optional<size_t>
+    [[nodiscard]] std::pair<std::optional<size_t>, GetReturnCode>
     get( size_t                  blockIndex,
-         [[maybe_unused]] double timeoutInSeconds = std::numeric_limits<double>::infinity() )
+         [[maybe_unused]] double timeoutInSeconds ) override
     {
         std::scoped_lock lock( m_mutex );
 
-        if ( m_isBgzfFile && m_bgzfBlockFinder && !m_finalized ) {
-            gatherMoreBgzfBlocks( blockIndex );
+        if ( m_isBgzfFile ) {
+            return getBgzfBlock( blockIndex );
         }
 
         if ( blockIndex < m_blockOffsets.size() ) {
-            return m_blockOffsets[blockIndex];
-        };
+            return { m_blockOffsets[blockIndex], GetReturnCode::SUCCESS };
+        }
 
         assert( !m_blockOffsets.empty() );
         const auto blockIndexOutside = blockIndex - m_blockOffsets.size();  // >= 0
         const auto partitionIndex = firstPartitionIndex() + blockIndexOutside;
         const auto blockOffset = partitionIndex * m_spacingInBits;
         if ( blockOffset < m_fileSizeInBits ) {
-            return blockOffset;
+            return { blockOffset, GetReturnCode::SUCCESS };
         }
 
-        /* As the last offset (one after the last valid one), return the file size. */
+        /* Return the file size as offset for all indexes past the file.
+         * This avoids:
+         *  - the BlockFetcher waiting until this index becomes "available"
+         *  - the previous index offset not being used because there is no untilOffset for it */
         if ( partitionIndex > 0 ) {
-            const auto previousBlockOffset = ( partitionIndex - 1U ) * m_spacingInBits;
-            if ( previousBlockOffset < m_fileSizeInBits ) {
-                return m_fileSizeInBits;
-            }
+            return { m_fileSizeInBits, GetReturnCode::FAILURE };
         }
 
-        return std::nullopt;
+        /* This shouldn't happen. */
+        return { 0, GetReturnCode::FAILURE };
     }
 
     /**
      * @return Index for the block at the requested offset.
      */
     [[nodiscard]] size_t
-    find( size_t encodedBlockOffsetInBits ) const
+    find( size_t encodedBlockOffsetInBits ) const override
     {
         std::scoped_lock lock( m_mutex );
 
@@ -214,9 +220,9 @@ private:
     }
 
     void
-    gatherMoreBgzfBlocks( size_t blockNumber )
+    gatherMoreBgzfBlocks( size_t blockIndex )
     {
-        while ( blockNumber + m_batchFetchCount >= m_blockOffsets.size() ) {
+        while ( blockIndex + m_batchFetchCount >= m_blockOffsets.size() ) {
             const auto nextOffset = m_bgzfBlockFinder->find();
             if ( nextOffset < m_blockOffsets.back() + m_spacingInBits ) {
                 continue;
@@ -226,6 +232,20 @@ private:
             }
             insertUnsafe( nextOffset );
         }
+    }
+
+    [[nodiscard]] std::pair<std::optional<size_t>, GetReturnCode>
+    getBgzfBlock( size_t blockIndex )
+    {
+        if ( m_bgzfBlockFinder && !m_finalized ) {
+            gatherMoreBgzfBlocks( blockIndex );
+        }
+
+        if ( blockIndex < m_blockOffsets.size() ) {
+            return { m_blockOffsets[blockIndex], GetReturnCode::SUCCESS };
+        }
+
+        return { m_fileSizeInBits, GetReturnCode::FAILURE };
     }
 
     /**

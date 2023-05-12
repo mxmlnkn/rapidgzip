@@ -2,23 +2,37 @@
 
 ![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/python/pragzip/pragzip.svg)
 
-# Parallel Random Access Gzip (pragzip)
+# Pragzip: Parallel Random Access Gzip
 
 [![PyPI version](https://badge.fury.io/py/pragzip.svg)](https://badge.fury.io/py/pragzip)
 [![Python Version](https://img.shields.io/pypi/pyversions/pragzip)](https://pypi.org/project/pragzip/)
 [![PyPI Platforms](https://img.shields.io/badge/pypi-linux%20%7C%20macOS%20%7C%20Windows-brightgreen)](https://pypi.org/project/pragzip/)
 [![Downloads](https://pepy.tech/badge/pragzip/month)](https://pepy.tech/project/pragzip)
+<br>
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](http://opensource.org/licenses/MIT)
 [![Build Status](https://github.com/mxmlnkn/indexed_bzip2/workflows/tests/badge.svg)](https://github.com/mxmlnkn/pragzip/actions)
 [![codecov](https://codecov.io/gh/mxmlnkn/indexed_bzip2/branch/master/graph/badge.svg?token=94ZD4UTZQW)](https://codecov.io/gh/mxmlnkn/pragzip)
-![C++17](https://img.shields.io/badge/C++-17-blue.svg?style=flat-square)
+![C++17](https://img.shields.io/badge/C++-17-blue.svg)
+[![Discord](https://img.shields.io/discord/783411320354766878?label=discord)](https://discord.gg/Wra6t6akh2)
+[![Telegram](https://img.shields.io/badge/Chat-Telegram-%2330A3E6)](https://t.me/joinchat/FUdXxkXIv6c4Ib8bgaSxNg)
+
+![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/asciinema/pragzip-comparison.gif)
 
 </div>
 
-This module provides a PragzipFile class, which can be used to seek inside gzip files without having to decompress them first.
+(Alternative Name: Rapidgzip: Random Access Parallel (Indexed) Decompression for Gzip Files)
+
+This repository contains the command line tool `pragzip`, which can be used for parallel decompression of almost any gzip file.
+
+The Python module provides a `PragzipFile` class, which can be used to seek inside gzip files without having to decompress them first.
 Alternatively, you can use this simply as a **parallelized** gzip decoder as a replacement for Python's builtin `gzip` module in order to fully utilize all your cores.
 
 The random seeking support is the same as provided by [indexed_gzip](https://github.com/pauldmccarthy/indexed_gzip) but further speedups are realized at the cost of higher memory usage thanks to a least-recently-used cache in combination with a parallelized prefetcher.
+
+[This](https://github.com/mxmlnkn/pragzip) repository is a light-weight fork of the [indexed_bzip2](https://github.com/mxmlnkn/indexed_bzip2) repository, in which the main development takes place.
+This repository was created for visibility reasons and in order to keep indexed_bzip2 and pragzip releases separate.
+It will be updated at least for each release.
+Issues regarding pragzip should be opened [here](https://github.com/mxmlnkn/pragzip/issues).
 
 
 # Table of Contents
@@ -122,7 +136,7 @@ for parallelization in [0, 1, 2, 6, 12, 24, 32]:
 | pragzip with parallelization = 24 |  1.25       | 2620               | 14.0    |
 | pragzip with parallelization = 32 |  1.30       | 2520               | 13.5    |
 
-Note that pragzip is generally faster than given an index because it can delegate the decompression to zlib while it has to use its own gzip decompression engine when no index exists yet.
+Note that pragzip is generally faster when given an index because it can delegate the decompression to zlib while it has to use its own gzip decompression engine when no index exists yet.
 
 Note that values deviate roughly by 10% and therefore are rounded.
 
@@ -289,3 +303,57 @@ If you have suggestions and wishes like support with CMake or Conan, please open
 # Internal Architecture
 
 The main part of the [internal architecture](https://github.com/mxmlnkn/indexed_bzip2/tree/master/python/indexed_bzip2#internal-architecture) used for parallelizing is the same as used for [indexed_bzip2](https://github.com/mxmlnkn/indexed_bzip2).
+
+
+# Tracing the Decoder
+
+
+Performance profiling and tracing is done with [Score-P](https://www.vi-hps.org/projects/score-p/) for instrumentation and [Vampir](https://vampir.eu/) for visualization.
+This is one way, you could install Score-P with most of the functionalities on Ubuntu 22.04.
+
+## Installation of Dependencies
+
+<details>
+<summary>Installation steps for Score-P</summary>
+
+```bash
+sudo apt-get install libopenmpi-dev openmpi-bin gcc-11-plugin-dev llvm-dev libclang-dev libunwind-dev \
+                     libopen-trace-format-dev otf-trace libpapi-dev
+
+# Install Score-P (to /opt/scorep)
+SCOREP_VERSION=8.0
+wget "https://perftools.pages.jsc.fz-juelich.de/cicd/scorep/tags/scorep-${SCOREP_VERSION}/scorep-${SCOREP_VERSION}.tar.gz"
+tar -xf "scorep-${SCOREP_VERSION}.tar.gz"
+cd "scorep-${SCOREP_VERSION}"
+./configure --with-mpi=openmpi --enable-shared --without-llvm --without-shmem --without-cubelib --prefix="/opt/scorep-${SCOREP_VERSION}"
+make -j $( nproc )
+make install
+
+# Add /opt/scorep to your path variables on shell start
+cat <<EOF >> ~/.bashrc
+if test -d /opt/scorep; then
+    export SCOREP_ROOT=/opt/scorep
+    export PATH=$SCOREP_ROOT/bin:$PATH
+    export LD_LIBRARY_PATH=$SCOREP_ROOT/lib:$LD_LIBRARY_PATH
+fi
+EOF
+
+echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
+
+# Check whether it works
+scorep --version
+scorep-info config-summary
+```
+
+</details>
+
+## Tracing
+
+### Results for a version from 2023-02-04
+
+![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/Screenshot_2023-01-28_17-16-49.png)
+
+### Comparison without and with rpmalloc preloaded
+
+![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/malloc/Summary_Timeline_scorep-pragzip-2023-02-04-without-rpmalloc.png)
+![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/malloc/Summary_Timeline_scorep-pragzip-2023-02-04-with-rpmalloc.png)

@@ -4,3 +4,6 @@
 [submodule "src/external/zlib"]
 	path = src/external/zlib
 	url = https://github.com/madler/zlib.git
+[submodule "src/external/rpmalloc"]
+	path = src/external/rpmalloc
+	url = https://github.com/mjansson/rpmalloc.git

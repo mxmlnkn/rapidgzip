@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  Code-Checks:
-    name: Code Checks
+  Code-Coverage:
+    name: Code Coverage
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
@@ -17,33 +17,17 @@ jobs:
 
     - name: Install Dependencies
       run: |
-        sudo apt-get -y install bzip2 pbzip2 lbzip2 cppcheck clang clang-tidy g++ lcov ninja-build wget gzip tabix pigz libarchive-dev zlib1g-dev isal
+        sudo apt-get -y install bzip2 cppcheck clang clang-tidy g++ lcov ninja-build wget gzip tabix pigz libarchive-dev zlib1g-dev isal
         python3 -m pip install --upgrade pip
-        python3 -m pip install --upgrade-strategy eager --upgrade cython twine numpy indexed_gzip pgzip build
-        #
-        # Install infer
-        VERSION=1.1.0
-        wget -q -O- "https://github.com/facebook/infer/releases/download/v$VERSION/infer-linux64-v$VERSION.tar.xz" | tar -xJ
-        echo "$PWD/infer-linux64-v$VERSION/bin" >> $GITHUB_PATH
-        #
-        # Install newer CMake
-        VERSION=3.20.5
-        wget -q -O- "https://github.com/Kitware/CMake/releases/download/v$VERSION/cmake-$VERSION-linux-x86_64.tar.gz" | tar -xz
-        echo "$PWD/cmake-$VERSION-linux-x86_64/bin" >> $GITHUB_PATH
+        python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
 
     - name: System Information
       run: |
         nproc
         cmake --version
-        infer --version
         g++ --version
         clang++ --version
         cppcheck --version
-
-    - name: Create Test Sample Data
-      run: |
-        head -c $(( 1*1024*1024 )) /dev/urandom > decoded-sample
-        lbzip2 -1 -k -c decoded-sample > encoded-sample.bz2
 
     - name: Code Coverage
       run: |
@@ -80,6 +64,18 @@ jobs:
             exit 1
         fi
 
+  Clang-Tidy:
+    name: Clang-Tidy
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get -y install clang clang-tidy ninja-build libarchive-dev zlib1g-dev
+
     - name: Run clang-tidy
       run: |
         mkdir -p build-compile-commands && cd -- "$_"
@@ -92,15 +88,91 @@ jobs:
             exit 1
         fi
 
+  Asan:
+    name: ASan
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get -y install clang g++ ninja-build gzip tabix pigz libarchive-dev zlib1g-dev isal
+        python3 -m pip install --upgrade pip
+        python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
+
     - name: Run Tests With Sanitizers
       run: |
-        for sanitized in address undefined safe-stack; do
+        for sanitized in address; do
         (
             mkdir -p "build-sanitized-$sanitized" && cd -- "$_"
             CXX=clang++ CC=clang cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=$sanitized" ..
             cmake --build . -- check
         )
         done
+
+  UBSan:
+    name: UBSan
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get -y install clang g++ ninja-build gzip tabix pigz libarchive-dev zlib1g-dev isal
+        python3 -m pip install --upgrade pip
+        python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
+
+    - name: Run Tests With Sanitizers
+      run: |
+        for sanitized in undefined; do
+        (
+            mkdir -p "build-sanitized-$sanitized" && cd -- "$_"
+            CXX=clang++ CC=clang cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=$sanitized" ..
+            cmake --build . -- check
+        )
+        done
+
+  Safe-Stack:
+    name: Safe-Stack
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get -y install clang g++ ninja-build gzip tabix pigz libarchive-dev zlib1g-dev isal
+        python3 -m pip install --upgrade pip
+        python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
+
+    - name: Run Tests With Sanitizers
+      run: |
+        for sanitized in safe-stack; do
+        (
+            mkdir -p "build-sanitized-$sanitized" && cd -- "$_"
+            CXX=clang++ CC=clang cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=$sanitized" ..
+            cmake --build . -- check
+        )
+        done
+
+  TSan:
+    name: TSan
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get -y install clang g++ ninja-build gzip tabix pigz libarchive-dev zlib1g-dev isal
+        python3 -m pip install --upgrade pip
+        python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
 
     - name: Run Tests With Thread Sanitizer
       run: |
@@ -131,14 +203,51 @@ jobs:
         cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=$sanitized" ..
         cmake --build . -- check
 
+  Code-Checks:
+    name: Check with Infer
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get -y install g++ ninja-build wget
+        # Install infer
+        VERSION=1.1.0
+        wget -q -O- "https://github.com/facebook/infer/releases/download/v$VERSION/infer-linux64-v$VERSION.tar.xz" | tar -xJ
+        echo "$PWD/infer-linux64-v$VERSION/bin" >> $GITHUB_PATH
+
     - name: Run infer
       run: |
         mkdir -p build-compile-commands && cd -- "$_"
-        cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+        CC=clang CXX=clang++ cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
         infer run --report-blacklist-path-regex '.*testParallelBitStringFinder.cpp' --compilation-database compile_commands.json
 
+  Ibzip2-Tests:
+    name: Ibzip2 Tests
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get -y install bzip2 pbzip2 lbzip2 g++ ninja-build
+        python3 -m pip install --upgrade pip
+        python3 -m pip install --upgrade-strategy eager --upgrade cython build
+
+    - name: Install indexed_bzip2
+      working-directory: python/indexed_bzip2
+      shell: bash
+      run: |
+        python3 -m build
+        python3 -m pip install dist/*.tar.gz
+
     - name: Run Standard Tests
-      # At this step 'build' should already exist and be built and indexed_bzip2 should be installed
+      # At this step, indexed_bzip2 should be installed.
       run: |
         mkdir -p build-ibzip2 && cd -- "$_"
         cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug ..

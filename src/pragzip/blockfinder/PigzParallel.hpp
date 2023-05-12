@@ -83,11 +83,11 @@ namespace pragzip::blockfinder
  *      sys	0m0.627s                                               speed up a lot beause it is not the critical path!
  *
  */
-class PigzParallel :
+class PigzParallel final :
     public Interface
 {
 public:
-    using DeflateBlock = pragzip::deflate::Block</* CRC32 */ false>;
+    using DeflateBlock = pragzip::deflate::Block<>;
 
     /**
      * Should probably be larger than the I/O block size of 4096 B and smaller than most L1 cache sizes.
@@ -100,7 +100,7 @@ public:
 
 public:
     explicit
-    PigzParallel( std::unique_ptr<FileReader> fileReader ) :
+    PigzParallel( UniqueFileReader fileReader ) :
         m_fileReader( std::move( fileReader ) )
     {}
 
@@ -244,7 +244,7 @@ public:
 
         const auto minSubBufferSizeInBytes = std::max<size_t>( nBytesToRetain, 4096 );
         size_t subBufferStrideInBytes = m_buffer.size();
-        for ( size_t i = 2; i <= m_threadPool.size(); ++i ) {
+        for ( size_t i = 2; i <= m_threadPool.capacity(); ++i ) {
             const auto candidateSubBufferStride = ceilDiv( m_buffer.size(), i );
             if ( candidateSubBufferStride >= minSubBufferSizeInBytes ) {
                 subBufferStrideInBytes = candidateSubBufferStride;
@@ -298,7 +298,7 @@ private:
     }
 
 private:
-    const std::unique_ptr<FileReader> m_fileReader;
+    const UniqueFileReader m_fileReader;
     BufferedFileReader::AlignedBuffer m_buffer;
     size_t m_lastBlockOffsetReturned{ 0 };  /**< absolute offset in bits */
 

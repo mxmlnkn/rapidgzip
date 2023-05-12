@@ -11,6 +11,8 @@
 #include <utility>
 #include <vector>
 
+#include <common.hpp>
+
 
 /**
  * Should get block offsets and decoded sizes and will do conversions between decoded and encoded offsets!
@@ -243,6 +245,12 @@ public:
             throw std::out_of_range( "Can not return last element of empty block map!" );
         }
         return m_blockToDataOffsets.back();
+    }
+
+    [[nodiscard]] bool
+    empty() const
+    {
+        return m_blockToDataOffsets.empty();
     }
 
 private:

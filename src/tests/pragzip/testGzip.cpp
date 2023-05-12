@@ -1,21 +1,22 @@
+#include <algorithm>
 #include <array>
-#include <chrono>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
 #include <filesystem>
-#include <fstream>
 #include <iostream>
+#include <limits>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include <common.hpp>
 #include <filereader/Buffered.hpp>
 #include <filereader/Standard.hpp>
-#include <ParallelGzipReader.hpp>
+#include <GzipReader.hpp>
 #include <pragzip.hpp>
 #include <TestHelpers.hpp>
 
@@ -69,7 +70,8 @@ void
 testSerialDecoderNanoSample()
 {
     const std::vector<char> signedData( NANO_SAMPLE_GZIP.begin(), NANO_SAMPLE_GZIP.end() );
-    GzipReader</* CRC32 */ true> gzipReader( std::make_unique<BufferedFileReader>( signedData ) );
+    GzipReader gzipReader( std::make_unique<BufferedFileReader>( signedData ) );
+    gzipReader.setCRC32Enabled( true );
 
     std::vector<char> result( NANO_SAMPLE_DECODED.size() + 10, 0 );
     const auto nBytesDecoded = gzipReader.read( -1, result.data(), result.size() );
@@ -84,7 +86,8 @@ testSerialDecoderNanoSample( size_t multiples,
 {
     const auto [encoded, decoded] = duplicateNanoStream( multiples );
 
-    GzipReader</* CRC32 */ true> gzipReader( std::make_unique<BufferedFileReader>( encoded ) );
+    GzipReader gzipReader( std::make_unique<BufferedFileReader>( encoded ) );
+    gzipReader.setCRC32Enabled( true );
 
     std::vector<char> result( bufferSize, 0 );
     size_t totalBytesDecoded = 0;
@@ -111,7 +114,8 @@ testSerialDecoderNanoSampleStoppingPoints()
             std::vector<size_t> offsets;
             std::vector<size_t> compressedOffsets;
 
-            GzipReader</* CRC32 */ true> gzipReader( std::make_unique<BufferedFileReader>( encoded ) );
+            GzipReader gzipReader( std::make_unique<BufferedFileReader>( encoded ) );
+            gzipReader.setCRC32Enabled( true );
 
             std::vector<char> result( decoded.size(), 0 );
             size_t totalBytesDecoded = 0;
@@ -177,7 +181,8 @@ testSerialDecoder( std::filesystem::path const& decodedFilePath,
     std::vector<char> buffer( bufferSize );
 
     std::ifstream decodedFile( decodedFilePath );
-    GzipReader</* CRC32 */ true> gzipReader( std::make_unique<StandardFileReader>( encodedFilePath.string().c_str() ) );
+    GzipReader gzipReader( std::make_unique<StandardFileReader>( encodedFilePath.string().c_str() ) );
+    gzipReader.setCRC32Enabled( true );
 
     size_t totalBytesDecoded{ 0 };
     while ( !gzipReader.eof() ) {
@@ -221,6 +226,7 @@ testTwoStagedDecoding( std::string_view encodedFilePath,
 {
     /* Read first deflate block so that we can try decoding from the second one. */
     GzipReader gzipReader{ std::make_unique<StandardFileReader>( encodedFilePath.data() ) };
+    gzipReader.setCRC32Enabled( true );
     std::vector<char> decompressed( 1_Mi );
     const auto firstBlockSize = gzipReader.read( -1, decompressed.data(), decompressed.size(),
                                                  StoppingPoint::END_OF_BLOCK );

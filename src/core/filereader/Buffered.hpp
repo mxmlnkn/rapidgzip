@@ -8,9 +8,11 @@
 #include <utility>
 #include <vector>
 
-#include "AlignedAllocator.hpp"
+#include <AlignedAllocator.hpp>
+#include <common.hpp>
+#include <VectorView.hpp>
+
 #include "FileReader.hpp"
-#include "VectorView.hpp"
 
 
 class BufferedFileReader :
@@ -21,8 +23,8 @@ public:
 
 public:
     explicit
-    BufferedFileReader( std::unique_ptr<FileReader> fileReader,
-                        size_t                      bufferSize = 128_Ki ) :
+    BufferedFileReader( UniqueFileReader fileReader,
+                        size_t           bufferSize = 128_Ki ) :
         m_maxBufferSize( bufferSize ),
         m_file( std::move( fileReader ) )
     {}
@@ -48,7 +50,7 @@ public:
         m_buffer( std::move( inMemoryFileContents ) )
     {}
 
-    [[nodiscard]] FileReader*
+    [[nodiscard]] UniqueFileReader
     clone() const override
     {
         throw std::invalid_argument( "Cloning this file reader is not allowed because the internal file position "
@@ -234,7 +236,7 @@ private:
 
 protected:
     const size_t m_maxBufferSize;
-    std::unique_ptr<FileReader> m_file;
+    UniqueFileReader m_file;
 
     size_t m_originalBufferOffset{ 0 };
     AlignedBuffer m_buffer;

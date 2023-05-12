@@ -1,9 +1,16 @@
-
+#include <algorithm>
 #include <cstdlib>
+#include <iomanip>
 #include <iostream>
+#include <limits>
 #include <map>
+#include <memory>
+#include <optional>
+#include <sstream>
 #include <stdexcept>
+#include <string>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include <BitManipulation.hpp>

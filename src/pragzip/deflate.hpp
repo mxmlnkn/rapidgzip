@@ -24,18 +24,18 @@
 #include <vector>
 
 #include <BitReader.hpp>
-#include <HuffmanCodingDoubleLiteralCached.hpp>
-#include <HuffmanCodingLinearSearch.hpp>
-#include <HuffmanCodingSymbolsPerLength.hpp>
-#include <HuffmanCodingReversedBitsCachedCompressed.hpp>
-#include <HuffmanCodingReversedBitsCached.hpp>
-#include <HuffmanCodingReversedCodesPerLength.hpp>
+#include <huffman/HuffmanCodingDoubleLiteralCached.hpp>
+#include <huffman/HuffmanCodingLinearSearch.hpp>
+#include <huffman/HuffmanCodingSymbolsPerLength.hpp>
+#include <huffman/HuffmanCodingReversedBitsCachedCompressed.hpp>
+#include <huffman/HuffmanCodingReversedBitsCached.hpp>
+#include <huffman/HuffmanCodingReversedCodesPerLength.hpp>
 
-#include "crc32.hpp"
-#include "DecodedData.hpp"
+#include "DecodedDataView.hpp"
 #include "definitions.hpp"
 #include "Error.hpp"
 #include "gzip.hpp"
+#include "MarkerReplacement.hpp"
 
 
 namespace pragzip
@@ -268,7 +268,7 @@ namespace
  *       > _ZTSZN7pragzip7deflate5BlockILb0ELb0EE33readDistanceAndLiteralCodeLengthsERSt5arrayIhLm572EER9BitReader
  *       > ILb0EmERKNS_41HuffmanCodingReversedBitsCachedCompressedIhLh7EhLm19EEEmRKSt8functionIFhhEEEd_UlhE_ []’
  */
-[[nodiscard]] forceinline inline Error
+[[nodiscard]] forceinline Error
 readDistanceAndLiteralCodeLengths( LiteralAndDistanceCLBuffer&              literalCL,
                                    BitReader&                               bitReader,
                                    const PrecodeHuffmanCoding&              precodeCoding,
@@ -390,13 +390,12 @@ public:
 
 /**
  * @todo Silesia is ~70% slower when writing back and calculating CRC32.
- * When only only writing the result and not calculating CRC32, then it is ~60% slower.
+ * When only writing the result and not calculating CRC32, then it is ~60% slower.
  * Both, LZ77 back-references and CRC32 calculation can still be improved upon by a lot, I think.
  * Silesia contains a lot of 258 length back-references with distance 1, which could be replaced with memset
  * with the last byte.
  */
-template<bool CALCULATE_CRC32 = false,
-         bool ENABLE_STATISTICS = false>
+template<bool ENABLE_STATISTICS = false>
 class Block :
     public BlockStatistics
 {
@@ -473,13 +472,6 @@ public:
         return m_window;
     }
 
-    [[nodiscard]] constexpr uint32_t
-    crc32() const noexcept
-    {
-        return ~m_crc32;
-    }
-
-
     [[nodiscard]] constexpr size_t
     uncompressedSize() const noexcept
     {
@@ -540,10 +532,26 @@ private:
                     typename Window::value_type decodedSymbol );
 
     template<typename Window>
+    forceinline void
+    appendToWindowUnsafe( Window&                     window,
+                          typename Window::value_type decodedSymbol );
+
+    template<typename Window>
+    forceinline void
+    resolveBackreference( Window&        window,
+                          const uint16_t distance,
+                          const uint16_t length );
+
+    template<typename Window>
     [[nodiscard]] std::pair<size_t, Error>
     readInternal( BitReader& bitReader,
                   size_t     nMaxToDecode,
                   Window&    window );
+
+    template<typename Window>
+    [[nodiscard]] std::pair<size_t, Error>
+    readInternalUncompressed( BitReader& bitReader,
+                              Window&    window );
 
     template<typename Window,
              typename HuffmanCoding>
@@ -631,7 +639,6 @@ private:
     }
 
 private:
-    uint32_t m_crc32 = ~uint32_t( 0 );
     uint16_t m_uncompressedSize = 0;
 
 private:
@@ -690,11 +697,10 @@ private:
 };
 
 
-template<bool CALCULATE_CRC32,
-         bool ENABLE_STATISTICS>
+template<bool ENABLE_STATISTICS>
 template<bool treatLastBlockAsError>
 Error
-Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readHeader( BitReader& bitReader )
+Block<ENABLE_STATISTICS>::readHeader( BitReader& bitReader )
 {
     m_isLastBlock = bitReader.read<1>();
     if constexpr ( treatLastBlockAsError ) {
@@ -746,10 +752,9 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readHeader( BitReader& bitReader )
 
 
 
-template<bool CALCULATE_CRC32,
-         bool ENABLE_STATISTICS>
+template<bool ENABLE_STATISTICS>
 Error
-Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& bitReader )
+Block<ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& bitReader )
 {
     if constexpr ( ENABLE_STATISTICS ) {
         times.readDynamicStart = now();
@@ -863,11 +868,10 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& 
 }
 
 
-template<bool CALCULATE_CRC32,
-         bool ENABLE_STATISTICS>
+template<bool ENABLE_STATISTICS>
 uint16_t
-Block<CALCULATE_CRC32, ENABLE_STATISTICS>::getLength( uint16_t   code,
-                                                      BitReader& bitReader )
+Block<ENABLE_STATISTICS>::getLength( uint16_t   code,
+                                     BitReader& bitReader )
 {
     if ( code <= 264 ) {
         return code - 257U + 3U;
@@ -883,10 +887,9 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::getLength( uint16_t   code,
 }
 
 
-template<bool CALCULATE_CRC32,
-         bool ENABLE_STATISTICS>
+template<bool ENABLE_STATISTICS>
 std::pair<uint16_t, Error>
-Block<CALCULATE_CRC32, ENABLE_STATISTICS>::getDistance( BitReader& bitReader ) const
+Block<ENABLE_STATISTICS>::getDistance( BitReader& bitReader ) const
 {
     uint16_t distance = 0;
     if ( m_compressionType == CompressionType::FIXED_HUFFMAN ) {
@@ -913,11 +916,10 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::getDistance( BitReader& bitReader ) c
 }
 
 
-template<bool CALCULATE_CRC32,
-         bool ENABLE_STATISTICS>
+template<bool ENABLE_STATISTICS>
 std::pair<DecodedDataView, Error>
-Block<CALCULATE_CRC32, ENABLE_STATISTICS>::read( BitReader& bitReader,
-                                                 size_t     nMaxToDecode )
+Block<ENABLE_STATISTICS>::read( BitReader& bitReader,
+                                size_t     nMaxToDecode )
 {
     if ( eob() ) {
         return { {}, Error::NONE };
@@ -986,14 +988,6 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::read( BitReader& bitReader,
 
             result.data = lastBuffers( m_window, m_windowPosition, *nBytesRead );
 
-            if constexpr ( CALCULATE_CRC32 ) {
-                for ( const auto& buffer : result.data ) {
-                    for ( size_t i = 0; i < buffer.size(); ++i ) {
-                        m_crc32 = updateCRC32( m_crc32, buffer[i] );
-                    }
-                }
-            }
-
             if constexpr ( ENABLE_STATISTICS ) {
                 durations.readData += duration( times.readDataStart );
             }
@@ -1032,18 +1026,13 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::read( BitReader& bitReader,
 }
 
 
-template<bool CALCULATE_CRC32,
-         bool ENABLE_STATISTICS>
+template<bool ENABLE_STATISTICS>
 template<typename Window>
 inline void
-Block<CALCULATE_CRC32, ENABLE_STATISTICS>::appendToWindow( Window&                     window,
-                                                           typename Window::value_type decodedSymbol )
+Block<ENABLE_STATISTICS>::appendToWindow( Window&                     window,
+                                          typename Window::value_type decodedSymbol )
 {
     constexpr bool containsMarkerBytes = std::is_same_v<std::decay_t<typename Window::value_type>, uint16_t>;
-
-    if constexpr ( CALCULATE_CRC32 && !containsMarkerBytes ) {
-        m_crc32 = updateCRC32( m_crc32, decodedSymbol );
-    }
 
     if constexpr ( containsMarkerBytes ) {
         if ( decodedSymbol > std::numeric_limits<uint8_t>::max() ) {
@@ -1059,49 +1048,102 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::appendToWindow( Window&              
 }
 
 
-template<bool CALCULATE_CRC32,
-         bool ENABLE_STATISTICS>
+template<bool ENABLE_STATISTICS>
 template<typename Window>
-std::pair<size_t, Error>
-Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readInternal( BitReader& bitReader,
-                                                         size_t     nMaxToDecode,
-                                                         Window&    window )
+inline void
+Block<ENABLE_STATISTICS>::appendToWindowUnsafe( Window&                     window,
+                                                typename Window::value_type decodedSymbol )
 {
-    if ( m_compressionType == CompressionType::UNCOMPRESSED ) {
-        /**
-         * Because the non-compressed deflate block size is 16-bit, the uncompressed data is limited to 65535 B!
-         * The buffer can hold MAX_WINDOW_SIZE 16-bit values (for markers) or twice the amount of decoded bytes.
-         * Therefore, this routine is safe to call in respect of "buffer overflows" before returning the view to
-         * the buffer.
-         * @note This does not take into account nMaxToDecode to avoid further state to keep track off.
-         * Timings for different buffer sizes in MB/s for 2GiB-random.gz:
-         * @verbatim
-         *    8 B : 398.55  411.779 409.841
-         *   16 B : 386.543 385.621 385.567
-         *   32 B : 412.783 407.354 402.352 402.129
-         *   64 B : 397.71  412.952 413.265 416.339
-         *  128 B : 379.629 380.691 387.439 377.22
-         *  256 B : 380.17  389.722 387.635 405.699
-         *  512 B : 382.466 379.642 390.317 381.801
-         * 1024 B : 384.92  386.544 381.748 388.71
-         * 2048 B : 378.362 394.002 391.357 389.728
-         * 4096 B : 380.87  379.09  386.711 395.955
-         * @endverbatim
-         */
-        uint32_t totalBytesRead{ 0 };
-        std::array<uint8_t, 64> buffer;
-        for ( ; totalBytesRead + buffer.size() <= m_uncompressedSize; totalBytesRead += buffer.size() ) {
-            const auto nBytesRead = bitReader.read( reinterpret_cast<char*>( buffer.data() ), buffer.size() );
-            for ( size_t i = 0; i < nBytesRead; ++i ) {
-                appendToWindow( window, buffer[i] );
+    constexpr bool containsMarkerBytes = std::is_same_v<std::decay_t<typename Window::value_type>, uint16_t>;
+
+    if constexpr ( containsMarkerBytes ) {
+        if ( decodedSymbol > std::numeric_limits<uint8_t>::max() ) {
+            m_distanceToLastMarkerByte = 0;
+        } else {
+            ++m_distanceToLastMarkerByte;
+        }
+    }
+
+    window[m_windowPosition] = decodedSymbol;
+    m_windowPosition++;
+}
+
+
+template<bool ENABLE_STATISTICS>
+template<typename Window>
+inline void
+Block<ENABLE_STATISTICS>::resolveBackreference( Window&        window,
+                                                const uint16_t distance,
+                                                const uint16_t length )
+{
+    constexpr bool containsMarkerBytes = std::is_same_v<std::decay_t<decltype( *window.data() ) >, uint16_t>;
+
+    const auto offset = ( m_windowPosition + window.size() - distance ) % window.size();
+    const auto nToCopyPerRepeat = std::min( distance, length );
+    assert( nToCopyPerRepeat != 0 );
+    /* Note: NOT "<= window.size()" but only "<" because for equality I would have to
+     *       compute modulo window.size() instead of simply: m_windowPosition += length. */
+    if ( LIKELY( m_windowPosition + length < window.size() ) ) [[likely]] {
+        if ( LIKELY( ( length <= distance ) && ( distance <= m_windowPosition ) ) ) [[likely]] {
+            std::memcpy( &window[m_windowPosition], &window[offset], length * sizeof( window.front() ) );
+            m_windowPosition += length;
+
+            if constexpr ( containsMarkerBytes ) {
+                size_t distanceToLastMarkerByte{ 0 };
+                for ( ; distanceToLastMarkerByte < length; ++distanceToLastMarkerByte ) {
+                    if ( window[m_windowPosition - 1 - distanceToLastMarkerByte]
+                         > std::numeric_limits<uint8_t>::max() ) {
+                        m_distanceToLastMarkerByte = distanceToLastMarkerByte;
+                        return;
+                    }
+                }
+                m_distanceToLastMarkerByte += length;
+            }
+            return;
+        }
+
+        if constexpr ( !containsMarkerBytes ) {
+            if ( UNLIKELY( nToCopyPerRepeat == 1 ) ) [[unlikely]] {
+                std::memset( &window[m_windowPosition], window[offset], length );
+                m_windowPosition += length;
+                return;
             }
         }
-        for ( ; totalBytesRead < m_uncompressedSize; ++totalBytesRead ) {
-            appendToWindow( window, static_cast<uint8_t>( bitReader.read<BYTE_SIZE>() ) );
+
+        for ( size_t nCopied = 0; nCopied < length; ) {
+            for ( size_t position = offset;
+                  ( position < offset + nToCopyPerRepeat ) && ( nCopied < length );
+                  ++position, ++nCopied )
+            {
+                const auto copiedSymbol = window[position % window.size()];
+                appendToWindowUnsafe( window, copiedSymbol );
+            }
         }
-        m_atEndOfBlock = true;
-        m_decodedBytes += m_uncompressedSize;
-        return { m_uncompressedSize, Error::NONE };
+        return;
+    }
+
+    for ( size_t nCopied = 0; nCopied < length; ) {
+        for ( size_t position = offset;
+              ( position < offset + nToCopyPerRepeat ) && ( nCopied < length );
+              ++position, ++nCopied )
+        {
+            const auto copiedSymbol = window[position % window.size()];
+            appendToWindow( window, copiedSymbol );
+        }
+    }
+}
+
+
+template<bool ENABLE_STATISTICS>
+template<typename Window>
+std::pair<size_t, Error>
+Block<ENABLE_STATISTICS>::readInternal( BitReader& bitReader,
+                                        size_t     nMaxToDecode,
+                                        Window&    window )
+{
+    if ( m_compressionType == CompressionType::UNCOMPRESSED ) {
+        /* This does not take into account nMaxToDecode to avoid additional state to keep track off. */
+        return readInternalUncompressed( bitReader, window );
     }
 
     if ( m_compressionType == CompressionType::FIXED_HUFFMAN ) {
@@ -1111,15 +1153,57 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readInternal( BitReader& bitReader,
 }
 
 
-template<bool CALCULATE_CRC32,
-         bool ENABLE_STATISTICS>
+template<bool ENABLE_STATISTICS>
+template<typename Window>
+std::pair<size_t, Error>
+Block<ENABLE_STATISTICS>::readInternalUncompressed( BitReader& bitReader,
+                                                    Window&    window )
+{
+    /**
+     * Because the non-compressed deflate block size is 16-bit, the uncompressed data is limited to 65535 B!
+     * The buffer can hold MAX_WINDOW_SIZE 16-bit values (for markers) or twice the amount of decoded bytes.
+     * Therefore, this routine is safe to call in respect of "buffer overflows" before returning the view to
+     * the buffer.
+     *
+     * Timings for different buffer sizes in MB/s for 2GiB-random.gz:
+     * @verbatim
+     *    8 B : 398.55  411.779 409.841
+     *   16 B : 386.543 385.621 385.567
+     *   32 B : 412.783 407.354 402.352 402.129
+     *   64 B : 397.71  412.952 413.265 416.339
+     *  128 B : 379.629 380.691 387.439 377.22
+     *  256 B : 380.17  389.722 387.635 405.699
+     *  512 B : 382.466 379.642 390.317 381.801
+     * 1024 B : 384.92  386.544 381.748 388.71
+     * 2048 B : 378.362 394.002 391.357 389.728
+     * 4096 B : 380.87  379.09  386.711 395.955
+     * @endverbatim
+     */
+    uint32_t totalBytesRead{ 0 };
+    std::array<uint8_t, 64> buffer;
+    for ( ; totalBytesRead + buffer.size() <= m_uncompressedSize; totalBytesRead += buffer.size() ) {
+        const auto nBytesRead = bitReader.read( reinterpret_cast<char*>( buffer.data() ), buffer.size() );
+        for ( size_t i = 0; i < nBytesRead; ++i ) {
+            appendToWindow( window, buffer[i] );
+        }
+    }
+    for ( ; totalBytesRead < m_uncompressedSize; ++totalBytesRead ) {
+        appendToWindow( window, static_cast<uint8_t>( bitReader.read<BYTE_SIZE>() ) );
+    }
+    m_atEndOfBlock = true;
+    m_decodedBytes += m_uncompressedSize;
+    return { m_uncompressedSize, Error::NONE };
+}
+
+
+template<bool ENABLE_STATISTICS>
 template<typename Window,
          typename HuffmanCoding>
 std::pair<size_t, Error>
-Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readInternalCompressed( BitReader&           bitReader,
-                                                                   size_t               nMaxToDecode,
-                                                                   Window&              window,
-                                                                   const HuffmanCoding& coding )
+Block<ENABLE_STATISTICS>::readInternalCompressed( BitReader&           bitReader,
+                                                  size_t               nMaxToDecode,
+                                                  Window&              window,
+                                                  const HuffmanCoding& coding )
 {
     if ( !coding.isValid() ) {
         throw std::invalid_argument( "No Huffman coding loaded! Call readHeader first!" );
@@ -1174,25 +1258,8 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readInternalCompressed( BitReader&   
                 }
             }
 
-            /**
-             * @todo use memcpy when it is not wrapping around! Note that we might be able to use lastBuffers
-             *       and write to those views to determine where it wraps around!
-             * @todo There are two kinds of wrap around! the actual buffer and when length > distance!
-             */
-            const auto offset = ( m_windowPosition + window.size() - distance ) % window.size();
-            const auto nToCopyPerRepeat = std::min( static_cast<uint16_t>( distance ), length );
-            assert( nToCopyPerRepeat != 0 );
-
-            for ( size_t nCopied = 0; nCopied < length; ) {
-                for ( size_t position = offset;
-                      ( position < offset + nToCopyPerRepeat ) && ( nCopied < length );
-                      ++position, ++nCopied )
-                {
-                    const auto copiedSymbol = window[position % window.size()];
-                    appendToWindow( window, copiedSymbol );
-                    nBytesRead++;
-                }
-            }
+            resolveBackreference( window, distance, length );
+            nBytesRead += length;
         }
     }
 
@@ -1202,10 +1269,9 @@ Block<CALCULATE_CRC32, ENABLE_STATISTICS>::readInternalCompressed( BitReader&   
 
 
 
-template<bool CALCULATE_CRC32,
-         bool ENABLE_STATISTICS>
+template<bool ENABLE_STATISTICS>
 void
-Block<CALCULATE_CRC32, ENABLE_STATISTICS>::setInitialWindow( VectorView<uint8_t> const& initialWindow )
+Block<ENABLE_STATISTICS>::setInitialWindow( VectorView<uint8_t> const& initialWindow )
 {
     if ( !m_containsMarkerBytes ) {
         return;

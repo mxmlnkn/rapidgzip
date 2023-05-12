@@ -1,10 +1,12 @@
 #pragma once
 
 #include <cstddef>
+#include <functional>
 #include <limits>
 #include <map>
 
 #include <filereader/FileReader.hpp>
+#include <FileUtils.hpp>                    // writeAll
 
 using std::size_t;
 

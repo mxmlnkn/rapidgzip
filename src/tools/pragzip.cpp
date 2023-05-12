@@ -1,356 +1,37 @@
-#include <cassert>
-#include <cstdlib>
+#include <cstdio>
 #include <iostream>
-#include <fstream>
+#include <functional>
+#include <iterator>
 #include <map>
-#include <set>
+#include <optional>
 #include <stdexcept>
-#include <sstream>
 #include <string>
-#include <thread>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 #include <cxxopts.hpp>
 
 #include <AffinityHelpers.hpp>
-#include <blockfinder/Bgzf.hpp>
 #include <common.hpp>
 #include <filereader/Standard.hpp>
 #include <FileUtils.hpp>
+#include <GzipAnalyzer.hpp>
 #include <pragzip.hpp>
-#include <ParallelGzipReader.hpp>
 #include <Statistics.hpp>
 
+#include "licenses.cpp"
 
-[[nodiscard]] pragzip::Error
-analyze( std::unique_ptr<FileReader> inputFile )
+
+struct Arguments
 {
-    using namespace pragzip;
-    using Block = pragzip::deflate::Block</* CRC32 */ false, /* Statistics */ true>;
-
-    pragzip::BitReader bitReader{ std::move( inputFile ) };
-
-    std::optional<gzip::Header> gzipHeader;
-    Block block;
-
-    size_t totalBytesRead = 0;
-    size_t streamBytesRead = 0;
-
-    size_t totalBlockCount = 0;
-    size_t streamBlockCount = 0;
-    size_t streamCount = 0;
-
-    size_t headerOffset = 0;
-
-    std::vector<size_t> encodedBlockSizes;
-    std::vector<size_t> decodedBlockSizes;
-    std::vector<double> compressionRatios;
-    std::map<deflate::CompressionType, size_t> compressionTypes;
-
-    std::map<std::vector<uint8_t>, size_t> precodeCodings;
-    std::map<std::vector<uint8_t>, size_t> distanceCodings;
-    std::map<std::vector<uint8_t>, size_t> literalCodings;
-
-    while ( true ) {
-        if ( !gzipHeader ) {
-            headerOffset = bitReader.tell();
-
-            const auto [header, error] = gzip::readHeader( bitReader );
-            if ( error != Error::NONE ) {
-                std::cerr << "Encountered error: " << toString( error )
-                          << " while trying to read gzip header!\n";
-                return error;
-            }
-
-            gzipHeader = header;
-            block.setInitialWindow();
-
-            /* Analysis Information */
-
-            streamCount += 1;
-            streamBlockCount = 0;
-            streamBytesRead = 0;
-
-            std::cout << "Gzip header:\n";
-            std::cout << "    Gzip Stream Count   : " << streamCount << "\n";
-            std::cout << "    Compressed Offset   : " << formatBits( headerOffset ) << "\n";
-            std::cout << "    Uncompressed Offset : " << totalBytesRead << " B\n";
-            if ( header.fileName ) {
-                std::cout << "    File Name           : " << *header.fileName << "\n";
-            }
-            std::cout << "    Modification Time   : " << header.modificationTime << "\n";
-            std::cout << "    OS                  : " << gzip::getOperatingSystemName( header.operatingSystem ) << "\n";
-            std::cout << "    Flags               : " << gzip::getExtraFlagsDescription( header.extraFlags ) << "\n";
-            if ( header.comment ) {
-                std::cout << "    Comment             : " << *header.comment << "\n";
-            }
-            if ( header.extra ) {
-                std::stringstream extraString;
-                extraString << header.extra->size() << " B: ";
-                for ( const auto value : *header.extra ) {
-                    if ( static_cast<bool>( std::isprint( value ) ) ) {
-                        extraString << value;
-                    } else {
-                        std::stringstream hexCode;
-                        hexCode << std::hex << std::setw( 2 ) << std::setfill( '0' ) << static_cast<int>( value );
-                        extraString << '\\' << 'x' << hexCode.str();
-                    }
-                }
-                std::cout << "    Extra               : " << extraString.str() << "\n";
-            }
-            if ( header.crc16 ) {
-                std::stringstream crc16String;
-                crc16String << std::hex << std::setw( 16 ) << std::setfill( '0' ) << *header.crc16;
-                std::cout << "    CRC16               : 0x" << crc16String.str() << "\n";
-            }
-            std::cout << "\n";
-        }
-
-        const auto blockOffset = bitReader.tell();
-        {
-            const auto error = block.readHeader( bitReader );
-            if ( error != Error::NONE ) {
-                std::cerr << "Encountered error: " << toString( error )
-                          << " while trying to read deflate header!\n";
-                return error;
-            }
-        }
-
-        size_t uncompressedBlockSize = 0;
-        size_t uncompressedBlockOffset = totalBytesRead;
-        size_t uncompressedBlockOffsetInStream = streamBytesRead;
-
-        block.symbolTypes.literal = 0;
-        block.symbolTypes.backreference = 0;
-
-        while ( !block.eob() ) {
-            const auto [buffers, error] = block.read( bitReader, std::numeric_limits<size_t>::max() );
-            const auto nBytesRead = buffers.size();
-            if ( error != Error::NONE ) {
-                std::cerr << "Encountered error: " << toString( error )
-                          << " while decompressing deflate block.\n";
-            }
-            totalBytesRead += nBytesRead;
-            streamBytesRead += nBytesRead;
-
-            /* No output necessary for analysis. */
-
-            uncompressedBlockSize += nBytesRead;
-        }
-
-        /* Analysis Information */
-
-        encodedBlockSizes.emplace_back( bitReader.tell() - blockOffset );
-        decodedBlockSizes.emplace_back( uncompressedBlockSize );
-
-        streamBlockCount += 1;
-        totalBlockCount += 1;
-
-        const auto compressedSizeInBits = bitReader.tell() - blockOffset;
-        const auto compressionRatio = static_cast<double>( uncompressedBlockSize ) /
-                                      static_cast<double>( compressedSizeInBits ) * BYTE_SIZE;
-        compressionRatios.emplace_back( compressionRatio );
-
-        const auto [compressionTypeCount, wasInserted] = compressionTypes.try_emplace( block.compressionType(), 1 );
-        if ( !wasInserted ) {
-            compressionTypeCount->second++;
-        }
-
-        const auto printCodeLengthStatistics =
-            [] ( const auto& codeLenghts )
-            {
-                auto min = std::numeric_limits<uint32_t>::max();
-                auto max = std::numeric_limits<uint32_t>::min();
-                size_t nonZeroCount{ 0 };
-
-                std::array<size_t, 128> lengthCounts{};
-
-                for ( const auto codeLength : codeLenghts ) {
-                    if ( codeLength > 0 ) {
-                        min = std::min( min, static_cast<uint32_t>( codeLength ) );
-                        max = std::max( max, static_cast<uint32_t>( codeLength ) );
-                        nonZeroCount++;
-                    }
-                    lengthCounts.at( codeLength )++;
-                }
-
-                std::stringstream result;
-                result << nonZeroCount << " CLs in [" << min << ", " << max << "] out of " << codeLenghts.size()
-                       << ": CL:Count, ";
-                bool requiresComma{ false };
-                for ( size_t codeLength = 0; codeLength < lengthCounts.size(); ++codeLength ) {
-                    if ( requiresComma ) {
-                        result << ", ";
-                        requiresComma = false;
-                    }
-
-                    const auto count = lengthCounts[codeLength];
-                    if ( count > 0 ) {
-                        result << codeLength << ":" << count;
-                        requiresComma = true;
-                    }
-                }
-
-                return std::move( result ).str();
-            };
-
-        const VectorView<uint8_t> precodeCL{ block.precodeCL().data(), block.precodeCL().size() };
-        const VectorView<uint8_t> distanceCL{ block.distanceAndLiteralCL().data() + block.codeCounts.literal,
-                                              block.codeCounts.distance };
-        const VectorView<uint8_t> literalCL{ block.distanceAndLiteralCL().data(), block.codeCounts.literal };
-
-        precodeCodings[static_cast<std::vector<uint8_t> >( precodeCL )]++;
-        distanceCodings[static_cast<std::vector<uint8_t> >( distanceCL )]++;
-        literalCodings[static_cast<std::vector<uint8_t> >( literalCL )]++;
-
-        const auto formatSymbolType =
-            [total = block.symbolTypes.literal + block.symbolTypes.backreference] ( const auto count )
-            {
-                std::stringstream result;
-                result << count << " (" << static_cast<double>( count ) * 100.0 / static_cast<double>( total ) << " %)";
-                return std::move( result ).str();
-            };
-
-        std::cout
-            << "Deflate block:\n"
-            << "    Final Block             : " << ( block.isLastBlock() ? "True" : "False" ) << "\n"
-            << "    Compression Type        : " << toString( block.compressionType() ) << "\n"
-            << "    File Statistics:\n"
-            << "        Total Block Count   : " << totalBlockCount << "\n"
-            << "        Compressed Offset   : " << formatBits( blockOffset ) << "\n"
-            << "        Uncompressed Offset : " << uncompressedBlockOffset << " B\n"
-            << "    Gzip Stream Statistics:\n"
-            << "        Block Count         : " << streamBlockCount << "\n"
-            << "        Compressed Offset   : " << formatBits( blockOffset - headerOffset ) << "\n"
-            << "        Uncompressed Offset : " << uncompressedBlockOffsetInStream << " B\n"
-            << "    Compressed Size         : " << formatBits( compressedSizeInBits ) << "\n"
-            << "    Uncompressed Size       : " << uncompressedBlockSize << " B\n"
-            << "    Compression Ratio       : " << compressionRatio << "\n";
-        if ( block.compressionType() == deflate::CompressionType::DYNAMIC_HUFFMAN ) {
-            std::cout
-                << "    Huffman Alphabets:\n"
-                << "        Precode  : " << printCodeLengthStatistics( precodeCL ) << "\n"
-                << "        Distance : " << printCodeLengthStatistics( distanceCL ) << "\n"
-                << "        Literals : " << printCodeLengthStatistics( literalCL ) << "\n";
-        }
-        if ( block.compressionType() != deflate::CompressionType::UNCOMPRESSED ) {
-            std::cout
-                << "    Symbol Types:\n"
-                << "        Literal         : " << formatSymbolType( block.symbolTypes.literal ) << "\n"
-                << "        Back-References : " << formatSymbolType( block.symbolTypes.backreference ) << "\n"
-                << "\n";
-        }
-
-        if ( block.isLastBlock() ) {
-            const auto footer = gzip::readFooter( bitReader );
-
-            if ( static_cast<uint32_t>( streamBytesRead ) != footer.uncompressedSize ) {
-                std::stringstream message;
-                message << "Mismatching size (" << static_cast<uint32_t>( streamBytesRead )
-                        << " <-> footer: " << footer.uncompressedSize << ") for gzip stream!";
-                throw std::runtime_error( std::move( message ).str() );
-            }
-
-            if ( ( block.crc32() != 0 ) && ( block.crc32() != footer.crc32 ) ) {
-                std::stringstream message;
-                message << "Mismatching CRC32 (0x" << std::hex << block.crc32() << " <-> stored: 0x" << footer.crc32
-                        << ") for gzip stream!";
-            }
-
-            if ( block.crc32() != 0 ) {
-                std::stringstream message;
-                message << "Validated CRC32 0x" << std::hex << block.crc32() << " for gzip stream!\n";
-                std::cerr << message.str();
-            }
-
-            gzipHeader = {};
-        }
-
-        if ( bitReader.eof() ) {
-            std::cout << "Bit reader EOF reached at " << formatBits( bitReader.tell() ) << "\n";
-            break;
-        }
-    }
-
-    const auto printCategorizedDuration =
-        [totalDuration = block.durations.readDynamicHeader + block.durations.readData] ( const double duration )
-        {
-            std::stringstream result;
-            result << duration << " s (" << duration / totalDuration * 100 << " %)";
-            return std::move( result ).str();
-        };
-
-    const auto printHeaderDuration =
-        [totalDuration = block.durations.readDynamicHeader] ( const double duration )
-        {
-            std::stringstream result;
-            result << duration << " s (" << duration / totalDuration * 100 << " %)";
-            return std::move( result ).str();
-        };
-
-    const auto printAlphabetStatistics =
-        [] ( const auto& counts )
-        {
-            size_t total{ 0 };
-            size_t duplicates{ 0 };
-            for ( const auto& [_, count] : counts ) {
-                if ( count > 1 ) {
-                    duplicates += count - 1;
-                }
-                total += count;
-            }
-
-            std::stringstream result;
-            result << duplicates << " duplicates out of " << total << " ("
-                   << static_cast<double>( duplicates ) * 100. / static_cast<double>( total ) << " %)";
-            return std::move( result ).str();
-        };
-
-    std::cout
-        << "\n\n== Benchmark Profile (Cumulative Times) ==\n"
-        << "\n"
-        << "readDynamicHuffmanCoding : " << printCategorizedDuration( block.durations.readDynamicHeader ) << "\n"
-        << "readData                 : " << printCategorizedDuration( block.durations.readData ) << "\n"
-        << "Dynamic Huffman Initialization in Detail:\n"
-        << "    Read precode       : " << printHeaderDuration( block.durations.readPrecode      ) << "\n"
-        << "    Create precode HC  : " << printHeaderDuration( block.durations.createPrecodeHC  ) << "\n"
-        << "    Apply precode HC   : " << printHeaderDuration( block.durations.applyPrecodeHC   ) << "\n"
-        << "    Create distance HC : " << printHeaderDuration( block.durations.createDistanceHC ) << "\n"
-        << "    Create literal HC  : " << printHeaderDuration( block.durations.createLiteralHC  ) << "\n"
-        << "\n"
-        << "\n"
-        << "== Alphabet Statistics ==\n"
-        << "\n"
-        << "Precode  : " << printAlphabetStatistics( precodeCodings ) << "\n"
-        << "Distance : " << printAlphabetStatistics( distanceCodings ) << "\n"
-        << "Literals : " << printAlphabetStatistics( literalCodings ) << "\n"
-        << "\n"
-        << "\n"
-        << "== Encoded Block Size Distribution ==\n"
-        << "\n"
-        << Histogram<size_t>{ encodedBlockSizes, 8, "bits" }.plot()
-        << "\n"
-        << "\n"
-        << "== Decoded Block Size Distribution ==\n"
-        << "\n"
-        << Histogram<size_t>{ decodedBlockSizes, 8, "Bytes" }.plot()
-        << "\n"
-        << "\n== Compression Ratio Distribution ==\n"
-        << "\n"
-        << Histogram<double>{ compressionRatios, 8, "Bytes" }.plot()
-        << "\n"
-        << "== Deflate Block Compression Types ==\n"
-        << "\n";
-
-    for ( const auto& [compressionType, count] : compressionTypes ) {
-        std::cout << std::setw( 10 ) << toString( compressionType ) << " : " << count << "\n";
-    }
-
-    std::cout << std::endl;
-
-    return Error::NONE;
-}
+    unsigned int decoderParallelism{ 0 };
+    unsigned int chunkSize{ 4_Mi };
+    std::string indexLoadPath;
+    std::string indexSavePath;
+    bool verbose{ false };
+    bool crc32Enabled{ true };
+};
 
 
 void
@@ -391,6 +72,104 @@ getFilePath( cxxopts::ParseResult const& parsedArgs,
 }
 
 
+template<typename Reader>
+void
+printIndexAnalytics( const Reader& reader )
+{
+    const auto offsets = reader->blockOffsets();
+    if ( offsets.size() <= 1 ) {
+        return;
+    }
+
+    Statistics<double> encodedOffsetSpacings;
+    Statistics<double> decodedOffsetSpacings;
+    for ( auto it = offsets.begin(), nit = std::next( offsets.begin() ); nit != offsets.end(); ++it, ++nit ) {
+        const auto& [encodedOffset, decodedOffset] = *it;
+        const auto& [nextEncodedOffset, nextDecodedOffset] = *nit;
+        if ( nextEncodedOffset - encodedOffset > 0 ) {
+            encodedOffsetSpacings.merge( static_cast<double>( nextEncodedOffset - encodedOffset ) / CHAR_BIT / 1e6 );
+            decodedOffsetSpacings.merge( static_cast<double>( nextDecodedOffset - decodedOffset ) / 1e6 );
+        }
+    }
+
+    std::cerr
+        << "[Seekpoints Index]\n"
+        << "    Encoded offset spacings: ( min: " << encodedOffsetSpacings.min << ", "
+        << encodedOffsetSpacings.formatAverageWithUncertainty()
+        << ", max: " << encodedOffsetSpacings.max << " ) MB\n"
+        << "    Decoded offset spacings: ( min: " << decodedOffsetSpacings.min << ", "
+        << decodedOffsetSpacings.formatAverageWithUncertainty()
+        << ", max: " << decodedOffsetSpacings.max << " ) MB\n";
+}
+
+
+template<typename Reader,
+         typename WriteFunctor>
+size_t
+decompressParallel( const Reader&       reader,
+                    const std::string&  indexLoadPath,
+                    const std::string&  indexSavePath,
+                    const WriteFunctor& writeFunctor,
+                    const bool          verbose )
+{
+    if ( !indexLoadPath.empty() ) {
+        reader->setBlockOffsets( readGzipIndex( std::make_unique<StandardFileReader>( indexLoadPath ) ) );
+
+        if ( verbose && ( !indexSavePath.empty() || !indexLoadPath.empty() ) ) {
+            printIndexAnalytics( reader );
+        }
+    }
+
+    const auto totalBytesRead = reader->read( writeFunctor );
+
+    if ( !indexSavePath.empty() ) {
+        const auto file = throwingOpen( indexSavePath, "wb" );
+
+        const auto checkedWrite =
+            [&file] ( const void* buffer, size_t size )
+            {
+                if ( std::fwrite( buffer, 1, size, file.get() ) != size ) {
+                    throw std::runtime_error( "Failed to write data to index!" );
+                }
+            };
+
+        writeGzipIndex( reader->gzipIndex(), checkedWrite );
+    }
+
+    if ( verbose && indexLoadPath.empty() && !indexSavePath.empty() ) {
+        printIndexAnalytics( reader );
+    }
+
+    return totalBytesRead;
+}
+
+
+/**
+ * Dispatch to the appropriate ParallelGzipReader template arguments based on @p verbose.
+ */
+template<typename ChunkData,
+         typename WriteFunctor = std::function<void ( const std::shared_ptr<ChunkData>&, size_t, size_t )> >
+size_t
+decompressParallel( const Arguments&    args,
+                    UniqueFileReader    inputFile,
+                    const WriteFunctor& writeFunctor )
+{
+    if ( args.verbose ) {
+        using Reader = pragzip::ParallelGzipReader<ChunkData, /* enable statistics */ true, /* show profile */ true>;
+        auto reader = std::make_unique<Reader>( std::move( inputFile ), args.decoderParallelism, args.chunkSize );
+        reader->setCRC32Enabled( args.crc32Enabled );
+        return decompressParallel( std::move( reader ), args.indexLoadPath, args.indexSavePath, writeFunctor,
+                                   args.verbose );
+    } else {
+        using Reader = pragzip::ParallelGzipReader<ChunkData, /* enable statistics */ false, /* show profile */ false>;
+        auto reader = std::make_unique<Reader>( std::move( inputFile ), args.decoderParallelism, args.chunkSize );
+        reader->setCRC32Enabled( args.crc32Enabled );
+        return decompressParallel( std::move( reader ), args.indexLoadPath, args.indexSavePath, writeFunctor,
+                                   args.verbose );
+    }
+}
+
+
 int
 pragzipCLI( int argc, char** argv )
 {
@@ -416,7 +195,7 @@ pragzipCLI( int argc, char** argv )
         ( "analyze"      , "Print output about the internal file format structure like the block types." )
 
         ( "chunk-size"   , "The chunk size decoded by the parallel workers in KiB.",
-          cxxopts::value<unsigned int>()->default_value( "0" ) )
+          cxxopts::value<unsigned int>()->default_value( "4096" ) )
 
         ( "P,decoder-parallelism",
           "Use the parallel decoder. "
@@ -425,14 +204,19 @@ pragzipCLI( int argc, char** argv )
           "If 0 is given, then the parallelism will be determiend automatically.",
           cxxopts::value<unsigned int>()->default_value( "0" ) )
 
+        ( "verify", "Verify CRC32 checksum. Will slow down decompression and there are already some implicit "
+                    "and explicit checks like whether the end of the file could be reached and whether the stream "
+                    "size is correct. ")
+
         ( "import-index", "Uses an existing gzip index.", cxxopts::value<std::string>() )
         ( "export-index", "Write out a gzip index file.", cxxopts::value<std::string>() );
 
     options.add_options( "Output" )
         ( "h,help"   , "Print this help mesage." )
         ( "q,quiet"  , "Suppress noncritical error messages." )
-        ( "v,verbose", "Be verbose. A second -v (or shorthand -vv) gives even more verbosity." )
-        ( "V,version", "Display software version." );
+        ( "v,verbose", "Print debug output and profiling statistics." )
+        ( "V,version", "Display software version." )
+        ( "oss-attributions", "Display open-source software licenses." );
 
     /* These options are offered because just piping to other tools can already bottleneck everything! */
     options.add_options( "Processing" )
@@ -447,14 +231,18 @@ pragzipCLI( int argc, char** argv )
 
     const auto parsedArgs = options.parse( argc, argv );
 
-    const auto force   = parsedArgs["force"  ].as<bool>();
-    const auto quiet   = parsedArgs["quiet"  ].as<bool>();
-    const auto verbose = parsedArgs["verbose"].as<bool>();
+    /* Cleaned, checked, and typed arguments. */
+    Arguments args;
+
+    const auto force = parsedArgs["force"].as<bool>();
+    const auto quiet = parsedArgs["quiet"].as<bool>();
+    args.verbose = parsedArgs["verbose"].as<bool>();
+    args.crc32Enabled = parsedArgs["verify"].as<bool>();
 
     const auto getParallelism = [] ( const auto p ) { return p > 0 ? p : availableCores(); };
-    const auto decoderParallelism = getParallelism( parsedArgs["decoder-parallelism"].as<unsigned int>() );
+    args.decoderParallelism = getParallelism( parsedArgs["decoder-parallelism"].as<unsigned int>() );
 
-    if ( verbose ) {
+    if ( args.verbose ) {
         for ( auto const* const path : { "input", "output" } ) {
             std::string value = "<none>";
             try {
@@ -477,6 +265,15 @@ pragzipCLI( int argc, char** argv )
         return 0;
     }
 
+    if ( parsedArgs.count( "oss-attributions" ) > 0 ) {
+        std::cout << licenses::CXXOPTS << "\n"
+        #ifdef WITH_RPMALLOC
+                  << licenses::RPMALLOC << "\n"
+        #endif
+                  << licenses::ZLIB;
+        return 0;
+    }
+
     /* Parse input file specifications. */
 
     if ( parsedArgs.count( "input" ) > 1 ) {
@@ -492,6 +289,10 @@ pragzipCLI( int argc, char** argv )
     std::string inputFilePath; /* Can be empty. Then, read from STDIN. */
     if ( parsedArgs.count( "input" ) == 1 ) {
         inputFilePath = parsedArgs["input"].as<std::string>();
+        if ( !inputFilePath.empty() && !fileExists( inputFilePath ) ) {
+            std::cerr << "Input file could not be found! Specified path: " << inputFilePath << "\n";
+            return 1;
+        }
     }
 
     auto inputFile = openFileOrStdin( inputFilePath );
@@ -499,7 +300,7 @@ pragzipCLI( int argc, char** argv )
     /* Check if analysis is requested. */
 
     if ( parsedArgs.count( "analyze" ) > 0 ) {
-        return analyze( std::move( inputFile ) ) == pragzip::Error::NONE ? 0 : 1;
+        return pragzip::deflate::analyze( std::move( inputFile ) ) == pragzip::Error::NONE ? 0 : 1;
     }
 
     /* Parse output file specifications. */
@@ -515,7 +316,7 @@ pragzipCLI( int argc, char** argv )
         } else {
             outputFilePath = inputFilePath + ".out";
             if ( !quiet ) {
-                std::cerr << "Could not deduce output file name. Will write to '" << outputFilePath << "'\n";
+                std::cerr << "[Warning] Could not deduce output file name. Will write to '" << outputFilePath << "'\n";
             }
         }
     }
@@ -524,34 +325,34 @@ pragzipCLI( int argc, char** argv )
 
     const auto countBytes = parsedArgs.count( "count" ) > 0;
     const auto countLines = parsedArgs.count( "count-lines" ) > 0;
-    const auto decompress = ( parsedArgs.count( "decompress" ) > 0 ) || ( !countBytes && !countLines );
+    const auto decompress = parsedArgs.count( "decompress" ) > 0;
 
     if ( decompress && ( outputFilePath != "/dev/null" ) && fileExists( outputFilePath ) && !force ) {
         std::cerr << "Output file '" << outputFilePath << "' already exists! Use --force to overwrite.\n";
         return 1;
     }
 
-    const auto indexLoadPath = parsedArgs.count( "import-index" ) > 0
-                               ? parsedArgs["import-index"].as<std::string>()
-                               : std::string();
-    const auto indexSavePath = parsedArgs.count( "export-index" ) > 0
-                               ? parsedArgs["export-index"].as<std::string>()
-                               : std::string();
-    if ( !indexLoadPath.empty() && !indexSavePath.empty() ) {
+    args.indexLoadPath = parsedArgs.count( "import-index" ) > 0
+                         ? parsedArgs["import-index"].as<std::string>()
+                         : std::string();
+    args.indexSavePath = parsedArgs.count( "export-index" ) > 0
+                         ? parsedArgs["export-index"].as<std::string>()
+                         : std::string();
+    if ( !args.indexLoadPath.empty() && !args.indexSavePath.empty() ) {
         std::cerr << "[Warning] Importing and exporting an index makes limited sense.\n";
     }
-    if ( ( !indexLoadPath.empty() || !indexSavePath.empty() ) && ( decoderParallelism == 1 ) ) {
+    if ( ( !args.indexLoadPath.empty() || !args.indexSavePath.empty() ) && ( args.decoderParallelism == 1 ) ) {
         std::cerr << "[Warning] The index only has an effect for parallel decoding.\n";
     }
-    if ( !indexLoadPath.empty() && !fileExists( indexLoadPath ) ) {
+    if ( !args.indexLoadPath.empty() && !fileExists( args.indexLoadPath ) ) {
         std::cerr << "The index to import was not found!\n";
         return 1;
     }
 
     /* Actually do things as requested. */
 
-    if ( decompress || countBytes || countLines ) {
-        if ( decompress && verbose ) {
+    if ( decompress || countBytes || countLines || !args.indexSavePath.empty() ) {
+        if ( decompress && args.verbose ) {
             std::cerr << "Decompress " << ( inputFilePath.empty() ? "<stdin>" : inputFilePath.c_str() )
                       << " -> " << ( outputFilePath.empty() ? "<stdout>" : outputFilePath.c_str() ) << "\n";
         }
@@ -561,91 +362,18 @@ pragzipCLI( int argc, char** argv )
             return 1;
         }
 
-        /* Open either stdout, the given file, or nothing as necessary. */
-        int outputFileDescriptor{ -1 };  // Use this for file access.
-        unique_file_ptr outputFile;  // This should not be used, it is only for automatic closing!
-        bool writingToStdout{ false };
-        size_t oldOutputFileSize{ 0 };
-
-    #ifndef _MSC_VER
-        unique_file_descriptor ownedFd;  // This should not be used, it is only for automatic closing!
-    #endif
-
+        std::unique_ptr<OutputFile> outputFile;
         if ( decompress ) {
-            if ( outputFilePath.empty() ) {
-                writingToStdout = true;
-
-            #ifdef _MSC_VER
-                outputFileDescriptor = _fileno( stdout );
-                _setmode( outputFileDescriptor, _O_BINARY );
-            #else
-                outputFileDescriptor = ::fileno( stdout );
-            #endif
-            } else {
-            #ifndef _MSC_VER
-                if ( fileExists( outputFilePath ) ) {
-                    oldOutputFileSize = fileSize( outputFilePath );
-                    /* Opening an existing file and overwriting its data can be much slower because posix_fallocate
-                     * can be relatively slow compared to the decoding speed and memory bandwidth! Note that std::fopen
-                     * would open a file with O_TRUNC, deallocating all its contents before it has to be reallocated. */
-                    outputFileDescriptor = ::open( outputFilePath.c_str(), O_WRONLY );
-                    ownedFd = unique_file_descriptor( outputFileDescriptor );
-                }
-            #endif
-
-                if ( outputFileDescriptor == -1 ) {
-                    outputFile = make_unique_file_ptr( outputFilePath.c_str(), "wb" );
-                    if ( !outputFile ) {
-                        std::cerr << "Could not open output file: " << outputFilePath << " for writing!\n";
-                        return 1;
-                    }
-                    outputFileDescriptor = ::fileno( outputFile.get() );
-                }
-            }
+            outputFile = std::make_unique<OutputFile>( outputFilePath );
         }
-
-        const auto printIndexAnalytics =
-            [&] ( const auto& reader )
-            {
-                if ( !verbose || ( indexSavePath.empty() && indexLoadPath.empty() ) ) {
-                    return;
-                }
-
-                const auto offsets = reader->blockOffsets();
-                if ( offsets.size() <= 1 ) {
-                    return;
-                }
-
-                Statistics<double> encodedOffsetSpacings;
-                Statistics<double> decodedOffsetSpacings;
-                for ( auto it = offsets.begin(), nit = std::next( offsets.begin() );
-                      nit != offsets.end(); ++it, ++nit ) {
-                    const auto& [encodedOffset, decodedOffset] = *it;
-                    const auto& [nextEncodedOffset, nextDecodedOffset] = *nit;
-                    if ( nextEncodedOffset - encodedOffset > 0 ) {
-                        encodedOffsetSpacings.merge( static_cast<double>( nextEncodedOffset - encodedOffset )
-                                                     / CHAR_BIT / 1e6 );
-                        decodedOffsetSpacings.merge( static_cast<double>( nextDecodedOffset - decodedOffset )
-                                                     / 1e6 );
-                    }
-                }
-
-                std::cerr
-                    << "[Seekpoints Index]\n"
-                    << "    Encoded offset spacings: ( min: " << encodedOffsetSpacings.min << ", "
-                    << encodedOffsetSpacings.formatAverageWithUncertainty()
-                    << ", max: " << encodedOffsetSpacings.max << " ) MB\n"
-                    << "    Decoded offset spacings: ( min: " << decodedOffsetSpacings.min << ", "
-                    << decodedOffsetSpacings.formatAverageWithUncertainty()
-                    << ", max: " << decodedOffsetSpacings.max << " ) MB\n";
-            };
+        const auto outputFileDescriptor = outputFile ? outputFile->fd() : -1;
 
         uint64_t newlineCount{ 0 };
 
         const auto t0 = now();
 
         size_t totalBytesRead{ 0 };
-        if ( decoderParallelism == 1 ) {
+        if ( args.decoderParallelism == 1 ) {
             const auto writeAndCount =
                 [outputFileDescriptor, countLines, &newlineCount]
                 ( const void* const buffer,
@@ -660,19 +388,20 @@ pragzipCLI( int argc, char** argv )
                     }
                 };
 
-            pragzip::GzipReader</* CRC32 */ false> gzipReader{ std::move( inputFile ) };
+            pragzip::GzipReader gzipReader{ std::move( inputFile ) };
+            gzipReader.setCRC32Enabled( args.crc32Enabled );
             totalBytesRead = gzipReader.read( writeAndCount );
         } else {
             const auto writeAndCount =
                 [outputFileDescriptor, countLines, &newlineCount]
-                ( const std::shared_ptr<pragzip::BlockData>& blockData,
+                ( const std::shared_ptr<pragzip::ChunkData>& chunkData,
                   size_t const                               offsetInBlock,
                   size_t const                               dataToWriteSize )
                 {
-                    writeAll( blockData, outputFileDescriptor, offsetInBlock, dataToWriteSize );
+                    writeAll( chunkData, outputFileDescriptor, offsetInBlock, dataToWriteSize );
                     if ( countLines ) {
                         using pragzip::deflate::DecodedData;
-                        for ( auto it = DecodedData::Iterator( *blockData, offsetInBlock, dataToWriteSize );
+                        for ( auto it = DecodedData::Iterator( *chunkData, offsetInBlock, dataToWriteSize );
                               static_cast<bool>( it ); ++it )
                         {
                             const auto& [buffer, size] = *it;
@@ -681,71 +410,30 @@ pragzipCLI( int argc, char** argv )
                     }
                 };
 
-            const auto chunkSize = parsedArgs["chunk-size"].as<unsigned int>();
+            args.chunkSize = parsedArgs["chunk-size"].as<unsigned int>() * 1_Ki;
 
-            const auto decompressParallel =
-                [&] ( const auto& reader )
-                {
-                    if ( !indexLoadPath.empty() ) {
-                        reader->setBlockOffsets(
-                            readGzipIndex( std::make_unique<StandardFileReader>( indexLoadPath ) ) );
-                        printIndexAnalytics( reader );
-                    }
+            if ( ( outputFileDescriptor == -1 ) && args.indexSavePath.empty() && countBytes ) {
+                /* Need to do nothing with the chunks because decompressParallel returns the decompressed size. */
+                const auto doNothing = [] ( const auto&, size_t, size_t ) {};
 
-                    totalBytesRead = reader->read( writeAndCount );
-
-                    if ( !indexSavePath.empty() ) {
-                        const auto file = throwingOpen( indexSavePath, "wb" );
-
-                        const auto checkedWrite =
-                            [&file] ( const void* buffer, size_t size )
-                            {
-                                if ( std::fwrite( buffer, 1, size, file.get() ) != size ) {
-                                    throw std::runtime_error( "Failed to write data to index!" );
-                                }
-                            };
-
-                        writeGzipIndex( reader->gzipIndex(), checkedWrite );
-                    }
-
-                    if ( indexLoadPath.empty() ) {
-                        printIndexAnalytics( reader );
-                    }
-                };
-
-
-            if ( verbose ) {
-                using GzipReader = pragzip::ParallelGzipReader</* enable statistics */ true, /* show profile */ true>;
-                auto reader =
-                    chunkSize > 0
-                    ? std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism, chunkSize * 1024 )
-                    : std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism );
-                decompressParallel( std::move( reader ) );
+                totalBytesRead = decompressParallel<pragzip::ChunkDataCounter>(
+                    args, std::move( inputFile ), doNothing );
             } else {
-                using GzipReader = pragzip::ParallelGzipReader</* enable statistics */ false, /* show profile */ false>;
-                auto reader =
-                    chunkSize > 0
-                    ? std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism, chunkSize * 1024 )
-                    : std::make_unique<GzipReader>( std::move( inputFile ), decoderParallelism );
-                decompressParallel( std::move( reader ) );
-            }
-
-        }
-
-    #ifndef _MSC_VER
-        if ( ( *ownedFd != -1 ) && ( oldOutputFileSize > totalBytesRead ) ) {
-            if ( ::ftruncate( outputFileDescriptor, totalBytesRead ) == -1 ) {
-                std::cerr << "[Error] Failed to truncate file because of: " << strerror( errno )
-                          << " (" << errno << ")\n";
+                totalBytesRead = decompressParallel<pragzip::ChunkData>( args, std::move( inputFile ), writeAndCount );
             }
         }
-    #endif
+
+        const auto writeToStdErr = outputFile && outputFile->writingToStdout();
+        if ( outputFile ) {
+            outputFile->truncate( totalBytesRead );
+            outputFile.reset();  // Close the file here to include it in the time measurement.
+        }
 
         const auto t1 = now();
         std::cerr << "Decompressed in total " << totalBytesRead << " B in " << duration( t0, t1 ) << " s -> "
                   << static_cast<double>( totalBytesRead ) / 1e6 / duration( t0, t1 ) << " MB/s\n";
 
-        auto& out = writingToStdout ? std::cerr : std::cout;
+        auto& out = writeToStdErr ? std::cerr : std::cout;
         if ( countBytes != countLines ) {
             out << ( countBytes ? totalBytesRead : newlineCount );
         } else if ( countBytes && countLines ) {
@@ -779,7 +467,12 @@ main( int argc, char** argv )
     }
     catch ( const std::exception& exception )
     {
-        std::cerr << "Caught exception:\n" << exception.what() << ", typeid: " << typeid( exception ).name() << "\n";
+        const std::string_view message{ exception.what() };
+        if ( message.empty() ) {
+            std::cerr << "Caught exception with typeid: " << typeid( exception ).name() << "\n";
+        } else {
+            std::cerr << message << "\n";
+        }
         return 1;
     }
 

@@ -1,22 +1,19 @@
 #include <algorithm>
-#include <cassert>
 #include <chrono>
-#include <cstdio>
 #include <cstdlib>
 #include <filesystem>
-#include <fstream>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <memory>
 #include <stdexcept>
 #include <string>
-#include <string_view>
 #include <vector>
 
-#include <BitStringFinder.hpp>
 #include <BZ2Reader.hpp>
 #include <common.hpp>
 #include <filereader/Standard.hpp>
+#include <FileUtils.hpp>
 #include <TestHelpers.hpp>
 
 

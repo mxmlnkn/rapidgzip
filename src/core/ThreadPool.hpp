@@ -91,13 +91,12 @@ private:
 
 public:
     explicit
-    ThreadPool( size_t        nThreads = availableCores(),
+    ThreadPool( size_t        threadCount = availableCores(),
                 ThreadPinning threadPinning = {} ) :
+        m_threadCount( threadCount ),
         m_threadPinning( std::move( threadPinning ) )
     {
-        for ( size_t i = 0; i < nThreads; ++i ) {
-            m_threads.emplace_back( JoiningThread( [this, i] () { workerMain( i ); } ) );
-        }
+        m_threads.reserve( m_threadCount );
     }
 
     ~ThreadPool()
@@ -135,15 +134,19 @@ public:
         auto resultFuture = packagedTask.get_future();
         m_tasks[priority].emplace_back( std::move( packagedTask ) );
 
+        if ( ( m_threads.size() < m_threadCount ) && ( m_idleThreadCount == 0 ) ) {
+            spawnThread();
+        }
+
         m_pingWorkers.notify_one();
 
         return resultFuture;
     }
 
     [[nodiscard]] size_t
-    size() const
+    capacity() const
     {
-        return m_threads.size();
+        return m_threadCount;
     }
 
     [[nodiscard]] size_t
@@ -179,7 +182,9 @@ private:
         while ( m_threadPoolRunning )
         {
             std::unique_lock<std::mutex> tasksLock( m_mutex );
+            ++m_idleThreadCount;
             m_pingWorkers.wait( tasksLock, [this] () { return hasUnprocessedTasks() || !m_threadPoolRunning; } );
+            --m_idleThreadCount;
 
             if ( !m_threadPoolRunning ) {
                 break;
@@ -196,11 +201,22 @@ private:
         }
     }
 
+    void
+    spawnThread()
+    {
+        m_threads.emplace_back( JoiningThread( [this, i = m_threads.size()] () { workerMain( i ); } ) );
+    }
+
 private:
     std::atomic<bool> m_threadPoolRunning = true;
+
+    const size_t m_threadCount;
     const ThreadPinning m_threadPinning;
+    std::atomic<size_t> m_idleThreadCount{ 0 };
+
     std::map</* priority */ int, std::deque<PackagedTaskWrapper> > m_tasks;
     /** necessary for m_tasks AND m_pingWorkers or else the notify_all might go unnoticed! */
+
     mutable std::mutex m_mutex;
     std::condition_variable m_pingWorkers;
 

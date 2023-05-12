@@ -1,21 +1,25 @@
-#include "bzip2.hpp"
-
 #include <algorithm>
 #include <array>
-#include <chrono>
 #include <cstdlib>
 #include <cstdint>
+#include <iomanip>
 #include <iostream>
+#include <filesystem>
 #include <limits>
 #include <memory>
+#include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
+#include <BitManipulation.hpp>
 #include <BitStringFinder.hpp>
+#include <bzip2.hpp>
 #include <filereader/BufferView.hpp>
 #include <filereader/Standard.hpp>
 #include <ParallelBitStringFinder.hpp>

@@ -8,8 +8,10 @@
 #SBATCH --mem-per-cpu=1972M
 #SBATCH --cpu-freq=2000000-2000000
 
+module purge
 module load CMake Ninja Clang NASM hwloc
 module list
+
 
 function m()
 {
@@ -20,78 +22,92 @@ function m()
     fi
 }
 
-# Install pigz
-(
-    cd ~
-    git clone 'https://github.com/madler/pigz.git'
-    git checkout master
-    cd pigz
-    m -B
-)
 
-# Install pugz
-(
-    cd ~
-    git clone 'https://github.com/mxmlnkn/pugz'
-    cd pugz
-    git fetch origin
-    git reset --hard origin/benchmarks
-    git pull
-    m -B
-    'mv' gunzip pugz
+workdir="$HOME/job-$SLURM_JOB_ID"
+mkdir -- "$workdir" && cd -- "$workdir"
+installPath="$workdir/tools"
 
-    # Benchmark of pugz blockfinder
-    size=$(( 2 * 1024 * 1024 ))
-    fname='random-2MiB'
-    head -c $size /dev/urandom > "$fname"
-    g++ -lrt -march=native --std=c++17 -Wall -O3 -DNDEBUG -o blockfinder -I . -I common programs/blockfinder.cpp
-    > pugz.log
-    ./blockfinder "$fname" 100 2>&1 | tee -a pugz.log
-    for (( i=0; i<100; ++i )); do
-        ./blockfinder "$fname" 2>&1 | tee -a pugz.log
-    done
-    sed -n -E 's|.* in ([0-9.]+) s.*|'"$size "'\1|p' pugz.log > 'results-pugz-sync.dat'
-    'rm' -f "$fname"
-)
 
-# Install igzip
-(
-    cd ~
-    git clone 'https://github.com/intel/isa-l'
-    cd isa-l
-    ./autogen.sh
-    ./configure
-    m -B
-)
+if [[ -d "$installPath" ]]; then
+    export PATH="$installPath/pigz:$installPath/isa-l/programs:$installPath/zstd:$installPath/zstd/contrib/pzstd:$installPath/lz4:$installPath/htslib:$installPath/lbzip2/src:$installPath/pixz/src:$installPath/indexed_bzip2/build/src/tools:$PATH"
+else
+    mkdir -p -- "$installPath"
+    cd -- "$installPath"
+
+    # Install pigz
+    (
+        git clone 'https://github.com/madler/pigz.git'
+        git checkout master
+        cd pigz
+        m -B
+    )
+    export PATH=$installPath/pigz:$PATH
+
+    # Install pugz
+    (
+        git clone 'https://github.com/mxmlnkn/pugz'
+        cd pugz
+        git fetch origin
+        git reset --hard origin/benchmarks
+        git pull
+        m -B
+        'mv' gunzip pugz
+
+        # Benchmark of pugz blockfinder
+        size=$(( 2 * 1024 * 1024 ))
+        fname='random-2MiB'
+        head -c $size /dev/urandom > "$fname"
+        g++ -lrt -march=native --std=c++17 -Wall -O3 -DNDEBUG -o blockfinder -I . -I common programs/blockfinder.cpp
+        > pugz.log
+        ./blockfinder "$fname" 100 2>&1 | tee -a pugz.log
+        for (( i=0; i<100; ++i )); do
+            ./blockfinder "$fname" 2>&1 | tee -a pugz.log
+        done
+        sed -n -E 's|.* in ([0-9.]+) s.*|'"$size "'\1|p' pugz.log > "$workdir/results-pugz-sync.dat"
+        'rm' -f "$fname"
+    )
+    export PATH=$installPath/pugz:$PATH
+
+    # Install igzip
+    (
+        git clone --depth 1 'https://github.com/intel/isa-l'
+        cd isa-l
+        ./autogen.sh
+        ./configure
+        m
+    )
+    export PATH=$installPath/isa-l/programs:$PATH
+
+    # Install pragzip
+    (
+        git clone 'https://github.com/mxmlnkn/indexed_bzip2'
+        cd indexed_bzip2
+        git checkout -f pragzip-v0.5.0
+        mkdir -p build
+        cd build
+        cmake -GNinja ..
+        ninja pragzip benchmarkSequential2023
+    )
+    export PATH=$installPath/indexed_bzip2/build/src/tools:$PATH
+fi
+
+cd -- "$workdir"
 
 # Generic system information
 (
-    cd ~
     echo -e "\n=== hwloc-info ==="
     hwloc-info
     echo -e "\n=== hwloc-ls ==="
     hwloc-ls
-    lstopo -f --of xml "$HOME/hwloc-$( hostname ).xml"
-    lstopo -f --of svg "$HOME/hwloc-$( hostname ).svg"
+    lstopo -f --of xml "hwloc-$( hostname ).xml"
+    lstopo -f --of svg "hwloc-$( hostname ).svg"
 )
 
-# Install pragzip
-(
-    cd ~
-    git clone 'https://github.com/mxmlnkn/indexed_bzip2'
-    cd indexed_bzip2
-    git fetch origin
-    git reset --hard origin/develop
-    mkdir -p build
-    cd build
-    cmake -GNinja ..
-    ninja pragzip benchmarkSequential2023
-)
 
-export PATH=$HOME/pigz:$PATH
-export PATH=$HOME/pugz:$PATH
-export PATH=$HOME/isa-l/programs:$PATH
-export PATH=$HOME/indexed_bzip2/build/src/tools:$PATH
+mkdir -p toolVersions
+for tool in gzip pigz igzip gcc clang pragzip; do
+    $tool --version 2>&1 | tee "toolVersions/$tool"
+done
 
 
 function benchmarkPugzSyncParallelDecompressionScaling()
@@ -135,7 +151,7 @@ function benchmarkParallelDecompressionScaling()
     inputFilePath=$2  # e.g., /dev/shm/base64-512MiB
 
     #chunkSizes=( $(( 1 * 1024 )) $(( 2 * 1024 )) $(( 4 * 1024 )) $(( 8 * 1024 )) )
-    chunkSizes=( $(( 2 * 1024 )) )
+    chunkSizes=( $(( 4 * 1024 )) )
     for chunkSize in "${chunkSizes[@]}"; do
         echo '# parallelization dataSize/B runtime/s compressedDataSize/B' > "$filePrefix-pragzip-$(( chunkSize / 1024 ))-MiB-chunks-dev-null.dat"
     done
@@ -176,7 +192,7 @@ function benchmarkParallelDecompressionScaling()
 
         # pragzip
         for chunkSize in "${chunkSizes[@]}"; do
-            echo "Chunk size: $(( chunkSize / 1024 )) MiB"
+            echo "Benchmark pragzip with chunk size: $(( chunkSize / 1024 )) MiB"
 
             for (( i = 0; i < nRepetitions; ++i )); do
                 tool="pragzip -P $parallelization -o /dev/null --chunk-size $chunkSize"
@@ -194,6 +210,8 @@ function benchmarkParallelDecompressionScaling()
 
         # pugz unsynchronized output
         if [[ ! "$filePrefix" =~ silesia ]]; then
+            echo "Benchmark pugz with unsynchronized output..."
+
             for (( i = 0; i < nRepetitions; ++i )); do
                 tool="pugz -t $parallelization -u"
                 runtime=$( ( time timeout 20s taskset --cpu-list 0-$(( parallelization - 1 )) $tool "$filePath" > /dev/null ) 2>&1 |
@@ -209,7 +227,7 @@ function benchmarkParallelDecompressionScaling()
         fi
     done
 
-    'rm' -- "$filePath"
+    'rm' -- "$filePath" 'output.log'
 }
 
 
@@ -307,17 +325,32 @@ function benchmarkSilesia()
 }
 
 
-cd ~/indexed_bzip2/build
-rm -f *.dat
+function benchmarkFastq()
+{
+    # 92 MiB extracts to 345 MiB (~3.75x)
+    url='http://ftp.sra.ebi.ac.uk/vol1/fastq/SRR224/085/SRR22403185/SRR22403185_2.fastq.gz'
 
+    # 252 MiB extracts to 1300 MiB (~5.16x)
+    # Too large, this benchmark not even counting Silesia and base64 take only just under 6h!
+    #url='http://ftp.sra.ebi.ac.uk/vol1/fastq/SRR224/085/SRR22401085/SRR22401085_2.fastq.gz'
 
-nRepetitions=20
-set -o pipefail
+    fileName="${url##*/}"
+    wget -O "$fileName" "$url"
 
+    uncompressedFile='/dev/shm/fastq'
+    igzip -c -d "$fileName" > "$uncompressedFile"
 
-#time benchmarkSilesia  # 55 min
-#time benchmarkBase64   # 105 min (longer because pugz is also benchmarked)
-#time src/benchmarks/benchmarkSequential2023  # Benchmarks of components (this takes ~70 min)
+    fastq2xFilePath='/dev/shm/fastq2x'
+    for (( i = 0; i < 2; ++i )); do cat "$uncompressedFile"; done > "$fastq2xFilePath"
+    time benchmarkParallelDecompressionScaling 'result-parallel-decompression-fastq' "$fastq2xFilePath"  # ? min
+
+    # ? min
+    time benchmarkPugzSyncParallelDecompressionScaling 'result-parallel-decompression-fastq' "$uncompressedFile"
+
+    for (( i=0; i<5; ++i )); do cat "$uncompressedFile"; done | pigz > "$fastq2xFilePath.pigz"
+    time benchmarkLegacyGzipTools 'result-decompression-fastq' "$fastq2xFilePath.pigz"  # 25 min
+    'rm' -- "$uncompressedFile" "$fastq2xFilePath" "$fastq2xFilePath.pigz"
+}
 
 
 function benchmarkChunks()
@@ -419,9 +452,31 @@ function benchmarkChunks()
     'rm' -- "$filePath"
 }
 
+
+
+nRepetitions=20
+set -o pipefail
+
+
+#time benchmarkSilesia  # 55 min
+#time benchmarkBase64   # 105 min (longer because pugz is also benchmarked)
+time benchmarkFastq     # probably ~105 min (longer because pugz is also benchmarked)
+#time src/benchmarks/benchmarkSequential2023  # Benchmarks of components (this takes ~70 min)
+
 # benchmarkChunks
 
 
-cd ~/indexed_bzip2/build
-tar -cjf ~/pragzip-benchmark-results-$( date +%Y-%m-%dT%H-%M-%S ).tar.bz2 *.dat -C ~/pugz results-pugz-sync.dat -C ~ "hwloc-$( hostname ).xml" "hwloc-$( hostname ).svg" &&
-rm *.dat
+# Back all data up into a TAR archive
+
+echo "[$( date --iso-8601=seconds )] Bundle benchmark results into a TAR..."
+
+
+# Output log file might bot be flushed but better than nothing. Should be copied manually anyway!
+'cp' "$( scontrol show job "$SLURM_JOBID" | sed -n -E 's|.*StdErr=(.*)|\1|p' )" ./
+'cp' "$( scontrol show job "$SLURM_JOBID" | sed -n -E 's|.*StdOut=(.*)|\1|p' )" ./
+sacct --format=jobid,jobidraw,jobname,partition,maxvmsize,maxvmsizenode,maxvmsizetask,avevmsize,maxrss,maxrssnode,maxrsstask,averss,maxpages,maxpagesnode,maxpagestask,avepages,mincpu,mincpunode,mincputask,avecpu,ntasks,alloccpus,elapsed,state,exitcode,avecpufreq,reqcpufreqmin,reqcpufreqmax,reqcpufreqgov,reqmem,consumedenergy,maxdiskread,maxdiskreadnode,maxdiskreadtask,avediskread,maxdiskwrite,maxdiskwritenode,maxdiskwritetask,avediskwrite,reqtres,alloctres,tresusageinave,tresusageinmax,tresusageinmaxn,tresusageinmaxt,tresusageinmin,tresusageinminn,tresusageinmint,tresusageintot,tresusageoutmax,tresusageoutmaxn,tresusageoutmaxt,tresusageoutave,tresusageouttot,admincomment,allocnodes,associd,blockid,cluster,comment,constraints,consumedenergy,consumedenergyraw,cputime,cputimeraw,dbindex,derivedexitcode,elapsedraw,eligible,end,flags,gid,layout,maxpagestask,mcslabel,ncpus,nnodes,nodelist,priority,qos,qosraw,reason,reqcpufreq,reqcpus,reqnodes,reservation,reservationid,reserved,resvcpu,resvcpuraw,start,submit,suspended,systemcpu,systemcomment,timelimit,timelimitraw,totalcpu,tresusageinmaxnode,tresusageinmaxtask,tresusageinminnode,tresusageinmintask,tresusageoutmaxnode,tresusageoutmaxtask,tresusageoutmin,tresusageoutminnode,tresusageoutmintask,uid,usercpu,wckey,wckeyid -p -j "$SLURM_JOB_ID" > "sacct-$SLURM_JOB_ID.log"
+
+
+tar -cj --transform="s|${HOME#/}/||" -f ~/pragzip-comparison-benchmarks-$( date +%Y-%m-%dT%H-%M-%S ).tar.bz2 "$workdir"
+
+echo "[$( date --iso-8601=seconds )] Done."

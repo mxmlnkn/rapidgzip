@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cassert>
 #include <iterator>
 #include <limits>
 #include <map>
@@ -178,7 +179,9 @@ public:
     void
     touch( const Key& key )
     {
-        m_cacheStrategy.touch( key );
+        if ( test( key ) ) {
+            m_cacheStrategy.touch( key );
+        }
     }
 
     [[nodiscard]] bool

@@ -47,13 +47,14 @@ protected:
          * for the code-length-sorted alphabet vector. */
         size_t sum = 0;
         for ( uint8_t bitLength = this->m_minCodeLength; bitLength <= this->m_maxCodeLength; ++bitLength ) {
-            m_offsets[bitLength - this->m_minCodeLength] = sum;
+            m_offsets[bitLength - this->m_minCodeLength] = static_cast<uint16_t>( sum );
             sum += bitLengthFrequencies[bitLength];
         }
         m_offsets[this->m_maxCodeLength - this->m_minCodeLength + 1] = static_cast<uint16_t>( sum );
 
         /* The codeLengths.size() check above should implicitly check this already. */
         assert( sum <= m_symbolsPerLength.size() && "Specified max symbol range exceeded!" );
+        assert( sum <= std::numeric_limits<uint16_t>::max() && "Symbol count limited to 16-bit!" );
 
         /* Fill the code-length-sorted alphabet vector. */
         auto sizes = m_offsets;
