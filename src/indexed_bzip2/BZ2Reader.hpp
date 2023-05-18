@@ -38,23 +38,29 @@ public:
 public:
     explicit
     BZ2Reader( UniqueFileReader fileReader ) :
-        m_bitReader( std::move( fileReader ) )
+        /* Without this, the test_joining_archive test inside ratarmountcore's test_factory.py fails.
+         * This is because tell() throws an exception because m_file.tell() is in an unexpected position.
+         * I'm still not sure why but maybe some external caller resets the file position to 0.
+         * As we are returning fileno to the underlying file and because the given PyObject input file object
+         * can have shared ownership, we need to ensure that this class works even when the file object is
+         * seeked from outside. */
+        m_bitReader( ensureSharedFileReader( std::move( fileReader ) ) )
     {}
 
 #ifdef WITH_PYTHON_SUPPORT
     explicit
     BZ2Reader( const std::string& filePath ) :
-        m_bitReader( std::make_unique<StandardFileReader>( filePath ) )
+        BZ2Reader( std::make_unique<StandardFileReader>( filePath ) )
     {}
 
     explicit
     BZ2Reader( int fileDescriptor ) :
-        m_bitReader( std::make_unique<StandardFileReader>( fileDescriptor ) )
+        BZ2Reader( std::make_unique<StandardFileReader>( fileDescriptor ) )
     {}
 
     explicit
     BZ2Reader( PyObject* pythonObject ) :
-        m_bitReader( std::make_unique<PythonFileReader>( pythonObject ) )
+        BZ2Reader( std::make_unique<PythonFileReader>( pythonObject ) )
     {}
 #endif
 

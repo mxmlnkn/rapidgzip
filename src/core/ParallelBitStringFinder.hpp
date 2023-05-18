@@ -19,7 +19,6 @@
 
 #include "AffinityHelpers.hpp"
 #include "BitStringFinder.hpp"
-#include "BitReader.hpp"
 #include "common.hpp"
 #include "ThreadPool.hpp"
 

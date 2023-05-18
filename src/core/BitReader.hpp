@@ -83,7 +83,11 @@ public:
 public:
     explicit
     BitReader( UniqueFileReader fileReader ) :
-        m_file( std::move( fileReader ) )
+        /* The UniqueFileReader input argument sufficiently conveys and ensures that the file ownership is taken.
+         * But, because BitReader has a fileno getter returning the underlying fileno, it is possible that the
+         * file position is changed from the outside. To still keep correct behavior in that case, we have to
+         * to make it a SharedFileReader, which keeps track of the intended file position. */
+        m_file( ensureSharedFileReader( std::move( fileReader ) ) )
     {}
 
     BitReader( BitReader&& other ) = default;
