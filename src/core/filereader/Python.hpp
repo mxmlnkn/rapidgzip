@@ -250,7 +250,7 @@ public:
         }
         Py_XDECREF( bytes );
 
-        if ( nBytesRead <= 0 ) {
+        if ( nBytesRead < 0 ) {
             std::stringstream message;
             message
                 << "[PythonFileReader] Read call failed (" << nBytesRead << " B read)!\n"
