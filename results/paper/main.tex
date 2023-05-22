@@ -1,0 +1,167 @@
+\documentclass[sigconf,screen,authorversion,pbalance]{acmart}
+
+
+\usepackage{siunitx}
+\sisetup{detect-all=true}
+\sisetup{separate-uncertainty=true}
+
+\usepackage{graphicx}
+
+\usepackage{xspace}
+
+
+\usepackage[nameinlink,noabbrev,capitalise]{cleveref}
+
+
+\newcommand{\CLITOOL}[1]{\texttt{#1}}
+
+\newcommand{\huffcode}{Huffman code\xspace}
+\newcommand{\huffcodes}{Huffman codes\xspace}
+\newcommand{\dynblocks}{Dynamic Blocks\xspace}
+\newcommand{\dynblock}{Dynamic Block\xspace}
+\newcommand{\fixedblocks}{Fixed Blocks\xspace}
+\newcommand{\fixedblock}{Fixed Block\xspace}
+\newcommand{\rawblocks}{Non-Com\-pressed Blocks\xspace}
+\newcommand{\rawblock}{Non-Com\-pressed Block\xspace}
+\newcommand{\deflateblock}{Deflate block\xspace}
+\newcommand{\deflateblocks}{Deflate blocks\xspace}
+\newcommand{\backrefwindow}{window\xspace}
+\newcommand{\backrefwindows}{windows\xspace}
+\newcommand{\blockfinder}{block finder\xspace}
+\newcommand{\chunkfetcher}{\texttt{Chunk\-Fetcher}\xspace}
+\newcommand{\tar}{TAR\xspace}
+\newcommand{\gzip}{\CLITOOL{gzip}\xspace}
+\newcommand{\pugz}{\CLITOOL{pugz}\xspace}
+\newcommand{\pigz}{\CLITOOL{pigz}\xspace}
+\newcommand{\bgzip}{\CLITOOL{bgzip}\xspace}
+\newcommand{\pzstd}{\CLITOOL{pzstd}\xspace}
+\newcommand{\zstandard}{Zstandard\xspace}
+\newcommand{\pragzipname}{our implementation\xspace}
+\newcommand{\deflate}{Deflate\xspace}
+\newcommand{\precode}{Precode\xspace}
+\newcommand{\lzpointer}{pointer\xspace}
+\newcommand{\lzpointers}{pointers\xspace}
+
+
+\newcommand{\pragzip}{\CLITOOL{rapidgzip}\xspace}
+\newcommand{\Pragzip}{Rapidgzip\xspace}
+
+\newcommand{\TODO}[1]{\textcolor{red}{\textbf{ToDo:} #1}}
+
+
+
+
+\copyrightyear{2023}
+\acmYear{2023}
+\setcopyright{acmlicensed}\acmConference[HPDC '23]{Proceedings of the 32nd International Symposium on High-Performance Parallel and Distributed Computing}{June 16--23, 2023}{Orlando, FL, USA}
+\acmBooktitle{Proceedings of the 32nd International Symposium on High-Performance Parallel and Distributed Computing (HPDC '23), June 16--23, 2023, Orlando, FL, USA}
+\acmPrice{15.00}
+\acmDOI{10.1145/3588195.3592992}
+\acmISBN{979-8-4007-0155-9/23/06}
+
+\begin{document}
+
+
+\title{\Pragzip: Parallel Decompression and Seeking in Gzip Files Using Cache Prefetching}
+
+
+\acmSubmissionID{\#65}
+
+\author{Maximilian Knespel}
+\email{maximilian.knespel@tu-dresden.de}
+\orcid{0000-0001-9568-3075}
+\affiliation{%
+  \institution{Technische Universität Dresden}
+  \department{Center for Information Services and High Performance Computing}
+  \city{Dresden}
+  \state{Saxony}
+  \country{Germany}
+}
+
+
+\author{Holger Brunst}
+\email{holger.brunst@tu-dresden.de}
+\orcid{0000-0003-2224-0630}
+\affiliation{%
+  \institution{Technische Universität Dresden}
+  \department{Center for Information Services and High Performance Computing}
+  \city{Dresden}
+  \state{Saxony}
+  \country{Germany}
+}
+
+
+
+\begin{abstract}
+Gzip is a file compression format, which is ubiquitously used.
+Although a multitude of gzip implementations exist, only pugz can fully utilize current multi-core processor architectures for decompression.
+Yet, pugz cannot decompress arbitrary gzip files.
+It requires the decompressed stream to only contain byte values 9--126.
+In this work, we present a generalization of the parallelization scheme used by pugz that can be reliably applied to arbitrary gzip-compressed data without compromising performance.
+We show that the requirements on the file contents posed by pugz can be dropped by implementing an architecture based on a cache and a parallelized prefetcher.
+This architecture can safely handle faulty decompression results, which can appear when threads start decompressing in the middle of a gzip file by using trial and error.
+Using 128 cores, our implementation reaches \SI{8.7}{\giga\byte/\second} decompression bandwidth for gzip-compressed base64-encoded data, a speedup of 55 over the single-threaded GNU gzip, and \SI{5.6}{\giga\byte/\second} for the Silesia corpus, a speedup of \num{33} over GNU gzip.
+\end{abstract}
+
+\begin{CCSXML}
+<ccs2012>
+   <concept>
+       <concept_id>10003752.10003809.10010170.10010171</concept_id>
+       <concept_desc>Theory of computation~Shared memory algorithms</concept_desc>
+       <concept_significance>500</concept_significance>
+       </concept>
+   <concept>
+       <concept_id>10003752.10003809.10010031.10002975</concept_id>
+       <concept_desc>Theory of computation~Data compression</concept_desc>
+       <concept_significance>300</concept_significance>
+       </concept>
+   <concept>
+       <concept_id>10011007.10010940.10011003.10011002</concept_id>
+       <concept_desc>Software and its engineering~Software performance</concept_desc>
+       <concept_significance>500</concept_significance>
+       </concept>
+ </ccs2012>
+\end{CCSXML}
+
+\ccsdesc[500]{Theory of computation~Shared memory algorithms}
+\ccsdesc[300]{Theory of computation~Data compression}
+\ccsdesc[500]{Software and its engineering~Software performance}
+
+
+\keywords{Gzip; Decompression; Parallel Algorithm; Performance; Random Access}
+
+
+\maketitle
+
+
+\section{Introduction}
+\input{sections/1 - Introduction}
+
+\section{Theoretical Background}
+\label{sct:theory}
+\input{sections/3 - Theoretical Background}
+
+\section{Implementation}
+\label{sct:implementation}
+\input{sections/5 - Implementation}
+
+\section{Evaluation}
+\label{sct:evaluation}
+\input{sections/6 - Evaluation}
+
+\section{Related Work}
+\label{sct:related}
+\input{sections/7 - Related Work}
+
+\section{Conclusion}
+\label{sct:discussion}
+\input{sections/9 - Discussion}
+
+\begin{acks}
+The authors are grateful to the Center for Information Services and High Performance Computing [Zentrum für Informationsdienste und Hochleistungsrechnen (ZIH)] at TU Dresden for providing its facilities for high throughput calculations.
+\end{acks}
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{bibliography}
+
+\end{document}
