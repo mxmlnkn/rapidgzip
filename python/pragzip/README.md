@@ -46,8 +46,9 @@ Issues regarding pragzip should be opened [here](https://github.com/mxmlnkn/prag
    2. [Python Library](#python-library)
    3. [Via Ratarmount](#via-ratarmount)
    4. [C++ Library](#c-library)
-4. [Internal Architecture](#internal-architecture)
-5. [Tracing the Decoder](#tracing-the-decoder)
+4. [Citation](#citation)
+5. [Internal Architecture](#internal-architecture)
+6. [Tracing the Decoder](#tracing-the-decoder)
 
 
 # Performance
@@ -298,6 +299,33 @@ The license is also permissive enough for most use cases.
 
 I currently did not yet test integrating it into other projects other than simply manually copying the source in `src/core`, `src/pragzip`, and if integrated zlib is desired also `src/external/zlib`.
 If you have suggestions and wishes like support with CMake or Conan, please open an issue.
+
+
+# Citation
+
+A paper describing the implementation details and showing the scaling behavior with up to 128 cores has been submitted to and [accepted](https://www.hpdc.org/2023/program/technical-sessions/) in [ACM HPDC'23](https://www.hpdc.org/2023/), The 32nd International Symposium on High-Performance Parallel and Distributed Computing. If you use this software for your scientific publication, please cite it as:
+
+This is preliminiary. The final citation will become available end of June 2023.
+
+```bibtex
+@inproceedings{rapidgzip,
+    author    = {Knespel, Maximilian and Brunst, Holger},
+    title     = {Rapidgzip: Parallel Decompression and Seeking in Gzip Files Using Cache Prefetching},
+    year      = {2023},
+    % isbn    = {},  % To be released end of June
+    publisher = {Association for Computing Machinery},
+    address   = {New York, NY, USA},
+    url       = {https://doi.org/10.1145/3588195.3592992},
+    doi       = {10.1145/3588195.3592992},
+    abstract  = {Gzip is a file compression format, which is ubiquitously used. Although a multitude of gzip implementations exist, only pugz can fully utilize current multi-core processor architectures for decompression. Yet, pugz cannot decompress arbitrary gzip files. It requires the decompressed stream to only contain byte values 9–126. In this work, we present a generalization of the parallelization scheme used by pugz that can be reliably applied to arbitrary gzip-compressed data without compromising performance. We show that the requirements on the file contents posed by pugz can be dropped by implementing an architecture based on a cache and a parallelized prefetcher. This architecture can safely handle faulty decompression results, which can appear when threads start decompressing in the middle of a gzip file by using trial and error. Using 128 cores, our implementation reaches 8.7 GB/s decompression bandwidth for gzip-compressed base64-encoded data, a speedup of 55 over the single-threaded GNU gzip, and 5.6 GB/s for the Silesia corpus, a speedup of 33 over GNU gzip.},
+    booktitle = {Proceedings of the 32nd International Symposium on High-Performance Parallel and Distributed Computing},
+    % pages   = {16–29},  % To be released end of June
+    numpages  = {13},
+    keywords  = {Gzip, Decompression, Parallel Algorithm, Performance, Random Access},
+    location  = {Orlando, FL, USA},
+    series    = {HPDC '23},
+}
+```
 
 
 # Internal Architecture
