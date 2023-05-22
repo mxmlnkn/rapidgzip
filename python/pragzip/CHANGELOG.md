@@ -1,4 +1,69 @@
 
+# Version 0.6.0 built on 2023-05-30
+
+## Added
+
+ - Add `--verify` option to turn on CRC32 computation. The overhead is ~6% thanks to parallelizing the CRC32
+   computation and thanks to using the the slice-by-n implementation where n is a template argument and n=16
+   was found to be optimal. It achieves 4.5 GB/s on a single core and parallelizes almost trivially thanks to
+   `crc32_combine`.
+ - Add Open-Source Software attributions listing option with: `--oss-attributions`.
+ - Profile the time spent allocating and copying when using the `--verbose` argument.
+ - Show `SharedFileReader` statistics with `--verbose`.
+ - `pragzip --analyze`:
+   - Print code length histograms for the whole file for all three alphabets.
+   - Print gzip footer information.
+
+## Performance
+
+ - Reduce the maximum memory usage by 50x by limiting the chunk size. This means that for compression ratios
+   larger than 20x, the decompression gets effectively serialized. However, in cases of very large compression ratios,
+   the optimizations below will reach much faster speeds to offset this slowdown.
+   This puts the estimate for the maximum memory usage during decompression using `pragzip` at:
+   - `chunk size * ( prefetch count + resident cache size ) * maximum compression ratio * parallelization`
+   - `= 4 MiB * ( 2 * parallelization + 1 ) * 20 * parallelization`
+   - `≈ 160 MiB * parallelization`
+ - Inflate:
+   - Use `memset` and `memcpy` to resolve backreferences. This speeds up performance for files consisting only
+     of zeros from 360 MB/s -> 1940 MB/s. The performance on the Silesia dataset is: 201 MB/s -> 250 MB/s.
+   - Check for rare output buffer wrap-around once per back-reference. Performance with Silesia: 182 -> 201 MB/s.
+ - Block fetcher:
+   - Avoid waiting for non-existing blocks.
+   - Avoid prefetching the same failed offsets multiple times.
+ - Stop looking for blocks after 512 KiB to avoid slower than single-core performance for BGZF-like files:
+   100 -> 230 MB/s.
+ - Use rpmalloc to increase multi-threaded malloc performance: 2.5 GB/s -> 3.1 GBs.
+   The performance benefits are less noticable for files larger than ~10 GB.
+ - Add `verbose` option to the Python interfaces `open` and `PragzipFile`.
+ - Spawn threads only when needed instead of all at once at startup.
+ - Reduce memory usage by not storing the decompressed result when using only `--count`.
+
+## Fixes
+
+ - Quit on SIGINT (Ctrl+C) while using the CLI via Python with the `--analyze` argument.
+ - Do not throw an EOF exception for an empty gzip-compressed file when decompression in parallel.
+ - Show default chunk size in pragzip CLI help.
+ - Do not open an output file when only `--export-index` but `-d` has not been specified.
+ - Improve error message for non-existing or empty input file.
+ - Fix `tellCompressed` to return the file size instead of 0 at the end of the file.
+ - Profiling output displayed with `--verbose`:
+   - Also count decode time of blocks that do not need marker replacement.
+   - Seek back/forward statistics were wrong when using `pread`.
+   - Fix cache misses metric.
+ - Avoid `std::regex` initialization during `dlopen`.
+
+## API
+
+ - Remove `pragzip/blockfinder/Combined.hpp` and `pragzip/blockfinder/Skipping.hpp`
+ - Move `ZlibDeflateWrapper` into `pragzip/zlib.hpp`.
+ - Move `DecodedDataView` into `pragzip/DecodedDataView.hpp`.
+ - Return smart pointer on `FileReader::clone`.
+ - Add `BlockFinderInterface`, which all block finders derive from and implement.
+ - Add `FileReaderStream`, which is a thin wrapper around a given `FileReader`, including
+   `ParallelGzipReader`, and adapts the `std::istream` interface so that it can be used interchangibly
+   to `std::ifstream` and others in C++ code.
+
+
 # Version 0.5.0 built on 2023-01-29
 
 ## Added
