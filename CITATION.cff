@@ -1,0 +1,73 @@
+# Validate with:
+#   python3 -m pip install --user cffconvert
+#   cffconvert --validate
+
+cff-version: 1.2.0
+title: Pragzip
+message: >-
+  If you use this software, please cite it using the metadata from this file.
+type: software
+
+authors:
+  - given-names: Maximilian
+    family-names: Knespel
+    orcid: "https://orcid.org/0000-0001-9568-3075"
+    email: maximilian.knespel@tu-dresden.de
+
+repository-code: "https://github.com/mxmlnkn/indexed_bzip2"
+repository: "https://github.com/mxmlnkn/pragzip"
+abstract: >-
+  A replacement for gzip for decompressing gzip files using
+  multiple threads.
+keywords:
+  - Gzip
+  - Decompression
+  - Parallel Algorithm
+  - Performance
+  - Random Access
+license: MIT
+
+preferred-citation:
+  type: conference-paper
+  authors:
+  - given-names: Maximilian
+    family-names: Knespel
+    orcid: "https://orcid.org/0000-0001-9568-3075"
+    email: maximilian.knespel@tu-dresden.de
+  - family-names: "Brunst"
+    given-names: "Holger"
+    orcid: "https://orcid.org/0000-0003-2224-0630"
+  title: "Rapidgzip: Parallel Decompression and Seeking in Gzip Files Using Cache Prefetching"
+  year: 2023
+  # isbn:
+  publisher:
+    name: "Association for Computing Machinery"
+    alias: "ACM"
+    city: "New York"
+    region: "NY"
+    country: "US"
+  url: "https://doi.org/10.1145/3588195.3592992"
+  doi: "10.1145/3588195.3592992"
+  abstract: >-
+    Gzip is a file compression format, which is ubiquitously used. Although a multitude of gzip implementations exist, only pugz can fully utilize current multi-core processor architectures for decompression. Yet, pugz cannot decompress arbitrary gzip files. It requires the decompressed stream to only contain byte values 9–126. In this work, we present a generalization of the parallelization scheme used by pugz that can be reliably applied to arbitrary gzip-compressed data without compromising performance. We show that the requirements on the file contents posed by pugz can be dropped by implementing an architecture based on a cache and a parallelized prefetcher. This architecture can safely handle faulty decompression results, which can appear when threads start decompressing in the middle of a gzip file by using trial and error. Using 128 cores, our implementation reaches 8.7 GB/s decompression bandwidth for gzip-compressed base64-encoded data, a speedup of 55 over the single-threaded GNU gzip, and 5.6 GB/s for the Silesia corpus, a speedup of 33 over GNU gzip.
+  collection-title: "Proceedings of the 32nd International Symposium on High-Performance Parallel and Distributed Computing"
+  #start: 1 # First page number
+  #end: 10 # Last page number
+  pages: 13
+  keywords:
+  - Gzip
+  - Decompression
+  - Parallel Algorithm
+  - Performance
+  - Random Access
+  conference:
+    name: "The 32nd International Symposium on High-Performance Parallel and Distributed Computing"
+    alias: "HPDC '23"
+    city: "Orlando"
+    date-start: 2023-06-20
+    date-end: 2023-06-23
+    region: "FL"
+    country: "US"
+    website: "https://www.hpdc.org/2023"
+  # date-published:
+  status: advance-online
