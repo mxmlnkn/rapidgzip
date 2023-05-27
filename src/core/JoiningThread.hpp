@@ -46,9 +46,14 @@ public:
     {}
 
     JoiningThread( JoiningThread&& ) = default;
+
     JoiningThread( const JoiningThread& ) = delete;
-    JoiningThread& operator=( JoiningThread&& ) = delete;
-    JoiningThread& operator=( const JoiningThread& ) = delete;
+
+    JoiningThread&
+    operator=( JoiningThread&& ) = delete;
+
+    JoiningThread&
+    operator=( const JoiningThread& ) = delete;
 
     ~JoiningThread()
     {

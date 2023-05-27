@@ -61,7 +61,8 @@ testSaturatingAddition()
 }
 
 
-int main()
+int
+main()
 {
     testIsBase64();
     testSaturatingAddition();

@@ -82,6 +82,7 @@ fromPyObject<long long int>( PyObject* pythonObject )
     return PyLong_AsLongLong( pythonObject );
 }
 
+
 template<>
 [[nodiscard]] size_t
 fromPyObject<size_t>( PyObject* pythonObject )
@@ -97,6 +98,7 @@ fromPyObject<bool>( PyObject* pythonObject )
 {
     return pythonObject == Py_True;
 }
+
 
 template<>
 [[nodiscard]] PyObject*

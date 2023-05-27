@@ -182,7 +182,6 @@ private:
 
             lock.lock();
             m_blockOffsets.push( blockOffset );
-
         }
 
         m_blockOffsets.finalize();

@@ -43,9 +43,11 @@ public:
     };
 
 public:
-    constexpr AlignedAllocator() noexcept = default;
+    constexpr
+    AlignedAllocator() noexcept = default;
 
-    constexpr AlignedAllocator( const AlignedAllocator& ) noexcept = default;
+    constexpr
+    AlignedAllocator( const AlignedAllocator& ) noexcept = default;
 
     template<typename U>
     constexpr AlignedAllocator( AlignedAllocator<U, ALIGNMENT_IN_BYTES> const& ) noexcept

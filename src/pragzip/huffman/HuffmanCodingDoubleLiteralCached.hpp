@@ -116,7 +116,8 @@ public:
              * which will consume some of the next bits! */
             if ( ( length + this->m_minCodeLength > m_cachedBitCount ) || ( symbol >= 256 ) ) {
                 const auto fillerBitCount = m_cachedBitCount - length;
-                const auto symbolAndLength = static_cast<Symbol>( symbol | ( static_cast<Symbol>( length ) << LENGTH_SHIFT ) );
+                const auto symbolAndLength =
+                    static_cast<Symbol>( symbol | ( static_cast<Symbol>( length ) << LENGTH_SHIFT ) );
 
                 for ( uint32_t fillerBits = 0; fillerBits < ( uint32_t( 1 ) << fillerBitCount ); ++fillerBits ) {
                     const auto paddedCode = static_cast<HuffmanCode>( fillerBits << length ) | reversedCode;
@@ -135,7 +136,8 @@ public:
                     if ( totalLength > m_cachedBitCount ) {
                         assert( length <= m_cachedBitCount );
                         const auto paddedCode =
-                            static_cast<HuffmanCode>( static_cast<HuffmanCode>( reversedCode2 << length ) | reversedCode )
+                            static_cast<HuffmanCode>(
+                                static_cast<HuffmanCode>( reversedCode2 << length ) | reversedCode )
                             & nLowestBitsSet<HuffmanCode>( m_cachedBitCount );
 
                         m_doubleCodeCache[paddedCode * 2] =
@@ -213,7 +215,10 @@ public:
 
                 symbols[symbolSize++] = 0;
                 for ( BitCount k = 0; k <= this->m_maxCodeLength - this->m_minCodeLength; ++k ) {
-                    for ( HuffmanCode subIndex = 0; subIndex < this->m_offsets[k + 1] - this->m_offsets[k]; ++subIndex ) {
+                    for ( HuffmanCode subIndex = 0;
+                          subIndex < this->m_offsets[k + 1] - this->m_offsets[k];
+                          ++subIndex )
+                    {
                         const auto code = static_cast<HuffmanCode>( this->m_minimumCodeValuesPerLevel[k] + subIndex );
                         const auto symbol = this->m_symbolsPerLength[this->m_offsets[k] + subIndex];
                         const auto length = this->m_minCodeLength + k;
@@ -222,7 +227,8 @@ public:
                         const auto reversedCode = reverseBits( code, length );
 
                         assert( ( reversedCode & nLowestBitsSet<decltype( reversedCode )>( length ) ) == reversedCode );
-                        assert( ( mergedCode & nLowestBitsSet<decltype( mergedCode )>( mergedCodeLength ) ) == mergedCode );
+                        assert( ( mergedCode & nLowestBitsSet<decltype( mergedCode )>( mergedCodeLength ) )
+                                == mergedCode );
 
                         /* Add to cache or append further Huffman codes recursively. */
                         const auto newMergedCode = static_cast<HuffmanCode>( ( reversedCode << mergedCodeLength )

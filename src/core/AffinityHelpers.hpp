@@ -12,11 +12,13 @@ pinThreadToLogicalCore( int logicalCoreId )
     /** @todo */
 }
 
+
 [[nodiscard]] inline unsigned int
 availableCores()
 {
     return std::thread::hardware_concurrency();
 }
+
 
 #else
 
@@ -63,7 +65,6 @@ getRequiredBitMaskSize()
 
     return nCpus;
 }
-
 
 
 /**
@@ -119,5 +120,6 @@ availableCores()
     CPU_FREE( pCpuSet );
     return static_cast<unsigned int>( coreCount );
 }
+
 
 #endif

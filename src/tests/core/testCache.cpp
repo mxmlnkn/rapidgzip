@@ -20,7 +20,8 @@ testCacheReinsertion()
 }
 
 
-int main()
+int
+main()
 {
     testCacheReinsertion();
 

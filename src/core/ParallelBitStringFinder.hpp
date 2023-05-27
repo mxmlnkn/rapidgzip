@@ -61,7 +61,8 @@ public:
         this->m_buffer.assign( buffer, buffer + size );
     }
 
-    virtual ~ParallelBitStringFinder() = default;
+    virtual
+    ~ParallelBitStringFinder() = default;
 
     /**
      * @return the next match and the requested bytes or std::numeric_limits<size_t>::max() if at end of file.

@@ -119,7 +119,8 @@ readGzipIndex( UniqueFileReader file )
             }
         };
 
-    const auto loadValue = [&checkedRead] ( auto& destination ) { checkedRead( &destination, sizeof( destination ) ); };
+    const auto loadValue =
+        [&checkedRead] ( auto& destination ) { checkedRead( &destination, sizeof( destination ) ); };
 
     std::vector<char> formatId( 5, 0 );
     checkedRead( formatId.data(), formatId.size() );

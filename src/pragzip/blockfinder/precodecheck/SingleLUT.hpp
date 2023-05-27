@@ -237,6 +237,7 @@ packUniformlyBitPackedHistogramUnsafe( T histogram )
     return packedHistogram >> MEMBER_BIT_WIDTHS.front();
 }
 
+
 static_assert( packUniformlyBitPackedHistogramUnsafe<5>( 0b01111'10001'10101'01001'00101'00011'00001ULL )
                == 0b1111'10001'10101'1001'101'11'1ULL );
 }  // namespace VariableLengthPackedHistogram

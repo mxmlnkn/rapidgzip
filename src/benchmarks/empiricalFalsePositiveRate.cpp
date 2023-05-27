@@ -414,7 +414,7 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>&
 
                     std::cerr << "Failed to handle the following precode correctly:\n";
                     std::cerr << "    bitReader.tell(): " << bitReader.tell() << " out of " << bitReader.size() << "\n";
-                    std::cerr << "    precode code length count: " << codeLengthCount << "\n",
+                    std::cerr << "    precode code length count: " << codeLengthCount << "\n";
                     std::cerr << "    code lengths:";
                     for ( size_t i = 0; i < codeLengthCount; ++i ) {
                         std::cerr << " " << ( ( precodeBits >> ( i * PRECODE_BITS ) ) & 0b111U );
@@ -635,10 +635,10 @@ main( int    argc,
     if ( argc > 1 ) {
         try {
             nBitsToTest = static_cast<size_t>( std::stoll( argv[1] ) );
-        } catch( const std::out_of_range& ) {
+        } catch ( const std::out_of_range& ) {
             std::cerr << "Out of range number of bits to test specified (" << argv[1] << ")!\n";
             std::exit( 1 );
-        } catch( const std::invalid_argument& ) {
+        } catch ( const std::invalid_argument& ) {
             std::cerr << "Invalid number of bits to test specified (" << argv[1] << ")!\n";
             std::exit( 1 );
         }

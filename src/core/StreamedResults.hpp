@@ -129,7 +129,6 @@ public:
         return m_finalized;
     }
 
-
     /** @return a view to the results, which also locks access to it using RAII. */
     [[nodiscard]] ResultsView
     results() const

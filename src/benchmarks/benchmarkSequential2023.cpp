@@ -283,9 +283,14 @@ public:
     }
 
     GzipWrapper( const GzipWrapper& ) = delete;
+
     GzipWrapper( GzipWrapper&& ) = delete;
-    GzipWrapper& operator=( GzipWrapper&& ) = delete;
-    GzipWrapper& operator=( GzipWrapper& ) = delete;
+
+    GzipWrapper&
+    operator=( GzipWrapper&& ) = delete;
+
+    GzipWrapper&
+    operator=( GzipWrapper& ) = delete;
 
     ~GzipWrapper()
     {
@@ -577,9 +582,14 @@ struct TemporaryFile
     }
 
     TemporaryFile( const TemporaryFile& ) = delete;
+
     TemporaryFile( TemporaryFile&& ) = delete;
-    TemporaryFile& operator=( const TemporaryFile& ) = delete;
-    TemporaryFile& operator=( TemporaryFile&& ) = delete;
+
+    TemporaryFile&
+    operator=( const TemporaryFile& ) = delete;
+
+    TemporaryFile&
+    operator=( TemporaryFile&& ) = delete;
 
     const std::string path{ "/dev/shm/pragzip-benchmark-random-file.dat" };
     const size_t size;

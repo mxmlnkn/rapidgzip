@@ -50,7 +50,8 @@ private:
             virtual void
             operator()() = 0;
 
-            virtual ~BaseFunctor() = default;
+            virtual
+            ~BaseFunctor() = default;
         };
 
         template<class T_Functor>

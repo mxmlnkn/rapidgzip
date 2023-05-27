@@ -494,7 +494,6 @@ analyzeValidPrecodes()
     }
 
     /* Test frequency LUT */
-
 }
 
 
@@ -662,7 +661,6 @@ analyzeMaxValidPrecodeFrequencies()
         const auto histogramWith7Count = histogram | ( static_cast<uint64_t>( unusedSymbolCount )
                                                        << ( ( FREQUENCY_COUNT - 1 ) * FREQUENCY_BITS ) );
         alternativeValidHistogramsWithout7Counts.insert( histogramWith7Count );
-
     }
     REQUIRE_EQUAL( validHistograms.size(), alternativeValidHistogramsWithout7Counts.size() );
     REQUIRE( validHistograms == alternativeValidHistogramsWithout7Counts );

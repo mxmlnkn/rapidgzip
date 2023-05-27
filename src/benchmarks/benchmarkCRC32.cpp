@@ -85,6 +85,7 @@ computeCRC32SliceByN( const std::vector<char>& buffer )
     return ~pragzip::updateCRC32<SLICE_SIZE>( ~uint32_t( 0 ), buffer.data(), buffer.size() );
 }
 
+
 #ifdef __SSE4_2__
 [[nodiscard]] uint32_t
 crc32SSE4( uint32_t    crc,

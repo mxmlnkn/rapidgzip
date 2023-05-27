@@ -570,7 +570,6 @@ protected:
         return m_threadPool.submit( std::move( task ), /* priority */ -1 );
     }
 
-
     [[nodiscard]] const auto&
     cache() const noexcept
     {

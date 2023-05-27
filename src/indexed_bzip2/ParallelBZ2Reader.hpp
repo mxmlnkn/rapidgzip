@@ -394,14 +394,12 @@ public:
     [[nodiscard]] size_t
     tellCompressed() const override
     {
-
         const auto blockInfo = m_blockMap->findDataOffset( m_currentPosition );
         if ( blockInfo.contains( m_currentPosition ) ) {
             return blockInfo.encodedOffsetInBits;
         }
         return 0;
     }
-
 
     /**
      * Closes all threads and saves the work. They will be restarted when needed again, e.g., on seek or read.
@@ -443,7 +441,6 @@ private:
         return *m_blockFinder;
     }
 
-
     BlockFetcher&
     blockFetcher()
     {
@@ -464,7 +461,6 @@ private:
 
         return *m_blockFetcher;
     }
-
 
     void
     setBlockFinderOffsets( const std::map<size_t, size_t>& offsets )

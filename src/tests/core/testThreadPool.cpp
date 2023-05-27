@@ -46,7 +46,8 @@ testThreadPool( unsigned int nThreads,
 }
 
 
-int main()
+int
+main()
 {
     testThreadPool( 1, 1 );
     testThreadPool( 1, 2 );

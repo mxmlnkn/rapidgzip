@@ -43,6 +43,7 @@ createCRC32LookupTable( bool littleEndian = false )
     return table;
 }
 
+
 /* a small lookup table: raw data -> CRC32 value to speed up CRC calculation */
 static const std::array<uint32_t, CRC32_LOOKUP_TABLE_SIZE> CRC32_TABLE = createCRC32LookupTable();
 
@@ -117,11 +118,13 @@ public:
     /** Better don't allow copies because the bitreader would be shared, which might be problematic */
     Block( const Block& ) = delete;
 
-    Block& operator=( const Block& ) = delete;
+    Block&
+    operator=( const Block& ) = delete;
 
     Block( Block&& ) = default;
 
-    Block& operator=( Block&& ) = default;
+    Block&
+    operator=( Block&& ) = default;
 
     explicit
     Block( BitReader& bitReader ) :

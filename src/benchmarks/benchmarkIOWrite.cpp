@@ -438,7 +438,7 @@ mmapFile( const std::string& filePath,
     }
 
     unique_file_descriptor ufd( fd );
-    if( ::ftruncate( fd, size ) == -1 ) {
+    if ( ::ftruncate( fd, size ) == -1 ) {
         std::cerr << "Encountered error while truncating file: " << std::strerror( errno )
                   << " (" << errno << ")\n";
         return {};
@@ -654,6 +654,7 @@ benchmarkPwriteParallel( const std::string&       filePath,
     ufd.close();
     return duration( t0 );
 }
+
 
 void
 benchmarkPwriteParallel( const std::string&       filePath,

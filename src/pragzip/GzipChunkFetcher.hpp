@@ -41,6 +41,7 @@ public:
     {}
 };
 
+
 class NoBlockInRange :
     public DecompressionError
 {
@@ -322,7 +323,7 @@ private:
             const auto chunkData = cacheElements.at( triedStartOffset );
 
             /* Ignore ready blocks. */
-            if ( !chunkData->containsMarkers() )  {
+            if ( !chunkData->containsMarkers() ) {
                 continue;
             }
 

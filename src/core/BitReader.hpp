@@ -91,8 +91,12 @@ public:
     {}
 
     BitReader( BitReader&& other ) = default;
-    BitReader& operator=( BitReader&& other ) = default;
-    BitReader& operator=( const BitReader& other ) = delete;
+
+    BitReader&
+    operator=( BitReader&& other ) = default;
+
+    BitReader&
+    operator=( const BitReader& other ) = delete;
 
     BitReader( const BitReader& other ) :
         m_file( other.m_file ? other.m_file->clone() : UniqueFileReader() ),
@@ -578,7 +582,8 @@ private:
                 m_originalBitBufferSize( originalBitBufferSize )
             {}
 
-            ~ShiftBackOnReturn() noexcept {
+            ~ShiftBackOnReturn() noexcept
+            {
                 /* Move LSB bits (which are filled left-to-right) to the left if so necessary
                  * so that the format is the same as for MSB bits! */
                 if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {

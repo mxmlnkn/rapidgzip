@@ -36,6 +36,7 @@ createCRC32LookupTable() noexcept
     return table;
 }
 
+
 static constexpr int CRC32_LOOKUP_TABLE_SIZE = 256;
 
 /* a small lookup table: raw data -> CRC32 value to speed up CRC calculation */

@@ -140,7 +140,8 @@ testHuffmanCoding( bool testOneSymbolCoding = true )
 }
 
 
-int main()
+int
+main()
 {
     static constexpr auto MAX_CODE_LENGTH = 15;
     static constexpr auto MAX_SYMBOL_COUNT = 512;

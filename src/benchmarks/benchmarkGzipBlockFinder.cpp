@@ -195,7 +195,7 @@ parseWithZlib( const std::string& fileName )
     /* inflate the input, maintain a sliding window, and build an index -- this
        also validates the integrity of the compressed data using the check
        information at the end of the gzip or zlib stream */
-    while( true )
+    while ( true )
     {
         /* get some compressed data from input file */
         stream.avail_in = std::fread( input.data(), 1, input.size(), file.get() );
@@ -328,9 +328,14 @@ public:
     }
 
     GzipWrapper( const GzipWrapper& ) = delete;
+
     GzipWrapper( GzipWrapper&& ) = delete;
-    GzipWrapper& operator=( GzipWrapper&& ) = delete;
-    GzipWrapper& operator=( GzipWrapper& ) = delete;
+
+    GzipWrapper&
+    operator=( GzipWrapper&& ) = delete;
+
+    GzipWrapper&
+    operator=( GzipWrapper& ) = delete;
 
     ~GzipWrapper()
     {
@@ -904,7 +909,6 @@ checkDeflateBlock( const uint64_t      bitBufferForLUT,
         /* Using this theoretically derivable position avoids a possibly costly call to tell()
          * to save the old offset. */
         bitReader.seek( static_cast<long long int>( bitReaderOffset ) );
-
     } else {
         /* Get code lengths (CL) for alphabet P. */
         std::array<uint8_t, MAX_PRECODE_COUNT> codeLengthCL{};
@@ -1019,7 +1023,8 @@ checkAndGetValidHistogramID( const uint64_t precodeBits )
         const auto elementIndex = ( histogramToLookUp >> INDEX_BITS )
                                   & nLowestBitsSet<Histogram>( HISTOGRAM_TO_LOOK_UP_BITS - INDEX_BITS );
         const auto subIndex = histogramLUT[elementIndex];
-        const auto validIndex = ( subIndex << INDEX_BITS ) + ( histogramToLookUp & nLowestBitsSet<uint64_t>( INDEX_BITS ) );
+        const auto validIndex = ( subIndex << INDEX_BITS )
+                                + ( histogramToLookUp & nLowestBitsSet<uint64_t>( INDEX_BITS ) );
         if ( LIKELY( ( validLUT[validIndex] ) == 0 ) ) [[unlikely]] {
             /* This also handles the case of all being zero, which in the other version returns EMPTY_ALPHABET!
              * Some might also not be bloating but simply invalid, we cannot differentiate that but it can be
@@ -1292,11 +1297,11 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
               << "    Total number of test locations (including those skipped with the jump LUT): " << nBitsToTest
               << "\n"
               << "    Invalid Precode  HC: " << block.failedPrecodeInit  << " ("
-              << static_cast<double>( block.failedPrecodeInit  ) / static_cast<double>( nBitsToTest ) * 100 << " %)\n"
+              << static_cast<double>( block.failedPrecodeInit ) / static_cast<double>( nBitsToTest ) * 100 << " %)\n"
               << "    Invalid Distance HC: " << block.failedDistanceInit << " ("
               << static_cast<double>( block.failedDistanceInit ) / static_cast<double>( nBitsToTest ) * 100 << " %)\n"
               << "    Invalid Symbol   HC: " << block.failedLiteralInit   << " ("
-              << static_cast<double>( block.failedLiteralInit  ) / static_cast<double>( nBitsToTest ) * 100 << " %)\n"
+              << static_cast<double>( block.failedLiteralInit ) / static_cast<double>( nBitsToTest ) * 100 << " %)\n"
               << "    Failed checkPrecode calls: " << checkPrecodeFails << "\n\n";
 
     std::cerr << "Cumulative time spent during tests with deflate::block::readDynamicHuffmanCoding:\n"
@@ -1762,8 +1767,7 @@ benchmarkGzip( const std::string& fileName )
             [&buffer] () { return findUncompressedDeflateBlocks( buffer ); } );
 
         std::cout << "[findUncompressedDeflateBlocks] " << formatBandwidth( durations, buffer.size() ) << "\n";
-        std::cout << "    Block candidates (" << blockCandidates.size() << "): "
-                  << blockCandidates << "\n\n";
+        std::cout << "    Block candidates (" << blockCandidates.size() << "): " << blockCandidates << "\n\n";
     }
 
     {
@@ -1771,7 +1775,8 @@ benchmarkGzip( const std::string& fileName )
         const auto [blockCandidates, durations] = benchmarkFunction<10>(
             [&buffer] () { return findUncompressedDeflateBlocksNestedBranches( buffer ); } );
 
-        std::cout << "[findUncompressedDeflateBlocksNestedBranches] " << formatBandwidth( durations, buffer.size() ) << "\n";
+        std::cout << "[findUncompressedDeflateBlocksNestedBranches] "
+                  << formatBandwidth( durations, buffer.size() ) << "\n";
         std::cout << "    Block candidates (" << blockCandidates.size() << "): "
                   << blockCandidates << "\n\n";
     }
@@ -1915,7 +1920,8 @@ benchmarkGzip( const std::string& fileName )
                 << blockCandidatesLUT2P.size() << "): " << blockCandidatesLUT2P;
             throw std::logic_error( std::move( msg ).str() );
         }
-        std::cout << "[findDeflateBlocksPragzipLUTTwoPass] " << formatBandwidth( durationsLUT2P, buffer.size() ) << "\n";
+        std::cout << "[findDeflateBlocksPragzipLUTTwoPass] "
+                  << formatBandwidth( durationsLUT2P, buffer.size() ) << "\n";
     }
 
     if ( isBgzfFile ) {

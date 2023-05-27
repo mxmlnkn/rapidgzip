@@ -146,8 +146,11 @@ struct unique_file_descriptor
     }
 
     unique_file_descriptor() = default;
+
     unique_file_descriptor( const unique_file_descriptor& ) = delete;
-    unique_file_descriptor& operator=( const unique_file_descriptor& ) = delete;
+
+    unique_file_descriptor&
+    operator=( const unique_file_descriptor& ) = delete;
 
     unique_file_descriptor( unique_file_descriptor&& other ) noexcept :
         m_fd( other.m_fd )
@@ -202,6 +205,7 @@ make_unique_file_ptr( std::FILE* file )
                             } );
 }
 
+
 inline unique_file_ptr
 make_unique_file_ptr( char const* const filePath,
                       char const* const mode )
@@ -209,13 +213,13 @@ make_unique_file_ptr( char const* const filePath,
     return make_unique_file_ptr( std::fopen( filePath, mode ) );
 }
 
+
 inline unique_file_ptr
 make_unique_file_ptr( int         fileDescriptor,
                       char const* mode )
 {
     return make_unique_file_ptr( fdopen( fileDescriptor, mode ) );
 }
-
 
 
 inline unique_file_ptr
@@ -397,7 +401,8 @@ writeAllSpliceUnsafe( [[maybe_unused]] const int                   outputFileDes
         }
 
         /* Skip over buffers that were written fully. */
-        for ( ; ( i < dataToWrite.size() ) && ( dataToWrite[i].iov_len <= static_cast<size_t>( nBytesWritten ) ); ++i ) {
+        for ( ; ( i < dataToWrite.size() ) && ( dataToWrite[i].iov_len <= static_cast<size_t>( nBytesWritten ) );
+              ++i ) {
             nBytesWritten -= dataToWrite[i].iov_len;
         }
 
@@ -489,7 +494,6 @@ public:
         account( splicedData, dataToWriteSize );
         return true;
     }
-
 
 private:
     template<typename T>
@@ -620,7 +624,8 @@ writeAllToFdVector( const int                   outputFileDescriptor,
         }
 
         /* Skip over buffers that were written fully. */
-        for ( ; ( i < dataToWrite.size() ) && ( dataToWrite[i].iov_len <= static_cast<size_t>( nBytesWritten ) ); ++i ) {
+        for ( ; ( i < dataToWrite.size() ) && ( dataToWrite[i].iov_len <= static_cast<size_t>( nBytesWritten ) );
+              ++i ) {
             nBytesWritten -= dataToWrite[i].iov_len;
         }
 
@@ -658,7 +663,8 @@ pwriteAllToFdVector( const int                   outputFileDescriptor,
         fileOffset += nBytesWritten;
 
         /* Skip over buffers that were written fully. */
-        for ( ; ( i < dataToWrite.size() ) && ( dataToWrite[i].iov_len <= static_cast<size_t>( nBytesWritten ) ); ++i ) {
+        for ( ; ( i < dataToWrite.size() ) && ( dataToWrite[i].iov_len <= static_cast<size_t>( nBytesWritten ) );
+              ++i ) {
             nBytesWritten -= dataToWrite[i].iov_len;
         }
 

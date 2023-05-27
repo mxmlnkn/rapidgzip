@@ -27,6 +27,7 @@ byteSwap( uint64_t value )
     return value;
 }
 
+
 [[nodiscard]] constexpr uint32_t
 byteSwap( uint32_t value )
 {
@@ -34,6 +35,7 @@ byteSwap( uint32_t value )
     value = ( ( value & uint32_t( 0x00FF'00FFUL ) ) << 8U  ) | ( ( value & uint32_t( 0xFF00'FF00UL ) ) >> 8U  );
     return value;
 }
+
 
 [[nodiscard]] constexpr uint16_t
 byteSwap( uint16_t value )
@@ -260,6 +262,7 @@ requiredBits( const uint64_t stateCount )
     }
     return result;
 }
+
 
 static_assert( requiredBits( 0 ) == 0 );
 static_assert( requiredBits( 1 ) == 1 );

@@ -331,7 +331,6 @@ readDistanceAndLiteralCodeLengths( LiteralAndDistanceCLBuffer&              lite
 
     return i == literalCLSize ? Error::NONE : Error::EXCEEDED_LITERAL_RANGE;
 }
-
 }
 
 
@@ -749,7 +748,6 @@ Block<ENABLE_STATISTICS>::readHeader( BitReader& bitReader )
 
     return error;
 }
-
 
 
 template<bool ENABLE_STATISTICS>
@@ -1266,7 +1264,6 @@ Block<ENABLE_STATISTICS>::readInternalCompressed( BitReader&           bitReader
     m_decodedBytes += nBytesRead;
     return { nBytesRead, Error::NONE };
 }
-
 
 
 template<bool ENABLE_STATISTICS>

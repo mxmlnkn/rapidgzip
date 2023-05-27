@@ -591,7 +591,6 @@ testPrefetchingAfterSplit()
 
     reader2.read( -1, nullptr, std::numeric_limits<size_t>::max() );
     REQUIRE_EQUAL( reader2.statistics().onDemandFetchCount, 1U );
-
 }
 
 

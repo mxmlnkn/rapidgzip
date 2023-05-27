@@ -20,15 +20,20 @@ class FileReader
 public:
     FileReader() = default;
 
-    virtual ~FileReader() = default;
+    virtual
+    ~FileReader() = default;
 
     /* Delete copy constructors and assignments to avoid slicing. */
 
     FileReader( const FileReader& ) = delete;
+
     FileReader( FileReader&& ) = delete;
 
-    FileReader& operator=( const FileReader& ) = delete;
-    FileReader& operator=( FileReader&& ) = delete;
+    FileReader&
+    operator=( const FileReader& ) = delete;
+
+    FileReader&
+    operator=( FileReader&& ) = delete;
 
     [[nodiscard]] virtual UniqueFileReader
     clone() const = 0;

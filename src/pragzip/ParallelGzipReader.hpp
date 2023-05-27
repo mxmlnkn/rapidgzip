@@ -700,7 +700,6 @@ public:
         return m_blockMap->back().first;
     }
 
-
     /**
      * Closes all threads and saves the work. They will be restarted when needed again, e.g., on seek or read.
      * This is intended for use with fusepy. You can start a ParallelGzipReader use it to create the block map
@@ -740,7 +739,6 @@ private:
 
         return *m_blockFinder;
     }
-
 
     ChunkFetcher&
     chunkFetcher()

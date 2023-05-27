@@ -52,7 +52,6 @@ testUniqueFilePointer( const std::string& tmpFileName,
         REQUIRE( nBytesRead == tmpFileContents.size() );
         REQUIRE( std::equal( tmpFileContents.begin(), tmpFileContents.end(), readData.begin() ) );
     }
-
 }
 
 
@@ -119,7 +118,8 @@ testFileReader( const std::string& tmpFileContents,
 }
 
 
-int main()
+int
+main()
 {
     const std::string tmpFileName = "testFileReader-test-file.tmp";
     const auto tmpFileContents = fillFile( tmpFileName );
