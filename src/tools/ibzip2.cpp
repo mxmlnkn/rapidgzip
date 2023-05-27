@@ -292,7 +292,7 @@ ibzip2CLI( int argc, char** argv )
         return 1;
     }
 
-    std::string inputFilePath; /* Can be empty. Then, read from STDIN. */
+    std::string inputFilePath;  /* Can be empty. Then, read from STDIN. */
     if ( parsedArgs.count( "input" ) == 1 ) {
         inputFilePath = parsedArgs["input"].as<std::string>();
     }

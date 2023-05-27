@@ -778,16 +778,16 @@ checkPrecode( const uint64_t next4Bits,
     }
 
     if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT ) {
-         /*
-         * @verbatim
-         * [13 bits] ( 48.9 <= 49.9 +- 0.6 <= 50.9 ) MB/s
-         * [14 bits] ( 49.8 <= 51.2 +- 0.7 <= 52.1 ) MB/s
-         * [15 bits] ( 48.5 <= 50.2 +- 0.8 <= 51 ) MB/s
-         * [16 bits] ( 46.6 <= 49.4 +- 1.1 <= 50.6 ) MB/s
-         * [17 bits] ( 49.7 <= 50.7 +- 0.4 <= 51.1 ) MB/s
-         * [18 bits] ( 47.2 <= 47.9 +- 0.4 <= 48.3 ) MB/s
-         * @endverbatim
-         */
+        /*
+        * @verbatim
+        * [13 bits] ( 48.9 <= 49.9 +- 0.6 <= 50.9 ) MB/s
+        * [14 bits] ( 49.8 <= 51.2 +- 0.7 <= 52.1 ) MB/s
+        * [15 bits] ( 48.5 <= 50.2 +- 0.8 <= 51 ) MB/s
+        * [16 bits] ( 46.6 <= 49.4 +- 1.1 <= 50.6 ) MB/s
+        * [17 bits] ( 49.7 <= 50.7 +- 0.4 <= 51.1 ) MB/s
+        * [18 bits] ( 47.2 <= 47.9 +- 0.4 <= 48.3 ) MB/s
+        * @endverbatim
+        */
         return WalkTreeCompressedLUT::checkPrecode( next4Bits, next57Bits );
     }
 

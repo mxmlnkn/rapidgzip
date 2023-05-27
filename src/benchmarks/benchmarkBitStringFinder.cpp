@@ -30,7 +30,7 @@
 
 namespace
 {
-constexpr uint64_t bitStringToFind = 0x314159265359; /* bcd(pi) */
+constexpr uint64_t bitStringToFind = 0x314159265359;  /* bcd(pi) */
 //constexpr uint64_t bitStringToFind = 0x177245385090ULL; /* bcd(sqrt(pi)) */
 constexpr uint8_t bitStringToFindSize = 48;
 }
@@ -77,7 +77,7 @@ findBitString( const char* buffer,
         bytes = ( bytes << 8U ) | static_cast<uint8_t>( buffer[i] );
     }
 
-    assert( bitStringSize == 48 ); /* this allows us to fixedly load always two bytes (16 bits) */
+    assert( bitStringSize == 48 );  /* this allows us to fixedly load always two bytes (16 bits) */
     for ( size_t i = 0; i < bufferSize; ++i ) {
         bytes = ( bytes << 8U ) | static_cast<uint8_t>( buffer[i] );
         if ( ++i >= bufferSize ) {
@@ -374,7 +374,7 @@ findBitStringBitStringTemplated( const uint8_t* buffer,
                                  size_t         bufferSize,
                                  uint8_t        firstBitsToIgnore = 0 )
 {
-    const auto shiftedBitStrings = createdShiftedBitStringLUTArrayTemplated<bitString, bitStringSize>(); // 1.85s
+    const auto shiftedBitStrings = createdShiftedBitStringLUTArrayTemplated<bitString, bitStringSize>();  // 1.85s
     //constexpr auto shiftedBitStrings = createdShiftedBitStringLUTArrayTemplatedConstexpr<bitString, bitStringSize>(); // 2.65s
 
     /* Simply load bytewise even if we could load more (uneven) bits by rounding down.

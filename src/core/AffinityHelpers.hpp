@@ -55,7 +55,7 @@ getRequiredBitMaskSize()
         if ( ( result != 0 ) && ( errno != EINVAL ) ) {
             std::stringstream msg;
             msg << "An unexpected error occured on schet_getaffinity: " << result << " with errno " << errno
-            << " (" << strerror( errno ) << ")";
+                << " (" << strerror( errno ) << ")";
             throw std::runtime_error( std::move( msg ).str() );
         }
         einvalError = ( result != 0 ) && ( errno == EINVAL );
@@ -90,9 +90,9 @@ pinThreadToLogicalCore( int logicalCoreId )
     if ( result != 0 ) {
         std::stringstream msg;
         msg << "When trying to pin current thread running on logical core "
-        << sched_getcpu() << " to " << logicalCoreId << ", sched_setaffinity returned " << result
-        << " and errno " << errno << " (" << std::strerror( errno ) << "). "
-        << "A bitmask sized " << nCpusForSufficientMask << " was allocated.";
+            << sched_getcpu() << " to " << logicalCoreId << ", sched_setaffinity returned " << result
+            << " and errno " << errno << " (" << std::strerror( errno ) << "). "
+            << "A bitmask sized " << nCpusForSufficientMask << " was allocated.";
         throw std::runtime_error( std::move( msg ).str() );
     }
 }
@@ -110,8 +110,8 @@ availableCores()
     if ( result != 0 ) {
         std::stringstream msg;
         msg << "Failed to get affinity, sched_getaffinity returned " << result
-        << " and errno " << errno << " (" << std::strerror( errno ) << "). "
-        << "A bitmask sized " << nCpusForSufficientMask << " was allocated.";
+            << " and errno " << errno << " (" << std::strerror( errno ) << "). "
+            << "A bitmask sized " << nCpusForSufficientMask << " was allocated.";
         throw std::runtime_error( std::move( msg ).str() );
     }
 

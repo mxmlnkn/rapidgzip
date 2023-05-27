@@ -161,21 +161,22 @@ findNonCompressedFalsePositives()
     constexpr size_t nRepetitions = 12;
     constexpr auto testDataSize = 1_Gi;
 
-    const auto countFalsePositives = [] () {
-        const auto randomData = createRandomData<char>( testDataSize );
-        pragzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( randomData ) );
-        const auto bitReaderSize = bitReader.size();
+    const auto countFalsePositives =
+        [] () {
+            const auto randomData = createRandomData<char>( testDataSize );
+            pragzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( randomData ) );
+            const auto bitReaderSize = bitReader.size();
 
-        size_t matches{ 0 };
-        for ( size_t offset = 0; offset < bitReaderSize;
-              offset = pragzip::blockfinder::seekToNonFinalUncompressedDeflateBlock( bitReader ).second )
-        {
-            ++matches;
-            bitReader.seek( static_cast<long long int>( offset ) + 1 );
-        }
+            size_t matches{ 0 };
+            for ( size_t offset = 0; offset < bitReaderSize;
+                  offset = pragzip::blockfinder::seekToNonFinalUncompressedDeflateBlock( bitReader ).second )
+            {
+                ++matches;
+                bitReader.seek( static_cast<long long int>( offset ) + 1 );
+            }
 
-        return matches;
-    };
+            return matches;
+        };
 
     ThreadPool threadPool;
     std::vector<std::future<size_t> > tasks;
@@ -412,7 +413,7 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>&
                     const auto precodeBits = next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS );
 
                     std::cerr << "Failed to handle the following precode correctly:\n";
-                    std::cerr << "    bitReader.tell(): " << bitReader.tell() << " out of " << bitReader.size() << "\n",
+                    std::cerr << "    bitReader.tell(): " << bitReader.tell() << " out of " << bitReader.size() << "\n";
                     std::cerr << "    precode code length count: " << codeLengthCount << "\n",
                     std::cerr << "    code lengths:";
                     for ( size_t i = 0; i < codeLengthCount; ++i ) {
@@ -521,9 +522,12 @@ findDynamicFalsePositives( const size_t nBitsToTest )
     tasks.reserve( nThreads );
 
     for ( int i = 0; i < nThreads; ++i ) {
-        tasks.emplace_back( threadPool.submit( [nBitsToTest] () {
-            return std::make_unique<AnalyzeDynamicBlockFalsePositives>( nBitsToTest );
-        } ) );
+        tasks.emplace_back(
+            threadPool.submit(
+                [nBitsToTest] ()
+                {
+                    return std::make_unique<AnalyzeDynamicBlockFalsePositives>( nBitsToTest );
+                } ) );
     }
 
     struct {
@@ -595,29 +599,29 @@ findDynamicFalsePositives( const size_t nBitsToTest )
     }
 
     std::cout
-       << "Filtering cascade:\n"
-       << "+-> Total number of test locations: " << nBitsToTest
-       << "\n"
-       << "    Filtered by final block bit: " << stats.filteredByFinalBlock.toString() << "\n"
-       << "    Filtered by compression type: " << stats.filteredByCompressionType.toString() << "\n"
-       << "    Filtered by literal code length count: " << stats.filteredByLiteralCount.toString() << "\n"
-       << "    +-> Remaining locations to test: " << stats.passedDeflateHeaderTest.toString()
-       << " (filtered: " << stats.filteredByDeflateHeaderTest.toString() << ")\n"
-       << "        Filtered by invalid precode: " << stats.filteredByInvalidPrecode.toString() << "\n"
-       << "        Filtered by non-optimal precode: " << stats.filteredByBloatingPrecode.toString() << "\n"
-       << "        +-> Remaining locations to test: " << stats.passedPrecodeCheck.toString()
-       << " (filtered: " << stats.checkPrecodeFails.toString() << ")\n"
-       << "            Failing precode usage: " << stats.filteredByPrecodeApply.toString() << "\n"
-       << "            Invalid Distance Huffman Coding: " << stats.filteredByInvalidDistanceCoding.toString() << "\n"
-       << "            Non-Optimal Distance Huffman Coding: "
-       << stats.filteredByBloatingDistanceCoding.toString() << "\n"
-       << "            +-> Remaining locations to test: " << stats.passedDistanceInitCheck.toString() << "\n"
-       << "                Invalid Literal Huffman Coding: " << stats.filteredByInvalidLiteralCoding.toString() << "\n"
-       << "                Non-Optimal Literal Huffman Coding: "
-       << stats.filteredByBloatingLiteralCoding.toString() << "\n"
-       << "                +-> Remaining locations to test: " << stats.passedReadHeader.toString() << "\n"
-       << "                    Location candidates: " << stats.foundOffsets.formatAverageWithUncertainty( false, 2 )
-       << "\n\n";
+        << "Filtering cascade:\n"
+        << "+-> Total number of test locations: " << nBitsToTest
+        << "\n"
+        << "    Filtered by final block bit: " << stats.filteredByFinalBlock.toString() << "\n"
+        << "    Filtered by compression type: " << stats.filteredByCompressionType.toString() << "\n"
+        << "    Filtered by literal code length count: " << stats.filteredByLiteralCount.toString() << "\n"
+        << "    +-> Remaining locations to test: " << stats.passedDeflateHeaderTest.toString()
+        << " (filtered: " << stats.filteredByDeflateHeaderTest.toString() << ")\n"
+        << "        Filtered by invalid precode: " << stats.filteredByInvalidPrecode.toString() << "\n"
+        << "        Filtered by non-optimal precode: " << stats.filteredByBloatingPrecode.toString() << "\n"
+        << "        +-> Remaining locations to test: " << stats.passedPrecodeCheck.toString()
+        << " (filtered: " << stats.checkPrecodeFails.toString() << ")\n"
+        << "            Failing precode usage: " << stats.filteredByPrecodeApply.toString() << "\n"
+        << "            Invalid Distance Huffman Coding: " << stats.filteredByInvalidDistanceCoding.toString() << "\n"
+        << "            Non-Optimal Distance Huffman Coding: "
+        << stats.filteredByBloatingDistanceCoding.toString() << "\n"
+        << "            +-> Remaining locations to test: " << stats.passedDistanceInitCheck.toString() << "\n"
+        << "                Invalid Literal Huffman Coding: " << stats.filteredByInvalidLiteralCoding.toString() << "\n"
+        << "                Non-Optimal Literal Huffman Coding: "
+        << stats.filteredByBloatingLiteralCoding.toString() << "\n"
+        << "                +-> Remaining locations to test: " << stats.passedReadHeader.toString() << "\n"
+        << "                    Location candidates: " << stats.foundOffsets.formatAverageWithUncertainty( false, 2 )
+        << "\n\n";
 }
 
 

@@ -29,6 +29,7 @@ public:
     using value_type = ElementType;
     static std::align_val_t constexpr ALIGNMENT{ ALIGNMENT_IN_BYTES };
 
+
     /**
      * This is only necessary because AlignedAllocator has a second template
      * argument for the alignment that will make the default

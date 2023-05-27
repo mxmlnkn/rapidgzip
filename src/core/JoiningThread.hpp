@@ -37,9 +37,9 @@ public:
     JoiningThread( Function&& function, Args&&... args ) :
 #ifdef WITH_RPMALLOC
         m_thread( [=] () {
-            static const thread_local RpmallocThreadInit rpmallocThreadInit{};
-            function( std::forward<Args>( args )... );
-        } )
+                      static const thread_local RpmallocThreadInit rpmallocThreadInit{};
+                      function( std::forward<Args>( args )... );
+                  } )
 #else
         m_thread( std::forward<Function>( function ), std::forward<Args>( args )... )
 #endif

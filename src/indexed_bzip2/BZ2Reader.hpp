@@ -283,10 +283,10 @@ protected:
     BitReader m_bitReader;
 
     uint8_t m_blockSize100k = 0;
-    uint32_t m_streamCRC = 0; /** CRC of stream as last block says */
+    uint32_t m_streamCRC = 0;  /** CRC of stream as last block says */
     uint32_t m_calculatedStreamCRC = 0;
     bool m_blockToDataOffsetsComplete = false;
-    size_t m_currentPosition = 0; /** the current position as can only be modified with read or seek calls. */
+    size_t m_currentPosition = 0;  /** the current position as can only be modified with read or seek calls. */
     bool m_atEndOfFile = false;
 
     std::map<size_t, size_t> m_blockToDataOffsets;
@@ -345,7 +345,7 @@ BZ2Reader::seek( long long int offset,
     offset = std::max<decltype( offset )>( 0, offset );
     m_currentPosition = static_cast<size_t>( offset );
 
-    flushOutputBuffer(); // ensure that no old data is left over
+    flushOutputBuffer();  // ensure that no old data is left over
 
     m_atEndOfFile = static_cast<size_t>( offset ) >= size();
     if ( m_atEndOfFile ) {

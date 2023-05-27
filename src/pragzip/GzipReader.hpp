@@ -297,7 +297,7 @@ private:
      */
     size_t
     flushOutputBuffer( const WriteFunctor& writeFunctor,
-                       size_t              maxBytesToFlush  );
+                       size_t              maxBytesToFlush );
 
     void
     readBlockHeader()
@@ -359,7 +359,7 @@ private:
 private:
     pragzip::BitReader m_bitReader;
 
-    size_t m_currentPosition{ 0 }; /** the current position as can only be modified with read or seek calls. */
+    size_t m_currentPosition{ 0 };  /** the current position as can only be modified with read or seek calls. */
     bool m_atEndOfFile{ false };
 
     pragzip::gzip::Header m_lastGzipHeader;

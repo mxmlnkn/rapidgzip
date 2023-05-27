@@ -241,5 +241,5 @@ readFooter( BitReader& bitReader )
     footer.uncompressedSize = static_cast<uint32_t>( bitReader.read<32>() );
     return footer;
 }
-} // namespace gzip
-} // namespace pragzip
+}  // namespace gzip
+}  // namespace pragzip

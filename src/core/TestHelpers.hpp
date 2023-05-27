@@ -43,8 +43,8 @@ require( bool               condition,
 }
 
 
-#define REQUIRE_EQUAL( a, b ) requireEqual( a, b, __LINE__ ) // NOLINT
-#define REQUIRE( condition ) require( condition, #condition, __LINE__ ) // NOLINT
+#define REQUIRE_EQUAL( a, b ) requireEqual( a, b, __LINE__ )  // NOLINT
+#define REQUIRE( condition ) require( condition, #condition, __LINE__ )  // NOLINT
 
 
 template<

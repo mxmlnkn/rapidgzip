@@ -17,7 +17,7 @@
 struct BlockHeaderData
 {
     size_t encodedOffsetInBits{ std::numeric_limits<size_t>::max() };
-    size_t encodedSizeInBits{ 0 }; /**< When calling readBlockheader, only contains valid data if EOS block. */
+    size_t encodedSizeInBits{ 0 };  /**< When calling readBlockheader, only contains valid data if EOS block. */
 
     uint32_t expectedCRC{ 0 };  /**< if isEndOfStreamBlock == true, then this is the stream CRC. */
     bool isEndOfStreamBlock{ false };

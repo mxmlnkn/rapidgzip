@@ -57,7 +57,7 @@
         return ( fileMode & S_IFMT ) == fileType;
     }
 
-    #define S_ISFIFO(m) testFileType( m, S_IFIFO )
+    #define S_ISFIFO( m ) testFileType( m, S_IFIFO )
 
     #define CONSTEXPR_EXCEPT_MSVC
 #else
@@ -141,7 +141,7 @@ operator<<( std::ostream&  out,
 }
 
 
-template <typename S, typename T>
+template<typename S, typename T>
 [[nodiscard]] constexpr bool
 startsWith( const S& fullString,
             const T& prefix,
@@ -160,7 +160,7 @@ startsWith( const S& fullString,
 }
 
 
-template <typename S, typename T>
+template<typename S, typename T>
 [[nodiscard]] constexpr bool
 endsWith( const S& fullString,
           const T& suffix,
@@ -665,13 +665,15 @@ template<typename CharT>
 [[nodiscard]] bool
 isBase64( std::basic_string_view<CharT> data )
 {
-    static const auto base64Symbols = [] () {
-        std::basic_string<CharT> result;
-        result.resize( BASE64_SYMBOLS.size() );
-        std::transform( BASE64_SYMBOLS.begin(), BASE64_SYMBOLS.end(), result.begin(),
-                        [] ( const auto x ) { return static_cast<CharT>( x ); } );
-        return result;
-    }();
+    static const auto base64Symbols =
+        [] ()
+        {
+            std::basic_string<CharT> result;
+            result.resize( BASE64_SYMBOLS.size() );
+            std::transform( BASE64_SYMBOLS.begin(), BASE64_SYMBOLS.end(), result.begin(),
+                            [] ( const auto x ) { return static_cast<CharT>( x ); } );
+            return result;
+        }();
 
     return data.find_first_not_of( base64Symbols ) == std::string_view::npos;
 }

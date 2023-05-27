@@ -491,7 +491,7 @@ private:
     std::unique_ptr<SharedFileReader> m_sharedFileReader;
     BitReader m_bitReader{ m_sharedFileReader->clone() };
 
-    size_t m_currentPosition = 0; /**< the current position as can only be modified with read or seek calls. */
+    size_t m_currentPosition = 0;  /**< the current position as can only be modified with read or seek calls. */
     bool m_atEndOfFile = false;
 
 private:

@@ -56,8 +56,8 @@ static constexpr int SYMBOL_RUNA = 0;
 static constexpr int SYMBOL_RUNB = 1;
 
 
-constexpr auto MAGIC_BITS_BLOCK = 0x314159265359ULL; /* bcd(pi) */
-constexpr auto MAGIC_BITS_EOS = 0x177245385090ULL; /* bcd(sqrt(pi)) */
+constexpr auto MAGIC_BITS_BLOCK = 0x314159265359ULL;  /* bcd(pi) */
+constexpr auto MAGIC_BITS_EOS = 0x177245385090ULL;  /* bcd(sqrt(pi)) */
 constexpr auto MAGIC_BITS_SIZE = 48;
 constexpr std::string_view MAGIC_BYTES_BZ2 = "BZh";
 
@@ -203,8 +203,8 @@ public:
         int writeCount = 0;
         int writeCurrent = 0;
 
-        uint32_t dataCRC = 0xFFFFFFFFL; /* CRC of block as calculated by us */
-        uint32_t headerCRC = 0; /* what the block data CRC should be */
+        uint32_t dataCRC = 0xFFFFFFFFL;  /* CRC of block as calculated by us */
+        uint32_t headerCRC = 0;  /* what the block data CRC should be */
 
         /* simply allocate the maximum of 900kB for the internal block size so we won't run into problem when
          * block sizes changes (e.g. in pbzip2 file). 900kB is nothing in today's age anyways. */
@@ -539,7 +539,7 @@ Block::readBlockData()
         // Huffman decode jj into nextSym (with bounds checking)
         jj -= base[ii];
 
-        if ( (unsigned)jj >= MAX_SYMBOLS ) {
+        if ( (unsigned int)jj >= MAX_SYMBOLS ) {
             std::stringstream msg;
             msg << "[BZip2 block data] " << jj << " larger than max symbols " << MAX_SYMBOLS;
             throw std::domain_error( std::move( msg ).str() );
@@ -548,7 +548,7 @@ Block::readBlockData()
         const auto nextSym = hufGroup->permute[jj];
 
         // If this is a repeated run, loop collecting data
-        if ( (unsigned)nextSym <= SYMBOL_RUNB ) {
+        if ( (unsigned int)nextSym <= SYMBOL_RUNB ) {
             // If this is the start of a new run, zero out counter
             if ( !runPos ) {
                 runPos = 1;
@@ -562,7 +562,7 @@ Block::readBlockData()
              * the basic or 0/1 method (except all bits 0, which would use no
              * symbols, but a run of length 0 doesn't mean anything in this
              * context). Thus space is saved. */
-            hh += ( runPos << nextSym ); // +runPos if RUNA; +2*runPos if RUNB
+            hh += ( runPos << nextSym );  // +runPos if RUNA; +2*runPos if RUNB
             runPos <<= 1;
             continue;
         }
@@ -715,4 +715,4 @@ Block::BurrowsWheelerTransformData::decodeBlock( const size_t nMaxBytesToDecode,
 
     return nBytesDecoded;
 }
-} // namespace bzip2
+}  // namespace bzip2

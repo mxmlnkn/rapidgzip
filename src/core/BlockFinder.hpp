@@ -158,9 +158,12 @@ private:
         while ( !m_cancelThread ) {
             std::unique_lock lock( m_mutex );
             /* m_blockOffsets.size() will only grow, so we don't need to be notified when it changes! */
-            m_changed.wait( lock, [this] {
-                return m_cancelThread || ( m_blockOffsets.size() <= m_highestRequestedBlockNumber + m_prefetchCount );
-            } );
+            m_changed.wait(
+                lock,
+                [this] {
+                    return m_cancelThread
+                           || ( m_blockOffsets.size() <= m_highestRequestedBlockNumber + m_prefetchCount );
+                } );
             if ( m_cancelThread ) {
                 break;
             }
@@ -186,7 +189,7 @@ private:
     }
 
 private:
-    mutable std::mutex m_mutex; /**< Only variables accessed by the asynchronous main loop need to be locked. */
+    mutable std::mutex m_mutex;  /**< Only variables accessed by the asynchronous main loop need to be locked. */
     std::condition_variable m_changed;
 
     StreamedResults<size_t> m_blockOffsets;

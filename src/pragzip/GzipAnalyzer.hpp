@@ -65,7 +65,7 @@ analyze( UniqueFileReader inputFile )
 
     while ( true ) {
         #ifdef WITH_PYTHON_SUPPORT
-            checkPythonSignalHandlers();
+        checkPythonSignalHandlers();
         #endif
 
         if ( !gzipHeader ) {

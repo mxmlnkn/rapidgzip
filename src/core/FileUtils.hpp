@@ -195,10 +195,11 @@ using unique_file_ptr = std::unique_ptr<std::FILE, std::function<void ( std::FIL
 inline unique_file_ptr
 make_unique_file_ptr( std::FILE* file )
 {
-    return unique_file_ptr( file, []( auto* ownedFile ){
-        if ( ownedFile != nullptr ) {
-            std::fclose( ownedFile );
-        } } );
+    return unique_file_ptr( file, [] ( auto* ownedFile ) {
+                                if ( ownedFile != nullptr ) {
+                                    std::fclose( ownedFile );
+                                }
+                            } );
 }
 
 inline unique_file_ptr
@@ -564,7 +565,7 @@ writeAllToFd( const int         outputFileDescriptor,
         const auto nBytesToWritePerCall =
             static_cast<unsigned int>(
                 std::min( static_cast<uint64_t>( std::numeric_limits<unsigned int>::max() ),
-                dataToWriteSize - nTotalWritten ) );
+                          dataToWriteSize - nTotalWritten ) );
 
         const auto nBytesWritten = ::write( outputFileDescriptor, currentBufferPosition, nBytesToWritePerCall );
         if ( nBytesWritten <= 0 ) {

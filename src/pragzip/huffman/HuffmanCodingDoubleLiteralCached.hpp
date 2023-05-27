@@ -231,7 +231,7 @@ public:
                         if ( mergedCodeLength + length <= CACHED_BIT_COUNT ) {
                             symbols[symbolSize - 1] = symbol;
                             fillCache( newMergedCode, mergedCodeLength + length );
-                        } else { //if ( m_bitFieldCache[newMergedCode] == 0 ) {
+                        } else {  //if ( m_bitFieldCache[newMergedCode] == 0 ) {
                             /* The check that m_bitFieldCache[newMergedCode] does not already have data is necessary
                              * because all bits higher than CACHED_BIT_COUNT in newMergedCode are zeroed out, which
                              * can result in duplicates. However, preemptively stopping the iteration when the total

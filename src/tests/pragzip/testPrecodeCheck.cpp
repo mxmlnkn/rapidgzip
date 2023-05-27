@@ -794,7 +794,7 @@ analyzeCompressedLUT()
     using VariableLengthPackedHistogram::packHistogram;
 
     std::array<std::pair</* truncated address */ uint32_t,
-                          /* number of valid histograms in same truncated address */uint16_t>,
+                         /* number of valid histograms in same truncated address */ uint16_t>,
                VALID_HISTOGRAMS.size()> counts{};
     for ( const auto& histogram : VALID_HISTOGRAMS ) {
         const auto packedHistogram = packHistogram( histogram );
@@ -845,7 +845,7 @@ analyzeCompressedLUT()
               << "    LUT size: " << formatBytes( lutSize ) << "\n"
               << "    Unique Subtables: " << subtableCount << "\n"
               << "    Subtable size: " << formatBytes( subtableSize ) << "\n"
-              << "    Subtables size: " << formatBytes( subtableCount * subtableSize )<< "\n"
+              << "    Subtables size: " << formatBytes( subtableCount * subtableSize ) << "\n"
               << "    Total size: " << formatBytes( lutSize + subtableCount * subtableSize ) << "\n"
               << "\n";
 }

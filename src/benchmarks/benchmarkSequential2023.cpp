@@ -591,8 +591,8 @@ benchmarkFileReader()
 {
     TemporaryFile temporaryFile( 1_Gi );
 
-    const auto times = repeatBenchmarks( [&] () { return benchmarkFileReader( temporaryFile.path,
-                                                                              pragzip::BitReader::IOBUF_SIZE ); } );
+    const auto times = repeatBenchmarks(
+        [&] () { return benchmarkFileReader( temporaryFile.path, pragzip::BitReader::IOBUF_SIZE ); } );
 
     std::ofstream dataFile( "result-read-file.dat" );
     dataFile << "# dataSize/B chunkSize/B runtime/s\n";
@@ -638,11 +638,12 @@ benchmarkFileReaderParallel( ThreadPool&        threadPool,
     const auto parallelism = threadPool.capacity();
     for ( size_t i = 0; i < parallelism; ++i ) {
         auto sharedFileReader = shareableFileReader->clone();
-        results.emplace_back( threadPool.submit(
-            [chunkSize, i, parallelism, fileReader = std::move( sharedFileReader ), &readStrided] () mutable {
-                return readStrided( fileReader, i * chunkSize, parallelism * chunkSize );
-            }
-        ) );
+        results.emplace_back(
+            threadPool.submit(
+                [chunkSize, i, parallelism, fileReader = std::move( sharedFileReader ), &readStrided] () mutable
+                {
+                    return readStrided( fileReader, i * chunkSize, parallelism * chunkSize );
+                } ) );
     }
 
     uint64_t checksum{ 0 };
@@ -663,9 +664,10 @@ benchmarkFileReaderParallelRepeatedly( const size_t                     fileSize
 
     ThreadPool threadPool( threadCount, threadPinning );
 
-    auto times = repeatBenchmarks( [&] () {
-        return benchmarkFileReaderParallel( threadPool, temporaryFile.path, pragzip::BitReader::IOBUF_SIZE );
-    }, /* repeat count */ 50 );
+    auto times = repeatBenchmarks(
+        [&] () {
+            return benchmarkFileReaderParallel( threadPool, temporaryFile.path, pragzip::BitReader::IOBUF_SIZE );
+        }, /* repeat count */ 50 );
 
     return times;
 }
@@ -819,35 +821,35 @@ benchmarkFileReaderParallel()
                 break;
 
             case PinningScheme::STRIDED:
-                {
-                    const auto stride = 1U << static_cast<size_t>(
-                        std::ceil( std::log2( static_cast<double>( coreCount )
-                                              / static_cast<double>( threadCount ) ) ) );
-                    uint32_t coreId{ 0 };
-                    for ( size_t i = 0; i < threadCount; ++i ) {
-                        threadPinning.emplace( i, coreId );
-                        coreId += stride;
-                        if ( coreId >= coreCount ) {
-                            coreId = coreId % coreCount + 1;
-                        }
+            {
+                const auto stride = 1U << static_cast<size_t>(
+                    std::ceil( std::log2( static_cast<double>( coreCount )
+                                          / static_cast<double>( threadCount ) ) ) );
+                uint32_t coreId{ 0 };
+                for ( size_t i = 0; i < threadCount; ++i ) {
+                    threadPinning.emplace( i, coreId );
+                    coreId += stride;
+                    if ( coreId >= coreCount ) {
+                        coreId = coreId % coreCount + 1;
                     }
                 }
-                break;
+            }
+            break;
 
             case PinningScheme::RECURSIVE:
-                {
-                    std::unordered_set<size_t> coreIds;
-                    for ( size_t i = 0; i < threadCount; ++i ) {
-                        const auto coreId = getCoreTopDown( i, coreCount );
-                        coreIds.emplace( coreId );
-                        threadPinning.emplace( i, coreId );
-                    }
-
-                    if ( coreIds.size() != threadCount ) {
-                        throw std::logic_error( "Duplicate core IDs found in mapping!" );
-                    }
+            {
+                std::unordered_set<size_t> coreIds;
+                for ( size_t i = 0; i < threadCount; ++i ) {
+                    const auto coreId = getCoreTopDown( i, coreCount );
+                    coreIds.emplace( coreId );
+                    threadPinning.emplace( i, coreId );
                 }
-                break;
+
+                if ( coreIds.size() != threadCount ) {
+                    throw std::logic_error( "Duplicate core IDs found in mapping!" );
+                }
+            }
+            break;
             }
 
             const auto times = benchmarkFileReaderParallelRepeatedly( fileSize, threadCount, threadPinning );

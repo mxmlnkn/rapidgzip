@@ -652,7 +652,7 @@ private:
     UniqueFileReader m_file;
 
     std::vector<uint8_t> m_inputBuffer;
-    size_t m_inputBufferPosition = 0; /** stores current position of first valid byte in buffer */
+    size_t m_inputBufferPosition = 0;  /** stores current position of first valid byte in buffer */
 
     /* Performance profiling metrics. */
     size_t m_bufferRefillCount{ 0 };
@@ -704,8 +704,8 @@ public:
      * In both cases, the amount of bits wanted are extracted by shifting to the right and and'ing with a bit mask.
      */
     BitBuffer m_bitBuffer = 0;
-    uint8_t m_bitBufferSize = 0; // size of bitbuffer in bits
-    uint8_t m_originalBitBufferSize = 0; // size of valid bitbuffer bits including already read ones
+    uint8_t m_bitBufferSize = 0;  // size of bitbuffer in bits
+    uint8_t m_originalBitBufferSize = 0;  // size of valid bitbuffer bits including already read ones
 };
 
 

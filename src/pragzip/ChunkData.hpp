@@ -395,7 +395,7 @@ writeAll( const std::shared_ptr<ChunkData>& chunkData,
             splicable = writeAllSplice( outputFileDescriptor, buffer, size, chunkData );
         }
         if ( !splicable ) {
-            writeAllToFd( outputFileDescriptor, buffer, size);
+            writeAllToFd( outputFileDescriptor, buffer, size );
         }
     }
 #endif

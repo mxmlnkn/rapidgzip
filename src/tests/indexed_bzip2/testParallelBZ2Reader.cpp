@@ -74,8 +74,8 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
         std::make_unique<ParallelBZ2Reader>( std::make_unique<StandardFileReader>( encodedTestFilePath ) );
 
     const auto seek =
-        [&]( long long int offset,
-             int           origin = SEEK_SET )
+        [&] ( long long int offset,
+              int           origin = SEEK_SET )
         {
             std::cerr << "Seek to " << offset << "\n";
 
@@ -222,13 +222,13 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     /* Test thread joining feature intended for FUSE */
     seek( 333 );
     encodedFile->joinThreads();
-    read( 100 ); /* Direct read after current position even after closing threads. */
+    read( 100 );  /* Direct read after current position even after closing threads. */
     seek( 222 );
     read( 1_Mi );
     read( decodedFileSize + 1000 );
 
     encodedFile->joinThreads();
-    seek( 1 ); /* Direct read after current position even after closing threads. */
+    seek( 1 );  /* Direct read after current position even after closing threads. */
     read( 100 );
 
     std::cerr << "Test block offset loading\n";

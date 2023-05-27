@@ -64,12 +64,14 @@ replaceInPlaceTransformAlternativeFormat( std::vector<std::uint16_t>&      buffe
                                           const std::vector<std::uint8_t>& window )
 {
     auto* const replaced = reinterpret_cast<std::uint8_t*>( buffer.data() );
-    std::transform( buffer.begin(), buffer.end(), replaced, [&window] ( const auto c ) {
-        if ( c >= 32_Ki + 256 ) {
-            throw std::domain_error( "Illegal marker byte!" );
-        }
-        return c < 256 ? c : window[c - 256];
-    } );
+    std::transform( buffer.begin(), buffer.end(), replaced,
+                    [&window] ( const auto c )
+                    {
+                        if ( c >= 32_Ki + 256 ) {
+                            throw std::domain_error( "Illegal marker byte!" );
+                        }
+                        return c < 256 ? c : window[c - 256];
+                    } );
 }
 
 

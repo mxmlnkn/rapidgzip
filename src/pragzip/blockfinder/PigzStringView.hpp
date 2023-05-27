@@ -170,7 +170,7 @@ private:
     std::size_t m_lastReturnedBlockOffset{ 0 };
 
     static constexpr std::string_view EMPTY_DEFLATE_BLOCK{
-        "\0\0\xFF\xFF", 4 /* required or else strlen is used resulting in zero */
+        "\0\0\xFF\xFF", 4  /* required or else strlen is used resulting in zero */
     };
 };
 }  // pragzip::blockfinder
