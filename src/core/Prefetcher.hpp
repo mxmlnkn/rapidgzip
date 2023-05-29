@@ -199,7 +199,7 @@ public:
         for ( const auto index : m_previousIndexes ) {
             if ( index == indexToSplit ) {
                 for ( size_t i = 0; i < splitCount; ++i ) {
-                    newIndexes.push_back( index + i );
+                    newIndexes.push_back( index + splitCount - 1 - i );
                 }
             } else if ( index > indexToSplit ) {
                 newIndexes.push_back( index + splitCount - 1 );
@@ -213,6 +213,7 @@ public:
 
 protected:
     const size_t m_memorySize;
+    /** Contains the most recent index at the front. */
     std::deque<size_t> m_previousIndexes;
 };
 
