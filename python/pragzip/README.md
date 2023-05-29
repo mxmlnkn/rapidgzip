@@ -62,32 +62,38 @@ This benchmarks use a chunk size of 512 KiB.
 
 ## Decompression with Existing Index
 
-| Module                            | Runtime / s | Bandwidth / (MB/s) | Speedup |
-|-----------------------------------|-------------|--------------------|---------|
-| gzip                              |  17.2       |  250               |  1      |
-| pragzip with parallelization = 0  |   0.96      | 4480               | 17.9    |
-| pragzip with parallelization = 1  |  14.6       |  294               |  1.2    |
-| pragzip with parallelization = 2  |   7.40      |  580               |  2.3    |
-| pragzip with parallelization = 6  |   2.56      | 1680               |  6.7    |
-| pragzip with parallelization = 12 |   1.38      | 3110               | 12.5    |
-| pragzip with parallelization = 24 |   0.95      | 4510               | 18.0    |
-| pragzip with parallelization = 32 |   0.99      | 4330               | 17.3    |
+|                      | 4GiB-base64                  | 4GiB-base64     | | 20x-silesia                   | 20x-silesia
+|----------------------|------------------------------|-----------------|-|-------------------------------|---------
+| Uncompressed Size    | 4 GiB                        |                 | | 3.95 GiB                      |
+| Compressed Size      | 3.04 GiB                     |                 | | 1.27 GiB                      |
+| **Module**           | **Bandwidth <br/> / (MB/s)** | **Speedup**     | |  **Bandwidth <br/> / (MB/s)** | **Speedup**
+| gzip                 |  250                         |    1            | |   293                         |  1
+| pragzip (0  threads) | 4480                         | 17.9            | |  4830                         | 16.5
+| pragzip (1  threads) |  294                         |  1.2            | |   350                         |  1.2
+| pragzip (2  threads) |  580                         |  2.3            | |   678                         |  2.3
+| pragzip (6  threads) | 1680                         |  6.7            | |  1940                         |  6.6
+| pragzip (12 threads) | 3110                         | 12.5            | |  3460                         | 11.8
+| pragzip (24 threads) | 4510                         | 18.0            | |  5070                         | 17.3
+| pragzip (32 threads) | 4330                         | 17.3            | |  4720                         | 16.1
 
 
 ## Decompression from Scratch
 
 ### Python
 
-| Module                            | Runtime / s | Bandwidth / (MB/s) | Speedup |
-|-----------------------------------|-------------|--------------------|---------|
-| gzip                              |  17.2       |  250               |  1      |
-| pragzip with parallelization = 0  |  1.31       | 3280               | 13.1    |
-| pragzip with parallelization = 1  | 19.34       |  222               |  0.9    |
-| pragzip with parallelization = 2  | 10.04       |  428               |  1.7    |
-| pragzip with parallelization = 6  |  3.42       | 1250               |  5.0    |
-| pragzip with parallelization = 12 |  1.88       | 2290               |  9.2    |
-| pragzip with parallelization = 24 |  1.30       | 3300               | 13.2    |
-| pragzip with parallelization = 32 |  1.35       | 3180               | 12.7    |
+|                      | 4GiB-base64                  | 4GiB-base64     | | 20x-silesia                   | 20x-silesia
+|----------------------|------------------------------|-----------------|-|-------------------------------|---------
+| Uncompressed Size    | 4 GiB                        |                 | | 3.95 GiB                      |
+| Compressed Size      | 3.04 GiB                     |                 | | 1.27 GiB                      |
+| **Module**           | **Bandwidth <br/> / (MB/s)** | **Speedup**     | |  **Bandwidth <br/> / (MB/s)** | **Speedup**
+| gzip                 |  250                         |    1            | |   293                         |  1
+| pragzip (0  threads) | 3280                         | 13.1            | |  2280                         |  7.8
+| pragzip (1  threads) |  222                         |  0.9            | |   236                         |  0.8
+| pragzip (2  threads) |  428                         |  1.7            | |   411                         |  1.4
+| pragzip (6  threads) | 1250                         |  5.0            | |  1095                         |  3.7
+| pragzip (12 threads) | 2290                         |  9.2            | |  1390                         |  4.8
+| pragzip (24 threads) | 3300                         | 13.2            | |  2280                         |  7.8
+| pragzip (32 threads) | 3180                         | 12.7            | |  2480                         |  8.5
 
 Note that pragzip is generally faster when given an index because it can delegate the decompression to zlib while it has to use its own gzip decompression engine when no index exists yet.
 
