@@ -7,3 +7,6 @@
 [submodule "src/external/rpmalloc"]
 	path = src/external/rpmalloc
 	url = https://github.com/mjansson/rpmalloc.git
+[submodule "src/external/cxxopts"]
+	path = src/external/cxxopts
+	url = https://github.com/jarro2783/cxxopts.git

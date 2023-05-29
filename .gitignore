@@ -7,7 +7,6 @@ tools/*
 tests/*
 !tests/*.*
 
-external/
 worktrees/
 *mimi*
 
