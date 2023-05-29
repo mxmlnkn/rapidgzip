@@ -74,54 +74,6 @@ This benchmarks use a chunk size of 512 KiB.
 | pragzip with parallelization = 32 |   0.99      | 4330               | 17.3    |
 
 
-<details>
-<summary>Benchmark Code</summary>
-
-```python3
-import gzip
-import time
-
-with gzip.open(gzipFilePath) as file:
-    t0 = time.time()
-    while file.read(4*1024*1024):
-        pass
-    gzipDuration = time.time() - t0
-    print(f"Decoded file in {gzipDuration:.2f}s, bandwidth: {fileSize / gzipDuration / 1e6:.0f} MB/s")
-```
-
-The usage of pragzip is slightly different:
-
-```python3
-import os
-import time
-
-import indexed_gzip
-import pragzip
-
-fileSize = os.stat(gzipFilePath).st_size
-
-if not os.path.exists(gzipFilePath + ".index"):
-    with indexed_gzip.IndexedGzipFile(gzipFilePath) as file:
-        file.build_full_index()
-        file.export_index(gzipFilePath + ".index")
-
-# parallelization = 0 means that it is automatically using all available cores.
-for parallelization in [0, 1, 2, 6, 12, 24, 32]:
-    with pragzip.PragzipFile(gzipFilePath, parallelization = parallelization) as file:
-        file.import_index(open(gzipFilePath + ".index", 'rb'))
-        t0 = time.time()
-        # Unfortunately, the chunk size is very performance critical! It might depend on the cache size.
-        while file.read(512*1024):
-            pass
-        pragzipDuration = time.time() - t0
-        print(f"Decoded file in {pragzipDuration:.2f}s"
-              f", bandwidth: {fileSize / pragzipDuration / 1e6:.0f} MB/s"
-              f", speedup: {gzipDuration/pragzipDuration:.1f}")
-```
-
-</details>
-
-
 ## Decompression from Scratch
 
 ### Python
@@ -141,39 +93,7 @@ Note that pragzip is generally faster when given an index because it can delegat
 
 Note that values deviate roughly by 10% and therefore are rounded.
 
-<details>
-<summary>Benchmark Code</summary>
-
-```python3
-import gzip
-import os
-import time
-
-import pragzip
-
-fileSize = os.stat(gzipFilePath).st_size
-
-with gzip.open(gzipFilePath) as file:
-    t0 = time.time()
-    while file.read(4*1024*1024):
-        pass
-    gzipDuration = time.time() - t0
-    print(f"Decoded file in {gzipDuration:.2f}s, bandwidth: {fileSize / gzipDuration / 1e6:.0f} MB/s")
-
-# parallelization = 0 means that it is automatically using all available cores.
-for parallelization in [0, 1, 2, 6, 12, 24, 32]:
-    with pragzip.PragzipFile(gzipFilePath, parallelization = parallelization) as file:
-        t0 = time.time()
-        # Unfortunately, the chunk size is very performance critical! It might depend on the cache size.
-        while file.read(512*1024):
-            pass
-        pragzipDuration = time.time() - t0
-        print(f"Decoded file in {pragzipDuration:.2f}s"
-              f", bandwidth: {fileSize / pragzipDuration / 1e6:.0f} MB/s"
-              f", speedup: {gzipDuration/pragzipDuration:.1f}")
-```
-
-</details>
+The code used for benchmarking can be found [here](results/benchmarkPythonModule.py).
 
 
 # Installation
