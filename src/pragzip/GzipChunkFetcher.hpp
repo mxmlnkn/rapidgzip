@@ -832,6 +832,7 @@ private:
             }
 
             /* Loop until we have read the full contents of the current deflate block-> */
+            size_t blockBytesRead{ 0 };
             while ( !block->eob() )
             {
                 const auto [bufferViews, error] = block->read( *bitReader, std::numeric_limits<size_t>::max() );
@@ -845,9 +846,25 @@ private:
                 const auto tAppendStart = now();
                 result.append( bufferViews );
                 result.appendDuration += duration( tAppendStart );
-                streamBytesRead += bufferViews.size();
-                totalBytesRead += bufferViews.size();
+                blockBytesRead += bufferViews.size();
+
+                /* Non-compressed deflate blocks are limited to 64 KiB and the largest Dynamic Huffman Coding
+                 * deflate blocks I have seen were 128 KiB in compressed size. With a maximum compression
+                 * ratio of 1032, this would result in ~128 MiB. Fortunately, simple runs of zeros did compress
+                 * to only 8 KiB blocks, i.e., ~8 MiB decompressed.
+                 * However, igzip -0 can compress the whole file in a single deflate block.
+                 * Decompressing such a file is not supported (yet). It would require some heavy
+                 * refactoring of the ChunkData class to support resuming the decompression so that
+                 * we can simply break and return here insteda of throwing an exception. This would basically
+                 * require putting a whole GzipReader in the ChunkData so that even random access is supported
+                 * in an emulated manner. */
+                if ( blockBytesRead > 256_Mi ) {
+                    throw std::runtime_error( "A single deflate block that decompresses to more than 256 MiB was "
+                                              "encountered. This is not supported to avoid out-of-memory errors." );
+                }
             }
+            streamBytesRead += blockBytesRead;
+            totalBytesRead += blockBytesRead;
 
             if ( block->isLastBlock() ) {
                 const auto footerOffset = bitReader->tell();
