@@ -64,14 +64,14 @@ This benchmarks use a chunk size of 512 KiB.
 
 | Module                            | Runtime / s | Bandwidth / (MB/s) | Speedup |
 |-----------------------------------|-------------|--------------------|---------|
-| gzip                              |  17.9       |  180               |    1    |
-| pragzip with parallelization = 0  |  1.21       | 2700               | 14.8    |
-| pragzip with parallelization = 1  |  14.0       |  230               |  1.3    |
-| pragzip with parallelization = 2  |   7.2       |  450               |  2.5    |
-| pragzip with parallelization = 6  |  2.51       | 1300               |  7.1    |
-| pragzip with parallelization = 12 |  1.40       | 2330               | 12.8    |
-| pragzip with parallelization = 24 |  1.11       | 2940               | 16.1    |
-| pragzip with parallelization = 32 |  1.12       | 2920               | 16.0    |
+| gzip                              |  17.3       |  188               |  1      |
+| pragzip with parallelization = 0  |   0.98      | 3340               | 17.8    |
+| pragzip with parallelization = 1  |  14.74      |  221               |  1.2    |
+| pragzip with parallelization = 2  |   7.45      |  438               |  2.3    |
+| pragzip with parallelization = 6  |   2.55      | 1280               |  6.8    |
+| pragzip with parallelization = 12 |   1.40      | 2330               | 12.4    |
+| pragzip with parallelization = 24 |   0.92      | 3530               | 18.8    |
+| pragzip with parallelization = 32 |   0.99      | 3300               | 17.5    |
 
 
 <details>
@@ -128,14 +128,14 @@ for parallelization in [0, 1, 2, 6, 12, 24, 32]:
 
 | Module                            | Runtime / s | Bandwidth / (MB/s) | Speedup |
 |-----------------------------------|-------------|--------------------|---------|
-| gzip                              |  17.5       |  190               | 1       |
-| pragzip with parallelization = 0  |  1.22       | 2670               | 14.3    |
-| pragzip with parallelization = 1  |  18.2       |  180               | 1.0     |
-| pragzip with parallelization = 2  |   9.3       |  350               | 1.9     |
-| pragzip with parallelization = 6  |  3.28       | 1000               | 5.3     |
-| pragzip with parallelization = 12 |  1.82       | 1800               | 9.6     |
-| pragzip with parallelization = 24 |  1.25       | 2620               | 14.0    |
-| pragzip with parallelization = 32 |  1.30       | 2520               | 13.5    |
+| gzip                              |  17.3       |  188               |  1      |
+| pragzip with parallelization = 0  |  1.31       | 2490               | 13.2    |
+| pragzip with parallelization = 1  | 19.18       |  170               |  0.9    |
+| pragzip with parallelization = 2  |  9.94       |  328               |  1.7    |
+| pragzip with parallelization = 6  |  3.42       |  950               |  5.1    |
+| pragzip with parallelization = 12 |  1.88       | 1740               |  9.2    |
+| pragzip with parallelization = 24 |  1.35       | 2420               | 12.9    |
+| pragzip with parallelization = 32 |  1.36       | 2400               | 12.8    |
 
 Note that pragzip is generally faster when given an index because it can delegate the decompression to zlib while it has to use its own gzip decompression engine when no index exists yet.
 
