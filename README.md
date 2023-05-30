@@ -33,13 +33,13 @@ This module provides:
 
 The random seeking support is similar to the one provided by [indexed_gzip](https://github.com/pauldmccarthy/indexed_gzip) and the parallel capabilities are effectively a working version of [pugz](https://github.com/Piezoid/pugz), which is only a concept and only works with a limited subset of file contents, namely non-binary (ASCII characters 0 to 127) compressed files.
 
-| Module                            | Runtime / s | Bandwidth / (MB/s) | Speedup |
-|-----------------------------------|-------------|--------------------|---------|
-| gzip                              |  17.5       |  190               | 1       |
-| pragzip with parallelization = 1  |  18.2       |  180               | 1.0     |
-| pragzip with parallelization = 2  |   9.3       |  350               | 1.9     |
-| pragzip with parallelization = 12 |  1.82       | 1800               | 9.6     |
-| pragzip with parallelization = 24 |  1.25       | 2620               | 14.0    |
+| Module                            | Bandwidth / (MB/s) | Speedup |
+|-----------------------------------|--------------------|---------|
+| gzip                              |  250               |  1      |
+| pragzip with parallelization = 1  |  222               |  0.9    |
+| pragzip with parallelization = 2  |  428               |  1.7    |
+| pragzip with parallelization = 12 | 2290               |  9.2    |
+| pragzip with parallelization = 24 | 3300               | 13.2    |
 
 [See here for the extended Readme.](python/pragzip)
 
