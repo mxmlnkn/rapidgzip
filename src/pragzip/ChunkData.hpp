@@ -221,6 +221,8 @@ public:
     double blockFinderDuration{ 0 };
     double decodeDuration{ 0 };
     double appendDuration{ 0 };
+
+    bool stoppedPreemptively{ false };
 };
 
 
@@ -395,7 +397,7 @@ writeAll( const std::shared_ptr<ChunkData>& chunkData,
             splicable = writeAllSplice( outputFileDescriptor, buffer, size, chunkData );
         }
         if ( !splicable ) {
-            writeAllToFd( outputFileDescriptor, buffer, size);
+            writeAllToFd( outputFileDescriptor, buffer, size );
         }
     }
 #endif

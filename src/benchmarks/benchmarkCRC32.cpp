@@ -85,6 +85,7 @@ computeCRC32SliceByN( const std::vector<char>& buffer )
     return ~pragzip::updateCRC32<SLICE_SIZE>( ~uint32_t( 0 ), buffer.data(), buffer.size() );
 }
 
+
 #ifdef __SSE4_2__
 [[nodiscard]] uint32_t
 crc32SSE4( uint32_t    crc,
@@ -168,11 +169,12 @@ benchmarkCRC32( const std::vector<char>&                                   data,
     std::stringstream message;
     message << "Result: 0x" << std::hex << std::uppercase << crc32 << "\n";
 
-    const auto times = repeatBenchmarks( [&] () {
-        const auto tCRC32Start = now();
-        const auto result = crc32Function( data );
-        return std::make_pair( duration( tCRC32Start ), static_cast<uint64_t>( result ) );
-    } );
+    const auto times = repeatBenchmarks(
+        [&] () {
+            const auto tCRC32Start = now();
+            const auto result = crc32Function( data );
+            return std::make_pair( duration( tCRC32Start ), static_cast<uint64_t>( result ) );
+        } );
 
     std::ofstream dataFile( "compute-crc32.dat" );
     dataFile << "# dataSize/B runtime/s\n";

@@ -394,14 +394,12 @@ public:
     [[nodiscard]] size_t
     tellCompressed() const override
     {
-
         const auto blockInfo = m_blockMap->findDataOffset( m_currentPosition );
         if ( blockInfo.contains( m_currentPosition ) ) {
             return blockInfo.encodedOffsetInBits;
         }
         return 0;
     }
-
 
     /**
      * Closes all threads and saves the work. They will be restarted when needed again, e.g., on seek or read.
@@ -443,7 +441,6 @@ private:
         return *m_blockFinder;
     }
 
-
     BlockFetcher&
     blockFetcher()
     {
@@ -464,7 +461,6 @@ private:
 
         return *m_blockFetcher;
     }
-
 
     void
     setBlockFinderOffsets( const std::map<size_t, size_t>& offsets )
@@ -491,7 +487,7 @@ private:
     std::unique_ptr<SharedFileReader> m_sharedFileReader;
     BitReader m_bitReader{ m_sharedFileReader->clone() };
 
-    size_t m_currentPosition = 0; /**< the current position as can only be modified with read or seek calls. */
+    size_t m_currentPosition = 0;  /**< the current position as can only be modified with read or seek calls. */
     bool m_atEndOfFile = false;
 
 private:

@@ -163,21 +163,23 @@ benchmarkFileCreation( const std::string& filePath,
                        const std::string& name )
 {
     for ( const auto size : { 128_Mi, 512_Mi, 1_Gi, 2_Gi, 4_Gi } ) {
-        const auto times = repeatBenchmarks( [&filePath, size, &createFile, &name] {
-            if ( fileExists( filePath ) ) {
-                std::filesystem::remove( filePath );
-            }
+        const auto times = repeatBenchmarks(
+            [&filePath, size, &createFile, &name] {
+                if ( fileExists( filePath ) ) {
+                    std::filesystem::remove( filePath );
+                }
 
-            const auto t0 = now();
-            auto file = throwingOpen( filePath, "wb" );
-            if ( createFile( ::fileno( file.get() ), size ) == -1 ) {
-                std::cerr << "Encountered error while calling " << name << " on file: " << std::strerror( errno )
-                          << " (" << errno << ")\n";
-            }
-            file.reset();
+                const auto t0 = now();
+                auto file = throwingOpen( filePath, "wb" );
+                if ( createFile( ::fileno( file.get() ), size ) == -1 ) {
+                    std::cerr << "Encountered error while calling " << name << " on file: " << std::strerror( errno )
+                              << " (" << errno << ")\n";
+                }
+                file.reset();
 
-            return duration( t0 );
-        }, REPEAT_COUNT );
+                return duration( t0 );
+            },
+            REPEAT_COUNT );
 
         std::cout << "    " << name << " file sized " << formatBytes( size ) << ": " << formatBandwidth( times, size )
                   << "\n";
@@ -436,7 +438,7 @@ mmapFile( const std::string& filePath,
     }
 
     unique_file_descriptor ufd( fd );
-    if( ::ftruncate( fd, size ) == -1 ) {
+    if ( ::ftruncate( fd, size ) == -1 ) {
         std::cerr << "Encountered error while truncating file: " << std::strerror( errno )
                   << " (" << errno << ")\n";
         return {};
@@ -472,7 +474,7 @@ benchmarkMmapWrite( const std::string&       filePath,
                     const std::vector<char>& data )
 {
     auto maps = mmapFile( filePath, data.size(), /* mmap count */ 1, /* dedicated fd */ false );
-    if ( maps.empty() ){
+    if ( maps.empty() ) {
         return 0;
     }
     auto* const map = maps.front().second;
@@ -518,7 +520,7 @@ benchmarkMmapWriteParallel( const std::string&       filePath,
     auto maps = mmapFile( filePath, data.size(),
                           /* mmap count */ mmapStrategy == MmapStrategy::SINGLE_MAP ? 1 : threadCount,
                           /* dedicated fd */ mmapStrategy == MmapStrategy::DEDICATED_MAPS_AND_FDS );
-    if ( maps.empty() ){
+    if ( maps.empty() ) {
         return 0;
     }
 
@@ -531,9 +533,11 @@ benchmarkMmapWriteParallel( const std::string&       filePath,
         auto* const map = mmapStrategy == MmapStrategy::SINGLE_MAP
                           ? (char*)maps.front().second + offset
                           : (char*)maps[i].second;
-        futures.emplace_back( threadPool.submit( [offset, chunkSize, &data, map] () {
-            memcpy( map, data.data() + offset, std::min( data.size() - offset, chunkSize ) );
-        } ) );
+        futures.emplace_back(
+            threadPool.submit(
+                [offset, chunkSize, &data, map] () {
+                    memcpy( map, data.data() + offset, std::min( data.size() - offset, chunkSize ) );
+                } ) );
     }
     for ( auto& future : futures ) {
         future.get();
@@ -596,8 +600,10 @@ benchmarkMmapWriteParallelMapsAndFds( const std::string& filePath )
 
     for ( const auto threadCount : { 1, 2, 4, 8, 16 } ) {
         const auto times = repeatBenchmarks(
-            [&] () { return benchmarkMmapWriteParallel( filePath, data, threadCount,
-                                                        MmapStrategy::DEDICATED_MAPS_AND_FDS ); },
+            [&] () {
+                return benchmarkMmapWriteParallel( filePath, data, threadCount,
+                                                   MmapStrategy::DEDICATED_MAPS_AND_FDS );
+            },
             REPEAT_COUNT );
 
         checkFileSize( filePath, data.size() );
@@ -628,15 +634,18 @@ benchmarkPwriteParallel( const std::string&       filePath,
     const auto chunkSize = data.size() / threadPool.capacity();
     std::vector<std::future<void> > futures;
     for ( size_t offset = 0; offset < data.size(); offset += chunkSize ) {
-        futures.emplace_back( threadPool.submit( [offset, chunkSize, &data, fd = *ufd] () {
-            const auto sizeToWrite = std::min( data.size() - offset, chunkSize );
-            const auto result = pwrite( fd, data.data() + offset, sizeToWrite, offset );
-            if ( ( result < 0 ) || ( static_cast<size_t>( result ) != sizeToWrite ) ) {
-                std::cerr << "Pwrite returned " << result << ", failed with: " << strerror( errno ) << " ("
-                          << errno << ")\n";
-                throw std::runtime_error( "Was not able to write out all of the data!" );
-            }
-        } ) );
+        futures.emplace_back(
+            threadPool.submit(
+                [offset, chunkSize, &data, fd = *ufd] ()
+                {
+                    const auto sizeToWrite = std::min( data.size() - offset, chunkSize );
+                    const auto result = pwrite( fd, data.data() + offset, sizeToWrite, offset );
+                    if ( ( result < 0 ) || ( static_cast<size_t>( result ) != sizeToWrite ) ) {
+                        std::cerr << "Pwrite returned " << result << ", failed with: " << strerror( errno ) << " ("
+                                  << errno << ")\n";
+                        throw std::runtime_error( "Was not able to write out all of the data!" );
+                    }
+                } ) );
     }
     for ( auto& future : futures ) {
         future.get();
@@ -645,6 +654,7 @@ benchmarkPwriteParallel( const std::string&       filePath,
     ufd.close();
     return duration( t0 );
 }
+
 
 void
 benchmarkPwriteParallel( const std::string&       filePath,
@@ -688,15 +698,18 @@ benchmarkWriteParallelFiles( const std::string&       filePath,
     std::vector<std::future<void> > futures;
     for ( size_t i = 0; i < threadCount; ++i ) {
         const auto offset = i * chunkSize;
-        futures.emplace_back( threadPool.submit( [offset, chunkSize, &data, fd = *ufds[i]] () {
-            const auto sizeToWrite = std::min( data.size() - offset, chunkSize );
-            const auto result = pwrite( fd, data.data() + offset, sizeToWrite, offset );
-            if ( ( result < 0 ) || ( static_cast<size_t>( result ) != sizeToWrite ) ) {
-                std::cerr << "Pwrite returned " << result << ", failed with: " << strerror( errno ) << " ("
-                          << errno << ")\n";
-                throw std::runtime_error( "Was not able to write out all of the data!" );
-            }
-        } ) );
+        futures.emplace_back(
+            threadPool.submit(
+                [offset, chunkSize, &data, fd = *ufds[i]] ()
+                {
+                    const auto sizeToWrite = std::min( data.size() - offset, chunkSize );
+                    const auto result = pwrite( fd, data.data() + offset, sizeToWrite, offset );
+                    if ( ( result < 0 ) || ( static_cast<size_t>( result ) != sizeToWrite ) ) {
+                        std::cerr << "Pwrite returned " << result << ", failed with: " << strerror( errno ) << " ("
+                                  << errno << ")\n";
+                        throw std::runtime_error( "Was not able to write out all of the data!" );
+                    }
+                } ) );
     }
     for ( auto& future : futures ) {
         future.get();
@@ -710,7 +723,7 @@ benchmarkWriteParallelFiles( const std::string&       filePath,
 
 
 void
-benchmarkWriteParallelFiles( const std::string& filePath,
+benchmarkWriteParallelFiles( const std::string&       filePath,
                              const FileInitialization fileInitialization )
 {
     const DataBuffer data( FILE_SIZE_TO_BENCHMARK, 1 );

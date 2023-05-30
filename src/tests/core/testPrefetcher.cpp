@@ -301,6 +301,20 @@ testFetchMulti()
 }
 
 
+void
+testSplit()
+{
+    FetchNextAdaptive fetchNextAdaptive;
+    REQUIRE_EQUAL( fetchNextAdaptive.prefetch( 4 ), std::vector<size_t>() );
+
+    fetchNextAdaptive.fetch( 0 );
+    REQUIRE_EQUAL( fetchNextAdaptive.prefetch( 4 ), std::vector<size_t>( { 1, 2, 3, 4 } ) );
+
+    fetchNextAdaptive.splitIndex( 0, /* subdivisions */ 2 );
+    REQUIRE_EQUAL( fetchNextAdaptive.prefetch( 4 ), std::vector<size_t>( { 2, 3, 4, 5 } ) );
+}
+
+
 template<typename FetchingStrategy>
 void
 testInterleavedLinearAccess( size_t streamCount )
@@ -1060,6 +1074,7 @@ int
 main()
 {
     testFetchMulti();
+    testSplit();
 
     {
         std::cerr << "\n= Recorded Accesses Pattern =\n";

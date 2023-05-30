@@ -537,10 +537,13 @@ private:
         if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
             ++m_statistics.onDemandFetchCount;
         }
-        auto resultFuture = m_threadPool.submit( [this, blockOffset, nextBlockOffset] () {
-            return decodeAndMeasureBlock(
-                blockOffset, nextBlockOffset ? *nextBlockOffset : std::numeric_limits<size_t>::max() );
-        }, /* priority */ 0 );
+        auto resultFuture = m_threadPool.submit(
+            [this, blockOffset, nextBlockOffset] ()
+            {
+                return decodeAndMeasureBlock(
+                    blockOffset, nextBlockOffset ? *nextBlockOffset : std::numeric_limits<size_t>::max() );
+            },
+            /* priority */ 0 );
         assert( resultFuture.valid() );
         return resultFuture;
     }
@@ -566,7 +569,6 @@ protected:
     {
         return m_threadPool.submit( std::move( task ), /* priority */ -1 );
     }
-
 
     [[nodiscard]] const auto&
     cache() const noexcept

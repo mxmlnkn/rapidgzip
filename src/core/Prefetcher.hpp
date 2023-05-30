@@ -19,7 +19,8 @@ namespace FetchingStrategy
 class FetchingStrategy
 {
 public:
-    virtual ~FetchingStrategy() = default;
+    virtual
+    ~FetchingStrategy() = default;
 
     virtual void
     fetch( size_t index ) = 0;
@@ -122,9 +123,10 @@ public:
                         const size_t maxExtrapolation )
     {
         /** 0 <= consecutiveRatio <= 1 */
-        const auto consecutiveRatio = saturationCount == 0 ? 1.0 :
-                                      static_cast<double>( std::min( consecutiveValues, saturationCount ) )
-                                      / saturationCount;
+        const auto consecutiveRatio = saturationCount == 0
+                                      ? 1.0
+                                      : static_cast<double>( std::min( consecutiveValues, saturationCount ) )
+                                        / saturationCount;
         /** 1 <= maxAmountToPrefetch +- floating point errors */
         const auto amountToPrefetch = std::round( std::exp2( consecutiveRatio * std::log2( maxExtrapolation ) ) );
 
@@ -197,7 +199,7 @@ public:
         for ( const auto index : m_previousIndexes ) {
             if ( index == indexToSplit ) {
                 for ( size_t i = 0; i < splitCount; ++i ) {
-                    newIndexes.push_back( index + i );
+                    newIndexes.push_back( index + splitCount - 1 - i );
                 }
             } else if ( index > indexToSplit ) {
                 newIndexes.push_back( index + splitCount - 1 );
@@ -211,6 +213,7 @@ public:
 
 protected:
     const size_t m_memorySize;
+    /** Contains the most recent index at the front. */
     std::deque<size_t> m_previousIndexes;
 };
 

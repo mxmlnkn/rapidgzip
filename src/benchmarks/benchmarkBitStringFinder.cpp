@@ -30,7 +30,7 @@
 
 namespace
 {
-constexpr uint64_t bitStringToFind = 0x314159265359; /* bcd(pi) */
+constexpr uint64_t bitStringToFind = 0x314159265359;  /* bcd(pi) */
 //constexpr uint64_t bitStringToFind = 0x177245385090ULL; /* bcd(sqrt(pi)) */
 constexpr uint8_t bitStringToFindSize = 48;
 }
@@ -77,7 +77,7 @@ findBitString( const char* buffer,
         bytes = ( bytes << 8U ) | static_cast<uint8_t>( buffer[i] );
     }
 
-    assert( bitStringSize == 48 ); /* this allows us to fixedly load always two bytes (16 bits) */
+    assert( bitStringSize == 48 );  /* this allows us to fixedly load always two bytes (16 bits) */
     for ( size_t i = 0; i < bufferSize; ++i ) {
         bytes = ( bytes << 8U ) | static_cast<uint8_t>( buffer[i] );
         if ( ++i >= bufferSize ) {
@@ -374,7 +374,7 @@ findBitStringBitStringTemplated( const uint8_t* buffer,
                                  size_t         bufferSize,
                                  uint8_t        firstBitsToIgnore = 0 )
 {
-    const auto shiftedBitStrings = createdShiftedBitStringLUTArrayTemplated<bitString, bitStringSize>(); // 1.85s
+    const auto shiftedBitStrings = createdShiftedBitStringLUTArrayTemplated<bitString, bitStringSize>();  // 1.85s
     //constexpr auto shiftedBitStrings = createdShiftedBitStringLUTArrayTemplatedConstexpr<bitString, bitStringSize>(); // 2.65s
 
     /* Simply load bytewise even if we could load more (uneven) bits by rounding down.
@@ -478,6 +478,7 @@ findBitStrings( const std::vector<char>& buffer )
     return blockOffsets;
 }
 
+
 /** use BitReader.read instead of the pre-shifted table trick */
 [[nodiscard]] std::vector<size_t>
 findBitStringsBitReaderRead( const std::vector<char>& data )
@@ -500,6 +501,7 @@ findBitStringsBitReaderRead( const std::vector<char>& data )
 
     return blockOffsets;
 }
+
 
 /** always get one more bit but avoid slow BitReader.read calls */
 [[nodiscard]] std::vector<size_t>
@@ -613,7 +615,7 @@ findBitStringsFinder( const std::vector<char>& data )
     std::vector<size_t> matches;
 
     Finder bitStringFinder( std::make_unique<BufferViewFileReader>( data ), bitStringToFind );
-    while( true )  {
+    while ( true ) {
         matches.push_back( bitStringFinder.find() );
         if ( matches.back() == std::numeric_limits<size_t>::max() ) {
             matches.pop_back();
@@ -638,7 +640,6 @@ nextBitStringCandidate( uint32_t bits )
         return 1U + nextBitStringCandidate<bitCount - 1U>( bits & nLowestBitsSet<uint32_t, bitCount - 1U>() );
     }
 }
-
 
 
 template<uint8_t CACHED_BIT_COUNT>
@@ -800,7 +801,7 @@ findBitStringsParallel( const std::vector<char>& data )
         std::make_unique<BufferViewFileReader>( data ),
         bitStringToFind, parallelization, 0, parallelization * 1_Mi
     );
-    while( true )  {
+    while ( true ) {
         matches.push_back( bitStringFinder.find() );
         if ( matches.back() == std::numeric_limits<size_t>::max() ) {
             matches.pop_back();
@@ -849,10 +850,12 @@ benchmarkFindBitString( const std::vector<char>& data )
                     bitReader.seek( static_cast<long long int>( offset ) );
 
                     /* Because bitReader is limited to 32-bit. */
-                    static_assert( bitStringToFindSize % 2 == 0, "Assuming magic bit string size to be an even number." );
+                    static_assert( bitStringToFindSize % 2 == 0,
+                                   "Assuming magic bit string size to be an even number." );
                     constexpr uint8_t BITS_PER_READ = bitStringToFindSize / 2;
-                    const auto magicBytes = ( static_cast<uint64_t>( bitReader.read( BITS_PER_READ ) ) << BITS_PER_READ )
-                                            | bitReader.read( BITS_PER_READ );
+                    const auto magicBytes =
+                        ( static_cast<uint64_t>( bitReader.read( BITS_PER_READ ) ) << BITS_PER_READ )
+                        | bitReader.read( BITS_PER_READ );
 
                     if ( magicBytes != bitStringToFind ) {
                         std::stringstream msg;

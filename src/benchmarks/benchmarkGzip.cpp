@@ -46,9 +46,14 @@ public:
 
     /* These are implicitly deleted anyway because of the const member but clang-tidy keeps complaining without this. */
     GzipWrapper( const GzipWrapper& ) = delete;
+
     GzipWrapper( GzipWrapper&& ) = delete;
-    GzipWrapper& operator=( GzipWrapper&& ) = delete;
-    GzipWrapper& operator=( GzipWrapper& ) = delete;
+
+    GzipWrapper&
+    operator=( GzipWrapper&& ) = delete;
+
+    GzipWrapper&
+    operator=( GzipWrapper& ) = delete;
 
 private:
     void
@@ -367,8 +372,6 @@ printBandwidths( const std::vector<double>& durations,
     std::cout << "    Bandwidth on Decoded Data / (MB/s): "
               << Statistics<double>( decodedBandwidths ).formatAverageWithUncertainty( true ) << "\n";
 };
-
-
 void
 benchmarkChunkedParallelDecompression( const std::string& fileName )
 {

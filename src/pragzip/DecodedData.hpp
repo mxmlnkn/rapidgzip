@@ -345,7 +345,7 @@ DecodedData::getLastWindow( WindowView const& previousWindow ) const
 
 [[nodiscard]] inline DecodedVector
 DecodedData::getWindowAt( WindowView const& previousWindow,
-                          size_t const      skipBytes) const
+                          size_t const      skipBytes ) const
 {
     if ( skipBytes > size() ) {
         throw std::invalid_argument( "Amount of bytes to skip is larger than this block!" );

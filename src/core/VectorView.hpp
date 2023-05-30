@@ -15,11 +15,20 @@ public:
     using value_type = T;
 
 public:
-    constexpr VectorView() noexcept = default;
-    constexpr VectorView( const VectorView<T>& ) noexcept = default;
-    constexpr VectorView( VectorView<T>&& ) noexcept = default;
-    constexpr VectorView<T>& operator=( const VectorView<T>& ) noexcept = default;
-    constexpr VectorView<T>& operator=( VectorView<T>&& ) noexcept = default;
+    constexpr
+    VectorView() noexcept = default;
+
+    constexpr
+    VectorView( const VectorView<T>& ) noexcept = default;
+
+    constexpr
+    VectorView( VectorView<T>&& ) noexcept = default;
+
+    constexpr VectorView<T>&
+    operator=( const VectorView<T>& ) noexcept = default;
+
+    constexpr VectorView<T>&
+    operator=( VectorView<T>&& ) noexcept = default;
 
     constexpr
     VectorView( const std::vector<T>& vector ) noexcept :
@@ -108,11 +117,20 @@ public:
     using value_type = T;
 
 public:
-    constexpr WeakVector() = default;
-    constexpr WeakVector( const WeakVector& ) = default;
-    constexpr WeakVector( WeakVector&& ) = default;
-    constexpr WeakVector& operator=( const WeakVector& ) = default;
-    constexpr WeakVector& operator=( WeakVector&& ) = default;
+    constexpr
+    WeakVector() = default;
+
+    constexpr
+    WeakVector( const WeakVector& ) = default;
+
+    constexpr
+    WeakVector( WeakVector&& ) = default;
+
+    constexpr WeakVector&
+    operator=( const WeakVector& ) = default;
+
+    constexpr WeakVector&
+    operator=( WeakVector&& ) = default;
 
     constexpr
     WeakVector( std::vector<T>* vector ) noexcept :

@@ -271,7 +271,7 @@ ibzip2CLI( int argc, char** argv )
     }
 
     if ( parsedArgs.count( "version" ) > 0 ) {
-        std::cout << "ibzip2, CLI to the indexed and seekable bzip2 decoding library indexed-bzip2 version 1.4.1.\n";
+        std::cout << "ibzip2, CLI to the indexed and seekable bzip2 decoding library indexed-bzip2 version 1.5.0.\n";
         return 0;
     }
 
@@ -292,7 +292,7 @@ ibzip2CLI( int argc, char** argv )
         return 1;
     }
 
-    std::string inputFilePath; /* Can be empty. Then, read from STDIN. */
+    std::string inputFilePath;  /* Can be empty. Then, read from STDIN. */
     if ( parsedArgs.count( "input" ) == 1 ) {
         inputFilePath = parsedArgs["input"].as<std::string>();
     }

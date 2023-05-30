@@ -237,6 +237,7 @@ packUniformlyBitPackedHistogramUnsafe( T histogram )
     return packedHistogram >> MEMBER_BIT_WIDTHS.front();
 }
 
+
 static_assert( packUniformlyBitPackedHistogramUnsafe<5>( 0b01111'10001'10101'01001'00101'00011'00001ULL )
                == 0b1111'10001'10101'1001'101'11'1ULL );
 }  // namespace VariableLengthPackedHistogram
@@ -268,7 +269,7 @@ static constexpr auto PRECODE_HISTOGRAM_VALID_LUT =
             if ( const auto packedHistogram = VariableLengthPackedHistogram::packHistogram( histogram );
                  packedHistogram.has_value() )
             {
-               const auto histogramToSetValid =
+                const auto histogramToSetValid =
                     *packedHistogram >> VariableLengthPackedHistogram::MEMBER_BIT_WIDTHS.front();
                 result[histogramToSetValid / 64U] |= uint64_t( 1 ) << ( histogramToSetValid % 64U );
             }
@@ -289,7 +290,7 @@ constexpr std::array<Histogram, 1U << VariableLengthPackedHistogram::MEMBER_BIT_
 POWER_OF_TWO_SPECIAL_CASES = {
     /*  0 */ ~Histogram( 0 ),  /* An empty alphabet is not legal for the precode! */
     /*  1 */ 0b0000'00000'00000'0000'000'00'1ULL,
-    /*  2 */ 0b0000'00000'00000'0000'000'01'0ULL, /* 1 (0b10) is an overflow of the 1-length bin. */
+    /*  2 */ 0b0000'00000'00000'0000'000'01'0ULL,  /* 1 (0b10) is an overflow of the 1-length bin. */
     /*  3 */ ~Histogram( 0 ),
     /*  4 */ 0b0000'00000'00000'0000'001'00'0ULL,  /* setCount( 0, 2, 4 ) >> MEMBER_BIT_WIDTHS.front() */
     /*  5 */ ~Histogram( 0 ),
@@ -416,7 +417,7 @@ static constexpr auto REQUIRED_SUBTABLES_COUNT =
     {
         using pragzip::deflate::precode::VALID_HISTOGRAMS;
         std::array<std::pair</* truncated address */ uint32_t,
-                              /* number of valid histograms in same truncated address */uint16_t>,
+                             /* number of valid histograms in same truncated address */ uint16_t>,
                    VALID_HISTOGRAMS.size()> counts;
         for ( const auto& histogram : VALID_HISTOGRAMS ) {
             using namespace pragzip::PrecodeCheck::SingleLUT;

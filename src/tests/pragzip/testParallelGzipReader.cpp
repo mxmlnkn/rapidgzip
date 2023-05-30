@@ -198,7 +198,7 @@ testParallelDecodingWithIndex( const TemporaryDirectory& tmpFolder )
 
     const auto reconstructedIndex = reader.gzipIndex();
     REQUIRE_EQUAL( reconstructedIndex.compressedSizeInBytes, realIndex.compressedSizeInBytes );
-    REQUIRE_EQUAL( reconstructedIndex.uncompressedSizeInBytes, realIndex.uncompressedSizeInBytes);
+    REQUIRE_EQUAL( reconstructedIndex.uncompressedSizeInBytes, realIndex.uncompressedSizeInBytes );
     REQUIRE_EQUAL( reconstructedIndex.windowSizeInBytes, 32_Ki );
     REQUIRE( reconstructedIndex.checkpointSpacing >= reconstructedIndex.windowSizeInBytes );
     REQUIRE_EQUAL( reconstructedIndex.checkpoints.size(), realIndex.checkpoints.size() );
@@ -232,7 +232,7 @@ testParallelDecodingWithIndex( const TemporaryDirectory& tmpFolder )
     const auto rewrittenIndex = readGzipIndex( std::make_unique<StandardFileReader>( writtenIndexFile.string() ) );
 
     REQUIRE_EQUAL( rewrittenIndex.compressedSizeInBytes, realIndex.compressedSizeInBytes );
-    REQUIRE_EQUAL( rewrittenIndex.uncompressedSizeInBytes, realIndex.uncompressedSizeInBytes);
+    REQUIRE_EQUAL( rewrittenIndex.uncompressedSizeInBytes, realIndex.uncompressedSizeInBytes );
     REQUIRE_EQUAL( rewrittenIndex.windowSizeInBytes, 32_Ki );
     REQUIRE( rewrittenIndex.checkpointSpacing >= rewrittenIndex.windowSizeInBytes );
     REQUIRE_EQUAL( rewrittenIndex.checkpoints.size(), realIndex.checkpoints.size() );
@@ -355,7 +355,7 @@ testPerformance( const std::string& encodedFilePath,
 
     const auto statistics = reader.statistics();
     REQUIRE( statistics.blockCountFinalized );
-    std::cerr << "statistics.blockCount:" << statistics.blockCount <<", statistics.prefetchCount:"
+    std::cerr << "statistics.blockCount:" << statistics.blockCount << ", statistics.prefetchCount:"
               << statistics.prefetchCount << ", statistics.onDemandFetchCount:" << statistics.onDemandFetchCount
               << "\n";
     REQUIRE_EQUAL( statistics.blockCount, statistics.prefetchCount + statistics.onDemandFetchCount );
@@ -378,8 +378,8 @@ testPerformance( const TemporaryDirectory& tmpFolder )
                     testPerformance( encodedFilePath, bufferSize, parallelization );
                 } catch ( const std::exception& exception ) {
                     std::cerr << "Caught exception: " << exception.what() << " while trying to test with a base64 "
-                        << "example decompressed with " << parallelization << " threads and "
-                        << formatBytes( bufferSize ) << " buffer.\n";
+                              << "example decompressed with " << parallelization << " threads and "
+                              << formatBytes( bufferSize ) << " buffer.\n";
                     throw;
                 }
             }
@@ -539,8 +539,9 @@ testCachedChunkReuseAfterSplit()
     pragzip::ParallelGzipReader<pragzip::ChunkData, /* ENABLE_STATISTICS */ true> reader(
         std::make_unique<BufferViewFileReader>( compressedZeros ), /* parallelization */ 8, /* chunk size */ 1_Mi );
     reader.setCRC32Enabled( true );
+    reader.setMaxDecompressedChunkSize( 128_Mi );
 
-    /* As there is only one chunk, this read call will cache it.  */
+    /* As there is only one chunk, this read call will cache it. */
     reader.read( -1, nullptr, 16_Mi );
     REQUIRE_EQUAL( reader.statistics().onDemandFetchCount, 1U );
 
@@ -591,7 +592,6 @@ testPrefetchingAfterSplit()
 
     reader2.read( -1, nullptr, std::numeric_limits<size_t>::max() );
     REQUIRE_EQUAL( reader2.statistics().onDemandFetchCount, 1U );
-
 }
 
 

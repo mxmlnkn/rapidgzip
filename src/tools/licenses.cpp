@@ -5,7 +5,8 @@
 
 namespace licenses
 {
-static constexpr std::string_view CXXOPTS{ R"(
+static constexpr std::string_view CXXOPTS{
+    R"(
 # cxxopts
 
 https://github.com/jarro2783/cxxopts/
@@ -32,7 +33,8 @@ THE SOFTWARE.
 )" };
 
 
-static constexpr std::string_view RPMALLOC{ R"(
+static constexpr std::string_view RPMALLOC{
+    R"(
 # rpmalloc
 
 https://github.com/mjansson/rpmalloc
@@ -92,7 +94,8 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 )" };
 
 
-static constexpr std::string_view ZLIB{ R"(
+static constexpr std::string_view ZLIB{
+    R"(
 # zlib
 
 https://github.com/madler/zlib/

@@ -261,7 +261,7 @@ pragzipCLI( int argc, char** argv )
 
     if ( parsedArgs.count( "version" ) > 0 ) {
         std::cout << "pragzip, CLI to the parallelized, indexed, and seekable gzip decoding library pragzip "
-                  << "version 0.5.0.\n";
+                  << "version 0.6.0.\n";
         return 0;
     }
 
@@ -286,7 +286,7 @@ pragzipCLI( int argc, char** argv )
         return 1;
     }
 
-    std::string inputFilePath; /* Can be empty. Then, read from STDIN. */
+    std::string inputFilePath;  /* Can be empty. Then, read from STDIN. */
     if ( parsedArgs.count( "input" ) == 1 ) {
         inputFilePath = parsedArgs["input"].as<std::string>();
         if ( !inputFilePath.empty() && !fileExists( inputFilePath ) ) {
@@ -471,7 +471,7 @@ main( int argc, char** argv )
         if ( message.empty() ) {
             std::cerr << "Caught exception with typeid: " << typeid( exception ).name() << "\n";
         } else {
-            std::cerr << message << "\n";
+            std::cerr << "Caught exception: " << message << "\n";
         }
         return 1;
     }

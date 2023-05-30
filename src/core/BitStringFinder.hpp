@@ -40,9 +40,11 @@ public:
 
     BitStringFinder( const BitStringFinder& other ) = delete;
 
-    BitStringFinder& operator=( const BitStringFinder& ) = delete;
+    BitStringFinder&
+    operator=( const BitStringFinder& ) = delete;
 
-    BitStringFinder& operator=( BitStringFinder&& ) = delete;
+    BitStringFinder&
+    operator=( BitStringFinder&& ) = delete;
 
     BitStringFinder( UniqueFileReader fileReader,
                      uint64_t         bitStringToFind,
@@ -71,7 +73,8 @@ public:
         m_buffer.assign( buffer, buffer + size );
     }
 
-    virtual ~BitStringFinder() = default;
+    virtual
+    ~BitStringFinder() = default;
 
     [[nodiscard]] bool
     seekable() const

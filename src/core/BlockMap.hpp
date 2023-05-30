@@ -289,6 +289,6 @@ private:
     std::vector<size_t> m_eosBlocks;
     bool m_finalized{ false };
 
-    size_t m_lastBlockEncodedSize{ 0 }; /**< Encoded block size of m_blockToDataOffsets.rbegin() */
-    size_t m_lastBlockDecodedSize{ 0 }; /**< Decoded block size of m_blockToDataOffsets.rbegin() */
+    size_t m_lastBlockEncodedSize{ 0 };  /**< Encoded block size of m_blockToDataOffsets.rbegin() */
+    size_t m_lastBlockDecodedSize{ 0 };  /**< Decoded block size of m_blockToDataOffsets.rbegin() */
 };

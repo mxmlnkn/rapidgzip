@@ -46,8 +46,9 @@ Issues regarding pragzip should be opened [here](https://github.com/mxmlnkn/prag
    2. [Python Library](#python-library)
    3. [Via Ratarmount](#via-ratarmount)
    4. [C++ Library](#c-library)
-4. [Internal Architecture](#internal-architecture)
-5. [Tracing the Decoder](#tracing-the-decoder)
+4. [Citation](#citation)
+5. [Internal Architecture](#internal-architecture)
+6. [Tracing the Decoder](#tracing-the-decoder)
 
 
 # Performance
@@ -61,118 +62,44 @@ This benchmarks use a chunk size of 512 KiB.
 
 ## Decompression with Existing Index
 
-| Module                            | Runtime / s | Bandwidth / (MB/s) | Speedup |
-|-----------------------------------|-------------|--------------------|---------|
-| gzip                              |  17.9       |  180               |    1    |
-| pragzip with parallelization = 0  |  1.21       | 2700               | 14.8    |
-| pragzip with parallelization = 1  |  14.0       |  230               |  1.3    |
-| pragzip with parallelization = 2  |   7.2       |  450               |  2.5    |
-| pragzip with parallelization = 6  |  2.51       | 1300               |  7.1    |
-| pragzip with parallelization = 12 |  1.40       | 2330               | 12.8    |
-| pragzip with parallelization = 24 |  1.11       | 2940               | 16.1    |
-| pragzip with parallelization = 32 |  1.12       | 2920               | 16.0    |
-
-
-<details>
-<summary>Benchmark Code</summary>
-
-```python3
-import gzip
-import time
-
-with gzip.open(gzipFilePath) as file:
-    t0 = time.time()
-    while file.read(4*1024*1024):
-        pass
-    gzipDuration = time.time() - t0
-    print(f"Decoded file in {gzipDuration:.2f}s, bandwidth: {fileSize / gzipDuration / 1e6:.0f} MB/s")
-```
-
-The usage of pragzip is slightly different:
-
-```python3
-import os
-import time
-
-import indexed_gzip
-import pragzip
-
-fileSize = os.stat(gzipFilePath).st_size
-
-if not os.path.exists(gzipFilePath + ".index"):
-    with indexed_gzip.IndexedGzipFile(gzipFilePath) as file:
-        file.build_full_index()
-        file.export_index(gzipFilePath + ".index")
-
-# parallelization = 0 means that it is automatically using all available cores.
-for parallelization in [0, 1, 2, 6, 12, 24, 32]:
-    with pragzip.PragzipFile(gzipFilePath, parallelization = parallelization) as file:
-        file.import_index(open(gzipFilePath + ".index", 'rb'))
-        t0 = time.time()
-        # Unfortunately, the chunk size is very performance critical! It might depend on the cache size.
-        while file.read(512*1024):
-            pass
-        pragzipDuration = time.time() - t0
-        print(f"Decoded file in {pragzipDuration:.2f}s"
-              f", bandwidth: {fileSize / pragzipDuration / 1e6:.0f} MB/s"
-              f", speedup: {gzipDuration/pragzipDuration:.1f}")
-```
-
-</details>
+|                      | 4GiB-base64                  | 4GiB-base64     | | 20x-silesia                   | 20x-silesia
+|----------------------|------------------------------|-----------------|-|-------------------------------|---------
+| Uncompressed Size    | 4 GiB                        |                 | | 3.95 GiB                      |
+| Compressed Size      | 3.04 GiB                     |                 | | 1.27 GiB                      |
+| **Module**           | **Bandwidth <br/> / (MB/s)** | **Speedup**     | |  **Bandwidth <br/> / (MB/s)** | **Speedup**
+| gzip                 |  250                         |    1            | |   293                         |  1
+| pragzip (0  threads) | 4480                         | 17.9            | |  4830                         | 16.5
+| pragzip (1  threads) |  294                         |  1.2            | |   350                         |  1.2
+| pragzip (2  threads) |  580                         |  2.3            | |   678                         |  2.3
+| pragzip (6  threads) | 1680                         |  6.7            | |  1940                         |  6.6
+| pragzip (12 threads) | 3110                         | 12.5            | |  3460                         | 11.8
+| pragzip (24 threads) | 4510                         | 18.0            | |  5070                         | 17.3
+| pragzip (32 threads) | 4330                         | 17.3            | |  4720                         | 16.1
 
 
 ## Decompression from Scratch
 
 ### Python
 
-| Module                            | Runtime / s | Bandwidth / (MB/s) | Speedup |
-|-----------------------------------|-------------|--------------------|---------|
-| gzip                              |  17.5       |  190               | 1       |
-| pragzip with parallelization = 0  |  1.22       | 2670               | 14.3    |
-| pragzip with parallelization = 1  |  18.2       |  180               | 1.0     |
-| pragzip with parallelization = 2  |   9.3       |  350               | 1.9     |
-| pragzip with parallelization = 6  |  3.28       | 1000               | 5.3     |
-| pragzip with parallelization = 12 |  1.82       | 1800               | 9.6     |
-| pragzip with parallelization = 24 |  1.25       | 2620               | 14.0    |
-| pragzip with parallelization = 32 |  1.30       | 2520               | 13.5    |
+|                      | 4GiB-base64                  | 4GiB-base64     | | 20x-silesia                   | 20x-silesia
+|----------------------|------------------------------|-----------------|-|-------------------------------|---------
+| Uncompressed Size    | 4 GiB                        |                 | | 3.95 GiB                      |
+| Compressed Size      | 3.04 GiB                     |                 | | 1.27 GiB                      |
+| **Module**           | **Bandwidth <br/> / (MB/s)** | **Speedup**     | |  **Bandwidth <br/> / (MB/s)** | **Speedup**
+| gzip                 |  250                         |    1            | |   293                         |  1
+| pragzip (0  threads) | 3280                         | 13.1            | |  2280                         |  7.8
+| pragzip (1  threads) |  222                         |  0.9            | |   236                         |  0.8
+| pragzip (2  threads) |  428                         |  1.7            | |   411                         |  1.4
+| pragzip (6  threads) | 1250                         |  5.0            | |  1095                         |  3.7
+| pragzip (12 threads) | 2290                         |  9.2            | |  1390                         |  4.8
+| pragzip (24 threads) | 3300                         | 13.2            | |  2280                         |  7.8
+| pragzip (32 threads) | 3180                         | 12.7            | |  2480                         |  8.5
 
 Note that pragzip is generally faster when given an index because it can delegate the decompression to zlib while it has to use its own gzip decompression engine when no index exists yet.
 
 Note that values deviate roughly by 10% and therefore are rounded.
 
-<details>
-<summary>Benchmark Code</summary>
-
-```python3
-import gzip
-import os
-import time
-
-import pragzip
-
-fileSize = os.stat(gzipFilePath).st_size
-
-with gzip.open(gzipFilePath) as file:
-    t0 = time.time()
-    while file.read(4*1024*1024):
-        pass
-    gzipDuration = time.time() - t0
-    print(f"Decoded file in {gzipDuration:.2f}s, bandwidth: {fileSize / gzipDuration / 1e6:.0f} MB/s")
-
-# parallelization = 0 means that it is automatically using all available cores.
-for parallelization in [0, 1, 2, 6, 12, 24, 32]:
-    with pragzip.PragzipFile(gzipFilePath, parallelization = parallelization) as file:
-        t0 = time.time()
-        # Unfortunately, the chunk size is very performance critical! It might depend on the cache size.
-        while file.read(512*1024):
-            pass
-        pragzipDuration = time.time() - t0
-        print(f"Decoded file in {pragzipDuration:.2f}s"
-              f", bandwidth: {fileSize / pragzipDuration / 1e6:.0f} MB/s"
-              f", speedup: {gzipDuration/pragzipDuration:.1f}")
-```
-
-</details>
+The code used for benchmarking can be found [here](results/benchmarkPythonModule.py).
 
 
 # Installation
@@ -298,6 +225,33 @@ The license is also permissive enough for most use cases.
 
 I currently did not yet test integrating it into other projects other than simply manually copying the source in `src/core`, `src/pragzip`, and if integrated zlib is desired also `src/external/zlib`.
 If you have suggestions and wishes like support with CMake or Conan, please open an issue.
+
+
+# Citation
+
+A paper describing the implementation details and showing the scaling behavior with up to 128 cores has been submitted to and [accepted](https://www.hpdc.org/2023/program/technical-sessions/) in [ACM HPDC'23](https://www.hpdc.org/2023/), The 32nd International Symposium on High-Performance Parallel and Distributed Computing. If you use this software for your scientific publication, please cite it as:
+
+This is preliminiary. The final citation will become available end of June 2023.
+
+```bibtex
+@inproceedings{rapidgzip,
+    author    = {Knespel, Maximilian and Brunst, Holger},
+    title     = {Rapidgzip: Parallel Decompression and Seeking in Gzip Files Using Cache Prefetching},
+    year      = {2023},
+    % isbn    = {},  % To be released end of June
+    publisher = {Association for Computing Machinery},
+    address   = {New York, NY, USA},
+    url       = {https://doi.org/10.1145/3588195.3592992},
+    doi       = {10.1145/3588195.3592992},
+    abstract  = {Gzip is a file compression format, which is ubiquitously used. Although a multitude of gzip implementations exist, only pugz can fully utilize current multi-core processor architectures for decompression. Yet, pugz cannot decompress arbitrary gzip files. It requires the decompressed stream to only contain byte values 9–126. In this work, we present a generalization of the parallelization scheme used by pugz that can be reliably applied to arbitrary gzip-compressed data without compromising performance. We show that the requirements on the file contents posed by pugz can be dropped by implementing an architecture based on a cache and a parallelized prefetcher. This architecture can safely handle faulty decompression results, which can appear when threads start decompressing in the middle of a gzip file by using trial and error. Using 128 cores, our implementation reaches 8.7 GB/s decompression bandwidth for gzip-compressed base64-encoded data, a speedup of 55 over the single-threaded GNU gzip, and 5.6 GB/s for the Silesia corpus, a speedup of 33 over GNU gzip.},
+    booktitle = {Proceedings of the 32nd International Symposium on High-Performance Parallel and Distributed Computing},
+    % pages   = {16–29},  % To be released end of June
+    numpages  = {13},
+    keywords  = {Gzip, Decompression, Parallel Algorithm, Performance, Random Access},
+    location  = {Orlando, FL, USA},
+    series    = {HPDC '23},
+}
+```
 
 
 # Internal Architecture

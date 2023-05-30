@@ -119,7 +119,8 @@ readGzipIndex( UniqueFileReader file )
             }
         };
 
-    const auto loadValue = [&checkedRead] ( auto& destination ) { checkedRead( &destination, sizeof( destination ) ); };
+    const auto loadValue =
+        [&checkedRead] ( auto& destination ) { checkedRead( &destination, sizeof( destination ) ); };
 
     std::vector<char> formatId( 5, 0 );
     checkedRead( formatId.data(), formatId.size() );
@@ -208,7 +209,8 @@ writeGzipIndex( const GzipIndex&                                              in
     const uint32_t windowSizeInBytes = static_cast<uint32_t>( 32_Ki );
 
     if ( !std::all_of( checkpoints.begin(), checkpoints.end(), [windowSizeInBytes] ( const auto& checkpoint ) {
-        return checkpoint.window.empty() || ( checkpoint.window.size() >= windowSizeInBytes ); } ) )
+                           return checkpoint.window.empty() || ( checkpoint.window.size() >= windowSizeInBytes );
+                       } ) )
     {
         throw std::invalid_argument( "All window sizes must be at least 32 KiB!" );
     }

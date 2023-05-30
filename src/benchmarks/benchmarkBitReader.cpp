@@ -306,7 +306,7 @@ benchmarkBitReading( const std::vector<char>& data,
 
         while ( ( bitBufferSize + CHAR_BIT <= BIT_BUFFER_CAPACITY ) && ( i < data.size() ) ) {
             if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
-                bitBuffer <<= static_cast<unsigned>( CHAR_BIT );
+                bitBuffer <<= static_cast<unsigned int>( CHAR_BIT );
                 bitBuffer |= static_cast<uint8_t>( data[i] );
             } else {
                 bitBuffer |= ( static_cast<BitBuffer>( static_cast<uint8_t>( data[i] ) ) << bitBufferSize );
@@ -443,17 +443,17 @@ benchmarkBitReaders( const std::vector<char>& data,
         };
 
     measureTimes( BenchmarkType::SIMPLE_LOOP, [&] () {
-        return benchmarkBitReading<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>( data, nBits );
-    } );
+                      return benchmarkBitReading<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>( data, nBits );
+                  } );
     measureTimes( BenchmarkType::BIT_READER_READ, [&] () {
-        return benchmarkBitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>( data, nBits );
-    } );
+                      return benchmarkBitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>( data, nBits );
+                  } );
     measureTimes( BenchmarkType::BIT_READER_TEMPLATE_READ, [&] () {
-        return benchmarkBitReaderTemplatedRead<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>( data, nBits );
-    } );
+                      return benchmarkBitReaderTemplatedRead<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>( data, nBits );
+                  } );
     measureTimes( BenchmarkType::BIT_READER_TEMPLATE_PEEK, [&] () {
-        return benchmarkBitReaderTemplatedPeek<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>( data, nBits );
-    } );
+                      return benchmarkBitReaderTemplatedPeek<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>( data, nBits );
+                  } );
 
     return results;
 }

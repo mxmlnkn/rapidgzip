@@ -86,5 +86,3 @@ template<typename T>
 using FasterVector = std::vector<T>;
 
 #endif
-
-

@@ -38,34 +38,44 @@ public:
 public:
     explicit
     BZ2Reader( UniqueFileReader fileReader ) :
-        m_bitReader( std::move( fileReader ) )
+        /* Without this, the test_joining_archive test inside ratarmountcore's test_factory.py fails.
+         * This is because tell() throws an exception because m_file.tell() is in an unexpected position.
+         * I'm still not sure why but maybe some external caller resets the file position to 0.
+         * As we are returning fileno to the underlying file and because the given PyObject input file object
+         * can have shared ownership, we need to ensure that this class works even when the file object is
+         * seeked from outside. */
+        m_bitReader( ensureSharedFileReader( std::move( fileReader ) ) )
     {}
 
 #ifdef WITH_PYTHON_SUPPORT
     explicit
     BZ2Reader( const std::string& filePath ) :
-        m_bitReader( std::make_unique<StandardFileReader>( filePath ) )
+        BZ2Reader( std::make_unique<StandardFileReader>( filePath ) )
     {}
 
     explicit
     BZ2Reader( int fileDescriptor ) :
-        m_bitReader( std::make_unique<StandardFileReader>( fileDescriptor ) )
+        BZ2Reader( std::make_unique<StandardFileReader>( fileDescriptor ) )
     {}
 
     explicit
     BZ2Reader( PyObject* pythonObject ) :
-        m_bitReader( std::make_unique<PythonFileReader>( pythonObject ) )
+        BZ2Reader( std::make_unique<PythonFileReader>( pythonObject ) )
     {}
 #endif
 
     /* Forbid copying because it is hard to get right and there is not much use for it right now. */
     BZ2Reader( const BZ2Reader& ) = delete;
-    BZ2Reader& operator=( const BZ2Reader& ) = delete;
+
+    BZ2Reader&
+    operator=( const BZ2Reader& ) = delete;
 
     /* Forbid moving because it is not used right now but it could probably be defaulted as long
      * as BitReader has a working move constructor. */
     BZ2Reader( BZ2Reader&& ) = delete;
-    BZ2Reader& operator=( BZ2Reader&& ) = delete;
+
+    BZ2Reader&
+    operator=( BZ2Reader&& ) = delete;
 
     /* FileReader overrides */
 
@@ -140,7 +150,6 @@ public:
         m_atEndOfFile = false;
         throw std::invalid_argument( "Not fully tested!" );
     }
-
 
     /* BZip2 specific methods */
 
@@ -277,10 +286,10 @@ protected:
     BitReader m_bitReader;
 
     uint8_t m_blockSize100k = 0;
-    uint32_t m_streamCRC = 0; /** CRC of stream as last block says */
+    uint32_t m_streamCRC = 0;  /** CRC of stream as last block says */
     uint32_t m_calculatedStreamCRC = 0;
     bool m_blockToDataOffsetsComplete = false;
-    size_t m_currentPosition = 0; /** the current position as can only be modified with read or seek calls. */
+    size_t m_currentPosition = 0;  /** the current position as can only be modified with read or seek calls. */
     bool m_atEndOfFile = false;
 
     std::map<size_t, size_t> m_blockToDataOffsets;
@@ -339,7 +348,7 @@ BZ2Reader::seek( long long int offset,
     offset = std::max<decltype( offset )>( 0, offset );
     m_currentPosition = static_cast<size_t>( offset );
 
-    flushOutputBuffer(); // ensure that no old data is left over
+    flushOutputBuffer();  // ensure that no old data is left over
 
     m_atEndOfFile = static_cast<size_t>( offset ) >= size();
     if ( m_atEndOfFile ) {

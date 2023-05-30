@@ -153,8 +153,8 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     auto encodedFile = std::make_unique<BZ2Reader>( std::make_unique<StandardFileReader>( encodedTestFilePath ) );
 
     const auto seek =
-        [&]( long long int offset,
-             int           origin = SEEK_SET )
+        [&] ( long long int offset,
+              int           origin = SEEK_SET )
         { testSeek( decodedFileSize, decodedFile, encodedFile, offset, origin ); };
 
     const auto read = [&] ( size_t nBytesToRead ) { testRead( decodedFile, encodedFile, nBytesToRead ); };
@@ -282,8 +282,8 @@ testSeekBeforeOffsetCompletion( const std::string& decodedTestFilePath,
     auto encodedFile = std::make_unique<BZ2Reader>( std::make_unique<StandardFileReader>( encodedTestFilePath ) );
 
     const auto seek =
-        [&]( long long int offset,
-             int           origin = SEEK_SET )
+        [&] ( long long int offset,
+              int           origin = SEEK_SET )
         { testSeek( decodedFileSize, decodedFile, encodedFile, offset, origin ); };
 
     const auto read = [&] ( size_t nBytesToRead ) { testRead( decodedFile, encodedFile, nBytesToRead ); };

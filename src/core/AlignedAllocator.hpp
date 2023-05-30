@@ -29,6 +29,7 @@ public:
     using value_type = ElementType;
     static std::align_val_t constexpr ALIGNMENT{ ALIGNMENT_IN_BYTES };
 
+
     /**
      * This is only necessary because AlignedAllocator has a second template
      * argument for the alignment that will make the default
@@ -42,9 +43,11 @@ public:
     };
 
 public:
-    constexpr AlignedAllocator() noexcept = default;
+    constexpr
+    AlignedAllocator() noexcept = default;
 
-    constexpr AlignedAllocator( const AlignedAllocator& ) noexcept = default;
+    constexpr
+    AlignedAllocator( const AlignedAllocator& ) noexcept = default;
 
     template<typename U>
     constexpr AlignedAllocator( AlignedAllocator<U, ALIGNMENT_IN_BYTES> const& ) noexcept

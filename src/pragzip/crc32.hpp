@@ -23,7 +23,7 @@ createCRC32LookupTable() noexcept
 {
     CRC32LookupTable table{};
     for ( uint32_t n = 0; n < table.size(); ++n ) {
-        auto c = static_cast<unsigned long>( n );
+        auto c = static_cast<unsigned long int>( n );
         for ( int j = 0; j < 8; ++j ) {
             if ( c & 1UL ) {
                 c = CRC32_GENERATOR_POLYNOMIAL ^ ( c >> 1U );
@@ -35,6 +35,7 @@ createCRC32LookupTable() noexcept
     }
     return table;
 }
+
 
 static constexpr int CRC32_LOOKUP_TABLE_SIZE = 256;
 
@@ -282,8 +283,8 @@ public:
     }
 
     void
-    update( const void*  data,
-            size_t       size )
+    update( const void* data,
+            size_t      size )
     {
         if ( enabled() ) {
             m_crc32 = updateCRC32( m_crc32, reinterpret_cast<const char*>( data ), size );

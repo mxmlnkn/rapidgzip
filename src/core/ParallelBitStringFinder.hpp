@@ -19,7 +19,6 @@
 
 #include "AffinityHelpers.hpp"
 #include "BitStringFinder.hpp"
-#include "BitReader.hpp"
 #include "common.hpp"
 #include "ThreadPool.hpp"
 
@@ -62,7 +61,8 @@ public:
         this->m_buffer.assign( buffer, buffer + size );
     }
 
-    virtual ~ParallelBitStringFinder() = default;
+    virtual
+    ~ParallelBitStringFinder() = default;
 
     /**
      * @return the next match and the requested bytes or std::numeric_limits<size_t>::max() if at end of file.
@@ -188,9 +188,9 @@ ParallelBitStringFinder<bitStringSize>::find()
                  * crashes because the predicate check is only done on condition variable notifies and on spurious
                  * wakeups but those are not guaranteed. */
                 result.changed.wait( lock, [&result] () {
-                    return !result.foundOffsets.empty() ||
-                           ( result.future.wait_for( 0s ) == std::future_status::ready );
-                } );
+                                         return !result.foundOffsets.empty() ||
+                                                ( result.future.wait_for( 0s ) == std::future_status::ready );
+                                     } );
 
                 if ( result.future.wait_for( 0s ) == std::future_status::ready ) {
                     result.future.get();

@@ -494,7 +494,6 @@ analyzeValidPrecodes()
     }
 
     /* Test frequency LUT */
-
 }
 
 
@@ -662,7 +661,6 @@ analyzeMaxValidPrecodeFrequencies()
         const auto histogramWith7Count = histogram | ( static_cast<uint64_t>( unusedSymbolCount )
                                                        << ( ( FREQUENCY_COUNT - 1 ) * FREQUENCY_BITS ) );
         alternativeValidHistogramsWithout7Counts.insert( histogramWith7Count );
-
     }
     REQUIRE_EQUAL( validHistograms.size(), alternativeValidHistogramsWithout7Counts.size() );
     REQUIRE( validHistograms == alternativeValidHistogramsWithout7Counts );
@@ -794,7 +792,7 @@ analyzeCompressedLUT()
     using VariableLengthPackedHistogram::packHistogram;
 
     std::array<std::pair</* truncated address */ uint32_t,
-                          /* number of valid histograms in same truncated address */uint16_t>,
+                         /* number of valid histograms in same truncated address */ uint16_t>,
                VALID_HISTOGRAMS.size()> counts{};
     for ( const auto& histogram : VALID_HISTOGRAMS ) {
         const auto packedHistogram = packHistogram( histogram );
@@ -845,7 +843,7 @@ analyzeCompressedLUT()
               << "    LUT size: " << formatBytes( lutSize ) << "\n"
               << "    Unique Subtables: " << subtableCount << "\n"
               << "    Subtable size: " << formatBytes( subtableSize ) << "\n"
-              << "    Subtables size: " << formatBytes( subtableCount * subtableSize )<< "\n"
+              << "    Subtables size: " << formatBytes( subtableCount * subtableSize ) << "\n"
               << "    Total size: " << formatBytes( lutSize + subtableCount * subtableSize ) << "\n"
               << "\n";
 }

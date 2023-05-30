@@ -83,12 +83,20 @@ public:
 public:
     explicit
     BitReader( UniqueFileReader fileReader ) :
-        m_file( std::move( fileReader ) )
+        /* The UniqueFileReader input argument sufficiently conveys and ensures that the file ownership is taken.
+         * But, because BitReader has a fileno getter returning the underlying fileno, it is possible that the
+         * file position is changed from the outside. To still keep correct behavior in that case, we have to
+         * to make it a SharedFileReader, which keeps track of the intended file position. */
+        m_file( ensureSharedFileReader( std::move( fileReader ) ) )
     {}
 
     BitReader( BitReader&& other ) = default;
-    BitReader& operator=( BitReader&& other ) = default;
-    BitReader& operator=( const BitReader& other ) = delete;
+
+    BitReader&
+    operator=( BitReader&& other ) = default;
+
+    BitReader&
+    operator=( const BitReader& other ) = delete;
 
     BitReader( const BitReader& other ) :
         m_file( other.m_file ? other.m_file->clone() : UniqueFileReader() ),
@@ -574,7 +582,8 @@ private:
                 m_originalBitBufferSize( originalBitBufferSize )
             {}
 
-            ~ShiftBackOnReturn() noexcept {
+            ~ShiftBackOnReturn() noexcept
+            {
                 /* Move LSB bits (which are filled left-to-right) to the left if so necessary
                  * so that the format is the same as for MSB bits! */
                 if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
@@ -648,7 +657,7 @@ private:
     UniqueFileReader m_file;
 
     std::vector<uint8_t> m_inputBuffer;
-    size_t m_inputBufferPosition = 0; /** stores current position of first valid byte in buffer */
+    size_t m_inputBufferPosition = 0;  /** stores current position of first valid byte in buffer */
 
     /* Performance profiling metrics. */
     size_t m_bufferRefillCount{ 0 };
@@ -700,8 +709,8 @@ public:
      * In both cases, the amount of bits wanted are extracted by shifting to the right and and'ing with a bit mask.
      */
     BitBuffer m_bitBuffer = 0;
-    uint8_t m_bitBufferSize = 0; // size of bitbuffer in bits
-    uint8_t m_originalBitBufferSize = 0; // size of valid bitbuffer bits including already read ones
+    uint8_t m_bitBufferSize = 0;  // size of bitbuffer in bits
+    uint8_t m_originalBitBufferSize = 0;  // size of valid bitbuffer bits including already read ones
 };
 
 

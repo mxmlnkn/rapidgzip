@@ -32,7 +32,7 @@ struct MapMarkers
             throw std::invalid_argument( "Cannot replace unknown 2 B code!" );
         }
 
-        if constexpr ( !FULL_WINDOW  ) {
+        if constexpr ( !FULL_WINDOW ) {
             if ( value - MAX_WINDOW_SIZE >= m_window.size() ) {
                 throw std::invalid_argument( "Window too small!" );
             }

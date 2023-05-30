@@ -146,8 +146,11 @@ struct unique_file_descriptor
     }
 
     unique_file_descriptor() = default;
+
     unique_file_descriptor( const unique_file_descriptor& ) = delete;
-    unique_file_descriptor& operator=( const unique_file_descriptor& ) = delete;
+
+    unique_file_descriptor&
+    operator=( const unique_file_descriptor& ) = delete;
 
     unique_file_descriptor( unique_file_descriptor&& other ) noexcept :
         m_fd( other.m_fd )
@@ -195,11 +198,13 @@ using unique_file_ptr = std::unique_ptr<std::FILE, std::function<void ( std::FIL
 inline unique_file_ptr
 make_unique_file_ptr( std::FILE* file )
 {
-    return unique_file_ptr( file, []( auto* ownedFile ){
-        if ( ownedFile != nullptr ) {
-            std::fclose( ownedFile );
-        } } );
+    return unique_file_ptr( file, [] ( auto* ownedFile ) {
+                                if ( ownedFile != nullptr ) {
+                                    std::fclose( ownedFile );
+                                }
+                            } );
 }
+
 
 inline unique_file_ptr
 make_unique_file_ptr( char const* const filePath,
@@ -208,13 +213,13 @@ make_unique_file_ptr( char const* const filePath,
     return make_unique_file_ptr( std::fopen( filePath, mode ) );
 }
 
+
 inline unique_file_ptr
 make_unique_file_ptr( int         fileDescriptor,
                       char const* mode )
 {
     return make_unique_file_ptr( fdopen( fileDescriptor, mode ) );
 }
-
 
 
 inline unique_file_ptr
@@ -396,7 +401,8 @@ writeAllSpliceUnsafe( [[maybe_unused]] const int                   outputFileDes
         }
 
         /* Skip over buffers that were written fully. */
-        for ( ; ( i < dataToWrite.size() ) && ( dataToWrite[i].iov_len <= static_cast<size_t>( nBytesWritten ) ); ++i ) {
+        for ( ; ( i < dataToWrite.size() ) && ( dataToWrite[i].iov_len <= static_cast<size_t>( nBytesWritten ) );
+              ++i ) {
             nBytesWritten -= dataToWrite[i].iov_len;
         }
 
@@ -489,7 +495,6 @@ public:
         return true;
     }
 
-
 private:
     template<typename T>
     void
@@ -564,7 +569,7 @@ writeAllToFd( const int         outputFileDescriptor,
         const auto nBytesToWritePerCall =
             static_cast<unsigned int>(
                 std::min( static_cast<uint64_t>( std::numeric_limits<unsigned int>::max() ),
-                dataToWriteSize - nTotalWritten ) );
+                          dataToWriteSize - nTotalWritten ) );
 
         const auto nBytesWritten = ::write( outputFileDescriptor, currentBufferPosition, nBytesToWritePerCall );
         if ( nBytesWritten <= 0 ) {
@@ -619,7 +624,8 @@ writeAllToFdVector( const int                   outputFileDescriptor,
         }
 
         /* Skip over buffers that were written fully. */
-        for ( ; ( i < dataToWrite.size() ) && ( dataToWrite[i].iov_len <= static_cast<size_t>( nBytesWritten ) ); ++i ) {
+        for ( ; ( i < dataToWrite.size() ) && ( dataToWrite[i].iov_len <= static_cast<size_t>( nBytesWritten ) );
+              ++i ) {
             nBytesWritten -= dataToWrite[i].iov_len;
         }
 
@@ -657,7 +663,8 @@ pwriteAllToFdVector( const int                   outputFileDescriptor,
         fileOffset += nBytesWritten;
 
         /* Skip over buffers that were written fully. */
-        for ( ; ( i < dataToWrite.size() ) && ( dataToWrite[i].iov_len <= static_cast<size_t>( nBytesWritten ) ); ++i ) {
+        for ( ; ( i < dataToWrite.size() ) && ( dataToWrite[i].iov_len <= static_cast<size_t>( nBytesWritten ) );
+              ++i ) {
             nBytesWritten -= dataToWrite[i].iov_len;
         }
 

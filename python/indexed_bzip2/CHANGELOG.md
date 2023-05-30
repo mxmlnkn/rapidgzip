@@ -1,8 +1,14 @@
 
-# Version 1.4.1 built on 2023-mm-dd
+# Version 1.5.0 built on 2023-05-29
 
  - Fix wrong version number returned by ibzip2 --version.
  - Use the number of cores the process has affinity for as default parallelism.
+ - Write verbose output enabled with the -v option to stderr instead of stdout.
+ - Allow decompressing to /dev/null with ibzip2 for benchmarking purposes.
+ - Add --oss-attributions to ibzip2.
+ - Quit when SIGINT has been sent when called from Python.
+ - Spawn threads only when needed instead of all at once at startup.
+ - Avoid std::regex initialization during dlopen.
 
 # Version 1.4.0 built on 2022-11-12
 

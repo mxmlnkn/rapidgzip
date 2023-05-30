@@ -18,7 +18,8 @@ public:
     using WriteFunctor = std::function<void ( const void*, uint64_t )>;
 
 public:
-    virtual ~BZ2ReaderInterface() = default;
+    virtual
+    ~BZ2ReaderInterface() = default;
 
     [[nodiscard]] size_t
     read( char*  outputBuffer,
@@ -48,7 +49,6 @@ public:
 
         return read( writeFunctor, nBytesToRead );
     }
-
 
     virtual size_t
     read( const WriteFunctor& writeFunctor,

@@ -12,37 +12,48 @@
 
 
 template<uint8_t bitsSet>
-uint16_t nLowestBitsSet16()
+uint16_t
+nLowestBitsSet16()
 {
     return nLowestBitsSet<uint16_t, bitsSet>();
 }
 
+
 template<uint8_t bitsSet>
-uint32_t nLowestBitsSet32()
+uint32_t
+nLowestBitsSet32()
 {
     return nLowestBitsSet<uint32_t, bitsSet>();
 }
 
+
 template<uint8_t bitsSet>
-uint64_t nLowestBitsSet64()
+uint64_t
+nLowestBitsSet64()
 {
     return nLowestBitsSet<uint64_t, bitsSet>();
 }
 
+
 template<uint8_t bitsSet>
-uint16_t nHighestBitsSet16()
+uint16_t
+nHighestBitsSet16()
 {
     return nHighestBitsSet<uint16_t, bitsSet>();
 }
 
+
 template<uint8_t bitsSet>
-uint32_t nHighestBitsSet32()
+uint32_t
+nHighestBitsSet32()
 {
     return nHighestBitsSet<uint32_t, bitsSet>();
 }
 
+
 template<uint8_t bitsSet>
-uint64_t nHighestBitsSet64()
+uint64_t
+nHighestBitsSet64()
 {
     return nHighestBitsSet<uint64_t, bitsSet>();
 }

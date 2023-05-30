@@ -51,3 +51,9 @@ target_sources(testPrefetcher PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testPrefetcher.c
 target_link_libraries(testPrefetcher PRIVATE core)
 add_test(NAME Test-Prefetcher COMMAND testPrefetcher)
 add_dependencies(all_tests testPrefetcher)
+
+add_executable(testStreamAdapter)
+target_sources(testStreamAdapter PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testStreamAdapter.cpp)
+target_link_libraries(testStreamAdapter PRIVATE core)
+add_test(NAME Test-StreamAdapter COMMAND testStreamAdapter)
+add_dependencies(all_tests testStreamAdapter)

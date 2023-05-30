@@ -162,7 +162,6 @@ testFixedHuffmanCoding()
 
     /* Test 7-bit codes */
     for ( size_t i = 0; i < 279 - 256 + 1; ++i ) {
-
         encoded = { static_cast<uint8_t>( reverseBits( static_cast<uint8_t>( i ) ) >> 1U ) };
         decoded = { static_cast<uint16_t>( 256 + i ) };
         decodeHuffmanAndCompare( fixedHuffmanCoding, encoded, decoded );
@@ -201,7 +200,8 @@ testFixedHuffmanCoding()
 }
 
 
-int main()
+int
+main()
 {
     testCalculateDistance();
     testCalculateLength();

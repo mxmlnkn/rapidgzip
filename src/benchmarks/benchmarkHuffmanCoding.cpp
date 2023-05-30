@@ -190,7 +190,8 @@ benchmarkHuffmanCodings( const std::vector<uint8_t>&              codeLengths,
 }
 
 
-int main()
+int
+main()
 {
     /* Set it to 15 no matter the benchmark because we want to test the deflate szenario. */
     static constexpr auto MAX_CODE_LENGTH = 15;

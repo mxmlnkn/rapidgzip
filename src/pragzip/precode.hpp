@@ -44,11 +44,11 @@ template<typename Result,
          typename Functor,
          uint8_t  DEPTH = 1>
 constexpr void
-iterateValidPrecodeHistograms( Result&         result,
-                               const Functor&  processValidHistogram,
-                               const uint32_t  remainingCount = pragzip::deflate::MAX_PRECODE_COUNT,
-                               Histogram       histogram = Histogram{},
-                               const uint32_t  freeBits = 2 )
+iterateValidPrecodeHistograms( Result&        result,
+                               const Functor& processValidHistogram,
+                               const uint32_t remainingCount = pragzip::deflate::MAX_PRECODE_COUNT,
+                               Histogram      histogram = Histogram{},
+                               const uint32_t freeBits = 2 )
 {
     static_assert( DEPTH <= MAX_DEPTH, "Cannot descend deeper than the frequency counts!" );
 

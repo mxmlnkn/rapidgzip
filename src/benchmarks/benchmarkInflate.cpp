@@ -166,9 +166,10 @@ benchmarkDecompression( const std::vector<std::byte>& dataToCompress,
               << ", compression strategy: " << toString( compressionStrategy )
               << ", compression bandwidth: " << compressionBandwidth / 1e6 << " MB/s\n";
 
-    const auto [size, durations] = benchmarkFunction<3>( [&fileContents] () {
-        return decompressWithPragzip( std::make_unique<BufferViewFileReader>( fileContents ) );
-    } );
+    const auto [size, durations] = benchmarkFunction<3>(
+        [&fileContents] () {
+            return decompressWithPragzip( std::make_unique<BufferViewFileReader>( fileContents ) );
+        } );
     printBandwidths( durations, size );
     std::cout << "\n";
 }
