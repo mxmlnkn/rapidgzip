@@ -64,18 +64,18 @@ jobs:
         twine check dist/*
         python3 -m pip install dist/*.tar.gz
 
-    - name: Test pragzip Installation From Tarball
-      working-directory: python/pragzip
+    - name: Test rapidgzip Installation From Tarball
+      working-directory: python/rapidgzip
       shell: bash
       run: |
         python3 -m build
         twine check dist/*
         python3 -m pip install dist/*.tar.gz
 
-    - name: Test Simple Startup pragzip
+    - name: Test Simple Startup rapidgzip
       run: |
-        pragzip --help
-        pragzip --version
+        rapidgzip --help
+        rapidgzip --version
 
     - name: Test Simple Startup ibzip2
       run: |
@@ -87,8 +87,8 @@ jobs:
       # indexed_bzip2 should be installed for this step!
       run: python3 src/tests/testBz2.py
 
-    - name: Test pragzip Installation From Tarball
-      working-directory: python/pragzip
+    - name: Test rapidgzip Installation From Tarball
+      working-directory: python/rapidgzip
       shell: bash
       run: |
         python3 -m build

@@ -13,11 +13,11 @@
 #include <filereader/FileReader.hpp>
 #include <ThreadPool.hpp>
 
-#include "../pragzip.hpp"
+#include "../rapidgzip.hpp"
 #include "Interface.hpp"
 
 
-namespace pragzip::blockfinder
+namespace rapidgzip::blockfinder
 {
 /**
  * @note Does not even give a speedup of two! ~2300 MB/s vs. 1450 MB/s ... even when using /dev/shm!?
@@ -58,7 +58,7 @@ namespace pragzip::blockfinder
  *     each thread load its own buffer. Of course the shared file reader might serialize the reading anyway...
  *     I would need to clone/reopen the FileReader for each thread if it is supported.
  *
- *  m && time tools/pragzip -c -P 24 -v -o /dev/shm/small.bgz.decoded -f /dev/shm/small.pigz
+ *  m && time tools/rapidgzip -c -P 24 -v -o /dev/shm/small.bgz.decoded -f /dev/shm/small.pigz
  *
  *      Finalized block map with 2116 blocks
  *      BlockFinder found 2115 block candidates
@@ -87,7 +87,7 @@ class PigzParallel final :
     public Interface
 {
 public:
-    using DeflateBlock = pragzip::deflate::Block<>;
+    using DeflateBlock = rapidgzip::deflate::Block<>;
 
     /**
      * Should probably be larger than the I/O block size of 4096 B and smaller than most L1 cache sizes.
@@ -170,24 +170,24 @@ public:
              * @todo This requires the buffer to be larger than the first gzip header may be.
              * Theoretically, the user could store arbitrary amount of data in the zero-terminated file name
              * and file comment ... */
-            pragzip::BitReader bitReader( m_fileReader->clone() );
+            rapidgzip::BitReader bitReader( m_fileReader->clone() );
 
             #else
 
             refillBuffer();
             distributeWork();
-            pragzip::BitReader bitReader( std::make_unique<BufferedFileReader>( m_buffer ) );
+            rapidgzip::BitReader bitReader( std::make_unique<BufferedFileReader>( m_buffer ) );
             #endif
 
-            auto error = pragzip::gzip::checkHeader( bitReader );
-            if ( error != pragzip::Error::NONE ) {
+            auto error = rapidgzip::gzip::checkHeader( bitReader );
+            if ( error != rapidgzip::Error::NONE ) {
                 throw std::invalid_argument( "Corrupted deflate stream in gzip file!" );
             }
             m_lastBlockOffsetReturned = bitReader.tell();
 
             DeflateBlock block;
             error = block.readHeader( bitReader );
-            if ( error != pragzip::Error::NONE ) {
+            if ( error != rapidgzip::Error::NONE ) {
                 throw std::invalid_argument( "Corrupted deflate stream in gzip file!" );
             }
 
@@ -309,4 +309,4 @@ private:
     mutable double m_refillDuration{ 0 };
     mutable double m_futureWaitDuration{ 0 };
 };
-}  // pragzip::blockfinder
+}  // rapidgzip::blockfinder

@@ -14,12 +14,12 @@
 #include <filereader/BufferView.hpp>
 #include <filereader/Standard.hpp>
 #include <ParallelGzipReader.hpp>
-#include <pragzip.hpp>
+#include <rapidgzip.hpp>
 #include <TestHelpers.hpp>
 #include <zlib.hpp>
 
 
-using namespace pragzip;
+using namespace rapidgzip;
 
 
 // *INDENT-OFF*
@@ -340,7 +340,7 @@ testPerformance( const std::string& encodedFilePath,
                  const size_t       bufferSize,
                  const size_t       parallelization )
 {
-    pragzip::ParallelGzipReader<pragzip::ChunkData, /* ENABLE_STATISTICS */ true> reader(
+    rapidgzip::ParallelGzipReader<rapidgzip::ChunkData, /* ENABLE_STATISTICS */ true> reader(
         std::make_unique<StandardFileReader>( encodedFilePath ),
         parallelization );
     reader.setCRC32Enabled( true );
@@ -410,7 +410,7 @@ void
 testParallelCRC32( const std::vector<std::byte>& uncompressed,
                    const std::vector<std::byte>& compressed )
 {
-    pragzip::ParallelGzipReader<pragzip::ChunkData, /* ENABLE_STATISTICS */ true> reader(
+    rapidgzip::ParallelGzipReader<rapidgzip::ChunkData, /* ENABLE_STATISTICS */ true> reader(
         std::make_unique<BufferViewFileReader>( compressed ), /* parallelization */ 2, /* chunk size */ 1_Mi );
     reader.setCRC32Enabled( true );
 
@@ -423,7 +423,7 @@ testParallelCRC32( const std::vector<std::byte>& uncompressed,
 
     /* Test with export and load without CRC32 */
 
-    pragzip::ParallelGzipReader<pragzip::ChunkData, /* ENABLE_STATISTICS */ true> reader2(
+    rapidgzip::ParallelGzipReader<rapidgzip::ChunkData, /* ENABLE_STATISTICS */ true> reader2(
         std::make_unique<BufferViewFileReader>( compressed ), /* parallelization */ 2, /* chunk size */ 1_Mi );
     reader2.setCRC32Enabled( false );
     reader2.setBlockOffsets( reader.gzipIndex() );
@@ -437,7 +437,7 @@ testParallelCRC32( const std::vector<std::byte>& uncompressed,
 
     /* Test with export and load */
 
-    pragzip::ParallelGzipReader<pragzip::ChunkData, /* ENABLE_STATISTICS */ true> reader3(
+    rapidgzip::ParallelGzipReader<rapidgzip::ChunkData, /* ENABLE_STATISTICS */ true> reader3(
         std::make_unique<BufferViewFileReader>( compressed ), /* parallelization */ 2, /* chunk size */ 1_Mi );
     reader3.setCRC32Enabled( true );
     reader3.setBlockOffsets( reader.gzipIndex() );
@@ -496,7 +496,7 @@ testCRC32AndCleanUnmarkedDataWithRandomBackreferences()
 
     std::mt19937_64 randomEngine;
 
-    constexpr auto INITIAL_RANDOM_SIZE = pragzip::deflate::MAX_WINDOW_SIZE;
+    constexpr auto INITIAL_RANDOM_SIZE = rapidgzip::deflate::MAX_WINDOW_SIZE;
     auto randomData = createRandomData( INITIAL_RANDOM_SIZE, DNA_SYMBOLS );
     randomData.resize( 10_Mi );
 
@@ -536,7 +536,7 @@ testCachedChunkReuseAfterSplit()
     /* This compresses with a compression ratio of ~1028! I.e. even for 1 GiB, there will be only one chunk
      * even with a comparatively small chunk size of 1 MiB. */
     const auto compressedZeros = compressWithZlib( std::vector<std::byte>( 128_Mi, std::byte( 0 ) ) );
-    pragzip::ParallelGzipReader<pragzip::ChunkData, /* ENABLE_STATISTICS */ true> reader(
+    rapidgzip::ParallelGzipReader<rapidgzip::ChunkData, /* ENABLE_STATISTICS */ true> reader(
         std::make_unique<BufferViewFileReader>( compressedZeros ), /* parallelization */ 8, /* chunk size */ 1_Mi );
     reader.setCRC32Enabled( true );
     reader.setMaxDecompressedChunkSize( 128_Mi );
@@ -567,7 +567,7 @@ testPrefetchingAfterSplit()
     const auto compressedRandomDNA = compressWithZlib( createRandomData( 64_Mi, DNA_SYMBOLS ),
                                                        CompressionStrategy::HUFFMAN_ONLY );
 
-    pragzip::ParallelGzipReader<pragzip::ChunkData, /* ENABLE_STATISTICS */ true> reader(
+    rapidgzip::ParallelGzipReader<rapidgzip::ChunkData, /* ENABLE_STATISTICS */ true> reader(
         std::make_unique<BufferViewFileReader>( compressedRandomDNA ), /* parallelization */ 2, /* chunk size */ 1_Mi );
     reader.setCRC32Enabled( true );
 
@@ -584,7 +584,7 @@ testPrefetchingAfterSplit()
 
     /* Test with export and load */
 
-    pragzip::ParallelGzipReader<pragzip::ChunkData, /* ENABLE_STATISTICS */ true> reader2(
+    rapidgzip::ParallelGzipReader<rapidgzip::ChunkData, /* ENABLE_STATISTICS */ true> reader2(
         std::make_unique<BufferViewFileReader>( compressedRandomDNA ), /* parallelization */ 2, /* chunk size */ 1_Mi );
     reader2.setCRC32Enabled( true );
     reader2.setBlockOffsets( reader.gzipIndex() );
@@ -619,7 +619,7 @@ main( int    argc,
     testPrefetchingAfterSplit();
     testCachedChunkReuseAfterSplit();
 
-    const auto tmpFolder = createTemporaryDirectory( "pragzip.testParallelGzipReader" );
+    const auto tmpFolder = createTemporaryDirectory( "rapidgzip.testParallelGzipReader" );
 
     testPerformance( tmpFolder );
 

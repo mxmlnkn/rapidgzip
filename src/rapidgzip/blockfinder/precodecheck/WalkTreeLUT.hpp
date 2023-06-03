@@ -11,7 +11,7 @@
 #include <Error.hpp>
 
 
-namespace pragzip::PrecodeCheck::WalkTreeLUT
+namespace rapidgzip::PrecodeCheck::WalkTreeLUT
 {
 /**
  * Requires at least 7 * 5 = 35 bits and 40 bits when also including the redundant zero-counts.
@@ -177,7 +177,7 @@ createCompressedHistogramLUT()
  * Here we cache 4 values at a time, i.e., we have to do 5 LUT lookups, which requires
  * padding the input by one value, i.e., the maximum count can be 20 for the value 0! */
 constexpr auto UNIFORM_FREQUENCY_BITS = 5U;
-constexpr auto PRECODE_BITS = pragzip::deflate::PRECODE_BITS;
+constexpr auto PRECODE_BITS = rapidgzip::deflate::PRECODE_BITS;
 
 /* Max values to cache in LUT (4 * 3 bits = 12 bits LUT key -> 2^12 * 8B = 32 KiB LUT size) */
 template<uint8_t PRECODE_CHUNK_SIZE>
@@ -213,7 +213,7 @@ static constexpr auto PRECODE_FREQUENCIES_1_TO_5_VALID_LUT =
  *       be able to find very small deflate blocks close to the end of the file. because they trigger an EOF.
  *       Note that such very small blocks would normally be Fixed Huffman decoding anyway.
  */
-[[nodiscard]] constexpr pragzip::Error
+[[nodiscard]] constexpr rapidgzip::Error
 checkPrecode( const uint64_t             next4Bits,
               const uint64_t             next57Bits,
               CompressedHistogram* const histogram = nullptr )
@@ -230,7 +230,7 @@ checkPrecode( const uint64_t             next4Bits,
         const auto elementIndex = ( valueToLookUp / 64 ) & nLowestBitsSet<CompressedHistogram, INDEX_BIT_COUNT>();
         if ( ( PRECODE_FREQUENCIES_1_TO_5_VALID_LUT[elementIndex] & bitToLookUp ) == 0 ) {
             /* Might also be bloating not only invalid. */
-            return pragzip::Error::INVALID_CODE_LENGTHS;
+            return rapidgzip::Error::INVALID_CODE_LENGTHS;
         }
     }
 
@@ -250,7 +250,7 @@ checkPrecode( const uint64_t             next4Bits,
         unusedSymbolCount *= 2;  /* Because we go down one more level for all unused tree nodes! */
     }
     if ( invalidCodeLength ) {
-        return pragzip::Error::INVALID_CODE_LENGTHS;
+        return rapidgzip::Error::INVALID_CODE_LENGTHS;
     }
 
     /* Using bit-wise 'and' and 'or' to avoid expensive branching does not improve performance measurably.
@@ -259,16 +259,16 @@ checkPrecode( const uint64_t             next4Bits,
      * readable. Note that the standard defines bool to int conversion as true->1, false->0. */
     if ( ( ( nonZeroCount == 1 ) && ( unusedSymbolCount != ( 1U << ( MAX_LENGTH - 1U ) ) ) ) ||
          ( ( nonZeroCount >  1 ) && ( unusedSymbolCount != 0 ) ) ) {
-        return pragzip::Error::BLOATING_HUFFMAN_CODING;
+        return rapidgzip::Error::BLOATING_HUFFMAN_CODING;
     }
 
     if ( nonZeroCount == 0 ) {
-        return pragzip::Error::EMPTY_ALPHABET;
+        return rapidgzip::Error::EMPTY_ALPHABET;
     }
 
     if ( histogram != nullptr ) {
         *histogram = bitLengthFrequencies;
     }
-    return pragzip::Error::NONE;
+    return rapidgzip::Error::NONE;
 }
-}  // namespace pragzip::PrecodeCheck::WalkTreeLUT
+}  // namespace rapidgzip::PrecodeCheck::WalkTreeLUT

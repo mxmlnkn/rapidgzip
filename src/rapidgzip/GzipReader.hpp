@@ -24,7 +24,7 @@
 #endif
 
 
-namespace pragzip
+namespace rapidgzip
 {
 enum StoppingPoint : uint32_t
 {
@@ -306,9 +306,9 @@ private:
             throw std::logic_error( "Call readGzipHeader before calling readBlockHeader!" );
         }
         const auto error = m_currentDeflateBlock->readHeader( m_bitReader );
-        if ( error != pragzip::Error::NONE ) {
+        if ( error != rapidgzip::Error::NONE ) {
             std::stringstream message;
-            message << "Encountered error: " << pragzip::toString( error ) << " while trying to read deflate header!";
+            message << "Encountered error: " << rapidgzip::toString( error ) << " while trying to read deflate header!";
             throw std::domain_error( std::move( message ).str() );
         }
         m_currentPoint = StoppingPoint::END_OF_BLOCK_HEADER;
@@ -325,10 +325,10 @@ private:
     void
     readGzipHeader()
     {
-        const auto [header, error] = pragzip::gzip::readHeader( m_bitReader );
-        if ( error != pragzip::Error::NONE ) {
+        const auto [header, error] = rapidgzip::gzip::readHeader( m_bitReader );
+        if ( error != rapidgzip::Error::NONE ) {
             std::stringstream message;
-            message << "Encountered error: " << pragzip::toString( error ) << " while trying to read gzip header!";
+            message << "Encountered error: " << rapidgzip::toString( error ) << " while trying to read gzip header!";
             throw std::domain_error( std::move( message ).str() );
         }
 
@@ -357,12 +357,12 @@ private:
     }
 
 private:
-    pragzip::BitReader m_bitReader;
+    rapidgzip::BitReader m_bitReader;
 
     size_t m_currentPosition{ 0 };  /** the current position as can only be modified with read or seek calls. */
     bool m_atEndOfFile{ false };
 
-    pragzip::gzip::Header m_lastGzipHeader;
+    rapidgzip::gzip::Header m_lastGzipHeader;
     /**
      * The deflate block will be reused during a gzip stream because each block depends on the last output
      * of the previous block. But after the gzip stream end, this optional will be cleared and in case of
@@ -463,9 +463,9 @@ GzipReader::readBlock( const WriteFunctor& writeFunctor,
             auto error = Error::NONE;
             std::tie( m_lastBlockData, error ) =
                 m_currentDeflateBlock->read( m_bitReader, std::numeric_limits<size_t>::max() );
-            if ( error != pragzip::Error::NONE ) {
+            if ( error != rapidgzip::Error::NONE ) {
                 std::stringstream message;
-                message << "Encountered error: " << pragzip::toString( error ) << " while decompressing deflate block.";
+                message << "Encountered error: " << rapidgzip::toString( error ) << " while decompressing deflate block.";
                 throw std::domain_error( std::move( message ).str() );
             }
 
@@ -497,7 +497,7 @@ GzipReader::readBlock( const WriteFunctor& writeFunctor,
 inline void
 GzipReader::readGzipFooter()
 {
-    const auto footer = pragzip::gzip::readFooter( m_bitReader );
+    const auto footer = rapidgzip::gzip::readFooter( m_bitReader );
 
     if ( static_cast<uint32_t>( m_streamBytesCount ) != footer.uncompressedSize ) {
         std::stringstream message;
@@ -537,4 +537,4 @@ toString( StoppingPoint stoppingPoint )
     return "Unknown";
     // *INDENT-ON*
 }
-}  // namespace pragzip
+}  // namespace rapidgzip

@@ -16,7 +16,7 @@
 #include "gzip.hpp"
 
 
-namespace pragzip
+namespace rapidgzip
 {
 enum class CompressionStrategy : int
 {
@@ -315,4 +315,4 @@ private:
      * decoding it in one go is 4x slower than processing it in chunks of 128 KiB! */
     std::array<char, 128_Ki> m_buffer;
 };
-}  // namespace pragzip
+}  // namespace rapidgzip

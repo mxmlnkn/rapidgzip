@@ -17,7 +17,7 @@
 #include <precode.hpp>
 
 
-namespace pragzip::PrecodeCheck::SingleLUT
+namespace rapidgzip::PrecodeCheck::SingleLUT
 {
 /**
  * Shrink Precode histogram to reduce LUT sizes to allow more input values being stored.
@@ -196,7 +196,7 @@ createHistogramLUT()
 
 
 [[nodiscard]] constexpr std::optional<Histogram>
-packHistogram( const pragzip::deflate::precode::Histogram& histogram )
+packHistogram( const rapidgzip::deflate::precode::Histogram& histogram )
 {
     Histogram packedHistogram{ 0 };
     uint8_t nonZeroCount{ 0 };
@@ -247,7 +247,7 @@ using Histogram = VariableLengthPackedHistogram::Histogram;
 
 /* Max values to cache in LUT (4 * 3 bits = 12 bits LUT key -> 2^12 * 8B = 32 KiB LUT size) */
 static constexpr auto PRECODE_X4_TO_HISTOGRAM_LUT =
-    VariableLengthPackedHistogram::createHistogramLUT<pragzip::deflate::PRECODE_BITS, 4>();
+    VariableLengthPackedHistogram::createHistogramLUT<rapidgzip::deflate::PRECODE_BITS, 4>();
 
 static constexpr auto HISTOGRAM_TO_LOOK_UP_BITS =
     VariableLengthPackedHistogram::MEMBER_OFFSETS.back()
@@ -265,7 +265,7 @@ static constexpr auto PRECODE_HISTOGRAM_VALID_LUT =
     [] ()
     {
         PrecodeHistogramValidLUT result{};
-        for ( const auto& histogram : pragzip::deflate::precode::VALID_HISTOGRAMS ) {
+        for ( const auto& histogram : rapidgzip::deflate::precode::VALID_HISTOGRAMS ) {
             if ( const auto packedHistogram = VariableLengthPackedHistogram::packHistogram( histogram );
                  packedHistogram.has_value() )
             {
@@ -330,17 +330,17 @@ POWER_OF_TWO_SPECIAL_CASES = {
  *       be able to find very small deflate blocks close to the end of the file. because they trigger an EOF.
  *       Note that such very small blocks would normally be Fixed Huffman decoding anyway.
  */
-[[nodiscard]] constexpr pragzip::Error
+[[nodiscard]] constexpr rapidgzip::Error
 checkPrecode( const uint64_t next4Bits,
               const uint64_t next57Bits )
 {
-    constexpr auto PRECODE_BITS = pragzip::deflate::PRECODE_BITS;
+    constexpr auto PRECODE_BITS = rapidgzip::deflate::PRECODE_BITS;
     const auto codeLengthCount = 4 + next4Bits;
     const auto precodeBits = next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS );
 
     constexpr auto PRECODES_PER_CHUNK = 4U;
     constexpr auto CACHED_BITS = PRECODE_BITS * PRECODES_PER_CHUNK;
-    constexpr auto CHUNK_COUNT = ceilDiv( pragzip::deflate::MAX_PRECODE_COUNT, PRECODES_PER_CHUNK );
+    constexpr auto CHUNK_COUNT = ceilDiv( rapidgzip::deflate::MAX_PRECODE_COUNT, PRECODES_PER_CHUNK );
     static_assert( CACHED_BITS == 12 );
     static_assert( CHUNK_COUNT == 5 );
 
@@ -379,12 +379,12 @@ checkPrecode( const uint64_t next4Bits,
                                    & nLowestBitsSet<Histogram>( HISTOGRAM_TO_LOOK_UP_BITS );
     const auto nonZeroCount = bitLengthFrequencies & nLowestBitsSet<Histogram>( MEMBER_BIT_WIDTHS.front() );
     if ( UNLIKELY( POWER_OF_TWO_SPECIAL_CASES[nonZeroCount] == histogramToLookUp ) ) [[unlikely]] {
-        return pragzip::Error::NONE;
+        return rapidgzip::Error::NONE;
     }
 
     if ( ( ( overflowsInSum & OVERFLOW_BITS_MASK ) != 0 )
          || ( ( overflowsInLUT & ( ~Histogram( 0 ) << OVERFLOW_MEMBER_OFFSET ) ) != 0 ) ) {
-        return pragzip::Error::INVALID_CODE_LENGTHS;
+        return rapidgzip::Error::INVALID_CODE_LENGTHS;
     }
 
     const auto bitToLookUp = 1ULL << ( histogramToLookUp % 64 );
@@ -394,10 +394,10 @@ checkPrecode( const uint64_t next4Bits,
         /* This also handles the case of all being zero, which in the other version returns EMPTY_ALPHABET!
          * Some might also not be bloating but simply invalid, we cannot differentiate that but it can be
          * helpful for tests to have different errors. For actual usage comparison with NONE is sufficient. */
-        return pragzip::Error::BLOATING_HUFFMAN_CODING;
+        return rapidgzip::Error::BLOATING_HUFFMAN_CODING;
     }
 
-    return pragzip::Error::NONE;
+    return rapidgzip::Error::NONE;
 }
 
 
@@ -415,12 +415,12 @@ template<uint8_t SUBTABLE_INDEX_BIT_WIDTH>
 static constexpr auto REQUIRED_SUBTABLES_COUNT =
     [] ()
     {
-        using pragzip::deflate::precode::VALID_HISTOGRAMS;
+        using rapidgzip::deflate::precode::VALID_HISTOGRAMS;
         std::array<std::pair</* truncated address */ uint32_t,
                              /* number of valid histograms in same truncated address */ uint16_t>,
                    VALID_HISTOGRAMS.size()> counts;
         for ( const auto& histogram : VALID_HISTOGRAMS ) {
-            using namespace pragzip::PrecodeCheck::SingleLUT;
+            using namespace rapidgzip::PrecodeCheck::SingleLUT;
             const auto packedHistogram = VariableLengthPackedHistogram::packHistogram( histogram );
             if ( !packedHistogram ) {
                 continue;
@@ -480,7 +480,7 @@ static constexpr auto HISTOGRAM_TO_ID_LUT =
          * i.e., it points to this table, so that is perfect to avoid further initialization of @ref lut. */
         size_t subtablesCount{ 1 };
 
-        using pragzip::deflate::precode::VALID_HISTOGRAMS;
+        using rapidgzip::deflate::precode::VALID_HISTOGRAMS;
         std::array<std::pair<uint32_t, SubtableID>, VALID_HISTOGRAMS.size()> truncatedAddressToSubtable{};
         const auto getSubtableId =
             [&truncatedAddressToSubtable, &subtablesCount] ( const uint32_t truncatedAddress )
@@ -504,7 +504,7 @@ static constexpr auto HISTOGRAM_TO_ID_LUT =
         for ( size_t i = 0; i < VALID_HISTOGRAMS.size(); ++i ) {
             const auto& histogram = VALID_HISTOGRAMS[i];
 
-            using namespace pragzip::PrecodeCheck::SingleLUT;
+            using namespace rapidgzip::PrecodeCheck::SingleLUT;
             const auto packedHistogram = VariableLengthPackedHistogram::packHistogram( histogram );
             if ( !packedHistogram ) {
                 continue;
@@ -579,7 +579,7 @@ getHistogramIdFromUniformlyPackedHistogram( const uint64_t& histogram5BitCounts 
 {
     const auto nonZeroCount = histogram5BitCounts & nLowestBitsSet<Histogram>( 5 );
     const auto specialID = POWER_OF_TWO_SPECIAL_CASES_TO_ID[nonZeroCount];
-    if ( specialID < pragzip::deflate::precode::VALID_HISTOGRAMS.size() ) {
+    if ( specialID < rapidgzip::deflate::precode::VALID_HISTOGRAMS.size() ) {
         return specialID;
     }
 
@@ -592,4 +592,4 @@ getHistogramIdFromUniformlyPackedHistogram( const uint64_t& histogram5BitCounts 
     return getHistogramIdFromVLPHWithoutZero( packedHistogramWithoutZero );
 }
 }  // namspace ValidHistogramID
-}  // namespace pragzip::PrecodeCheck::SingleLUT
+}  // namespace rapidgzip::PrecodeCheck::SingleLUT

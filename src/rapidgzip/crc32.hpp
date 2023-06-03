@@ -8,7 +8,7 @@
 #include <stdexcept>
 
 
-namespace pragzip
+namespace rapidgzip
 {
 /* CRC32 according to RFC 1952 */
 
@@ -330,4 +330,4 @@ protected:
     uint32_t m_crc32{ ~uint32_t( 0 ) };
     bool m_enabled{ true };
 };
-}  // namespace pragzip
+}  // namespace rapidgzip

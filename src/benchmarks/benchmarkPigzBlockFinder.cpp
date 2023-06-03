@@ -424,7 +424,7 @@ main( int    argc,
 
     try
     {
-        using namespace pragzip::blockfinder;
+        using namespace rapidgzip::blockfinder;
 
         std::cout << "[countZeroBytes] ";
         measureByteComparison( fileName, countZeroBytes );

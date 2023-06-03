@@ -38,7 +38,7 @@
 #include "MarkerReplacement.hpp"
 
 
-namespace pragzip
+namespace rapidgzip
 {
 namespace deflate
 {
@@ -264,8 +264,8 @@ namespace
  *       even though it compiles fine with "g++ (Ubuntu 11.2.0-19ubuntu1) 11.2.0".
  *       I suspect that it does not like static methods inside templated classes. Multiple instantiations
  *       of it might be mangled into the same name?
- *       > pragzip.cpp:638:1: error: redefinition of ‘const char
- *       > _ZTSZN7pragzip7deflate5BlockILb0ELb0EE33readDistanceAndLiteralCodeLengthsERSt5arrayIhLm572EER9BitReader
+ *       > rapidgzip.cpp:638:1: error: redefinition of ‘const char
+ *       > _ZTSZN7rapidgzip7deflate5BlockILb0ELb0EE33readDistanceAndLiteralCodeLengthsERSt5arrayIhLm572EER9BitReader
  *       > ILb0EmERKNS_41HuffmanCodingReversedBitsCachedCompressedIhLh7EhLm19EEEmRKSt8functionIFhhEEEd_UlhE_ []’
  */
 [[nodiscard]] forceinline Error
@@ -1312,4 +1312,4 @@ Block<ENABLE_STATISTICS>::setInitialWindow( VectorView<uint8_t> const& initialWi
     return;
 }
 }  // namespace deflate
-}  // namespace pragzip
+}  // namespace rapidgzip

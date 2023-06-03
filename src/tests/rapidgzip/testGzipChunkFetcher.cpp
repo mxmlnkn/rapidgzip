@@ -20,7 +20,7 @@
 #include <TestHelpers.hpp>
 
 
-using namespace pragzip;
+using namespace rapidgzip;
 
 
 [[nodiscard]] size_t
@@ -50,7 +50,7 @@ testAutomaticMarkerResolution( const std::filesystem::path& filePath,
     std::cerr << "Test Automatic Marker Resolution with: " << filePath.filename()
               << " starting from block " << blockIndex << "\n";
 
-    pragzip::BitReader bitReader(
+    rapidgzip::BitReader bitReader(
         std::make_unique<SharedFileReader>(
             std::make_unique<StandardFileReader>( filePath ) ) );
     const auto blockOffset = getBlockOffset( filePath, blockIndex );
@@ -101,7 +101,7 @@ testAutomaticMarkerResolution( const std::filesystem::path& filePath,
 
 std::ostream&
 operator<<( std::ostream&                                    out,
-            const std::vector<pragzip::ChunkData::Subblock>& chunks )
+            const std::vector<rapidgzip::ChunkData::Subblock>& chunks )
 {
     out << "{";
     for ( const auto chunk : chunks ) {
@@ -120,8 +120,8 @@ testBlockSplit()
     chunk.maxEncodedOffsetInBits = 0;
     chunk.encodedSizeInBits = 0;
 
-    using Subblock = pragzip::ChunkData::Subblock;
-    using BlockBoundary = pragzip::ChunkData::BlockBoundary;
+    using Subblock = rapidgzip::ChunkData::Subblock;
+    using BlockBoundary = rapidgzip::ChunkData::BlockBoundary;
     chunk.finalize( 0 );
     REQUIRE( chunk.split( 1 ).empty() );
 

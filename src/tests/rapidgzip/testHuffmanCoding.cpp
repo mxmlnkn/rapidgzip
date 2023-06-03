@@ -19,7 +19,7 @@
 #include <TestHelpers.hpp>
 
 
-using namespace pragzip;
+using namespace rapidgzip;
 
 
 template<typename HuffmanCoding>
@@ -30,7 +30,7 @@ decodeHuffmanAndCompare( const std::vector<uint8_t>&                        code
 {
     BufferedFileReader::AlignedBuffer encodedChars( encoded.size() );
     std::transform( encoded.begin(), encoded.end(), encodedChars.begin(), [] ( const auto c ) { return c; } );
-    pragzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( encodedChars ) ) );
+    rapidgzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( encodedChars ) ) );
 
     HuffmanCoding coding;
     const auto errorCode = coding.initializeFromLengths( codeLengths );
@@ -58,11 +58,11 @@ void
 testHuffmanCodingInvalidDetection()
 {
     const std::vector<char> encoded = { 0b0110'1110 };
-    pragzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( encoded ) );
+    rapidgzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( encoded ) );
 
     HuffmanCoding coding;
     const std::vector<uint8_t> codeLengthsHalfBit = { 1 };
-    REQUIRE_EQUAL( coding.initializeFromLengths( codeLengthsHalfBit ), pragzip::Error::NONE );
+    REQUIRE_EQUAL( coding.initializeFromLengths( codeLengthsHalfBit ), rapidgzip::Error::NONE );
 
     REQUIRE( coding.decode( bitReader ).has_value() );
     REQUIRE( !coding.decode( bitReader ).has_value() );
@@ -74,18 +74,18 @@ void
 testHuffmanCodingReuse( bool testOneSymbolCoding = true )
 {
     const std::vector<char> encoded = { 0b0110'1101 };
-    pragzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( encoded ) );
+    rapidgzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( encoded ) );
 
     const std::vector<uint8_t> codeLengths2Bit = { 2, 2, 2, 2 };
     HuffmanCoding coding;
-    REQUIRE_EQUAL( coding.initializeFromLengths( codeLengths2Bit ), pragzip::Error::NONE );
+    REQUIRE_EQUAL( coding.initializeFromLengths( codeLengths2Bit ), rapidgzip::Error::NONE );
 
     /* Note that gzip Huffman decoding iterates over bits from the least significant first, meaning that the
      * second symbol has bit squence 0b01 (reverse read 0b10 = 2). */
     REQUIRE_EQUAL( coding.decode( bitReader ).value(), 2 );
 
     const std::vector<uint8_t> codeLengths1Bit = { 1, 1 };
-    REQUIRE_EQUAL( coding.initializeFromLengths( codeLengths1Bit ), pragzip::Error::NONE );
+    REQUIRE_EQUAL( coding.initializeFromLengths( codeLengths1Bit ), rapidgzip::Error::NONE );
     bitReader.seek( 2 );
     /* When not reinitializing the cached next symbol, this might return symbols that are not even value,
      * e.g., it will return 3 even though only 0 and 1 are possible! */
@@ -94,7 +94,7 @@ testHuffmanCodingReuse( bool testOneSymbolCoding = true )
     /* Ensure that caches and such are correctly cleared so that invalid bit sequences will be detected correctly. */
     if ( testOneSymbolCoding ) {
         const std::vector<uint8_t> codeLengthsHalfBit = { 1 };
-        REQUIRE_EQUAL( coding.initializeFromLengths( codeLengthsHalfBit ), pragzip::Error::NONE );
+        REQUIRE_EQUAL( coding.initializeFromLengths( codeLengthsHalfBit ), rapidgzip::Error::NONE );
         bitReader.seek( 0 );
         REQUIRE( !coding.decode( bitReader ).has_value() );
     }
@@ -163,7 +163,7 @@ main()
     testHuffmanCoding<HuffmanCodingReversedCodesPerLength<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_SYMBOL_COUNT> >();
 
     std::cerr << "Testing HuffmanCodingReversedCodesPerLength with precode configuration...\n";
-    using namespace pragzip::deflate;
+    using namespace rapidgzip::deflate;
     testHuffmanCoding<HuffmanCodingReversedCodesPerLength<uint16_t, MAX_PRECODE_LENGTH, uint8_t, MAX_PRECODE_COUNT> >();
     testHuffmanCoding<HuffmanCodingReversedCodesPerLength<uint8_t, MAX_PRECODE_LENGTH, uint8_t, MAX_PRECODE_COUNT> >();
 

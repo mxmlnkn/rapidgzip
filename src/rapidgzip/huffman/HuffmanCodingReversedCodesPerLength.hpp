@@ -11,7 +11,7 @@
 #include "HuffmanCodingBase.hpp"
 
 
-namespace pragzip
+namespace rapidgzip
 {
 /**
  * This is an iterative improvement over HuffmanCodingSymbolsPerLength.
@@ -142,4 +142,4 @@ protected:
     static_assert( MAX_SYMBOL_COUNT + MAX_CODE_LENGTH <= std::numeric_limits<uint16_t>::max(),
                    "Offset type must be able to point at all symbols!" );
 };
-}  // namespace pragzip
+}  // namespace rapidgzip

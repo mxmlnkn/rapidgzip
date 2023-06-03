@@ -1,17 +1,17 @@
 <div align="center">
 
-![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/python/pragzip/pragzip.svg)
+![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/python/rapidgzip/rapidgzip.svg)
 
 # Rapidgzip: Parallelized Decompression of Gzip Files with Support for Fast Random Access
 
-[![PyPI version](https://badge.fury.io/py/pragzip.svg)](https://badge.fury.io/py/pragzip)
-[![Python Version](https://img.shields.io/pypi/pyversions/pragzip)](https://pypi.org/project/pragzip/)
-[![PyPI Platforms](https://img.shields.io/badge/pypi-linux%20%7C%20macOS%20%7C%20Windows-brightgreen)](https://pypi.org/project/pragzip/)
-[![Downloads](https://pepy.tech/badge/pragzip/month)](https://pepy.tech/project/pragzip)
+[![PyPI version](https://badge.fury.io/py/rapidgzip.svg)](https://badge.fury.io/py/rapidgzip)
+[![Python Version](https://img.shields.io/pypi/pyversions/rapidgzip)](https://pypi.org/project/rapidgzip/)
+[![PyPI Platforms](https://img.shields.io/badge/pypi-linux%20%7C%20macOS%20%7C%20Windows-brightgreen)](https://pypi.org/project/rapidgzip/)
+[![Downloads](https://pepy.tech/badge/pragzip/month)](https://pepy.tech/project/rapidgzip)
 <br>
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](http://opensource.org/licenses/MIT)
-[![Build Status](https://github.com/mxmlnkn/indexed_bzip2/workflows/tests/badge.svg)](https://github.com/mxmlnkn/pragzip/actions)
-[![codecov](https://codecov.io/gh/mxmlnkn/indexed_bzip2/branch/master/graph/badge.svg?token=94ZD4UTZQW)](https://codecov.io/gh/mxmlnkn/pragzip)
+[![Build Status](https://github.com/mxmlnkn/indexed_bzip2/workflows/tests/badge.svg)](https://github.com/mxmlnkn/rapidgzip/actions)
+[![codecov](https://codecov.io/gh/mxmlnkn/indexed_bzip2/branch/master/graph/badge.svg?token=94ZD4UTZQW)](https://codecov.io/gh/mxmlnkn/rapidgzip)
 ![C++17](https://img.shields.io/badge/C++-17-blue.svg)
 [![Discord](https://img.shields.io/discord/783411320354766878?label=discord)](https://discord.gg/Wra6t6akh2)
 [![Telegram](https://img.shields.io/badge/Chat-Telegram-%2330A3E6)](https://t.me/joinchat/FUdXxkXIv6c4Ib8bgaSxNg)
@@ -20,17 +20,17 @@
 
 </div>
 
-This repository contains the command line tool `pragzip`, which can be used for parallel decompression of almost any gzip file.
+This repository contains the command line tool `rapidgzip`, which can be used for parallel decompression of almost any gzip file.
 
 The Python module provides a `RapidgzipFile` class, which can be used to seek inside gzip files without having to decompress them first.
 Alternatively, you can use this simply as a **parallelized** gzip decoder as a replacement for Python's builtin `gzip` module in order to fully utilize all your cores.
 
 The random seeking support is the same as provided by [indexed_gzip](https://github.com/pauldmccarthy/indexed_gzip) but further speedups are realized at the cost of higher memory usage thanks to a least-recently-used cache in combination with a parallelized prefetcher.
 
-[This](https://github.com/mxmlnkn/pragzip) repository is a light-weight fork of the [indexed_bzip2](https://github.com/mxmlnkn/indexed_bzip2) repository, in which the main development takes place.
-This repository was created for visibility reasons and in order to keep indexed_bzip2 and pragzip releases separate.
+[This](https://github.com/mxmlnkn/rapidgzip) repository is a light-weight fork of the [indexed_bzip2](https://github.com/mxmlnkn/indexed_bzip2) repository, in which the main development takes place.
+This repository was created for visibility reasons and in order to keep indexed_bzip2 and rapidgzip releases separate.
 It will be updated at least for each release.
-Issues regarding pragzip should be opened [here](https://github.com/mxmlnkn/pragzip/issues).
+Issues regarding rapidgzip should be opened [here](https://github.com/mxmlnkn/rapidgzip/issues).
 
 
 # Table of Contents
@@ -61,40 +61,40 @@ This benchmarks use a chunk size of 512 KiB.
 
 ## Decompression with Existing Index
 
-|                      | 4GiB-base64                  | 4GiB-base64     | | 20x-silesia                   | 20x-silesia
-|----------------------|------------------------------|-----------------|-|-------------------------------|---------
-| Uncompressed Size    | 4 GiB                        |                 | | 3.95 GiB                      |
-| Compressed Size      | 3.04 GiB                     |                 | | 1.27 GiB                      |
-| **Module**           | **Bandwidth <br/> / (MB/s)** | **Speedup**     | |  **Bandwidth <br/> / (MB/s)** | **Speedup**
-| gzip                 |  250                         |    1            | |   293                         |  1
-| pragzip (0  threads) | 4480                         | 17.9            | |  4830                         | 16.5
-| pragzip (1  threads) |  294                         |  1.2            | |   350                         |  1.2
-| pragzip (2  threads) |  580                         |  2.3            | |   678                         |  2.3
-| pragzip (6  threads) | 1680                         |  6.7            | |  1940                         |  6.6
-| pragzip (12 threads) | 3110                         | 12.5            | |  3460                         | 11.8
-| pragzip (24 threads) | 4510                         | 18.0            | |  5070                         | 17.3
-| pragzip (32 threads) | 4330                         | 17.3            | |  4720                         | 16.1
+|                        | 4GiB-base64                  | 4GiB-base64     | | 20x-silesia                   | 20x-silesia
+|------------------------|------------------------------|-----------------|-|-------------------------------|---------
+| Uncompressed Size      | 4 GiB                        |                 | | 3.95 GiB                      |
+| Compressed Size        | 3.04 GiB                     |                 | | 1.27 GiB                      |
+| **Module**             | **Bandwidth <br/> / (MB/s)** | **Speedup**     | |  **Bandwidth <br/> / (MB/s)** | **Speedup**
+| gzip                   |  250                         |    1            | |   293                         |  1
+| rapidgzip (0  threads) | 4480                         | 17.9            | |  4830                         | 16.5
+| rapidgzip (1  threads) |  294                         |  1.2            | |   350                         |  1.2
+| rapidgzip (2  threads) |  580                         |  2.3            | |   678                         |  2.3
+| rapidgzip (6  threads) | 1680                         |  6.7            | |  1940                         |  6.6
+| rapidgzip (12 threads) | 3110                         | 12.5            | |  3460                         | 11.8
+| rapidgzip (24 threads) | 4510                         | 18.0            | |  5070                         | 17.3
+| rapidgzip (32 threads) | 4330                         | 17.3            | |  4720                         | 16.1
 
 
 ## Decompression from Scratch
 
 ### Python
 
-|                      | 4GiB-base64                  | 4GiB-base64     | | 20x-silesia                   | 20x-silesia
-|----------------------|------------------------------|-----------------|-|-------------------------------|---------
-| Uncompressed Size    | 4 GiB                        |                 | | 3.95 GiB                      |
-| Compressed Size      | 3.04 GiB                     |                 | | 1.27 GiB                      |
-| **Module**           | **Bandwidth <br/> / (MB/s)** | **Speedup**     | |  **Bandwidth <br/> / (MB/s)** | **Speedup**
-| gzip                 |  250                         |    1            | |   293                         |  1
-| pragzip (0  threads) | 3280                         | 13.1            | |  2280                         |  7.8
-| pragzip (1  threads) |  222                         |  0.9            | |   236                         |  0.8
-| pragzip (2  threads) |  428                         |  1.7            | |   411                         |  1.4
-| pragzip (6  threads) | 1250                         |  5.0            | |  1095                         |  3.7
-| pragzip (12 threads) | 2290                         |  9.2            | |  1390                         |  4.8
-| pragzip (24 threads) | 3300                         | 13.2            | |  2280                         |  7.8
-| pragzip (32 threads) | 3180                         | 12.7            | |  2480                         |  8.5
+|                        | 4GiB-base64                  | 4GiB-base64     | | 20x-silesia                   | 20x-silesia
+|------------------------|------------------------------|-----------------|-|-------------------------------|---------
+| Uncompressed Size      | 4 GiB                        |                 | | 3.95 GiB                      |
+| Compressed Size        | 3.04 GiB                     |                 | | 1.27 GiB                      |
+| **Module**             | **Bandwidth <br/> / (MB/s)** | **Speedup**     | |  **Bandwidth <br/> / (MB/s)** | **Speedup**
+| gzip                   |  250                         |    1            | |   293                         |  1
+| rapidgzip (0  threads) | 3280                         | 13.1            | |  2280                         |  7.8
+| rapidgzip (1  threads) |  222                         |  0.9            | |   236                         |  0.8
+| rapidgzip (2  threads) |  428                         |  1.7            | |   411                         |  1.4
+| rapidgzip (6  threads) | 1250                         |  5.0            | |  1095                         |  3.7
+| rapidgzip (12 threads) | 2290                         |  9.2            | |  1390                         |  4.8
+| rapidgzip (24 threads) | 3300                         | 13.2            | |  2280                         |  7.8
+| rapidgzip (32 threads) | 3180                         | 12.7            | |  2480                         |  8.5
 
-Note that pragzip is generally faster when given an index because it can delegate the decompression to zlib while it has to use its own gzip decompression engine when no index exists yet.
+Note that rapidgzip is generally faster when given an index because it can delegate the decompression to zlib while it has to use its own gzip decompression engine when no index exists yet.
 
 Note that values deviate roughly by 10% and therefore are rounded.
 
@@ -107,19 +107,19 @@ You can simply install it from PyPI:
 
 ```
 python3 -m pip install --upgrade pip  # Recommended for newer manylinux wheels
-python3 -m pip install pragzip
+python3 -m pip install rapidgzip
 ```
 
 The latest unreleased development version can be tested out with:
 
 ```bash
-python3 -m pip install --force-reinstall 'git+https://github.com/mxmlnkn/indexed_bzip2.git@master#egginfo=pragzip&subdirectory=python/pragzip'
+python3 -m pip install --force-reinstall 'git+https://github.com/mxmlnkn/indexed_bzip2.git@master#egginfo=rapidgzip&subdirectory=python/rapidgzip'
 ```
 
 And to build locally, you can use `build` and install the wheel:
 
 ```bash
-cd python/pragzip
+cd python/rapidgzip
 rm -rf dist
 python3 -m build .
 python3 -m pip install --force-reinstall --user dist/*.whl
@@ -131,10 +131,10 @@ python3 -m pip install --force-reinstall --user dist/*.whl
 ## Command Line Tool
 
 ```bash
-pragzip --help
+rapidgzip --help
 
 # Parallel decoding: 1.7 s
-time pragzip -d -c -P 0 sample.gz | wc -c
+time rapidgzip -d -c -P 0 sample.gz | wc -c
 
 # Serial decoding: 22 s
 time gzip -d -c sample.gz | wc -c
@@ -146,7 +146,7 @@ time gzip -d -c sample.gz | wc -c
 ### Simple open, seek, read, and close
 
 ```python3
-from pragzip import RapidgzipFile
+from rapidgzip import RapidgzipFile
 
 file = RapidgzipFile( "example.gz", parallelization = os.cpu_count() )
 
@@ -164,9 +164,9 @@ Because of this the first call to seek might take a while.
 
 ```python3
 import os
-import pragzip
+import rapidgzip
 
-with pragzip.open( "example.gz", parallelization = os.cpu_count() ) as file:
+with rapidgzip.open( "example.gz", parallelization = os.cpu_count() ) as file:
     file.seek( 123 )
     data = file.read( 100 )
 ```
@@ -183,12 +183,12 @@ To avoid this setup when opening a gzip file, the block offset list can be expor
 ```python3
 import io
 import os
-import pragzip as pragzip
+import rapidgzip as rapidgzip
 
 with open( "example.gz", 'rb' ) as file:
     in_memory_file = io.BytesIO( file.read() )
 
-with pragzip.open( in_memory_file, parallelization = os.cpu_count() ) as file:
+with rapidgzip.open( in_memory_file, parallelization = os.cpu_count() ) as file:
     file.seek( 123 )
     data = file.read( 100 )
 ```
@@ -196,7 +196,7 @@ with pragzip.open( in_memory_file, parallelization = os.cpu_count() ) as file:
 
 ## Via Ratarmount
 
-`pragzip` is **planned** to be used as a backend inside ratarmount with version 0.12.
+`rapidgzip` is **planned** to be used as a backend inside ratarmount with version 0.12.
 Then, you can use [ratarmount](https://github.com/mxmlnkn/ratarmount) to mount single gzip files easily.
 
 ```bash
@@ -222,7 +222,7 @@ Because it is written in C++, it can of course also be used as a C++ library.
 In order to make heavy use of templates and to simplify compiling with Python `setuptools`, it is mostly header-only so that integration it into another project should be easy.
 The license is also permissive enough for most use cases.
 
-I currently did not yet test integrating it into other projects other than simply manually copying the source in `src/core`, `src/pragzip`, and if integrated zlib is desired also `src/external/zlib`.
+I currently did not yet test integrating it into other projects other than simply manually copying the source in `src/core`, `src/rapidgzip`, and if integrated zlib is desired also `src/external/zlib`.
 If you have suggestions and wishes like support with CMake or Conan, please open an issue.
 
 
@@ -262,7 +262,7 @@ The latter of which is trivial, when ignoring load balancing issues, but paralle
 After implementing a production-ready version by improving upon the algorithm used by [pugz](https://github.com/Piezoid/pugz), I submitted a [paper](Citation).
 The review process was double-blind and I was unsure whether pseudonymize Pragzip because it has already been uploaded to Github.
 In the end, I used Rapidgzip during the review process and because I was not sure, which form fields should be filled with the pseudonymized title, I simply stuck with it.
-Rapidgzip was chosen for similar reason to pragzip, namely the P and RA are acronyms for Parallel and Random Access.
+Rapidgzip was chosen for similar reason to rapidgzip, namely the P and RA are acronyms for Parallel and Random Access.
 As rapgzip, did not stick, I used rapidgzip, which now also contains the foremost design goal in its name: being rapidly faster than single-threaded implementations.
 Furthermore, the additional ID could be interpreted to stand for Index and Decompression, making "rapid" a partial backronym.
 

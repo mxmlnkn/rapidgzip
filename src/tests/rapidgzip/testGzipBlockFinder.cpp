@@ -18,14 +18,14 @@
 #include <TestHelpers.hpp>
 
 
-using namespace pragzip;
+using namespace rapidgzip;
 
 
 /** Requires at least 13 valid bits inside the lowest bits of @ref bits! */
 [[nodiscard]] bool
 isValidDynamicHuffmanBlock( uint32_t bits )
 {
-    using namespace pragzip::deflate;
+    using namespace rapidgzip::deflate;
 
     const auto finalBlock = bits & nLowestBitsSet<uint32_t, 1U>();
     if ( finalBlock == 0b1 ) {
@@ -47,7 +47,7 @@ isValidDynamicHuffmanBlock( uint32_t bits )
 void
 testDynamicHuffmanBlockFinder()
 {
-    using namespace pragzip::blockfinder;
+    using namespace rapidgzip::blockfinder;
 
     /* Note that it non-final dynamic blocks must begin with 0b100 (bits are read from lowest to highest bit).
      * From that we can already construct some tests. */
@@ -89,7 +89,7 @@ void
 testUncompressedBlockFinder( std::string const&                             path,
                              std::vector<std::pair<size_t, size_t> > const& expected )
 {
-    pragzip::BitReader bitReader( std::make_unique<StandardFileReader>( path ) );
+    rapidgzip::BitReader bitReader( std::make_unique<StandardFileReader>( path ) );
 
     std::vector<std::pair<size_t, size_t> > foundRanges;
     while ( true ) {
@@ -177,11 +177,11 @@ main( int    argc,
             findParentFolderContaining( binaryFolder, "src/tests/data/random-128KiB.bgz" )
         ) / "src" / "tests" / "data";
 
-    /* Note that pragzip --analyze shows the real offset to be 199507 but depending on the preceding bits
+    /* Note that rapidgzip --analyze shows the real offset to be 199507 but depending on the preceding bits
      * the range can go all the way back to the last byte boundary. In this case it goes back 1 bit. */
     testUncompressedBlockFinder( testsFolder / "base64-64KiB.pgz", { { 199506, 199509 } } );
 
-    /* Note that pragzip --analyze shows the real offset to be 24942 * BYTE_SIZE + 7 but depending on the preceding bits
+    /* Note that rapidgzip --analyze shows the real offset to be 24942 * BYTE_SIZE + 7 but depending on the preceding bits
      * the range can go all the way back to the last byte boundary. In this case it goes back 1 bit. */
     testUncompressedBlockFinder( testsFolder / "base64-64KiB-7b-offset-uncompressed.pgz",
                                  { { 24942 * BYTE_SIZE + 6, 24944 * BYTE_SIZE - 3 } } );

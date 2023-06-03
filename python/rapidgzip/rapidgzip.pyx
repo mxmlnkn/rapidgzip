@@ -19,10 +19,10 @@ import sys
 ctypedef (unsigned long long int) size_t
 ctypedef (long long int) lli
 
-cdef extern from "tools/pragzip.cpp":
-    int pragzipCLI(int, char**) except +
+cdef extern from "tools/rapidgzip.cpp":
+    int rapidgzipCLI(int, char**) except +
 
-cdef extern from "pragzip/ParallelGzipReader.hpp" namespace "pragzip":
+cdef extern from "rapidgzip/ParallelGzipReader.hpp" namespace "rapidgzip":
     cppclass ChunkData
 
     cppclass ParallelGzipReader[ChunkData, ENABLE_STATISTICS=*, SHOW_PROFILE=*]:
@@ -54,7 +54,7 @@ cdef extern from "pragzip/ParallelGzipReader.hpp" namespace "pragzip":
     # "true", which does not compile.
     cdef cppclass TrueValue "true":
         pass
-    cdef cppclass RapidgzipChunkData "pragzip::ChunkData":
+    cdef cppclass RapidgzipChunkData "rapidgzip::ChunkData":
         pass
 
 ctypedef ParallelGzipReader[RapidgzipChunkData, TrueValue, TrueValue] ParallelGzipReaderVerbose
@@ -330,7 +330,7 @@ def cli():
             PyObject_GetBuffer(arg.encode(), &buffers[i], PyBUF_SIMPLE | PyBUF_ANY_CONTIGUOUS)
             cargs[i] = <char*>buffers[i].buf
 
-        return pragzipCLI(len(args), cargs)
+        return rapidgzipCLI(len(args), cargs)
     finally:
         free(cargs)
         for buffer in buffers:

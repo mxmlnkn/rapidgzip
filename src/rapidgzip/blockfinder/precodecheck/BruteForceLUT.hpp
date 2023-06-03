@@ -15,7 +15,7 @@
 #include <Error.hpp>
 
 
-namespace pragzip::PrecodeCheck::BruteForceLUT
+namespace rapidgzip::PrecodeCheck::BruteForceLUT
 {
 using CompressedHistogram = uint64_t;
 
@@ -27,7 +27,7 @@ using CompressedHistogram = uint64_t;
  */
 template<uint8_t FREQUENCY_BITS,
          uint8_t FREQUENCY_COUNT>
-[[nodiscard]] pragzip::Error
+[[nodiscard]] rapidgzip::Error
 checkPrecodeFrequencies( CompressedHistogram frequencies )
 {
     static_assert( FREQUENCY_COUNT <= 7, "Precode code lengths go only up to 7!" );
@@ -42,7 +42,7 @@ checkPrecodeFrequencies( CompressedHistogram frequencies )
      * valid (non-bloating) way to encode it! */
     constexpr auto bitsToProcessMask = nLowestBitsSet<CompressedHistogram, FREQUENCY_BITS * FREQUENCY_COUNT>();
     if ( UNLIKELY( ( frequencies & bitsToProcessMask ) == 1 ) ) [[unlikely]] {
-        return pragzip::Error::NONE;
+        return rapidgzip::Error::NONE;
     }
 
     const auto getCount =
@@ -61,7 +61,7 @@ checkPrecodeFrequencies( CompressedHistogram frequencies )
     for ( size_t bitLength = 1; bitLength <= FREQUENCY_COUNT; ++bitLength ) {
         const auto frequency = getCount( frequencies, bitLength );
         if ( frequency > unusedSymbolCount ) {
-            return pragzip::Error::INVALID_CODE_LENGTHS;
+            return rapidgzip::Error::INVALID_CODE_LENGTHS;
         }
 
         unusedSymbolCount -= frequency;
@@ -70,7 +70,7 @@ checkPrecodeFrequencies( CompressedHistogram frequencies )
         remainingCount -= frequency;
 
         if ( unusedSymbolCount > remainingCount ) {
-            return pragzip::Error::BLOATING_HUFFMAN_CODING;
+            return rapidgzip::Error::BLOATING_HUFFMAN_CODING;
         }
     }
 
@@ -84,15 +84,15 @@ checkPrecodeFrequencies( CompressedHistogram frequencies )
 
         if ( ( ( nonZeroCount == 1 ) && ( unusedSymbolCount >  1 ) ) ||
              ( ( nonZeroCount >  1 ) && ( unusedSymbolCount != 0 ) ) ) {
-            return pragzip::Error::BLOATING_HUFFMAN_CODING;
+            return rapidgzip::Error::BLOATING_HUFFMAN_CODING;
         }
 
         if ( nonZeroCount == 0 ) {
-            return pragzip::Error::EMPTY_ALPHABET;
+            return rapidgzip::Error::EMPTY_ALPHABET;
         }
     }
 
-    return pragzip::Error::NONE;
+    return rapidgzip::Error::NONE;
 }
 
 
@@ -113,10 +113,10 @@ createPrecodeFrequenciesValidLUT()
     for ( size_t i = 0; i < result.size(); ++i ) {
         for ( size_t j = 0; j < 64U; ++j ) {
             const auto isValid = checkPrecodeFrequencies<FREQUENCY_BITS, FREQUENCY_COUNT>( i * 64U + j )
-                                 == pragzip::Error::NONE;
+                                 == rapidgzip::Error::NONE;
             result[i] |= static_cast<uint64_t>( isValid ) << j;
         }
     }
     return result;
 }
-}  // namespace pragzip::PrecodeCheck::BruteForceLUT
+}  // namespace rapidgzip::PrecodeCheck::BruteForceLUT

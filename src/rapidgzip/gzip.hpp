@@ -11,7 +11,7 @@
 #include "Error.hpp"
 
 
-namespace pragzip
+namespace rapidgzip
 {
 namespace gzip
 {
@@ -242,4 +242,4 @@ readFooter( BitReader& bitReader )
     return footer;
 }
 }  // namespace gzip
-}  // namespace pragzip
+}  // namespace rapidgzip

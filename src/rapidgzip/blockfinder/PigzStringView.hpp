@@ -23,7 +23,7 @@
  * A parallel implementation of the naive pigz block finder reached 2.3 MB/s.
  * This pigz blockfinder makes use of std::string_view::find to reach 8 GB/s.
  */
-namespace pragzip::blockfinder
+namespace rapidgzip::blockfinder
 {
 class PigzStringView final :
     public Interface
@@ -133,17 +133,17 @@ private:
          * and file comment ...
          * @todo Make clone work here
          */
-        pragzip::BitReader bitReader( m_fileReader->clone() );
+        rapidgzip::BitReader bitReader( m_fileReader->clone() );
 
         #else
 
         BufferedFileReader::AlignedBuffer buffer( BUFFER_SIZE );
         buffer.resize( m_fileReader->read( buffer.data(), buffer.size() ) );
-        pragzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( buffer ) ) );
+        rapidgzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( buffer ) ) );
 
         #endif
 
-        if ( ( pragzip::gzip::checkHeader( bitReader ) == pragzip::Error::NONE )
+        if ( ( rapidgzip::gzip::checkHeader( bitReader ) == rapidgzip::Error::NONE )
              && ( bitReader.tell() % CHAR_BIT == 0 ) ) {
             m_blockOffsets.push_back( bitReader.tell() / CHAR_BIT );
             /* Do not seek directly to one byte after the found offset in order to keep I/O aligned. */
@@ -173,4 +173,4 @@ private:
         "\0\0\xFF\xFF", 4  /* required or else strlen is used resulting in zero */
     };
 };
-}  // pragzip::blockfinder
+}  // rapidgzip::blockfinder

@@ -11,7 +11,7 @@
 #include "HuffmanCodingReversedCodesPerLength.hpp"
 
 
-namespace pragzip
+namespace rapidgzip
 {
 template<typename HuffmanCode,
          uint8_t  MAX_CODE_LENGTH,
@@ -319,4 +319,4 @@ private:
      * with the same size reduces speed for base64.gz by 10%! */
     alignas( 8 ) std::array<Symbol, 2 * ( 1UL << MAX_CODE_LENGTH )> m_doubleCodeCache{};
 };
-}  // namespace pragzip
+}  // namespace rapidgzip

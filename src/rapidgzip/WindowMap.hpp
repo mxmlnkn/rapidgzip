@@ -15,7 +15,7 @@
 class WindowMap
 {
 public:
-    using Window = pragzip::deflate::DecodedVector;
+    using Window = rapidgzip::deflate::DecodedVector;
     using WindowView = VectorView<std::uint8_t>;
 
 public:

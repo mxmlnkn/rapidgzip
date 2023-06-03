@@ -10,7 +10,7 @@
 #include <definitions.hpp>
 
 
-namespace pragzip::blockfinder
+namespace rapidgzip::blockfinder
 {
 /**
  * This function searches for uncompressed blocks. It assumes a zero byte-padding between the uncompressed deflate
@@ -91,4 +91,4 @@ seekToNonFinalUncompressedDeflateBlock( BitReader&   bitReader,
 
     return std::make_pair( std::numeric_limits<size_t>::max(), std::numeric_limits<size_t>::max() );
 }
-}  // namespace pragzip::blockfinder
+}  // namespace rapidgzip::blockfinder

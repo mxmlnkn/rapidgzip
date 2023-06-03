@@ -14,7 +14,7 @@
 #include "Interface.hpp"
 
 
-namespace pragzip::blockfinder
+namespace rapidgzip::blockfinder
 {
 /**
  * @see https://www.ietf.org/rfc/rfc1952.txt
@@ -229,4 +229,4 @@ private:
     const UniqueFileReader m_fileReader;
     size_t m_currentBlockOffset = 0;  /**< in bytes because these are gzip stream offsets */
 };
-}  // pragzip::blockfinder
+}  // rapidgzip::blockfinder

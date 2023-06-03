@@ -3,7 +3,7 @@
 #include <cstddef>
 
 
-namespace pragzip::blockfinder
+namespace rapidgzip::blockfinder
 {
 class Interface
 {
@@ -14,4 +14,4 @@ public:
     [[nodiscard]] virtual size_t
     find() = 0;
 };
-}  // pragzip::blockfinder
+}  // rapidgzip::blockfinder

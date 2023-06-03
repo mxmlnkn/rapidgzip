@@ -33,7 +33,7 @@
 #include "IndexFileFormat.hpp"
 
 
-namespace pragzip
+namespace rapidgzip
 {
 /**
  * @note Calls to this class are not thread-safe! Even though they use threads to evaluate them in parallel.
@@ -55,10 +55,10 @@ public:
      * because the prefetch and cache units are very large and striding or backward accessing over multiple
      * megabytes should be extremely rare.
      */
-    using ChunkFetcher = pragzip::GzipChunkFetcher<FetchingStrategy::FetchMultiStream, ChunkData,
+    using ChunkFetcher = rapidgzip::GzipChunkFetcher<FetchingStrategy::FetchMultiStream, ChunkData,
                                                    ENABLE_STATISTICS, SHOW_PROFILE>;
     using BlockFinder = typename ChunkFetcher::BlockFinder;
-    using BitReader = pragzip::BitReader;
+    using BitReader = rapidgzip::BitReader;
     using WriteFunctor = std::function<void ( const std::shared_ptr<ChunkData>&, size_t, size_t )>;
 
 public:
@@ -74,13 +74,13 @@ public:
      *     for chunkSize in 128 $(( 1*1024 )) $(( 2*1024 )) $(( 4*1024 )) $(( 8*1024 )) $(( 16*1024 )) $(( 32*1024 )); do
      *         echo "Chunk Size: $chunkSize KiB"
      *         for i in $( seq 5 ); do
-     *             src/tools/pragzip --chunk-size $chunkSize -P 0 -d -c "$1" 2>pragzip.log | wc -c
-     *             grep "Decompressed in total" pragzip.log
+     *             src/tools/rapidgzip --chunk-size $chunkSize -P 0 -d -c "$1" 2>rapidgzip.log | wc -c
+     *             grep "Decompressed in total" rapidgzip.log
      *         done
      *     done
      * }
      *
-     * m pragzip
+     * m rapidgzip
      * benchmarkWc 4GiB-base64.gz
      *
      *
@@ -104,7 +104,7 @@ public:
      * mkdir -p silesia && ( cd silesia && unzip ../silesia.zip )
      * tar -cf silesia.tar silesia/  # 211957760 B -> 212 MB, 203 MiB, gzip 66 MiB -> compression factor: 3.08
      * for (( i=0; i<40; ++i )); do cat 'silesia.tar'; done | pigz > 40xsilesia.tar.gz
-     * m pragzip
+     * m rapidgzip
      * benchmarkWc 40xsilesia.tar.gz
      *
      * spacing | bandwidth / (MB/s)
@@ -139,7 +139,7 @@ public:
      * @verbatim
      * head -c $(( 4 * 1024 * 1024 * 1024 )) /dev/urandom > 4GiB-random
      * gzip 4GiB-random.gz
-     * m pragzip
+     * m rapidgzip
      * benchmarkWc 4GiB-random.gz
      *
      * spacing | bandwidth / (MB/s) | file read multiplier
@@ -154,17 +154,17 @@ public:
      * @endverbatim
      *
      * Another set of benchmarks that exclude the bottleneck for writing the results to a pipe by
-     * using the pragzip option --count-lines. Note that in contrast to pugz, it the decompressed
+     * using the rapidgzip option --count-lines. Note that in contrast to pugz, it the decompressed
      * blocks are still processed in sequential order. Processing them out of order by providing
      * a map-reduce like interface might accomplish even more speedups.
      *
      * @verbatim
-     * m pragzip
+     * m rapidgzip
      * for chunkSize in 128 $(( 1*1024 )) $(( 2*1024 )) $(( 4*1024 )) $(( 8*1024 )) $(( 16*1024 )) $(( 32*1024 )); do
      *     echo "Chunk Size: $chunkSize KiB"
      *     for i in $( seq 5 ); do
-     *         src/tools/pragzip --chunk-size $chunkSize -P 0 --count-lines 4GiB-base64.gz 2>pragzip.log
-     *         grep "Decompressed in total" pragzip.log
+     *         src/tools/rapidgzip --chunk-size $chunkSize -P 0 --count-lines 4GiB-base64.gz 2>rapidgzip.log
+     *         grep "Decompressed in total" rapidgzip.log
      *     done
      * done
      *
@@ -353,7 +353,7 @@ public:
                 writeAll( chunkData, outputFileDescriptor, offsetInBlock, dataToWriteSize );
 
                 if ( outputBuffer != nullptr ) {
-                    using pragzip::deflate::DecodedData;
+                    using rapidgzip::deflate::DecodedData;
 
                     size_t nBytesCopied{ 0 };
                     for ( auto it = DecodedData::Iterator( *chunkData, offsetInBlock, dataToWriteSize );
@@ -886,4 +886,4 @@ private:
     CRC32Calculator m_crc32;
     uint64_t m_nextCRC32ChunkOffset{ 0 };
 };
-}  // namespace pragzip
+}  // namespace rapidgzip

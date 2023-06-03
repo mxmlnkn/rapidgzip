@@ -43,14 +43,14 @@ dummyPrintValue()
 }
 
 
-using CompressedHistogram = pragzip::PrecodeCheck::WalkTreeLUT::CompressedHistogram;
+using CompressedHistogram = rapidgzip::PrecodeCheck::WalkTreeLUT::CompressedHistogram;
 
 
-[[nodiscard]] pragzip::Error
+[[nodiscard]] rapidgzip::Error
 checkPrecodeDirectly( size_t   next4Bits,
                       uint64_t precodeBits )
 {
-    using namespace pragzip::deflate;
+    using namespace rapidgzip::deflate;
 
     const auto codeLengthCount = 4 + next4Bits;
 
@@ -61,7 +61,7 @@ checkPrecodeDirectly( size_t   next4Bits,
         precodeCL[PRECODE_ALPHABET[i]] = ( precodeBits >> ( i * 3U ) ) & 0b111U;
     }
 
-    pragzip::deflate::precode::PrecodeHuffmanCoding precodeHC;
+    rapidgzip::deflate::precode::PrecodeHuffmanCoding precodeHC;
     return precodeHC.initializeFromLengths( VectorView<uint8_t>( precodeCL.data(), precodeCL.size() ) );
 }
 
@@ -69,7 +69,7 @@ checkPrecodeDirectly( size_t   next4Bits,
 void
 testVLPHImplementation()
 {
-    using namespace pragzip::PrecodeCheck::SingleLUT::VariableLengthPackedHistogram;
+    using namespace rapidgzip::PrecodeCheck::SingleLUT::VariableLengthPackedHistogram;
 
     static_assert( getCount( 0b1101'10001'10101'0101'100'10'1'01010UL, 0 ) == 0b01010 );
     static_assert( getCount( 0b1101'10001'10101'0101'100'10'1'01010UL, 1 ) == 0b1     );
@@ -128,101 +128,101 @@ testSingleLUTImplementation4Precodes()
     /* With only 4 precodes, there will be no overflow issues when adding partial histograms because only the
      * first one will be non-zero. */
 
-    using namespace pragzip::PrecodeCheck;
+    using namespace rapidgzip::PrecodeCheck;
 
     const auto check4Precodes =
         [] ( const auto values ) { return SingleLUT::checkPrecode( 0, values ); };
 
-    static_assert( check4Precodes( 0 ) != pragzip::Error::NONE );
+    static_assert( check4Precodes( 0 ) != rapidgzip::Error::NONE );
 
     /* Only one non-zero value that is not 1 leads to a non-optimal tree. */
-    REQUIRE( check4Precodes( 0b000'000'000'010 ) != pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b000'000'000'011 ) != pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b000'000'000'100 ) != pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b000'000'010'000 ) != pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b000'000'011'000 ) != pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b000'000'100'000 ) != pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b000'010'000'000 ) != pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b000'011'000'000 ) != pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b000'100'000'000 ) != pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b010'000'000'000 ) != pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b011'000'000'000 ) != pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b100'000'000'000 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'000'000'010 ) != rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'000'000'011 ) != rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'000'000'100 ) != rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'000'010'000 ) != rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'000'011'000 ) != rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'000'100'000 ) != rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'010'000'000 ) != rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'011'000'000 ) != rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'100'000'000 ) != rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b010'000'000'000 ) != rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b011'000'000'000 ) != rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b100'000'000'000 ) != rapidgzip::Error::NONE );
 
-    REQUIRE( check4Precodes( 0b000'000'001'000 ) == pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'000'001'000 ) == rapidgzip::Error::NONE );
 
-    REQUIRE_EQUAL( checkPrecodeDirectly    ( 0, 0b001'000'000'001 ), pragzip::Error::NONE );
-    REQUIRE_EQUAL( WithoutLUT::checkPrecode( 0, 0b001'000'000'001 ), pragzip::Error::NONE );
+    REQUIRE_EQUAL( checkPrecodeDirectly    ( 0, 0b001'000'000'001 ), rapidgzip::Error::NONE );
+    REQUIRE_EQUAL( WithoutLUT::checkPrecode( 0, 0b001'000'000'001 ), rapidgzip::Error::NONE );
 
-    REQUIRE_EQUAL( checkPrecodeDirectly    ( 0, 0b010'000'010'001 ), pragzip::Error::NONE );
-    REQUIRE_EQUAL( WithoutLUT::checkPrecode( 0, 0b010'000'010'001 ), pragzip::Error::NONE );
+    REQUIRE_EQUAL( checkPrecodeDirectly    ( 0, 0b010'000'010'001 ), rapidgzip::Error::NONE );
+    REQUIRE_EQUAL( WithoutLUT::checkPrecode( 0, 0b010'000'010'001 ), rapidgzip::Error::NONE );
 
-    REQUIRE_EQUAL( checkPrecodeDirectly              ( 0, 0b000'000'001'000 ), pragzip::Error::NONE );
-    REQUIRE_EQUAL( WithoutLUT::checkPrecodeUsingArray( 0, 0b000'000'001'000 ), pragzip::Error::NONE );
-    REQUIRE_EQUAL( WithoutLUT          ::checkPrecode( 0, 0b000'000'001'000 ), pragzip::Error::NONE );
-    REQUIRE_EQUAL( SingleLUT           ::checkPrecode( 0, 0b000'000'001'000 ), pragzip::Error::NONE );
-    REQUIRE_EQUAL( SingleCompressedLUT ::checkPrecode( 0, 0b000'000'001'000 ), pragzip::Error::NONE );
-    REQUIRE_EQUAL( WalkTreeLUT         ::checkPrecode( 0, 0b000'000'001'000 ), pragzip::Error::NONE );
+    REQUIRE_EQUAL( checkPrecodeDirectly              ( 0, 0b000'000'001'000 ), rapidgzip::Error::NONE );
+    REQUIRE_EQUAL( WithoutLUT::checkPrecodeUsingArray( 0, 0b000'000'001'000 ), rapidgzip::Error::NONE );
+    REQUIRE_EQUAL( WithoutLUT          ::checkPrecode( 0, 0b000'000'001'000 ), rapidgzip::Error::NONE );
+    REQUIRE_EQUAL( SingleLUT           ::checkPrecode( 0, 0b000'000'001'000 ), rapidgzip::Error::NONE );
+    REQUIRE_EQUAL( SingleCompressedLUT ::checkPrecode( 0, 0b000'000'001'000 ), rapidgzip::Error::NONE );
+    REQUIRE_EQUAL( WalkTreeLUT         ::checkPrecode( 0, 0b000'000'001'000 ), rapidgzip::Error::NONE );
 
     REQUIRE_EQUAL( WithoutLUT::checkPrecodeUsingArray( 0, 0b000'000'010'000 ),
-                   pragzip::Error::BLOATING_HUFFMAN_CODING );
-    REQUIRE_EQUAL( checkPrecodeDirectly             ( 0, 0b000'000'010'000 ), pragzip::Error::BLOATING_HUFFMAN_CODING );
-    REQUIRE_EQUAL( WithoutLUT         ::checkPrecode( 0, 0b000'000'010'000 ), pragzip::Error::BLOATING_HUFFMAN_CODING );
-    REQUIRE_EQUAL( SingleLUT          ::checkPrecode( 0, 0b000'000'010'000 ), pragzip::Error::BLOATING_HUFFMAN_CODING );
-    REQUIRE_EQUAL( SingleCompressedLUT::checkPrecode( 0, 0b000'000'010'000 ), pragzip::Error::BLOATING_HUFFMAN_CODING );
+                   rapidgzip::Error::BLOATING_HUFFMAN_CODING );
+    REQUIRE_EQUAL( checkPrecodeDirectly             ( 0, 0b000'000'010'000 ), rapidgzip::Error::BLOATING_HUFFMAN_CODING );
+    REQUIRE_EQUAL( WithoutLUT         ::checkPrecode( 0, 0b000'000'010'000 ), rapidgzip::Error::BLOATING_HUFFMAN_CODING );
+    REQUIRE_EQUAL( SingleLUT          ::checkPrecode( 0, 0b000'000'010'000 ), rapidgzip::Error::BLOATING_HUFFMAN_CODING );
+    REQUIRE_EQUAL( SingleCompressedLUT::checkPrecode( 0, 0b000'000'010'000 ), rapidgzip::Error::BLOATING_HUFFMAN_CODING );
     /* Because of the usage of a LUT, the error reasong can not always be exactly deduced. In that case,
      * non-optimal Huffman codings will be reported as invalid ones! */
-    REQUIRE_EQUAL( WalkTreeLUT::checkPrecode( 0, 0b000'000'010'000 ), pragzip::Error::INVALID_CODE_LENGTHS );
+    REQUIRE_EQUAL( WalkTreeLUT::checkPrecode( 0, 0b000'000'010'000 ), rapidgzip::Error::INVALID_CODE_LENGTHS );
 
     /* A single code length with 1 bit is valid. */
-    REQUIRE( check4Precodes( 0b000'000'000'001 ) == pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b000'000'001'000 ) == pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b000'001'000'000 ) == pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b001'000'000'000 ) == pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'000'000'001 ) == rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'000'001'000 ) == rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'001'000'000 ) == rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'000'000'000 ) == rapidgzip::Error::NONE );
 
     /* Two non-zero values are only valid if both of them are of length 1. */
-    REQUIRE( check4Precodes( 0b001'001'000'000 ) == pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b001'000'001'000 ) == pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b001'000'000'001 ) == pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b000'001'001'000 ) == pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b000'001'000'001 ) == pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b000'000'001'001 ) == pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'001'000'000 ) == rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'000'001'000 ) == rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'000'000'001 ) == rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'001'001'000 ) == rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'001'000'001 ) == rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'000'001'001 ) == rapidgzip::Error::NONE );
 
-    REQUIRE( WithoutLUT::checkPrecodeUsingArray ( 0, 0b000'000'001'001 ) == pragzip::Error::NONE );
-    REQUIRE( WithoutLUT           ::checkPrecode( 0, 0b000'000'001'001 ) == pragzip::Error::NONE );
-    REQUIRE( SingleLUT            ::checkPrecode( 0, 0b000'000'001'001 ) == pragzip::Error::NONE );
-    REQUIRE( SingleCompressedLUT  ::checkPrecode( 0, 0b000'000'001'001 ) == pragzip::Error::NONE );
-    REQUIRE( WalkTreeLUT          ::checkPrecode( 0, 0b000'000'001'001 ) == pragzip::Error::NONE );
+    REQUIRE( WithoutLUT::checkPrecodeUsingArray ( 0, 0b000'000'001'001 ) == rapidgzip::Error::NONE );
+    REQUIRE( WithoutLUT           ::checkPrecode( 0, 0b000'000'001'001 ) == rapidgzip::Error::NONE );
+    REQUIRE( SingleLUT            ::checkPrecode( 0, 0b000'000'001'001 ) == rapidgzip::Error::NONE );
+    REQUIRE( SingleCompressedLUT  ::checkPrecode( 0, 0b000'000'001'001 ) == rapidgzip::Error::NONE );
+    REQUIRE( WalkTreeLUT          ::checkPrecode( 0, 0b000'000'001'001 ) == rapidgzip::Error::NONE );
 
     /* If there is a code length longer than one out of the two, then the tree will be non-optimal. */
-    REQUIRE( check4Precodes( 0b001'011'000'000 ) != pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b001'000'011'000 ) != pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b001'000'000'011 ) != pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b000'001'011'000 ) != pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b000'001'000'011 ) != pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b000'000'011'001 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'011'000'000 ) != rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'000'011'000 ) != rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'000'000'011 ) != rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'001'011'000 ) != rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'001'000'011 ) != rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'000'011'001 ) != rapidgzip::Error::NONE );
 
     /* Even with 3 values, there is still only one tree that is valid: code lengths: 1, 2, 2. */
-    REQUIRE( check4Precodes( 0b001'010'010'000 ) == pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b001'010'000'010 ) == pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b001'010'000'010 ) == pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b010'001'010'000 ) == pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b000'001'010'010 ) == pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b000'010'010'001 ) == pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'010'010'000 ) == rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'010'000'010 ) == rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'010'000'010 ) == rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b010'001'010'000 ) == rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'001'010'010 ) == rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'010'010'001 ) == rapidgzip::Error::NONE );
 
-    REQUIRE( check4Precodes( 0b001'010'011'000 ) != pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b011'010'000'010 ) != pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b001'110'000'010 ) != pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b010'001'011'000 ) != pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b000'001'010'110 ) != pragzip::Error::NONE );
-    REQUIRE( check4Precodes( 0b000'010'010'101 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'010'011'000 ) != rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b011'010'000'010 ) != rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'110'000'010 ) != rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b010'001'011'000 ) != rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'001'010'110 ) != rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b000'010'010'101 ) != rapidgzip::Error::NONE );
 
     /* And even with 4 values, there is still only one tree that is valid: code lengths: 2, 2, 2, 2. */
-    REQUIRE( check4Precodes( 0b010'010'010'010 ) == pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b010'010'010'010 ) == rapidgzip::Error::NONE );
 
     /* Too many of the same value overflows the variable-length bit-packed histogram,
      * which should be detected and yield an error. */
-    REQUIRE( check4Precodes( 0b001'010'001'001 ) != pragzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'010'001'001 ) != rapidgzip::Error::NONE );
 }
 
 
@@ -233,7 +233,7 @@ testSingleLUTImplementation8Precodes()
      * comes into play and can be tested. */
 
     const auto check8Precodes =
-        [] ( const auto values ) { return pragzip::PrecodeCheck::SingleLUT::checkPrecode( 4, values ); };
+        [] ( const auto values ) { return rapidgzip::PrecodeCheck::SingleLUT::checkPrecode( 4, values ); };
 
     /**
      * For 5 non-zero precodes, there can be multiple tree configurations:
@@ -246,23 +246,23 @@ testSingleLUTImplementation8Precodes()
      *       o  o  CL 3    o  oo  o
      * @endverbatim
      */
-    static_assert( check8Precodes( 0b000'000'000'100'100'011'010'001 ) == pragzip::Error::NONE );
-    static_assert( check8Precodes( 0b000'000'100'100'011'010'001'000 ) == pragzip::Error::NONE );
-    static_assert( check8Precodes( 0b000'100'100'011'010'001'000'000 ) == pragzip::Error::NONE );
-    static_assert( check8Precodes( 0b100'100'011'010'001'000'000'000 ) == pragzip::Error::NONE );
+    static_assert( check8Precodes( 0b000'000'000'100'100'011'010'001 ) == rapidgzip::Error::NONE );
+    static_assert( check8Precodes( 0b000'000'100'100'011'010'001'000 ) == rapidgzip::Error::NONE );
+    static_assert( check8Precodes( 0b000'100'100'011'010'001'000'000 ) == rapidgzip::Error::NONE );
+    static_assert( check8Precodes( 0b100'100'011'010'001'000'000'000 ) == rapidgzip::Error::NONE );
 
-    using namespace pragzip::PrecodeCheck::SingleLUT;
+    using namespace rapidgzip::PrecodeCheck::SingleLUT;
 
     static_assert( PRECODE_X4_TO_HISTOGRAM_LUT.at( 0b011'011'011'011 ) == 0b0'0000'00000'00000'0000'100'00'0'00100UL );
     static_assert( PRECODE_X4_TO_HISTOGRAM_LUT.at( 0b000'000'000'001 ) == 0b0'0000'00000'00000'0000'000'00'1'00001UL );
     static_assert( PRECODE_X4_TO_HISTOGRAM_LUT.at( 0b011'011'011'011 ) +
                    PRECODE_X4_TO_HISTOGRAM_LUT.at( 0b000'000'000'001 ) == 0b0'0000'00000'00000'0000'100'00'1'00101UL );
 
-    static_assert( check8Precodes( 0b000'000'000'001'011'011'011'011 ) == pragzip::Error::NONE );
-    static_assert( check8Precodes( 0b000'000'000'011'011'011'011'001 ) == pragzip::Error::NONE );
-    static_assert( check8Precodes( 0b000'000'011'011'011'011'001'000 ) == pragzip::Error::NONE );
-    static_assert( check8Precodes( 0b000'011'011'011'011'001'000'000 ) == pragzip::Error::NONE );
-    static_assert( check8Precodes( 0b011'011'011'011'001'000'000'000 ) == pragzip::Error::NONE );
+    static_assert( check8Precodes( 0b000'000'000'001'011'011'011'011 ) == rapidgzip::Error::NONE );
+    static_assert( check8Precodes( 0b000'000'000'011'011'011'011'001 ) == rapidgzip::Error::NONE );
+    static_assert( check8Precodes( 0b000'000'011'011'011'011'001'000 ) == rapidgzip::Error::NONE );
+    static_assert( check8Precodes( 0b000'011'011'011'011'001'000'000 ) == rapidgzip::Error::NONE );
+    static_assert( check8Precodes( 0b011'011'011'011'001'000'000'000 ) == rapidgzip::Error::NONE );
 
     /* With 4 non-zero precodes, we can now check the overflow algorithm. */
 }
@@ -377,7 +377,7 @@ analyzeActualLUTCompression()
         };
 
     std::cerr << "\n== Sizes for actual implementations ==\n\n";
-    using namespace pragzip::PrecodeCheck;
+    using namespace rapidgzip::PrecodeCheck;
     printRealCompressedLUTStatistics( SingleCompressedLUT::COMPRESSED_PRECODE_HISTOGRAM_VALID_LUT_DICT,
                                       SingleCompressedLUT::COMPRESSED_PRECODE_HISTOGRAM_CHUNK_COUNT,
                                       "Whole LUT for variable-length bit-packed histogram" );
@@ -390,7 +390,7 @@ analyzeActualLUTCompression()
 void
 testSingleLUTImplementation()
 {
-    using namespace pragzip::PrecodeCheck::SingleLUT;
+    using namespace rapidgzip::PrecodeCheck::SingleLUT;
 
     testVLPHImplementation();
 
@@ -411,7 +411,7 @@ analyzeValidPrecodeFrequencies()
 {
     /* Without static, I'm getting SIGSEV! It might be that this results in a classical stack overflow because
      * those std::array LUTs are allocated on the insufficiently-sized stack when not static. */
-    using namespace pragzip::PrecodeCheck;
+    using namespace rapidgzip::PrecodeCheck;
     static const auto frequencyLUT = WalkTreeLUT::createPrecodeFrequenciesValidLUT<5, FREQUENCY_COUNT>();
     static const auto frequencyLUTAlternative = BruteForceLUT::createPrecodeFrequenciesValidLUT<5, FREQUENCY_COUNT>();
     REQUIRE_EQUAL( frequencyLUT.size(), frequencyLUTAlternative.size() );
@@ -440,28 +440,28 @@ analyzeValidPrecodes()
      * depends on the 4 bits. */
     static constexpr uint64_t MONTE_CARLO_TEST_COUNT = 100'000'000;
     uint64_t validPrecodeCount{ 0 };
-    std::unordered_map<pragzip::Error, uint64_t> errorCounts;
+    std::unordered_map<rapidgzip::Error, uint64_t> errorCounts;
     for ( uint64_t i = 0; i < MONTE_CARLO_TEST_COUNT; ++i ) {
-        using namespace pragzip::deflate;
+        using namespace rapidgzip::deflate;
         const auto precodeBits = randomEngine();
         const auto next4Bits = precodeBits & nLowestBitsSet<uint64_t, 4>();
         const auto next57Bits = ( precodeBits >> 4U ) & nLowestBitsSet<uint64_t>( MAX_PRECODE_COUNT * PRECODE_BITS );
 
-        const auto error = pragzip::PrecodeCheck::WalkTreeLUT::checkPrecode( next4Bits, next57Bits );
+        const auto error = rapidgzip::PrecodeCheck::WalkTreeLUT::checkPrecode( next4Bits, next57Bits );
 
         const auto [count, wasInserted] = errorCounts.try_emplace( error, 1 );
         if ( !wasInserted ) {
             count->second++;
         }
 
-        const auto isValid = error == pragzip::Error::NONE;
+        const auto isValid = error == rapidgzip::Error::NONE;
         validPrecodeCount += isValid ? 1 : 0;
 
         /* Compare with alternative checkPrecode functions. */
         const auto checkAlternative =
             [&] ( const auto& checkPrecode )
             {
-                const auto alternativeIsValid = checkPrecode( next4Bits, next57Bits ) == pragzip::Error::NONE;
+                const auto alternativeIsValid = checkPrecode( next4Bits, next57Bits ) == rapidgzip::Error::NONE;
                 REQUIRE_EQUAL( isValid, alternativeIsValid );
                 if ( isValid != alternativeIsValid ) {
                     const auto codeLengthCount = 4 + next4Bits;
@@ -470,11 +470,11 @@ analyzeValidPrecodes()
                 }
             };
 
-        checkAlternative( pragzip::PrecodeCheck::WithoutLUT::checkPrecodeUsingArray );
-        checkAlternative( pragzip::PrecodeCheck::WithoutLUT::checkPrecode );
-        checkAlternative( pragzip::PrecodeCheck::SingleLUT::checkPrecode );
-        checkAlternative( pragzip::PrecodeCheck::SingleCompressedLUT::checkPrecode );
-        checkAlternative( pragzip::PrecodeCheck::WalkTreeCompressedLUT::checkPrecode );
+        checkAlternative( rapidgzip::PrecodeCheck::WithoutLUT::checkPrecodeUsingArray );
+        checkAlternative( rapidgzip::PrecodeCheck::WithoutLUT::checkPrecode );
+        checkAlternative( rapidgzip::PrecodeCheck::SingleLUT::checkPrecode );
+        checkAlternative( rapidgzip::PrecodeCheck::SingleCompressedLUT::checkPrecode );
+        checkAlternative( rapidgzip::PrecodeCheck::WalkTreeCompressedLUT::checkPrecode );
     }
 
     {
@@ -482,7 +482,7 @@ analyzeValidPrecodes()
                   << static_cast<double>( validPrecodeCount ) / static_cast<double>( MONTE_CARLO_TEST_COUNT ) * 100
                   << " %\n";
 
-        std::multimap<uint64_t, pragzip::Error, std::greater<> > sortedErrorTypes;
+        std::multimap<uint64_t, rapidgzip::Error, std::greater<> > sortedErrorTypes;
         for ( const auto [error, count] : errorCounts ) {
             sortedErrorTypes.emplace( count, error );
         }
@@ -640,8 +640,8 @@ analyzeMaxValidPrecodeFrequencies()
     std::unordered_set<uint64_t> alternativeValidHistogramsWithout7Counts;
     static constexpr auto HISTOGRAM_COUNT_WITHOUT_7_COUNTS = 1ULL << ( FREQUENCY_BITS * ( FREQUENCY_COUNT - 1 ) );
     for ( uint64_t histogram = 0; histogram < HISTOGRAM_COUNT_WITHOUT_7_COUNTS; ++histogram ) {
-        if ( pragzip::PrecodeCheck::BruteForceLUT::checkPrecodeFrequencies<FREQUENCY_BITS, ( FREQUENCY_COUNT - 1 ) >(
-                 histogram ) != pragzip::Error::NONE ) {
+        if ( rapidgzip::PrecodeCheck::BruteForceLUT::checkPrecodeFrequencies<FREQUENCY_BITS, ( FREQUENCY_COUNT - 1 ) >(
+                 histogram ) != rapidgzip::Error::NONE ) {
             continue;
         }
 
@@ -715,8 +715,8 @@ analyzeMaxValidPrecodeFrequencies()
     std::unordered_set<uint64_t> alternativeValidHistograms;
     static constexpr auto HISTOGRAM_COUNT = 1ULL << ( FREQUENCY_BITS * FREQUENCY_COUNT );
     for ( uint64_t histogram = 0; histogram < HISTOGRAM_COUNT; ++histogram ) {
-        if ( pragzip::PrecodeCheck::BruteForceLUT::checkPrecodeFrequencies<FREQUENCY_BITS, FREQUENCY_COUNT>( histogram )
-             != pragzip::Error::NONE ) {
+        if ( rapidgzip::PrecodeCheck::BruteForceLUT::checkPrecodeFrequencies<FREQUENCY_BITS, FREQUENCY_COUNT>( histogram )
+             != rapidgzip::Error::NONE ) {
             continue;
         }
 
@@ -761,7 +761,7 @@ analyzeMaxValidPrecodeFrequencies()
 void
 printValidHistograms()
 {
-    using pragzip::deflate::precode::VALID_HISTOGRAMS;
+    using rapidgzip::deflate::precode::VALID_HISTOGRAMS;
     std::cerr << "== Valid histograms (" << VALID_HISTOGRAMS.size() << ") shown as \"code length: count\" ==\n\n";
     for ( const auto& histogram : VALID_HISTOGRAMS ) {
         std::cerr << "   ";
@@ -785,8 +785,8 @@ analyzeCompressedLUT()
 {
     using SUBTABLE_ELEMENT = uint16_t;  /* Must be able to store IDs for each of the 1527 valid histogram. */
 
-    using pragzip::deflate::precode::VALID_HISTOGRAMS;
-    using namespace pragzip::PrecodeCheck::SingleLUT;
+    using rapidgzip::deflate::precode::VALID_HISTOGRAMS;
+    using namespace rapidgzip::PrecodeCheck::SingleLUT;
     using VariableLengthPackedHistogram::MEMBER_BIT_WIDTHS;
     using VariableLengthPackedHistogram::Histogram;
     using VariableLengthPackedHistogram::packHistogram;
@@ -852,12 +852,12 @@ analyzeCompressedLUT()
 void
 testGetHistogramId( size_t validId )
 {
-    using pragzip::deflate::precode::VALID_HISTOGRAMS;
-    using namespace pragzip::PrecodeCheck;
+    using rapidgzip::deflate::precode::VALID_HISTOGRAMS;
+    using namespace rapidgzip::PrecodeCheck;
 
     const auto& histogram = VALID_HISTOGRAMS.at( validId );
     const auto packedHistogram = WalkTreeLUT::packHistogramWithNonZeroCount<5>( histogram );
-    using pragzip::PrecodeCheck::SingleLUT::ValidHistogramID::getHistogramIdFromUniformlyPackedHistogram;
+    using rapidgzip::PrecodeCheck::SingleLUT::ValidHistogramID::getHistogramIdFromUniformlyPackedHistogram;
     REQUIRE_EQUAL( getHistogramIdFromUniformlyPackedHistogram( packedHistogram ), validId );
 
 #if 0
@@ -886,7 +886,7 @@ testHuffmanCoding( HuffmanCoding&              coding,
                    const std::vector<char>&    encoded,
                    const std::vector<uint8_t>& decoded )
 {
-    pragzip::BitReader bitReader( std::make_unique<BufferedFileReader>( encoded ) );
+    rapidgzip::BitReader bitReader( std::make_unique<BufferedFileReader>( encoded ) );
     for ( const auto expectedSymbol : decoded ) {
         const auto decodedSymbol = coding.decode( bitReader );
         REQUIRE( decodedSymbol.has_value() );
@@ -900,7 +900,7 @@ testValidHuffmanCoding( const size_t                validId,
                         const std::vector<char>&    encoded,
                         const std::vector<uint8_t>& decoded )
 {
-    testHuffmanCoding( pragzip::deflate::precode::VALID_HUFFMAN_CODINGS.at( validId ), encoded, decoded );
+    testHuffmanCoding( rapidgzip::deflate::precode::VALID_HUFFMAN_CODINGS.at( validId ), encoded, decoded );
 }
 
 
@@ -909,8 +909,8 @@ testCachedCodingFromHistogram( const std::array<uint8_t, 7>& histogram,
                                const std::vector<char>&      encoded,
                                const std::vector<uint8_t>&   decoded )
 {
-    using pragzip::PrecodeCheck::SingleLUT::ValidHistogramID::getHistogramIdFromUniformlyPackedHistogram;
-    using pragzip::PrecodeCheck::WalkTreeLUT::packHistogramWithNonZeroCount;
+    using rapidgzip::PrecodeCheck::SingleLUT::ValidHistogramID::getHistogramIdFromUniformlyPackedHistogram;
+    using rapidgzip::PrecodeCheck::WalkTreeLUT::packHistogramWithNonZeroCount;
 
     testValidHuffmanCoding( getHistogramIdFromUniformlyPackedHistogram( packHistogramWithNonZeroCount<5>( histogram ) ),
                             encoded, decoded );
@@ -922,8 +922,8 @@ testCachedCodingFromPrecodes( const uint64_t              precodeBits,
                               const std::vector<char>&    encoded,
                               const std::vector<uint8_t>& decoded )
 {
-    using namespace pragzip::deflate;
-    using namespace pragzip::PrecodeCheck;
+    using namespace rapidgzip::deflate;
+    using namespace rapidgzip::PrecodeCheck;
 
     /* Get code lengths (CL) for alphabet P. */
     std::array<uint8_t, MAX_PRECODE_COUNT> codeLengthCL{};
@@ -932,9 +932,9 @@ testCachedCodingFromPrecodes( const uint64_t              precodeBits,
         codeLengthCL[PRECODE_ALPHABET[i]] = codeLength;
     }
 
-    pragzip::deflate::precode::PrecodeHuffmanCoding precodeHC;
+    rapidgzip::deflate::precode::PrecodeHuffmanCoding precodeHC;
     auto error = precodeHC.initializeFromLengths( VectorView<uint8_t>( codeLengthCL.data(), codeLengthCL.size() ) );
-    REQUIRE( error == pragzip::Error::NONE );
+    REQUIRE( error == rapidgzip::Error::NONE );
 
     testHuffmanCoding( precodeHC, encoded, decoded );
 
@@ -987,7 +987,7 @@ testCachedCodingFromPrecodes( const uint64_t              precodeBits,
 
     /* Check with Huffman coding. */
     {
-        pragzip::BitReader bitReader( std::make_unique<BufferedFileReader>( encoded ) );
+        rapidgzip::BitReader bitReader( std::make_unique<BufferedFileReader>( encoded ) );
         for ( const auto expectedSymbol : decoded ) {
             const auto decodedSymbol = cachedCoding.decode( bitReader );
             REQUIRE( decodedSymbol.has_value() );
@@ -1000,11 +1000,11 @@ testCachedCodingFromPrecodes( const uint64_t              precodeBits,
 void
 testValidHistograms()
 {
-    using namespace pragzip::deflate::precode;
+    using namespace rapidgzip::deflate::precode;
     const auto codingsSize = VALID_HUFFMAN_CODINGS.size() * sizeof( VALID_HUFFMAN_CODINGS[0] );
     std::cerr << "Size of valid precomputed precode huffman codings: " << formatBytes( codingsSize ) << "\n";
 
-    using namespace pragzip::PrecodeCheck::SingleLUT;
+    using namespace rapidgzip::PrecodeCheck::SingleLUT;
     REQUIRE( ValidHistogramID::getHistogramIdFromUniformlyPackedHistogram( 0 ) >= VALID_HISTOGRAMS.size() );
 
     testGetHistogramId( 0 );
@@ -1024,8 +1024,8 @@ testValidHistograms()
 void
 testCachedHuffmanCodings()
 {
-    using namespace pragzip::deflate::precode;
-    using pragzip::deflate::precode::Histogram;
+    using namespace rapidgzip::deflate::precode;
+    using rapidgzip::deflate::precode::Histogram;
 
     testValidHuffmanCoding( VALID_HISTOGRAMS.size() - 1, { char( 0b0110'0101 ) }, { 1, 0 } );
     testCachedCodingFromHistogram( Histogram{ { /* code length 1 */ 2, } }, { char( 0b0110'0101 ) }, { 1, 0 } );
@@ -1068,10 +1068,10 @@ main()
     //analyzeValidPrecodeFrequencies<7>();  // Does not compile / link. I think the binary becomes too large
 
     std::cerr << "\n\n== Complete LUT for variable length packed precode histograms ==\n\n";
-    analyzeSingleLUTCompression( pragzip::PrecodeCheck::SingleLUT::PRECODE_HISTOGRAM_VALID_LUT );
+    analyzeSingleLUTCompression( rapidgzip::PrecodeCheck::SingleLUT::PRECODE_HISTOGRAM_VALID_LUT );
 
     std::cerr << "\n== LUT for fixed 5-bit length precode histograms for counts 1 to 5 ==\n\n";
-    analyzeSingleLUTCompression( pragzip::PrecodeCheck::WalkTreeLUT::PRECODE_FREQUENCIES_1_TO_5_VALID_LUT );
+    analyzeSingleLUTCompression( rapidgzip::PrecodeCheck::WalkTreeLUT::PRECODE_FREQUENCIES_1_TO_5_VALID_LUT );
 
     analyzeActualLUTCompression();
 

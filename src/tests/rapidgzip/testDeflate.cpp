@@ -13,7 +13,7 @@
 #include <TestHelpers.hpp>
 
 
-using namespace pragzip;
+using namespace rapidgzip;
 
 
 void
@@ -109,7 +109,7 @@ decodeHuffmanAndCompare( const HuffmanCoding&                               codi
 {
     BufferedFileReader::AlignedBuffer encodedChars( encoded.size() );
     std::transform( encoded.begin(), encoded.end(), encodedChars.begin(), [] ( const auto c ) { return c; } );
-    pragzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( encodedChars ) ) );
+    rapidgzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( encodedChars ) ) );
 
     for ( const auto symbol : decoded ) {
         const auto decodedSymbol = coding.decode( bitReader );
@@ -175,7 +175,7 @@ testFixedHuffmanCoding()
 
         BufferedFileReader::AlignedBuffer encodedChars( encoded.size() );
         std::transform( encoded.begin(), encoded.end(), encodedChars.begin(), [] ( const auto c ) { return c; } );
-        pragzip::BitReader bitReader( std::make_unique<BufferedFileReader>( encodedChars ) );
+        rapidgzip::BitReader bitReader( std::make_unique<BufferedFileReader>( encodedChars ) );
         REQUIRE( bitReader.read<9>() == code );
 
         decoded = { static_cast<uint16_t>( 144 + i ) };

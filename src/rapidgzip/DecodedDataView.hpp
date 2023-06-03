@@ -6,7 +6,7 @@
 #include <VectorView.hpp>
 
 
-namespace pragzip::deflate
+namespace rapidgzip::deflate
 {
 /**
  * Only one of the two will contain non-empty VectorViews depending on whether marker bytes might appear.
@@ -43,4 +43,4 @@ public:
     std::array<VectorView<uint16_t>, 2> dataWithMarkers;
     std::array<VectorView<uint8_t>, 2> data;
 };
-}  // namespace pragzip::deflate
+}  // namespace rapidgzip::deflate

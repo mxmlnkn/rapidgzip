@@ -12,7 +12,7 @@
 #include "precodecheck/WalkTreeLUT.hpp"
 
 
-namespace pragzip::blockfinder
+namespace rapidgzip::blockfinder
 {
 /**
  * Valid signature to look for deflate block:
@@ -192,7 +192,7 @@ static constexpr uint8_t OPTIMAL_NEXT_DEFLATE_LUT_SIZE = 14;
 
 
 /**
- * Same as findDeflateBlocksRapidgzip but prefilters calling pragzip using a lookup table and even skips multiple bits.
+ * Same as findDeflateBlocksRapidgzip but prefilters calling rapidgzip using a lookup table and even skips multiple bits.
  * Also, does not find uncompressed blocks nor fixed huffman blocks and as the others no final blocks!
  * The idea is that fixed huffman blocks should be very rare and uncompressed blocks can be found very fast in a
  * separate run over the data (to be implemented).
@@ -208,7 +208,7 @@ seekToNonFinalDynamicDeflateBlock( BitReader&   bitReader,
 
     try
     {
-        using namespace pragzip::deflate;  /* For the definitions of deflate-specific number of bits. */
+        using namespace rapidgzip::deflate;  /* For the definitions of deflate-specific number of bits. */
 
         /**
          * For LUT we need at CACHED_BIT_COUNT bits and for the precode check we would need in total
@@ -222,7 +222,7 @@ seekToNonFinalDynamicDeflateBlock( BitReader&   bitReader,
         constexpr auto ALL_PRECODE_BITS = PRECODE_COUNT_BITS + MAX_PRECODE_COUNT * PRECODE_BITS;
         static_assert( ( ALL_PRECODE_BITS == 61 ) && ( ALL_PRECODE_BITS >= CACHED_BIT_COUNT )
                        && ( ALL_PRECODE_BITS <= std::numeric_limits<uint64_t>::digits )
-                       && ( ALL_PRECODE_BITS <= pragzip::BitReader::MAX_BIT_BUFFER_SIZE ),
+                       && ( ALL_PRECODE_BITS <= rapidgzip::BitReader::MAX_BIT_BUFFER_SIZE ),
                        "It must fit into 64-bit and it also must fit the largest possible jump in the LUT." );
         auto bitBufferPrecodeBits = bitReader.read<ALL_PRECODE_BITS>();
 
@@ -240,7 +240,7 @@ seekToNonFinalDynamicDeflateBlock( BitReader&   bitReader,
                 const auto next57Bits = ( bitBufferPrecodeBits >> PRECODE_COUNT_BITS )
                                         & nLowestBitsSet<uint64_t, MAX_PRECODE_COUNT * PRECODE_BITS>();
 
-                using pragzip::PrecodeCheck::WalkTreeLUT::checkPrecode;
+                using rapidgzip::PrecodeCheck::WalkTreeLUT::checkPrecode;
                 const auto precodeError = checkPrecode( next4Bits, next57Bits );
 
                 if ( UNLIKELY( precodeError == Error::NONE ) ) [[unlikely]] {
@@ -337,4 +337,4 @@ seekToNonFinalDynamicDeflateBlock( BitReader&   bitReader,
 
     return std::numeric_limits<size_t>::max();
 }
-}  // pragzip::blockfinder
+}  // rapidgzip::blockfinder

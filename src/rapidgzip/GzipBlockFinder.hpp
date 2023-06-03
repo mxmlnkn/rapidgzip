@@ -17,7 +17,7 @@
 #include "deflate.hpp"
 
 
-namespace pragzip
+namespace rapidgzip
 {
 /**
  * This is a much more lean version of core/BlockFinder. It does not do any actual work aside from finding the first
@@ -280,4 +280,4 @@ private:
     const std::unique_ptr<blockfinder::Bgzf> m_bgzfBlockFinder;
     const size_t m_batchFetchCount = std::max<size_t>( 16, 3U * std::thread::hardware_concurrency() );
 };
-}  // namespace pragzip
+}  // namespace rapidgzip

@@ -16,7 +16,7 @@
 #include "Interface.hpp"
 
 
-namespace pragzip::blockfinder
+namespace rapidgzip::blockfinder
 {
 /**
  * @note Tops out at 1-1.5 GiB/s, which might bottleneck decompression with ~12 cores for
@@ -87,20 +87,20 @@ public:
              * @todo This requires the buffer to be larger than the first gzip header may be.
              * Theoretically, the user could store arbitrary amount of data in the zero-terminated file name
              * and file comment ... */
-            pragzip::BitReader bitReader( m_fileReader->clone() );
+            rapidgzip::BitReader bitReader( m_fileReader->clone() );
 
             #else
 
             refillBuffer();
-            pragzip::BitReader bitReader(
+            rapidgzip::BitReader bitReader(
                 std::make_unique<BufferedFileReader>(
                     BufferedFileReader::AlignedBuffer( m_buffer.data(), m_buffer.data() + m_bufferSize )
                 )
             );
             #endif
 
-            const auto error = pragzip::gzip::checkHeader( bitReader );
-            if ( error != pragzip::Error::NONE ) {
+            const auto error = rapidgzip::gzip::checkHeader( bitReader );
+            if ( error != rapidgzip::Error::NONE ) {
                 return std::numeric_limits<size_t>::max();
             }
             m_lastBlockOffsetReturned = bitReader.tell();
@@ -146,7 +146,7 @@ public:
                     try
                     {
                         auto error = block.readHeader( m_bitReader );
-                        if ( error == pragzip::Error::NONE ) {
+                        if ( error == rapidgzip::Error::NONE ) {
                             blockOffsets.push_back( offset );
                         }
                     } catch ( const std::exception& exception ) {
@@ -171,4 +171,4 @@ private:
     size_t m_lastBlockOffsetReturned{ 0 };  /**< absolute offset in bits */
     size_t m_blockCandidate{ 0 };  /**< relative offset in bytes */
 };
-}  // pragzip::blockfinder
+}  // rapidgzip::blockfinder

@@ -1,4 +1,4 @@
-name: Build Wheels for pragzip
+name: Build Wheels for rapidgzip
 
 on:
   push:
@@ -44,14 +44,14 @@ jobs:
         python3 -m pip install --upgrade-strategy eager --upgrade cython twine cibuildwheel build
 
     - name: Build Tarball
-      working-directory: python/pragzip
+      working-directory: python/rapidgzip
       run: python3 -m build --sdist
 
     - name: Build Wheels
       env:
         CIBW_ARCHS: ${{ matrix.archs }}
         CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux-image }}
-      run: python -m cibuildwheel --output-dir dist python/pragzip
+      run: python -m cibuildwheel --output-dir dist python/rapidgzip
 
     - name: Check Wheels
-      run: twine check dist/* python/pragzip/dist/*
+      run: twine check dist/* python/rapidgzip/dist/*

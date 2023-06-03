@@ -40,7 +40,7 @@ main( int    argc,
 
     try
     {
-        const auto tmpFolder = createTemporaryDirectory( "pragzip.testGzipIndexFormat" );
+        const auto tmpFolder = createTemporaryDirectory( "rapidgzip.testGzipIndexFormat" );
         const auto gzipIndexPath = tmpFolder.path() / "gzipindex";
 
         {

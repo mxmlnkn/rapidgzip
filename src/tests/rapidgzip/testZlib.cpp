@@ -14,7 +14,7 @@
 
 using namespace std::literals;
 
-using namespace pragzip;
+using namespace rapidgzip;
 
 
 [[nodiscard]] std::vector<std::byte>
@@ -46,7 +46,7 @@ testGettingFooter()
 
     auto fileReader = std::make_unique<SharedFileReader>(
         std::make_unique<BufferViewFileReader>( compressedRandomDNA ) );
-    pragzip::BitReader bitReader( std::move( fileReader ) );
+    rapidgzip::BitReader bitReader( std::move( fileReader ) );
     bitReader.seek( 10 * CHAR_BIT );  // Deflate wrapper expects to start at deflate block
     ZlibDeflateWrapper deflateWrapper( std::move( bitReader ) );
 
@@ -209,7 +209,7 @@ testMultiGzipStream()
 
     auto fileReader = std::make_unique<SharedFileReader>(
         std::make_unique<BufferViewFileReader>( compressedData ) );
-    pragzip::BitReader bitReader( std::move( fileReader ) );
+    rapidgzip::BitReader bitReader( std::move( fileReader ) );
     bitReader.seek( 10 * CHAR_BIT );  // Deflate wrapper expects to start at deflate block
     ZlibDeflateWrapper deflateWrapper( std::move( bitReader ) );
 

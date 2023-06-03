@@ -15,7 +15,7 @@
 #include <Error.hpp>
 
 
-namespace pragzip
+namespace rapidgzip
 {
 /**
  * This was the first and is the most straight-forward implementation.
@@ -216,4 +216,4 @@ private:
     BitCount m_minCodeLength{ 0 };
     BitCount m_maxCodeLength{ 0 };
 };
-}  // namespace pragzip
+}  // namespace rapidgzip

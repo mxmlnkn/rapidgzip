@@ -45,7 +45,7 @@ struct TemporaryFile
     TemporaryFile&
     operator=( TemporaryFile&& ) = delete;
 
-    const std::string path{ "/dev/shm/pragzip-benchmark-random-file.dat" };
+    const std::string path{ "/dev/shm/rapidgzip-benchmark-random-file.dat" };
     const size_t size;
 };
 

@@ -5,7 +5,7 @@ set -e
 export SCOREP_ENABLE_TRACING=true
 export SCOREP_ENABLE_PROFILING=false
 export SCOREP_TOTAL_MEMORY=1G
-export SCOREP_EXPERIMENT_DIRECTORY=scorep-pragzip
+export SCOREP_EXPERIMENT_DIRECTORY=scorep-rapidgzip
 export SCOREP_PROFILING_MAX_CALLPATH_DEPTH=48
 export SCOREP_TIMER=clock_gettime
 export SCOREP_MEMORY_RECORDING=true
@@ -60,26 +60,26 @@ function buildWithScoreP()
 {
     scorep --instrument-filter=custom.scorep.filter --io=posix \
         g++ \
-            -I../src/pragzip            \
-            -I../src/pragzip/huffman    \
-            -I../src/pragzip/huffman/.. \
-            -I../src/core               \
-            -I../src/core/filereader    \
+            -I../src/rapidgzip \
+            -I../src/rapidgzip/huffman \
+            -I../src/rapidgzip/huffman/.. \
+            -I../src/core \
+            -I../src/core/filereader \
             -isystem ../src/external/cxxopts/include \
-            -march=native -O3 -DNDEBUG  \
+            -march=native -O3 -DNDEBUG \
             -Wall -Wextra -Wshadow -Wunused -Werror=return-type -Wno-attributes -Wsuggest-override \
             -fconstexpr-ops-limit=99000100 \
-            -o pragzip.cpp.scorep.o \
-            -c ../src/tools/pragzip.cpp
+            -o rapidgzip.cpp.scorep.o \
+            -c ../src/tools/rapidgzip.cpp
     scorep --thread=pthread \
         g++ -march=native -O3 -DNDEBUG \
-        pragzip.cpp.scorep.o \
-        -o src/tools/pragzip \
+        rapidgzip.cpp.scorep.o \
+        -o src/tools/rapidgzip \
         /usr/lib/x86_64-linux-gnu/libz.a
 }
 
 buildWithScoreP
 
-src/tools/pragzip -v -d -c 4GiB-base64.gz | wc -c
+src/tools/rapidgzip -v -d -c 4GiB-base64.gz | wc -c
 
-scorep-score -r scorep-pragzip/profile.cubex
+scorep-score -r scorep-rapidgzip/profile.cubex

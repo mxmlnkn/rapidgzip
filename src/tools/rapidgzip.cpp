@@ -17,7 +17,7 @@
 #include <filereader/Standard.hpp>
 #include <FileUtils.hpp>
 #include <GzipAnalyzer.hpp>
-#include <pragzip.hpp>
+#include <rapidgzip.hpp>
 #include <Statistics.hpp>
 
 #include "licenses.cpp"
@@ -40,20 +40,20 @@ printHelp( const cxxopts::Options& options )
     std::cout
     << options.help()
     << "\n"
-    << "If no file names are given, pragzip decompresses from standard input to standard output.\n"
+    << "If no file names are given, rapidgzip decompresses from standard input to standard output.\n"
     << "If the output is discarded by piping to /dev/null, then the actual decoding step might\n"
     << "be omitted if neither -l nor -L nor --force are given.\n"
     << "\n"
     << "Examples:\n"
     << "\n"
     << "Decompress a file:\n"
-    << "  pragzip -d file.gz\n"
+    << "  rapidgzip -d file.gz\n"
     << "\n"
     << "Decompress a file in parallel:\n"
-    << "  pragzip -d -P 0 file.gz\n"
+    << "  rapidgzip -d -P 0 file.gz\n"
     << "\n"
     << "List information about all gzip streams and deflate blocks:\n"
-    << "  pragzip --analyze file.gz\n"
+    << "  rapidgzip --analyze file.gz\n"
     << std::endl;
 }
 
@@ -155,13 +155,13 @@ decompressParallel( const Arguments&    args,
                     const WriteFunctor& writeFunctor )
 {
     if ( args.verbose ) {
-        using Reader = pragzip::ParallelGzipReader<ChunkData, /* enable statistics */ true, /* show profile */ true>;
+        using Reader = rapidgzip::ParallelGzipReader<ChunkData, /* enable statistics */ true, /* show profile */ true>;
         auto reader = std::make_unique<Reader>( std::move( inputFile ), args.decoderParallelism, args.chunkSize );
         reader->setCRC32Enabled( args.crc32Enabled );
         return decompressParallel( std::move( reader ), args.indexLoadPath, args.indexSavePath, writeFunctor,
                                    args.verbose );
     } else {
-        using Reader = pragzip::ParallelGzipReader<ChunkData, /* enable statistics */ false, /* show profile */ false>;
+        using Reader = rapidgzip::ParallelGzipReader<ChunkData, /* enable statistics */ false, /* show profile */ false>;
         auto reader = std::make_unique<Reader>( std::move( inputFile ), args.decoderParallelism, args.chunkSize );
         reader->setCRC32Enabled( args.crc32Enabled );
         return decompressParallel( std::move( reader ), args.indexLoadPath, args.indexSavePath, writeFunctor,
@@ -171,14 +171,14 @@ decompressParallel( const Arguments&    args,
 
 
 int
-pragzipCLI( int argc, char** argv )
+rapidgzipCLI( int argc, char** argv )
 {
     /**
      * @note For some reason implicit values do not mix very well with positional parameters!
      *       Parameters given to arguments with implicit values will be matched by the positional argument instead!
      */
-    cxxopts::Options options( "pragzip",
-                              "A gzip decompressor tool based on the pragzip backend from ratarmount" );
+    cxxopts::Options options( "rapidgzip",
+                              "A gzip decompressor tool based on the rapidgzip backend from ratarmount" );
     options.add_options( "Decompression" )
         ( "c,stdout"     , "Output to standard output. This is the default, when reading from standard input." )
         ( "d,decompress" , "Force decompression. Only for compatibility. No compression supported anyways." )
@@ -260,7 +260,7 @@ pragzipCLI( int argc, char** argv )
     }
 
     if ( parsedArgs.count( "version" ) > 0 ) {
-        std::cout << "pragzip, CLI to the parallelized, indexed, and seekable gzip decoding library pragzip "
+        std::cout << "rapidgzip, CLI to the parallelized, indexed, and seekable gzip decoding library rapidgzip "
                   << "version 0.6.0.\n";
         return 0;
     }
@@ -300,7 +300,7 @@ pragzipCLI( int argc, char** argv )
     /* Check if analysis is requested. */
 
     if ( parsedArgs.count( "analyze" ) > 0 ) {
-        return pragzip::deflate::analyze( std::move( inputFile ) ) == pragzip::Error::NONE ? 0 : 1;
+        return rapidgzip::deflate::analyze( std::move( inputFile ) ) == rapidgzip::Error::NONE ? 0 : 1;
     }
 
     /* Parse output file specifications. */
@@ -388,19 +388,19 @@ pragzipCLI( int argc, char** argv )
                     }
                 };
 
-            pragzip::GzipReader gzipReader{ std::move( inputFile ) };
+            rapidgzip::GzipReader gzipReader{ std::move( inputFile ) };
             gzipReader.setCRC32Enabled( args.crc32Enabled );
             totalBytesRead = gzipReader.read( writeAndCount );
         } else {
             const auto writeAndCount =
                 [outputFileDescriptor, countLines, &newlineCount]
-                ( const std::shared_ptr<pragzip::ChunkData>& chunkData,
+                ( const std::shared_ptr<rapidgzip::ChunkData>& chunkData,
                   size_t const                               offsetInBlock,
                   size_t const                               dataToWriteSize )
                 {
                     writeAll( chunkData, outputFileDescriptor, offsetInBlock, dataToWriteSize );
                     if ( countLines ) {
-                        using pragzip::deflate::DecodedData;
+                        using rapidgzip::deflate::DecodedData;
                         for ( auto it = DecodedData::Iterator( *chunkData, offsetInBlock, dataToWriteSize );
                               static_cast<bool>( it ); ++it )
                         {
@@ -416,10 +416,10 @@ pragzipCLI( int argc, char** argv )
                 /* Need to do nothing with the chunks because decompressParallel returns the decompressed size. */
                 const auto doNothing = [] ( const auto&, size_t, size_t ) {};
 
-                totalBytesRead = decompressParallel<pragzip::ChunkDataCounter>(
+                totalBytesRead = decompressParallel<rapidgzip::ChunkDataCounter>(
                     args, std::move( inputFile ), doNothing );
             } else {
-                totalBytesRead = decompressParallel<pragzip::ChunkData>( args, std::move( inputFile ), writeAndCount );
+                totalBytesRead = decompressParallel<rapidgzip::ChunkData>( args, std::move( inputFile ), writeAndCount );
             }
         }
 
@@ -458,9 +458,9 @@ main( int argc, char** argv )
 {
     try
     {
-        return pragzipCLI( argc, argv );
+        return rapidgzipCLI( argc, argv );
     }
-    catch ( const pragzip::BitReader::EndOfFileReached& exception )
+    catch ( const rapidgzip::BitReader::EndOfFileReached& exception )
     {
         std::cerr << "Unexpected end of file. Truncated or invalid gzip?\n";
         return 1;

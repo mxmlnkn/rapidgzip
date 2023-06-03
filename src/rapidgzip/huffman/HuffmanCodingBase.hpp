@@ -11,7 +11,7 @@
 #include <Error.hpp>
 
 
-namespace pragzip
+namespace rapidgzip
 {
 template<typename T_HuffmanCode,
          uint8_t  T_MAX_CODE_LENGTH,
@@ -190,4 +190,4 @@ protected:
     /** Only indexes [0, m_maxCodeLength - m_minCodeLength) contain valid data! */
     std::array<HuffmanCode, MAX_CODE_LENGTH + 1> m_minimumCodeValuesPerLevel{};
 };
-}  // namespace pragzip
+}  // namespace rapidgzip

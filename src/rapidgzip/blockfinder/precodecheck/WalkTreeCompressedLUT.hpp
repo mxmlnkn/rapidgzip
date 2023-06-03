@@ -19,7 +19,7 @@
 #include "WalkTreeLUT.hpp"
 
 
-namespace pragzip::PrecodeCheck::WalkTreeCompressedLUT
+namespace rapidgzip::PrecodeCheck::WalkTreeCompressedLUT
 {
 constexpr auto COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_CHUNK_COUNT = 16U;
 constexpr auto COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_INDEX_BITS =
@@ -73,11 +73,11 @@ static const auto COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_VALID_LUT_DICT =
  *       be able to find very small deflate blocks close to the end of the file. because they trigger an EOF.
  *       Note that such very small blocks would normally be Fixed Huffman decoding anyway.
  */
-[[nodiscard]] inline pragzip::Error
+[[nodiscard]] inline rapidgzip::Error
 checkPrecode( const uint64_t next4Bits,
               const uint64_t next57Bits )
 {
-    using namespace pragzip::PrecodeCheck::WalkTreeLUT;
+    using namespace rapidgzip::PrecodeCheck::WalkTreeLUT;
 
     const auto codeLengthCount = 4 + next4Bits;
     const auto precodeBits = next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS );
@@ -98,7 +98,7 @@ checkPrecode( const uint64_t next4Bits,
         const auto validIndex = ( subIndex << INDEX_BITS ) + ( valueToLookUp & nLowestBitsSet<uint64_t>( INDEX_BITS ) );
         if ( LIKELY( ( validLUT[validIndex] ) == 0 ) ) [[unlikely]] {
             /* Might also be bloating not only invalid. */
-            return pragzip::Error::INVALID_CODE_LENGTHS;
+            return rapidgzip::Error::INVALID_CODE_LENGTHS;
         }
     }
 
@@ -118,7 +118,7 @@ checkPrecode( const uint64_t next4Bits,
         unusedSymbolCount *= 2;  /* Because we go down one more level for all unused tree nodes! */
     }
     if ( invalidCodeLength ) {
-        return pragzip::Error::INVALID_CODE_LENGTHS;
+        return rapidgzip::Error::INVALID_CODE_LENGTHS;
     }
 
     /* Using bit-wise 'and' and 'or' to avoid expensive branching does not improve performance measurably.
@@ -127,13 +127,13 @@ checkPrecode( const uint64_t next4Bits,
      * readable. Note that the standard defines bool to int conversion as true->1, false->0. */
     if ( ( ( nonZeroCount == 1 ) && ( unusedSymbolCount != ( 1U << ( MAX_LENGTH - 1U ) ) ) ) ||
          ( ( nonZeroCount >  1 ) && ( unusedSymbolCount != 0 ) ) ) {
-        return pragzip::Error::BLOATING_HUFFMAN_CODING;
+        return rapidgzip::Error::BLOATING_HUFFMAN_CODING;
     }
 
     if ( nonZeroCount == 0 ) {
-        return pragzip::Error::EMPTY_ALPHABET;
+        return rapidgzip::Error::EMPTY_ALPHABET;
     }
 
-    return pragzip::Error::NONE;
+    return rapidgzip::Error::NONE;
 }
-}  // namespace pragzip::PrecodeCheck::WalkTreeCompressedLUT
+}  // namespace rapidgzip::PrecodeCheck::WalkTreeCompressedLUT

@@ -286,9 +286,9 @@ testLinearAccess()
 void
 testFetchMulti()
 {
-    /* For purely sequential access like decoding a file with pragzip without any seek, FetchMultiStream should
+    /* For purely sequential access like decoding a file with rapidgzip without any seek, FetchMultiStream should
      * decay into FetchNextAdaptive. With this, it is proven that it does not degrade parallelized gzip decoding
-     * performance for pragzip -d while at the same time improving performance for multi-stream sequential access
+     * performance for rapidgzip -d while at the same time improving performance for multi-stream sequential access
      * when used as ratarmount backend. */
     FetchNextAdaptive fetchNextAdaptive;
     FetchMultiStream fetchMultiStream;

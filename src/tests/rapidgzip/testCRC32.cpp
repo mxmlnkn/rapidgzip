@@ -8,7 +8,7 @@
 
 using namespace std::string_view_literals;
 
-using namespace pragzip;
+using namespace rapidgzip;
 
 
 [[nodiscard]] uint32_t
@@ -54,7 +54,7 @@ testCRC32Combine()
 {
     const auto combineCRC32 =
         [] ( std::string_view a, std::string_view b ) {
-            return pragzip::combineCRC32( crc32( a ), crc32( b ), b.size() );
+            return rapidgzip::combineCRC32( crc32( a ), crc32( b ), b.size() );
         };
 
     /** @see testCRC32 for the taken CRC values. */
@@ -144,5 +144,5 @@ main()
 
 
 /*
-cmake --build . -- testCRC32 && taskset 0x08 src/pragzip/testCRC32 random.gz
+cmake --build . -- testCRC32 && taskset 0x08 src/rapidgzip/testCRC32 random.gz
 */

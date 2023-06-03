@@ -1,13 +1,13 @@
 include LICENSE-APACHE
 include LICENSE-MIT
 include README.md
-include pragzip.svg
+include rapidgzip.svg
 include CHANGELOG.md
-include pragzip.pyx
+include rapidgzip.pyx
 recursive-include core *.hpp
-recursive-include pragzip *.hpp
+recursive-include rapidgzip *.hpp
 include tools/licenses.cpp
-include tools/pragzip.cpp
+include tools/rapidgzip.cpp
 include external/cxxopts/LICENSE
 include external/cxxopts/include/cxxopts.hpp
 include external/rpmalloc/LICENSE

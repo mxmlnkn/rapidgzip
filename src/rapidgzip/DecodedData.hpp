@@ -18,7 +18,7 @@
 #include "MarkerReplacement.hpp"
 
 
-namespace pragzip::deflate
+namespace rapidgzip::deflate
 {
 using MarkerVector = FasterVector<uint16_t>;
 using DecodedVector = FasterVector<uint8_t>;
@@ -461,7 +461,7 @@ DecodedData::cleanUnmarkedData()
 
 
 /**
- * m pragzip && src/tools/pragzip -v -d -c -P 0 4GiB-base64.gz | wc -c
+ * m rapidgzip && src/tools/rapidgzip -v -d -c -P 0 4GiB-base64.gz | wc -c
  * Non-polymorphic: Decompressed in total 4294967296 B in 1.49444 s -> 2873.96 MB/s
  * With virtual ~DecodedData() = default: Decompressed in total 4294967296 B in 3.58325 s -> 1198.62 MB/s
  * I don't know why it happens. Maybe it affects inline of function calls or moves of instances.
@@ -476,7 +476,7 @@ toIoVec( const DecodedData& decodedData,
          const size_t       dataToWriteSize )
 {
     std::vector<::iovec> buffersToWrite;
-    for ( auto it = pragzip::deflate::DecodedData::Iterator( decodedData, offsetInBlock, dataToWriteSize );
+    for ( auto it = rapidgzip::deflate::DecodedData::Iterator( decodedData, offsetInBlock, dataToWriteSize );
           static_cast<bool>( it ); ++it )
     {
         const auto& [data, size] = *it;
@@ -489,4 +489,4 @@ toIoVec( const DecodedData& decodedData,
     return buffersToWrite;
 }
 #endif  // HAVE_IOVEC
-}  // namespace pragzip::deflate
+}  // namespace rapidgzip::deflate

@@ -13,7 +13,7 @@
 #include <gzip.hpp>
 
 
-namespace pragzip
+namespace rapidgzip
 {
 /**
  * This class adds higher-level capabilities onto @ref deflate::DecodedData, which was only intended for
@@ -318,7 +318,7 @@ ChunkData::split( [[maybe_unused]] const size_t spacing ) const
 
 
 /**
- * m pragzip && src/tools/pragzip -v -d -c -P 0 4GiB-base64.gz | wc -c
+ * m rapidgzip && src/tools/rapidgzip -v -d -c -P 0 4GiB-base64.gz | wc -c
  * Non-polymorphic: Decompressed in total 4294967296 B in 1.49444 s -> 2873.96 MB/s
  * With virtual ~DecodedData() = default: Decompressed in total 4294967296 B in 3.58325 s -> 1198.62 MB/s
  * I don't know why it happens. Maybe it affects inline of function calls or moves of instances.
@@ -386,7 +386,7 @@ writeAll( const std::shared_ptr<ChunkData>& chunkData,
         writeAllToFdVector( outputFileDescriptor, buffersToWrite );
     }
 #else
-    using pragzip::deflate::DecodedData;
+    using rapidgzip::deflate::DecodedData;
 
     bool splicable = true;
     for ( auto it = DecodedData::Iterator( *chunkData, offsetInBlock, dataToWriteSize );
@@ -441,4 +441,4 @@ struct ChunkDataCounter final :
         return {};
     }
 };
-}  // namespace pragzip
+}  // namespace rapidgzip

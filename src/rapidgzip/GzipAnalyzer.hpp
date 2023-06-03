@@ -26,15 +26,15 @@
 #include "Error.hpp"
 
 
-namespace pragzip::deflate
+namespace rapidgzip::deflate
 {
-[[nodiscard]] pragzip::Error
+[[nodiscard]] rapidgzip::Error
 analyze( UniqueFileReader inputFile )
 {
-    using namespace pragzip;
-    using Block = pragzip::deflate::Block</* Statistics */ true>;
+    using namespace rapidgzip;
+    using Block = rapidgzip::deflate::Block</* Statistics */ true>;
 
-    pragzip::BitReader bitReader{ std::move( inputFile ) };
+    rapidgzip::BitReader bitReader{ std::move( inputFile ) };
 
     std::optional<gzip::Header> gzipHeader;
     Block block;
@@ -385,4 +385,4 @@ analyze( UniqueFileReader inputFile )
 
     return Error::NONE;
 }
-}  // namespace pragzip::deflate
+}  // namespace rapidgzip::deflate

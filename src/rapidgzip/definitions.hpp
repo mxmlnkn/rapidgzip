@@ -8,7 +8,7 @@
 #include <BitReader.hpp>
 
 
-namespace pragzip
+namespace rapidgzip
 {
 /**
  * Using 64-bit instead of 32-bit improved performance by 10% when it was introduced.
@@ -74,4 +74,4 @@ toString( CompressionType compressionType ) noexcept
     return "Unknown";
 }
 }  // namespace deflate
-}  // namespace pragzip
+}  // namespace rapidgzip

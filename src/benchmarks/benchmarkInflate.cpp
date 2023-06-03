@@ -39,7 +39,7 @@ readFile( const std::string& fileName )
 [[nodiscard]] size_t
 decompressWithRapidgzip( UniqueFileReader fileReader )
 {
-    using namespace pragzip;
+    using namespace rapidgzip;
 
     size_t totalDecodedBytes = 0;
     size_t blockCount = 0;
@@ -241,7 +241,7 @@ benchmarkDecompressionOfRandomBackreferences()
 
     std::mt19937_64 randomEngine;
 
-    constexpr auto INITIAL_RANDOM_SIZE = pragzip::deflate::MAX_WINDOW_SIZE;
+    constexpr auto INITIAL_RANDOM_SIZE = rapidgzip::deflate::MAX_WINDOW_SIZE;
     auto randomData = createRandomData( INITIAL_RANDOM_SIZE );
     randomData.resize( 128_Mi );
 

@@ -164,12 +164,12 @@ findNonCompressedFalsePositives()
     const auto countFalsePositives =
         [] () {
             const auto randomData = createRandomData<char>( testDataSize );
-            pragzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( randomData ) );
+            rapidgzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( randomData ) );
             const auto bitReaderSize = bitReader.size();
 
             size_t matches{ 0 };
             for ( size_t offset = 0; offset < bitReaderSize;
-                  offset = pragzip::blockfinder::seekToNonFinalUncompressedDeflateBlock( bitReader ).second )
+                  offset = rapidgzip::blockfinder::seekToNonFinalUncompressedDeflateBlock( bitReader ).second )
             {
                 ++matches;
                 bitReader.seek( static_cast<long long int>( offset ) + 1 );
@@ -241,11 +241,11 @@ static constexpr size_t MAXIMUM_CHECKED_TAIL_BITS =
     /* distance code count */ 5 +
     /* literal code count */ 4 +
     /* precode */
-    pragzip::deflate::MAX_PRECODE_COUNT * pragzip::deflate::PRECODE_BITS +
+    rapidgzip::deflate::MAX_PRECODE_COUNT * rapidgzip::deflate::PRECODE_BITS +
     /* distance code lengths */
-    pragzip::deflate::MAX_DISTANCE_SYMBOL_COUNT * pragzip::deflate::MAX_PRECODE_LENGTH +
+    rapidgzip::deflate::MAX_DISTANCE_SYMBOL_COUNT * rapidgzip::deflate::MAX_PRECODE_LENGTH +
     /* literal code lengths */
-    pragzip::deflate::MAX_LITERAL_OR_LENGTH_SYMBOLS * pragzip::deflate::MAX_PRECODE_LENGTH;
+    rapidgzip::deflate::MAX_LITERAL_OR_LENGTH_SYMBOLS * rapidgzip::deflate::MAX_PRECODE_LENGTH;
 
 
 // NOLINTNEXTLINE(clang-analyzer-optin.performance.Padding)
@@ -274,7 +274,7 @@ public:
     // NOLINTBEGIN(misc-non-private-member-variables-in-classes)
     // NOLINTBEGIN(cppcoreguidelines-non-private-member-variables-in-classes)
 
-    pragzip::deflate::Block</* enable analysis */ true> block;
+    rapidgzip::deflate::Block</* enable analysis */ true> block;
 
     const size_t experimentCount;
 
@@ -299,7 +299,7 @@ public:
     // NOLINTEND(misc-non-private-member-variables-in-classes)
 
 private:
-    std::unordered_map<pragzip::Error, uint64_t> m_errorCounts;
+    std::unordered_map<rapidgzip::Error, uint64_t> m_errorCounts;
 
     /* Random generator */
     std::random_device m_randomDevice;
@@ -340,7 +340,7 @@ void
 AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>& data,
                                                         size_t                   nBitsToTest )
 {
-    pragzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( data ) );
+    rapidgzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( data ) );
 
     static constexpr auto CACHED_BIT_COUNT = 14;
 
@@ -349,7 +349,7 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>&
 
         try
         {
-            using namespace pragzip::blockfinder;
+            using namespace rapidgzip::blockfinder;
             const auto peeked = bitReader.peek<CACHED_BIT_COUNT>();
 
             const auto isFinalBlock = ( peeked & 1U ) != 0;
@@ -373,24 +373,24 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>&
             ++passedDeflateHeaderTest;
 
             bitReader.seek( static_cast<long long int>( offset ) + 13 );
-            const auto next4Bits = bitReader.read( pragzip::deflate::PRECODE_COUNT_BITS );
-            const auto next57Bits = bitReader.peek( pragzip::deflate::MAX_PRECODE_COUNT
-                                                    * pragzip::deflate::PRECODE_BITS );
-            static_assert( pragzip::deflate::MAX_PRECODE_COUNT * pragzip::deflate::PRECODE_BITS
-                           <= pragzip::BitReader::MAX_BIT_BUFFER_SIZE,
+            const auto next4Bits = bitReader.read( rapidgzip::deflate::PRECODE_COUNT_BITS );
+            const auto next57Bits = bitReader.peek( rapidgzip::deflate::MAX_PRECODE_COUNT
+                                                    * rapidgzip::deflate::PRECODE_BITS );
+            static_assert( rapidgzip::deflate::MAX_PRECODE_COUNT * rapidgzip::deflate::PRECODE_BITS
+                           <= rapidgzip::BitReader::MAX_BIT_BUFFER_SIZE,
                            "This optimization requires a larger BitBuffer inside BitReader!" );
             /* Do not use a LUT because it cannot return specific errors. */
-            using pragzip::PrecodeCheck::WithoutLUT::checkPrecode;
+            using rapidgzip::PrecodeCheck::WithoutLUT::checkPrecode;
             const auto precodeError = checkPrecode( next4Bits, next57Bits );
             switch ( precodeError )
             {
-            case pragzip::Error::NONE:
+            case rapidgzip::Error::NONE:
                 break;
-            case pragzip::Error::EMPTY_ALPHABET:
-            case pragzip::Error::INVALID_CODE_LENGTHS:
+            case rapidgzip::Error::EMPTY_ALPHABET:
+            case rapidgzip::Error::INVALID_CODE_LENGTHS:
                 ++filteredByInvalidPrecode;
                 break;
-            case pragzip::Error::BLOATING_HUFFMAN_CODING:
+            case rapidgzip::Error::BLOATING_HUFFMAN_CODING:
                 ++filteredByBloatingPrecode;
                 break;
             default:
@@ -399,7 +399,7 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>&
 
             m_offsetsTestedMoreInDepth++;
             auto error = precodeError;
-            if ( precodeError == pragzip::Error::NONE ) {
+            if ( precodeError == rapidgzip::Error::NONE ) {
                 const auto oldFailedDistanceInit = block.failedDistanceInit;
                 const auto oldFailedLiteralInit = block.failedLiteralInit;
 
@@ -407,7 +407,7 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>&
                 error = block.readDynamicHuffmanCoding( bitReader );
 
                 if ( block.failedPrecodeInit > 0 ) {
-                    using namespace pragzip::deflate;
+                    using namespace rapidgzip::deflate;
 
                     const auto codeLengthCount = 4 + next4Bits;
                     const auto precodeBits = next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS );
@@ -428,13 +428,13 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>&
                 if ( oldFailedDistanceInit != block.failedDistanceInit ) {
                     switch ( error )
                     {
-                    case pragzip::Error::NONE:
+                    case rapidgzip::Error::NONE:
                         break;
-                    case pragzip::Error::EMPTY_ALPHABET:
-                    case pragzip::Error::INVALID_CODE_LENGTHS:
+                    case rapidgzip::Error::EMPTY_ALPHABET:
+                    case rapidgzip::Error::INVALID_CODE_LENGTHS:
                         ++filteredByInvalidDistanceCoding;
                         break;
-                    case pragzip::Error::BLOATING_HUFFMAN_CODING:
+                    case rapidgzip::Error::BLOATING_HUFFMAN_CODING:
                         ++filteredByBloatingDistanceCoding;
                         break;
                     default:
@@ -445,13 +445,13 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>&
                 if ( oldFailedLiteralInit != block.failedLiteralInit ) {
                     switch ( error )
                     {
-                    case pragzip::Error::NONE:
+                    case rapidgzip::Error::NONE:
                         break;
-                    case pragzip::Error::EMPTY_ALPHABET:
-                    case pragzip::Error::INVALID_CODE_LENGTHS:
+                    case rapidgzip::Error::EMPTY_ALPHABET:
+                    case rapidgzip::Error::INVALID_CODE_LENGTHS:
                         ++filteredByInvalidLiteralCoding;
                         break;
-                    case pragzip::Error::BLOATING_HUFFMAN_CODING:
+                    case rapidgzip::Error::BLOATING_HUFFMAN_CODING:
                         ++filteredByBloatingLiteralCoding;
                         break;
                     default:
@@ -467,12 +467,12 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>&
                 count->second++;
             }
 
-            if ( error != pragzip::Error::NONE ) {
+            if ( error != rapidgzip::Error::NONE ) {
                 continue;
             }
 
             ++foundOffsets;
-        } catch ( const pragzip::BitReader::EndOfFileReached& ) {
+        } catch ( const rapidgzip::BitReader::EndOfFileReached& ) {
             throw std::logic_error( "EOF reached. Trailing buffer calculation must be wrong!" );
             break;
         }

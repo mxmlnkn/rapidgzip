@@ -19,15 +19,15 @@
 #include "SingleLUT.hpp"
 
 
-namespace pragzip::PrecodeCheck::SingleCompressedLUT
+namespace rapidgzip::PrecodeCheck::SingleCompressedLUT
 {
-using pragzip::PrecodeCheck::SingleLUT::Histogram;
-using pragzip::PrecodeCheck::SingleLUT::HISTOGRAM_TO_LOOK_UP_BITS;
-using pragzip::PrecodeCheck::SingleLUT::PRECODE_X4_TO_HISTOGRAM_LUT;
-using pragzip::PrecodeCheck::SingleLUT::PRECODE_HISTOGRAM_VALID_LUT;
-using pragzip::PrecodeCheck::SingleLUT::POWER_OF_TWO_SPECIAL_CASES;
-using pragzip::PrecodeCheck::SingleLUT::VariableLengthPackedHistogram::OVERFLOW_MEMBER_OFFSET;
-using pragzip::PrecodeCheck::SingleLUT::VariableLengthPackedHistogram::OVERFLOW_BITS_MASK;
+using rapidgzip::PrecodeCheck::SingleLUT::Histogram;
+using rapidgzip::PrecodeCheck::SingleLUT::HISTOGRAM_TO_LOOK_UP_BITS;
+using rapidgzip::PrecodeCheck::SingleLUT::PRECODE_X4_TO_HISTOGRAM_LUT;
+using rapidgzip::PrecodeCheck::SingleLUT::PRECODE_HISTOGRAM_VALID_LUT;
+using rapidgzip::PrecodeCheck::SingleLUT::POWER_OF_TWO_SPECIAL_CASES;
+using rapidgzip::PrecodeCheck::SingleLUT::VariableLengthPackedHistogram::OVERFLOW_MEMBER_OFFSET;
+using rapidgzip::PrecodeCheck::SingleLUT::VariableLengthPackedHistogram::OVERFLOW_BITS_MASK;
 
 
 constexpr auto COMPRESSED_PRECODE_HISTOGRAM_CHUNK_COUNT = 4U;
@@ -79,17 +79,17 @@ static const auto COMPRESSED_PRECODE_HISTOGRAM_VALID_LUT_DICT =
  *       be able to find very small deflate blocks close to the end of the file. because they trigger an EOF.
  *       Note that such very small blocks would normally be Fixed Huffman decoding anyway.
  */
-[[nodiscard]] constexpr pragzip::Error
+[[nodiscard]] constexpr rapidgzip::Error
 checkPrecode( const uint64_t next4Bits,
               const uint64_t next57Bits )
 {
-    constexpr auto PRECODE_BITS = pragzip::deflate::PRECODE_BITS;
+    constexpr auto PRECODE_BITS = rapidgzip::deflate::PRECODE_BITS;
     const auto codeLengthCount = 4 + next4Bits;
     const auto precodeBits = next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS );
 
     constexpr auto PRECODES_PER_CHUNK = 4U;
     constexpr auto CACHED_BITS = PRECODE_BITS * PRECODES_PER_CHUNK;
-    constexpr auto CHUNK_COUNT = ceilDiv( pragzip::deflate::MAX_PRECODE_COUNT, PRECODES_PER_CHUNK );
+    constexpr auto CHUNK_COUNT = ceilDiv( rapidgzip::deflate::MAX_PRECODE_COUNT, PRECODES_PER_CHUNK );
     static_assert( CACHED_BITS == 12 );
     static_assert( CHUNK_COUNT == 5 );
 
@@ -127,12 +127,12 @@ checkPrecode( const uint64_t next4Bits,
                                    & nLowestBitsSet<Histogram>( HISTOGRAM_TO_LOOK_UP_BITS );
     const auto nonZeroCount = bitLengthFrequencies & nLowestBitsSet<Histogram>( 5 );
     if ( UNLIKELY( POWER_OF_TWO_SPECIAL_CASES[nonZeroCount] == histogramToLookUp ) ) [[unlikely]] {
-        return pragzip::Error::NONE;
+        return rapidgzip::Error::NONE;
     }
 
     if ( ( ( overflowsInSum & OVERFLOW_BITS_MASK ) != 0 )
          || ( ( overflowsInLUT & ( ~Histogram( 0 ) << OVERFLOW_MEMBER_OFFSET ) ) != 0 ) ) {
-        return pragzip::Error::INVALID_CODE_LENGTHS;
+        return rapidgzip::Error::INVALID_CODE_LENGTHS;
     }
 
     const auto& [histogramLUT, validLUT] = COMPRESSED_PRECODE_HISTOGRAM_VALID_LUT_DICT;
@@ -148,9 +148,9 @@ checkPrecode( const uint64_t next4Bits,
         /* This also handles the case of all being zero, which in the other version returns EMPTY_ALPHABET!
          * Some might also not be bloating but simply invalid, we cannot differentiate that but it can be
          * helpful for tests to have different errors. For actual usage comparison with NONE is sufficient. */
-        return pragzip::Error::BLOATING_HUFFMAN_CODING;
+        return rapidgzip::Error::BLOATING_HUFFMAN_CODING;
     }
 
-    return pragzip::Error::NONE;
+    return rapidgzip::Error::NONE;
 }
-}  // namespace pragzip::PrecodeCheck::SingleCompressedLUT
+}  // namespace rapidgzip::PrecodeCheck::SingleCompressedLUT

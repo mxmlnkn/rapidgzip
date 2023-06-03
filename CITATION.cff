@@ -15,7 +15,7 @@ authors:
     email: maximilian.knespel@tu-dresden.de
 
 repository-code: "https://github.com/mxmlnkn/indexed_bzip2"
-repository: "https://github.com/mxmlnkn/pragzip"
+repository: "https://github.com/mxmlnkn/rapidgzip"
 abstract: >-
   A replacement for gzip for decompressing gzip files using
   multiple threads.

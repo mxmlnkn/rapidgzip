@@ -8,7 +8,7 @@
 #include <Error.hpp>
 
 
-namespace pragzip::PrecodeCheck::WithoutLUT
+namespace rapidgzip::PrecodeCheck::WithoutLUT
 {
 /**
  * @note Requires 4 (precode count) + 57 (maximum precode count * 3) bits to check for validity.
@@ -17,11 +17,11 @@ namespace pragzip::PrecodeCheck::WithoutLUT
  *       be able to find very small deflate blocks close to the end of the file. because they trigger an EOF.
  *       Note that such very small blocks would normally be Fixed Huffman decoding anyway.
  */
-[[nodiscard]] constexpr pragzip::Error
+[[nodiscard]] constexpr rapidgzip::Error
 checkPrecode( const uint64_t next4Bits,
               const uint64_t next57Bits )
 {
-    using namespace pragzip::deflate;
+    using namespace rapidgzip::deflate;
     constexpr auto UNIFORM_FREQUENCY_BITS = 5U;
     using CompressedHistogram = uint64_t;
 
@@ -52,7 +52,7 @@ checkPrecode( const uint64_t next4Bits,
         unusedSymbolCount *= 2;  /* Because we go down one more level for all unused tree nodes! */
     }
     if ( invalidCodeLength ) {
-        return pragzip::Error::INVALID_CODE_LENGTHS;
+        return rapidgzip::Error::INVALID_CODE_LENGTHS;
     }
 
     /* Using bit-wise 'and' and 'or' to avoid expensive branching does not improve performance measurably.
@@ -61,22 +61,22 @@ checkPrecode( const uint64_t next4Bits,
      * readable. Note that the standard defines bool to int conversion as true->1, false->0. */
     if ( ( ( nonZeroCount == 1 ) && ( unusedSymbolCount != ( 1U << ( MAX_LENGTH - 1U ) ) ) ) ||
          ( ( nonZeroCount >  1 ) && ( unusedSymbolCount != 0 ) ) ) {
-        return pragzip::Error::BLOATING_HUFFMAN_CODING;
+        return rapidgzip::Error::BLOATING_HUFFMAN_CODING;
     }
 
     if ( nonZeroCount == 0 ) {
-        return pragzip::Error::EMPTY_ALPHABET;
+        return rapidgzip::Error::EMPTY_ALPHABET;
     }
 
-    return pragzip::Error::NONE;
+    return rapidgzip::Error::NONE;
 }
 
 
-[[nodiscard]] constexpr pragzip::Error
+[[nodiscard]] constexpr rapidgzip::Error
 checkPrecodeUsingArray( const uint64_t next4Bits,
                         const uint64_t next57Bits )
 {
-    using namespace pragzip::deflate;
+    using namespace rapidgzip::deflate;
     constexpr auto MAX_LENGTH = ( 1U << PRECODE_BITS );
 
     const auto codeLengthCount = 4 + next4Bits;
@@ -102,7 +102,7 @@ checkPrecodeUsingArray( const uint64_t next4Bits,
         unusedSymbolCount *= 2;  /* Because we go down one more level for all unused tree nodes! */
     }
     if ( invalidCodeLength ) {
-        return pragzip::Error::INVALID_CODE_LENGTHS;
+        return rapidgzip::Error::INVALID_CODE_LENGTHS;
     }
 
     /* Using bit-wise 'and' and 'or' to avoid expensive branching does not improve performance measurably.
@@ -111,13 +111,13 @@ checkPrecodeUsingArray( const uint64_t next4Bits,
      * readable. Note that the standard defines bool to int conversion as true->1, false->0. */
     if ( ( ( nonZeroCount == 1 ) && ( unusedSymbolCount != ( 1U << ( MAX_LENGTH - 1U ) ) ) ) ||
          ( ( nonZeroCount >  1 ) && ( unusedSymbolCount != 0 ) ) ) {
-        return pragzip::Error::BLOATING_HUFFMAN_CODING;
+        return rapidgzip::Error::BLOATING_HUFFMAN_CODING;
     }
 
     if ( nonZeroCount == 0 ) {
-        return pragzip::Error::EMPTY_ALPHABET;
+        return rapidgzip::Error::EMPTY_ALPHABET;
     }
 
-    return pragzip::Error::NONE;
+    return rapidgzip::Error::NONE;
 }
-}  // namespace pragzip::PrecodeCheck::WithoutLUT
+}  // namespace rapidgzip::PrecodeCheck::WithoutLUT

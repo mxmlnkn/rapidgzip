@@ -6,7 +6,7 @@
 #include "HuffmanCodingBase.hpp"
 
 
-namespace pragzip
+namespace rapidgzip
 {
 template<typename HuffmanCode,
          uint8_t  MAX_CODE_LENGTH,
@@ -44,4 +44,4 @@ public:
         throw std::invalid_argument( "This class only checks the Huffman coding it does not decode!" );
     }
 };
-}  // namespace pragzip
+}  // namespace rapidgzip

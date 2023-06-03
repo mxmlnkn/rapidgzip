@@ -17,11 +17,11 @@
 #include <filereader/Buffered.hpp>
 #include <filereader/Standard.hpp>
 #include <GzipReader.hpp>
-#include <pragzip.hpp>
+#include <rapidgzip.hpp>
 #include <TestHelpers.hpp>
 
 
-using namespace pragzip;
+using namespace rapidgzip;
 
 
 // *INDENT-OFF*
@@ -275,10 +275,10 @@ testTwoStagedDecoding( std::string_view encodedFilePath,
     }
 
     /* Note that CRC32 won't work anyway when there are marker bytes! */
-    using DeflateBlock = pragzip::deflate::Block</* CRC32 */ false>;
+    using DeflateBlock = rapidgzip::deflate::Block</* CRC32 */ false>;
 
     /* Try reading, starting from second block. */
-    pragzip::BitReader bitReader{ std::make_unique<StandardFileReader>( encodedFilePath.data() ) };
+    rapidgzip::BitReader bitReader{ std::make_unique<StandardFileReader>( encodedFilePath.data() ) };
     bitReader.seek( static_cast<long long int>( secondBlockOffset ) );
     DeflateBlock block;
 

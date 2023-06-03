@@ -8,7 +8,7 @@
 #include "huffman/HuffmanCodingReversedBitsCachedCompressed.hpp"
 
 
-namespace pragzip::deflate::precode
+namespace rapidgzip::deflate::precode
 {
 constexpr uint8_t MAX_DEPTH = 7;
 
@@ -46,7 +46,7 @@ template<typename Result,
 constexpr void
 iterateValidPrecodeHistograms( Result&        result,
                                const Functor& processValidHistogram,
-                               const uint32_t remainingCount = pragzip::deflate::MAX_PRECODE_COUNT,
+                               const uint32_t remainingCount = rapidgzip::deflate::MAX_PRECODE_COUNT,
                                Histogram      histogram = Histogram{},
                                const uint32_t freeBits = 2 )
 {
@@ -134,7 +134,7 @@ static constexpr auto VALID_HUFFMAN_CODINGS =
 
             const auto error = huffmanCodings[i].initializeFromLengths( {
                 precodeCLs.data(), symbol /* also acts as non-zero size. */ } );
-            if ( error != pragzip::Error::NONE ) {
+            if ( error != rapidgzip::Error::NONE ) {
                 throw std::logic_error( "Cannot construct Huffman tree from supposedly valid code length histogram!" );
             }
         }
@@ -170,4 +170,4 @@ getAlphabetFromCodeLengths( const uint64_t precodeBits,
 
     return alphabet;
 }
-}  // namespace pragzip::deflate::precode
+}  // namespace rapidgzip::deflate::precode

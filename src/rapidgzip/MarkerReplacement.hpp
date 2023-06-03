@@ -10,7 +10,7 @@
 #include <VectorView.hpp>
 
 
-namespace pragzip::deflate
+namespace rapidgzip::deflate
 {
 template<bool FULL_WINDOW>
 struct MapMarkers
@@ -57,4 +57,4 @@ replaceMarkerBytes( WeakVector<std::uint16_t>       buffer,
         std::transform( buffer.begin(), buffer.end(), buffer.begin(), MapMarkers<false>( window ) );
     }
 }
-}  // namespace pragzip::deflate
+}  // namespace rapidgzip::deflate

@@ -23,9 +23,9 @@ zlib_sources = ['external/zlib/' + source for source in zlib_sources]
 extensions = [
     Extension(
         # fmt: off
-        name         = 'pragzip',
-        sources      = ['pragzip.pyx'] + zlib_sources + ['external/rpmalloc/rpmalloc/rpmalloc.c'],
-        include_dirs = ['.', 'core', 'pragzip', 'pragzip/huffman', 'external/zlib', 'external/cxxopts/include',
+        name         = 'rapidgzip',
+        sources      = ['rapidgzip.pyx'] + zlib_sources + ['external/rpmalloc/rpmalloc/rpmalloc.c'],
+        include_dirs = ['.', 'core', 'rapidgzip', 'rapidgzip/huffman', 'external/zlib', 'external/cxxopts/include',
                         'external/rpmalloc/rpmalloc'],
         language     = 'c++',
         # fmt: on

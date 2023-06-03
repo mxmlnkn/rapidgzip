@@ -4,7 +4,7 @@
 #include <string>
 
 
-namespace pragzip
+namespace rapidgzip
 {
 enum class [[nodiscard]] Error
 {
@@ -94,9 +94,9 @@ toString( Error error )
 
 inline std::ostream&
 operator<<( std::ostream&  out,
-            pragzip::Error error )
+            rapidgzip::Error error )
 {
     out << toString( error );
     return out;
 }
-}  // namespace pragzip
+}  // namespace rapidgzip

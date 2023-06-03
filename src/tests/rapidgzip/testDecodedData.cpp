@@ -29,7 +29,7 @@ testIterator( const std::vector<size_t>&     chunkSizes,
               const size_t                   size,
               const std::vector<ChunkRange>& expected )
 {
-    using namespace pragzip::deflate;
+    using namespace rapidgzip::deflate;
 
     DecodedData decodedData;
     decodedData.data.reserve( chunkSizes.size() );
@@ -121,7 +121,7 @@ testGetWindow()
     /* getLastWindow( window ) should be identical to getWindowAt( window, decodedData.size() ).
      * getWindowAt( window, 0 ) == window(truncated to MAX_WINDOW_SIZE) should always hold. */
 
-    using namespace pragzip::deflate;
+    using namespace rapidgzip::deflate;
 
     /* dataWithMarkers.size() == 0 */
     {

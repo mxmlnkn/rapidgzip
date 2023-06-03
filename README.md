@@ -3,7 +3,7 @@
 # Parallel Random Access to bzip2 and gzip
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](http://opensource.org/licenses/MIT)
-[![Build Status](https://github.com/mxmlnkn/indexed_bzip2/workflows/tests/badge.svg)](https://github.com/mxmlnkn/pragzip/actions)
+[![Build Status](https://github.com/mxmlnkn/indexed_bzip2/workflows/tests/badge.svg)](https://github.com/mxmlnkn/rapidgzip/actions)
 [![codecov](https://codecov.io/gh/mxmlnkn/indexed_bzip2/branch/master/graph/badge.svg?token=94ZD4UTZQW)](https://codecov.io/gh/mxmlnkn/indexed_bzip2)
 ![C++17](https://img.shields.io/badge/C++-17-blue.svg)
 [![Discord](https://img.shields.io/discord/783411320354766878?label=discord)](https://discord.gg/Wra6t6akh2)
@@ -11,44 +11,44 @@
 
 </div>
 
-This repository contains the code for the [`indexed_bzip2`](python/indexed_bzip2) and [`pragzip`](python/pragzip) Python modules.
+This repository contains the code for the [`indexed_bzip2`](python/indexed_bzip2) and [`rapidgzip`](python/rapidgzip) Python modules.
 Both are built upon the same basic architecture to enable block-parallel decoding based on prefetching and caching.
 
 <div align="center">
 
-# pragzip (alternative name: rapidgzip)
+# rapidgzip (alternative name: rapidgzip)
 
-[![PyPI version](https://badge.fury.io/py/pragzip.svg)](https://badge.fury.io/py/pragzip)
-[![Python Version](https://img.shields.io/pypi/pyversions/pragzip)](https://pypi.org/project/pragzip/)
-[![PyPI Platforms](https://img.shields.io/badge/pypi-linux%20%7C%20macOS%20%7C%20Windows-brightgreen)](https://pypi.org/project/pragzip/)
-[![Downloads](https://pepy.tech/badge/pragzip/month)](https://pepy.tech/project/pragzip)
+[![PyPI version](https://badge.fury.io/py/rapidgzip.svg)](https://badge.fury.io/py/rapidgzip)
+[![Python Version](https://img.shields.io/pypi/pyversions/rapidgzip)](https://pypi.org/project/rapidgzip/)
+[![PyPI Platforms](https://img.shields.io/badge/pypi-linux%20%7C%20macOS%20%7C%20Windows-brightgreen)](https://pypi.org/project/rapidgzip/)
+[![Downloads](https://pepy.tech/badge/pragzip/month)](https://pepy.tech/project/rapidgzip)
 
 ![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/asciinema/pragzip-comparison.gif)
 
 </div>
 
 This module provides: 
- - a `pragzip` command line tool for parallel decompression of gzip files with a similar command line interface to `gzip` so that it can be used as a replacement.
- - a `pragzip.open` Python method for reading and seeking inside gzip files using multiple threads for a speedup of **14** over the built-in gzip module using a 12-core processor.
+ - a `rapidgzip` command line tool for parallel decompression of gzip files with a similar command line interface to `gzip` so that it can be used as a replacement.
+ - a `rapidgzip.open` Python method for reading and seeking inside gzip files using multiple threads for a speedup of **14** over the built-in gzip module using a 12-core processor.
 
 The random seeking support is similar to the one provided by [indexed_gzip](https://github.com/pauldmccarthy/indexed_gzip) and the parallel capabilities are effectively a working version of [pugz](https://github.com/Piezoid/pugz), which is only a concept and only works with a limited subset of file contents, namely non-binary (ASCII characters 0 to 127) compressed files.
 
-| Module                            | Bandwidth / (MB/s) | Speedup |
-|-----------------------------------|--------------------|---------|
-| gzip                              |  250               |  1      |
-| pragzip with parallelization = 1  |  222               |  0.9    |
-| pragzip with parallelization = 2  |  428               |  1.7    |
-| pragzip with parallelization = 12 | 2290               |  9.2    |
-| pragzip with parallelization = 24 | 3300               | 13.2    |
+| Module                              | Bandwidth / (MB/s) | Speedup |
+|-------------------------------------|--------------------|---------|
+| gzip                                |  250               |  1      |
+| rapidgzip with parallelization = 1  |  222               |  0.9    |
+| rapidgzip with parallelization = 2  |  428               |  1.7    |
+| rapidgzip with parallelization = 12 | 2290               |  9.2    |
+| rapidgzip with parallelization = 24 | 3300               | 13.2    |
 
-[See here for the extended Readme.](python/pragzip)
+[See here for the extended Readme.](python/rapidgzip)
 
-There also exists a dedicated repository for pragzip [here](https://github.com/mxmlnkn/pragzip).
-It was created for visibility reasons and in order to keep indexed_bzip2 and pragzip releases separate.
-The main development will take place in [this](https://github.com/mxmlnkn/indexed_bzip2) repository while the pragzip repository will be updated at least for each release.
-Issues regarding pragzip should be opened at [its repository](https://github.com/mxmlnkn/pragzip/issues).
+There also exists a dedicated repository for rapidgzip [here](https://github.com/mxmlnkn/rapidgzip).
+It was created for visibility reasons and in order to keep indexed_bzip2 and rapidgzip releases separate.
+The main development will take place in [this](https://github.com/mxmlnkn/indexed_bzip2) repository while the rapidgzip repository will be updated at least for each release.
+Issues regarding rapidgzip should be opened at [its repository](https://github.com/mxmlnkn/rapidgzip/issues).
 
-A paper describing the implementation details and showing the scaling behavior with up to 128 cores has been submitted to and [accepted](https://www.hpdc.org/2023/program/technical-sessions/) in [ACM HPDC'23](https://www.hpdc.org/2023/), The 32nd International Symposium on High-Performance Parallel and Distributed Computing. If you use this software for your scientific publication, please cite it as stated [here](python/pragzip#citation).
+A paper describing the implementation details and showing the scaling behavior with up to 128 cores has been submitted to and [accepted](https://www.hpdc.org/2023/program/technical-sessions/) in [ACM HPDC'23](https://www.hpdc.org/2023/), The 32nd International Symposium on High-Performance Parallel and Distributed Computing. If you use this software for your scientific publication, please cite it as stated [here](python/rapidgzip#citation).
 
 
 <div align="center">

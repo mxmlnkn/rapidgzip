@@ -11,7 +11,7 @@
 #include "HuffmanCodingSymbolsPerLength.hpp"
 
 
-namespace pragzip
+namespace rapidgzip
 {
 /**
  * This version uses a large lookup table (LUT) to avoid loops over the BitReader to speed things up a lot.
@@ -144,4 +144,4 @@ private:
     alignas( 8 ) std::array<Symbol, ( 1UL << MAX_CODE_LENGTH )> m_codeCache{};
     bool m_needsToBeZeroed{ false };
 };
-}  // namespace pragzip
+}  // namespace rapidgzip

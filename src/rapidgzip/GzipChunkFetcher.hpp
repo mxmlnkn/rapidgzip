@@ -30,7 +30,7 @@
 #include "zlib.hpp"
 
 
-namespace pragzip
+namespace rapidgzip
 {
 class DecompressionError :
     public std::runtime_error
@@ -63,7 +63,7 @@ public:
     using FetchingStrategy = T_FetchingStrategy;
     using ChunkData = T_ChunkData;
     using BaseType = BlockFetcher<GzipBlockFinder, ChunkData, FetchingStrategy, ENABLE_STATISTICS, SHOW_PROFILE>;
-    using BitReader = pragzip::BitReader;
+    using BitReader = rapidgzip::BitReader;
     using WindowView = VectorView<uint8_t>;
     using BlockFinder = typename BaseType::BlockFinder;
 
@@ -546,33 +546,33 @@ public:
         /**
          * Performance when looking for dynamic and uncompressed blocks:
          * @verbatim
-         * m pragzip && time src/tools/pragzip -P 0 -d -c 4GiB-base64.gz | wc -c
+         * m rapidgzip && time src/tools/rapidgzip -P 0 -d -c 4GiB-base64.gz | wc -c
          *    read in total 5.25998e+09 B out of 3263906195 B, i.e., read the file 1.61156 times
          *    Decompressed in total 4294967296 B in 4.35718 s -> 985.722 MB/s
          *
-         * m pragzip && time src/tools/pragzip -P 0 -d -c random.bin.gz | wc -c
+         * m rapidgzip && time src/tools/rapidgzip -P 0 -d -c random.bin.gz | wc -c
          *    read in total 2.41669e+09 B out of 2148139037 B, i.e., read the file 1.12502 times
          *    Decompressed in total 2147483648 B in 1.40283 s -> 1530.82 MB/s
          * @endverbatim
          *
          * Performance when looking only for dynamic blocks:
          * @verbatim
-         * m pragzip && time src/tools/pragzip -P 0 -d -c 4GiB-base64.gz | wc -c
+         * m rapidgzip && time src/tools/rapidgzip -P 0 -d -c 4GiB-base64.gz | wc -c
          *    read in total 3.67191e+09 B out of 3263906195 B, i.e., read the file 1.12501 times
          *    Decompressed in total 4294967296 B in 3.0489 s -> 1408.69 MB/s
          *  -> Almost 50% faster! And only 12% file read overhead instead of 61%!
          *
-         * m pragzip && time src/tools/pragzip -P 0 -d -c random.bin.gz | wc -c
+         * m rapidgzip && time src/tools/rapidgzip -P 0 -d -c random.bin.gz | wc -c
          *   -> LONGER THAN 3 MIN!
          * @endverbatim
          *
          * Performance after implementing the chunked alternating search:
          * @verbatim
-         * m pragzip && time src/tools/pragzip -P 0 -d -c 4GiB-base64.gz | wc -c
+         * m rapidgzip && time src/tools/rapidgzip -P 0 -d -c 4GiB-base64.gz | wc -c
          *    read in total 3.68686e+09 B out of 3263906195 B, i.e., read the file 1.12958 times
          *    Decompressed in total 4294967296 B in 3.06287 s -> 1402.27 MB/s
          *
-         * m pragzip && time src/tools/pragzip -P 0 -d -c random.bin.gz | wc -c
+         * m rapidgzip && time src/tools/rapidgzip -P 0 -d -c random.bin.gz | wc -c
          *    read in total 2.41669e+09 B out of 2148139037 B, i.e., read the file 1.12502 times
          *    Decompressed in total 2147483648 B in 1.31924 s -> 1627.82 MB/s
          * @endverbatim
@@ -679,11 +679,11 @@ private:
          *     dd678c7 2022-11-06 mxmlnkn [performance] Use rpmalloc to increase multi-threaded malloc performance
          *
          * Approximate benchmark results for:
-         *     pragzip -P $( nproc ) -o /dev/null -f --export-index index silesia-256x.tar.pigz
-         *     taskset --cpu-list 0-127 pragzip -P 128 -d -o /dev/null --import-index index silesia-256x.tar.pigz
+         *     rapidgzip -P $( nproc ) -o /dev/null -f --export-index index silesia-256x.tar.pigz
+         *     taskset --cpu-list 0-127 rapidgzip -P 128 -d -o /dev/null --import-index index silesia-256x.tar.pigz
          *
          * Commit:
-         *     pragzip-v0.5.0   16 GB/s
+         *     rapidgzip-v0.5.0   16 GB/s
          *     dd678c7~1        16 GB/s
          *     dd678c7           8 GB/s
          *
@@ -928,4 +928,4 @@ private:
 
     std::map</* block offset */ size_t, std::future<void> > m_markersBeingReplaced;
 };
-}  // namespace pragzip
+}  // namespace rapidgzip
