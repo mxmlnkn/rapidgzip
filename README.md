@@ -23,7 +23,7 @@ Both are built upon the same basic architecture to enable block-parallel decodin
 [![PyPI Platforms](https://img.shields.io/badge/pypi-linux%20%7C%20macOS%20%7C%20Windows-brightgreen)](https://pypi.org/project/rapidgzip/)
 [![Downloads](https://pepy.tech/badge/pragzip/month)](https://pepy.tech/project/rapidgzip)
 
-![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/asciinema/pragzip-comparison.gif)
+![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/asciinema/rapidgzip-comparison.gif)
 
 </div>
 

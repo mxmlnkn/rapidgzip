@@ -16,7 +16,7 @@
 [![Discord](https://img.shields.io/discord/783411320354766878?label=discord)](https://discord.gg/Wra6t6akh2)
 [![Telegram](https://img.shields.io/badge/Chat-Telegram-%2330A3E6)](https://t.me/joinchat/FUdXxkXIv6c4Ib8bgaSxNg)
 
-![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/asciinema/pragzip-comparison.gif)
+![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/asciinema/rapidgzip-comparison.gif)
 
 </div>
 
