@@ -509,8 +509,8 @@ public:
         BitReader bitReader( originalBitReader );
         if ( initialWindow ) {
             bitReader.seek( blockOffset );
-            return decodeBlockWithPragzip( &bitReader, untilOffset, initialWindow, crc32Enabled,
-                                           maxDecompressedChunkSize );
+            return decodeBlockWithRapidgzip( &bitReader, untilOffset, initialWindow, crc32Enabled,
+                                             maxDecompressedChunkSize );
         }
 
         const auto tryToDecode =
@@ -520,8 +520,8 @@ public:
                     /* For decoding, it does not matter whether we seek to offset.first or offset.second but it DOES
                      * matter a lot for interpreting and correcting the encodedSizeInBits in GzipBlockFetcer::get! */
                     bitReader.seek( offset.second );
-                    auto result = decodeBlockWithPragzip( &bitReader, untilOffset, initialWindow, crc32Enabled,
-                                                          maxDecompressedChunkSize );
+                    auto result = decodeBlockWithRapidgzip( &bitReader, untilOffset, initialWindow, crc32Enabled,
+                                                            maxDecompressedChunkSize );
                     result.encodedOffsetInBits = offset.first;
                     result.maxEncodedOffsetInBits = offset.second;
                     /** @todo Avoid out of memory issues for very large compression ratios by using a simple runtime
@@ -530,7 +530,7 @@ public:
                     return result;
                 } catch ( const std::exception& exception ) {
                     /* Ignore errors and try next block candidate. This is very likely to happen if @ref blockOffset
-                     * is only an estimated offset! If it happens because decodeBlockWithPragzip has a bug, then it
+                     * is only an estimated offset! If it happens because decodeBlockWithRapidgzip has a bug, then it
                      * might indirectly trigger an exception when the next required block offset cannot be found. */
                 }
                 return std::nullopt;
@@ -738,11 +738,11 @@ private:
     }
 
     [[nodiscard]] static ChunkData
-    decodeBlockWithPragzip( BitReader*                      bitReader,
-                            size_t                          untilOffset,
-                            std::optional<WindowView> const initialWindow,
-                            bool                            crc32Enabled,
-                            size_t                          maxDecompressedChunkSize )
+    decodeBlockWithRapidgzip( BitReader*                      bitReader,
+                              size_t                          untilOffset,
+                              std::optional<WindowView> const initialWindow,
+                              bool                            crc32Enabled,
+                              size_t                          maxDecompressedChunkSize )
     {
         if ( bitReader == nullptr ) {
             throw std::invalid_argument( "BitReader must be non-null!" );

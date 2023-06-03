@@ -409,7 +409,7 @@ benchmarkDynamicBlockFinderZlib()
 
 
 [[nodiscard]] std::pair<double, uint64_t>
-findDeflateBlocksPragzip( const std::vector<char>& buffer )
+findDeflateBlocksRapidgzip( const std::vector<char>& buffer )
 {
     using DeflateBlock = pragzip::deflate::Block<>;
 
@@ -441,7 +441,7 @@ findDeflateBlocksPragzip( const std::vector<char>& buffer )
 
 
 void
-benchmarkDynamicBlockFinderPragzip()
+benchmarkDynamicBlockFinderRapidgzip()
 {
     const auto t0 = now();
     std::cout << "Initializing random data for benchmark... " << std::flush;
@@ -451,7 +451,7 @@ benchmarkDynamicBlockFinderPragzip()
     }
     std::cout << "Done (" << duration( t0 ) << " s)\n";
 
-    const auto times = repeatBenchmarks( [&data] () { return findDeflateBlocksPragzip( data ); } );
+    const auto times = repeatBenchmarks( [&data] () { return findDeflateBlocksRapidgzip( data ); } );
 
     std::ofstream dataFile( "result-find-dynamic-pragzip.dat" );
     dataFile << "# dataSize/B runtime/s\n";
@@ -464,7 +464,7 @@ benchmarkDynamicBlockFinderPragzip()
 
 
 [[nodiscard]] std::pair<double, uint64_t>
-findDeflateBlocksPragzipLUT( const std::vector<char>& buffer )
+findDeflateBlocksRapidgzipLUT( const std::vector<char>& buffer )
 {
     using DeflateBlock = pragzip::deflate::Block<>;
     constexpr auto CACHED_BIT_COUNT = pragzip::blockfinder::OPTIMAL_NEXT_DEFLATE_LUT_SIZE;
@@ -514,7 +514,7 @@ findDeflateBlocksPragzipLUT( const std::vector<char>& buffer )
 
 
 void
-benchmarkDynamicBlockFinderPragzipLUT()
+benchmarkDynamicBlockFinderRapidgzipLUT()
 {
     const auto t0 = now();
     std::cout << "Initializing random data for benchmark... " << std::flush;
@@ -524,7 +524,7 @@ benchmarkDynamicBlockFinderPragzipLUT()
     }
     std::cout << "Done (" << duration( t0 ) << " s)\n";
 
-    const auto times = repeatBenchmarks( [&data] () { return findDeflateBlocksPragzipLUT( data ); } );
+    const auto times = repeatBenchmarks( [&data] () { return findDeflateBlocksRapidgzipLUT( data ); } );
 
     std::ofstream dataFile( "result-find-dynamic-pragzip-skip-lut.dat" );
     dataFile << "# dataSize/B runtime/s\n";
@@ -1006,8 +1006,8 @@ main()
 {
     benchmarkWrite();
 
-    benchmarkDynamicBlockFinderPragzipLUT();
-    benchmarkDynamicBlockFinderPragzip();
+    benchmarkDynamicBlockFinderRapidgzipLUT();
+    benchmarkDynamicBlockFinderRapidgzip();
     benchmarkDynamicBlockFinderZlib();
     benchmarkDynamicBlockFinder();
     benchmarkFindUncompressedBlocks();

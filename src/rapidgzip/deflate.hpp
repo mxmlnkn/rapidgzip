@@ -58,12 +58,12 @@ using FixedHuffmanCoding =
 
 
 /**
- * [findDeflateBlocksPragzipLUT with 13 bits, Walk Tree LUT] ( 42.1 <= 42.6 +- 0.3 <= 43 ) MB/s
- * [findDeflateBlocksPragzipLUT with 14 bits, Walk Tree LUT] ( 42.14 <= 42.56 +- 0.22 <= 42.9 ) MB/s
- * [findDeflateBlocksPragzipLUT with 15 bits, Walk Tree LUT] ( 41.9 <= 42.4 +- 0.3 <= 42.9 ) MB/s
- * [findDeflateBlocksPragzipLUT with 16 bits, Walk Tree LUT] ( 40.7 <= 42 +- 0.6 <= 42.8 ) MB/s
- * [findDeflateBlocksPragzipLUT with 17 bits, Walk Tree LUT] ( 41.7 <= 42.5 +- 0.5 <= 43.2 ) MB/s
- * [findDeflateBlocksPragzipLUT with 18 bits, Walk Tree LUT] ( 40.57 <= 41.01 +- 0.28 <= 41.41 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 13 bits, Walk Tree LUT] ( 42.1 <= 42.6 +- 0.3 <= 43 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 14 bits, Walk Tree LUT] ( 42.14 <= 42.56 +- 0.22 <= 42.9 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 15 bits, Walk Tree LUT] ( 41.9 <= 42.4 +- 0.3 <= 42.9 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 16 bits, Walk Tree LUT] ( 40.7 <= 42 +- 0.6 <= 42.8 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 17 bits, Walk Tree LUT] ( 41.7 <= 42.5 +- 0.5 <= 43.2 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 18 bits, Walk Tree LUT] ( 40.57 <= 41.01 +- 0.28 <= 41.41 ) MB/s
  *
  * Cumulative time spent during tests with deflate::block::readDynamicHuffmanCoding:
  *     readDynamicHuffmanCoding : 10.368 s
@@ -78,12 +78,12 @@ using FixedHuffmanCoding =
 // using PrecodeHuffmanCoding = HuffmanCodingLinearSearch<uint8_t, uint8_t>;
 
 /**
- * [findDeflateBlocksPragzipLUT with 13 bits, Walk Tree LUT] ( 50.1 <= 50.6 +- 0.4 <= 51.4 ) MB/s
- * [findDeflateBlocksPragzipLUT with 14 bits, Walk Tree LUT] ( 49.4 <= 50.6 +- 0.7 <= 51.4 ) MB/s
- * [findDeflateBlocksPragzipLUT with 15 bits, Walk Tree LUT] ( 50.04 <= 50.42 +- 0.3 <= 50.96 ) MB/s
- * [findDeflateBlocksPragzipLUT with 16 bits, Walk Tree LUT] ( 48.2 <= 50.1 +- 0.8 <= 51 ) MB/s
- * [findDeflateBlocksPragzipLUT with 17 bits, Walk Tree LUT] ( 49.3 <= 50.1 +- 0.4 <= 50.6 ) MB/s
- * [findDeflateBlocksPragzipLUT with 18 bits, Walk Tree LUT] ( 45.9 <= 47.8 +- 1 <= 48.8 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 13 bits, Walk Tree LUT] ( 50.1 <= 50.6 +- 0.4 <= 51.4 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 14 bits, Walk Tree LUT] ( 49.4 <= 50.6 +- 0.7 <= 51.4 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 15 bits, Walk Tree LUT] ( 50.04 <= 50.42 +- 0.3 <= 50.96 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 16 bits, Walk Tree LUT] ( 48.2 <= 50.1 +- 0.8 <= 51 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 17 bits, Walk Tree LUT] ( 49.3 <= 50.1 +- 0.4 <= 50.6 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 18 bits, Walk Tree LUT] ( 45.9 <= 47.8 +- 1 <= 48.8 ) MB/s
  *
  * Cumulative time spent during tests with deflate::block::readDynamicHuffmanCoding:
  *     readDynamicHuffmanCoding : 10.233 s
@@ -98,12 +98,12 @@ using FixedHuffmanCoding =
 // using PrecodeHuffmanCoding = HuffmanCodingSymbolsPerLength<uint8_t, MAX_PRECODE_LENGTH, uint8_t, MAX_PRECODE_COUNT>;
 
 /**
- * [findDeflateBlocksPragzipLUT with 13 bits, Walk Tree LUT] ( 48.4 <= 49 +- 0.4 <= 49.8 ) MB/s
- * [findDeflateBlocksPragzipLUT with 14 bits, Walk Tree LUT] ( 48.3 <= 49.5 +- 0.7 <= 50.4 ) MB/s
- * [findDeflateBlocksPragzipLUT with 15 bits, Walk Tree LUT] ( 47.4 <= 49 +- 0.7 <= 49.6 ) MB/s
- * [findDeflateBlocksPragzipLUT with 16 bits, Walk Tree LUT] ( 48.9 <= 49.8 +- 0.3 <= 50.2 ) MB/s
- * [findDeflateBlocksPragzipLUT with 17 bits, Walk Tree LUT] ( 48.4 <= 49.6 +- 0.5 <= 50.2 ) MB/s
- * [findDeflateBlocksPragzipLUT with 18 bits, Walk Tree LUT] ( 46.3 <= 47.2 +- 0.5 <= 47.8 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 13 bits, Walk Tree LUT] ( 48.4 <= 49 +- 0.4 <= 49.8 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 14 bits, Walk Tree LUT] ( 48.3 <= 49.5 +- 0.7 <= 50.4 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 15 bits, Walk Tree LUT] ( 47.4 <= 49 +- 0.7 <= 49.6 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 16 bits, Walk Tree LUT] ( 48.9 <= 49.8 +- 0.3 <= 50.2 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 17 bits, Walk Tree LUT] ( 48.4 <= 49.6 +- 0.5 <= 50.2 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 18 bits, Walk Tree LUT] ( 46.3 <= 47.2 +- 0.5 <= 47.8 ) MB/s
  *
  * Cumulative time spent during tests with deflate::block::readDynamicHuffmanCoding:
  *     readDynamicHuffmanCoding : 1.8663 s
@@ -117,12 +117,12 @@ using FixedHuffmanCoding =
 //                                                                  uint8_t, MAX_PRECODE_COUNT>;
 
 /**
- * [findDeflateBlocksPragzipLUT with 13 bits, Walk Tree LUT] ( 51.2 <= 52.5 +- 0.8 <= 53.6 ) MB/s
- * [findDeflateBlocksPragzipLUT with 14 bits, Walk Tree LUT] ( 52.2 <= 53 +- 0.3 <= 53.3 ) MB/s
- * [findDeflateBlocksPragzipLUT with 15 bits, Walk Tree LUT] ( 51 <= 52 +- 0.4 <= 52.4 ) MB/s
- * [findDeflateBlocksPragzipLUT with 16 bits, Walk Tree LUT] ( 52.1 <= 52.6 +- 0.3 <= 53.1 ) MB/s
- * [findDeflateBlocksPragzipLUT with 17 bits, Walk Tree LUT] ( 51.1 <= 52.2 +- 0.5 <= 52.7 ) MB/s
- * [findDeflateBlocksPragzipLUT with 18 bits, Walk Tree LUT] ( 48.9 <= 50.4 +- 0.7 <= 50.9 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 13 bits, Walk Tree LUT] ( 51.2 <= 52.5 +- 0.8 <= 53.6 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 14 bits, Walk Tree LUT] ( 52.2 <= 53 +- 0.3 <= 53.3 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 15 bits, Walk Tree LUT] ( 51 <= 52 +- 0.4 <= 52.4 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 16 bits, Walk Tree LUT] ( 52.1 <= 52.6 +- 0.3 <= 53.1 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 17 bits, Walk Tree LUT] ( 51.1 <= 52.2 +- 0.5 <= 52.7 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 18 bits, Walk Tree LUT] ( 48.9 <= 50.4 +- 0.7 <= 50.9 ) MB/s
  *
  * Cumulative time spent during tests with deflate::block::readDynamicHuffmanCoding:
  *     readDynamicHuffmanCoding : 2.01957 s
@@ -137,12 +137,12 @@ using FixedHuffmanCoding =
 // using PrecodeHuffmanCoding = HuffmanCodingReversedBitsCached<uint8_t, MAX_PRECODE_LENGTH, uint8_t, MAX_PRECODE_COUNT>;
 
 /**
- * [findDeflateBlocksPragzipLUT with 13 bits, Walk Tree LUT] ( 52.2 <= 52.9 +- 0.4 <= 53.7 ) MB/s
- * [findDeflateBlocksPragzipLUT with 14 bits, Walk Tree LUT] ( 52.6 <= 53.6 +- 0.4 <= 53.9 ) MB/s
- * [findDeflateBlocksPragzipLUT with 15 bits, Walk Tree LUT] ( 52.14 <= 52.42 +- 0.13 <= 52.57 ) MB/s
- * [findDeflateBlocksPragzipLUT with 16 bits, Walk Tree LUT] ( 52.3 <= 52.7 +- 0.3 <= 53.1 ) MB/s
- * [findDeflateBlocksPragzipLUT with 17 bits, Walk Tree LUT] ( 51.5 <= 53.3 +- 0.7 <= 53.8 ) MB/s
- * [findDeflateBlocksPragzipLUT with 18 bits, Walk Tree LUT] ( 50.2 <= 50.9 +- 0.5 <= 51.6 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 13 bits, Walk Tree LUT] ( 52.2 <= 52.9 +- 0.4 <= 53.7 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 14 bits, Walk Tree LUT] ( 52.6 <= 53.6 +- 0.4 <= 53.9 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 15 bits, Walk Tree LUT] ( 52.14 <= 52.42 +- 0.13 <= 52.57 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 16 bits, Walk Tree LUT] ( 52.3 <= 52.7 +- 0.3 <= 53.1 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 17 bits, Walk Tree LUT] ( 51.5 <= 53.3 +- 0.7 <= 53.8 ) MB/s
+ * [findDeflateBlocksRapidgzipLUT with 18 bits, Walk Tree LUT] ( 50.2 <= 50.9 +- 0.5 <= 51.6 ) MB/s
  *
  * Cumulative time spent during tests with deflate::block::readDynamicHuffmanCoding:
  *     readDynamicHuffmanCoding : 1.84971 s

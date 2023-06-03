@@ -566,7 +566,7 @@ findDeflateBlocksZlibOptimized( BufferedFileReader::AlignedBuffer buffer )
 
 
 [[nodiscard]] std::vector<size_t>
-findDeflateBlocksPragzip( BufferedFileReader::AlignedBuffer buffer )
+findDeflateBlocksRapidgzip( BufferedFileReader::AlignedBuffer buffer )
 {
     using DeflateBlock = pragzip::deflate::Block<>;
 
@@ -1114,7 +1114,7 @@ checkDeflateBlock<CheckPrecodeMethod::SINGLE_COMPRESSED_LUT>( const uint64_t    
 
 
 /**
- * Same as findDeflateBlocksPragzip but prefilters calling pragzip using a lookup table and even skips multiple bits.
+ * Same as findDeflateBlocksRapidgzip but prefilters calling pragzip using a lookup table and even skips multiple bits.
  * Also, does not find uncompressed blocks nor fixed huffman blocks and as the others no final blocks!
  * The idea is that fixed huffman blocks should be very rare and uncompressed blocks can be found very fast in a
  * separate run over the data (to be implemented).
@@ -1122,7 +1122,7 @@ checkDeflateBlock<CheckPrecodeMethod::SINGLE_COMPRESSED_LUT>( const uint64_t    
 template<uint8_t            CACHED_BIT_COUNT,
          CheckPrecodeMethod CHECK_PRECODE_METHOD = CheckPrecodeMethod::WALK_TREE_LUT>
 [[nodiscard]] std::vector<size_t>
-findDeflateBlocksPragzipLUT( BufferedFileReader::AlignedBuffer data )
+findDeflateBlocksRapidgzipLUT( BufferedFileReader::AlignedBuffer data )
 {
     const size_t nBitsToTest = data.size() * CHAR_BIT;
     pragzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( data ) ) );
@@ -1390,14 +1390,14 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
 
 
 /**
- * Same as findDeflateBlocksPragzipLUT but tries to improve pipelining by going over the data twice.
+ * Same as findDeflateBlocksRapidgzipLUT but tries to improve pipelining by going over the data twice.
  * Once, doing simple Boyer-Moore-like string search tests and skips forward and the second time doing
  * extensive tests by loading and checking the dynamic Huffman trees, which might require seeking back.
  */
 template<uint8_t            CACHED_BIT_COUNT,
          CheckPrecodeMethod CHECK_PRECODE_METHOD = CheckPrecodeMethod::WALK_TREE_LUT>
 [[nodiscard]] std::vector<size_t>
-findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
+findDeflateBlocksRapidgzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
 {
     static_assert( CACHED_BIT_COUNT >= 13,
                    "The LUT must check at least 13-bits, i.e., up to including the distance "
@@ -1497,7 +1497,7 @@ findDeflateBlocksPragzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
 template<uint8_t            CACHED_BIT_COUNT,
          CheckPrecodeMethod CHECK_PRECODE_METHOD = CheckPrecodeMethod::WALK_TREE_LUT>
 [[nodiscard]] std::vector<size_t>
-findDeflateBlocksPragzipLUTTwoPassWithPrecode( BufferedFileReader::AlignedBuffer data )
+findDeflateBlocksRapidgzipLUTTwoPassWithPrecode( BufferedFileReader::AlignedBuffer data )
 {
     static_assert( CACHED_BIT_COUNT >= 13,
                    "The LUT must check at least 13-bits, i.e., up to including the distance "
@@ -1868,25 +1868,25 @@ benchmarkGzip( const std::string& fileName )
         const auto blockCandidates = countFilterEfficiencies( buffer );
         std::cout << "Block candidates (" << blockCandidates.size() << "): " << blockCandidates << "\n\n";
 
-        const auto [blockCandidatesPragzip, durations] = benchmarkFunction<10>(
-            [&buffer] () { return findDeflateBlocksPragzip( buffer ); } );
+        const auto [blockCandidatesRapidgzip, durations] = benchmarkFunction<10>(
+            [&buffer] () { return findDeflateBlocksRapidgzip( buffer ); } );
 
-        if ( blockCandidates != blockCandidatesPragzip ) {
+        if ( blockCandidates != blockCandidatesRapidgzip ) {
             std::stringstream msg;
-            msg << "Results with findDeflateBlocksPragzip differ! Block candidates ("
-                << blockCandidatesPragzip.size() << "): " << blockCandidatesPragzip;
+            msg << "Results with findDeflateBlocksRapidgzip differ! Block candidates ("
+                << blockCandidatesRapidgzip.size() << "): " << blockCandidatesRapidgzip;
             throw std::logic_error( std::move( msg ).str() );
         }
-        std::cout << std::setw( 37 ) << std::left << "[findDeflateBlocksPragzip] " << std::right
+        std::cout << std::setw( 37 ) << std::left << "[findDeflateBlocksRapidgzip] " << std::right
                   << formatBandwidth( durations, buffer.size() ) << "\n";
 
         /* Same as above but with a LUT that can skip bits similar to the Boyer–Moore string-search algorithm. */
 
-        /* Call findDeflateBlocksPragzipLUT once to initialize the static variables! */
-        if ( const auto blockCandidatesLUT = findDeflateBlocksPragzipLUT<OPTIMAL_NEXT_DEFLATE_LUT_SIZE>( buffer );
+        /* Call findDeflateBlocksRapidgzipLUT once to initialize the static variables! */
+        if ( const auto blockCandidatesLUT = findDeflateBlocksRapidgzipLUT<OPTIMAL_NEXT_DEFLATE_LUT_SIZE>( buffer );
              blockCandidatesLUT != blockCandidates ) {
             std::stringstream msg;
-            msg << "Results with findDeflateBlocksPragzipLUT differ! Block candidates ("
+            msg << "Results with findDeflateBlocksRapidgzipLUT differ! Block candidates ("
                 << blockCandidatesLUT.size() << "): " << blockCandidatesLUT;
             throw std::logic_error( std::move( msg ).str() );
         }
@@ -1895,15 +1895,15 @@ benchmarkGzip( const std::string& fileName )
             /* As for choosing CACHED_BIT_COUNT == 13, see the output of the results at the end of the file.
              * 13 is the last for which it significantly improves over less bits and 14 bits produce reproducibly
              * slower bandwidths! 13 bits is the best configuration as far as I know. */
-            [&buffer] () { return findDeflateBlocksPragzipLUT<OPTIMAL_NEXT_DEFLATE_LUT_SIZE>( buffer ); } );
+            [&buffer] () { return findDeflateBlocksRapidgzipLUT<OPTIMAL_NEXT_DEFLATE_LUT_SIZE>( buffer ); } );
 
         if ( blockCandidates != blockCandidatesLUT ) {
             std::stringstream msg;
-            msg << "Results with findDeflateBlocksPragzipLUT differ! Block candidates ("
+            msg << "Results with findDeflateBlocksRapidgzipLUT differ! Block candidates ("
                 << blockCandidatesLUT.size() << "): " << blockCandidatesLUT;
             throw std::logic_error( std::move( msg ).str() );
         }
-        std::cout << std::setw( 37 ) << std::left << "[findDeflateBlocksPragzipLUT] " << std::right
+        std::cout << std::setw( 37 ) << std::left << "[findDeflateBlocksRapidgzipLUT] " << std::right
                   << formatBandwidth( durationsLUT, buffer.size() ) << "\n";
 
         /* Same as above but with a LUT and two-pass. */
@@ -1912,15 +1912,15 @@ benchmarkGzip( const std::string& fileName )
             /* As for choosing CACHED_BIT_COUNT == 13, see the output of the results at the end of the file.
              * 13 is the last for which it significantly improves over less bits and 14 bits produce reproducibly
              * slower bandwidths! 13 bits is the best configuration as far as I know. */
-            [&buffer] () { return findDeflateBlocksPragzipLUTTwoPass<OPTIMAL_NEXT_DEFLATE_LUT_SIZE>( buffer ); } );
+            [&buffer] () { return findDeflateBlocksRapidgzipLUTTwoPass<OPTIMAL_NEXT_DEFLATE_LUT_SIZE>( buffer ); } );
 
         if ( blockCandidates != blockCandidatesLUT2P ) {
             std::stringstream msg;
-            msg << "Results with findDeflateBlocksPragzipLUTTwoPass differ! Block candidates ("
+            msg << "Results with findDeflateBlocksRapidgzipLUTTwoPass differ! Block candidates ("
                 << blockCandidatesLUT2P.size() << "): " << blockCandidatesLUT2P;
             throw std::logic_error( std::move( msg ).str() );
         }
-        std::cout << "[findDeflateBlocksPragzipLUTTwoPass] "
+        std::cout << "[findDeflateBlocksRapidgzipLUTTwoPass] "
                   << formatBandwidth( durationsLUT2P, buffer.size() ) << "\n";
     }
 
@@ -1958,7 +1958,7 @@ benchmarkLUTSizeOnlySkipManualSlidingBufferLUT( const BufferedFileReader::Aligne
     const auto [candidateCount, durations] = benchmarkFunction<10>(
         [&buffer] () { return countDeflateBlocksPreselectionManualSlidingBuffer<CACHED_BIT_COUNT>( buffer ); } );
 
-    std::cout << "[findDeflateBlocksPragzipLUT with " << static_cast<int>( CACHED_BIT_COUNT ) << " bits] "
+    std::cout << "[findDeflateBlocksRapidgzipLUT with " << static_cast<int>( CACHED_BIT_COUNT ) << " bits] "
               << formatBandwidth( durations, buffer.size() ) << " (" << candidateCount << " candidates)\n";
 
     if ( alternativeCandidateCount && ( *alternativeCandidateCount != candidateCount ) ) {
@@ -1984,7 +1984,7 @@ benchmarkLUTSizeOnlySkipLUT( const BufferedFileReader::AlignedBuffer& buffer )
     const auto [candidateCount, durations] = benchmarkFunction<10>(
         [&buffer] () { return countDeflateBlocksPreselection<CACHED_BIT_COUNT>( buffer ); } );
 
-    std::cout << "[findDeflateBlocksPragzipLUT with " << static_cast<int>( CACHED_BIT_COUNT ) << " bits] "
+    std::cout << "[findDeflateBlocksRapidgzipLUT with " << static_cast<int>( CACHED_BIT_COUNT ) << " bits] "
               << formatBandwidth( durations, buffer.size() ) << " (" << candidateCount << " candidates)\n";
 
     if ( alternativeCandidateCount && ( *alternativeCandidateCount != candidateCount ) ) {
@@ -2008,9 +2008,9 @@ toString( FindDeflateMethod method )
 {
     switch ( method )
     {
-    case FindDeflateMethod::FULL_CHECK            : return "findDeflateBlocksPragzipLUT";
-    case FindDeflateMethod::TWO_PASS              : return "findDeflateBlocksPragzipLUTTwoPass";
-    case FindDeflateMethod::TWO_PASS_WITH_PRECODE : return "findDeflateBlocksPragzipLUTTwoPassAndPrecode";
+    case FindDeflateMethod::FULL_CHECK            : return "findDeflateBlocksRapidgzipLUT";
+    case FindDeflateMethod::TWO_PASS              : return "findDeflateBlocksRapidgzipLUTTwoPass";
+    case FindDeflateMethod::TWO_PASS_WITH_PRECODE : return "findDeflateBlocksRapidgzipLUTTwoPassAndPrecode";
     }
     throw std::invalid_argument( "Unknown find deflate method!" );
 }
@@ -2031,11 +2031,11 @@ benchmarkLUTSize( const BufferedFileReader::AlignedBuffer& buffer )
     const auto [blockCandidates, durations] = benchmarkFunction<10>(
         [&buffer] () {
             if constexpr ( FIND_DEFLATE_METHOD == FindDeflateMethod::FULL_CHECK ) {
-                return findDeflateBlocksPragzipLUT<CACHED_BIT_COUNT, CHECK_PRECODE_METHOD>( buffer );
+                return findDeflateBlocksRapidgzipLUT<CACHED_BIT_COUNT, CHECK_PRECODE_METHOD>( buffer );
             } else if constexpr ( FIND_DEFLATE_METHOD == FindDeflateMethod::TWO_PASS ) {
-                return findDeflateBlocksPragzipLUTTwoPass<CACHED_BIT_COUNT, CHECK_PRECODE_METHOD>( buffer );
+                return findDeflateBlocksRapidgzipLUTTwoPass<CACHED_BIT_COUNT, CHECK_PRECODE_METHOD>( buffer );
             } else if constexpr ( FIND_DEFLATE_METHOD == FindDeflateMethod::TWO_PASS_WITH_PRECODE ) {
-                return findDeflateBlocksPragzipLUTTwoPassWithPrecode<CACHED_BIT_COUNT, CHECK_PRECODE_METHOD>( buffer );
+                return findDeflateBlocksRapidgzipLUTTwoPassWithPrecode<CACHED_BIT_COUNT, CHECK_PRECODE_METHOD>( buffer );
             }
         } );
 
@@ -2141,7 +2141,7 @@ main( int    argc,
             std::filesystem::rename( fileName + ".gz", newFileName );
 
 
-            /* Benchmark Pragzip LUT version with different LUT sizes. */
+            /* Benchmark Rapidgzip LUT version with different LUT sizes. */
 
             if ( name == "gzip" ) {
                 const auto data = bufferFile( newFileName );

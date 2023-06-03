@@ -37,7 +37,7 @@ readFile( const std::string& fileName )
 
 
 [[nodiscard]] size_t
-decompressWithPragzip( UniqueFileReader fileReader )
+decompressWithRapidgzip( UniqueFileReader fileReader )
 {
     using namespace pragzip;
 
@@ -168,7 +168,7 @@ benchmarkDecompression( const std::vector<std::byte>& dataToCompress,
 
     const auto [size, durations] = benchmarkFunction<3>(
         [&fileContents] () {
-            return decompressWithPragzip( std::make_unique<BufferViewFileReader>( fileContents ) );
+            return decompressWithRapidgzip( std::make_unique<BufferViewFileReader>( fileContents ) );
         } );
     printBandwidths( durations, size );
     std::cout << "\n";

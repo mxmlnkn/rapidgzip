@@ -54,11 +54,11 @@ cdef extern from "pragzip/ParallelGzipReader.hpp" namespace "pragzip":
     # "true", which does not compile.
     cdef cppclass TrueValue "true":
         pass
-    cdef cppclass PragzipChunkData "pragzip::ChunkData":
+    cdef cppclass RapidgzipChunkData "pragzip::ChunkData":
         pass
 
-ctypedef ParallelGzipReader[PragzipChunkData, TrueValue, TrueValue] ParallelGzipReaderVerbose
-ctypedef ParallelGzipReader[PragzipChunkData] ParallelGzipReaderNonVerbose
+ctypedef ParallelGzipReader[RapidgzipChunkData, TrueValue, TrueValue] ParallelGzipReaderVerbose
+ctypedef ParallelGzipReader[RapidgzipChunkData] ParallelGzipReaderNonVerbose
 
 
 def _isFileObject(file):
@@ -79,7 +79,7 @@ def _hasValidFileno(file):
     except Exception:
         return False
 
-cdef class _PragzipFile():
+cdef class _RapidgzipFile():
     cdef ParallelGzipReaderNonVerbose* gzipReader
     cdef ParallelGzipReaderVerbose* gzipReaderVerbose
 
@@ -271,9 +271,9 @@ cdef class _PragzipFile():
 # random access while the internal cache is able to keep multiple buffers for different offsets.
 # Using io.BufferedReader degraded performance by almost 2x for the test case of calculating the CRC32 four times
 # using four parallel find | xarg crc32 instances for a file containing 10k files with each 1 MiB of base64 data.
-class PragzipFile(io.RawIOBase):
+class RapidgzipFile(io.RawIOBase):
     def __init__(self, filename, parallelization = 0, verbose = False):
-        self.gzipReader = _PragzipFile(filename, parallelization, verbose)
+        self.gzipReader = _RapidgzipFile(filename, parallelization, verbose)
         self.name = filename if isinstance(filename, str) else ""
         self.mode = 'rb'
 
@@ -316,7 +316,7 @@ def open(filename, parallelization = 0, verbose = False):
     filename: can be a file path, a file descriptor, or a file object
               with suitable read, seekable, seek, and tell methods.
     """
-    return PragzipFile(filename, parallelization, verbose)
+    return RapidgzipFile(filename, parallelization, verbose)
 
 
 def cli():

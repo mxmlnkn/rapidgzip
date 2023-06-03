@@ -225,7 +225,7 @@ decompressWithLibArchive( const std::vector<uint8_t>& compressedData )
 
 
 [[nodiscard]] size_t
-decompressWithPragzip( const std::string& fileName )
+decompressWithRapidgzip( const std::string& fileName )
 {
     using namespace pragzip;
 
@@ -257,7 +257,7 @@ decompressWithPragzip( const std::string& fileName )
 
 
 [[nodiscard]] size_t
-decompressWithPragzipParallel( const std::string& fileName )
+decompressWithRapidgzipParallel( const std::string& fileName )
 {
     size_t totalDecodedBytes = 0;
 
@@ -279,8 +279,8 @@ decompressWithPragzipParallel( const std::string& fileName )
 
 
 [[nodiscard]] size_t
-decompressWithPragzipParallelChunked( const std::string& fileName,
-                                      const size_t       nBlocksToSkip )
+decompressWithRapidgzipParallelChunked( const std::string& fileName,
+                                        const size_t       nBlocksToSkip )
 {
     size_t totalDecodedBytes = 0;
 
@@ -325,7 +325,7 @@ createGzipIndex( const std::string& fileName )
 
 
 [[nodiscard]] size_t
-decompressWithPragzipParallelIndex( const std::pair<std::string, GzipIndex>& files )
+decompressWithRapidgzipParallelIndex( const std::pair<std::string, GzipIndex>& files )
 {
     const auto& [fileName, index] = files;
 
@@ -387,15 +387,15 @@ benchmarkChunkedParallelDecompression( const std::string& fileName )
     const auto expectedSize = sizeLibArchive;
 
     for ( size_t nBlocksToSkip : { 0, 1, 2, 4, 8, 16, 24, 32, 64, 128 } ) {
-        const auto [sizePragzipParallel, durationsPragzipParallel] = benchmarkFunction<3>(
-            [&fileName, nBlocksToSkip] () { return decompressWithPragzipParallelChunked( fileName, nBlocksToSkip ); } );
-        if ( sizePragzipParallel == expectedSize ) {
-            std::cout << "Decompressed " << fileContents.size() << " B to " << sizePragzipParallel << " B "
+        const auto [sizeRapidgzipParallel, durationsRapidgzipParallel] = benchmarkFunction<3>(
+            [&fileName, nBlocksToSkip] () { return decompressWithRapidgzipParallelChunked( fileName, nBlocksToSkip ); } );
+        if ( sizeRapidgzipParallel == expectedSize ) {
+            std::cout << "Decompressed " << fileContents.size() << " B to " << sizeRapidgzipParallel << " B "
                       << "with pragzip (parallel, nBlocksToSkip=" << nBlocksToSkip << "):\n";
-            printBandwidths( durationsPragzipParallel, fileContents.size(), sizePragzipParallel );
+            printBandwidths( durationsRapidgzipParallel, fileContents.size(), sizeRapidgzipParallel );
         } else {
             std::cerr << "Decompressing with pragzip (parallel, nBlocksToSkip=" << nBlocksToSkip
-                      << ") decoded a different amount (" << sizePragzipParallel
+                      << ") decoded a different amount (" << sizeRapidgzipParallel
                       << ") than libarchive (" << expectedSize << ")!\n";
         }
     }
@@ -425,34 +425,34 @@ benchmarkDecompression( const std::string& fileName )
         std::cerr << "Decompressing with zlib decoded a different amount than libarchive!\n";
     }
 
-    const auto [sizePragzip, durationsPragzip] = benchmarkFunction<3>(
-        [&fileName] () { return decompressWithPragzip( fileName ); } );
-    if ( sizePragzip == expectedSize ) {
-        std::cout << "Decompressed " << fileContents.size() << " B to " << sizePragzip << " B "
+    const auto [sizeRapidgzip, durationsRapidgzip] = benchmarkFunction<3>(
+        [&fileName] () { return decompressWithRapidgzip( fileName ); } );
+    if ( sizeRapidgzip == expectedSize ) {
+        std::cout << "Decompressed " << fileContents.size() << " B to " << sizeRapidgzip << " B "
                   << "with pragzip (serial):\n";
-        printBandwidths( durationsPragzip, fileContents.size(), sizePragzip );
+        printBandwidths( durationsRapidgzip, fileContents.size(), sizeRapidgzip );
     } else {
         std::cerr << "Decompressing with pragzip (serial) decoded a different amount than libarchive!\n";
     }
 
-    const auto [sizePragzipParallel, durationsPragzipParallel] = benchmarkFunction<3>(
-        [&fileName] () { return decompressWithPragzipParallel( fileName ); } );
-    if ( sizePragzipParallel == expectedSize ) {
-        std::cout << "Decompressed " << fileContents.size() << " B to " << sizePragzipParallel << " B "
+    const auto [sizeRapidgzipParallel, durationsRapidgzipParallel] = benchmarkFunction<3>(
+        [&fileName] () { return decompressWithRapidgzipParallel( fileName ); } );
+    if ( sizeRapidgzipParallel == expectedSize ) {
+        std::cout << "Decompressed " << fileContents.size() << " B to " << sizeRapidgzipParallel << " B "
                   << "with pragzip (parallel):\n";
-        printBandwidths( durationsPragzipParallel, fileContents.size(), sizePragzipParallel );
+        printBandwidths( durationsRapidgzipParallel, fileContents.size(), sizeRapidgzipParallel );
     } else {
         throw std::logic_error( "Decompressing with pragzip (parallel) decoded a different amount ("
-                                + std::to_string( sizePragzipParallel ) + ") than libarchive ("
+                                + std::to_string( sizeRapidgzipParallel ) + ") than libarchive ("
                                 + std::to_string( expectedSize ) + ")!" );
     }
 
-    const auto [sizePragzipParallelIndex, durationsPragzipParallelIndex] = benchmarkFunction<3>(
-        [&fileName] () { return createGzipIndex( fileName ); }, decompressWithPragzipParallelIndex );
-    if ( sizePragzipParallelIndex == expectedSize ) {
-        std::cout << "Decompressed " << fileContents.size() << " B to " << sizePragzipParallelIndex << " B "
+    const auto [sizeRapidgzipParallelIndex, durationsRapidgzipParallelIndex] = benchmarkFunction<3>(
+        [&fileName] () { return createGzipIndex( fileName ); }, decompressWithRapidgzipParallelIndex );
+    if ( sizeRapidgzipParallelIndex == expectedSize ) {
+        std::cout << "Decompressed " << fileContents.size() << " B to " << sizeRapidgzipParallelIndex << " B "
                   << "with pragzip (parallel + index):\n";
-        printBandwidths( durationsPragzipParallelIndex, fileContents.size(), sizePragzipParallelIndex );
+        printBandwidths( durationsRapidgzipParallelIndex, fileContents.size(), sizeRapidgzipParallelIndex );
     } else {
         throw std::logic_error( "Decompressing with pragzip (parallel + index) decoded a different amount than "
                                 "libarchive!" );
@@ -897,7 +897,7 @@ cmake --build . -- benchmarkGzip && src/benchmarks/benchmarkGzip 4GiB-base64.pig
 
        - [ ]  Add mismatchingChunkCount as extra metric that can be checked against in tests much more easily!
 
-  -> Pragzip has abysmal serial decoder speed, probably because pigz deflate blocks are only 16 KiB so that the
+  -> Rapidgzip has abysmal serial decoder speed, probably because pigz deflate blocks are only 16 KiB so that the
      upfront cost for the double-symbol cached Huffman-decoder becomes expensive.
 
 

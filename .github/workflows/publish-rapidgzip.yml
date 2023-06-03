@@ -1,4 +1,4 @@
-name: Publish Pragzip to PyPI
+name: Publish Rapidgzip to PyPI
 
 on:
   push:

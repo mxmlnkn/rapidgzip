@@ -2,7 +2,7 @@
 
 ![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/python/pragzip/pragzip.svg)
 
-# Pragzip: Parallel Random Access Gzip
+# Rapidgzip: Parallelized Decompression of Gzip Files with Support for Fast Random Access
 
 [![PyPI version](https://badge.fury.io/py/pragzip.svg)](https://badge.fury.io/py/pragzip)
 [![Python Version](https://img.shields.io/pypi/pyversions/pragzip)](https://pypi.org/project/pragzip/)
@@ -20,11 +20,9 @@
 
 </div>
 
-(Alternative Name: Rapidgzip: Random Access Parallel (Indexed) Decompression for Gzip Files)
-
 This repository contains the command line tool `pragzip`, which can be used for parallel decompression of almost any gzip file.
 
-The Python module provides a `PragzipFile` class, which can be used to seek inside gzip files without having to decompress them first.
+The Python module provides a `RapidgzipFile` class, which can be used to seek inside gzip files without having to decompress them first.
 Alternatively, you can use this simply as a **parallelized** gzip decoder as a replacement for Python's builtin `gzip` module in order to fully utilize all your cores.
 
 The random seeking support is the same as provided by [indexed_gzip](https://github.com/pauldmccarthy/indexed_gzip) but further speedups are realized at the cost of higher memory usage thanks to a least-recently-used cache in combination with a parallelized prefetcher.
@@ -147,9 +145,9 @@ time gzip -d -c sample.gz | wc -c
 ### Simple open, seek, read, and close
 
 ```python3
-from pragzip import PragzipFile
+from pragzip import RapidgzipFile
 
-file = PragzipFile( "example.gz", parallelization = os.cpu_count() )
+file = RapidgzipFile( "example.gz", parallelization = os.cpu_count() )
 
 # You can now use it like a normal file
 file.seek( 123 )

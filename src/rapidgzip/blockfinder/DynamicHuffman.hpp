@@ -123,10 +123,10 @@ static constexpr auto NEXT_DEFLATE_CANDIDATE_LUTS_UP_TO_13_BITS =
  * @note Using larger result types has no measurable difference, e.g., explained by easier access on 64-bit systems.
  *       But, it increases cache usage, so keep using the 8-bit result type.
  * @verbatim
- * 8-bit   [findDeflateBlocksPragzipLUT] ( 8.63 <= 8.7 +- 0.04 <= 8.75 ) MB/s
- * 16-bit  [findDeflateBlocksPragzipLUT] ( 8.31 <= 8.42 +- 0.12 <= 8.59 ) MB/s
- * 32-bit  [findDeflateBlocksPragzipLUT] ( 8.39 <= 8.53 +- 0.09 <= 8.71 ) MB/s
- * 64-bit  [findDeflateBlocksPragzipLUT] ( 8.618 <= 8.65 +- 0.02 <= 8.691 ) MB/s
+ * 8-bit   [findDeflateBlocksRapidgzipLUT] ( 8.63 <= 8.7 +- 0.04 <= 8.75 ) MB/s
+ * 16-bit  [findDeflateBlocksRapidgzipLUT] ( 8.31 <= 8.42 +- 0.12 <= 8.59 ) MB/s
+ * 32-bit  [findDeflateBlocksRapidgzipLUT] ( 8.39 <= 8.53 +- 0.09 <= 8.71 ) MB/s
+ * 64-bit  [findDeflateBlocksRapidgzipLUT] ( 8.618 <= 8.65 +- 0.02 <= 8.691 ) MB/s
  * @endverbatim
  */
 template<uint8_t CACHED_BIT_COUNT>
@@ -192,7 +192,7 @@ static constexpr uint8_t OPTIMAL_NEXT_DEFLATE_LUT_SIZE = 14;
 
 
 /**
- * Same as findDeflateBlocksPragzip but prefilters calling pragzip using a lookup table and even skips multiple bits.
+ * Same as findDeflateBlocksRapidgzip but prefilters calling pragzip using a lookup table and even skips multiple bits.
  * Also, does not find uncompressed blocks nor fixed huffman blocks and as the others no final blocks!
  * The idea is that fixed huffman blocks should be very rare and uncompressed blocks can be found very fast in a
  * separate run over the data (to be implemented).
