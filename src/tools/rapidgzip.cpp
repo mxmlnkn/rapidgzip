@@ -261,7 +261,7 @@ rapidgzipCLI( int argc, char** argv )
 
     if ( parsedArgs.count( "version" ) > 0 ) {
         std::cout << "rapidgzip, CLI to the parallelized, indexed, and seekable gzip decoding library rapidgzip "
-                  << "version 0.6.0.\n";
+                  << "version 0.7.0.\n";
         return 0;
     }
 

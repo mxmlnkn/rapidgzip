@@ -1,4 +1,9 @@
 
+# Version 0.7.0 built on 2023-06-04
+
+ - Rename pragzip to rapidgzip. See the About section in the Readme for some background.
+
+
 # Version 0.6.0 built on 2023-05-30
 
 ## Added
