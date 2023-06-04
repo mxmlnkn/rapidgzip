@@ -748,7 +748,7 @@ private:
             throw std::invalid_argument( "BitReader must be non-null!" );
         }
 
-        const auto blockOffset = bitReader->tell();
+        const auto chunkOffset = bitReader->tell();
 
         /* If true, then read the gzip header. We cannot simply check the gzipHeader optional because we might
          * start reading in the middle of a gzip stream and will not meet the gzip header for a while or never. */
@@ -804,7 +804,7 @@ private:
 
             if ( auto error = block->readHeader( *bitReader ); error != Error::NONE ) {
                 std::stringstream message;
-                message << "Failed to read deflate block header at offset " << formatBits( blockOffset )
+                message << "Failed to read deflate block header at offset " << formatBits( chunkOffset )
                         << " (position after trying: " << formatBits( bitReader->tell() ) << ": "
                         << toString( error );
                 throw std::domain_error( std::move( message ).str() );
@@ -838,7 +838,7 @@ private:
                 const auto [bufferViews, error] = block->read( *bitReader, std::numeric_limits<size_t>::max() );
                 if ( error != Error::NONE ) {
                     std::stringstream message;
-                    message << "Failed to decode deflate block at " << formatBits( blockOffset )
+                    message << "Failed to decode deflate block at " << formatBits( chunkOffset )
                             << " because of: " << toString( error );
                     throw std::domain_error( std::move( message ).str() );
                 }
