@@ -1,1 +1,1 @@
-python/pragzip/README.md
+python/rapidgzip/README.md

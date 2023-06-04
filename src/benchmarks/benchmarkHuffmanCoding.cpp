@@ -16,7 +16,7 @@
 #include <huffman/HuffmanCodingSymbolsPerLength.hpp>
 
 
-using namespace pragzip;
+using namespace rapidgzip;
 
 
 template<typename HuffmanCoding>
@@ -26,7 +26,7 @@ benchmarkHuffmanCoding( const std::vector<typename HuffmanCoding::BitCount>& cod
 {
     const auto t0 = now();
 
-    pragzip::BitReader bitReader( std::make_unique<BufferedFileReader>( encoded ) );
+    rapidgzip::BitReader bitReader( std::make_unique<BufferedFileReader>( encoded ) );
     HuffmanCoding coding;
     const auto errorCode = coding.initializeFromLengths( codeLengths );
     if ( errorCode != Error::NONE ) {
@@ -43,7 +43,7 @@ benchmarkHuffmanCoding( const std::vector<typename HuffmanCoding::BitCount>& cod
                 break;
             }
             sum += *symbol;
-        } catch ( const pragzip::BitReader::EndOfFileReached& ) {
+        } catch ( const rapidgzip::BitReader::EndOfFileReached& ) {
             break;
         }
     }

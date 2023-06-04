@@ -751,7 +751,7 @@ int
 main( int    argc,
       char** argv )
 {
-    const std::string filePath{ argc > 1 ? argv[1] : "/dev/shm/pragzip-write-test" };
+    const std::string filePath{ argc > 1 ? argv[1] : "/dev/shm/rapidgzip-write-test" };
 
     /* Note that truncate will create a sparse file, i.e., "stat" will show 0 blocks for it while "fallocate"
      * will also allocate blocks for the file. */

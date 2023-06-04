@@ -1,7 +1,7 @@
 /**
  * @file While the other benchmarks test varying situations and parameters for single components,
  *       this file is a collection of benchmarks for selected (best) versions for each component
- *       to get an overview of the current state of pragzip.
+ *       to get an overview of the current state of rapidgzip.
  */
 
 #include <algorithm>
@@ -82,7 +82,7 @@ template<unsigned int SLICE_SIZE>
 [[nodiscard]] uint32_t
 computeCRC32SliceByN( const std::vector<char>& buffer )
 {
-    return ~pragzip::updateCRC32<SLICE_SIZE>( ~uint32_t( 0 ), buffer.data(), buffer.size() );
+    return ~rapidgzip::updateCRC32<SLICE_SIZE>( ~uint32_t( 0 ), buffer.data(), buffer.size() );
 }
 
 
@@ -154,7 +154,7 @@ computeCRC32LUT( const std::vector<char>& buffer ) noexcept
 {
     auto crc = ~uint32_t( 0 );
     for ( size_t i = 0; i < buffer.size(); ++i ) {
-        crc = ( crc >> 8U ) ^ pragzip::CRC32_TABLE[( crc ^ buffer[i] ) & 0xFFU];
+        crc = ( crc >> 8U ) ^ rapidgzip::CRC32_TABLE[( crc ^ buffer[i] ) & 0xFFU];
     }
     return ~crc;
 }

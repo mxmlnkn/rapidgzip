@@ -48,7 +48,7 @@ add_dependencies(run-benchmarks run-benchmarkMarkerReplacement)
 
 add_executable(benchmarkPigzBlockFinder)
 target_sources(benchmarkPigzBlockFinder PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkPigzBlockFinder.cpp)
-target_link_libraries(benchmarkPigzBlockFinder PRIVATE libpragzip libblockfinder)
+target_link_libraries(benchmarkPigzBlockFinder PRIVATE librapidgzip libblockfinder)
 add_custom_target(run-benchmarkPigzBlockFinder
     COMMAND ./benchmarkPigzBlockFinder 2>&1 | tee benchmarkPigzBlockFinder.log
     VERBATIM
@@ -61,7 +61,7 @@ if(TARGET LibArchive::LibArchive)
 
 add_executable(benchmarkGzip)
 target_sources(benchmarkGzip PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkGzip.cpp)
-target_link_libraries(benchmarkGzip PRIVATE zlibstatic LibArchive::LibArchive libpragzip)
+target_link_libraries(benchmarkGzip PRIVATE zlibstatic LibArchive::LibArchive librapidgzip)
 # TODO Still requires an input file
 #add_custom_target(run-benchmarkGzip
 #    COMMAND ./benchmarkGzip 2>&1 | tee benchmarkGzip.log
@@ -74,11 +74,11 @@ endif()
 
 add_executable(benchmarkInflate)
 target_sources(benchmarkInflate PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkInflate.cpp)
-target_link_libraries(benchmarkInflate PRIVATE libpragzip)
+target_link_libraries(benchmarkInflate PRIVATE librapidgzip)
 
 add_executable(benchmarkGzipBlockFinder)
 target_sources(benchmarkGzipBlockFinder PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkGzipBlockFinder.cpp)
-target_link_libraries(benchmarkGzipBlockFinder PRIVATE cxxopts libpragzip libblockfinder zlibstatic)
+target_link_libraries(benchmarkGzipBlockFinder PRIVATE cxxopts librapidgzip libblockfinder zlibstatic)
 add_custom_target(run-benchmarkGzipBlockFinder
     COMMAND ./benchmarkGzipBlockFinder 2>&1 | tee benchmarkGzipBlockFinder.log
     VERBATIM
@@ -89,30 +89,30 @@ add_dependencies(run-benchmarks run-benchmarkGzipBlockFinder)
 
 add_executable(benchmarkCalculations)
 target_sources(benchmarkCalculations PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkCalculations.cpp)
-target_link_libraries(benchmarkCalculations PRIVATE libpragzip)
+target_link_libraries(benchmarkCalculations PRIVATE librapidgzip)
 
 
 add_executable(benchmarkIORead)
 target_sources(benchmarkIORead PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkIORead.cpp)
-target_link_libraries(benchmarkIORead PRIVATE libpragzip)
+target_link_libraries(benchmarkIORead PRIVATE librapidgzip)
 
 
 add_executable(benchmarkIOWrite)
 target_sources(benchmarkIOWrite PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkIOWrite.cpp)
-target_link_libraries(benchmarkIOWrite PRIVATE libpragzip)
+target_link_libraries(benchmarkIOWrite PRIVATE librapidgzip)
 
 
 add_executable(empiricalFalsePositiveRate EXCLUDE_FROM_ALL)
 target_sources(empiricalFalsePositiveRate PRIVATE ${CMAKE_CURRENT_LIST_DIR}/empiricalFalsePositiveRate.cpp)
-target_link_libraries(empiricalFalsePositiveRate PRIVATE libpragzip)
+target_link_libraries(empiricalFalsePositiveRate PRIVATE librapidgzip)
 target_compile_features(empiricalFalsePositiveRate INTERFACE cxx_std_17)
 
 
 add_executable(benchmarkSequential2023)
 target_sources(benchmarkSequential2023 PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkSequential2023.cpp)
-target_link_libraries(benchmarkSequential2023 PRIVATE libpragzip)
+target_link_libraries(benchmarkSequential2023 PRIVATE librapidgzip)
 
 
 add_executable(benchmarkCRC32)
 target_sources(benchmarkCRC32 PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkCRC32.cpp)
-target_link_libraries(benchmarkCRC32 PRIVATE libpragzip)
+target_link_libraries(benchmarkCRC32 PRIVATE librapidgzip)

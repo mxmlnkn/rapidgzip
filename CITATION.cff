@@ -3,7 +3,7 @@
 #   cffconvert --validate
 
 cff-version: 1.2.0
-title: Pragzip
+title: Rapidgzip
 message: >-
   If you use this software, please cite it using the metadata from this file.
 type: software
@@ -15,7 +15,7 @@ authors:
     email: maximilian.knespel@tu-dresden.de
 
 repository-code: "https://github.com/mxmlnkn/indexed_bzip2"
-repository: "https://github.com/mxmlnkn/pragzip"
+repository: "https://github.com/mxmlnkn/rapidgzip"
 abstract: >-
   A replacement for gzip for decompressing gzip files using
   multiple threads.

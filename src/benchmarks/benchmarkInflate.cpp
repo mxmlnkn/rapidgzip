@@ -37,9 +37,9 @@ readFile( const std::string& fileName )
 
 
 [[nodiscard]] size_t
-decompressWithPragzip( UniqueFileReader fileReader )
+decompressWithRapidgzip( UniqueFileReader fileReader )
 {
-    using namespace pragzip;
+    using namespace rapidgzip;
 
     size_t totalDecodedBytes = 0;
     size_t blockCount = 0;
@@ -168,7 +168,7 @@ benchmarkDecompression( const std::vector<std::byte>& dataToCompress,
 
     const auto [size, durations] = benchmarkFunction<3>(
         [&fileContents] () {
-            return decompressWithPragzip( std::make_unique<BufferViewFileReader>( fileContents ) );
+            return decompressWithRapidgzip( std::make_unique<BufferViewFileReader>( fileContents ) );
         } );
     printBandwidths( durations, size );
     std::cout << "\n";
@@ -241,7 +241,7 @@ benchmarkDecompressionOfRandomBackreferences()
 
     std::mt19937_64 randomEngine;
 
-    constexpr auto INITIAL_RANDOM_SIZE = pragzip::deflate::MAX_WINDOW_SIZE;
+    constexpr auto INITIAL_RANDOM_SIZE = rapidgzip::deflate::MAX_WINDOW_SIZE;
     auto randomData = createRandomData( INITIAL_RANDOM_SIZE );
     randomData.resize( 128_Mi );
 

@@ -1,7 +1,7 @@
 /**
  * @file While the other benchmarks test varying situations and parameters for single components,
  *       this file is a collection of benchmarks for selected (best) versions for each component
- *       to get an overview of the current state of pragzip.
+ *       to get an overview of the current state of rapidgzip.
  */
 
 #include <cmath>
@@ -29,7 +29,7 @@
 #include <filereader/BufferView.hpp>
 #include <filereader/Standard.hpp>
 #include <FileUtils.hpp>
-#include <pragzip.hpp>
+#include <rapidgzip.hpp>
 #include <Statistics.hpp>
 #include <TestHelpers.hpp>
 #include <ThreadPool.hpp>
@@ -97,7 +97,7 @@ repeatBenchmarks( const BenchmarkFunction& toMeasure,
 benchmarkBitReader( const std::vector<char>& data,
                     const uint8_t            nBits )
 {
-    using pragzip::BitReader;
+    using rapidgzip::BitReader;
     BitReader bitReader( std::make_unique<BufferViewFileReader>( data ) );
 
     const auto t0 = now();  // NOLINT(clang-analyzer-deadcode.DeadStores)
@@ -148,12 +148,12 @@ benchmarkUncompressedBlockFinder( const std::vector<char>& data )
 {
     const auto t0 = now();
 
-    using pragzip::BitReader;
+    using rapidgzip::BitReader;
     BitReader bitReader( std::make_unique<BufferViewFileReader>( data ) );
 
     uint64_t count{ 0 };
     while ( true ) {
-        const auto& [min, max] = pragzip::blockfinder::seekToNonFinalUncompressedDeflateBlock( bitReader );
+        const auto& [min, max] = rapidgzip::blockfinder::seekToNonFinalUncompressedDeflateBlock( bitReader );
         if ( min == std::numeric_limits<size_t>::max() ) {
             break;
         }
@@ -192,12 +192,12 @@ benchmarkDynamicBlockFinder( const std::vector<char>& data )
 {
     const auto t0 = now();
 
-    using pragzip::BitReader;
+    using rapidgzip::BitReader;
     BitReader bitReader( std::make_unique<BufferViewFileReader>( data ) );
 
     uint64_t count{ 0 };
     while ( true ) {
-        const auto offset = pragzip::blockfinder::seekToNonFinalDynamicDeflateBlock( bitReader );
+        const auto offset = rapidgzip::blockfinder::seekToNonFinalDynamicDeflateBlock( bitReader );
         if ( offset == std::numeric_limits<size_t>::max() ) {
             break;
         }
@@ -409,30 +409,30 @@ benchmarkDynamicBlockFinderZlib()
 
 
 [[nodiscard]] std::pair<double, uint64_t>
-findDeflateBlocksPragzip( const std::vector<char>& buffer )
+findDeflateBlocksRapidgzip( const std::vector<char>& buffer )
 {
-    using DeflateBlock = pragzip::deflate::Block<>;
+    using DeflateBlock = rapidgzip::deflate::Block<>;
 
     const auto nBitsToTest = buffer.size() * CHAR_BIT;
-    pragzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( buffer ) );
+    rapidgzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( buffer ) );
 
     const auto t0 = now();
 
     uint64_t count{ 0 };
 
-    pragzip::deflate::Block block;
+    rapidgzip::deflate::Block block;
     for ( size_t offset = 0; offset <= nBitsToTest; ++offset ) {
         bitReader.seek( static_cast<long long int>( offset ) );
         try
         {
             auto error = block.readHeader</* count last block as error */ true>( bitReader );
-            if ( ( error != pragzip::Error::NONE )
+            if ( ( error != rapidgzip::Error::NONE )
                  || ( block.compressionType() == DeflateBlock::CompressionType::DYNAMIC_HUFFMAN ) ) {
                 continue;
             }
 
             ++count;
-        } catch ( const pragzip::BitReader::EndOfFileReached& ) {
+        } catch ( const rapidgzip::BitReader::EndOfFileReached& ) {
             break;
         }
     }
@@ -441,7 +441,7 @@ findDeflateBlocksPragzip( const std::vector<char>& buffer )
 
 
 void
-benchmarkDynamicBlockFinderPragzip()
+benchmarkDynamicBlockFinderRapidgzip()
 {
     const auto t0 = now();
     std::cout << "Initializing random data for benchmark... " << std::flush;
@@ -451,27 +451,27 @@ benchmarkDynamicBlockFinderPragzip()
     }
     std::cout << "Done (" << duration( t0 ) << " s)\n";
 
-    const auto times = repeatBenchmarks( [&data] () { return findDeflateBlocksPragzip( data ); } );
+    const auto times = repeatBenchmarks( [&data] () { return findDeflateBlocksRapidgzip( data ); } );
 
-    std::ofstream dataFile( "result-find-dynamic-pragzip.dat" );
+    std::ofstream dataFile( "result-find-dynamic-rapidgzip.dat" );
     dataFile << "# dataSize/B runtime/s\n";
     for ( const auto time : times ) {
         dataFile << data.size() << " " << time << "\n";
     }
 
-    std::cout << "[Dynamic block finder using pragzip] " << formatBandwidth( times, data.size() ) << "\n";
+    std::cout << "[Dynamic block finder using rapidgzip] " << formatBandwidth( times, data.size() ) << "\n";
 }
 
 
 [[nodiscard]] std::pair<double, uint64_t>
-findDeflateBlocksPragzipLUT( const std::vector<char>& buffer )
+findDeflateBlocksRapidgzipLUT( const std::vector<char>& buffer )
 {
-    using DeflateBlock = pragzip::deflate::Block<>;
-    constexpr auto CACHED_BIT_COUNT = pragzip::blockfinder::OPTIMAL_NEXT_DEFLATE_LUT_SIZE;
+    using DeflateBlock = rapidgzip::deflate::Block<>;
+    constexpr auto CACHED_BIT_COUNT = rapidgzip::blockfinder::OPTIMAL_NEXT_DEFLATE_LUT_SIZE;
 
     /* Testing a dozen positions less should not make a difference but avoid EOF exceptions. */
     const auto nBitsToTest = buffer.size() * CHAR_BIT - CACHED_BIT_COUNT;
-    pragzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( buffer ) );
+    rapidgzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( buffer ) );
 
     const auto t0 = now();
 
@@ -479,10 +479,10 @@ findDeflateBlocksPragzipLUT( const std::vector<char>& buffer )
 
     auto bitBufferForLUT = bitReader.peek<CACHED_BIT_COUNT>();
 
-    pragzip::deflate::Block block;
+    rapidgzip::deflate::Block block;
     for ( size_t offset = 0; offset <= nBitsToTest; ) {
         const auto nextPosition =
-            pragzip::blockfinder::NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<CACHED_BIT_COUNT>[bitBufferForLUT];
+            rapidgzip::blockfinder::NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<CACHED_BIT_COUNT>[bitBufferForLUT];
 
         const auto bitsToLoad = std::max( static_cast<std::decay_t<decltype( nextPosition )> >( 1 ), nextPosition );
         bitBufferForLUT >>= bitsToLoad;
@@ -497,13 +497,13 @@ findDeflateBlocksPragzipLUT( const std::vector<char>& buffer )
         try
         {
             auto error = block.readHeader</* count last block as error */ true>( bitReader );
-            if ( ( error != pragzip::Error::NONE )
+            if ( ( error != rapidgzip::Error::NONE )
                  || ( block.compressionType() == DeflateBlock::CompressionType::DYNAMIC_HUFFMAN ) ) {
                 continue;
             }
 
             ++count;
-        } catch ( const pragzip::BitReader::EndOfFileReached& ) {
+        } catch ( const rapidgzip::BitReader::EndOfFileReached& ) {
             break;
         }
 
@@ -514,7 +514,7 @@ findDeflateBlocksPragzipLUT( const std::vector<char>& buffer )
 
 
 void
-benchmarkDynamicBlockFinderPragzipLUT()
+benchmarkDynamicBlockFinderRapidgzipLUT()
 {
     const auto t0 = now();
     std::cout << "Initializing random data for benchmark... " << std::flush;
@@ -524,15 +524,15 @@ benchmarkDynamicBlockFinderPragzipLUT()
     }
     std::cout << "Done (" << duration( t0 ) << " s)\n";
 
-    const auto times = repeatBenchmarks( [&data] () { return findDeflateBlocksPragzipLUT( data ); } );
+    const auto times = repeatBenchmarks( [&data] () { return findDeflateBlocksRapidgzipLUT( data ); } );
 
-    std::ofstream dataFile( "result-find-dynamic-pragzip-skip-lut.dat" );
+    std::ofstream dataFile( "result-find-dynamic-rapidgzip-skip-lut.dat" );
     dataFile << "# dataSize/B runtime/s\n";
     for ( const auto time : times ) {
         dataFile << data.size() << " " << time << "\n";
     }
 
-    std::cout << "[Dynamic block finder using skip LUT and pragzip] " << formatBandwidth( times, data.size() ) << "\n";
+    std::cout << "[Dynamic block finder using skip LUT and rapidgzip] " << formatBandwidth( times, data.size() ) << "\n";
 }
 
 
@@ -591,7 +591,7 @@ struct TemporaryFile
     TemporaryFile&
     operator=( TemporaryFile&& ) = delete;
 
-    const std::string path{ "/dev/shm/pragzip-benchmark-random-file.dat" };
+    const std::string path{ "/dev/shm/rapidgzip-benchmark-random-file.dat" };
     const size_t size;
 };
 
@@ -602,12 +602,12 @@ benchmarkFileReader()
     TemporaryFile temporaryFile( 1_Gi );
 
     const auto times = repeatBenchmarks(
-        [&] () { return benchmarkFileReader( temporaryFile.path, pragzip::BitReader::IOBUF_SIZE ); } );
+        [&] () { return benchmarkFileReader( temporaryFile.path, rapidgzip::BitReader::IOBUF_SIZE ); } );
 
     std::ofstream dataFile( "result-read-file.dat" );
     dataFile << "# dataSize/B chunkSize/B runtime/s\n";
     for ( const auto time : times ) {
-        dataFile << temporaryFile.size << " " << pragzip::BitReader::IOBUF_SIZE << " " << time << "\n";
+        dataFile << temporaryFile.size << " " << rapidgzip::BitReader::IOBUF_SIZE << " " << time << "\n";
     }
 
     std::cout << "[File Reading] " << formatBandwidth( times, temporaryFile.size ) << "\n";
@@ -676,7 +676,7 @@ benchmarkFileReaderParallelRepeatedly( const size_t                     fileSize
 
     auto times = repeatBenchmarks(
         [&] () {
-            return benchmarkFileReaderParallel( threadPool, temporaryFile.path, pragzip::BitReader::IOBUF_SIZE );
+            return benchmarkFileReaderParallel( threadPool, temporaryFile.path, rapidgzip::BitReader::IOBUF_SIZE );
         }, /* repeat count */ 50 );
 
     return times;
@@ -864,7 +864,7 @@ benchmarkFileReaderParallel()
 
             const auto times = benchmarkFileReaderParallelRepeatedly( fileSize, threadCount, threadPinning );
             for ( const auto time : times ) {
-                dataFile << threadCount << " " << fileSize << " " << pragzip::BitReader::IOBUF_SIZE << " " << time
+                dataFile << threadCount << " " << fileSize << " " << rapidgzip::BitReader::IOBUF_SIZE << " " << time
                          << std::endl;
             }
 
@@ -914,7 +914,7 @@ benchmarkCountNewlines()
 benchmarkApplyWindow( std::vector<uint16_t>       data,
                       const std::vector<uint8_t>& window )
 {
-    pragzip::deflate::DecodedData decoded;
+    rapidgzip::deflate::DecodedData decoded;
     decoded.dataWithMarkers.emplace_back( std::move( data ) );
 
     const auto t0 = now();
@@ -934,7 +934,7 @@ benchmarkApplyWindow()
     for ( auto& x : data ) {
         do {
             x = static_cast<uint16_t>( rand() );
-        } while ( ( x > std::numeric_limits<uint8_t>::max() ) && ( x < pragzip::deflate::MAX_WINDOW_SIZE ) );
+        } while ( ( x > std::numeric_limits<uint8_t>::max() ) && ( x < rapidgzip::deflate::MAX_WINDOW_SIZE ) );
     }
     std::vector<uint8_t> window( 32_Ki );
     for ( auto& x : window ) {
@@ -984,7 +984,7 @@ void
 benchmarkWrite()
 {
     const std::vector<char> data( 1_Gi, 1 );
-    const std::string filePath( "/dev/shm/pragzip-benchmark-random-file.dat" );
+    const std::string filePath( "/dev/shm/rapidgzip-benchmark-random-file.dat" );
     const auto times = repeatBenchmarks( [&] () { return benchmarkWrite( filePath, data, data.size() ); } );
 
     std::ofstream dataFile( "result-file-write.dat" );
@@ -1006,8 +1006,8 @@ main()
 {
     benchmarkWrite();
 
-    benchmarkDynamicBlockFinderPragzipLUT();
-    benchmarkDynamicBlockFinderPragzip();
+    benchmarkDynamicBlockFinderRapidgzipLUT();
+    benchmarkDynamicBlockFinderRapidgzip();
     benchmarkDynamicBlockFinderZlib();
     benchmarkDynamicBlockFinder();
     benchmarkFindUncompressedBlocks();
@@ -1033,8 +1033,8 @@ main()
 cmake --build . -- benchmarkSequential2023 && src/benchmarks/benchmarkSequential2023 2>&1 | tee benchmarks2023.log
 sed -r '/[.]{3}/d; /Open file handles/d' benchmarks2023.log
 
-[Dynamic block finder using skip LUT and pragzip] ( min: 20.6126, 22.66 +- 0.25, max: 22.9213 ) MB/s
-[Dynamic block finder using pragzip] ( min: 3.95542, 4.11 +- 0.03, max: 4.15403 ) MB/s
+[Dynamic block finder using skip LUT and rapidgzip] ( min: 20.6126, 22.66 +- 0.25, max: 22.9213 ) MB/s
+[Dynamic block finder using rapidgzip] ( min: 3.95542, 4.11 +- 0.03, max: 4.15403 ) MB/s
 [Dynamic block finder using zlib] ( min: 0.165136, 0.1766 +- 0.0021, max: 0.180283 ) MB/s
 [Dynamic block finder] ( min: 61.9047, 67.1 +- 1.0, max: 69.1426 ) MB/s
 [Uncompressed block finder] ( min: 383.5, 413 +- 9, max: 428.144 ) MB/s

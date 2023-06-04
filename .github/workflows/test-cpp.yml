@@ -51,12 +51,12 @@ jobs:
         cppcheck -j $( nproc ) --enable=all --std=c++17 --suppress=unusedFunction --suppress=useStlAlgorithm \
             -I src/core \
             -I src/indexed_bzip2 \
-            -I src/pragzip \
-            -I src/pragzip/huffman \
+            -I src/rapidgzip \
+            -I src/rapidgzip/huffman \
             src/benchmarks \
             src/core \
             src/indexed_bzip2 \
-            src/pragzip \
+            src/rapidgzip \
             src/tests \
             src/tools  2>&1 | tee cppcheck.log
         if grep -E -i 'error: .* \[[^]]*\]$' cppcheck.log; then

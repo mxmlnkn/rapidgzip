@@ -1,0 +1,57 @@
+name: Build Wheels for rapidgzip
+
+on:
+  push:
+    branches: 'master'
+
+jobs:
+  Build-Wheels:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+        archs: [auto64]
+        # manylinux1 is not supported anymore because it won't compile C++17 code
+        # manylinux2010 runs into this problem https://github.com/pypa/cibuildwheel/issues/1001
+        # MacOS and Windows ignore the manylinux-image version because they are not Linux.
+        include:
+        - os: ubuntu-latest
+          manylinux-image: manylinux2014
+          archs: auto64
+        - os: ubuntu-latest
+          manylinux-image: manylinux2014
+          archs: auto32
+        - os: ubuntu-latest
+          manylinux-image: manylinux_2_28
+          archs: auto64
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "10.14"
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install Dependencies
+      run: |
+        python3 -m pip install --upgrade pip
+        python3 -m pip install --upgrade-strategy eager --upgrade cython twine cibuildwheel build
+
+    - name: Build Tarball
+      working-directory: python/rapidgzip
+      run: python3 -m build --sdist
+
+    - name: Build Wheels
+      env:
+        CIBW_ARCHS: ${{ matrix.archs }}
+        CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux-image }}
+      run: python -m cibuildwheel --output-dir dist python/rapidgzip
+
+    - name: Check Wheels
+      run: twine check dist/* python/rapidgzip/dist/*

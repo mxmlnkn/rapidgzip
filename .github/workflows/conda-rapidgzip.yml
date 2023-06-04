@@ -1,0 +1,60 @@
+name: Build Conda Packages (rapidgzip)
+
+on:
+  push:
+    branches: 'master'
+
+jobs:
+  Build-Conda:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "10.14"
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
+    - uses: conda-incubator/setup-miniconda@v2
+      with:
+        auto-update-conda: true
+
+    - name: Fix macOS CommandLineTools Bug
+      if: matrix.os == 'macos-latest'
+      shell: bash
+      run: |
+        # See test.yml workflow for explanation but in short: conda build only works with the older SDK installed.
+        wget https://github.com/phracker/MacOSX-SDKs/releases/download/10.13/MacOSX10.9.sdk.tar.xz
+        tar -xf MacOSX10.9.sdk.tar.xz
+        cat <<EOF >> conda/conda_build_config.yaml
+        CONDA_BUILD_SYSROOT:
+          - $PWD/MacOSX10.9.sdk
+        EOF
+
+    - name: Build Conda Packages
+      # TODO copy and custom fit the conda folder into python/rapidgzip. Currently, it will upload to indexed_bzip2!
+      # Windows yields: fatal error C1001: An internal error has occurred in the compiler.
+      #                 (compiler file 'msc1.cpp', line 1518)
+      # This happens on the line: static constexpr FixedHuffmanCoding m_fixedHC = createFixedHC();
+      # This is understandable because it is the most complex code but the wheels do build just fine though.
+      if: matrix.os != 'windows-latest'
+      # Bash shells do not use ~/.profile or ~/.bashrc so these shells need to be explicitely declared as shell:
+      # bash -l {0} on steps that need to be properly activated
+      shell: bash -l {0}
+      env:
+        ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+      run: |
+        # Circumvent bug introduced in https://github.com/conda/conda/pull/11364#issuecomment-1139184379
+        # https://github.com/conda/conda-build/issues/4509
+        conda install conda=4.12.0 conda-build anaconda-client conda-verify packaging
+        conda config --set anaconda_upload no
+        cd conda  # TODO copy and custom fit the conda folder into python/rapidgzip
+        python3 -m pip install --user build
+        python3 -m build -o . --sdist ../python/rapidgzip
+        mv rapidgzip-*.tar* src.tar
+        conda build --token "$ANACONDA_TOKEN" .

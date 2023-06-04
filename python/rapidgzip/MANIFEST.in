@@ -1,0 +1,32 @@
+include LICENSE-APACHE
+include LICENSE-MIT
+include README.md
+include rapidgzip.svg
+include CHANGELOG.md
+include rapidgzip.pyx
+recursive-include core *.hpp
+recursive-include rapidgzip *.hpp
+include tools/licenses.cpp
+include tools/rapidgzip.cpp
+include external/cxxopts/LICENSE
+include external/cxxopts/include/cxxopts.hpp
+include external/rpmalloc/LICENSE
+include external/rpmalloc/rpmalloc/rpmalloc.c
+include external/rpmalloc/rpmalloc/rpmalloc.h
+include external/rpmalloc/rpmalloc/rpnew.h
+include external/zlib/LICENSE
+include external/zlib/inflate.c
+include external/zlib/inflate.h
+include external/zlib/crc32.c
+include external/zlib/crc32.h
+include external/zlib/adler32.c
+include external/zlib/inffast.c
+include external/zlib/inffast.h
+include external/zlib/inffixed.h
+include external/zlib/inftrees.c
+include external/zlib/inftrees.h
+include external/zlib/gzguts.h
+include external/zlib/zconf.h
+include external/zlib/zutil.c
+include external/zlib/zutil.h
+include external/zlib/zlib.h
