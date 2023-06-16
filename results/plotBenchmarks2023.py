@@ -513,6 +513,14 @@ def plotChunkSizes():
 
     ax.legend(symbols, labels, loc="upper left")
 
+    ax2 = ax.twiny()
+    ax2.set_xlabel("Theoretical Number of Chunks")
+    ax2.set_xscale('log')
+    ax2.set_xlim(ax.get_xlim())
+    numberOfChunks = [int(np.ceil(6.08 * 1024 / x)) for x in xTicks]
+    ax2.set_xticks(xTicks, [str(n) if n < 1000 or i in [0, 2, 4] else f"" for i, n in enumerate(numberOfChunks)])
+    ax2.minorticks_off()
+
     fig.tight_layout()
 
     fig.savefig(f"decompression-chunk-size-bandwidths-number-of-threads.png")
