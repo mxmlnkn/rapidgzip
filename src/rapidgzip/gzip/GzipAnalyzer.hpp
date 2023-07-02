@@ -431,7 +431,7 @@ analyze( UniqueFileReader inputFile,
         const auto farthestBackreference =
             std::accumulate( backreferences.begin(), backreferences.end(),
                              uint16_t( 0 ), [] ( uint16_t max, const auto& reference ) {
-                                 return std::max( max, reference.first );
+                                 return std::max( max, reference.distance );
                              } );
 
         const auto printCodeLengthStatistics =
@@ -531,17 +531,17 @@ analyze( UniqueFileReader inputFile,
         /* Merge overlapping or adjacent back-references. */
         auto mergedBackreferences = backreferences;
         std::sort( mergedBackreferences.begin(), mergedBackreferences.end(),
-                   [] ( const auto& a, const auto& b ) { return a.first < b.first; } );
+                   [] ( const auto& a, const auto& b ) { return a.distance < b.distance; } );
         size_t currentRef = 0;
         for ( auto otherRef = currentRef + 1; otherRef < mergedBackreferences.size(); ++otherRef ) {
             const auto intersect =
                 [] ( const auto& a, const auto& b ) {
-                    return a.first + a.second >= b.first;
+                    return a.distance + a.length >= b.distance;
                 };
             if ( intersect( mergedBackreferences[currentRef], mergedBackreferences[otherRef] ) ) {
-                mergedBackreferences[currentRef].second = mergedBackreferences[otherRef].first
-                                                          + mergedBackreferences[otherRef].second
-                                                          - mergedBackreferences[currentRef].first;
+                mergedBackreferences[currentRef].length = mergedBackreferences[otherRef].distance
+                                                          + mergedBackreferences[otherRef].length
+                                                          - mergedBackreferences[currentRef].distance;
             } else {
                 ++currentRef;
                 mergedBackreferences[currentRef] = mergedBackreferences[otherRef];
@@ -627,7 +627,7 @@ analyze( UniqueFileReader inputFile,
             try {
                 if ( crc32Calculator.verify( footer.crc32 ) ) {
                     std::cerr << "Validated CRC32 0x" << std::hex << crc32Calculator.crc32() << std::dec
-                              << " for gzip stream!\n";
+                              << " for gzip stream.\n";
                 }
             } catch ( const std::domain_error& exception ) {
                 std::cerr << "CRC32 validation for gzip stream failed with: " << exception.what() << "\n";

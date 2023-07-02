@@ -832,6 +832,261 @@ testBlockBoundaries( const std::filesystem::path& testFolder )
 }
 
 
+[[nodiscard]] std::vector<std::byte>
+getDecompressed( const ChunkData& chunkData,
+                 const size_t     decodedOffset )
+{
+    std::vector<std::byte> result;
+    for ( auto it = rapidgzip::deflate::DecodedData::Iterator( chunkData, decodedOffset );
+          static_cast<bool>( it ); ++it )
+    {
+        const auto& [buffer, size] = *it;
+        const auto* const byteBuffer = reinterpret_cast<const std::byte*>( buffer );
+        result.insert( result.end(), byteBuffer, byteBuffer + size );
+    }
+    return result;
+}
+
+
+[[nodiscard]] deflate::DecodedVector
+getSparseWindowByBruteForce( rapidgzip::BitReader&         bitReader,
+                             const deflate::DecodedVector& window )
+{
+    constexpr bool printUsage = false;
+    std::cerr << "[getSparseWindowByBruteForce]\n";
+    ChunkData::Configuration chunkDataConfiguration;
+    chunkDataConfiguration.crc32Enabled = false;
+    chunkDataConfiguration.fileType = FileType::GZIP;
+    chunkDataConfiguration.encodedOffsetInBits = bitReader.tell();
+
+    const auto chunkData = GzipChunk<ChunkData>::decodeChunkWithRapidgzip(
+        &bitReader, /* untilOffset */ std::numeric_limits<size_t>::max(),
+        window, /* maxDecompressedChunkSize */ std::numeric_limits<size_t>::max(),
+        chunkDataConfiguration );
+    const auto expected = getDecompressed( chunkData, 0 );
+
+    deflate::DecodedVector sparseWindow( window.data(), window.data() + window.size() );
+    for ( size_t i = 0; i < window.size(); ++i ) {
+        sparseWindow[i] = 0;
+
+        bitReader.seek( chunkDataConfiguration.encodedOffsetInBits );
+        const auto sparseChunkData = GzipChunk<ChunkData>::decodeChunkWithRapidgzip(
+            &bitReader, /* untilOffset */ std::numeric_limits<size_t>::max(),
+            sparseWindow, /* maxDecompressedChunkSize */ std::numeric_limits<size_t>::max(),
+            chunkDataConfiguration );
+
+        const auto decoded = getDecompressed( sparseChunkData, 0 );
+        if ( decoded.size() != expected.size() ) {
+            throw std::logic_error(
+                "Inequal size when decoding with sparse window (" + std::to_string( expected.size() )
+                + ") vs. without (" + std::to_string( expected.size() ) + ")!" );
+        }
+
+        if ( printUsage ) {
+            if ( i % 128 == 0 ) {
+                std::cerr << "\n";
+            }
+            std::cerr << ( decoded == expected ? "_" : "1" );
+        }
+
+        if ( decoded != expected ) {
+            sparseWindow[i] = window[i];
+        }
+    }
+
+    if ( printUsage ) {
+        std::cerr << "\n";
+    }
+
+    return sparseWindow;
+}
+
+
+template<typename Container,
+         typename Predicate>
+[[nodiscard]] std::vector<std::pair<size_t, size_t> >
+findRanges( const Container& container,
+            const Predicate& predicate )
+{
+    std::vector<std::pair<size_t, size_t> > ranges;
+
+    std::optional<size_t> rangeBegin{};
+    std::optional<size_t> rangeEnd{};
+    for ( size_t i = 0; i < container.size(); ++i ) {
+        if ( predicate( container[i] ) ) {
+            if ( !rangeBegin ) {
+                rangeBegin = i;
+            }
+            rangeEnd = i;
+        } else {
+            if ( rangeBegin && rangeEnd ) {
+                ranges.emplace_back( *rangeBegin, *rangeEnd );
+            }
+            rangeBegin.reset();
+            rangeEnd.reset();
+        }
+    }
+
+    return ranges;
+}
+
+void
+testUsedWindowSymbolsWithFile( const std::filesystem::path& filePath )
+{
+    std::cerr << "Test window symbol usage tracking with: " << filePath.filename() << "\n";
+
+    auto sharedFileReader =
+        std::make_unique<SharedFileReader>(
+            std::make_unique<StandardFileReader>( filePath.string() ) );
+
+    /* Collect all deflate block boundaries and windows for testing. */
+
+    ChunkData::Configuration chunkDataConfiguration;
+    chunkDataConfiguration.crc32Enabled = false;
+    chunkDataConfiguration.fileType = FileType::GZIP;
+    chunkDataConfiguration.encodedOffsetInBits = getBlockOffset( filePath, 0 );  /* This skips the gzip header. */
+
+    rapidgzip::BitReader bitReader{ sharedFileReader->clone() };
+    bitReader.seek( chunkDataConfiguration.encodedOffsetInBits );
+    /* decodeChunkWithInflateWrapper is not tested because it always returns 0 because chunk splitting and
+     * such is not assumed to be necessary anymore for those decoding functions that are only called with a
+     * window and an exact until offset. */
+    const auto chunkData = GzipChunk<ChunkData>::decodeChunkWithRapidgzip(
+        &bitReader,
+        /* untilOffset */ std::numeric_limits<size_t>::max(),
+        /* initialWindow */ {},
+        /* maxDecompressedChunkSize */ std::numeric_limits<size_t>::max(),
+        chunkDataConfiguration );
+
+    /* Try decoding from each block boundary with full windows. */
+    for ( const auto boundary : chunkData.blockBoundaries ) {
+        chunkDataConfiguration.encodedOffsetInBits = boundary.encodedOffset;
+        bitReader.seek( chunkDataConfiguration.encodedOffsetInBits );
+
+        const auto window = chunkData.getWindowAt( {}, boundary.decodedOffset );
+        const auto partialChunkData = GzipChunk<ChunkData>::decodeChunkWithRapidgzip(
+            &bitReader, /* untilOffset */ std::numeric_limits<size_t>::max(),
+            window, /* maxDecompressedChunkSize */ std::numeric_limits<size_t>::max(),
+            chunkDataConfiguration );
+
+        const auto expected = getDecompressed( chunkData, boundary.decodedOffset );
+        const auto result = getDecompressed( partialChunkData, 0 );
+        if ( expected != result ) {
+            std::cerr << "    Test failure when decoding from decoded offset " << boundary.decodedOffset << "\n";
+        }
+        REQUIRE_EQUAL( expected.size(), result.size() );
+    }
+
+    /* Try decoding from each block boundary with sparse windows. */
+    for ( const auto boundary : chunkData.blockBoundaries ) {
+        chunkDataConfiguration.encodedOffsetInBits = boundary.encodedOffset;
+        bitReader.seek( chunkDataConfiguration.encodedOffsetInBits );
+        const auto window = chunkData.getWindowAt( {}, boundary.decodedOffset );
+        const auto sparseWindow = deflate::getSparseWindow( bitReader, window );
+
+        bitReader.seek( chunkDataConfiguration.encodedOffsetInBits );
+        const auto partialChunkData = GzipChunk<ChunkData>::decodeChunkWithRapidgzip(
+            &bitReader, /* untilOffset */ std::numeric_limits<size_t>::max(),
+            sparseWindow, /* maxDecompressedChunkSize */ std::numeric_limits<size_t>::max(),
+            chunkDataConfiguration );
+
+        const auto expected = getDecompressed( chunkData, boundary.decodedOffset );
+        const auto result = getDecompressed( partialChunkData, 0 );
+        if ( expected != result ) {
+            std::cerr << "    Test failure when decoding from decoded offset " << boundary.decodedOffset << "\n";
+        }
+        REQUIRE_EQUAL( expected.size(), result.size() );
+        REQUIRE( expected == result );
+    }
+
+    /* Try decoding from each block boundary with sparse windows. */
+    for ( const auto boundary : chunkData.blockBoundaries ) {
+        std::cerr << "    Test sparse window at block offset " << boundary.encodedOffset << "\n";
+
+        chunkDataConfiguration.encodedOffsetInBits = boundary.encodedOffset;
+        auto window = chunkData.getWindowAt( {}, boundary.decodedOffset );
+
+        bitReader.seek( chunkDataConfiguration.encodedOffsetInBits );
+        const auto usedWindowSymbols = deflate::getUsedWindowSymbols( bitReader );
+
+    #if 0
+        /* This is really time-consuming. Therefore do not run it continuously. */
+
+        bitReader.seek( chunkDataConfiguration.encodedOffsetInBits );
+        const auto bruteSparseWindow = getSparseWindowByBruteForce( bitReader, window );
+
+        const auto windowUsedRanges = findRanges( usedWindowSymbols, [] ( auto value ) { return value; } );
+        const auto windowUsedRanges2 = findRanges( bruteSparseWindow, [] ( auto value ) { return value != 0; } );
+
+        std::cerr << "Used window ranges:\n   ";
+        for ( const auto& [begin, end] : windowUsedRanges ) {
+            std::cerr << " " << begin << "-" << end;
+        }
+        std::cerr << "\n";
+
+        std::cerr << "Used window ranges determined by brute-force:\n   ";
+        for ( const auto& [begin, end] : windowUsedRanges2 ) {
+            std::cerr << " " << begin << "-" << end;
+        }
+        std::cerr << "\n";
+
+        REQUIRE_EQUAL( windowUsedRanges.size(), windowUsedRanges2.size() );
+        if ( windowUsedRanges != windowUsedRanges2 ) {
+            throw std::logic_error( "Used window symbol detection is inconsistent!" );
+        }
+
+        size_t zeroedSymbolCount{ 0 };
+        if ( window.size() == usedWindowSymbols.size() ) {
+            for ( size_t i = 0; i < window.size(); ++i ) {
+                if ( !usedWindowSymbols[i] ) {
+                    window[i] = 0;
+                    ++zeroedSymbolCount;
+                }
+            }
+        }
+        std::stringstream message;
+        message << "    zeroedSymbolCount: " << zeroedSymbolCount * 100.0 / window.size() << " %\n\n";
+        std::cerr << message.str();
+    #endif
+
+        bitReader.seek( chunkDataConfiguration.encodedOffsetInBits );
+        const auto partialChunkData = GzipChunk<ChunkData>::decodeChunkWithRapidgzip(
+            &bitReader, /* untilOffset */ std::numeric_limits<size_t>::max(),
+            window, /* maxDecompressedChunkSize */ std::numeric_limits<size_t>::max(),
+            chunkDataConfiguration );
+
+        const auto expected = getDecompressed( chunkData, boundary.decodedOffset );
+        const auto result = getDecompressed( partialChunkData, 0 );
+        if ( expected != result ) {
+            std::cerr << "    Test failure when decoding from decoded offset " << boundary.decodedOffset << "\n";
+            const auto ranges = findRanges( result, [] ( const auto value ) { return value == std::byte( 0 ); } );
+            for ( const auto& [begin, end] : ranges ) {
+                std::cerr << "Found ZERO at " << begin << "-" << end << " ("
+                          << end - begin + 1 << ")\n";
+            }
+            throw 3;
+        }
+        REQUIRE_EQUAL( expected.size(), result.size() );
+        REQUIRE( expected == result );
+    }
+}
+
+
+void
+testUsedWindowSymbols( const std::filesystem::path& testFolder )
+{
+    testUsedWindowSymbolsWithFile( testFolder / "base64-256KiB.gz" );
+    testUsedWindowSymbolsWithFile( testFolder / "base64-256KiB.bgz" );
+    testUsedWindowSymbolsWithFile( testFolder / "base64-256KiB.igz" );
+    testUsedWindowSymbolsWithFile( testFolder / "base64-256KiB.pigz" );
+
+    testUsedWindowSymbolsWithFile( testFolder / "random-128KiB.gz" );
+    testUsedWindowSymbolsWithFile( testFolder / "random-128KiB.bgz" );
+    testUsedWindowSymbolsWithFile( testFolder / "random-128KiB.igz" );
+    testUsedWindowSymbolsWithFile( testFolder / "random-128KiB.pigz" );
+}
+
+
 int
 main( int    argc,
       char** argv )
@@ -865,6 +1120,7 @@ main( int    argc,
     testDecodeBlockWithInflateWrapperWithFiles( testFolder );
     testAutomaticMarkerResolution( testFolder );
     testBlockBoundaries( testFolder );
+    testUsedWindowSymbols( testFolder );
 
     /**
      * @todo Add more tests of combinations like random + base, base + random

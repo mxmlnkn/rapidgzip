@@ -519,7 +519,11 @@ class Block :  // NOLINT(cppcoreguidelines-pro-type-member-init)
 {
 public:
     using CompressionType = deflate::CompressionType;
-    using Backreference = std::pair<uint16_t, uint16_t>;
+
+    struct Backreference{
+        uint16_t distance{ 0 };
+        uint16_t length{ 0 };
+    };
 
 public:
     [[nodiscard]] bool
@@ -1349,7 +1353,10 @@ Block<ENABLE_STATISTICS>::resolveBackreference( Window&        window,
         }
         const auto decodedBytesInBlock = m_decodedBytes - m_decodedBytesAtBlockStart + nBytesRead;
         if ( distance > decodedBytesInBlock ) {
-            m_backreferences.emplace_back( distance - decodedBytesInBlock, length );
+            m_backreferences.emplace_back( Backreference{
+                static_cast<uint16_t>( distance - decodedBytesInBlock ),
+                std::min( length, distance )
+            } );
         }
     }
 
@@ -1769,5 +1776,87 @@ Block<ENABLE_STATISTICS>::setInitialWindow( VectorView<uint8_t> const& initialWi
     m_windowPosition = 0;
 
     m_containsMarkerBytes = false;
+}
+
+
+[[nodiscard]] inline std::vector<bool>
+getUsedWindowSymbols( BitReader& bitReader )
+{
+    std::vector<bool> window( MAX_WINDOW_SIZE, false );
+
+    Block</* ENABLE_STATISTICS */ false> block;
+    block.setTrackBackreferences( true );
+
+    for ( size_t nBytesRead = 0; nBytesRead < MAX_WINDOW_SIZE; ) {
+        /* Block::readHeader also clears the backreferences. */
+        const auto headerError = block.readHeader( bitReader );
+        if ( headerError == Error::END_OF_FILE ) {
+            break;
+        }
+        if ( headerError != Error::NONE ) {
+            throw std::invalid_argument( "Failed to decode the deflate block header! " + toString( headerError ) );
+        }
+
+        size_t nBytesReadFromBlock{ 0 };
+        while ( nBytesRead + nBytesReadFromBlock < MAX_WINDOW_SIZE ) {
+            const auto [view, readError] = block.read( bitReader, MAX_WINDOW_SIZE - nBytesRead );
+            if ( readError != Error::NONE ) {
+                throw std::invalid_argument( "Failed to read deflate block data! " + toString( readError ) );
+            }
+            nBytesReadFromBlock += view.size();
+            if ( block.eob() ) {
+                break;
+            }
+        }
+
+        const auto& backreferences = block.backreferences();
+        for ( const auto& reference : backreferences ) {
+            /* The back-references are relative to the current block, so we need to subtract nBytesRead
+             * from the relative distance to get the distance relative to the first block start.
+             * If the result would become negative, then nothing from the window is needed and we can skip it. */
+            if ( reference.distance < nBytesRead ) {
+                continue;
+            }
+
+            const auto distanceFromEnd = reference.distance - nBytesRead;
+            if ( distanceFromEnd > window.size() ) {
+                std::stringstream message;
+                message << "The back-reference distance should not exceed MAX_WINDOW_SIZE ("
+                        << formatBytes( MAX_WINDOW_SIZE ) << ") but got: " << formatBytes( distanceFromEnd ) << "!";
+                throw std::logic_error( std::move( message ).str() );
+            }
+            if ( reference.length == 0 ) {
+                continue;
+            }
+            const auto startOffset = window.size() - distanceFromEnd;
+
+            for ( size_t i = 0; ( i < reference.length ) && ( startOffset + i < window.size() ); ++i ) {
+                window[startOffset + i] = true;
+            }
+        }
+
+        nBytesRead += nBytesReadFromBlock;
+        if ( block.eos() ) {
+            break;
+        }
+    }
+
+    return window;
+}
+
+
+template<typename Container>
+[[nodiscard]] std::vector<uint8_t>
+getSparseWindow( BitReader&       bitReader,
+                 const Container& window )
+{
+    const auto usedSymbols = getUsedWindowSymbols( bitReader );
+    std::vector<uint8_t> sparseWindow( std::min<size_t>( 32_Ki, window.size() ), 0 );
+    for ( size_t i = 0; i < sparseWindow.size(); ++i ) {
+        if ( usedSymbols[i + ( usedSymbols.size() - sparseWindow.size() )] ) {
+            sparseWindow[i] = window[i + ( window.size() - sparseWindow.size() )];
+        }
+    };
+    return sparseWindow;
 }
 }  // namespace rapidgzip::deflate
