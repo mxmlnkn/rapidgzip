@@ -48,7 +48,9 @@ It was created for visibility reasons and in order to keep indexed_bzip2 and rap
 The main development will take place in [this](https://github.com/mxmlnkn/indexed_bzip2) repository while the rapidgzip repository will be updated at least for each release.
 Issues regarding rapidgzip should be opened at [its repository](https://github.com/mxmlnkn/rapidgzip/issues).
 
-A paper describing the implementation details and showing the scaling behavior with up to 128 cores has been submitted to and [accepted](https://www.hpdc.org/2023/program/technical-sessions/) in [ACM HPDC'23](https://www.hpdc.org/2023/), The 32nd International Symposium on High-Performance Parallel and Distributed Computing. If you use this software for your scientific publication, please cite it as stated [here](python/rapidgzip#citation).
+A paper describing the implementation details and showing the scaling behavior with up to 128 cores has been submitted to and [accepted](https://www.hpdc.org/2023/program/technical-sessions/) in [ACM HPDC'23](https://www.hpdc.org/2023/), The 32nd International Symposium on High-Performance Parallel and Distributed Computing.
+If you use this software for your scientific publication, please cite it as stated [here](python/rapidgzip#citation).
+The author's version can be found [here](results/paper/Knespel, Brunst - 2023 - Rapidgzip - Parallel Decompression and Seeking in Gzip Files Using Cache Prefetching.pdf) and the accompanying presentation [here](results/Presentation-2023-06-22.pdf).
 
 
 <div align="center">
