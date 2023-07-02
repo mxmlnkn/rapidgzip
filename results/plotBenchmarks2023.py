@@ -10,9 +10,15 @@ import pandas as pd
 import os, sys
 
 
+# Avoid Type 3 fonts as they are, for whatever obnoxious reason, not supported by publishing
+# http://phyletica.org/matplotlib-fonts/
+matplotlib.rcParams['pdf.fonttype'] = 42
+matplotlib.rcParams['ps.fonttype'] = 42
+
+
 folder = "." if len(sys.argv) < 2 else sys.argv[1]
 
-myImplementationName = "pragzip"
+myImplementationName = "rapidgzip"
 
 
 # https://www.nature.com/articles/nmeth.1618
