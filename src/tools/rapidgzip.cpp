@@ -292,7 +292,7 @@ rapidgzipCLI( int                  argc,
     /* Check if analysis is requested. */
 
     if ( parsedArgs.count( "analyze" ) > 0 ) {
-        return rapidgzip::deflate::analyze( std::move( inputFile ) ) == rapidgzip::Error::NONE ? 0 : 1;
+        return rapidgzip::deflate::analyze( std::move( inputFile ), args.verbose ) == rapidgzip::Error::NONE ? 0 : 1;
     }
 
     /* Parse action arguments. */
