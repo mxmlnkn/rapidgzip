@@ -14,8 +14,8 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 add_compile_options(
-    "$<$<CXX_COMPILER_ID:Clang>:-Wall;-Wextra;-Wshadow;-Werror=return-type;-Wno-unknown-attributes>"
-    "$<$<CXX_COMPILER_ID:GNU>:-Wall;-Wextra;-Wshadow;-Wunused;-Werror=return-type;-Wno-attributes>"
+    "$<$<OR:$<COMPILE_LANG_AND_ID:CXX,Clang>,$<COMPILE_LANG_AND_ID:C,Clang>>:-Wall;-Wextra;-Wshadow;-Werror=return-type;-Wno-unknown-attributes>"
+    "$<$<OR:$<COMPILE_LANG_AND_ID:CXX,GNU>,$<COMPILE_LANG_AND_ID:C,GNU>>:-Wall;-Wextra;-Wshadow;-Wunused;-Werror=return-type;-Wno-attributes>"
     "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-Wsuggest-override>"
     # The default limit is ~33 M (1<<25) and 99 M seem to be enough currently to compile.
     "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-fconstexpr-ops-limit=99000100>"
