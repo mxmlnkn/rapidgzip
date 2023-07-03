@@ -491,7 +491,8 @@ private:
                             ? std::make_optional( WindowView{} )
                             : m_windowMap->get( blockOffset ),
                             blockInfo ? blockInfo->decodedSizeInBytes : std::optional<size_t>{},
-                            m_cancelThreads, m_crc32Enabled, m_maxDecompressedChunkSize );
+                            m_cancelThreads, m_crc32Enabled, m_maxDecompressedChunkSize,
+                            /* untilOffsetIsExact */ m_isBgzfFile );
     }
 
 public:
@@ -510,16 +511,18 @@ public:
                  std::optional<size_t>     const decodedSize,
                  std::atomic<bool>        const& cancelThreads,
                  bool                      const crc32Enabled = false,
-                 size_t                    const maxDecompressedChunkSize = std::numeric_limits<size_t>::max() )
+                 size_t                    const maxDecompressedChunkSize = std::numeric_limits<size_t>::max(),
+                 bool                      const untilOffsetIsExact = false )
     {
-        if ( initialWindow && decodedSize && ( *decodedSize > 0 ) ) {
+        if ( initialWindow && ( ( decodedSize && ( *decodedSize > 0 ) ) || untilOffsetIsExact ) ) {
             auto result = decodeBlockWithZlib(
                 originalBitReader,
                 blockOffset,
                 std::min( untilOffset, originalBitReader.size() ),
                 *initialWindow,
-                *decodedSize,
-                crc32Enabled );
+                decodedSize,
+                crc32Enabled,
+                untilOffsetIsExact );
 
             if ( decodedSize && ( result.decodedSizeInBytes != *decodedSize ) ) {
                 std::stringstream message;
@@ -529,6 +532,7 @@ public:
                         << "  Encoded size          : " << ( untilOffset - blockOffset ) << "\n"
                         << "  Decoded size          : " << result.decodedSizeInBytes << "\n"
                         << "  Expected decoded size : " << *decodedSize << "\n"
+                        << "  Until offset is exact : " << untilOffsetIsExact << "\n"
                         << "  Initial Window        : " << ( initialWindow
                                                              ? std::to_string( initialWindow->size() )
                                                              : std::string( "None" ) ) << "\n";
@@ -684,16 +688,19 @@ public:
 
 private:
     [[nodiscard]] static ChunkData
-    decodeBlockWithZlib( const BitReader& originalBitReader,
-                         size_t           blockOffset,
-                         size_t           untilOffset,
-                         WindowView       initialWindow,
-                         size_t           decodedSize,
-                         bool             crc32Enabled )
+    decodeBlockWithZlib( const BitReader&            originalBitReader,
+                         size_t                const blockOffset,
+                         size_t                const untilOffset,
+                         WindowView            const initialWindow,
+                         /** @todo get rid of this and use untilOffsetIsExact instead? */
+                         std::optional<size_t> const decodedSize,
+                         bool                  const crc32Enabled,
+                         bool                  const untilOffsetIsExact )
     {
         BitReader bitReader( originalBitReader );
         bitReader.seek( blockOffset );
-        ZlibDeflateWrapper deflateWrapper( std::move( bitReader ) );
+        ZlibDeflateWrapper deflateWrapper( std::move( bitReader ),
+                                           untilOffsetIsExact ? untilOffset : std::numeric_limits<size_t>::max() );
         deflateWrapper.setWindow( initialWindow );
 
         ChunkData result;
@@ -746,18 +753,24 @@ private:
          *        1   MiB         370 MB/s
          */
         constexpr size_t ALLOCATION_CHUNK_SIZE = 128_Ki;
-        for ( size_t alreadyDecoded = 0; alreadyDecoded < decodedSize; ) {
-            deflate::DecodedVector subchunk( std::min( ALLOCATION_CHUNK_SIZE, decodedSize - alreadyDecoded ) );
+        size_t alreadyDecoded{ 0 };
+        while( !decodedSize.has_value() || ( alreadyDecoded < *decodedSize ) ) {
+            deflate::DecodedVector subchunk( decodedSize
+                                             ? std::min( ALLOCATION_CHUNK_SIZE, *decodedSize - alreadyDecoded )
+                                             : ALLOCATION_CHUNK_SIZE );
             std::optional<gzip::Footer> footer;
 
-            /* In order for CRC32 verification to work, we have append at most one gzip stream per subchunk
+            /* In order for CRC32 verification to work, we have to append at most one gzip stream per subchunk
              * because the CRC32 calculator is swapped inside ChunkData::append. */
             size_t nBytesRead = 0;
             size_t nBytesReadPerCall{ 0 };
             for ( ; ( nBytesRead < subchunk.size() ) && !footer; nBytesRead += nBytesReadPerCall ) {
                 std::tie( nBytesReadPerCall, footer ) = deflateWrapper.readStream( subchunk.data() + nBytesRead,
                                                                                    subchunk.size() - nBytesRead );
-                if ( nBytesReadPerCall == 0 ) {
+                if ( ( nBytesReadPerCall == 0 ) && !footer ) {
+                    if ( untilOffsetIsExact ) {
+                        break;
+                    }
                     throw std::runtime_error( "Could not decode as much as requested!" );
                 }
             }
@@ -770,12 +783,16 @@ private:
             if ( footer ) {
                 result.appendFooter( deflateWrapper.tellEncoded(), alreadyDecoded, *footer );
             }
+
+            if ( ( nBytesReadPerCall == 0 ) && !footer && untilOffsetIsExact ) {
+                break;
+            }
         }
 
         uint8_t dummy{ 0 };
         const auto [nBytesReadPerCall, footer] = deflateWrapper.readStream( &dummy, 1 );
         if ( ( nBytesReadPerCall == 0 ) && footer ) {
-            result.appendFooter( deflateWrapper.tellEncoded(), decodedSize, *footer );
+            result.appendFooter( deflateWrapper.tellEncoded(), alreadyDecoded, *footer );
         }
 
         /* We cannot arbitarily use bitReader.tell here, because the zlib wrapper buffers input read from BitReader.
