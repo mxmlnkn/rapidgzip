@@ -712,8 +712,23 @@ private:
          * large and as long as the allocation chunk size is much smaller than the decompressed data chunk size.
          * 1 MiB seems like the natural choice because the optimum (compressed) chunk size is around 4 MiB
          * and it would also be exactly one hugepage if support for that would ever be added.
+         * Beware that each chunk is only as large as one gzip stream. And bgzip creates gzip streams that are only
+         * ~64 KiB each! Therefore, when decoding bgzip while importing the index, we need to account for this here
+         * and avoid frequent overallocations and resizes, which slow down the program immensely!
+         *
+         * Test with:
+         *     m rapidgzip && src/tools/rapidgzip -o /dev/null -d \
+         *       --import-index silesia-32x.tar.bgzip.gzi silesia-32x.tar.bgzip
+         *
+         * ALLOCATION_CHUNK_SIZE  Bandwidth
+         *        32  KiB         2.4 GB/s
+         *        64  KiB         2.5 GB/s
+         *        128 KiB         2.5 GB/s
+         *        256 KiB         2.4 GB/s
+         *        512 KiB         1.5 GB/s
+         *        1   MiB         370 MB/s
          */
-        constexpr size_t ALLOCATION_CHUNK_SIZE = 1_Mi;
+        constexpr size_t ALLOCATION_CHUNK_SIZE = 128_Ki;
         for ( size_t alreadyDecoded = 0; alreadyDecoded < decodedSize; ) {
             deflate::DecodedVector subchunk( std::min( ALLOCATION_CHUNK_SIZE, decodedSize - alreadyDecoded ) );
             std::optional<gzip::Footer> footer;
