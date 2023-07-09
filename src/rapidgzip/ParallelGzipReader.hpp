@@ -404,11 +404,14 @@ public:
             if ( offsetInBlock >= blockSize ) {
                 std::stringstream message;
                 message << "[ParallelGzipReader] Block does not contain the requested offset! "
-                        << "Requested offset from chunk fetcher: " << formatBytes( m_currentPosition )
+                        << "Requested offset from chunk fetcher: " << m_currentPosition
+                        << " (" << formatBytes( m_currentPosition ) << ")"
                         << ", decoded offset: " << decodedOffsetInBytes
+                        << " (" << formatBytes( decodedOffsetInBytes ) << ")"
                         << ", block data encoded offset: " << formatBits( chunkData->encodedOffsetInBits )
                         << ", block data encoded size: " << formatBits( chunkData->encodedSizeInBits )
-                        << ", block data size: " << formatBytes( chunkData->decodedSizeInBytes )
+                        << ", block data size: " << chunkData->decodedSizeInBytes
+                        << " (" << formatBytes( chunkData->decodedSizeInBytes ) << ")"
                         << " markers: " << chunkData->dataWithMarkersSize();
                 throw std::logic_error( std::move( message ).str() );
             }

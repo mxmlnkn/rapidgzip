@@ -11,6 +11,7 @@
 #include <filereader/Shared.hpp>
 #include <TestHelpers.hpp>
 #include <zlib.hpp>
+#include <isal.hpp>
 
 using namespace std::literals;
 
@@ -30,6 +31,7 @@ createRandomData( uint64_t                      size,
 }
 
 
+template<typename InflateWrapper>
 void
 testGettingFooter()
 {
@@ -48,24 +50,37 @@ testGettingFooter()
         std::make_unique<BufferViewFileReader>( compressedRandomDNA ) );
     rapidgzip::BitReader bitReader( std::move( fileReader ) );
     bitReader.seek( 10 * CHAR_BIT );  // Deflate wrapper expects to start at deflate block
-    ZlibInflateWrapper inflateWrapper( std::move( bitReader ) );
+    InflateWrapper inflateWrapper( std::move( bitReader ) );
 
     std::vector<std::byte> decompressedResult( randomDNA.size() );
     auto [decompressedSize, footer] = inflateWrapper.readStream(
         reinterpret_cast<uint8_t*>( decompressedResult.data() ), decompressedResult.size() );
     REQUIRE_EQUAL( decompressedSize, randomDNA.size() );
 
-    /* Unfortunately, because of the zlib API, we only know that we are at the end of a stream
-     * AFTER trying trying to read more from it. */
-    REQUIRE( !footer.has_value() );
     constexpr auto GZIP_FOOTER_SIZE = 8U;
-    REQUIRE_EQUAL( inflateWrapper.tellEncoded(), ( compressedRandomDNA.size() - GZIP_FOOTER_SIZE ) * BYTE_SIZE );
-
     uint8_t dummy{ 0 };
-    std::tie( decompressedSize, footer ) = inflateWrapper.readStream( &dummy, 1 );
+    const auto position = inflateWrapper.tellEncoded();
+
+    /* Unfortunately, because of the zlib API, we only know that we are at the end of a stream
+     * AFTER trying trying to read more from it.
+     * Because we have specified to read exactly as many bytes as there are, we will stop right before the footer.
+     * Unfortunately, zlib and ISA-l stop differently, i.e,. the former stops before the footer, which is byte-aligned,
+     * and ISA-l right after the block end, which might not be byte-aligned. Also, the ISA-l wrapper will return the
+     * next footer while zlib will not when exactly as many bytes were requested as there are in the deflate stream. */
+    if constexpr ( std::is_same_v<InflateWrapper, ZlibInflateWrapper> ) {
+        REQUIRE( !footer.has_value() );
+        REQUIRE_EQUAL( position, ( compressedRandomDNA.size() - GZIP_FOOTER_SIZE ) * BYTE_SIZE );
+        std::tie( decompressedSize, footer ) = inflateWrapper.readStream( &dummy, 1 );
+        REQUIRE( footer.has_value() );
+    } else {
+        REQUIRE( footer.has_value() );
+        REQUIRE_EQUAL( position, compressedRandomDNA.size() * BYTE_SIZE );
+        std::tie( decompressedSize, footer ) = inflateWrapper.readStream( &dummy, 1 );
+        REQUIRE( !footer.has_value() );
+    }
+
     REQUIRE_EQUAL( decompressedSize, 0U );
     REQUIRE_EQUAL( inflateWrapper.tellEncoded(), compressedRandomDNA.size() * BYTE_SIZE );
-    REQUIRE( footer.has_value() );
     if ( footer ) {
         REQUIRE_EQUAL( footer->uncompressedSize, randomDNA.size() );
     }
@@ -194,6 +209,7 @@ testGzipHeaderSkip()
 }
 
 
+template<typename InflateWrapper>
 void
 testMultiGzipStream()
 {
@@ -211,7 +227,7 @@ testMultiGzipStream()
         std::make_unique<BufferViewFileReader>( compressedData ) );
     rapidgzip::BitReader bitReader( std::move( fileReader ) );
     bitReader.seek( 10 * CHAR_BIT );  // Deflate wrapper expects to start at deflate block
-    ZlibInflateWrapper inflateWrapper( std::move( bitReader ) );
+    InflateWrapper inflateWrapper( std::move( bitReader ) );
 
     std::vector<std::byte> decompressedResult( expectedResult.size(), std::byte( 1 ) );
 
@@ -219,7 +235,7 @@ testMultiGzipStream()
     auto [decompressedSize, footer] = inflateWrapper.readStream(
         reinterpret_cast<uint8_t*>( decompressedResult.data() ), decompressedResult.size() );
     REQUIRE_EQUAL( decompressedSize, dataToCompress.size() );
-    /* ZlibInflateWrapper reads the next gzip header right after encountering any footer! */
+    /* InflateWrapper reads the next gzip header right after encountering any footer! */
     constexpr auto GZIP_HEADER_SIZE = 10U;
     REQUIRE_EQUAL( inflateWrapper.tellEncoded(), ( compressedData.size() / 2 + GZIP_HEADER_SIZE ) * BYTE_SIZE );
 
@@ -230,7 +246,13 @@ testMultiGzipStream()
     /* Unfortunately, because of the zlib API, we only know that we are at the end of a stream
      * AFTER trying trying to read more from it. */
     constexpr auto GZIP_FOOTER_SIZE = 8U;
-    REQUIRE_EQUAL( inflateWrapper.tellEncoded(), ( compressedData.size() - GZIP_FOOTER_SIZE ) * BYTE_SIZE );
+    if constexpr ( std::is_same_v<InflateWrapper, ZlibInflateWrapper> ) {
+        REQUIRE_EQUAL( inflateWrapper.tellEncoded(), ( compressedData.size() - GZIP_FOOTER_SIZE ) * BYTE_SIZE );
+        uint8_t dummy{ 0 };
+        std::tie( decompressedSize, footer ) = inflateWrapper.readStream( &dummy, 1 );
+    }
+
+    REQUIRE_EQUAL( inflateWrapper.tellEncoded(), compressedData.size() * BYTE_SIZE );
 
     REQUIRE( decompressedResult == expectedResult );
 }
@@ -240,8 +262,12 @@ int
 main()
 {
     testGzipHeaderSkip();
-    testMultiGzipStream();
-    testGettingFooter();
+
+    testMultiGzipStream<IsalInflateWrapper>();
+    testGettingFooter<IsalInflateWrapper>();
+
+    testMultiGzipStream<ZlibInflateWrapper>();
+    testGettingFooter<ZlibInflateWrapper>();
 
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
 
