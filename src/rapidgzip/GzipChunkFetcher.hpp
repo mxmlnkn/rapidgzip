@@ -699,9 +699,9 @@ private:
     {
         BitReader bitReader( originalBitReader );
         bitReader.seek( blockOffset );
-        ZlibDeflateWrapper deflateWrapper( std::move( bitReader ),
+        ZlibInflateWrapper inflateWrapper( std::move( bitReader ),
                                            untilOffsetIsExact ? untilOffset : std::numeric_limits<size_t>::max() );
-        deflateWrapper.setWindow( initialWindow );
+        inflateWrapper.setWindow( initialWindow );
 
         ChunkData result;
         result.setCRC32Enabled( crc32Enabled );
@@ -765,7 +765,7 @@ private:
             size_t nBytesRead = 0;
             size_t nBytesReadPerCall{ 0 };
             for ( ; ( nBytesRead < subchunk.size() ) && !footer; nBytesRead += nBytesReadPerCall ) {
-                std::tie( nBytesReadPerCall, footer ) = deflateWrapper.readStream( subchunk.data() + nBytesRead,
+                std::tie( nBytesReadPerCall, footer ) = inflateWrapper.readStream( subchunk.data() + nBytesRead,
                                                                                    subchunk.size() - nBytesRead );
                 if ( ( nBytesReadPerCall == 0 ) && !footer ) {
                     if ( untilOffsetIsExact ) {
@@ -781,7 +781,7 @@ private:
             subchunk.shrink_to_fit();
             result.append( std::move( subchunk ) );
             if ( footer ) {
-                result.appendFooter( deflateWrapper.tellEncoded(), alreadyDecoded, *footer );
+                result.appendFooter( inflateWrapper.tellEncoded(), alreadyDecoded, *footer );
             }
 
             if ( ( nBytesReadPerCall == 0 ) && !footer && untilOffsetIsExact ) {
@@ -790,9 +790,9 @@ private:
         }
 
         uint8_t dummy{ 0 };
-        const auto [nBytesReadPerCall, footer] = deflateWrapper.readStream( &dummy, 1 );
+        const auto [nBytesReadPerCall, footer] = inflateWrapper.readStream( &dummy, 1 );
         if ( ( nBytesReadPerCall == 0 ) && footer ) {
-            result.appendFooter( deflateWrapper.tellEncoded(), alreadyDecoded, *footer );
+            result.appendFooter( inflateWrapper.tellEncoded(), alreadyDecoded, *footer );
         }
 
         /* We cannot arbitarily use bitReader.tell here, because the zlib wrapper buffers input read from BitReader.

@@ -89,11 +89,11 @@ compressWithZlib( const std::vector<std::byte>& toCompress,
  *  - work on BitReader as input
  *  - start at deflate block offset as opposed to gzip start
  */
-class ZlibDeflateWrapper
+class ZlibInflateWrapper
 {
 public:
     explicit
-    ZlibDeflateWrapper( BitReader    bitReader,
+    ZlibInflateWrapper( BitReader    bitReader,
                         const size_t untilOffset = std::numeric_limits<size_t>::max() ) :
         m_bitReader( std::move( bitReader ) ),
         m_encodedUntilOffset( std::min( m_bitReader.size(), untilOffset ) )
@@ -110,7 +110,7 @@ public:
         }
     }
 
-    ~ZlibDeflateWrapper()
+    ~ZlibInflateWrapper()
     {
         inflateEnd( &m_stream );
     }
