@@ -201,7 +201,9 @@ public:
                 std::optional<gzip::Footer> footer;
                 if ( m_windowFlags < 0 ) {
                     footer = readGzipFooter();
-                    readGzipHeader();
+                    if ( footer ) {
+                        readGzipHeader();
+                    }
                 }
 
                 m_stream.next_out = output + decodedSize;
@@ -224,7 +226,7 @@ private:
     /**
      * Only works on and modifies m_stream.avail_in and m_stream.next_in.
      */
-    gzip::Footer
+    std::optional<gzip::Footer>
     readGzipFooter()
     {
         gzip::Footer footer{ 0, 0 };
@@ -247,6 +249,9 @@ private:
                 stillToRemove -= m_stream.avail_in;
                 m_stream.avail_in = 0;
                 refillBuffer();
+                if ( m_stream.avail_in == 0 ) {
+                    return std::nullopt;
+                }
             }
         }
 
