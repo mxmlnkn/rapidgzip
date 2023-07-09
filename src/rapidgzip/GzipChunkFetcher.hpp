@@ -513,12 +513,29 @@ public:
                  size_t                    const maxDecompressedChunkSize = std::numeric_limits<size_t>::max() )
     {
         if ( initialWindow && decodedSize && ( *decodedSize > 0 ) ) {
-            return decodeBlockWithZlib( originalBitReader,
-                                        blockOffset,
-                                        std::min( untilOffset, originalBitReader.size() ),
-                                        *initialWindow,
-                                        *decodedSize,
-                                        crc32Enabled );
+            auto result = decodeBlockWithZlib(
+                originalBitReader,
+                blockOffset,
+                std::min( untilOffset, originalBitReader.size() ),
+                *initialWindow,
+                *decodedSize,
+                crc32Enabled );
+
+            if ( decodedSize && ( result.decodedSizeInBytes != *decodedSize ) ) {
+                std::stringstream message;
+                message << "Decoded chunk size does not match the requested decoded size!\n"
+                        << "  Block offset          : " << blockOffset << "\n"
+                        << "  Until offset          : " << untilOffset << "\n"
+                        << "  Encoded size          : " << ( untilOffset - blockOffset ) << "\n"
+                        << "  Decoded size          : " << result.decodedSizeInBytes << "\n"
+                        << "  Expected decoded size : " << *decodedSize << "\n"
+                        << "  Initial Window        : " << ( initialWindow
+                                                             ? std::to_string( initialWindow->size() )
+                                                             : std::string( "None" ) ) << "\n";
+                throw std::runtime_error( std::move( message ).str() );
+            }
+
+            return result;
         }
 
         BitReader bitReader( originalBitReader );
