@@ -49,9 +49,7 @@ jobs:
       env:
         ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
       run: |
-        # Circumvent bug introduced in https://github.com/conda/conda/pull/11364#issuecomment-1139184379
-        # https://github.com/conda/conda-build/issues/4509
-        conda install conda=4.12.0 conda-build anaconda-client conda-verify packaging
+        conda install conda conda-build anaconda-client conda-verify packaging
         conda config --set anaconda_upload no
         cd conda  # TODO copy and custom fit the conda folder into python/rapidgzip
         python3 -m pip install --user build
