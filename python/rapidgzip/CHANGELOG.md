@@ -1,4 +1,16 @@
 
+# Version 0.7.1 built on 2023-08-01
+
+## Fixes
+
+ - Add exception for some BGZF files when decompressing when with an imported index.
+   Bug got introduced in 0.5.0 when adding additional seek points for one heuristically chosen large chunk.
+
+## Performance
+
+ - Avoid overallocations when decompressing BGZF files with an imported index: 3.5 GB/s -> 5.8 GB/s.
+
+
 # Version 0.7.0 built on 2023-06-04
 
  - Rename pragzip to rapidgzip. See the About section in the Readme for some background.
