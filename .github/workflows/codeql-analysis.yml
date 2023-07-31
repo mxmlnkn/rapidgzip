@@ -2,16 +2,12 @@ name: "CodeQL"
 
 on:
   push:
-    branches: [ "master", "code-scanning" ]
+    branches: [ "code-scanning" ]
   pull_request:
     # The branches below must be a subset of the branches above
-    branches: [ "master", "code-scanning" ]
+    branches: [ "code-scanning" ]
     paths:
     - "**/*pp"
-  schedule:
-    # Cron: minute (0-59), hour (0-23), day of month (1-31), month (1-12), day of the week (Sunday to Saturday, 0-6)
-    # Run once per month
-    - cron: '32 9 13 * *'
 
 jobs:
   analyze:
