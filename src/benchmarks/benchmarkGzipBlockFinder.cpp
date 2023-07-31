@@ -1719,7 +1719,7 @@ void
 createRandomBase64( const std::string& filePath,
                     const size_t       fileSize )
 {
-    constexpr std::string_view BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01234567890+/";
+    constexpr std::string_view BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     std::ofstream file{ filePath };
     for ( size_t i = 0; i < fileSize; ++i ) {
         file << ( ( i + 1 == fileSize ) || ( ( i + 1 ) % 77 == 0 )

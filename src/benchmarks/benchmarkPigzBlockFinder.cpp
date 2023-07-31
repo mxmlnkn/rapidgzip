@@ -383,7 +383,7 @@ createRandomBase64( const std::string& filePath,
     base64.push_back( '+' );
     base64.push_back( '/' );
 #else
-    constexpr std::string_view BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01234567890+/";
+    constexpr std::string_view BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 #endif
 
     std::ofstream file{ filePath };

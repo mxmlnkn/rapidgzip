@@ -17,7 +17,7 @@
 createRandomBase64( const size_t size )
 {
     std::vector<char> result( size );
-    constexpr std::string_view BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01234567890+/";
+    constexpr std::string_view BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     for ( size_t i = 0; i < size; ++i ) {
         result[i] = ( ( i + 1 == size ) || ( ( i + 1 ) % 77 == 0 )
                       ? '\n' : BASE64[static_cast<size_t>( rand() ) % BASE64.size()] );
