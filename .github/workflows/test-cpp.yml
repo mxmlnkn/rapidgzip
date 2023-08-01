@@ -88,6 +88,27 @@ jobs:
             exit 1
         fi
 
+  Check:
+    name: Check without Sanitizer
+    # And especially without -DSHORT_TESTS, which makes it non redundant to the sanitizer checks!
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get -y install g++ ninja-build gzip tabix pigz libarchive-dev zlib1g-dev isal
+        python3 -m pip install --upgrade pip
+        python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
+
+    - name: Run Tests With Sanitizers
+      run: |
+        mkdir -p "build" && cd -- "$_"
+        CXX=g++ CC=gcc cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug ..
+        cmake --build . -- check
+
   Asan:
     name: ASan
     runs-on: ubuntu-22.04
@@ -107,7 +128,7 @@ jobs:
         for sanitized in address; do
         (
             mkdir -p "build-sanitized-$sanitized" && cd -- "$_"
-            CXX=clang++ CC=clang cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=$sanitized" ..
+            CXX=clang++ CC=clang cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=$sanitized -DSHORT_TESTS" ..
             cmake --build . -- check
         )
         done
@@ -131,7 +152,7 @@ jobs:
         for sanitized in undefined; do
         (
             mkdir -p "build-sanitized-$sanitized" && cd -- "$_"
-            CXX=clang++ CC=clang cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=$sanitized" ..
+            CXX=clang++ CC=clang cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=$sanitized -DSHORT_TESTS" ..
             cmake --build . -- check
         )
         done
@@ -146,7 +167,7 @@ jobs:
 
     - name: Install Dependencies
       run: |
-        sudo apt-get -y install clang g++ ninja-build gzip tabix pigz libarchive-dev zlib1g-dev isal
+        sudo apt-get -y install clang ninja-build gzip tabix pigz libarchive-dev zlib1g-dev isal
         python3 -m pip install --upgrade pip
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
 
@@ -155,7 +176,7 @@ jobs:
         for sanitized in safe-stack; do
         (
             mkdir -p "build-sanitized-$sanitized" && cd -- "$_"
-            CXX=clang++ CC=clang cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=$sanitized" ..
+            CXX=clang++ CC=clang cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=$sanitized -DSHORT_TESTS" ..
             cmake --build . -- check
         )
         done
@@ -200,7 +221,7 @@ jobs:
         fi
         export CC CXX
         #
-        cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=$sanitized" ..
+        cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=$sanitized -DSHORT_TESTS" ..
         cmake --build . -- check
 
   Code-Checks:
@@ -213,7 +234,7 @@ jobs:
 
     - name: Install Dependencies
       run: |
-        sudo apt-get -y install g++ ninja-build wget
+        sudo apt-get -y install ninja-build wget
         # Install infer
         VERSION=1.1.0
         wget -q -O- "https://github.com/facebook/infer/releases/download/v$VERSION/infer-linux64-v$VERSION.tar.xz" | tar -xJ

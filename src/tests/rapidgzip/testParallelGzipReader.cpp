@@ -396,6 +396,7 @@ testWithLargeFiles( const TemporaryDirectory& tmpFolder )
     filePaths.emplace_back( std::filesystem::absolute( tmpFolder.path() / "random-base64" ).string() );
     createRandomBase64( filePaths.back(), 8_Mi );
 
+#ifndef SHORT_TESTS
     filePaths.emplace_back( std::filesystem::absolute( tmpFolder.path() / "random-numbers" ).string() );
     createRandomNumbers( filePaths.back(), 32_Mi );
 
@@ -412,6 +413,7 @@ testWithLargeFiles( const TemporaryDirectory& tmpFolder )
      * > Decoding failed with error code -3 invalid distance too far back! Already decoded 0 B. */
     filePaths.emplace_back( std::filesystem::absolute( tmpFolder.path() / "random-words" ).string() );
     createRandomWords( filePaths.back(), 32_Mi );
+#endif
 
     try {
         for ( const auto& [name, getVersion, command, extension] : TEST_ENCODERS ) {
