@@ -68,20 +68,64 @@ jobs:
     - name: Install Dependencies
       run: |
         python3 -m pip install --upgrade pip
-        python3 -m pip install --upgrade-strategy eager --upgrade cython twine cibuildwheel build
+        python3 -m pip install --upgrade-strategy eager --upgrade cython twine cibuildwheel build requests
+
+    - name: Install NASM (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        python3 .github/workflows/install-python-on-windows.py
+        echo "${PWD}/nasm" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
     - name: Build Tarball
       working-directory: python/rapidgzip
       run: python3 -m build --sdist
 
-    - name: Build Wheels
+    - name: Build Musllinux Wheels
+      if: matrix.os == 'ubuntu-latest'
       env:
+        # The Musllinux containers are based on Alpine and therefore
+        # "apk add" needs to be used instead of "yum install".
+        # https://cibuildwheel.readthedocs.io/en/stable/options/
         CIBW_ARCHS: ${{ matrix.archs }}
         CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux-image }}
+        CIBW_BEFORE_ALL_LINUX: "uname -a; apk add nasm"
+        CIBW_BUILD_VERBOSITY: 2
+        CIBW_BUILD: "*musllinux*"
+
+      run: python -m cibuildwheel --output-dir dist python/rapidgzip
+
+    - name: Build CPython Wheels
+      env:
+        # https://cibuildwheel.readthedocs.io/en/stable/options/
+        CIBW_ARCHS: ${{ matrix.archs }}
+        CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux-image }}
+        CIBW_BEFORE_ALL_LINUX: "uname -a; yum install -y nasm"
+        CIBW_BEFORE_ALL_MACOS: |
+          brew install nasm;
+          export PATH="$PATH:/usr/local/bin"
+        CIBW_BUILD_VERBOSITY: 2
+        CIBW_SKIP: "*musllinux*"
+
       run: python -m cibuildwheel --output-dir dist python/rapidgzip
 
     - name: Check Wheels
       run: twine check dist/* python/rapidgzip/dist/*
+
+    - name: Test Wheel
+      if: matrix.os == 'ubuntu-latest' && matrix.archs == 'auto64'
+      run: |
+        PYTHON_VERSION=$( python3 --version | sed -nr 's|.* (3)[.]([0-9]+)[.].*|\1\2|p' )
+        python -m pip install dist/*-cp${PYTHON_VERSION}-cp${PYTHON_VERSION}-manylinux*.whl
+        # Ensure that it is built with ISA-l
+        rapidgzip --oss-attributions | grep ISA-l
+
+    - name: Test Wheel (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: bash
+      run: |
+        python -m pip install dist/*-cp310-win_amd64.whl
+        # Ensure that it is built with ISA-l
+        rapidgzip --oss-attributions | grep ISA-l
     # ------ End Copy-Paste of wheels-rapidgzip.yml ------
 
     - name: Publish Tarball to PyPI

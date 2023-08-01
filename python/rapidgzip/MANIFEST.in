@@ -30,3 +30,10 @@ include external/zlib/zconf.h
 include external/zlib/zutil.c
 include external/zlib/zutil.h
 include external/zlib/zlib.h
+recursive-include external/isa-l *.h
+recursive-include external/isa-l *.c
+recursive-include external/isa-l *.asm
+include external/isa-l/LICENSE
+include nasm_extension/winnasmcompiler.py
+include nasm_extension/nasmcompiler.py
+include nasm_extension/LICENSE
