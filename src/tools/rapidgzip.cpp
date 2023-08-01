@@ -267,6 +267,9 @@ rapidgzipCLI( int argc, char** argv )
 
     if ( parsedArgs.count( "oss-attributions" ) > 0 ) {
         std::cout << licenses::CXXOPTS << "\n"
+        #ifdef WITH_ISAL
+                  << licenses::ISAL << "\n"
+        #endif
         #ifdef WITH_RPMALLOC
                   << licenses::RPMALLOC << "\n"
         #endif

@@ -26,7 +26,9 @@
 #include "deflate.hpp"
 #include "gzip.hpp"
 #include "GzipBlockFinder.hpp"
-#include "isal.hpp"
+#ifdef WITH_ISAL
+    #include "isal.hpp"
+#endif
 #include "WindowMap.hpp"
 #include "zlib.hpp"
 
@@ -515,8 +517,14 @@ public:
                  size_t                    const maxDecompressedChunkSize = std::numeric_limits<size_t>::max(),
                  bool                      const untilOffsetIsExact = false )
     {
+        #ifdef WITH_ISAL
+            using InflateWrapper = IsalInflateWrapper;
+        #else
+            using InflateWrapper = ZlibInflateWrapper;
+        #endif
+
         if ( initialWindow && ( ( decodedSize && ( *decodedSize > 0 ) ) || untilOffsetIsExact ) ) {
-            auto result = decodeBlockWithInflateWrapper<IsalInflateWrapper>(
+            auto result = decodeBlockWithInflateWrapper<InflateWrapper>(
                 originalBitReader,
                 blockOffset,
                 std::min( untilOffset, originalBitReader.size() ),

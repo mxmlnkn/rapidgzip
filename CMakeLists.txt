@@ -7,6 +7,7 @@ project("Indexed BZip2/Gzip Decoder" CXX)
 option(CODE_COVERAGE "Enable coverage reporting" OFF)
 option(USE_SYSTEM_ZLIB "Use the system-installed zlib library instead of compiling it from source" OFF)
 option(WITH_RPMALLOC "Compile with rpmalloc for faster memory allocations" ON)
+option(WITH_ISAL "Compile with ISA-l for more than twice as fast decompression than zlib" ON)
 
 
 if(NOT CMAKE_BUILD_TYPE)
