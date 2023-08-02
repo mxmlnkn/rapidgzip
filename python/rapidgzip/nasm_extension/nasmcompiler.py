@@ -4,6 +4,7 @@ Distutils doesn't support nasm, so this is a custom compiler for NASM
 
 from distutils.unixccompiler import UnixCCompiler
 from distutils.sysconfig import get_config_var
+import platform
 import sys
 
 
@@ -38,8 +39,9 @@ class NasmCompiler(UnixCCompiler) :
             # Fix the symbols on macOS
             cc_args = pp_opts + ["-f macho64","-DNOPIE","--prefix=_"]
         else:
-            # Use 64-bit elf format for Linux
-            cc_args = pp_opts + ["-f elf64"]
+            # Use ELF format for Linux. Else, we would get this error:
+            #   error: binary format does not support any special symbol types
+            cc_args = pp_opts + ["-f elf64" if platform.machine().endswith('64') else "-f elf32"]
         if debug:
             # Debug symbols from NASM
             cc_args[:0] = ['-g']
