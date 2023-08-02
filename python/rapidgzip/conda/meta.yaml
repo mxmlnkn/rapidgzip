@@ -1,0 +1,38 @@
+{% set data = load_setup_py_data() %}
+
+package:
+  name: rapidgzip
+  version: {{ data.get('version') }}
+
+# 'git_url' has the problem that I cannot specify a subfolder for the setup.py.
+# 'path' fails to work because the relative symlinks in python/rapidgzip are copied as is rendering them unusable.
+# The created sdist tar correctly dereferences all symbolic links and therefore works but we need to rename the
+# <package>-<major>-<minor>-<patch>.tar.gz to src.tar in order to avoid having to edit this file on each version change.
+source:
+  url: src.tar
+
+build:
+  number: 0
+
+requirements:
+  build:
+    - setuptools
+    - cython
+    - {{ compiler('cxx') }}
+    - nasm
+  host:
+    - python {{ python }}
+    - cython
+
+about:
+  home: {{ data.get('url') }}
+  license: {{ data.get('license') }}
+  license_family: MIT
+  license_file:
+   - LICENSE-APACHE
+   - LICENSE-MIT
+  summary: {{ data.get('description') }}
+
+extra:
+  recipe-maintainers:
+    - mxmlnkn

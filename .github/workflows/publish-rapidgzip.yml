@@ -176,19 +176,21 @@ jobs:
         EOF
 
     - name: Build Conda Packages
-      # TODO copy and custom fit the conda folder into python/rapidgzip. Currently, it will upload to indexed_bzip2!
+      # Windows yields: fatal error C1001: An internal error has occurred in the compiler.
+      #                 (compiler file 'msc1.cpp', line 1518)
+      # This happens on the line: static constexpr FixedHuffmanCoding m_fixedHC = createFixedHC();
+      # This is understandable because it is the most complex code but the wheels do build just fine though.
+      if: matrix.os != 'windows-latest'
       # Bash shells do not use ~/.profile or ~/.bashrc so these shells need to be explicitely declared as shell:
       # bash -l {0} on steps that need to be properly activated
       shell: bash -l {0}
       env:
         ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
       run: |
-        # Circumvent bug introduced in https://github.com/conda/conda/pull/11364#issuecomment-1139184379
-        # https://github.com/conda/conda-build/issues/4509
-        conda install conda=4.12.0 conda-build anaconda-client conda-verify packaging
+        conda install conda conda-build anaconda-client conda-verify packaging
         conda config --set anaconda_upload yes
-        cd conda  # TODO copy and custom fit the conda folder into python/rapidgzip
+        cd python/rapidgzip/conda
         python3 -m pip install --user build
-        python3 -m build -o . --sdist ../python/rapidgzip
+        python3 -m build -o . --sdist ..
         mv rapidgzip-*.tar* src.tar
         conda build --token "$ANACONDA_TOKEN" .

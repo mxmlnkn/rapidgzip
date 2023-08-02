@@ -10,7 +10,11 @@ jobs:
 
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
+        # Building on MacOS fails for some reason with:
+        # ld: unsupported tapi file type '!tapi-tbd' in YAML file '/Applications/Xcode_14.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib/libSystem.tbd' for architecture x86_64
+        # The only real difference to indexed_bzip2 is the NASM build requirement, so that might be the problem?
+        # Disabling ISA-l does not help. It might be an issue with zlib then?
+        os: [ubuntu-latest, windows-latest]
 
     env:
       MACOSX_DEPLOYMENT_TARGET: "10.14"
@@ -37,7 +41,6 @@ jobs:
         EOF
 
     - name: Build Conda Packages
-      # TODO copy and custom fit the conda folder into python/rapidgzip. Currently, it will upload to indexed_bzip2!
       # Windows yields: fatal error C1001: An internal error has occurred in the compiler.
       #                 (compiler file 'msc1.cpp', line 1518)
       # This happens on the line: static constexpr FixedHuffmanCoding m_fixedHC = createFixedHC();
@@ -51,8 +54,8 @@ jobs:
       run: |
         conda install conda conda-build anaconda-client conda-verify packaging
         conda config --set anaconda_upload no
-        cd conda  # TODO copy and custom fit the conda folder into python/rapidgzip
+        cd python/rapidgzip/conda
         python3 -m pip install --user build
-        python3 -m build -o . --sdist ../python/rapidgzip
+        python3 -m build -o . --sdist ..
         mv rapidgzip-*.tar* src.tar
         conda build --token "$ANACONDA_TOKEN" .
