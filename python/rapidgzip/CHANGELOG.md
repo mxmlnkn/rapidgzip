@@ -1,4 +1,15 @@
 
+# Version 0.8.0 built on 2023-08-04
+
+## Performance
+
+ - Use ISA-l instead of zlib when decompressing with an existing index: 5.5 GB/s -> 8.0 GB/s.
+   Probably even better speedups depending on the file and number of available cores.
+   In single-threaded benchmarks, ISA-l often outperformed zlib by factor 2 to 3.
+ - Use ISA-l for BGZF files (.bgz) even when an index is not available: 3.5 GB/s -> 8.0 GB/s.
+   This obviates the need for indexes for BGZF files.
+
+
 # Version 0.7.1 built on 2023-08-01
 
 ## Fixes
