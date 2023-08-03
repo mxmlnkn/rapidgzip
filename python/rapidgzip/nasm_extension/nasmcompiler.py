@@ -49,6 +49,16 @@ class NasmCompiler(UnixCCompiler) :
             cc_args[:0] = before
         return cc_args
 
+
+    def _compile(self, obj, src, ext, cc_args, extra_postargs, pp_opts):
+        # The implementation in UnixCCompiler calls compiler_fixup here.
+        # But it is not needed for NASM and actually leads to build errors on MacOS
+        # because it adds a non-NASM option "-arch ...".
+        try:
+            self.spawn(self.compiler_so + cc_args + [src, '-o', obj] + extra_postargs)
+        except DistutilsExecError as msg:
+            raise CompileError(msg)
+
     def link(self, target_desc, objects,
              output_filename, output_dir=None, libraries=None,
              library_dirs=None, runtime_library_dirs=None,
