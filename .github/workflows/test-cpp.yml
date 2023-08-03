@@ -17,7 +17,7 @@ jobs:
 
     - name: Install Dependencies
       run: |
-        sudo apt-get -y install bzip2 cppcheck clang clang-tidy g++ lcov ninja-build wget gzip tabix pigz libarchive-dev zlib1g-dev isal
+        sudo apt-get -y install bzip2 cppcheck clang clang-tidy g++ lcov ninja-build wget gzip tabix pigz libarchive-dev zlib1g-dev isal nasm
         python3 -m pip install --upgrade pip
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
 
@@ -74,7 +74,7 @@ jobs:
 
     - name: Install Dependencies
       run: |
-        sudo apt-get -y install clang clang-tidy ninja-build libarchive-dev zlib1g-dev
+        sudo apt-get -y install clang clang-tidy ninja-build libarchive-dev zlib1g-dev nasm
 
     - name: Run clang-tidy
       run: |
@@ -99,7 +99,7 @@ jobs:
 
     - name: Install Dependencies
       run: |
-        sudo apt-get -y install g++ ninja-build gzip tabix pigz libarchive-dev zlib1g-dev isal
+        sudo apt-get -y install g++ ninja-build gzip tabix pigz libarchive-dev zlib1g-dev isal nasm
         python3 -m pip install --upgrade pip
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
 
@@ -119,7 +119,7 @@ jobs:
 
     - name: Install Dependencies
       run: |
-        sudo apt-get -y install clang g++ ninja-build gzip tabix pigz libarchive-dev zlib1g-dev isal
+        sudo apt-get -y install clang g++ ninja-build gzip tabix pigz libarchive-dev zlib1g-dev isal nasm
         python3 -m pip install --upgrade pip
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
 
@@ -143,7 +143,7 @@ jobs:
 
     - name: Install Dependencies
       run: |
-        sudo apt-get -y install clang g++ ninja-build gzip tabix pigz libarchive-dev zlib1g-dev isal
+        sudo apt-get -y install clang g++ ninja-build gzip tabix pigz libarchive-dev zlib1g-dev isal nasm
         python3 -m pip install --upgrade pip
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
 
@@ -167,7 +167,7 @@ jobs:
 
     - name: Install Dependencies
       run: |
-        sudo apt-get -y install clang ninja-build gzip tabix pigz libarchive-dev zlib1g-dev isal
+        sudo apt-get -y install clang ninja-build gzip tabix pigz libarchive-dev zlib1g-dev isal nasm
         python3 -m pip install --upgrade pip
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
 
@@ -191,7 +191,7 @@ jobs:
 
     - name: Install Dependencies
       run: |
-        sudo apt-get -y install clang g++ ninja-build gzip tabix pigz libarchive-dev zlib1g-dev isal
+        sudo apt-get -y install clang g++ ninja-build gzip tabix pigz libarchive-dev zlib1g-dev isal nasm
         python3 -m pip install --upgrade pip
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
 
@@ -234,7 +234,7 @@ jobs:
 
     - name: Install Dependencies
       run: |
-        sudo apt-get -y install ninja-build wget
+        sudo apt-get -y install ninja-build wget nasm
         # Install infer
         VERSION=1.1.0
         wget -q -O- "https://github.com/facebook/infer/releases/download/v$VERSION/infer-linux64-v$VERSION.tar.xz" | tar -xJ
@@ -256,7 +256,7 @@ jobs:
 
     - name: Install Dependencies
       run: |
-        sudo apt-get -y install bzip2 pbzip2 lbzip2 g++ ninja-build
+        sudo apt-get -y install bzip2 pbzip2 lbzip2 g++ ninja-build nasm
         python3 -m pip install --upgrade pip
         python3 -m pip install --upgrade-strategy eager --upgrade cython build
 

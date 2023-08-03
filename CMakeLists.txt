@@ -21,11 +21,11 @@ add_compile_options(
     # The default limit is ~33 M (1<<25) and 99 M seem to be enough currently to compile.
     "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-fconstexpr-ops-limit=99000100>"
     "$<$<COMPILE_LANG_AND_ID:CXX,Clang>:-fconstexpr-steps=99000100>"
-    "$<$<AND:$<CXX_COMPILER_ID:Clang,GNU>,$<BOOL:${CODE_COVERAGE}>>:-O0;-g;--coverage>"
+    "$<$<AND:$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>,$<BOOL:${CODE_COVERAGE}>>:-O0;-g;--coverage>"
 )
 
 add_link_options(
-    "$<$<AND:$<CXX_COMPILER_ID:Clang,GNU>,$<BOOL:${CODE_COVERAGE}>>:--coverage>"
+    "$<$<AND:$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>,$<BOOL:${CODE_COVERAGE}>>:--coverage>"
 )
 
 if(CODE_COVERAGE)
