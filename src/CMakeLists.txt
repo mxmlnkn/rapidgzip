@@ -78,3 +78,42 @@ if(NOT USE_SYSTEM_ZLIB)
     )
     set_target_properties(zlibstatic PROPERTIES LINKER_LANGUAGE C)
 endif()
+
+
+# ISA-l
+
+project(isal_inflate
+    LANGUAGES C CXX ASM_NASM
+)
+
+set(ISAL_HOME "${CMAKE_CURRENT_SOURCE_DIR}/external/isa-l")
+add_library(isal_inflate STATIC
+    ${ISAL_HOME}/include/igzip_lib.h
+    ${ISAL_HOME}/include/unaligned.h
+    ${ISAL_HOME}/include/reg_sizes.asm
+    ${ISAL_HOME}/include/multibinary.asm
+    ${ISAL_HOME}/igzip/igzip_inflate.c
+    ${ISAL_HOME}/igzip/igzip.c
+    ${ISAL_HOME}/igzip/hufftables_c.c
+    ${ISAL_HOME}/igzip/igzip_checksums.h
+    ${ISAL_HOME}/igzip/igzip_inflate_multibinary.asm
+    ${ISAL_HOME}/igzip/igzip_decode_block_stateless_01.asm
+    ${ISAL_HOME}/igzip/igzip_decode_block_stateless_04.asm
+    ${ISAL_HOME}/igzip/rfc1951_lookup.asm
+    ${ISAL_HOME}/igzip/igzip_wrapper.h
+    ${ISAL_HOME}/igzip/static_inflate.h
+    ${ISAL_HOME}/igzip/stdmac.asm
+)
+set_target_properties(isal_inflate PROPERTIES LANGUAGE "C ASM_NASM")
+target_include_directories(isal_inflate
+    PUBLIC
+        ${ISAL_HOME}/include
+    PRIVATE
+        ${ISAL_HOME}/igzip
+)
+
+
+add_executable(inflate
+    ${ISAL_HOME}/decompress.cpp
+)
+target_link_libraries(inflate PRIVATE isal_inflate)

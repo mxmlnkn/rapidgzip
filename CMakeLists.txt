@@ -6,6 +6,8 @@ project("Indexed BZip2/Gzip Decoder" CXX)
 
 option(CODE_COVERAGE "Enable coverage reporting" OFF)
 option(USE_SYSTEM_ZLIB "Use the system-installed zlib library instead of compiling it from source" OFF)
+option(WITH_RPMALLOC "Compile with rpmalloc for faster memory allocations" ON)
+option(WITH_ISAL "Compile with ISA-l for more than twice as fast decompression than zlib" ON)
 
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -13,17 +15,17 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 add_compile_options(
-    "$<$<CXX_COMPILER_ID:Clang>:-Wall;-Wextra;-Wshadow;-Werror=return-type;-Wno-unknown-attributes>"
-    "$<$<CXX_COMPILER_ID:GNU>:-Wall;-Wextra;-Wshadow;-Wunused;-Werror=return-type;-Wno-attributes>"
+    "$<$<OR:$<COMPILE_LANG_AND_ID:CXX,Clang>,$<COMPILE_LANG_AND_ID:C,Clang>>:-Wall;-Wextra;-Wshadow;-Werror=return-type;-Wno-unknown-attributes>"
+    "$<$<OR:$<COMPILE_LANG_AND_ID:CXX,GNU>,$<COMPILE_LANG_AND_ID:C,GNU>>:-Wall;-Wextra;-Wshadow;-Wunused;-Werror=return-type;-Wno-attributes>"
     "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-Wsuggest-override>"
     # The default limit is ~33 M (1<<25) and 99 M seem to be enough currently to compile.
     "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-fconstexpr-ops-limit=99000100>"
     "$<$<COMPILE_LANG_AND_ID:CXX,Clang>:-fconstexpr-steps=99000100>"
-    "$<$<AND:$<CXX_COMPILER_ID:Clang,GNU>,$<BOOL:${CODE_COVERAGE}>>:-O0;-g;--coverage>"
+    "$<$<AND:$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>,$<BOOL:${CODE_COVERAGE}>>:-O0;-g;--coverage>"
 )
 
 add_link_options(
-    "$<$<AND:$<CXX_COMPILER_ID:Clang,GNU>,$<BOOL:${CODE_COVERAGE}>>:--coverage>"
+    "$<$<AND:$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>,$<BOOL:${CODE_COVERAGE}>>:--coverage>"
 )
 
 if(CODE_COVERAGE)

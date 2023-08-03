@@ -153,10 +153,54 @@ testBlockSplit()
 }
 
 
+void
+testIsalBug()
+{
+    /**
+     * m rapidgzip && src/tools/rapidgzip --import-index test-files/silesia/20xsilesia.tar.bgz.gzi -d -o /dev/null test-files/silesia/20xsilesia.tar.bgz
+     * [2/2] Linking CXX executable src/tools/rapidgzip
+     *   Block offset: 4727960325
+     *   Until offset: 4731261455
+     *   encoded size: 3301130
+     *   decodedSize: 0
+     *   alreadyDecoded: 4171815
+     *   expected decodedSize: 4171816
+     *   m_stream.read_in_length. 8
+     * Caught exception: [ParallelGzipReader] Block does not contain the requested offset! Requested offset from
+     * chunk fetcher: 1 GiB 687 MiB 62 KiB 495 B, decoded offset: 1 GiB 683 MiB 84 KiB 456 B, block data encoded offset:
+     * 590995040 B 5 b, block data encoded size: 412641 B 2 b, block data size: 3 MiB 1002 KiB 39 B markers: 0
+     * a2a926d84b8edc8baf88e50e7f690ca0  -
+     */
+    const std::string filePath{ "test-files/silesia/20xsilesia.tar.bgz" };
+    const rapidgzip::BitReader bitReader(
+        std::make_unique<SharedFileReader>(
+            std::make_unique<StandardFileReader>( filePath ) ) );
+
+    using ChunkFetcher = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>;
+
+    std::atomic<bool> cancel{ false };
+    std::array<uint8_t, 32_Ki> window{};
+    const auto blockOffset = 4727960325ULL;
+    const auto untilOffset = 4731261455ULL;
+    const auto result = ChunkFetcher::decodeBlock(
+        bitReader,
+        blockOffset,
+        untilOffset,
+        /* window */ ChunkFetcher::WindowView( window.data(), window.size() ),
+        /* decodedSize */ 4171816,
+        cancel,
+        /* crc32Enabled */ false,
+        /* maxDecompressedChunkSize */ 4_Mi,
+        /* isBgzfFile */ true );
+}
+
+
 int
 main( int    argc,
       char** argv )
 {
+    //testIsalBug();
+
     if ( argc == 0 ) {
         std::cerr << "Expected at least the launch command as the first argument!\n";
         return 1;

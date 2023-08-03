@@ -10,3 +10,6 @@
 [submodule "src/external/cxxopts"]
 	path = src/external/cxxopts
 	url = https://github.com/jarro2783/cxxopts.git
+[submodule "src/external/isa-l"]
+	path = src/external/isa-l
+	url = https://github.com/mxmlnkn/isa-l

@@ -16,7 +16,8 @@
     #include <fcntl.h>
 #endif
 
-#include "common.hpp"   // unistd, S_ISFIFO, fstat, ...
+#include <common.hpp>   // unistd, S_ISFIFO, fstat, ...
+
 #include "FileReader.hpp"
 
 
@@ -140,7 +141,7 @@ public:
 
         if ( nBytesRead == 0 ) {
         #if 1
-            /* fread retuning 0 might traditionally be a valid case if the file position was after the last byte.
+            /* fread returning 0 might traditionally be a valid case if the file position was after the last byte.
              * EOF is only set after reading after the end not when the file position is at the end. */
             m_lastReadSuccessful = false;
             return 0;

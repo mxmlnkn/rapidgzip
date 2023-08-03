@@ -26,6 +26,9 @@
 #include "deflate.hpp"
 #include "gzip.hpp"
 #include "GzipBlockFinder.hpp"
+#ifdef WITH_ISAL
+    #include "isal.hpp"
+#endif
 #include "WindowMap.hpp"
 #include "zlib.hpp"
 
@@ -474,9 +477,25 @@ private:
          * of the correct ordering between BlockMap accesses and modifications (the BlockMap is still thread-safe). */
         const auto blockInfo = m_blockMap->getEncodedOffset( blockOffset );
         return decodeBlock( m_bitReader, blockOffset, nextBlockOffset,
-                            m_isBgzfFile ? std::make_optional( WindowView{} ) : m_windowMap->get( blockOffset ),
+                            /**
+                             * If we are a BGZF file and we have not imported an index, then we can assume the
+                             * window to be empty because we should only get offsets at gzip stream starts.
+                             * @note This is brittle in case of supporting partial imports of indexes, which would
+                             *       not finalize the block finder. Instead it might be better to create the index,
+                             *       including windows and decompressed sizes, by the BGZF "block finder" itself.
+                             *       It has all data necessary for it including the decompressed size in the gzip
+                             *       stream footer!
+                             * @note BGZF index offsets should only begin at gzip stream offsets because those
+                             *       do not require any window! However, even if this is implemented we cannot
+                             *       remove the check against imported indexes because we cannot be sure that the
+                             *       indexes were created by us and follow that scheme.
+                             */
+                            m_isBgzfFile && !m_blockFinder->finalized()
+                            ? std::make_optional( WindowView{} )
+                            : m_windowMap->get( blockOffset ),
                             blockInfo ? blockInfo->decodedSizeInBytes : std::optional<size_t>{},
-                            m_cancelThreads, m_crc32Enabled, m_maxDecompressedChunkSize );
+                            m_cancelThreads, m_crc32Enabled, m_maxDecompressedChunkSize,
+                            /* untilOffsetIsExact */ m_isBgzfFile );
     }
 
 public:
@@ -495,15 +514,41 @@ public:
                  std::optional<size_t>     const decodedSize,
                  std::atomic<bool>        const& cancelThreads,
                  bool                      const crc32Enabled = false,
-                 size_t                    const maxDecompressedChunkSize = std::numeric_limits<size_t>::max() )
+                 size_t                    const maxDecompressedChunkSize = std::numeric_limits<size_t>::max(),
+                 bool                      const untilOffsetIsExact = false )
     {
-        if ( initialWindow && decodedSize && ( *decodedSize > 0 ) ) {
-            return decodeBlockWithZlib( originalBitReader,
-                                        blockOffset,
-                                        std::min( untilOffset, originalBitReader.size() ),
-                                        *initialWindow,
-                                        *decodedSize,
-                                        crc32Enabled );
+        #ifdef WITH_ISAL
+            using InflateWrapper = IsalInflateWrapper;
+        #else
+            using InflateWrapper = ZlibInflateWrapper;
+        #endif
+
+        if ( initialWindow && ( ( decodedSize && ( *decodedSize > 0 ) ) || untilOffsetIsExact ) ) {
+            auto result = decodeBlockWithInflateWrapper<InflateWrapper>(
+                originalBitReader,
+                blockOffset,
+                std::min( untilOffset, originalBitReader.size() ),
+                *initialWindow,
+                decodedSize,
+                crc32Enabled,
+                untilOffsetIsExact );
+
+            if ( decodedSize && ( result.decodedSizeInBytes != *decodedSize ) ) {
+                std::stringstream message;
+                message << "Decoded chunk size does not match the requested decoded size!\n"
+                        << "  Block offset          : " << blockOffset << "\n"
+                        << "  Until offset          : " << untilOffset << "\n"
+                        << "  Encoded size          : " << ( untilOffset - blockOffset ) << "\n"
+                        << "  Decoded size          : " << result.decodedSizeInBytes << "\n"
+                        << "  Expected decoded size : " << *decodedSize << "\n"
+                        << "  Until offset is exact : " << untilOffsetIsExact << "\n"
+                        << "  Initial Window        : " << ( initialWindow
+                                                             ? std::to_string( initialWindow->size() )
+                                                             : std::string( "None" ) ) << "\n";
+                throw std::runtime_error( std::move( message ).str() );
+            }
+
+            return result;
         }
 
         BitReader bitReader( originalBitReader );
@@ -651,17 +696,21 @@ public:
     }
 
 private:
+    template<typename InflateWrapper>
     [[nodiscard]] static ChunkData
-    decodeBlockWithZlib( const BitReader& originalBitReader,
-                         size_t           blockOffset,
-                         size_t           untilOffset,
-                         WindowView       initialWindow,
-                         size_t           decodedSize,
-                         bool             crc32Enabled )
+    decodeBlockWithInflateWrapper( const BitReader&            originalBitReader,
+                                   size_t                const blockOffset,
+                                   size_t                const untilOffset,
+                                   WindowView            const initialWindow,
+                                   /** @todo get rid of this and use untilOffsetIsExact instead */
+                                   std::optional<size_t> const decodedSize,
+                                   bool                  const crc32Enabled,
+                                   bool                  const untilOffsetIsExact )
     {
         BitReader bitReader( originalBitReader );
         bitReader.seek( blockOffset );
-        ZlibDeflateWrapper deflateWrapper( std::move( bitReader ) );
+        InflateWrapper deflateWrapper( std::move( bitReader ),
+                                       untilOffsetIsExact ? untilOffset : std::numeric_limits<size_t>::max() );
         deflateWrapper.setWindow( initialWindow );
 
         ChunkData result;
@@ -697,20 +746,41 @@ private:
          * large and as long as the allocation chunk size is much smaller than the decompressed data chunk size.
          * 1 MiB seems like the natural choice because the optimum (compressed) chunk size is around 4 MiB
          * and it would also be exactly one hugepage if support for that would ever be added.
+         * Beware that each chunk is only as large as one gzip stream. And bgzip creates gzip streams that are only
+         * ~64 KiB each! Therefore, when decoding bgzip while importing the index, we need to account for this here
+         * and avoid frequent overallocations and resizes, which slow down the program immensely!
+         *
+         * Test with:
+         *     m rapidgzip && src/tools/rapidgzip -o /dev/null -d \
+         *       --import-index silesia-32x.tar.bgzip.gzi silesia-32x.tar.bgzip
+         *
+         * ALLOCATION_CHUNK_SIZE  Bandwidth
+         *        32  KiB         2.4 GB/s
+         *        64  KiB         2.5 GB/s
+         *        128 KiB         2.5 GB/s
+         *        256 KiB         2.4 GB/s
+         *        512 KiB         1.5 GB/s
+         *        1   MiB         370 MB/s
          */
-        constexpr size_t ALLOCATION_CHUNK_SIZE = 1_Mi;
-        for ( size_t alreadyDecoded = 0; alreadyDecoded < decodedSize; ) {
-            deflate::DecodedVector subchunk( std::min( ALLOCATION_CHUNK_SIZE, decodedSize - alreadyDecoded ) );
+        constexpr size_t ALLOCATION_CHUNK_SIZE = 128_Ki;
+        size_t alreadyDecoded{ 0 };
+        while( !decodedSize.has_value() || ( alreadyDecoded < *decodedSize ) ) {
+            deflate::DecodedVector subchunk( decodedSize
+                                             ? std::min( ALLOCATION_CHUNK_SIZE, *decodedSize - alreadyDecoded )
+                                             : ALLOCATION_CHUNK_SIZE );
             std::optional<gzip::Footer> footer;
 
-            /* In order for CRC32 verification to work, we have append at most one gzip stream per subchunk
+            /* In order for CRC32 verification to work, we have to append at most one gzip stream per subchunk
              * because the CRC32 calculator is swapped inside ChunkData::append. */
             size_t nBytesRead = 0;
             size_t nBytesReadPerCall{ 0 };
             for ( ; ( nBytesRead < subchunk.size() ) && !footer; nBytesRead += nBytesReadPerCall ) {
                 std::tie( nBytesReadPerCall, footer ) = deflateWrapper.readStream( subchunk.data() + nBytesRead,
                                                                                    subchunk.size() - nBytesRead );
-                if ( nBytesReadPerCall == 0 ) {
+                if ( ( nBytesReadPerCall == 0 ) && !footer ) {
+                    if ( untilOffsetIsExact ) {
+                        break;
+                    }
                     throw std::runtime_error( "Could not decode as much as requested!" );
                 }
             }
@@ -723,12 +793,16 @@ private:
             if ( footer ) {
                 result.appendFooter( deflateWrapper.tellEncoded(), alreadyDecoded, *footer );
             }
+
+            if ( ( nBytesReadPerCall == 0 ) && !footer && untilOffsetIsExact ) {
+                break;
+            }
         }
 
         uint8_t dummy{ 0 };
         const auto [nBytesReadPerCall, footer] = deflateWrapper.readStream( &dummy, 1 );
         if ( ( nBytesReadPerCall == 0 ) && footer ) {
-            result.appendFooter( deflateWrapper.tellEncoded(), decodedSize, *footer );
+            result.appendFooter( deflateWrapper.tellEncoded(), alreadyDecoded, *footer );
         }
 
         /* We cannot arbitarily use bitReader.tell here, because the zlib wrapper buffers input read from BitReader.
@@ -748,7 +822,7 @@ private:
             throw std::invalid_argument( "BitReader must be non-null!" );
         }
 
-        const auto blockOffset = bitReader->tell();
+        const auto chunkOffset = bitReader->tell();
 
         /* If true, then read the gzip header. We cannot simply check the gzipHeader optional because we might
          * start reading in the middle of a gzip stream and will not meet the gzip header for a while or never. */
@@ -804,7 +878,7 @@ private:
 
             if ( auto error = block->readHeader( *bitReader ); error != Error::NONE ) {
                 std::stringstream message;
-                message << "Failed to read deflate block header at offset " << formatBits( blockOffset )
+                message << "Failed to read deflate block header at offset " << formatBits( chunkOffset )
                         << " (position after trying: " << formatBits( bitReader->tell() ) << ": "
                         << toString( error );
                 throw std::domain_error( std::move( message ).str() );
@@ -838,7 +912,7 @@ private:
                 const auto [bufferViews, error] = block->read( *bitReader, std::numeric_limits<size_t>::max() );
                 if ( error != Error::NONE ) {
                     std::stringstream message;
-                    message << "Failed to decode deflate block at " << formatBits( blockOffset )
+                    message << "Failed to decode deflate block at " << formatBits( chunkOffset )
                             << " because of: " << toString( error );
                     throw std::domain_error( std::move( message ).str() );
                 }

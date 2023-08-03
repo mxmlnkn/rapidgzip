@@ -228,7 +228,10 @@ If you have suggestions and wishes like support with CMake or Conan, please open
 
 # Citation
 
-A paper describing the implementation details and showing the scaling behavior with up to 128 cores has been submitted to and [accepted](https://www.hpdc.org/2023/program/technical-sessions/) in [ACM HPDC'23](https://www.hpdc.org/2023/), The 32nd International Symposium on High-Performance Parallel and Distributed Computing. If you use this software for your scientific publication, please cite it as:
+A paper describing the implementation details and showing the scaling behavior with up to 128 cores has been submitted to and [accepted](https://www.hpdc.org/2023/program/technical-sessions/) in [ACM HPDC'23](https://www.hpdc.org/2023/), The 32nd International Symposium on High-Performance Parallel and Distributed Computing.
+The author's version can be found [here](<results/paper/Knespel, Brunst - 2023 - Rapidgzip - Parallel Decompression and Seeking in Gzip Files Using Cache Prefetching.pdf>) and the accompanying presentation [here](results/Presentation-2023-06-22.pdf).
+
+If you use this software for your scientific publication, please cite it as:
 
 This is preliminiary. The final citation will become available end of June 2023.
 

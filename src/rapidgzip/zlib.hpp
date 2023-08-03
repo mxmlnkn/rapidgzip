@@ -89,12 +89,14 @@ compressWithZlib( const std::vector<std::byte>& toCompress,
  *  - work on BitReader as input
  *  - start at deflate block offset as opposed to gzip start
  */
-class ZlibDeflateWrapper
+class ZlibInflateWrapper
 {
 public:
     explicit
-    ZlibDeflateWrapper( BitReader bitReader ) :
-        m_bitReader( std::move( bitReader ) )
+    ZlibInflateWrapper( BitReader    bitReader,
+                        const size_t untilOffset = std::numeric_limits<size_t>::max() ) :
+        m_bitReader( std::move( bitReader ) ),
+        m_encodedUntilOffset( std::min( m_bitReader.size(), untilOffset ) )
     {
         initStream();
         /* 2^15 = 32 KiB window buffer and minus signaling raw deflate stream to decode.
@@ -108,7 +110,7 @@ public:
         }
     }
 
-    ~ZlibDeflateWrapper()
+    ~ZlibInflateWrapper()
     {
         inflateEnd( &m_stream );
     }
@@ -135,20 +137,28 @@ public:
     void
     refillBuffer()
     {
-        if ( m_stream.avail_in > 0 ) {
+        if ( ( m_stream.avail_in > 0 ) || ( m_bitReader.tell() >= m_encodedUntilOffset ) ) {
             return;
         }
 
         if ( m_bitReader.tell() % BYTE_SIZE != 0 ) {
+            /* This might be called at the very first refillBuffer call when it does not start on a byte-boundary. */
             const auto nBitsToPrime = BYTE_SIZE - ( m_bitReader.tell() % BYTE_SIZE );
             if ( inflatePrime( &m_stream, nBitsToPrime, m_bitReader.read( nBitsToPrime ) ) != Z_OK ) {
                 throw std::runtime_error( "InflatePrime failed!" );
             }
             assert( m_bitReader.tell() % BYTE_SIZE == 0 );
+        } else if ( const auto remainingBits = m_encodedUntilOffset - m_bitReader.tell(); remainingBits < BYTE_SIZE ) {
+            /* This might be called at the very last refillBuffer call, when it does not end on a byte-boundary. */
+            if ( inflatePrime( &m_stream, remainingBits, m_bitReader.read( remainingBits ) ) != Z_OK ) {
+                throw std::runtime_error( "InflatePrime failed!" );
+            }
+            return;
         }
 
+        /* This reads byte-wise from BitReader. */
         m_stream.avail_in = m_bitReader.read(
-            m_buffer.data(), std::min( ( m_bitReader.size() - m_bitReader.tell() ) / BYTE_SIZE, m_buffer.size() ) );
+            m_buffer.data(), std::min( ( m_encodedUntilOffset - m_bitReader.tell() ) / BYTE_SIZE, m_buffer.size() ) );
         m_stream.next_in = reinterpret_cast<unsigned char*>( m_buffer.data() );
     }
 
@@ -196,12 +206,14 @@ public:
             if ( errorCode == Z_STREAM_END ) {
                 decodedSize += m_stream.total_out;
 
-                /* If we started with raw deflate, then we also have to skip other the gzip footer.
+                /* If we started with raw deflate, then we also have to skip over the gzip footer.
                  * Assuming we are decoding gzip and not zlib or multiple raw deflate streams. */
                 std::optional<gzip::Footer> footer;
                 if ( m_windowFlags < 0 ) {
                     footer = readGzipFooter();
-                    readGzipHeader();
+                    if ( footer ) {
+                        readGzipHeader();
+                    }
                 }
 
                 m_stream.next_out = output + decodedSize;
@@ -224,7 +236,7 @@ private:
     /**
      * Only works on and modifies m_stream.avail_in and m_stream.next_in.
      */
-    gzip::Footer
+    std::optional<gzip::Footer>
     readGzipFooter()
     {
         gzip::Footer footer{ 0, 0 };
@@ -247,6 +259,9 @@ private:
                 stillToRemove -= m_stream.avail_in;
                 m_stream.avail_in = 0;
                 refillBuffer();
+                if ( m_stream.avail_in == 0 ) {
+                    return std::nullopt;
+                }
             }
         }
 
@@ -309,6 +324,8 @@ private:
 
 private:
     BitReader m_bitReader;
+    const size_t m_encodedUntilOffset;
+
     int m_windowFlags{ 0 };
     z_stream m_stream{};
     /* Loading the whole encoded data (multiple MiB) into memory first and then

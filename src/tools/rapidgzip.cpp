@@ -261,12 +261,15 @@ rapidgzipCLI( int argc, char** argv )
 
     if ( parsedArgs.count( "version" ) > 0 ) {
         std::cout << "rapidgzip, CLI to the parallelized, indexed, and seekable gzip decoding library rapidgzip "
-                  << "version 0.7.0.\n";
+                  << "version 0.8.0.\n";
         return 0;
     }
 
     if ( parsedArgs.count( "oss-attributions" ) > 0 ) {
         std::cout << licenses::CXXOPTS << "\n"
+        #ifdef WITH_ISAL
+                  << licenses::ISAL << "\n"
+        #endif
         #ifdef WITH_RPMALLOC
                   << licenses::RPMALLOC << "\n"
         #endif
