@@ -178,9 +178,9 @@ private:
         m_stream.read_in_length -= remainingBits;
 
         constexpr auto FOOTER_SIZE = 8U;
-        std::array<std::byte, FOOTER_SIZE> footerBuffer;
-        size_t footerSize{ 0 };
+        std::array<std::byte, FOOTER_SIZE> footerBuffer{};
         for ( auto stillToRemove = FOOTER_SIZE; stillToRemove > 0; ) {
+            const auto footerSize = FOOTER_SIZE - stillToRemove;
             if ( m_stream.read_in_length > 0 ) {
                 /* This should be ensured by making read_in_length % BYTE_SIZE == 0 prior. */
                 assert( m_stream.read_in_length >= BYTE_SIZE );
@@ -191,15 +191,11 @@ private:
                 --stillToRemove;
             } else if ( m_stream.avail_in >= stillToRemove ) {
                 std::memcpy( footerBuffer.data() + footerSize, m_stream.next_in, stillToRemove );
-                footerSize += stillToRemove;
-
                 m_stream.avail_in -= stillToRemove;
                 m_stream.next_in += stillToRemove;
                 stillToRemove = 0;
             } else {
                 std::memcpy( footerBuffer.data() + footerSize, m_stream.next_in, m_stream.avail_in );
-                footerSize += m_stream.avail_in;
-
                 stillToRemove -= m_stream.avail_in;
                 m_stream.avail_in = 0;
                 refillBuffer();
