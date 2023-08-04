@@ -4,7 +4,7 @@ import sys
 import time
 
 import indexed_gzip
-import pragzip
+import rapidgzip
 
 
 gzipFilePath = sys.argv[1]
@@ -32,12 +32,12 @@ if not os.path.exists(gzipFilePath + ".index"):
         file.export_index(gzipFilePath + ".index")
 
 
-# Benchmark decompression with pragzip with and without index
+# Benchmark decompression with rapidgzip with and without index
 # parallelization = 0 means that it is automatically using all available cores.
 for withIndex in [True, False]:
-    print(f"\n== Benchmark decompression with pragzip {'with' if withIndex else 'without'} an existing index ==\n")
+    print(f"\n== Benchmark decompression with rapidgzip {'with' if withIndex else 'without'} an existing index ==\n")
     for parallelization in [0, 1, 2, 6, 12, 24, 32]:
-        with pragzip.PragzipFile(gzipFilePath, parallelization = parallelization) as file:
+        with rapidgzip.RapidgzipFile(gzipFilePath, parallelization = parallelization) as file:
             if withIndex:
                 file.import_index(open(gzipFilePath + ".index", 'rb'))
 
@@ -45,7 +45,7 @@ for withIndex in [True, False]:
             # Unfortunately, the chunk size is very performance critical! It might depend on the cache size.
             while file.read(512*1024):
                 pass
-            pragzipDuration = time.time() - t0
-            print(f"Parallelization: {parallelization}, Decompression time: {pragzipDuration:.2f}s"
-                  f", Bandwidth: {fileSize / pragzipDuration / 1e6:.0f} MB/s"
-                  f", Speedup: {gzipDuration/pragzipDuration:.1f}")
+            rapidgzipDuration = time.time() - t0
+            print(f"Parallelization: {parallelization}, Decompression time: {rapidgzipDuration:.2f}s"
+                  f", Bandwidth: {fileSize / rapidgzipDuration / 1e6:.0f} MB/s"
+                  f", Speedup: {gzipDuration / rapidgzipDuration:.1f}")

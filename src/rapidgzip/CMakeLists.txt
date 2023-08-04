@@ -27,3 +27,6 @@ target_sources(librapidgzip INTERFACE
 )
 target_link_libraries(librapidgzip INTERFACE libhuffman core zlibstatic isal_inflate)
 target_compile_features(librapidgzip INTERFACE cxx_std_17)
+if(WITH_ISAL)
+    target_compile_definitions(librapidgzip INTERFACE WITH_ISAL)
+endif()

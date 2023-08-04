@@ -257,60 +257,101 @@ ChunkData::split( [[maybe_unused]] const size_t spacing ) const
         throw std::invalid_argument( "Spacing must be a positive number of bytes." );
     }
 
-    /* blockBoundaries does not contain the first block begin but all thereafter including the boundary after
-     * the last block, i.e., the begin of the next deflate block not belonging to this ChunkData. */
     const auto decompressedSize = decodedSizeInBytes;
+    if ( ( encodedSizeInBits == 0 ) && ( decompressedSize == 0 ) ) {
+        return {};
+    }
+
     const auto nBlocks = static_cast<size_t>( std::round( static_cast<double>( decompressedSize )
                                                           / static_cast<double>( spacing ) ) );
+    Subblock wholeChunkAsSubblock;
+    wholeChunkAsSubblock.encodedOffset = encodedOffsetInBits;
+    wholeChunkAsSubblock.encodedSize = encodedSizeInBits;
+    wholeChunkAsSubblock.decodedSize = decompressedSize;
+    /* blockBoundaries does not contain the first block begin but all thereafter including the boundary after
+     * the last block, i.e., the begin of the next deflate block not belonging to this ChunkData. */
     if ( ( nBlocks <= 1 ) || blockBoundaries.empty() ) {
-        Subblock subblock;
-        subblock.encodedOffset = encodedOffsetInBits;
-        subblock.encodedSize = encodedSizeInBits;
-        subblock.decodedSize = decompressedSize;
-        if ( ( encodedSizeInBits == 0 ) && ( decompressedSize == 0 ) ) {
-            return {};
-        }
-        return { subblock };
+        return { wholeChunkAsSubblock };
     }
 
     /* The idea for partitioning is: Divide the size evenly and into subblocks and then choose the block boundary
      * that is closest to that value. */
     const auto perfectSpacing = static_cast<double>( decompressedSize ) / static_cast<double>( nBlocks );
 
-    std::vector<BlockBoundary> selectedBlockBoundaries;
-    selectedBlockBoundaries.reserve( nBlocks + 1 );
-    selectedBlockBoundaries.push_back( BlockBoundary{ encodedOffsetInBits, 0 } );
+    std::vector<Subblock> subblocks;
+    subblocks.reserve( nBlocks + 1 );
+
+    BlockBoundary lastBoundary{ encodedOffsetInBits, 0 };
     /* The first and last boundaries are static, so we only need to find nBlocks - 1 further boundaries. */
     for ( size_t iSubblock = 1; iSubblock < nBlocks; ++iSubblock ) {
         const auto perfectDecompressedOffset = static_cast<size_t>( iSubblock * perfectSpacing );
+
         const auto isCloser =
             [perfectDecompressedOffset] ( const auto& b1, const auto& b2 )
             {
                 return absDiff( b1.decodedOffset, perfectDecompressedOffset )
                        < absDiff( b2.decodedOffset, perfectDecompressedOffset );
             };
-        const auto closest = std::min_element( blockBoundaries.begin(), blockBoundaries.end(), isCloser );
-        selectedBlockBoundaries.emplace_back( *closest );
+        auto closest = std::min_element( blockBoundaries.begin(), blockBoundaries.end(), isCloser );
+
+        /* If there are duplicate decodedOffset, min_element returns the first, so skip over empty blocks (pigz).
+         * Using the last block with the same decodedOffset makes handling the last block after this for-loop easier. */
+        while ( ( std::next( closest ) != blockBoundaries.end() )
+                && ( closest->decodedOffset == std::next( closest )->decodedOffset ) )
+        {
+            ++closest;
+        }
+
+        /* For very small spacings, the same boundary might be found twice. Avoid empty subblocks because of that. */
+        if ( closest->decodedOffset <= lastBoundary.decodedOffset ) {
+            continue;
+        }
+
+        if ( closest->encodedOffset <= lastBoundary.encodedOffset ) {
+            throw std::logic_error( "If the decoded offset is strictly larger than so must be the encoded one!" );
+        }
+
+        Subblock subblock;
+        subblock.encodedOffset = lastBoundary.encodedOffset;
+        subblock.encodedSize = closest->encodedOffset - lastBoundary.encodedOffset;
+        subblock.decodedSize = closest->decodedOffset - lastBoundary.decodedOffset;
+        subblocks.emplace_back( subblock );
+        lastBoundary = *closest;
     }
-    selectedBlockBoundaries.push_back( BlockBoundary{ encodedOffsetInBits + encodedSizeInBits, decompressedSize } );
 
-    /* Clean up duplicate boundaries, which might happen for very large deflate blocks.
-     * Note that selectedBlockBoundaries should already be sorted because we push always the closest
-     * of an already sorted "input vector". */
-    selectedBlockBoundaries.erase( std::unique( selectedBlockBoundaries.begin(), selectedBlockBoundaries.end() ),
-                                   selectedBlockBoundaries.end() );
+    if ( lastBoundary.decodedOffset > decompressedSize ) {
+        throw std::logic_error( "There should be no boundary outside of the chunk range!" );
+    }
+    if ( ( lastBoundary.decodedOffset < decompressedSize ) || subblocks.empty() ) {
+        /* Create the last subblock from lastBoundary and the chunk end. */
+        Subblock subblock;
+        subblock.encodedOffset = lastBoundary.encodedOffset,
+        subblock.encodedSize = encodedOffsetInBits + encodedSizeInBits - lastBoundary.encodedOffset,
+        subblock.decodedSize = decompressedSize - lastBoundary.decodedOffset,
+        subblocks.emplace_back( subblock );
+    } else if ( lastBoundary.decodedOffset == decompressedSize ) {
+        /* Enlarge the last subblock encoded size to also encompass the empty blocks before the chunk end.
+         * Assuming that blockBoundaries contain the boundary at the chunk end and knowing that the loop
+         * above always searches for the last boundary with the same decodedOffset, this branch shouldn't happen. */
+        subblocks.back().encodedSize = encodedOffsetInBits + encodedSizeInBits - subblocks.back().encodedOffset;
+    }
 
-    /* Convert subsequent boundaries into blocks. */
-    std::vector<Subblock> subblocks( selectedBlockBoundaries.size() - 1 );
-    for ( size_t i = 0; i + 1 < selectedBlockBoundaries.size(); ++i ) {
-        assert( selectedBlockBoundaries[i + 1].encodedOffset > selectedBlockBoundaries[i].encodedOffset );
-        assert( selectedBlockBoundaries[i + 1].decodedOffset > selectedBlockBoundaries[i].decodedOffset );
-
-        subblocks[i].encodedOffset = selectedBlockBoundaries[i].encodedOffset;
-        subblocks[i].encodedSize = selectedBlockBoundaries[i + 1].encodedOffset
-                                   - selectedBlockBoundaries[i].encodedOffset;
-        subblocks[i].decodedSize = selectedBlockBoundaries[i + 1].decodedOffset
-                                   - selectedBlockBoundaries[i].decodedOffset;
+    const auto subblockEncodedSizeSum =
+        std::accumulate( subblocks.begin(), subblocks.end(), size_t( 0 ),
+                         [] ( size_t sum, const auto& block ) { return sum + block.encodedSize; } );
+    const auto subblockDecodedSizeSum =
+        std::accumulate( subblocks.begin(), subblocks.end(), size_t( 0 ),
+                         [] ( size_t sum, const auto& block ) { return sum + block.decodedSize; } );
+    if ( ( subblockEncodedSizeSum != encodedSizeInBits ) || ( subblockDecodedSizeSum != decodedSizeInBytes ) ) {
+        std::stringstream message;
+        message << "[Warning] Block splitting was unsuccessful. This might result in higher memory usage but is "
+                << "otherwise harmless. Please report this performance bug with a reproducing example.\n"
+                << "  subblockEncodedSizeSum: " << subblockEncodedSizeSum << "\n"
+                << "  encodedSizeInBits     : " << encodedSizeInBits      << "\n"
+                << "  subblockDecodedSizeSum: " << subblockDecodedSizeSum << "\n"
+                << "  decodedSizeInBytes    : " << decodedSizeInBytes     << "\n";
+        std::cerr << std::move( message ).str();
+        return { wholeChunkAsSubblock };  // fallback without any splitting done at all
     }
 
     return subblocks;
