@@ -78,11 +78,11 @@ void
 testParallelDecoder( UniqueFileReader         encoded,
                      UniqueFileReader         decoded,
                      std::optional<GzipIndex> index = {},
-                     size_t                   nBlocksToSkip = 31 )
+                     size_t                   nBlocksToSkip = 1 )
 {
     /* Test a simple full read. */
 
-    ParallelGzipReader reader( std::move( encoded ), /* 32 KiB chunks to skip. */ nBlocksToSkip );
+    ParallelGzipReader reader( std::move( encoded ), /* parallelization */ 0, nBlocksToSkip * 32_Ki );
     reader.setCRC32Enabled( true );
     if ( index ) {
         reader.setBlockOffsets( *index );
