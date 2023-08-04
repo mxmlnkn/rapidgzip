@@ -201,7 +201,7 @@ public:
     ParallelGzipReader( UniqueFileReader fileReader,
                         size_t           parallelization = 0,
                         uint64_t         chunkSizeInBytes = 4_Mi ) :
-        m_chunkSizeInBytes( chunkSizeInBytes ),
+        m_chunkSizeInBytes( std::max( 8_Ki, chunkSizeInBytes ) ),
         m_maxDecompressedChunkSize( 20U * m_chunkSizeInBytes ),
         m_sharedFileReader( ensureSharedFileReader( std::move( fileReader ) ) ),
         m_fetcherParallelization( parallelization == 0 ? availableCores() : parallelization ),
@@ -209,7 +209,7 @@ public:
             [this] () {
                 return std::make_unique<BlockFinder>(
                     UniqueFileReader( m_sharedFileReader->clone() ),
-                    /* spacing in bytes */ std::max( 8_Ki, m_chunkSizeInBytes ) );
+                    /* spacing in bytes */ m_chunkSizeInBytes );
             }
         )
     {
@@ -853,7 +853,7 @@ private:
     }
 
 private:
-    uint64_t m_chunkSizeInBytes{ 4_Mi };
+    const uint64_t m_chunkSizeInBytes{ 4_Mi };
     uint64_t m_maxDecompressedChunkSize{ std::numeric_limits<size_t>::max() };
 
     std::unique_ptr<SharedFileReader> m_sharedFileReader;
