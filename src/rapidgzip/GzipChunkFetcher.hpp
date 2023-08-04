@@ -272,7 +272,7 @@ public:
     }
 
     [[nodiscard]] size_t
-    maxDecompressedChunkSize( size_t maxDecompressedChunkSize ) const
+    maxDecompressedChunkSize() const
     {
         return m_maxDecompressedChunkSize;
     }
