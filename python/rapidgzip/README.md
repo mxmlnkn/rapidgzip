@@ -67,13 +67,13 @@ This benchmarks use a chunk size of 512 KiB.
 | Compressed Size        | 3.04 GiB                     |                 | | 1.27 GiB                      |
 | **Module**             | **Bandwidth <br/> / (MB/s)** | **Speedup**     | |  **Bandwidth <br/> / (MB/s)** | **Speedup**
 | gzip                   |  250                         |    1            | |   293                         |  1
-| rapidgzip (0  threads) | 4480                         | 17.9            | |  4830                         | 16.5
-| rapidgzip (1  threads) |  294                         |  1.2            | |   350                         |  1.2
-| rapidgzip (2  threads) |  580                         |  2.3            | |   678                         |  2.3
-| rapidgzip (6  threads) | 1680                         |  6.7            | |  1940                         |  6.6
-| rapidgzip (12 threads) | 3110                         | 12.5            | |  3460                         | 11.8
-| rapidgzip (24 threads) | 4510                         | 18.0            | |  5070                         | 17.3
-| rapidgzip (32 threads) | 4330                         | 17.3            | |  4720                         | 16.1
+| rapidgzip (0  threads) | 5060                         | 19.5            | |  5580                         | 18.6
+| rapidgzip (1  threads) |  445                         |  1.7            | |   624                         |  2.1
+| rapidgzip (2  threads) |  895                         |  3.5            | |  1190                         |  4.0
+| rapidgzip (6  threads) | 2500                         |  9.6            | |  3330                         | 11.1
+| rapidgzip (12 threads) | 4390                         | 16.9            | |  5810                         | 19.4
+| rapidgzip (24 threads) | 5150                         | 19.9            | |  5960                         | 19.9
+| rapidgzip (32 threads) | 5000                         | 19.3            | |  5640                         | 18.8
 
 
 ## Decompression from Scratch
@@ -86,13 +86,13 @@ This benchmarks use a chunk size of 512 KiB.
 | Compressed Size        | 3.04 GiB                     |                 | | 1.27 GiB                      |
 | **Module**             | **Bandwidth <br/> / (MB/s)** | **Speedup**     | |  **Bandwidth <br/> / (MB/s)** | **Speedup**
 | gzip                   |  250                         |    1            | |   293                         |  1
-| rapidgzip (0  threads) | 3280                         | 13.1            | |  2280                         |  7.8
-| rapidgzip (1  threads) |  222                         |  0.9            | |   236                         |  0.8
-| rapidgzip (2  threads) |  428                         |  1.7            | |   411                         |  1.4
-| rapidgzip (6  threads) | 1250                         |  5.0            | |  1095                         |  3.7
-| rapidgzip (12 threads) | 2290                         |  9.2            | |  1390                         |  4.8
-| rapidgzip (24 threads) | 3300                         | 13.2            | |  2280                         |  7.8
-| rapidgzip (32 threads) | 3180                         | 12.7            | |  2480                         |  8.5
+| rapidgzip (0  threads) | 3290                         | 12.7            | |  1820                         |  6.1
+| rapidgzip (1  threads) |  222                         |  0.9            | |   238                         |  0.8
+| rapidgzip (2  threads) |  435                         |  1.7            | |   415                         |  1.4
+| rapidgzip (6  threads) | 1260                         |  4.9            | |  1140                         |  3.8
+| rapidgzip (12 threads) | 2310                         |  8.9            | |  1550                         |  5.2
+| rapidgzip (24 threads) | 3200                         | 12.4            | |  1890                         |  6.3
+| rapidgzip (32 threads) | 3210                         | 12.4            | |  2060                         |  6.9
 
 Note that rapidgzip is generally faster when given an index because it can delegate the decompression to zlib while it has to use its own gzip decompression engine when no index exists yet.
 
