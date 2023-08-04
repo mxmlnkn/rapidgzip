@@ -78,7 +78,8 @@ void
 testParallelDecoder( UniqueFileReader         encoded,
                      UniqueFileReader         decoded,
                      std::optional<GzipIndex> index = {},
-                     size_t                   nBlocksToSkip = 1 )
+                     size_t                   nBlocksToSkip = 1,
+                     bool                     readInChunks = false )
 {
     /* Test a simple full read. */
 
@@ -90,7 +91,21 @@ testParallelDecoder( UniqueFileReader         encoded,
     }
 
     std::vector<char> result( decoded->size() * 2 );
-    const auto nBytesRead = reader.read( result.data(), std::max( size_t( 1 ), result.size() ) );
+    size_t nBytesRead{ 0 };
+    if ( readInChunks ) {
+        static constexpr size_t CHUNK_SIZE = 4_Ki;
+        while ( nBytesRead <= result.size() ) {
+            const auto nBytesReadPerCall =
+                reader.read( result.data() + nBytesRead,
+                             std::clamp( result.size() - nBytesRead, size_t( 1 ), CHUNK_SIZE ) );
+            if ( nBytesReadPerCall == 0 ) {
+                break;
+            }
+            nBytesRead += nBytesReadPerCall;
+        }
+    } else {
+        nBytesRead = reader.read( result.data(), std::max( size_t( 1 ), result.size() ) );
+    }
     REQUIRE( nBytesRead == decoded->size() );
     result.resize( nBytesRead );
     REQUIRE( reader.eof() );
@@ -140,6 +155,13 @@ testParallelDecoder( const std::filesystem::path& encoded,
         std::cerr << "Testing " << encoded.filename() << " with given index ("
                   << std::filesystem::file_size( encoded ) << " B)\n";
         const auto givenIndexData = readGzipIndex( std::make_unique<StandardFileReader>( index.string() ) );
+        for ( const size_t nBlocksToSkip : blocksToSkip ) {
+            testParallelDecoder( std::make_unique<StandardFileReader>( encoded.string() ),
+                                 std::make_unique<StandardFileReader>( decodedFilePath.string() ),
+                                 givenIndexData,
+                                 nBlocksToSkip,
+                                 /* readInChunks */ true );
+        }
         for ( const size_t nBlocksToSkip : blocksToSkip ) {
             testParallelDecoder( std::make_unique<StandardFileReader>( encoded.string() ),
                                  std::make_unique<StandardFileReader>( decodedFilePath.string() ),
