@@ -1,4 +1,12 @@
 
+# Version 0.8.1 built on 2023-08-04
+
+## Fixes
+
+ - The CRC32 checksum was not correctly read from the footer when ISA-l was used.
+ - Limit the minimum chunk size to 8 KiB, especially forbid a chunk size of 0, which lead to an infinite loop.
+
+
 # Version 0.8.0 built on 2023-08-04
 
 ## Performance
