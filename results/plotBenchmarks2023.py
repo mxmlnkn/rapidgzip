@@ -19,6 +19,7 @@ matplotlib.rcParams['ps.fonttype'] = 42
 folder = "." if len(sys.argv) < 2 else sys.argv[1]
 
 myImplementationName = "rapidgzip"
+dpi = 300
 
 
 # https://www.nature.com/articles/nmeth.1618
@@ -66,7 +67,7 @@ def plotBitReaderHistograms():
     ax.legend(loc="best")
     fig.tight_layout()
 
-    fig.savefig("bitreader-bandwidth-multiple-histograms.png")
+    fig.savefig("bitreader-bandwidth-multiple-histograms.png", dpi=dpi)
     fig.savefig("bitreader-bandwidth-multiple-histograms.pdf")
     return fig
 
@@ -83,7 +84,7 @@ def plotBitReaderSelectedHistogram(nBitsToPlot):
     ax.legend(loc="best")
     fig.tight_layout()
 
-    fig.savefig("bitreader-bandwidth-selected-histogram.png")
+    fig.savefig("bitreader-bandwidth-selected-histogram.png", dpi=dpi)
     fig.savefig("bitreader-bandwidth-selected-histogram.pdf")
     return fig
 
@@ -118,7 +119,7 @@ def plotBitReaderBandwidths():
 
     fig.tight_layout()
 
-    fig.savefig("bitreader-bandwidths-over-bits-per-read.png")
+    fig.savefig("bitreader-bandwidths-over-bits-per-read.png", dpi=dpi)
     fig.savefig("bitreader-bandwidths-over-bits-per-read.pdf")
     return fig
 
@@ -158,7 +159,7 @@ def plotParallelReadingBandwidths():
 
         fig.tight_layout()
 
-        fig.savefig(f"filereader-bandwidths-number-of-threads-{pinning}.png")
+        fig.savefig(f"filereader-bandwidths-number-of-threads-{pinning}.png", dpi=dpi)
         fig.savefig(f"filereader-bandwidths-number-of-threads-{pinning}.pdf")
 
         ax.set_title(pinning);
@@ -257,7 +258,7 @@ def plotComponentBandwidths():
 
     fig.tight_layout()
 
-    fig.savefig("components-bandwidths.png")
+    fig.savefig("components-bandwidths.png", dpi=dpi)
     fig.savefig("components-bandwidths.pdf")
     return fig
 
@@ -269,11 +270,17 @@ def plotParallelDecompression(legacyPrefix, parallelPrefix, outputType='dev-null
 
     alpha = 1.0
 
+    rapidgzipName1 = f"{parallelPrefix}-pragzip-{outputType}.dat"
+    rapidgzipName2 = f"{parallelPrefix}-pragzip-4-MiB-chunks-{outputType}.dat"
+
     tools = [
         (f"{myImplementationName} (index)", f"{parallelPrefix}-pragzip-index-{outputType}.dat", colors['rosa']),
-        (f"{myImplementationName} (no index)", f"{parallelPrefix}-pragzip-{outputType}.dat", colors['red']),
-        ("pugz (sync)", f"{parallelPrefix}-pugz-sync-{outputType}.dat", colors['green']),
-        ("pugz", f"{parallelPrefix}-pugz-{outputType}.dat", colors['blue']),
+        (f"{myImplementationName} (no index)",
+         rapidgzipName1 if os.path.isfile(rapidgzipName1) else rapidgzipName2,
+         colors['red']),
+        ("pugz", f"{parallelPrefix}-pugz-sync-{outputType}.dat", colors['green']),
+        #("pugz (sync)", f"{parallelPrefix}-pugz-sync-{outputType}.dat", colors['green']),
+        #("pugz", f"{parallelPrefix}-pugz-{outputType}.dat", colors['blue']),
         ("pigz", f"{legacyPrefix}-pigz-{outputType}.dat", colors['sky']),
         ("igzip", f"{legacyPrefix}-igzip-{outputType}.dat", colors['black']),
         ("gzip", f"{legacyPrefix}-gzip-{outputType}.dat", colors['black']),
@@ -353,7 +360,7 @@ def plotParallelDecompression(legacyPrefix, parallelPrefix, outputType='dev-null
         plt.close(fig)
         return
 
-    ax.set_ylim((100, 40000));
+    ax.set_ylim((100, 50000));
     ax.set_xticks([int(x) for x in threadCountsTicks])
     ax.minorticks_off()
     ax.xaxis.set_major_formatter(ScalarFormatter())
@@ -365,7 +372,7 @@ def plotParallelDecompression(legacyPrefix, parallelPrefix, outputType='dev-null
 
     fig.tight_layout()
 
-    fig.savefig(f"{parallelPrefix}-{outputType}-bandwidths-number-of-threads.png")
+    fig.savefig(f"{parallelPrefix}-{outputType}-bandwidths-number-of-threads.png", dpi=dpi)
     fig.savefig(f"{parallelPrefix}-{outputType}-bandwidths-number-of-threads.pdf")
     return fig
 
@@ -440,7 +447,7 @@ def plotParallelDecompressionPerChunkSize(legacyPrefix, parallelPrefix, outputTy
 
     fig.tight_layout()
 
-    fig.savefig(f"{parallelPrefix}-{outputType}-bandwidths-number-of-threads-varying-chunk-sizes.png")
+    fig.savefig(f"{parallelPrefix}-{outputType}-bandwidths-number-of-threads-varying-chunk-sizes.png", dpi=dpi)
     fig.savefig(f"{parallelPrefix}-{outputType}-bandwidths-number-of-threads-varying-chunk-sizes.pdf")
 
     ax.set_title(parallelPrefix)
@@ -464,14 +471,16 @@ def plotChunkSizes():
     symbols = []
     labels = []
     xTicks = []
+    minBandwidth = float('+inf')
+    maxBandwidth = float('-inf')
     for tool, fileName, color in tools:
         filePath = os.path.join(folder, fileName)
         if not os.path.isfile(filePath):
             print("Ignore missing file:", filePath)
             continue
         data = np.loadtxt(filePath, ndmin = 2)
-        if data.shape == (0,0):
-            print("Ignore empty file:", filePath)
+        if data.shape[0] == 0 or data.shape[1] == 0:
+            print("Ignore file with no valid rows:", filePath)
             continue
 
         positions = []
@@ -486,6 +495,9 @@ def plotChunkSizes():
             subdata = data[data[:, 1] == chunkSize]
             bandwidths.append(subdata[:, 2] / subdata[:, 3] / 1e6)
             positions.append(chunkSize / 1024.**2)
+
+        minBandwidth = min(minBandwidth, np.min(bandwidths))
+        maxBandwidth = max(maxBandwidth, np.max(bandwidths))
 
         result = ax.violinplot(bandwidths, positions = positions, widths = np.array(positions) / 10.,
                                showextrema = False, showmedians = False)
@@ -503,7 +515,8 @@ def plotChunkSizes():
 
     #ax.set_ylim((100, ax.get_ylim()[1]));
     print(xTicks)
-    ax.set_ylim([900,3000])
+    if minBandwidth >= 900 and maxBandwidth <= 3000:
+        ax.set_ylim([900,3000])
     ax.set_xticks([int(x) if int(x) == x else x for x in xTicks])
     ax.minorticks_off()
     ax.xaxis.set_major_formatter(StrMethodFormatter('{x:g}'))
@@ -523,7 +536,7 @@ def plotChunkSizes():
 
     fig.tight_layout()
 
-    fig.savefig(f"decompression-chunk-size-bandwidths-number-of-threads.png")
+    fig.savefig(f"decompression-chunk-size-bandwidths-number-of-threads.png", dpi=dpi)
     fig.savefig(f"decompression-chunk-size-bandwidths-number-of-threads.pdf")
     return fig
 

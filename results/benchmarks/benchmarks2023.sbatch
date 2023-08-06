@@ -37,8 +37,8 @@ else
     # Install pigz
     (
         git clone 'https://github.com/madler/pigz.git'
-        git checkout master
         cd pigz
+        git checkout master
         m -B
     )
     export PATH=$installPath/pigz:$PATH
@@ -78,15 +78,15 @@ else
     )
     export PATH=$installPath/isa-l/programs:$PATH
 
-    # Install pragzip
+    # Install rapidgzip
     (
         git clone 'https://github.com/mxmlnkn/indexed_bzip2'
         cd indexed_bzip2
-        git checkout -f pragzip-v0.5.0
+        git checkout -f ed5c77f7
         mkdir -p build
         cd build
         cmake -GNinja ..
-        ninja pragzip benchmarkSequential2023
+        ninja rapidgzip benchmarkSequential2023
     )
     export PATH=$installPath/indexed_bzip2/build/src/tools:$PATH
 fi
@@ -105,7 +105,7 @@ cd -- "$workdir"
 
 
 mkdir -p toolVersions
-for tool in gzip pigz igzip gcc clang pragzip; do
+for tool in gzip pigz igzip gcc clang rapidgzip; do
     $tool --version 2>&1 | tee "toolVersions/$tool"
 done
 
@@ -173,11 +173,11 @@ function benchmarkParallelDecompressionScaling()
             pigz --blocksize $(( parallelization * 4 * 1024 )) > "$filePath"
         compressedFileSize=$( stat --format=%s -- "$filePath" )
 
-        # pragzip with index
-        echo "Creating gzip index file using pragzip..."
-        pragzip -P $( nproc ) -o '/dev/null' -f --export-index "${filePath}.gzindex" "$filePath"
+        # rapidgzip with index
+        echo "Creating gzip index file using rapidgzip..."
+        rapidgzip -P $( nproc ) -o '/dev/null' -f --export-index "${filePath}.gzindex" "$filePath"
         for (( i = 0; i < nRepetitions; ++i )); do
-            tool="pragzip -P $parallelization -o /dev/null --import-index ${filePath}.gzindex"
+            tool="rapidgzip -d -P $parallelization -o /dev/null --import-index ${filePath}.gzindex"
             ( time taskset --cpu-list 0-$(( parallelization - 1 )) $tool "$filePath" ) > output.log 2>&1
             errorCode=$?
             runtime=$( sed -n -E 's|real[ \t]*0m||p' output.log | sed 's|[ \ts]||' )
@@ -190,12 +190,12 @@ function benchmarkParallelDecompressionScaling()
             fi
         done
 
-        # pragzip
+        # rapidgzip
         for chunkSize in "${chunkSizes[@]}"; do
-            echo "Benchmark pragzip with chunk size: $(( chunkSize / 1024 )) MiB"
+            echo "Benchmark rapidgzip with chunk size: $(( chunkSize / 1024 )) MiB"
 
             for (( i = 0; i < nRepetitions; ++i )); do
-                tool="pragzip -P $parallelization -o /dev/null --chunk-size $chunkSize"
+                tool="rapidgzip -d -P $parallelization -o /dev/null --chunk-size $chunkSize"
                 ( time taskset --cpu-list 0-$(( parallelization - 1 )) $tool "$filePath" ) > output.log 2>&1
                 errorCode=$?
                 runtime=$( sed -n -E 's|real[ \t]*0m||p' output.log | sed 's|[ \ts]||' )
@@ -359,7 +359,7 @@ function benchmarkChunks()
     parallelization=128
 
 
-    echo "Benchmark chunk sizes for pragzip with Silesia..."
+    echo "Benchmark chunk sizes for rapidgzip with Silesia..."
 
     if [[ ! -f 'silesia.zip' || "$( md5sum silesia.zip | sed 's| .*||' )" != 'c240c17d6805fb8a0bde763f1b94cd99' ]]; then
         wget -O 'silesia.zip' 'https://sun.aei.polsl.pl/~sdeor/corpus/silesia.zip'
@@ -378,13 +378,13 @@ function benchmarkChunks()
     for (( i=0; i<parallelization * 2; ++i )); do cat "$inputFilePath"; done |
         pigz --blocksize $(( parallelization * 4 * 1024 )) > "$filePath"
 
-    echo "Benchmark chunk sizes for pragzip..."
+    echo "Benchmark chunk sizes for rapidgzip..."
     echo '# parallelization chunkSize/B dataSize/B runtime/s' > 'result-chunk-size-pragzip-dev-null.dat'
     for chunkSize in 128 256 512 $(( 1*1024 )) $(( 2*1024 )) $(( 4*1024 )) $(( 8*1024 )) $(( 16*1024 )) $(( 32*1024 )) \
                      $(( 64*1024 )) $(( 128*1024 )) $(( 256*1024 )) $(( 512*1024 )) $(( 1024*1024 )); do
-        # pragzip
+        # rapidgzip
         for (( i = 0; i < nRepetitions; ++i )); do
-            tool="pragzip -P $parallelization -o /dev/null --chunk-size $chunkSize"
+            tool="rapidgzip -d -P $parallelization -o /dev/null --chunk-size $chunkSize"
             runtime=$( ( time taskset --cpu-list 0-$(( parallelization - 1 )) $tool "$filePath" ) 2>&1 |
                            sed -n -E 's|real[ \t]*0m||p' | sed 's|[ \ts]||' )
             errorCode=$?
@@ -412,13 +412,13 @@ function benchmarkChunks()
     for (( i=0; i<parallelization; ++i )); do cat "$inputFilePath"; done |
         pigz --blocksize $(( parallelization * 4 * 1024 )) > "$filePath"
 
-    echo "Benchmark chunk sizes for pragzip..."
+    echo "Benchmark chunk sizes for rapidgzip..."
     echo '# parallelization chunkSize/B dataSize/B runtime/s' > 'result-chunk-size-pragzip-dev-null.dat'
     for chunkSize in 128 256 512 $(( 1*1024 )) $(( 2*1024 )) $(( 4*1024 )) $(( 8*1024 )) $(( 16*1024 )) $(( 32*1024 )) \
                      $(( 64*1024 )) $(( 128*1024 )) $(( 256*1024 )) $(( 512*1024 )) $(( 1024*1024 )); do
-        # pragzip
+        # rapidgzip
         for (( i = 0; i < nRepetitions; ++i )); do
-            tool="pragzip -P $parallelization -o /dev/null --chunk-size $chunkSize"
+            tool="rapidgzip -d -P $parallelization -o /dev/null --chunk-size $chunkSize"
             runtime=$( ( time taskset --cpu-list 0-$(( parallelization - 1 )) $tool "$filePath" ) 2>&1 |
                            sed -n -E 's|real[ \t]*0m||p' | sed 's|[ \ts]||' )
             errorCode=$?
@@ -459,11 +459,11 @@ set -o pipefail
 
 
 #time benchmarkSilesia  # 55 min
-#time benchmarkBase64   # 105 min (longer because pugz is also benchmarked)
-time benchmarkFastq     # probably ~105 min (longer because pugz is also benchmarked)
+time benchmarkBase64   # 105 min (longer because pugz is also benchmarked)
+#time benchmarkFastq     # probably ~105 min (longer because pugz is also benchmarked)
 #time src/benchmarks/benchmarkSequential2023  # Benchmarks of components (this takes ~70 min)
 
-# benchmarkChunks
+benchmarkChunks
 
 
 # Back all data up into a TAR archive
@@ -477,6 +477,6 @@ echo "[$( date --iso-8601=seconds )] Bundle benchmark results into a TAR..."
 sacct --format=jobid,jobidraw,jobname,partition,maxvmsize,maxvmsizenode,maxvmsizetask,avevmsize,maxrss,maxrssnode,maxrsstask,averss,maxpages,maxpagesnode,maxpagestask,avepages,mincpu,mincpunode,mincputask,avecpu,ntasks,alloccpus,elapsed,state,exitcode,avecpufreq,reqcpufreqmin,reqcpufreqmax,reqcpufreqgov,reqmem,consumedenergy,maxdiskread,maxdiskreadnode,maxdiskreadtask,avediskread,maxdiskwrite,maxdiskwritenode,maxdiskwritetask,avediskwrite,reqtres,alloctres,tresusageinave,tresusageinmax,tresusageinmaxn,tresusageinmaxt,tresusageinmin,tresusageinminn,tresusageinmint,tresusageintot,tresusageoutmax,tresusageoutmaxn,tresusageoutmaxt,tresusageoutave,tresusageouttot,admincomment,allocnodes,associd,blockid,cluster,comment,constraints,consumedenergy,consumedenergyraw,cputime,cputimeraw,dbindex,derivedexitcode,elapsedraw,eligible,end,flags,gid,layout,maxpagestask,mcslabel,ncpus,nnodes,nodelist,priority,qos,qosraw,reason,reqcpufreq,reqcpus,reqnodes,reservation,reservationid,reserved,resvcpu,resvcpuraw,start,submit,suspended,systemcpu,systemcomment,timelimit,timelimitraw,totalcpu,tresusageinmaxnode,tresusageinmaxtask,tresusageinminnode,tresusageinmintask,tresusageoutmaxnode,tresusageoutmaxtask,tresusageoutmin,tresusageoutminnode,tresusageoutmintask,uid,usercpu,wckey,wckeyid -p -j "$SLURM_JOB_ID" > "sacct-$SLURM_JOB_ID.log"
 
 
-tar -cj --transform="s|${HOME#/}/||" -f ~/pragzip-comparison-benchmarks-$( date +%Y-%m-%dT%H-%M-%S ).tar.bz2 "$workdir"
+tar -cj --transform="s|${HOME#/}/||" -f ~/rapidgzip-comparison-benchmarks-$( date +%Y-%m-%dT%H-%M-%S ).tar.bz2 "$workdir"
 
 echo "[$( date --iso-8601=seconds )] Done."
