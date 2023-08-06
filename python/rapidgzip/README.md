@@ -35,10 +35,14 @@ Issues regarding rapidgzip should be opened [here](https://github.com/mxmlnkn/ra
 
 # Table of Contents
 
-1. [Performance](#performance-comparison-with-gzip-module)
-   1. [Decompression with Existing Index](#decompression-with-existing-index)
-   2. [Decompression from Scratch](#decompression-from-scratch)
-2. [Installation](#installation)
+1. [Installation](#installation)
+2. [Performance](#performance)
+   1. [Scaling Benchmarks on 2xAMD EPYC CPU 7702 (2x64 cores)](#scaling-benchmarks-on-2xamd-epyc-cpu-7702-2x64-cores)
+      1. [Decompression of Silesia Corpus](#decompression-of-silesia-corpus)
+      2. [Decompression Gzip-Compressed Base64 Data](#decompression-gzip-compressed-base64-data)
+   2. [Scaling Benchmarks on Ryzen 3900X](#scaling-benchmarks-on-ryzen-3900x)
+      1. [Decompression with Existing Index](#decompression-with-existing-index)
+      2. [Decompression from Scratch](#decompression-from-scratch)
 3. [Usage](#usage)
    1. [Command Line Tool](#command-line-tool)
    2. [Python Library](#python-library)
@@ -48,6 +52,37 @@ Issues regarding rapidgzip should be opened [here](https://github.com/mxmlnkn/ra
 5. [About](#about)
 6. [Internal Architecture](#internal-architecture)
 7. [Tracing the Decoder](#tracing-the-decoder)
+
+
+# Installation
+
+You can simply install it from PyPI:
+
+```
+python3 -m pip install --upgrade pip  # Recommended for newer manylinux wheels
+python3 -m pip install rapidgzip
+rapidgzip --help
+```
+
+<details>
+<summary>Advanced Installations</summary>
+
+The latest unreleased development version can be tested out with:
+
+```bash
+python3 -m pip install --force-reinstall 'git+https://github.com/mxmlnkn/indexed_bzip2.git@master#egginfo=rapidgzip&subdirectory=python/rapidgzip'
+```
+
+And to build locally, you can use `build` and install the wheel:
+
+```bash
+cd python/rapidgzip
+rm -rf dist
+python3 -m build .
+python3 -m pip install --force-reinstall --user dist/*.whl
+```
+
+</details>
 
 
 # Performance
@@ -62,7 +97,7 @@ The violin plots show 20 repeated measurements as a single "blob".
 Thin blobs signal very reproducible timings while thick blobs signal a large variance.
 
 
-## Scaling benchmarks on 2xAMD EPYC CPU 7702 (2x64 cores)
+## Scaling Benchmarks on 2xAMD EPYC CPU 7702 (2x64 cores)
 
 ### Decompression of Silesia Corpus
 
@@ -77,7 +112,7 @@ Rapidgzip achieves up to 24 GB/s with an index and 7 GB/s without.
 Pugz is not shown as comparison because it is not able to decompress the Silesia dataset because it contains binary data, which it cannot handle.
 
 
-### Decompression gzip-compressed base64 data
+### Decompression Gzip-Compressed Base64 Data
 
 ![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/rapidgzip-0.8.1-scaling-benchmarks-2023-08-06/plots/result-parallel-decompression-base64-dev-null-bandwidths-number-of-threads.png)
 
@@ -89,11 +124,11 @@ Without LZ77 back-references, parallel decompression can be done more independen
 These two scaling plots were created with rapidgzip 0.8.1 while the ones in the [paper](<results/paper/Knespel, Brunst - 2023 - Rapidgzip - Parallel Decompression and Seeking in Gzip Files Using Cache Prefetching.pdf>) were created with 0.5.0.
 
 
-## Ryzen 3900X
+## Scaling Benchmarks on Ryzen 3900X
 
 These benchmarks on my local workstation with a Ryzen 3900X only has 12 cores (24 virtual cores) but the base frequency is much higher than the 2xAMD EPYC CPU 7702.
 
-### With Index
+### Decompression With Existing Index
 
 |                        | 4GiB-base64                  | 4GiB-base64     | | 20x-silesia                   | 20x-silesia
 |------------------------|------------------------------|-----------------|-|-------------------------------|---------
@@ -110,7 +145,7 @@ These benchmarks on my local workstation with a Ryzen 3900X only has 12 cores (2
 | rapidgzip (32 threads) | 5000                         | 19.3            | |  5640                         | 18.8
 
 
-### Without Index
+### Decompression From Scratch
 
 |                        | 4GiB-base64                  | 4GiB-base64     | | 20x-silesia                   | 20x-silesia
 |------------------------|------------------------------|-----------------|-|-------------------------------|---------
@@ -125,31 +160,6 @@ These benchmarks on my local workstation with a Ryzen 3900X only has 12 cores (2
 | rapidgzip (12 threads) | 2310                         |  8.9            | |  1550                         |  5.2
 | rapidgzip (24 threads) | 3200                         | 12.4            | |  1890                         |  6.3
 | rapidgzip (32 threads) | 3210                         | 12.4            | |  2060                         |  6.9
-
-
-# Installation
-
-You can simply install it from PyPI:
-
-```
-python3 -m pip install --upgrade pip  # Recommended for newer manylinux wheels
-python3 -m pip install rapidgzip
-```
-
-The latest unreleased development version can be tested out with:
-
-```bash
-python3 -m pip install --force-reinstall 'git+https://github.com/mxmlnkn/indexed_bzip2.git@master#egginfo=rapidgzip&subdirectory=python/rapidgzip'
-```
-
-And to build locally, you can use `build` and install the wheel:
-
-```bash
-cd python/rapidgzip
-rm -rf dist
-python3 -m build .
-python3 -m pip install --force-reinstall --user dist/*.whl
-```
 
 
 # Usage
