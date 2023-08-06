@@ -37,8 +37,8 @@ else
     # Install pigz
     (
         git clone 'https://github.com/madler/pigz.git'
-        git checkout master
         cd pigz
+        git checkout master
         m -B
     )
     export PATH=$installPath/pigz:$PATH
@@ -82,7 +82,7 @@ else
     (
         git clone 'https://github.com/mxmlnkn/indexed_bzip2'
         cd indexed_bzip2
-        git checkout -f rapidgzip-v0.8.1
+        git checkout -f ed5c77f7
         mkdir -p build
         cd build
         cmake -GNinja ..
@@ -177,7 +177,7 @@ function benchmarkParallelDecompressionScaling()
         echo "Creating gzip index file using rapidgzip..."
         rapidgzip -P $( nproc ) -o '/dev/null' -f --export-index "${filePath}.gzindex" "$filePath"
         for (( i = 0; i < nRepetitions; ++i )); do
-            tool="rapidgzip -P $parallelization -o /dev/null --import-index ${filePath}.gzindex"
+            tool="rapidgzip -d -P $parallelization -o /dev/null --import-index ${filePath}.gzindex"
             ( time taskset --cpu-list 0-$(( parallelization - 1 )) $tool "$filePath" ) > output.log 2>&1
             errorCode=$?
             runtime=$( sed -n -E 's|real[ \t]*0m||p' output.log | sed 's|[ \ts]||' )
@@ -195,7 +195,7 @@ function benchmarkParallelDecompressionScaling()
             echo "Benchmark rapidgzip with chunk size: $(( chunkSize / 1024 )) MiB"
 
             for (( i = 0; i < nRepetitions; ++i )); do
-                tool="rapidgzip -P $parallelization -o /dev/null --chunk-size $chunkSize"
+                tool="rapidgzip -d -P $parallelization -o /dev/null --chunk-size $chunkSize"
                 ( time taskset --cpu-list 0-$(( parallelization - 1 )) $tool "$filePath" ) > output.log 2>&1
                 errorCode=$?
                 runtime=$( sed -n -E 's|real[ \t]*0m||p' output.log | sed 's|[ \ts]||' )
@@ -384,7 +384,7 @@ function benchmarkChunks()
                      $(( 64*1024 )) $(( 128*1024 )) $(( 256*1024 )) $(( 512*1024 )) $(( 1024*1024 )); do
         # rapidgzip
         for (( i = 0; i < nRepetitions; ++i )); do
-            tool="rapidgzip -P $parallelization -o /dev/null --chunk-size $chunkSize"
+            tool="rapidgzip -d -P $parallelization -o /dev/null --chunk-size $chunkSize"
             runtime=$( ( time taskset --cpu-list 0-$(( parallelization - 1 )) $tool "$filePath" ) 2>&1 |
                            sed -n -E 's|real[ \t]*0m||p' | sed 's|[ \ts]||' )
             errorCode=$?
@@ -418,7 +418,7 @@ function benchmarkChunks()
                      $(( 64*1024 )) $(( 128*1024 )) $(( 256*1024 )) $(( 512*1024 )) $(( 1024*1024 )); do
         # rapidgzip
         for (( i = 0; i < nRepetitions; ++i )); do
-            tool="rapidgzip -P $parallelization -o /dev/null --chunk-size $chunkSize"
+            tool="rapidgzip -d -P $parallelization -o /dev/null --chunk-size $chunkSize"
             runtime=$( ( time taskset --cpu-list 0-$(( parallelization - 1 )) $tool "$filePath" ) 2>&1 |
                            sed -n -E 's|real[ \t]*0m||p' | sed 's|[ \ts]||' )
             errorCode=$?
@@ -459,11 +459,11 @@ set -o pipefail
 
 
 #time benchmarkSilesia  # 55 min
-#time benchmarkBase64   # 105 min (longer because pugz is also benchmarked)
-time benchmarkFastq     # probably ~105 min (longer because pugz is also benchmarked)
+time benchmarkBase64   # 105 min (longer because pugz is also benchmarked)
+#time benchmarkFastq     # probably ~105 min (longer because pugz is also benchmarked)
 #time src/benchmarks/benchmarkSequential2023  # Benchmarks of components (this takes ~70 min)
 
-# benchmarkChunks
+benchmarkChunks
 
 
 # Back all data up into a TAR archive

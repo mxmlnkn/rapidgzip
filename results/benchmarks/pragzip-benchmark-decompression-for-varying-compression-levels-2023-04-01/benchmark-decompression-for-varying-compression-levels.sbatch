@@ -114,17 +114,19 @@ else
     )
     export PATH=$installPath/pixz/src:$PATH
 
-    # Install rapidgzip
+    # Install pragzip
     (
         git clone 'https://github.com/mxmlnkn/indexed_bzip2'
         cd indexed_bzip2
         git fetch origin
-        # rapidgzip-v0.8.1 cannot be used because cxxopts is pinned on a commit that only exists in my fork.
-        git checkout -f ed5c77f7
+        # pragzip-v0.5.0 cannot be used for some of the tests because it has a bug with bgzip files:
+        # https://github.com/mxmlnkn/pragzip/issues/14
+        # Note that the next commit, which introduces rpmalloc, halves --import-index performance on 128 cores!
+        git checkout -f d4aa8d4
         mkdir -p build
         cd build
         CXX=clang++ CC=clang cmake -GNinja ..
-        m rapidgzip
+        m pragzip
     )
     export PATH=$installPath/indexed_bzip2/build/src/tools:$PATH
 fi
@@ -143,7 +145,7 @@ cd -- "$workdir"
 
 
 mkdir -p toolVersions
-for tool in gzip lz4 pigz igzip zstd pzstd bzip2 lbzip2 bgzip pixz gcc clang rapidgzip; do
+for tool in gzip lz4 pigz igzip zstd pzstd bzip2 lbzip2 bgzip pixz gcc clang pragzip; do
     $tool --version 2>&1 | tee "toolVersions/$tool"
 done
 
@@ -171,7 +173,7 @@ function getSilesiaTar()
 
 function compareCompressionLevels()
 {
-    # benchmarks to show wide applicability of rapidgzip no matter the compressor
+    # benchmarks to show wide applicability of pragzip no matter the compressor
 
     compressors=(
         'igzip -0'                # ~1s for 1 Silesia compression, ~7 s for parallel decompression
@@ -204,7 +206,7 @@ function compareCompressionLevels()
     for compressor in "${compressors[@]}"; do
         compressedFile="/dev/shm/tmp-single-silesia.gz"
         $compressor -c silesia.tar > "$compressedFile"
-        rapidgzip --analyze "$compressedFile" &> "compressionInfo/silesia.$compressor.log"
+        pragzip --analyze "$compressedFile" &> "compressionInfo/silesia.$compressor.log"
     done
 
 
@@ -221,7 +223,7 @@ function compareCompressionLevels()
         if [[ -f "$pathToCompress.$compressor" ]]; then continue; fi
 
         if [[ "$compressor" == 'igzip -0' ]]; then
-            # igzip -0 compressed files cannot be decompressed by rapidgzip in parallel.
+            # igzip -0 compressed files cannot be decompressed by pragzip in parallel.
             # Therefore, compress only 2 tarball concatenations.
             for (( i = 0; i < 8; ++i )); do cat silesia.tar; done | $compressor -c > "$pathToCompress.$compressor" &
         elif [[ "$compressor" == 'gzip -6' || "$compressor" == 'gzip -9' ]]; then
@@ -230,7 +232,7 @@ function compareCompressionLevels()
             # It would be a waste, so compress only once and simply concatenate the gzips.
             # This is possible because we don't want to benchmark pugz, which does not support multi-stream gzips!
             # However, especially for igzip -0 we cannot concatenate (too much) because that would add detectable
-            # barriers for rapidgzip to use and therefore falsify benchmarks!
+            # barriers for pragzip to use and therefore falsify benchmarks!
             # Compression takes ~6 min anyway, so compress as much as possible in that time even with single-core gzip.
             # This would be 600 s / 25 s = 24 for gzip -9. "Round" down to 16. Full single-core compression
             echo "[$( date --iso-8601=seconds )] Compress Silesia with $compressor" \
@@ -272,7 +274,7 @@ function compareCompressionLevels()
 
     # 11:07:24 -> 12:48:00 for bgzip -l -1, 0, 3, 6, 9, gzip -1, -3, -6. I.e., 8 compressors in 100min
     #   -> ~12min per compressor :/
-    echo "[$( date --iso-8601=seconds )] Benchmark rapidgzip with differently compressed gzip files..."
+    echo "[$( date --iso-8601=seconds )] Benchmark pragzip with differently compressed gzip files..."
 
     dataFile='compression-levels-pragzip-dev-null.dat'
     echo '# compressor parallelization dataSize/B runtime/s compressedDataSize/B' | tee "$dataFile"
@@ -288,7 +290,7 @@ function compareCompressionLevels()
 
         pathToDecompress="/dev/shm/tmp-compressed-silesia"
         'cp' -- "$compressedPath" "$pathToDecompress"
-        tool='rapidgzip'
+        tool='pragzip'
 
         for (( i = 0; i < nRepetitions; ++i )); do
             runtime=$( ( time taskset --cpu-list 0-$(( parallelization - 1 )) \
@@ -304,7 +306,7 @@ function compareCompressionLevels()
     done
 }
 
-# Compare rapidgzip to other compression formats
+# Compare pragzip to other compression formats
 function compareCompressionFormats()
 {
     # Table: compressor | compression ratio | parallelization | decompression bandwidth
@@ -315,8 +317,8 @@ function compareCompressionFormats()
     # - That pzstd stops scaling at ~16 cores
     # - That pzstd and bgzip require a suitably compressed file
     # - That lz4 is pretty fast
-    # - That igzip is faster than rapidgzip and therefore shows optimization potential -> Already shown in Figure 10. Don't
-    # - That rapidgzip is faster for bgzip files -> Already shown in above benchmarks. Don't!
+    # - That igzip is faster than pragzip and therefore shows optimization potential -> Already shown in Figure 10. Don't
+    # - That pragzip is faster for bgzip files -> Already shown in above benchmarks. Don't!
     # Note that all of these support -c for writing to stdout and -d for forcing decompression
     benchmarks=(
         # compressor            # Decompressor
@@ -324,12 +326,12 @@ function compareCompressionFormats()
         'lz4'                   'lz4'                                         # ~ 12 s
         'bzip2'                 'lbzip2 -k -c -n 1'                           # ~ 3 min
         #'gzip'                  'igzip'
-        'gzip'                  'rapidgzip -o /dev/null -P 1'                 # ~ 1 min
-        'gzip'                  'rapidgzip -o /dev/null -P 1 --import-index'  # ~ 1 min
+        'gzip'                  'pragzip -o /dev/null -P 1'                   # ~ 1 min
+        'gzip'                  'pragzip -o /dev/null -P 1 --import-index'    # ~ 1 min
         'gzip'                  'bgzip -k -c --threads 1'                     # ~ 30 s
         'bgzip'                 'bgzip -k -c --threads 1'                     # ~ 30 s
         'gzip'                  'igzip -k -f -o /dev/null'                    # ~ 30 s
-        #'bgzip'                 'rapidgzip -P 1'
+        #'bgzip'                 'pragzip -P 1'
         #'xz'                    'xz'
         #'xz'                    'pixz -p 1'
         #'pixz'                  'pixz -p 1'
@@ -340,11 +342,11 @@ function compareCompressionFormats()
 
         # Compare all multi-core capable tools at 16 cores
         'bzip2'                 'lbzip2 -k -c -n 16'                          # ~ 4 min
-        'gzip'                  'rapidgzip -o /dev/null -P 16'                # ~ 2 min
-        'gzip'                  'rapidgzip -o /dev/null -P 16 --import-index' # ~ 1 min
+        'gzip'                  'pragzip -o /dev/null -P 16'                  # ~ 2 min
+        'gzip'                  'pragzip -o /dev/null -P 16 --import-index'   # ~ 1 min
         'gzip'                  'bgzip -k -c --threads 16'                    # ~ 14 min
         'bgzip'                 'bgzip -k -c --threads 16'                    # ~ 90 s
-        #'bgzip'                 'rapidgzip -P 16'
+        #'bgzip'                 'pragzip -P 16'
         #'xz'                    'pixz -p 16'
         #'pixz'                  'pixz -p 16
         'zstd'                  'pzstd -o /dev/null -p 16'                    # ~ 3 min
@@ -353,8 +355,8 @@ function compareCompressionFormats()
 
         # Compare all at 128 cores
         'bzip2'                 'lbzip2 -k -c -n 128'                         # ~ 10 min
-        'gzip'                  'rapidgzip -o /dev/null -P 128'                # ~ 8 min
-        'gzip'                  'rapidgzip -o /dev/null -P 128 --import-index' # ~ 7 min ?! WHY? Should be twice as fast!
+        'gzip'                  'pragzip -o /dev/null -P 128'                 # ~ 8 min
+        'gzip'                  'pragzip -o /dev/null -P 128 --import-index'  # ~ 7 min ?! WHY? Should be twice as fast!
         'bgzip'                 'bgzip -k -c --threads 128'                   # ~ 9 min
         #'pixz'                  'pixz -p 128'
         #'zstd'                  'pzstd -o /dev/null -p 128'
@@ -404,7 +406,7 @@ function compareCompressionFormats()
 
     for (( i = 0; i < 256 / 32; ++i )); do cat "$BEEGFSWS/silesia-32x.tar.gzip"; done > "$BEEGFSWS/silesia-256x.tar.gzip"
 
-    # Create rapidgzip indexes
+    # Create pragzip indexes
     for (( i = 0; i < ${#benchmarks[@]}; i += 2 )); do
         compressor=${benchmarks[i]}
         decompressor=${benchmarks[i+1]}
@@ -414,9 +416,9 @@ function compareCompressionFormats()
         pathToCompress="$BEEGFSWS/silesia-$(( 2 * parallelization ))x.tar"
         compressedPath="$pathToCompress.$compressor"
         pathToIndex="$compressedPath.gzindex"
-        if [[ ! -f "$pathToIndex" && "$decompressor" =~ ^rapidgzip.*$ ]]; then
-            echo "Creating gzip index file using rapidgzip..."
-            rapidgzip -P $( nproc ) -o '/dev/null' -f --export-index "$pathToIndex" "$compressedPath"
+        if [[ ! -f "$pathToIndex" && "$decompressor" =~ ^pragzip.*$ ]]; then
+            echo "Creating gzip index file using pragzip..."
+            pragzip -P $( nproc ) -o '/dev/null' -f --export-index "$pathToIndex" "$compressedPath"
         fi
     done
     wait
@@ -442,8 +444,8 @@ function compareCompressionFormats()
         'cp' -- "$compressedPath" "$pathToDecompress"
 
         if [[ $decompressor =~ ^.*import-index$ ]]; then
-            echo "Creating gzip index file using rapidgzip..."
-            rapidgzip -P $( nproc ) -o '/dev/null' -f --export-index "$pathToDecompress.gzindex" "$compressedPath"
+            echo "Creating gzip index file using pragzip..."
+            pragzip -P $( nproc ) -o '/dev/null' -f --export-index "$pathToDecompress.gzindex" "$compressedPath"
         fi
 
         for (( j = 0; j < nRepetitions; ++j )); do
@@ -492,7 +494,7 @@ sacct --format=jobid,jobidraw,jobname,partition,maxvmsize,maxvmsizenode,maxvmsiz
 
 
 ( cd -- "$workdir" && 'rm' -rf silesia.zip silesia silesia.tar; )
-tar -cj --transform="s|${HOME#/}/||" -f ~/rapidgzip-comparison-benchmarks-$( date +%Y-%m-%dT%H-%M-%S ).tar.bz2 "$workdir"
+tar -cj --transform="s|${HOME#/}/||" -f ~/pragzip-comparison-benchmarks-$( date +%Y-%m-%dT%H-%M-%S ).tar.bz2 "$workdir"
 
 ws_release --filesystem beegfs decompression-benchmarks
 
