@@ -1,6 +1,10 @@
 testFile='10xSRR22403185_2.fastq.gz'
-> 'results.dat'
-commits=( $( git log --oneline pragzip-7ce43a93~1..27b7ab8f51be077d4608aaf61d6e9ca65b144096 |
+testFile='test-files/silesia/20xsilesia.tar.gz'
+testFile='4GiB-base64.gz'
+resultFile='Ryzen3900X-20xsilesia.tar.gz-commit-timings.dat'
+resultFile='Ryzen3900X-4GiB-base64.gz-commit-timings.dat'
+> "$resultFile"
+commits=( $( git log --oneline 7ce43a93~1..rapidgzip-v0.8.1 |
                  grep '[[]\(feature\|refactor\|fix\|performance\)[]]' | sed 's| .*||' ) )
 for commit in "${commits[@]}"; do
     git checkout -f "$commit" || break
@@ -16,10 +20,10 @@ for commit in "${commits[@]}"; do
     if [[ -f src/tools/rapidgzip ]]; then tool=src/tools/rapidgzip; fi
     if [[ -z "$tool" ]]; then continue; fi
 
-    printf '%s' "$( git rev-parse HEAD )" >> 'results.dat'
+    printf '%s' "$( git rev-parse HEAD )" >> "$resultFile"
     for (( i = 0; i < 10; ++i )); do
         runtime=$( ( time "$tool" -d -o /dev/null "$testFile" ) 2>&1 |sed -nr 's|real.*0m([0-9.]+)s|\1|p' )
-        printf ' %s' "$runtime" >> 'results.dat'
+        printf ' %s' "$runtime" >> "$resultFile"
     done
-    echo >> 'results.dat'
+    echo >> "$resultFile"
 done

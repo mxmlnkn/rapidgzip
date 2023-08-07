@@ -17,7 +17,7 @@
     <info name="DMIBIOSDate" value="03/27/2021"/>
     <info name="DMISysVendor" value="GIGABYTE"/>
     <info name="Backend" value="Linux"/>
-    <info name="LinuxCgroup" value="/slurm/uid_1057660/job_38711378/step_batch"/>
+    <info name="LinuxCgroup" value="/slurm/uid_1057660/job_38712173/step_batch"/>
     <info name="OSName" value="Linux"/>
     <info name="OSRelease" value="3.10.0-1062.el7.x86_64"/>
     <info name="OSVersion" value="#1 SMP Wed Aug 7 18:08:02 UTC 2019"/>
