@@ -42,6 +42,11 @@ alignas( 8 ) static constexpr std::array<uint8_t, MAX_PRECODE_COUNT> PRECODE_ALP
 };
 
 constexpr size_t MAX_LITERAL_OR_LENGTH_SYMBOLS = 286;
+/**
+ * Note that RFC1951 section 3.2.7 lists the range of HCDIST as 1-32, however section 3.2.6 states that:
+ * > distance codes 30-31 will never actually occur in the compressed data.
+ * This explains why we define MAX_DISTANCE_SYMBOL_COUNT as 30 instead of 32!
+ */
 constexpr uint8_t MAX_DISTANCE_SYMBOL_COUNT = 30;
 /* next power of two (because binary tree) of MAX_LITERAL_OR_LENGTH_SYMBOLS. This is assuming that all symbols
  * are equally likely to appear, i.e., all codes would be encoded with the same number of bits (9). */
