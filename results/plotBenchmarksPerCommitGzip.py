@@ -121,10 +121,15 @@ lastFunctionCommitPerVersion = [
     ("62225149", ':', 0.475, "Only create Huffman LUT up to\nmax code length in block"),
 
     ("35852b74", ':', 0.425, "Use pread"),
-    # [ ] This is a performance degradation only on Taurus and on Ryzen maybe with Silesia but not the others
+    # This is a performance degradation only on Taurus and on Ryzen maybe with Silesia but not the others
+    #   -> This has become moot with 70bb8917:
+    #      "[performance] Avoid even more calls to BitReader::read and arithmetic operations: 345 -> 410 MB/s"
     ("8fff46b1", ':', 0.450, "Unroll loop over uncompressed data"),
     # [ ] These imply a better performance by increasing the current chunk size of 4 MiB to 8 MiB.
     #     Memory shouldn't be that much of an issue anymore thanks to chunk splitting.
+    #     For CTU-13-Dataset.tar.gz it still is though. It takes roughly 10 GB for 24 threads with 4 MiB chunks
+    #     and twice that with 8 MiB chunks. And it still only reaches ~1.5 GB/s :(
+    #     - [ ] Parallelize decompression of such chunks with very large compression ratio.
     ("3d385061", ':', 0.500, "Decrease chunk size from 8->2 MiB\nto quarter memory usage"),
     ("68c3fec9", ':', 0.525, "Increase chunk size from 1->8 MiB"),
     ("f5865ffe", ':', 0.550, "Use new block finder in GzipBlockFetcher"),
