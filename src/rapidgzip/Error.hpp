@@ -19,6 +19,7 @@ enum class [[nodiscard]] Error
     EXCEEDED_CL_LIMIT           = 0x20,
     EXCEEDED_SYMBOL_RANGE       = 0x21,
     EXCEEDED_LITERAL_RANGE      = 0x22,
+    EXCEEDED_DISTANCE_RANGE     = 0x23,
     EXCEEDED_WINDOW_RANGE       = 0x24,
 
     EMPTY_INPUT                 = 0x30,
@@ -67,6 +68,8 @@ toString( Error error )
         return "Invalid block compression type!";
     case Error::EXCEEDED_LITERAL_RANGE:
         return "Invalid number of literal/length codes!";
+    case Error::EXCEEDED_DISTANCE_RANGE:
+        return "Invalid number of distance codes!";
     case Error::INVALID_CL_BACKREFERENCE:
         return "Cannot copy last length because this is the first one!";
     case Error::INVALID_BACKREFERENCE:

@@ -778,6 +778,10 @@ Block<ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& bitReader )
         return Error::EXCEEDED_LITERAL_RANGE;
     }
     const auto distanceCodeCount = 1 + bitReader.read<5>();
+    if ( distanceCodeCount > MAX_DISTANCE_SYMBOL_COUNT ) {
+        durations.readDynamicHeader += duration( times.readDynamicStart );
+        return Error::EXCEEDED_DISTANCE_RANGE;
+    }
     const auto codeLengthCount = 4 + bitReader.read<4>();
 
     if constexpr ( ENABLE_STATISTICS ) {
@@ -892,6 +896,9 @@ Block<ENABLE_STATISTICS>::getDistance( BitReader& bitReader ) const
     uint16_t distance = 0;
     if ( m_compressionType == CompressionType::FIXED_HUFFMAN ) {
         distance = reverseBits( static_cast<uint8_t>( bitReader.read<5>() ) ) >> 3U;
+        if ( UNLIKELY( distance >= MAX_DISTANCE_SYMBOL_COUNT ) ) [[unlikely]] {
+            return { 0, Error::EXCEEDED_DISTANCE_RANGE };
+        }
     } else {
         const auto decodedDistance = m_distanceHC.decode( bitReader );
         if ( UNLIKELY( !decodedDistance ) ) [[unlikely]] {

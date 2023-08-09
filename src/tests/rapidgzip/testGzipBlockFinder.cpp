@@ -40,7 +40,13 @@ isValidDynamicHuffmanBlock( uint32_t bits )
     bits >>= 2U;
 
     const auto codeCount = bits & nLowestBitsSet<uint32_t, 5U>();
-    return 257U + codeCount <= MAX_LITERAL_OR_LENGTH_SYMBOLS;
+    if ( 257U + codeCount > MAX_LITERAL_OR_LENGTH_SYMBOLS ) {
+        return false;
+    }
+    bits >>= 5U;
+
+    const auto distanceCodeCount = bits & nLowestBitsSet<uint32_t, 5U>();
+    return 1U + distanceCodeCount <= MAX_DISTANCE_SYMBOL_COUNT;
 }
 
 
