@@ -346,6 +346,7 @@ public:
     uint64_t failedDistanceInit{ 0 };
     uint64_t failedLiteralInit{ 0 };
     uint64_t failedPrecodeApply{ 0 };
+    uint64_t missingEOBSymbol{ 0 };
 
     std::array<uint64_t, /* codeLengthCount - 4 is 4 bits = 16 possible values */ 16> precodeCLHistogram{};
 
@@ -834,6 +835,15 @@ Block<ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& bitReader )
         return precodeApplyError;
     }
 
+    /* Check for end-of-block symbol to have a non-zero code length. */
+    if ( m_literalCL[deflate::END_OF_BLOCK_SYMBOL] == 0 ) {
+        if constexpr ( ENABLE_STATISTICS ) {
+            durations.readDynamicHeader += duration( times.readDynamicStart );
+            this->missingEOBSymbol++;
+        }
+        return Error::INVALID_CODE_LENGTHS;
+    }
+
     /* Create distance HC
      * When encoding base64-encoded random-data, I encountered a length of 9, so uint16_t is necessary! */
     error = m_distanceHC.initializeFromLengths(
@@ -1237,7 +1247,7 @@ Block<ENABLE_STATISTICS>::readInternalCompressed( BitReader&           bitReader
             continue;
         }
 
-        if ( UNLIKELY( code == 256 ) ) [[unlikely]] {
+        if ( UNLIKELY( code == END_OF_BLOCK_SYMBOL /* 256 */ ) ) [[unlikely]] {
             m_atEndOfBlock = true;
             break;
         }

@@ -939,6 +939,10 @@ checkDeflateBlock( const uint64_t        bitBufferForLUT,
         return error;
     }
 
+    if ( literalCL[deflate::END_OF_BLOCK_SYMBOL] == 0 ) {
+        return Error::INVALID_CODE_LENGTHS;
+    }
+
     /* Check distance code lengths. */
     HuffmanCodingCheckOnly<uint16_t, MAX_CODE_LENGTH,
                            uint8_t, MAX_DISTANCE_SYMBOL_COUNT> distanceHC;
@@ -1302,6 +1306,8 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
               << static_cast<double>( block.failedDistanceInit ) / static_cast<double>( nBitsToTest ) * 100 << " %)\n"
               << "    Invalid Symbol   HC: " << block.failedLiteralInit   << " ("
               << static_cast<double>( block.failedLiteralInit ) / static_cast<double>( nBitsToTest ) * 100 << " %)\n"
+              << "    No end-of-block symbol: " << block.missingEOBSymbol   << " ("
+              << static_cast<double>( block.missingEOBSymbol ) / static_cast<double>( nBitsToTest ) * 100 << " %)\n"
               << "    Failed checkPrecode calls: " << checkPrecodeFails << "\n\n";
 
     std::cerr << "Cumulative time spent during tests with deflate::block::readDynamicHuffmanCoding:\n"
@@ -1324,6 +1330,9 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
               << static_cast<double>( checkPrecodeFails ) / static_cast<double>( passedDeflateHeaderTest ) * 100
               << " %)\n"
               << "        Remaining locations to test: " << ( passedDeflateHeaderTest - checkPrecodeFails ) << "\n"
+              << "        +-> Missing end-of-block symbol: " << block.missingEOBSymbol << " ("
+              << static_cast<double>( block.missingEOBSymbol )
+                 / static_cast<double>( passedDeflateHeaderTest - checkPrecodeFails ) * 100 << " %)\n"
               << "        +-> Invalid Distance Huffman Coding: " << block.failedDistanceInit << " ("
               << static_cast<double>( block.failedDistanceInit )
                  / static_cast<double>( passedDeflateHeaderTest - checkPrecodeFails ) * 100 << " %)\n"

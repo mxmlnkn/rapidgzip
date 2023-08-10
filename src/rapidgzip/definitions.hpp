@@ -53,6 +53,8 @@ constexpr uint8_t MAX_DISTANCE_SYMBOL_COUNT = 30;
 constexpr size_t MAX_LITERAL_HUFFMAN_CODE_COUNT = 512;
 constexpr size_t MAX_RUN_LENGTH = 258;
 
+constexpr uint16_t END_OF_BLOCK_SYMBOL = 256;
+
 enum class CompressionType : uint8_t
 {
     UNCOMPRESSED    = 0b00,

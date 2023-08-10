@@ -285,6 +285,10 @@ seekToNonFinalDynamicDeflateBlock( BitReader&   bitReader,
                         bitReader.seek( static_cast<long long int>( offset ) + 13 + ALL_PRECODE_BITS );
                     }
 
+                    if ( UNLIKELY( literalCL[deflate::END_OF_BLOCK_SYMBOL] == 0 ) ) [[unlikely]] {
+                        error = Error::INVALID_CODE_LENGTHS;
+                    }
+
                     /* Check distance code lengths. */
                     if ( UNLIKELY( error == Error::NONE ) ) [[unlikely]] {
                         HuffmanCodingCheckOnly<uint16_t, MAX_CODE_LENGTH,
