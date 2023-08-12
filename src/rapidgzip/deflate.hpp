@@ -24,12 +24,17 @@
 #include <vector>
 
 #include <BitReader.hpp>
-#include <huffman/HuffmanCodingDoubleLiteralCached.hpp>
-#include <huffman/HuffmanCodingLinearSearch.hpp>
+//#include <huffman/HuffmanCodingLinearSearch.hpp>
 #include <huffman/HuffmanCodingSymbolsPerLength.hpp>
 #include <huffman/HuffmanCodingReversedBitsCachedCompressed.hpp>
 #include <huffman/HuffmanCodingReversedBitsCached.hpp>
 #include <huffman/HuffmanCodingReversedCodesPerLength.hpp>
+
+#ifdef WITH_ISAL
+    #include <huffman/HuffmanCodingISAL.hpp>
+#else
+    #include <huffman/HuffmanCodingDoubleLiteralCached.hpp>
+#endif
 
 #include "DecodedDataView.hpp"
 #include "definitions.hpp"
@@ -42,8 +47,12 @@ namespace rapidgzip
 {
 namespace deflate
 {
+#ifdef WITH_ISAL
+using LiteralOrLengthHuffmanCoding = HuffmanCodingISAL;
+#else
 using LiteralOrLengthHuffmanCoding =
     HuffmanCodingDoubleLiteralCached<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_LITERAL_HUFFMAN_CODE_COUNT>;
+#endif
 
 /**
  * Because the fixed Huffman coding is used by different threads it HAS TO BE immutable. It is constant anyway
@@ -560,6 +569,15 @@ private:
                             size_t               nMaxToDecode,
                             Window&              window,
                             const HuffmanCoding& coding );
+
+#ifdef WITH_ISAL
+    template<typename Window>
+    [[nodiscard]] std::pair<size_t, Error>
+    readInternalCompressedIsal( BitReader&                bitReader,
+                                size_t                    nMaxToDecode,
+                                Window&                   window,
+                                const HuffmanCodingISAL& coding );
+#endif
 
     [[nodiscard]] static uint16_t
     getLength( uint16_t   code,
@@ -1164,7 +1182,16 @@ Block<ENABLE_STATISTICS>::readInternal( BitReader& bitReader,
     if ( m_compressionType == CompressionType::FIXED_HUFFMAN ) {
         return readInternalCompressed( bitReader, nMaxToDecode, window, m_fixedHC );
     }
+
+#ifdef WITH_ISAL
+    if constexpr ( std::is_same_v<LiteralOrLengthHuffmanCoding, HuffmanCodingISAL> ) {
+        return readInternalCompressedIsal( bitReader, nMaxToDecode, window, m_literalHC );
+    } else {
+        return readInternalCompressed( bitReader, nMaxToDecode, window, m_literalHC );
+    }
+#else
     return readInternalCompressed( bitReader, nMaxToDecode, window, m_literalHC );
+#endif
 }
 
 
@@ -1281,6 +1308,88 @@ Block<ENABLE_STATISTICS>::readInternalCompressed( BitReader&           bitReader
     m_decodedBytes += nBytesRead;
     return { nBytesRead, Error::NONE };
 }
+
+
+#ifdef WITH_ISAL
+template<bool ENABLE_STATISTICS>
+template<typename Window>
+std::pair<size_t, Error>
+Block<ENABLE_STATISTICS>::readInternalCompressedIsal
+(
+    BitReader&               bitReader,
+    size_t                   nMaxToDecode,
+    Window&                  window,
+    const HuffmanCodingISAL& coding )
+{
+    if ( !coding.isValid() ) {
+        throw std::invalid_argument( "No Huffman coding loaded! Call readHeader first!" );
+    }
+
+    constexpr bool containsMarkerBytes = std::is_same_v<std::decay_t<decltype( *window.data() ) >, uint16_t>;
+
+    nMaxToDecode = std::min( nMaxToDecode, window.size() - MAX_RUN_LENGTH );
+
+    size_t nBytesRead{ 0 };
+    for ( nBytesRead = 0; nBytesRead < nMaxToDecode; )
+    {
+        auto [symbol, symbolCount] = coding.decode( bitReader );
+        if ( symbolCount == 0 ) {
+            return { nBytesRead, Error::INVALID_HUFFMAN_CODE };
+        }
+
+        for ( ; symbolCount > 0; symbolCount--, symbol >>= 8 ) {
+            const auto code = static_cast<uint16_t>( symbol & 0xFFFFU );
+
+            if ( ( code <= 255 ) || ( symbolCount > 1 ) ) {
+                if constexpr ( ENABLE_STATISTICS ) {
+                    symbolTypes.literal++;
+                }
+
+                appendToWindow( window, static_cast<uint8_t>( code ) );
+                ++nBytesRead;
+                continue;
+            }
+
+            if ( UNLIKELY( code == END_OF_BLOCK_SYMBOL /* 256 */ ) ) [[unlikely]] {
+                m_atEndOfBlock = true;
+                m_decodedBytes += nBytesRead;
+                return { nBytesRead, Error::NONE };
+            }
+
+            static constexpr auto MAX_LIT_LEN_SYM = 512U;
+            if ( UNLIKELY( code > MAX_LIT_LEN_SYM ) ) [[unlikely]] {
+                return { nBytesRead, Error::INVALID_HUFFMAN_CODE };
+            }
+
+            if constexpr ( ENABLE_STATISTICS ) {
+                symbolTypes.backreference++;
+            }
+
+            /* If the next symbol is a repeat length, read in the length extra bits, the distance code, the distance
+             * extra bits. Then write out the corresponding data and update the state data accordingly. */
+            const auto length = symbol - 254U;
+            if ( length != 0 ) {
+                const auto [distance, error] = getDistance( bitReader );
+                if ( error != Error::NONE ) {
+                    return { nBytesRead, error };
+                }
+
+                if constexpr ( !containsMarkerBytes ) {
+                    if ( distance > m_decodedBytes + nBytesRead ) {
+                        return { nBytesRead, Error::EXCEEDED_WINDOW_RANGE };
+                    }
+                }
+
+                resolveBackreference( window, distance, length );
+                nBytesRead += length;
+            }
+        }
+    }
+
+    m_decodedBytes += nBytesRead;
+    return { nBytesRead, Error::NONE };
+}
+#endif  // ifdef WITH_ISAL
 
 
 template<bool ENABLE_STATISTICS>
