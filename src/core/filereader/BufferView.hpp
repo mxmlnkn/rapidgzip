@@ -16,6 +16,13 @@ class BufferViewFileReader :
 {
 public:
     explicit
+    BufferViewFileReader( const void* const buffer,
+                          const size_t      size ) :
+        m_buffer( reinterpret_cast<const std::byte*>( buffer ) ),
+        m_size( size )
+    {}
+
+    explicit
     BufferViewFileReader( const std::vector<char>& buffer ) :
         m_buffer( reinterpret_cast<const std::byte*>( buffer.data() ) ),
         m_size( buffer.size() )
