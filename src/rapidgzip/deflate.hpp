@@ -41,6 +41,7 @@
 #include "Error.hpp"
 #include "gzip.hpp"
 #include "MarkerReplacement.hpp"
+#include "RFCTables.hpp"
 
 
 namespace rapidgzip
@@ -200,70 +201,6 @@ createFixedHC()
     return result;
 }
 
-
-[[nodiscard]] constexpr uint16_t
-calculateDistance( uint16_t distance,
-                   uint8_t  extraBitsCount,
-                   uint16_t extraBits ) noexcept
-{
-    assert( distance >= 4 );
-    return 1U + ( 1U << ( extraBitsCount + 1U ) ) + ( ( distance % 2U ) << extraBitsCount ) + extraBits;
-};
-
-
-[[nodiscard]] constexpr uint16_t
-calculateDistance( uint16_t distance ) noexcept
-{
-    assert( distance >= 4 );
-    const auto extraBitsCount = ( distance - 2U ) / 2U;
-    return 1U + ( 1U << ( extraBitsCount + 1U ) ) + ( ( distance % 2U ) << extraBitsCount );
-};
-
-
-using DistanceLUT = std::array<uint16_t, 30>;
-
-[[nodiscard]] constexpr DistanceLUT
-createDistanceLUT() noexcept
-{
-    DistanceLUT result{};
-    for ( uint16_t i = 0; i < 4; ++i ) {
-        result[i] = i + 1;
-    }
-    for ( uint16_t i = 4; i < result.size(); ++i ) {
-        result[i] = calculateDistance( i );
-    }
-    return result;
-}
-
-
-alignas( 8 ) static constexpr DistanceLUT
-distanceLUT = createDistanceLUT();
-
-
-[[nodiscard]] constexpr uint16_t
-calculateLength( uint16_t code ) noexcept
-{
-    assert( code < 285 - 261 );
-    const auto extraBits = code / 4U;
-    return 3U + ( 1U << ( extraBits + 2U ) ) + ( ( code % 4U ) << extraBits );
-};
-
-
-using LengthLUT = std::array<uint16_t, 285 - 261>;
-
-[[nodiscard]] constexpr LengthLUT
-createLengthLUT() noexcept
-{
-    LengthLUT result{};
-    for ( uint16_t i = 0; i < result.size(); ++i ) {
-        result[i] = calculateLength( i );
-    }
-    return result;
-}
-
-
-alignas( 8 ) static constexpr LengthLUT
-lengthLUT = createLengthLUT();
 
 namespace
 {
