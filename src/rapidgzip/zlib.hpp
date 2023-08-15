@@ -189,7 +189,7 @@ public:
                 break;
             }
 
-            const auto errorCode = inflate( &m_stream, Z_BLOCK );
+            const auto errorCode = ::inflate( &m_stream, Z_BLOCK );
             if ( ( errorCode != Z_OK ) && ( errorCode != Z_STREAM_END ) ) {
                 std::stringstream message;
                 message << "[" << std::this_thread::get_id() << "] "
@@ -295,7 +295,7 @@ private:
 
         refillBuffer();
         while ( ( m_stream.avail_in > 0 ) && ( gzipHeader.done == 0 ) ) {
-            const auto errorCode = inflate( &m_stream, Z_BLOCK );
+            const auto errorCode = ::inflate( &m_stream, Z_BLOCK );
             if ( errorCode != Z_OK ) {
                 /* Even Z_STREAM_END would be unexpected here because we test for avail_in > 0. */
                 throw std::runtime_error( "Failed to parse gzip header!" );
