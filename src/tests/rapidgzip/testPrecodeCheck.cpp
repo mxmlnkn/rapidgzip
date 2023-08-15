@@ -465,7 +465,7 @@ analyzeValidPrecodes()
                 REQUIRE_EQUAL( isValid, alternativeIsValid );
                 if ( isValid != alternativeIsValid ) {
                     const auto codeLengthCount = 4 + next4Bits;
-                    std::cerr << "    next 4 bits: " << next4Bits << ", next 57 bits: "
+                    std::cerr << "    next 4 bits: " << std::bitset<4>( next4Bits ) << ", next 57 bits: "
                               << ( next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS ) ) << "\n";
                 }
             };
