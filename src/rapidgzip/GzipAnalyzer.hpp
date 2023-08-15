@@ -467,9 +467,13 @@ analyze( UniqueFileReader inputFile )
                 throw std::runtime_error( std::move( message ).str() );
             }
 
-            if ( crc32Calculator.verify( footer.crc32 ) ) {
-                std::cerr << "Validated CRC32 0x" << std::hex << crc32Calculator.crc32() << std::dec
-                          << " for gzip stream!\n";
+            try {
+                if ( crc32Calculator.verify( footer.crc32 ) ) {
+                    std::cerr << "Validated CRC32 0x" << std::hex << crc32Calculator.crc32() << std::dec
+                              << " for gzip stream!\n";
+                }
+            } catch ( const std::domain_error& exception ) {
+                std::cerr << "CRC32 validation for gzip stream failed with: " << exception.what() << "\n";
             }
 
             gzipHeader = {};
