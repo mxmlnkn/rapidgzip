@@ -28,9 +28,10 @@
 #include <huffman/HuffmanCodingSymbolsPerLength.hpp>
 #include <huffman/HuffmanCodingReversedBitsCachedCompressed.hpp>
 #include <huffman/HuffmanCodingReversedBitsCached.hpp>
-#include <huffman/HuffmanCodingReversedCodesPerLength.hpp>
+//#include <huffman/HuffmanCodingReversedCodesPerLength.hpp>
 
 #ifdef WITH_ISAL
+    //#include <huffman/HuffmanCodingDistanceISAL.hpp>
     #include <huffman/HuffmanCodingISAL.hpp>
 #else
     #include <huffman/HuffmanCodingDoubleLiteralCached.hpp>
@@ -165,11 +166,47 @@ using FixedHuffmanCoding =
 using PrecodeHuffmanCoding = HuffmanCodingReversedBitsCachedCompressed<uint8_t, MAX_PRECODE_LENGTH,
                                                                        uint8_t, MAX_PRECODE_COUNT>;
 
-/* HuffmanCodingReversedBitsCached is definitely faster for silesia.tar.gz which has more back-references than
+/**
+ * HuffmanCodingReversedBitsCached is definitely faster for silesia.tar.gz which has more back-references than
  * base64.gz for which the difference in changing this Huffman coding is negligible. Note that we can't use
- * double caching for this because that would mean merging the cache with ne next literal/length Huffman code! */
+ * double caching for this because that would mean merging the cache with ne next literal/length Huffman code!
+ *
+ * HuffmanCodingDistanceISAL:
+ *
+ *     m rapidgzip && src/tools/rapidgzip -d -o /dev/null 10xSRR22403185_2.fastq.gz
+ *     Decompressed in total 3618153020 B in:
+ *         1.60722 s -> 2251.18 MB/s
+ *         1.63562 s -> 2212.1 MB/s
+ *         1.63213 s -> 2216.83 MB/s
+ *
+ *     m rapidgzip && src/tools/rapidgzip -d -o /dev/null test-files/silesia/20xsilesia.tar.gz
+ *     Decompressed in total 4239155200 B in:
+ *         1.10059 s -> 3851.72 MB/s
+ *         1.13037 s -> 3750.25 MB/s
+ *         1.16631 s -> 3634.66 MB/s
+ *         1.12481 s -> 3768.77 MB/s
+ *
+ * HuffmanCodingReversedBitsCached:
+ *
+ *     m rapidgzip && src/tools/rapidgzip -d -o /dev/null 10xSRR22403185_2.fastq.g
+ *     Decompressed in total 3618153020 B in:
+ *         1.61128 s -> 2245.52 MB/s
+ *         1.61067 s -> 2246.36 MB/s
+ *         1.65374 s -> 2187.86 MB/s
+ *         1.60478 s -> 2254.61 MB/s
+ *
+ *     m rapidgzip && src/tools/rapidgzip -d -o /dev/null test-files/silesia/20xsilesia.tar.gz
+ *     Decompressed in total 4239155200 B in:
+ *         1.11193 s -> 3812.43 MB/s
+ *         1.0941 s -> 3874.56 MB/s
+ *         1.0993 s -> 3856.23 MB/s
+ *
+ * -> ISA-l is actually slightly (~1-2%) slower than my own simple distance Huffman decoder.
+ *    Probably because the table is small enough that short/long caching hinders performance more than it helps.
+ **/
 using DistanceHuffmanCoding = HuffmanCodingReversedBitsCached<uint16_t, MAX_CODE_LENGTH,
                                                               uint8_t, MAX_DISTANCE_SYMBOL_COUNT>;
+//using DistanceHuffmanCoding = HuffmanCodingDistanceISAL;
 
 /* Include 256 safety buffer so that we can avoid branches while filling. */
 using LiteralAndDistanceCLBuffer = std::array<uint8_t, MAX_LITERAL_OR_LENGTH_SYMBOLS + MAX_DISTANCE_SYMBOL_COUNT + 256>;
