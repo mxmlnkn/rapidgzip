@@ -228,6 +228,7 @@ private:
      * @ref cleanUnmarkedData.
      */
     std::vector<MarkerVector> dataWithMarkers;
+    std::vector<MarkerVector> reusedDataBuffers;
     std::vector<DecodedVector> dataBuffers;
     std::vector<VectorView<uint8_t> > data;
 };
@@ -280,42 +281,51 @@ DecodedData::applyWindow( WindowView const& window )
                 return result;
             }();
 
-        DecodedVector downcasted( markerCount );
-        size_t offset{ 0 };
         for ( auto& chunk : dataWithMarkers ) {
-            std::transform( chunk.begin(), chunk.end(), downcasted.begin() + offset,
+            std::transform( chunk.begin(), chunk.end(), reinterpret_cast<uint8_t*>( chunk.data() ),
                             [&fullWindow] ( const auto value ) constexpr noexcept { return fullWindow[value]; } );
-            offset += chunk.size();
-        }
-
-        dataBuffers.insert( dataBuffers.begin(), std::move( downcasted ) );
-        data.insert( data.begin(), VectorView<uint8_t>( dataBuffers.front().data(), dataBuffers.front().size() ) );
-        dataWithMarkers.clear();
-        return;
-    }
-
-    DecodedVector downcasted( markerCount );
-    size_t offset{ 0 };
-
-    /* For maximum size windows, we can skip one check because even UINT16_MAX is valid. */
-    static_assert( std::numeric_limits<uint16_t>::max() - MAX_WINDOW_SIZE + 1U == MAX_WINDOW_SIZE );
-    if ( window.size() >= MAX_WINDOW_SIZE ) {
-        const MapMarkers<true> mapMarkers( window );
-        for ( auto& chunk : dataWithMarkers ) {
-            std::transform( chunk.begin(), chunk.end(), downcasted.begin() + offset, mapMarkers );
-            offset += chunk.size();
         }
     } else {
-        const MapMarkers<false> mapMarkers( window );
-        for ( auto& chunk : dataWithMarkers ) {
-            std::transform( chunk.begin(), chunk.end(), chunk.begin(), mapMarkers );
-            std::copy( chunk.begin(), chunk.end(), reinterpret_cast<std::uint8_t*>( downcasted.data() + offset ) );
-            offset += chunk.size();
+        /* For maximum size windows, we can skip one check because even UINT16_MAX is valid. */
+        static_assert( std::numeric_limits<uint16_t>::max() - MAX_WINDOW_SIZE + 1U == MAX_WINDOW_SIZE );
+        if ( window.size() >= MAX_WINDOW_SIZE ) {
+            const MapMarkers<true> mapMarkers( window );
+            for ( auto& chunk : dataWithMarkers ) {
+                std::transform( chunk.begin(), chunk.end(), reinterpret_cast<uint8_t*>( chunk.data() ), mapMarkers );
+            }
+        } else {
+            const MapMarkers<false> mapMarkers( window );
+            for ( auto& chunk : dataWithMarkers ) {
+                std::transform( chunk.begin(), chunk.end(), reinterpret_cast<uint8_t*>( chunk.data() ), mapMarkers );
+            }
         }
     }
 
-    dataBuffers.insert( dataBuffers.begin(), std::move( downcasted ) );
-    data.insert( data.begin(), VectorView<uint8_t>( dataBuffers.front().data(), dataBuffers.front().size() ) );
+    if ( !reusedDataBuffers.empty() ) {
+        throw std::logic_error( "It seems like data already was replaced but we still got markers!" );
+    }
+    std::swap( reusedDataBuffers, dataWithMarkers );
+
+    /* Prepend a VectorView to @ref data for each reused chunk buffer. */
+    std::vector<VectorView<uint8_t> > dataViews;
+    dataViews.reserve( reusedDataBuffers.size() + data.size() );
+    for ( auto& chunk : reusedDataBuffers ) {
+        /**
+         * @todo Note that this leaves half of the chunk space unused because the number of elements stays
+         *       the same while the element type size is halved. I assume that shrink_to_fit would be
+         *       expensive. Therefore, it would be nice to simple join neihgboring chunks to fill all available
+         *       space and free the rest of the chunks. But, depending on the individual chunk sizes,
+         *       this can become complex.
+         * @note It is kind of an exception that this works! Because reinterpret_cast with target types
+         *       (unsigned) char* are excepted from the strict aliasing rules. For other types,
+         *       it would be undefined behavior, e.g., trying to reuse a vector of uint32_t as uint16_t!
+         * @see https://en.cppreference.com/w/cpp/language/reinterpret_cast#Type_aliasing
+         */
+        dataViews.emplace_back( VectorView<uint8_t>( reinterpret_cast<uint8_t*>( chunk.data() ), chunk.size() ) );
+    }
+    std::move( data.begin(), data.end(), std::back_inserter( dataViews ) );
+    std::swap( data, dataViews );
+
     dataWithMarkers.clear();
 }
 
