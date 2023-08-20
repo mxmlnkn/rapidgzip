@@ -296,11 +296,11 @@ This is preliminiary. The final citation will become available end of June 2023.
 This tool originated as a backend for [ratarmount](https://github.com/mxmlnkn/ratarmount).
 After writing the bzip2 backend for [ratarmount](https://github.com/mxmlnkn/indexed_bzip2), my hesitation about reimplementing custom decoders for existing file formats has vastly diminished.
 And, while random access to gzip files did exist with [indexed_gzip](https://github.com/pauldmccarthy/indexed_gzip), it did not support parallel decompression neither for the index creation nor when the index already exists.
-The latter of which is trivial, when ignoring load balancing issues, but parallelizing even the idnex creation is vastly more complicated because decompressing data requires the previous 32 KiB of decompressed data to be known.
+The latter of which is trivial, when ignoring load balancing issues, but parallelizing even the index creation is vastly more complicated because decompressing data requires the previous 32 KiB of decompressed data to be known.
 
 After implementing a production-ready version by improving upon the algorithm used by [pugz](https://github.com/Piezoid/pugz), I submitted a [paper](Citation).
-The review process was double-blind and I was unsure whether pseudonymize Pragzip because it has already been uploaded to Github.
-In the end, I used Rapidgzip during the review process and because I was not sure, which form fields should be filled with the pseudonymized title, I simply stuck with it.
+The review process was double-blind and I was unsure whether to pseudonymize Pragzip because it has already been uploaded to Github.
+In the end, I used "rapidgzip" during the review process and because I was not sure, which form fields should be filled with the pseudonymized title, I simply stuck with it.
 Rapidgzip was chosen for similar reason to rapidgzip, namely the P and RA are acronyms for Parallel and Random Access.
 As rapgzip, did not stick, I used rapidgzip, which now also contains the foremost design goal in its name: being rapidly faster than single-threaded implementations.
 Furthermore, the additional ID could be interpreted to stand for Index and Decompression, making "rapid" a partial backronym.
