@@ -109,9 +109,9 @@ public:
              * been converted from dataWithMarkers inside DecodedData::cleanUnmarkedData. */
             const auto toProcessSize = BaseType::dataSize() - alreadyProcessedSize;
             CRC32Calculator crc32;
-            for ( size_t i = 0; ( i < data.size() ) && ( crc32.streamSize() < toProcessSize ); ++i ) {
-                crc32.update( data[i].data(),
-                              std::min<uint64_t>( toProcessSize - crc32.streamSize(), data[i].size() ) );
+            for ( auto it = DecodedData::Iterator( *this, 0, toProcessSize ); static_cast<bool>( it ); ++it ) {
+                const auto [buffer, size] = *it;
+                crc32.update( buffer, size );
             }
             crc32s.front().prepend( crc32 );
         }
@@ -144,9 +144,11 @@ public:
         if ( toProcessSize > 0 ) {
             CRC32Calculator crc32;
             /* Iterate over contiguous chunks of memory. */
-            for ( size_t i = 0; ( i < data.size() ) && ( crc32.streamSize() < toProcessSize ); ++i ) {
-                crc32.update( data[i].data(),
-                              std::min<uint64_t>( toProcessSize - crc32.streamSize(), data[i].size() ) );
+            for ( auto it = DecodedData::Iterator( *this, 0, toProcessSize, /* ignoreDataWithMarkers */ true );
+                  static_cast<bool>( it ); ++it )
+            {
+                const auto [buffer, size] = *it;
+                crc32.update( buffer, size );
             }
             /* Note that the data with markers ought not cross footer boundaries because after a footer,
              * a new gzip stream begins, which should be known to not contain any unresolvable backreferences.

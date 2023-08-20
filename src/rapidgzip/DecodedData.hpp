@@ -32,14 +32,29 @@ public:
     class Iterator
     {
     public:
+        /**
+         * This iterator provides a view of the decoded data as requested via an offset and a length.
+         * If no relative offset or length is specified it will create a view of all of the data.
+         * The interface will return subviews as pointer-length pairs because the data might not be
+         * in one contiguous chunk internally.
+         */
         explicit
         Iterator( const DecodedData& decodedData,
-                  const size_t       offset = 0,
-                  const size_t       size = std::numeric_limits<size_t>::max() ) :
+                  const size_t       offsetInChunk = 0,
+                  const size_t       size = std::numeric_limits<size_t>::max(),
+                  const bool         ignoreDataWithMarkers = false ) :
             m_data( decodedData ),
             m_size( size )
         {
-            m_offsetInChunk = offset;
+            /**
+             * @todo It would feel right to allow access via this view as long as the offsetInChunk points
+             *       to after the marker data.
+             */
+            if ( !ignoreDataWithMarkers && !m_data.dataWithMarkers.empty() ) {
+                throw std::invalid_argument( "There are still markers in this chunk!" );
+            }
+
+            m_offsetInChunk = offsetInChunk;
             for ( m_currentChunk = 0; m_currentChunk < m_data.data.size(); ++m_currentChunk ) {
                 const auto& chunk = m_data.data[m_currentChunk];
                 if ( ( m_offsetInChunk < chunk.size() ) && !chunk.empty() ) {
@@ -193,10 +208,25 @@ public:
     void
     cleanUnmarkedData();
 
+#ifdef TEST_DECODED_DATA
+    [[nodiscard]] const std::vector<MarkerVector>&
+    getDataWithMarkers() const noexcept
+    {
+        return dataWithMarkers;
+    }
+
+    [[nodiscard]] const std::vector<DecodedVector>&
+    getData() const noexcept
+    {
+        return data;
+    }
+#endif
+
 public:
     size_t encodedOffsetInBits{ std::numeric_limits<size_t>::max() };
     size_t encodedSizeInBits{ 0 };
 
+private:
     /**
      * Use vectors of vectors to avoid reallocations. The order of this data is:
      * - @ref dataWithMarkers (front to back)

@@ -295,8 +295,10 @@ testTwoStagedDecoding( std::string_view encodedFilePath,
     decodedData.applyWindow( { lastWindow.data(), lastWindow.size() } );
 
     std::vector<uint8_t> concatenated;
-    for ( const auto& buffer : decodedData.data ) {
-        concatenated.insert( concatenated.end(), buffer.begin(), buffer.end() );
+    for ( auto it = deflate::DecodedData::Iterator( decodedData ); static_cast<bool>( it ); ++it ) {
+        const auto [buffer, size] = *it;
+        const auto* const ubuffer = reinterpret_cast<const uint8_t*>( buffer );
+        concatenated.insert( concatenated.end(), ubuffer, ubuffer + size );
     }
 
     /* Compare concatenated result. */

@@ -9,6 +9,8 @@
 #include <string>
 #include <vector>
 
+#define TEST_DECODED_DATA
+
 #include <common.hpp>
 #include <ChunkData.hpp>
 #include <definitions.hpp>
@@ -64,12 +66,14 @@ testAutomaticMarkerResolution( const std::filesystem::path& filePath,
             /* decodedSize */ std::nullopt,
             cancel );
 
-        std::vector<size_t> markerBlockSizesFound( result.dataWithMarkers.size() );
-        std::transform( result.dataWithMarkers.begin(), result.dataWithMarkers.end(), markerBlockSizesFound.begin(),
+        const auto& dataWithMarkers = result.getDataWithMarkers();
+        std::vector<size_t> markerBlockSizesFound( dataWithMarkers.size() );
+        std::transform( dataWithMarkers.begin(), dataWithMarkers.end(), markerBlockSizesFound.begin(),
                         [] ( const auto& buffer ) { return buffer.size(); } );
 
-        std::vector<size_t> blockSizesFound( result.data.size() );
-        std::transform( result.data.begin(), result.data.end(), blockSizesFound.begin(),
+        const auto& data= result.getData();
+        std::vector<size_t> blockSizesFound( data.size() );
+        std::transform( data.begin(), data.end(), blockSizesFound.begin(),
                         [] ( const auto& buffer ) { return buffer.size(); } );
 
         if ( ( markerBlockSizesFound != markerBlockSizes ) || ( blockSizesFound != blockSizes ) ) {
@@ -115,6 +119,8 @@ operator<<( std::ostream&                                    out,
 void
 testBlockSplit()
 {
+    using DecodedDataView = rapidgzip::deflate::DecodedDataView;
+
     ChunkData chunk;
     chunk.encodedOffsetInBits = 0;
     chunk.maxEncodedOffsetInBits = 0;
@@ -125,31 +131,46 @@ testBlockSplit()
     chunk.finalize( 0 );
     REQUIRE( chunk.split( 1 ).empty() );
 
-    chunk.data.emplace_back();
-    chunk.data.back().resize( 1 );
-    chunk.finalize( 8 );
-    std::vector<Subblock> expected = { Subblock{ 0, 8, 1 } };
-    REQUIRE( chunk.split( 1 ) == expected );
-    REQUIRE( chunk.split( 2 ) == expected );
-    REQUIRE( chunk.split( 10 ) == expected );
+    /* Test split of data length == 1 and no block boundary. */
+    {
+        auto chunk2 = chunk;
+        std::vector<uint8_t> data( 1, 0 );
+        DecodedDataView toAppend;
+        toAppend.data[0] = VectorView<uint8_t>( data.data(), data.size() );
+        chunk2.append( toAppend );
 
-    chunk.data.back().resize( 1024 );
-    chunk.blockBoundaries = { BlockBoundary{ 128, 1024 } };
-    chunk.finalize( 128 );
-    expected = { Subblock{ 0, 128, 1024 } };
-    REQUIRE( chunk.split( 1 ) == expected );
-    REQUIRE( chunk.split( 1024 ) == expected );
-    REQUIRE( chunk.split( 10000 ) == expected );
+        chunk2.finalize( 8 );
+        const std::vector<Subblock> expected = { Subblock{ 0, 8, 1 } };
+        REQUIRE( chunk2.split( 1 ) == expected );
+        REQUIRE( chunk2.split( 2 ) == expected );
+        REQUIRE( chunk2.split( 10 ) == expected );
+    }
 
-    chunk.blockBoundaries = { BlockBoundary{ 30, 300 }, BlockBoundary{ 128, 1024 } };
-    REQUIRE( chunk.split( 1024 ) == expected );
-    REQUIRE( chunk.split( 10000 ) == expected );
+    /* Test split of data length == 1024 and 1 block boundary. */
+    {
+        std::vector<uint8_t> data( 1024, 0 );
+        DecodedDataView toAppend;
+        toAppend.data[0] = VectorView<uint8_t>( data.data(), data.size() );
+        chunk.append( toAppend );
 
-    expected = { Subblock{ 0, 30, 300 }, Subblock{ 30, 128 - 30, 1024 - 300 } };
-    REQUIRE( chunk.split( 400 ) == expected );
-    REQUIRE( chunk.split( 512 ) == expected );
-    REQUIRE( chunk.split( 600 ) == expected );
-    REQUIRE( chunk.split( 1 ) == expected );
+        chunk.blockBoundaries = { BlockBoundary{ 128, 1024 } };
+        chunk.finalize( 128 );
+        std::vector<Subblock> expected = { Subblock{ 0, 128, 1024 } };
+        REQUIRE( chunk.split( 1 ) == expected );
+        REQUIRE( chunk.split( 1024 ) == expected );
+        REQUIRE( chunk.split( 10000 ) == expected );
+
+        /* Test split of data length == 1024 and 2 block boundaries. */
+        chunk.blockBoundaries = { BlockBoundary{ 30, 300 }, BlockBoundary{ 128, 1024 } };
+        REQUIRE( chunk.split( 1024 ) == expected );
+        REQUIRE( chunk.split( 10000 ) == expected );
+
+        expected = { Subblock{ 0, 30, 300 }, Subblock{ 30, 128 - 30, 1024 - 300 } };
+        REQUIRE( chunk.split( 400 ) == expected );
+        REQUIRE( chunk.split( 512 ) == expected );
+        REQUIRE( chunk.split( 600 ) == expected );
+        REQUIRE( chunk.split( 1 ) == expected );
+    }
 }
 
 
