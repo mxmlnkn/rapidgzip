@@ -2,7 +2,7 @@
 
 #include <array>
 #include <cstddef>
-#include <iostream>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string_view>
@@ -30,6 +30,7 @@ public:
     IsalInflateWrapper( BitReader    bitReader,
                         const size_t untilOffset = std::numeric_limits<size_t>::max() ) :
         m_bitReader( std::move( bitReader ) ),
+        m_encodedStartOffset( m_bitReader.tell() ),
         m_encodedUntilOffset( std::min( m_bitReader.size(), untilOffset ) )
     {
         initStream();
@@ -74,6 +75,7 @@ public:
     void
     setWindow( VectorView<uint8_t> const& window )
     {
+        m_setWindowSize = window.size();
         if ( isal_inflate_set_dict( &m_stream, window.data(), window.size() ) != COMP_OK ) {
             throw std::runtime_error( "Failed to set back-reference window in ISA-l!" );
         }
@@ -109,9 +111,15 @@ public:
                                         + ( oldReadInLength - m_stream.read_in_length );
             if ( errorCode != ISAL_DECOMP_OK ) {
                 std::stringstream message;
-                message << "[" << std::this_thread::get_id() << "] "
-                        << "Decoding failed with error code " << errorCode << "! "
-                        << "Already decoded " << m_stream.total_out << " B.";
+                message << "[IsalInflateWrapper][Thread " << std::this_thread::get_id() << "] "
+                        << "Decoding failed with error code " << errorCode << ": " << getErrorString( errorCode )
+                        << "! Already decoded " << m_stream.total_out << " B. "
+                        << "Bit range to decode: [" << m_encodedStartOffset << ", " << m_encodedUntilOffset << "]. ";
+                if ( m_setWindowSize ) {
+                    message << "Set window size: " << *m_setWindowSize << " B.";
+                } else {
+                    message << "No window was set.";
+                }
                 throw std::runtime_error( std::move( message ).str() );
             }
 
@@ -239,7 +247,7 @@ private:
 
             if ( errorCode != ISAL_END_INPUT ) {
                 std::stringstream message;
-                message << "Failed to parse gzip header (" << errorCode << ")!";
+                message << "Failed to parse gzip header (" << errorCode << ": " << getErrorString( errorCode ) << ")!";
                 throw std::runtime_error( std::move( message ).str() );
             }
 
@@ -251,9 +259,33 @@ private:
         }
     }
 
+    [[nodiscard]] static std::string_view
+    getErrorString( int errorCode ) noexcept
+    {
+        switch ( errorCode )
+        {
+        case ISAL_DECOMP_OK          /*  0 */ : return "No errors encountered while decompressing";
+        case ISAL_END_INPUT          /*  1 */ : return "End of input reached";
+        case ISAL_OUT_OVERFLOW       /*  2 */ : return "End of output reached";
+        case ISAL_NAME_OVERFLOW      /*  3 */ : return "End of gzip name buffer reached";
+        case ISAL_COMMENT_OVERFLOW   /*  4 */ : return "End of gzip name buffer reached";
+        case ISAL_EXTRA_OVERFLOW     /*  5 */ : return "End of extra buffer reached";
+        case ISAL_NEED_DICT          /*  6 */ : return "Stream needs a dictionary to continue";
+        case ISAL_INVALID_BLOCK      /* -1 */ : return "Invalid deflate block found";
+        case ISAL_INVALID_SYMBOL     /* -2 */ : return "Invalid deflate symbol found";
+        case ISAL_INVALID_LOOKBACK   /* -3 */ : return "Invalid lookback distance found";
+        case ISAL_INVALID_WRAPPER    /* -4 */ : return "Invalid gzip/zlib wrapper found";
+        case ISAL_UNSUPPORTED_METHOD /* -5 */ : return "Gzip/zlib wrapper specifies unsupported compress method";
+        case ISAL_INCORRECT_CHECKSUM /* -6 */ : return "Incorrect checksum found";
+        }
+        return "Unknown Error";
+    }
+
 private:
     BitReader m_bitReader;
+    const size_t m_encodedStartOffset;
     const size_t m_encodedUntilOffset;
+    std::optional<size_t> m_setWindowSize;
 
     inflate_state m_stream{};
     /* Loading the whole encoded data (multiple MiB) into memory first and then

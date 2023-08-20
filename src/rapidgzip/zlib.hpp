@@ -2,7 +2,7 @@
 
 #include <array>
 #include <cstddef>
-#include <iostream>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string_view>
@@ -96,6 +96,7 @@ public:
     ZlibInflateWrapper( BitReader    bitReader,
                         const size_t untilOffset = std::numeric_limits<size_t>::max() ) :
         m_bitReader( std::move( bitReader ) ),
+        m_encodedStartOffset( m_bitReader.tell() ),
         m_encodedUntilOffset( std::min( m_bitReader.size(), untilOffset ) )
     {
         initStream();
@@ -165,6 +166,7 @@ public:
     void
     setWindow( VectorView<uint8_t> const& window )
     {
+        m_setWindowSize = window.size();
         if ( inflateSetDictionary( &m_stream, window.data(), window.size() ) != Z_OK ) {
             throw std::runtime_error( "Failed to set back-reference window in zlib!" );
         }
@@ -192,10 +194,16 @@ public:
             const auto errorCode = ::inflate( &m_stream, Z_BLOCK );
             if ( ( errorCode != Z_OK ) && ( errorCode != Z_STREAM_END ) ) {
                 std::stringstream message;
-                message << "[" << std::this_thread::get_id() << "] "
+                message << "[ZlibInflateWrapper][Thread " << std::this_thread::get_id() << "] "
                         << "Decoding failed with error code " << errorCode << " "
                         << ( m_stream.msg == nullptr ? "" : m_stream.msg ) << "! "
-                        << "Already decoded " << m_stream.total_out << " B.";
+                        << "Already decoded " << m_stream.total_out << " B. "
+                        << "Bit range to decode: [" << m_encodedStartOffset << ", " << m_encodedUntilOffset << "]. ";
+                if ( m_setWindowSize ) {
+                    message << "Set window size: " << *m_setWindowSize << " B.";
+                } else {
+                    message << "No window was set.";
+                }
                 throw std::runtime_error( std::move( message ).str() );
             }
 
@@ -324,7 +332,9 @@ private:
 
 private:
     BitReader m_bitReader;
+    const size_t m_encodedStartOffset;
     const size_t m_encodedUntilOffset;
+    std::optional<size_t> m_setWindowSize;
 
     int m_windowFlags{ 0 };
     z_stream m_stream{};
