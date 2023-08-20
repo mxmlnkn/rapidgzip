@@ -108,8 +108,9 @@ public:
     append( DecodedVector&& toAppend )
     {
         if ( !toAppend.empty() ) {
-            data.emplace_back( std::move( toAppend ) );
-            data.back().shrink_to_fit();
+            dataBuffers.emplace_back( std::move( toAppend ) );
+            dataBuffers.back().shrink_to_fit();
+            data.emplace_back( VectorView<uint8_t>( dataBuffers.back().data(), dataBuffers.back().size() ) );
         }
     }
 
@@ -184,7 +185,7 @@ public:
     void
     shrinkToFit()
     {
-        for ( auto& container : data ) {
+        for ( auto& container : dataBuffers ) {
             container.shrink_to_fit();
         }
         for ( auto& container : dataWithMarkers ) {
@@ -206,7 +207,7 @@ public:
         return dataWithMarkers;
     }
 
-    [[nodiscard]] const std::vector<DecodedVector>&
+    [[nodiscard]] const std::vector<VectorView<uint8_t> >&
     getData() const noexcept
     {
         return data;
@@ -227,7 +228,8 @@ private:
      * @ref cleanUnmarkedData.
      */
     std::vector<MarkerVector> dataWithMarkers;
-    std::vector<DecodedVector> data;
+    std::vector<DecodedVector> dataBuffers;
+    std::vector<VectorView<uint8_t> > data;
 };
 
 
@@ -248,11 +250,12 @@ DecodedData::append( DecodedDataView const& buffers )
     }
 
     if ( buffers.dataSize() > 0 ) {
-        auto& copied = data.emplace_back();
+        auto& copied = dataBuffers.emplace_back();
         copied.reserve( buffers.dataSize() );
         for ( const auto& buffer : buffers.data ) {
             copied.insert( copied.end(), buffer.begin(), buffer.end() );
         }
+        data.emplace_back( VectorView<uint8_t>( copied.data(), copied.size() ) );
     }
 }
 
@@ -285,7 +288,8 @@ DecodedData::applyWindow( WindowView const& window )
             offset += chunk.size();
         }
 
-        data.insert( data.begin(), std::move( downcasted ) );
+        dataBuffers.insert( dataBuffers.begin(), std::move( downcasted ) );
+        data.insert( data.begin(), VectorView<uint8_t>( dataBuffers.front().data(), dataBuffers.front().size() ) );
         dataWithMarkers.clear();
         return;
     }
@@ -310,7 +314,8 @@ DecodedData::applyWindow( WindowView const& window )
         }
     }
 
-    data.insert( data.begin(), std::move( downcasted ) );
+    dataBuffers.insert( dataBuffers.begin(), std::move( downcasted ) );
+    data.insert( data.begin(), VectorView<uint8_t>( dataBuffers.front().data(), dataBuffers.front().size() ) );
     dataWithMarkers.clear();
 }
 
@@ -322,11 +327,12 @@ DecodedData::getLastWindow( WindowView const& previousWindow ) const
     size_t nBytesWritten{ 0 };
 
     /* Fill the result from the back with data from our buffer. */
+    /** @todo use iterator. */
     for ( auto chunk = data.rbegin(); ( chunk != data.rend() ) && ( nBytesWritten < window.size() ); ++chunk ) {
-        for ( auto symbol = chunk->rbegin(); ( symbol != chunk->rend() ) && ( nBytesWritten < window.size() );
-              ++symbol, ++nBytesWritten )
+        for ( size_t i = 0; ( i < chunk->size() ) && ( nBytesWritten < window.size() ); ++i, ++nBytesWritten )
         {
-            window[window.size() - 1 - nBytesWritten] = *symbol;
+            const auto symbol = ( *chunk )[chunk->size() - 1 - i];
+            window[window.size() - 1 - nBytesWritten] = symbol;
         }
     }
 
@@ -465,7 +471,8 @@ DecodedData::cleanUnmarkedData()
             [] ( auto value ) { return value > std::numeric_limits<uint8_t>::max(); } );
 
         const auto sizeWithoutMarkers = static_cast<size_t>( std::distance( toDowncast.rbegin(), marker ) );
-        auto downcasted = data.emplace( data.begin(), sizeWithoutMarkers );
+        auto downcasted = dataBuffers.emplace( dataBuffers.begin(), sizeWithoutMarkers );
+        data.insert( data.begin(), VectorView<uint8_t>( downcasted->data(), downcasted->size() ) );
         std::transform( marker.base(), toDowncast.end(), downcasted->begin(),
                         [] ( auto symbol ) { return static_cast<uint8_t>( symbol ); } );
 
