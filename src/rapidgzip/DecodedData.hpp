@@ -41,19 +41,10 @@ public:
         explicit
         Iterator( const DecodedData& decodedData,
                   const size_t       offsetInChunk = 0,
-                  const size_t       size = std::numeric_limits<size_t>::max(),
-                  const bool         ignoreDataWithMarkers = false ) :
+                  const size_t       size = std::numeric_limits<size_t>::max() ) :
             m_data( decodedData ),
             m_size( size )
         {
-            /**
-             * @todo It would feel right to allow access via this view as long as the offsetInChunk points
-             *       to after the marker data.
-             */
-            if ( !ignoreDataWithMarkers && !m_data.dataWithMarkers.empty() ) {
-                throw std::invalid_argument( "There are still markers in this chunk!" );
-            }
-
             m_offsetInChunk = offsetInChunk;
             for ( m_currentChunk = 0; m_currentChunk < m_data.data.size(); ++m_currentChunk ) {
                 const auto& chunk = m_data.data[m_currentChunk];

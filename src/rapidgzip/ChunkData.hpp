@@ -144,9 +144,7 @@ public:
         if ( toProcessSize > 0 ) {
             CRC32Calculator crc32;
             /* Iterate over contiguous chunks of memory. */
-            for ( auto it = DecodedData::Iterator( *this, 0, toProcessSize, /* ignoreDataWithMarkers */ true );
-                  static_cast<bool>( it ); ++it )
-            {
+            for ( auto it = DecodedData::Iterator( *this, 0, toProcessSize ); static_cast<bool>( it ); ++it ) {
                 const auto [buffer, size] = *it;
                 crc32.update( buffer, size );
             }
