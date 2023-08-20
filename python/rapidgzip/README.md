@@ -265,7 +265,8 @@ If you have suggestions and wishes like support with CMake or Conan, please open
 # Citation
 
 A paper describing the implementation details and showing the scaling behavior with up to 128 cores has been submitted to and [accepted](https://www.hpdc.org/2023/program/technical-sessions/) in [ACM HPDC'23](https://www.hpdc.org/2023/), The 32nd International Symposium on High-Performance Parallel and Distributed Computing.
-The author's version can be found [here](<results/paper/Knespel, Brunst - 2023 - Rapidgzip - Parallel Decompression and Seeking in Gzip Files Using Cache Prefetching.pdf>) and the accompanying presentation [here](results/Presentation-2023-06-22.pdf).
+The paper can be accessed [freely on ACM DL](https://doi.org/10.1145/3588195.3592992).
+The accompanying presentation can be found [here](results/Presentation-2023-06-22.pdf).
 
 If you use this software for your scientific publication, please cite it as:
 
@@ -276,16 +277,16 @@ This is preliminiary. The final citation will become available end of June 2023.
     author    = {Knespel, Maximilian and Brunst, Holger},
     title     = {Rapidgzip: Parallel Decompression and Seeking in Gzip Files Using Cache Prefetching},
     year      = {2023},
-    % isbn    = {},  % To be released end of June
+    isbn      = {9798400701559},
     publisher = {Association for Computing Machinery},
     address   = {New York, NY, USA},
     url       = {https://doi.org/10.1145/3588195.3592992},
     doi       = {10.1145/3588195.3592992},
     abstract  = {Gzip is a file compression format, which is ubiquitously used. Although a multitude of gzip implementations exist, only pugz can fully utilize current multi-core processor architectures for decompression. Yet, pugz cannot decompress arbitrary gzip files. It requires the decompressed stream to only contain byte values 9–126. In this work, we present a generalization of the parallelization scheme used by pugz that can be reliably applied to arbitrary gzip-compressed data without compromising performance. We show that the requirements on the file contents posed by pugz can be dropped by implementing an architecture based on a cache and a parallelized prefetcher. This architecture can safely handle faulty decompression results, which can appear when threads start decompressing in the middle of a gzip file by using trial and error. Using 128 cores, our implementation reaches 8.7 GB/s decompression bandwidth for gzip-compressed base64-encoded data, a speedup of 55 over the single-threaded GNU gzip, and 5.6 GB/s for the Silesia corpus, a speedup of 33 over GNU gzip.},
     booktitle = {Proceedings of the 32nd International Symposium on High-Performance Parallel and Distributed Computing},
-    % pages   = {16–29},  % To be released end of June
+    pages     = {295–307},
     numpages  = {13},
-    keywords  = {Gzip, Decompression, Parallel Algorithm, Performance, Random Access},
+    keywords  = {gzip, decompression, parallel algorithm, performance, random access},
     location  = {Orlando, FL, USA},
     series    = {HPDC '23},
 }
