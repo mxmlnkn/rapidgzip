@@ -113,7 +113,7 @@ decompressParallel( const Reader&       reader,
                     const bool          verbose )
 {
     if ( !indexLoadPath.empty() ) {
-        reader->setBlockOffsets( readGzipIndex( std::make_unique<StandardFileReader>( indexLoadPath ) ) );
+        reader->importIndex( std::make_unique<StandardFileReader>( indexLoadPath ) );
 
         if ( verbose && ( !indexSavePath.empty() || !indexLoadPath.empty() ) ) {
             printIndexAnalytics( reader );

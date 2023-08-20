@@ -105,14 +105,15 @@ readValue( FileReader* file )
 
 
 [[nodiscard]] inline GzipIndex
-readGzipIndex( UniqueFileReader file )
+readGzipIndex( UniqueFileReader indexFile,
+               FileReader*      archiveFile = nullptr )
 {
     GzipIndex index;
 
     const auto checkedRead =
-        [&file] ( void* buffer, size_t size )
+        [&indexFile] ( void* buffer, size_t size )
         {
-            const auto nBytesRead = file->read( reinterpret_cast<char*>( buffer ), size );
+            const auto nBytesRead = indexFile->read( reinterpret_cast<char*>( buffer ), size );
             if ( nBytesRead != size ) {
                 throw std::runtime_error( "Premature end of index file! Got only " + std::to_string( nBytesRead )
                                           + " out of " + std::to_string( size ) + " requested bytes." );
@@ -128,17 +129,27 @@ readGzipIndex( UniqueFileReader file )
         throw std::invalid_argument( "Invalid magic bytes!" );
     }
 
-    const auto formatVersion = readValue<uint8_t>( file.get() );
+    const auto formatVersion = readValue<uint8_t>( indexFile.get() );
     if ( formatVersion > 1 ) {
         throw std::invalid_argument( "Index was written with a newer indexed_gzip version than supported!" );
     }
 
-    file->seek( 1, SEEK_CUR );  // Skip reserved flags 1B
+    indexFile->seek( 1, SEEK_CUR );  // Skip reserved flags 1B
 
     loadValue( index.compressedSizeInBytes );
     loadValue( index.uncompressedSizeInBytes );
     loadValue( index.checkpointSpacing );
     loadValue( index.windowSizeInBytes );
+
+    if ( ( archiveFile != nullptr )
+         && ( archiveFile->size() > 0 )
+         && ( archiveFile->size() != index.compressedSizeInBytes ) )
+    {
+        std::stringstream message;
+        message << "File size for the compressed file (" << archiveFile->size()
+                << ") does not fit the size stored in the given index (" << index.compressedSizeInBytes << ")!";
+        throw std::invalid_argument( std::move( message ).str() );
+    }
 
     /* However, a window size larger than 32 KiB makes no sense bacause the Lempel-Ziv back-references
      * in the deflate format are limited to 32 KiB! Smaller values might, however, be enforced by especially
@@ -147,9 +158,9 @@ readGzipIndex( UniqueFileReader file )
      * other data and only load the last 32 KiB of the window buffer. */
     if ( index.windowSizeInBytes != 32_Ki ) {
         throw std::invalid_argument( "Only a window size of 32 KiB makes sense because indexed_gzip supports "
-                                     "no smaller ones and gzip does supprt any larger one." );
+                                     "no smaller ones and gzip does support any larger one." );
     }
-    const auto checkpointCount = readValue<uint32_t>( file.get() );
+    const auto checkpointCount = readValue<uint32_t>( indexFile.get() );
 
     index.checkpoints.resize( checkpointCount );
     for ( uint32_t i = 0; i < checkpointCount; ++i ) {
@@ -167,7 +178,7 @@ readGzipIndex( UniqueFileReader file )
             throw std::invalid_argument( "Checkpoint uncompressed offset is after the file end!" );
         }
 
-        const auto bits = readValue<uint8_t>( file.get() );
+        const auto bits = readValue<uint8_t>( indexFile.get() );
         if ( bits >= 8 ) {
             throw std::invalid_argument( "Denormal compressed offset for checkpoint. Bit offset >= 8!" );
         }
@@ -183,7 +194,7 @@ readGzipIndex( UniqueFileReader file )
                 checkpoint.window.resize( index.windowSizeInBytes );
             }
         } else {
-            if ( /* data flag */ readValue<uint8_t>( file.get() ) != 0 ) {
+            if ( /* data flag */ readValue<uint8_t>( indexFile.get() ) != 0 ) {
                 checkpoint.window.resize( index.windowSizeInBytes );
             }
         }

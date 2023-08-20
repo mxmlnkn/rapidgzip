@@ -680,11 +680,17 @@ public:
         chunkFetcher().clearCache();
     }
 
+    void
+    importIndex( UniqueFileReader indexFile )
+    {
+        setBlockOffsets( readGzipIndex( std::move( indexFile ), m_sharedFileReader.get() ) );
+    }
+
 #ifdef WITH_PYTHON_SUPPORT
     void
     importIndex( PyObject* pythonObject )
     {
-        setBlockOffsets( readGzipIndex( std::make_unique<PythonFileReader>( pythonObject ) ) );
+        readGzipIndex( std::make_unique<PythonFileReader>( pythonObject ) );
     }
 
     void
