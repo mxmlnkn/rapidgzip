@@ -641,6 +641,15 @@ private:
     void
     setBlockOffsets( std::map<size_t, size_t> offsets )
     {
+        /**
+         * @todo Join very small consecutive block offsets until it roughly reflects the chunk size?
+         * Because currently, the version with the BGZI index is slower than without!
+         * rapidgzip -d -o /dev/null 4GiB-base64.bgz
+         * > Decompressed in total 4294967296 B in 0.565016 s -> 7601.49 MB/s
+         * rapidgzip -d -o /dev/null --import-index 4GiB-base64.bgz
+         * > Decompressed in total 4294901760 B in 1.22275 s -> 3512.5 MB/s
+         */
+
         if ( offsets.empty() ) {
             if ( m_blockMap->dataBlockCount() == 0 ) {
                 return;
@@ -666,8 +675,50 @@ public:
 
         /* Generate simple compressed to uncompressed offset map from index. */
         std::map<size_t, size_t> newBlockOffsets;
-        for ( const auto& checkpoint : index.checkpoints ) {
+        for ( size_t i = 0; i < index.checkpoints.size(); ++i ) {
+            const auto& checkpoint = index.checkpoints[i];
+
+            /**
+             * Skip emission of an index, if the next checkpoint would still let us be below the chunk size.
+             * Always copy the zeroth index as is necessary for a valid index!
+             *
+             * This is for merging very small index points as might happen when importing BGZF indexes.
+             * Small index will lead to relatively larger overhead for the threading and will degrade performance:
+             * Merge n blocks:
+             *     0 -> ~3.3 GB/s, Total existing blocks: 65793
+             *     2 -> ~5.0 GB/s, Total existing blocks: 32897
+             *     4 -> ~5.7 GB/s, Total existing blocks: 16449
+             *     8 -> ~6.0 GB/s, Total existing blocks: 8225
+             *    16 -> ~6.8 GB/s, Total existing blocks: 4113
+             *    32 -> ~6.8 GB/s, Total existing blocks: 2057
+             *    64 -> ~7.2 GB/s, Total existing blocks: 1029
+             *   128 -> ~6.9 GB/s, Total existing blocks: 515
+             *
+             * Without index import (chunk size 4 MiB):
+             * src/tools/rapidgzip -d -o /dev/null 4GiB-base64.bgz
+             *   Total existing blocks: 766 blocks
+             *   Index reading took: 0.00259098 s
+             *
+             *   Decompressed in total 4294967296 B in 0.580731 s -> 7395.79 MB/s
+             *   Decompressed in total 4294967296 B in 0.576022 s -> 7456.26 MB/s
+             *   Decompressed in total 4294967296 B in 0.597594 s -> 7187.1 MB/s
+             */
+            if ( !newBlockOffsets.empty() && ( i + 1 < index.checkpoints.size() )
+                 && ( index.checkpoints[i + 1].uncompressedOffsetInBytes - newBlockOffsets.rbegin()->second
+                      <= m_chunkSizeInBytes ) )
+            {
+                continue;
+            }
+
             newBlockOffsets.emplace( checkpoint.compressedOffsetInBits, checkpoint.uncompressedOffsetInBytes );
+
+            /* Copy window data.
+             * For some reason, indexed_gzip also stores windows for the very last checkpoint at the end of the file,
+             * which is useless because there is nothing thereafter. But, don't filter it here so that exportIndex
+             * mirrors importIndex better. */
+            m_windowMap->emplace( checkpoint.compressedOffsetInBits,
+                                  WindowMap::Window( checkpoint.window.data(),
+                                                     checkpoint.window.data() + checkpoint.window.size() ) );
         }
 
         /* Input file-end offset if not included in checkpoints. */
@@ -681,22 +732,13 @@ public:
 
         setBlockOffsets( std::move( newBlockOffsets ) );
 
-        /* Copy window data. */
-        for ( const auto& checkpoint : index.checkpoints ) {
-            /* For some reason, indexed_gzip also stores windows for the very last checkpoint at the end of the file,
-             * which is useless because there is nothing thereafter. But, don't filter it here so that exportIndex
-             * mirrors importIndex better. */
-            m_windowMap->emplace( checkpoint.compressedOffsetInBits,
-                                  WindowMap::Window( checkpoint.window.data(),
-                                                     checkpoint.window.data() + checkpoint.window.size() ) );
-        }
         chunkFetcher().clearCache();
     }
 
     void
     importIndex( UniqueFileReader indexFile )
     {
-        setBlockOffsets( readGzipIndex( std::move( indexFile ), m_sharedFileReader.get() ) );
+        setBlockOffsets( readGzipIndex( std::move( indexFile ), m_sharedFileReader->clone() ) );
     }
 
 #ifdef WITH_PYTHON_SUPPORT
