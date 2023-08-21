@@ -112,7 +112,7 @@ Rapidgzip achieves up to 24 GB/s with an index and 7 GB/s without.
 Pugz is not shown as comparison because it is not able to decompress the Silesia dataset because it contains binary data, which it cannot handle.
 
 
-### Decompression Gzip-Compressed Base64 Data
+### Decompression of Gzip-Compressed Base64 Data
 
 ![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/rapidgzip-0.8.1-scaling-benchmarks-2023-08-06/plots/result-parallel-decompression-base64-dev-null-bandwidths-number-of-threads.png)
 
@@ -153,13 +153,13 @@ These benchmarks on my local workstation with a Ryzen 3900X only has 12 cores (2
 | Compressed Size        | 3.04 GiB                     |                 | | 1.27 GiB                      |
 | **Module**             | **Bandwidth <br/> / (MB/s)** | **Speedup**     | |  **Bandwidth <br/> / (MB/s)** | **Speedup**
 | gzip                   |  250                         |    1            | |   293                         |  1
-| rapidgzip (0  threads) | 3290                         | 12.7            | |  1820                         |  6.1
-| rapidgzip (1  threads) |  222                         |  0.9            | |   238                         |  0.8
-| rapidgzip (2  threads) |  435                         |  1.7            | |   415                         |  1.4
-| rapidgzip (6  threads) | 1260                         |  4.9            | |  1140                         |  3.8
-| rapidgzip (12 threads) | 2310                         |  8.9            | |  1550                         |  5.2
-| rapidgzip (24 threads) | 3200                         | 12.4            | |  1890                         |  6.3
-| rapidgzip (32 threads) | 3210                         | 12.4            | |  2060                         |  6.9
+| rapidgzip (0  threads) | 3390                         | 13.4            | |  2290                         |  7.5
+| rapidgzip (1  threads) |  225                         |  0.9            | |   336                         |  1.1
+| rapidgzip (2  threads) |  438                         |  1.7            | |   542                         |  1.8
+| rapidgzip (6  threads) | 1270                         |  5.0            | |  1520                         |  5.0
+| rapidgzip (12 threads) | 2380                         |  9.4            | |  2020                         |  6.6
+| rapidgzip (24 threads) | 3350                         | 13.3            | |  2320                         |  7.6
+| rapidgzip (32 threads) | 3300                         | 13.1            | |  2550                         |  8.3
 
 
 # Usage
