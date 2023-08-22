@@ -110,6 +110,7 @@ public:
         if constexpr ( SHOW_PROFILE ) {
             std::stringstream out;
             out << "[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:\n";
+            out << "    Number of false positives               : " << m_falsePositiveCount << "\n";
             out << "    Time spent in block finder              : " << m_blockFinderTime << " s\n";
             out << "    Time spent decoding                     : " << m_decodeTime << " s\n";
             out << "    Time spent allocating and copying       : " << m_appendTime << " s\n";
@@ -212,6 +213,7 @@ public:
 
             if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
                 std::scoped_lock lock( m_statisticsMutex );
+                m_falsePositiveCount += chunkData->falsePositiveCount;
                 m_blockFinderTime += chunkData->blockFinderDuration;
                 m_decodeTime += chunkData->decodeDuration;
                 m_appendTime += chunkData->appendDuration;
@@ -656,6 +658,7 @@ public:
          */
         const auto tBlockFinderStart = now();
         static constexpr auto CHUNK_SIZE = 8_Ki * BYTE_SIZE;
+        size_t falsePositiveCount{ 0 };
         for ( auto chunkBegin = blockOffset; chunkBegin < untilOffset; chunkBegin += CHUNK_SIZE ) {
             /* Only look in the first 512 KiB of data. If nothing can be found there, then something is likely
              * to be wrong with the file and looking in the rest will also likely fail. And looking in the whole
@@ -690,8 +693,11 @@ public:
                 if ( auto result = tryToDecode( offsetToTest ); result ) {
                     result->blockFinderDuration = duration( tBlockFinderStart, tBlockFinderStop );
                     result->decodeDuration = duration( tBlockFinderStop );
+                    result->falsePositiveCount = falsePositiveCount;
                     return *std::move( result );
                 }
+
+                falsePositiveCount++;
             }
         }
 
@@ -979,6 +985,7 @@ private:
 
 private:
     /* Members for benchmark statistics */
+    size_t m_falsePositiveCount{ 0 };
     double m_applyWindowTime{ 0 };
     double m_blockFinderTime{ 0 };
     double m_decodeTime{ 0 };

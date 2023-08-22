@@ -218,6 +218,7 @@ public:
     std::vector<CRC32Calculator> crc32s{ std::vector<CRC32Calculator>( 1 ) };
 
     /* Benchmark results */
+    size_t falsePositiveCount{ 0 };
     double blockFinderDuration{ 0 };
     double decodeDuration{ 0 };
     double appendDuration{ 0 };
