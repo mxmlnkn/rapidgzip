@@ -155,6 +155,9 @@ public:
         return !dataWithMarkers.empty();
     }
 
+    [[nodiscard]] size_t
+    countMarkerSymbols() const;
+
     /**
      * Replaces all 16-bit wide marker symbols by looking up the referenced 8-bit symbols in @p window.
      * @note Probably should not be called internally because it is allowed to be shadowed by a child class method.
@@ -258,6 +261,20 @@ DecodedData::append( DecodedDataView const& buffers )
         }
         data.emplace_back( VectorView<uint8_t>( copied.data(), copied.size() ) );
     }
+}
+
+
+[[nodiscard]] inline size_t
+DecodedData::countMarkerSymbols() const
+{
+    size_t result{ 0 };
+    for ( auto& chunk : dataWithMarkers ) {
+        result += std::accumulate( chunk.begin(), chunk.end(), size_t( 0 ),
+                                   [] ( const size_t sum, const uint16_t symbol ) {
+            return sum + ( ( symbol & 0xFF00U ) == 0 ? 0 : 1 );
+        } );
+    }
+    return result;
 }
 
 

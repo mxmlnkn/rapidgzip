@@ -114,7 +114,10 @@ public:
             out << "    Time spent decoding                     : " << m_decodeTime << " s\n";
             out << "    Time spent allocating and copying       : " << m_appendTime << " s\n";
             out << "    Time spent applying the last window     : " << m_applyWindowTime << " s\n";
-            out << "    Replaced marker bytes                   : " << formatBytes( m_markerCount ) << "\n";
+            out << "    Replaced marker buffers                 : " << formatBytes( m_markerCount ) << "\n";
+            out << "    Actual marker count                     : " << formatBytes( m_realMarkerCount )
+                << " (" << static_cast<double>( m_realMarkerCount ) / static_cast<double>( m_markerCount ) * 100
+                << " %)\n";
             out << "    Chunks exceeding max. compression ratio : " << m_preemptiveStopCount << "\n";
             std::cerr << std::move( out ).str();
         }
@@ -378,6 +381,9 @@ private:
                     const WindowView                  previousWindow )
     {
         [[maybe_unused]] const auto markerCount = chunkData->dataWithMarkersSize();
+        if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+            m_realMarkerCount += chunkData->countMarkerSymbols();
+        }
         [[maybe_unused]] const auto tApplyStart = now();
         chunkData->applyWindow( previousWindow );
         if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
@@ -978,6 +984,7 @@ private:
     double m_decodeTime{ 0 };
     double m_appendTime{ 0 };
     uint64_t m_markerCount{ 0 };
+    uint64_t m_realMarkerCount{ 0 };
     uint64_t m_preemptiveStopCount{ 0 };
     mutable std::mutex m_statisticsMutex;
 
