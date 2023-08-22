@@ -256,6 +256,27 @@ main( int    argc,
     test( "base64-32KiB.pgz", 0, {}, { 16796, 15972 } );
     test( "base64-32KiB.pgz", 1, { 15793 }, { 179 } );
 
+#ifdef WITH_ISAL
+    /* When decodeBlock is able to delegate ISA-l, then the resulting chunks will be sized 128 KiB
+     * to improve allocator behavior. All in all, testing the exact chunk sizes it not the most stable
+     * unit test as it might be subject to further changes :/. For example, when decoding with rapidgzip
+     * or replacing markers also tries to use chunk sizes of 128 KiB to reduce allocation fragmentation.
+     * What should be important is the sum of the block sizes for markers and without. */
+    test( "random-128KiB.gz" , 0, {}, { 32777, 98295 } );
+    test( "random-128KiB.bgz", 0, {}, { 65280, 65280, 512 } );
+    test( "random-128KiB.igz", 0, {}, { 65535, 65537 } );
+    test( "random-128KiB.pgz", 0, {}, { 16387, 16389, 16395, 81901 } );
+
+    test( "random-128KiB.gz" , 1, {}, { 32793, 65502 } );
+    test( "random-128KiB.bgz", 1, {}, { 65280, 512 } );
+    test( "random-128KiB.igz", 1, {}, { 65224, 313 } );
+    test( "random-128KiB.pgz", 1, {}, { 16389, 16395, 16397, 65504 } );
+
+    test( "random-128KiB.gz" , 2, {}, { 32777, 32725 } );
+    test( "random-128KiB.bgz", 2, {}, { 512 } );
+    test( "random-128KiB.igz", 2, {}, { 313 } );
+    test( "random-128KiB.pgz", 2, {}, { 16395, 16397, 16389, 49115 } );
+#else
     test( "random-128KiB.gz" , 0, {}, { 32777, 32793, 32777, 32725 } );
     test( "random-128KiB.bgz", 0, {}, { 65280, 65280, 512 } );
     test( "random-128KiB.igz", 0, {}, { 65535, 65224, 313 } );
@@ -270,6 +291,7 @@ main( int    argc,
     test( "random-128KiB.bgz", 2, {}, { 512 } );
     test( "random-128KiB.igz", 2, {}, { 313 } );
     test( "random-128KiB.pgz", 2, {}, { 16395, 16397, 16389, 16387, 16393, 16335 } );
+#endif
     // *INDENT-ON*
 
     /**

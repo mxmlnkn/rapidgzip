@@ -95,4 +95,22 @@ enum StoppingPoint : uint32_t
     END_OF_BLOCK         = 1U << 3U,
     ALL                  = 0xFFFF'FFFFU,
 };
+
+
+[[nodiscard]] inline std::string
+toString( StoppingPoint stoppingPoint )
+{
+    // *INDENT-OFF*
+    switch ( stoppingPoint )
+    {
+    case StoppingPoint::NONE                 : return "None";
+    case StoppingPoint::END_OF_STREAM_HEADER : return "End of Stream Header";
+    case StoppingPoint::END_OF_STREAM        : return "End of Stream";
+    case StoppingPoint::END_OF_BLOCK_HEADER  : return "End of Block Header";
+    case StoppingPoint::END_OF_BLOCK         : return "End of Block";
+    case StoppingPoint::ALL                  : return "All";
+    };
+    return "Unknown";
+    // *INDENT-ON*
+}
 }  // namespace rapidgzip

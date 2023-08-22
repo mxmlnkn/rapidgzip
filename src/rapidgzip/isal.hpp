@@ -80,6 +80,12 @@ public:
         return static_cast<StoppingPoint>( m_stream.stopped_at );
     }
 
+    [[nodiscard]] bool
+    isFinalBlock() const
+    {
+        return m_stream.bfinal != 0;
+    }
+
     [[nodiscard]] std::optional<CompressionType>
     compressionType() const
     {

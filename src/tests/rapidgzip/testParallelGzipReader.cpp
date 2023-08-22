@@ -692,21 +692,25 @@ testCachedChunkReuseAfterSplit()
 void
 testPrefetchingAfterSplit()
 {
+    static constexpr size_t DATA_SIZE = 64_Mi;
+    static constexpr size_t CHUNK_SIZE = 1_Mi;
+
     /* As there are 4 symbols, 2 bits per symbol should suffice and as the data is random, almost no backreferences
      * should be viable. This leads to a compression ratio of ~4, which is large enough for splitting and benign
      * enough to have multiple chunks with fairly little uncompressed data. */
-    const auto compressedRandomDNA = compressWithZlib( createRandomData( 64_Mi, DNA_SYMBOLS ),
+    const auto compressedRandomDNA = compressWithZlib( createRandomData( DATA_SIZE, DNA_SYMBOLS ),
                                                        CompressionStrategy::HUFFMAN_ONLY );
 
     rapidgzip::ParallelGzipReader<rapidgzip::ChunkData, /* ENABLE_STATISTICS */ true> reader(
-        std::make_unique<BufferViewFileReader>( compressedRandomDNA ), /* parallelization */ 2, /* chunk size */ 1_Mi );
+        std::make_unique<BufferViewFileReader>( compressedRandomDNA ), /* parallelization */ 2, CHUNK_SIZE );
     reader.setCRC32Enabled( true );
 
-    /* Read everything. The data should contain sufficient chunks such that the first one have been evicted. */
+    /* Read everything. The data should contain sufficient chunks such that the first ones have been evicted. */
     reader.read( -1, nullptr, std::numeric_limits<size_t>::max() );
     REQUIRE_EQUAL( reader.statistics().onDemandFetchCount, 1U );
     REQUIRE_EQUAL( reader.tell(), 64_Mi );
     REQUIRE_EQUAL( reader.tellCompressed(), compressedRandomDNA.size() * BYTE_SIZE );
+    REQUIRE( reader.blockOffsets().size() >= DATA_SIZE / CHUNK_SIZE );
 
     reader.seek( 0 );
     reader.read( -1, nullptr, std::numeric_limits<size_t>::max() );
@@ -719,7 +723,7 @@ testPrefetchingAfterSplit()
         std::make_unique<BufferViewFileReader>( compressedRandomDNA ), /* parallelization */ 2, /* chunk size */ 1_Mi );
     reader2.setCRC32Enabled( true );
     reader2.setBlockOffsets( reader.gzipIndex() );
-    std::cerr << "File was split into " << reader.blockOffsets().size() - 1 << " chunks\n";
+    std::cerr << "File was split into " << reader.blockOffsets().size() - 1 << " chunks\n";  // 70, subject to change
 
     reader2.read( -1, nullptr, std::numeric_limits<size_t>::max() );
     REQUIRE_EQUAL( reader2.statistics().onDemandFetchCount, 1U );

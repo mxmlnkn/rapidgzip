@@ -463,11 +463,18 @@ private:
         }
 
         if ( !chunkData->matchesEncodedOffset( blockOffset ) ) {
+            /* This error should be equivalent to trying to start to decode from the requested blockOffset
+             * and failing to do so. It should only happen when a previous decodeBlock call did not stop
+             * on a deflate block boundary. */
             std::stringstream message;
-            message << "Got wrong block to searched offset! Looked for " << std::to_string( blockOffset )
+            message << "Got wrong block to searched offset! Looked for " << blockOffset
                     << " and looked up cache successively for estimated offset "
-                    << std::to_string( partitionOffset ) << " but got block with actual offset "
-                    << std::to_string( blockOffset );
+                    << partitionOffset << " but got block with actual offset ";
+            if ( chunkData->encodedOffsetInBits == chunkData->maxEncodedOffsetInBits ) {
+                message << chunkData->encodedOffsetInBits;
+            } else {
+                message << "[" << chunkData->encodedOffsetInBits << ", " << chunkData->maxEncodedOffsetInBits << "]";
+            }
             throw std::logic_error( std::move( message ).str() );
         }
 
@@ -578,8 +585,8 @@ public:
                     /* For decoding, it does not matter whether we seek to offset.first or offset.second but it DOES
                      * matter a lot for interpreting and correcting the encodedSizeInBits in GzipBlockFetcer::get! */
                     bitReader.seek( offset.second );
-                    auto result = decodeBlockWithRapidgzip( &bitReader, untilOffset, initialWindow, crc32Enabled,
-                                                            maxDecompressedChunkSize );
+                    auto result = decodeBlockWithRapidgzip( &bitReader, untilOffset, /* initialWindow */ std::nullopt,
+                                                            crc32Enabled, maxDecompressedChunkSize );
                     result.encodedOffsetInBits = offset.first;
                     result.maxEncodedOffsetInBits = offset.second;
                     /** @todo Avoid out of memory issues for very large compression ratios by using a simple runtime
@@ -826,7 +833,12 @@ private:
             std::stringstream message;
             message << "The inflate wrapper offset (" << inflateWrapper.tellCompressed() << ") "
                     << "does not match the requested exact stop offset: " << exactUntilOffset << ". "
-                    << "The archive or the index may be corrupted or the stop condition might contain a bug.";
+                    << "The archive or the index may be corrupted or the stop condition might contain a bug. "
+                    << "Decoded: " << alreadyDecoded << " B";
+            if ( decodedSize ) {
+                 message << " out of requested " << *decodedSize << " B";
+            }
+            message << ".";
             throw std::runtime_error( std::move( message ).str() );
         }
 
@@ -834,18 +846,165 @@ private:
         return result;
     }
 
+
+#ifdef WITH_ISAL
+    /**
+     * This is called from @ref decodeBlockWithRapidgzip in case the window has been fully resolved so that
+     * normal decompression instead of two-staged one becomes possible.
+     *
+     * @param untilOffset In contrast to @ref decodeBlockWithInflateWrapper, this may be an inexact guess
+     *                    from which another thread starts decoding!
+     * @note This code is copy-pasted from decodeBlockWithInflateWrapper and adjusted to use the stopping
+     *       points and deflate block properties as stop criterion.
+     */
     [[nodiscard]] static ChunkData
-    decodeBlockWithRapidgzip( BitReader*                      bitReader,
-                              size_t                          untilOffset,
+    finishDecodeBlockWithIsal( BitReader* const bitReader,
+                               size_t     const untilOffset,
+                               WindowView const initialWindow,
+                               size_t     const maxDecompressedChunkSize,
+                               ChunkData&&      result )
+    {
+        if ( bitReader == nullptr ) {
+            throw std::invalid_argument( "BitReader may not be nullptr!" );
+        }
+
+        auto nextBlockOffset = bitReader->tell();
+        bool stoppingPointReached{ false };
+        auto alreadyDecoded = result.size();
+
+        if ( ( alreadyDecoded > 0 ) && !bitReader->eof() ) {
+            result.appendDeflateBlockBoundary( nextBlockOffset, alreadyDecoded );
+        }
+
+        IsalInflateWrapper inflateWrapper{ BitReader( *bitReader ) };
+        inflateWrapper.setWindow( initialWindow );
+        inflateWrapper.setStoppingPoints( static_cast<StoppingPoint>( StoppingPoint::END_OF_BLOCK |
+                                                                      StoppingPoint::END_OF_BLOCK_HEADER |
+                                                                      StoppingPoint::END_OF_STREAM_HEADER ) );
+
+        constexpr size_t ALLOCATION_CHUNK_SIZE = 128_Ki;
+        while( !stoppingPointReached ) {
+            deflate::DecodedVector subchunk( ALLOCATION_CHUNK_SIZE );
+            std::optional<gzip::Footer> footer;
+
+            /* In order for CRC32 verification to work, we have to append at most one gzip stream per subchunk
+             * because the CRC32 calculator is swapped inside ChunkData::append. */
+            size_t nBytesRead = 0;
+            size_t nBytesReadPerCall{ 0 };
+            while ( ( nBytesRead < subchunk.size() ) && !footer && !stoppingPointReached ) {
+                std::tie( nBytesReadPerCall, footer ) = inflateWrapper.readStream( subchunk.data() + nBytesRead,
+                                                                                   subchunk.size() - nBytesRead );
+                nBytesRead += nBytesReadPerCall;
+
+                /* We cannot stop decoding after a final block because the following decoder does not
+                 * expect to start a gzip footer. Put another way, we are interested in START_OF_BLOCK
+                 * not END_OF_BLOCK and therefore we have to infer one from the other. */
+                bool isBlockStart{ false };
+
+                switch ( inflateWrapper.stoppedAt() )
+                {
+                case StoppingPoint::END_OF_STREAM_HEADER:
+                    isBlockStart = true;
+                    break;
+
+                case StoppingPoint::END_OF_BLOCK:
+                    isBlockStart = !inflateWrapper.isFinalBlock();
+                    break;
+
+                case StoppingPoint::END_OF_BLOCK_HEADER:
+                    if ( ( ( nextBlockOffset >= untilOffset )
+                           && !inflateWrapper.isFinalBlock()
+                           && ( inflateWrapper.compressionType() != deflate::CompressionType::FIXED_HUFFMAN ) )
+                         || ( nextBlockOffset == untilOffset ) ) {
+                        stoppingPointReached = true;
+                    }
+                    break;
+                case StoppingPoint::NONE:
+                    if ( ( nBytesReadPerCall == 0 ) && !footer ) {
+                        stoppingPointReached = true;
+                    }
+                    break;
+
+                default:
+                    throw std::logic_error( "Got stopping point of a type that was not requested!" );
+                }
+
+                if ( isBlockStart ) {
+                    nextBlockOffset = inflateWrapper.tellCompressed();
+
+                    /* Do not push back the first boundary because it is redundant as it should contain the same encoded
+                     * offset as @ref result and it also would have the same problem that the real offset is ambiguous
+                     * for non-compressed blocks. */
+                    if ( alreadyDecoded + nBytesRead > 0 ) {
+                        result.appendDeflateBlockBoundary( nextBlockOffset, alreadyDecoded + nBytesRead );
+                    }
+
+                    if ( alreadyDecoded >= maxDecompressedChunkSize ) {
+                        stoppingPointReached = true;
+                        result.stoppedPreemptively = true;
+                        break;
+                    }
+                }
+            }
+
+            alreadyDecoded += nBytesRead;
+
+            subchunk.resize( nBytesRead );
+            subchunk.shrink_to_fit();
+            result.append( std::move( subchunk ) );
+            if ( footer ) {
+                nextBlockOffset = inflateWrapper.tellCompressed();
+                result.appendFooter( inflateWrapper.tellCompressed(), alreadyDecoded, *footer );
+            }
+
+            if ( ( inflateWrapper.stoppedAt() == StoppingPoint::NONE )
+                 && ( nBytesReadPerCall == 0 ) && !footer ) {
+                break;
+            }
+        }
+
+        uint8_t dummy{ 0 };
+        const auto [nBytesReadPerCall, footer] = inflateWrapper.readStream( &dummy, 1 );
+        if ( ( inflateWrapper.stoppedAt() == StoppingPoint::NONE ) && ( nBytesReadPerCall == 0 ) && footer ) {
+            nextBlockOffset = inflateWrapper.tellCompressed();
+            result.appendFooter( inflateWrapper.tellCompressed(), alreadyDecoded, *footer );
+        }
+
+        result.finalize( nextBlockOffset );
+        /**
+         * Without the std::move, performance is halved! It seems like copy elision on return does not work
+         * with function arguments! @see https://en.cppreference.com/w/cpp/language/copy_elision
+         * > In a return statement, when the operand is the name of a non-volatile object with automatic
+         * > storage duration, **which isn't a function parameter** [...]
+         * And that is only the non-mandatory copy elision, which isn't even guaranteed in C++17!
+         */
+        return std::move( result );
+    }
+#endif  // ifdef WITH_ISAL
+
+
+private:
+    [[nodiscard]] static ChunkData
+    decodeBlockWithRapidgzip( BitReader*                const bitReader,
+                              size_t                    const untilOffset,
                               std::optional<WindowView> const initialWindow,
-                              bool                            crc32Enabled,
-                              size_t                          maxDecompressedChunkSize )
+                              bool                      const crc32Enabled,
+                              size_t                    const maxDecompressedChunkSize )
     {
         if ( bitReader == nullptr ) {
             throw std::invalid_argument( "BitReader must be non-null!" );
         }
 
-        const auto chunkOffset = bitReader->tell();
+        ChunkData result;
+        result.setCRC32Enabled( crc32Enabled );
+        result.encodedOffsetInBits = bitReader->tell();
+
+    #ifdef WITH_ISAL
+        if ( initialWindow ) {
+            return finishDecodeBlockWithIsal( bitReader, untilOffset, *initialWindow, maxDecompressedChunkSize,
+                                              std::move( result ) );
+        }
+    #endif
 
         /* If true, then read the gzip header. We cannot simply check the gzipHeader optional because we might
          * start reading in the middle of a gzip stream and will not meet the gzip header for a while or never. */
@@ -860,14 +1019,11 @@ private:
             block->setInitialWindow( *initialWindow );
         }
 
-        ChunkData result;
-        result.setCRC32Enabled( crc32Enabled );
-        result.encodedOffsetInBits = bitReader->tell();
-
         /* Loop over possibly gzip streams and deflate blocks. We cannot use GzipReader even though it does
          * something very similar because GzipReader only works with fully decodable streams but we
          * might want to return buffer with placeholders in case we don't know the initial window, yet! */
         size_t nextBlockOffset{ 0 };
+        size_t cleanDataCount{ 0 };
         while ( true )
         {
             if ( isAtStreamEnd ) {
@@ -879,6 +1035,11 @@ private:
                             << " because of error: " << toString( error );
                     throw std::domain_error( std::move( message ).str() );
                 }
+
+            #ifdef WITH_ISAL
+                return finishDecodeBlockWithIsal( bitReader, untilOffset, /* initialWindow */ {},
+                                                  maxDecompressedChunkSize, std::move( result ) );
+            #endif
 
                 gzipHeader = std::move( header );
                 block.emplace();
@@ -894,9 +1055,18 @@ private:
                 break;
             }
 
+        #ifdef WITH_ISAL
+            if ( cleanDataCount >= deflate::MAX_WINDOW_SIZE ) {
+                const deflate::DecodedVector window = result.getLastWindow( {} );
+                return finishDecodeBlockWithIsal( bitReader, untilOffset,
+                                                  VectorView<uint8_t>( window.data(), window.size() ),
+                                                  maxDecompressedChunkSize, std::move( result ) );
+            }
+        #endif
+
             if ( auto error = block->readHeader( *bitReader ); error != Error::NONE ) {
                 std::stringstream message;
-                message << "Failed to read deflate block header at offset " << formatBits( chunkOffset )
+                message << "Failed to read deflate block header at offset " << formatBits( result.encodedOffsetInBits )
                         << " (position after trying: " << formatBits( bitReader->tell() ) << ": "
                         << toString( error );
                 throw std::domain_error( std::move( message ).str() );
@@ -930,10 +1100,12 @@ private:
                 const auto [bufferViews, error] = block->read( *bitReader, std::numeric_limits<size_t>::max() );
                 if ( error != Error::NONE ) {
                     std::stringstream message;
-                    message << "Failed to decode deflate block at " << formatBits( chunkOffset )
+                    message << "Failed to decode deflate block at " << formatBits( result.encodedOffsetInBits )
                             << " because of: " << toString( error );
                     throw std::domain_error( std::move( message ).str() );
                 }
+
+                cleanDataCount += bufferViews.dataSize();
 
                 const auto tAppendStart = now();
                 result.append( bufferViews );

@@ -158,12 +158,6 @@ public:
         decodedSizeInBytes = BaseType::size();
     }
 
-    [[nodiscard]] constexpr size_t
-    size() const noexcept = delete;
-
-    [[nodiscard]] constexpr size_t
-    dataSize() const noexcept = delete;
-
     /**
      * Appends a deflate block boundary.
      */
@@ -171,7 +165,12 @@ public:
     appendDeflateBlockBoundary( const size_t encodedOffset,
                                 const size_t decodedOffset )
     {
-        blockBoundaries.emplace_back( BlockBoundary{ encodedOffset, decodedOffset } );
+        if ( blockBoundaries.empty()
+             || ( blockBoundaries.back().encodedOffset != encodedOffset )
+             || ( blockBoundaries.back().decodedOffset != decodedOffset ) )
+        {
+            blockBoundaries.emplace_back( BlockBoundary{ encodedOffset, decodedOffset } );
+        }
     }
 
     /**
