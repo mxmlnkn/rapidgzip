@@ -81,4 +81,18 @@ toString( CompressionType compressionType ) noexcept
     return "Unknown";
 }
 }  // namespace deflate
+
+
+/**
+ * Used for GzipReader and IsalInflateWrapper to request preemptive stopping points from the decoder.
+ */
+enum StoppingPoint : uint32_t
+{
+    NONE                 = 0U,
+    END_OF_STREAM_HEADER = 1U << 0U,
+    END_OF_STREAM        = 1U << 1U,  // after gzip footer has been read
+    END_OF_BLOCK_HEADER  = 1U << 2U,
+    END_OF_BLOCK         = 1U << 3U,
+    ALL                  = 0xFFFF'FFFFU,
+};
 }  // namespace rapidgzip

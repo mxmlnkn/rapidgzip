@@ -26,6 +26,9 @@ namespace rapidgzip
 class IsalInflateWrapper
 {
 public:
+    using CompressionType = deflate::CompressionType;
+
+public:
     explicit
     IsalInflateWrapper( BitReader    bitReader,
                         const size_t untilOffset = std::numeric_limits<size_t>::max() ) :
@@ -65,6 +68,36 @@ public:
         return m_bitReader.tell() - getUnusedBits();
     }
 
+    void
+    setStoppingPoints( StoppingPoint stoppingPoints )
+    {
+        m_stream.points_to_stop_at = static_cast<isal_stopping_point>( stoppingPoints );
+    }
+
+    [[nodiscard]] StoppingPoint
+    stoppedAt() const
+    {
+        return static_cast<StoppingPoint>( m_stream.stopped_at );
+    }
+
+    [[nodiscard]] std::optional<CompressionType>
+    compressionType() const
+    {
+        if ( stoppedAt() != StoppingPoint::END_OF_BLOCK_HEADER ) {
+            return std::nullopt;
+        }
+
+        switch ( m_stream.btype )
+        {
+        case 0: return CompressionType::UNCOMPRESSED;
+        case 1: return CompressionType::FIXED_HUFFMAN;
+        case 2: return CompressionType::DYNAMIC_HUFFMAN;
+        default: break;
+        }
+
+        return std::nullopt;
+    }
+
 private:
     [[nodiscard]] size_t
     getUnusedBits() const
@@ -92,7 +125,7 @@ private:
     std::optional<gzip::Footer>
     readGzipFooter();
 
-    void
+    [[nodiscard]] bool
     readGzipHeader();
 
     [[nodiscard]] static std::string_view
@@ -108,6 +141,10 @@ private:
     /* Loading the whole encoded data (multiple MiB) into memory first and then
      * decoding it in one go is 4x slower than processing it in chunks of 128 KiB! */
     std::array<char, 128_Ki> m_buffer;
+
+    StoppingPoint m_stoppingPoints{ StoppingPoint::ALL };
+    std::optional<StoppingPoint> m_currentPoint;
+    bool m_needToReadGzipHeader{ false };
 };
 
 
@@ -156,6 +193,20 @@ IsalInflateWrapper::readStream( uint8_t* const output,
     m_stream.next_out = output;
     m_stream.avail_out = outputSize;
     m_stream.total_out = 0;
+    /* isal_inflate also clears it like this but isal_inflate might not be called in this function! */
+    m_stream.stopped_at = ISAL_STOPPING_POINT_NONE;
+
+    if ( m_needToReadGzipHeader ) {
+        const auto headerSuccess = readGzipHeader();
+        if ( !headerSuccess ) {
+            return { 0, std::nullopt };
+        }
+        m_needToReadGzipHeader = false;
+        if ( ( m_stream.points_to_stop_at & ISAL_STOPPING_POINT_END_OF_STREAM_HEADER ) != 0 ) {
+            m_stream.stopped_at = ISAL_STOPPING_POINT_END_OF_STREAM_HEADER;
+            return { 0, std::nullopt };
+        }
+    }
 
     size_t decodedSize{ 0 };
     while ( ( decodedSize + m_stream.total_out < outputSize ) && ( m_stream.avail_out > 0 ) ) {
@@ -180,7 +231,9 @@ IsalInflateWrapper::readStream( uint8_t* const output,
         /* == actual ISA-L inflate call == */
         const auto errorCode = isal_inflate( &m_stream );
 
-        if ( errorCode != ISAL_DECOMP_OK ) {
+        /* isal_inflate maps all other valid (>= 0) return codes, such as ISAL_OUT_OVERFLOW to
+         * ISAL_DECOMP_OK (0). See the code comment in igzip_lib.h. */
+        if ( errorCode < 0 ) {
             std::stringstream message;
             message << "[IsalInflateWrapper][Thread " << std::this_thread::get_id() << "] "
                     << "Decoding failed with error code " << errorCode << ": " << getErrorString( errorCode )
@@ -198,6 +251,10 @@ IsalInflateWrapper::readStream( uint8_t* const output,
             throw std::logic_error( "Decoded more than fits into the output buffer!" );
         }
 
+        if ( m_stream.stopped_at != ISAL_STOPPING_POINT_NONE ) {
+            break;
+        }
+
         const auto progressedBits = oldUnusedBits != getUnusedBits();
         const auto progressedOutput = m_stream.total_out != oldTotalOut;
 
@@ -209,7 +266,17 @@ IsalInflateWrapper::readStream( uint8_t* const output,
             std::optional<gzip::Footer> footer;
             footer = readGzipFooter();  // This resets m_stream.total_out
             if ( footer ) {
-                readGzipHeader();
+                if ( ( m_stream.points_to_stop_at & ISAL_STOPPING_POINT_END_OF_STREAM ) != 0 ) {
+                    m_needToReadGzipHeader = true;
+                    m_stream.stopped_at = ISAL_STOPPING_POINT_END_OF_STREAM;
+                } else {
+                    const auto headerSuccess = readGzipHeader();
+                    if ( headerSuccess
+                         && ( ( m_stream.points_to_stop_at & ISAL_STOPPING_POINT_END_OF_STREAM_HEADER ) != 0 ) )
+                    {
+                        m_stream.stopped_at = ISAL_STOPPING_POINT_END_OF_STREAM_HEADER;
+                    }
+                }
             }
 
             m_stream.next_out = output + decodedSize;
@@ -278,7 +345,7 @@ IsalInflateWrapper::readGzipFooter()
 }
 
 
-inline void
+inline bool
 IsalInflateWrapper::readGzipHeader()
 {
     const auto oldNextOut = m_stream.next_out;
@@ -291,7 +358,11 @@ IsalInflateWrapper::readGzipHeader()
     isal_gzip_header_init( &gzipHeader );
 
     refillBuffer();
-    while ( m_stream.avail_in > 0 ) {
+    if ( !hasInput() ) {
+        return false;
+    }
+
+    while ( hasInput() ) {
         const auto errorCode = isal_read_gzip_header( &m_stream, &gzipHeader );
         if ( errorCode == ISAL_DECOMP_OK ) {
             break;
@@ -309,6 +380,8 @@ IsalInflateWrapper::readGzipHeader()
     if ( m_stream.next_out != oldNextOut ) {
         throw std::logic_error( "ISA-l wrote some output even though we only wanted to read the gzip header!" );
     }
+
+    return true;
 }
 
 

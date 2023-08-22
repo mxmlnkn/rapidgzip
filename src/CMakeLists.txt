@@ -111,9 +111,3 @@ target_include_directories(isal_inflate
     PRIVATE
         ${ISAL_HOME}/igzip
 )
-
-
-add_executable(inflate
-    ${ISAL_HOME}/decompress.cpp
-)
-target_link_libraries(inflate PRIVATE isal_inflate)

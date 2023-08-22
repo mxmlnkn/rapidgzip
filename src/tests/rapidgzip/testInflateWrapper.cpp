@@ -3,15 +3,16 @@
 #include <random>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include <common.hpp>
 #include <crc32.hpp>
+#include <deflate.hpp>
 #include <filereader/BufferView.hpp>
 #include <filereader/Shared.hpp>
 #include <filereader/Standard.hpp>
-#include <deflate.hpp>
 #include <GzipReader.hpp>
 #include <TestHelpers.hpp>
 #include <zlib.hpp>
@@ -490,6 +491,152 @@ testGetBlockOffsets( const std::filesystem::path& compressedFilePath )
 
 template<typename InflateWrapper>
 void
+testSmallBuffers()
+{
+    /* As there are 4 symbols, 2 bits per symbol should suffice and as the data is random, almost no backreferences
+     * should be viable. This leads to a compression ratio of ~4, which is large enough for splitting and benign
+     * enough to have multiple chunks with fairly little uncompressed data. */
+    constexpr auto DNA_SYMBOLS = "ACGT"sv;
+    std::vector<std::byte> allowedSymbols( DNA_SYMBOLS.size() );
+    std::transform( DNA_SYMBOLS.begin(), DNA_SYMBOLS.end(), allowedSymbols.begin(),
+                    [] ( const auto c ) { return static_cast<std::byte>( c ); } );
+
+    const auto randomDNA = createRandomData( 16_Ki, allowedSymbols );
+    const auto compressedRandomDNA = compressWithZlib( randomDNA, CompressionStrategy::HUFFMAN_ONLY );
+
+    /* Decode 1 B per call. */
+    {
+        auto fileReader = std::make_unique<SharedFileReader>(
+            std::make_unique<BufferViewFileReader>( compressedRandomDNA ) );
+        rapidgzip::BitReader bitReader( std::move( fileReader ) );
+        bitReader.seek( 10 * CHAR_BIT );  // Deflate wrapper expects to start at deflate block
+        InflateWrapper inflateWrapper( std::move( bitReader ) );
+
+        std::vector<std::byte> decompressedResult( randomDNA.size() );
+        for ( size_t i = 0; i < decompressedResult.size(); ++i ) {
+            auto [decompressedSize, footer] = inflateWrapper.readStream(
+                reinterpret_cast<uint8_t*>( decompressedResult.data() + i ), 1U );
+            REQUIRE_EQUAL( decompressedSize, 1U );
+        }
+
+        REQUIRE( decompressedResult == randomDNA );
+    }
+}
+
+
+void
+testStoppingPoints()
+{
+#ifdef WITH_ISAL
+    /* As there are 4 symbols, 2 bits per symbol should suffice and as the data is random, almost no backreferences
+     * should be viable. This leads to a compression ratio of ~4, which is large enough for splitting and benign
+     * enough to have multiple chunks with fairly little uncompressed data. */
+    constexpr auto DNA_SYMBOLS = "ACGT"sv;
+    std::vector<std::byte> allowedSymbols( DNA_SYMBOLS.size() );
+    std::transform( DNA_SYMBOLS.begin(), DNA_SYMBOLS.end(), allowedSymbols.begin(),
+                    [] ( const auto c ) { return static_cast<std::byte>( c ); } );
+
+    const auto randomDNA = createRandomData( 128_Ki, allowedSymbols );
+    const auto compressedRandomDNA = compressWithZlib( randomDNA, CompressionStrategy::HUFFMAN_ONLY );
+
+    const auto stoppingPoints = static_cast<StoppingPoint>( StoppingPoint::END_OF_BLOCK |
+                                                            StoppingPoint::END_OF_BLOCK_HEADER );
+    std::unordered_map<StoppingPoint, std::vector<size_t> > offsetsWithGzipReader;
+    std::unordered_map<StoppingPoint, std::vector<size_t> > offsetsWithIsalWrapper;
+
+    {
+        std::vector<char> decompressedResult( randomDNA.size() );
+        rapidgzip::GzipReader gzipReader( std::make_unique<BufferViewFileReader>( compressedRandomDNA ) );
+        size_t lastCompressedOffset{ 0 };
+        while ( true ) {
+            const auto nBytesRead = gzipReader.read( -1, decompressedResult.data(), decompressedResult.size(),
+                                                     stoppingPoints );
+
+            const auto offset = gzipReader.tellCompressed();
+            if ( ( nBytesRead == 0 ) && ( offset <= lastCompressedOffset ) ) {
+                break;
+            }
+            lastCompressedOffset = offset;
+
+            if ( gzipReader.currentPoint() && testFlags( *gzipReader.currentPoint(), stoppingPoints ) ) {
+                offsetsWithGzipReader[*gzipReader.currentPoint()].emplace_back( offset );
+            }
+
+            if ( gzipReader.currentPoint() ) {
+                std::cerr << toString( *gzipReader.currentPoint() ) << " @ " << offset << "\n";
+            } else {
+                std::cerr << "? @ " << offset << "\n";
+            }
+        }
+        std::cerr << "\n";
+    }
+
+    /* Decode 10 B per call. */
+    {
+        auto fileReader = std::make_unique<SharedFileReader>(
+            std::make_unique<BufferViewFileReader>( compressedRandomDNA ) );
+        rapidgzip::BitReader bitReader( std::move( fileReader ) );
+        bitReader.seek( 10 * CHAR_BIT );  // Deflate wrapper expects to start at deflate block
+        IsalInflateWrapper inflateWrapper( std::move( bitReader ) );
+
+        inflateWrapper.setStoppingPoints( stoppingPoints );
+
+        std::vector<std::byte> decompressedResult( randomDNA.size() );
+        for ( size_t i = 0; i < decompressedResult.size(); ) {
+            const auto nBytesToDecompress = std::min<size_t>( 1000U, decompressedResult.size() - i );
+            auto [decompressedSize, footer] = inflateWrapper.readStream(
+                reinterpret_cast<uint8_t*>( decompressedResult.data() + i ),
+                nBytesToDecompress );
+
+            if ( inflateWrapper.stoppedAt() == StoppingPoint::NONE ) {
+                REQUIRE_EQUAL( decompressedSize, nBytesToDecompress );
+            } else {
+                REQUIRE( decompressedSize <= nBytesToDecompress );
+            }
+
+            if ( inflateWrapper.stoppedAt() != StoppingPoint::NONE ) {
+                offsetsWithIsalWrapper[inflateWrapper.stoppedAt()].emplace_back( inflateWrapper.tellCompressed() );
+            }
+
+            if ( inflateWrapper.stoppedAt() ) {
+                std::cerr << toString( inflateWrapper.stoppedAt() ) << " @ " << inflateWrapper.tellCompressed();
+                if ( const auto compressionType = inflateWrapper.compressionType(); compressionType ) {
+                    std::cerr << " type: " << toString( *compressionType ) << "\n";
+                } else {
+                    std::cerr << "\n";
+                }
+            }
+
+            i += decompressedSize;
+        }
+
+        if ( decompressedResult != randomDNA ) {
+            std::cerr << std::string_view( reinterpret_cast<const char*>( decompressedResult.data() ),
+                                           decompressedResult.size() );
+            std::cerr << "\n\nshould be:\n\n";
+            std::cerr << std::string_view( reinterpret_cast<const char*>( randomDNA.data() ), randomDNA.size() );
+            std::cerr << "\n";
+
+            for ( size_t i = 0; i < randomDNA.size(); ++i ) {
+                std::cerr << static_cast<char>( decompressedResult[i] );
+                if ( decompressedResult[i] != randomDNA[i] ) {
+                    std::cerr << "[" << static_cast<char>( randomDNA[i] ) << "]";
+                }
+            }
+            std::cerr << "\n";
+        }
+
+        REQUIRE( decompressedResult == randomDNA );
+    }
+
+    REQUIRE_EQUAL( offsetsWithGzipReader.size(), offsetsWithIsalWrapper.size() );
+    REQUIRE( offsetsWithGzipReader == offsetsWithIsalWrapper );
+#endif
+}
+
+
+template<typename InflateWrapper>
+void
 testInflateWrapper( const std::filesystem::path& rootFolder )
 {
     static constexpr auto GZIP_FILE_NAMES = {
@@ -540,6 +687,13 @@ main( int    argc,
         static_cast<std::filesystem::path>(
             findParentFolderContaining( binaryFolder, "src/tests/data/base64-256KiB.bgz" )
         ) / "src" / "tests" / "data";
+
+    testStoppingPoints();
+
+#ifdef WITH_ISAL
+    testSmallBuffers<IsalInflateWrapper>();
+#endif
+    testSmallBuffers<ZlibInflateWrapper>();
 
     testGzipHeaderSkip();
 

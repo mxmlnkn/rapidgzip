@@ -13,6 +13,7 @@
 
 #include <crc32.hpp>
 #include <DecodedDataView.hpp>
+#include <definitions.hpp>
 #include <deflate.hpp>
 #include <FileUtils.hpp>
 #include <filereader/FileReader.hpp>
@@ -26,17 +27,6 @@
 
 namespace rapidgzip
 {
-enum StoppingPoint : uint32_t
-{
-    NONE                 = 0U,
-    END_OF_STREAM_HEADER = 1U << 0U,
-    END_OF_STREAM        = 1U << 1U,  // after gzip footer has been read
-    END_OF_BLOCK_HEADER  = 1U << 2U,
-    END_OF_BLOCK         = 1U << 3U,
-    ALL                  = 0xFFFF'FFFFU,
-};
-
-
 /**
  * A strictly sequential gzip interface that can iterate over multiple gzip streams and of course deflate blocks.
  * It cannot seek back nor is it parallelized but it can be used to implement a parallelization scheme.
