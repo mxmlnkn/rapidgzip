@@ -283,7 +283,8 @@ analyze( UniqueFileReader inputFile )
             }
 
             if ( crc32Calculator.verify( footer.crc32 ) ) {
-                std::cerr << "Validated CRC32 0x" << std::hex << crc32Calculator.crc32() << " for gzip stream!\n";
+                std::cerr << "Validated CRC32 0x" << std::hex << crc32Calculator.crc32() << std::dec
+                          << " for gzip stream!\n";
             }
 
             gzipHeader = {};
