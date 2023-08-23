@@ -132,6 +132,7 @@ analyze( UniqueFileReader inputFile )
                 return error;
             }
         }
+        const auto blockDataOffset = bitReader.tell();
 
         size_t uncompressedBlockSize = 0;
         size_t uncompressedBlockOffset = totalBytesRead;
@@ -225,19 +226,20 @@ analyze( UniqueFileReader inputFile )
 
         std::cout
             << "Deflate block:\n"
-            << "    Final Block             : " << ( block.isLastBlock() ? "True" : "False" ) << "\n"
-            << "    Compression Type        : " << toString( block.compressionType() ) << "\n"
+            << "    Final Block                : " << ( block.isLastBlock() ? "True" : "False" ) << "\n"
+            << "    Compression Type           : " << toString( block.compressionType() ) << "\n"
             << "    File Statistics:\n"
-            << "        Total Block Count   : " << totalBlockCount << "\n"
-            << "        Compressed Offset   : " << formatBits( blockOffset ) << "\n"
-            << "        Uncompressed Offset : " << uncompressedBlockOffset << " B\n"
+            << "        Total Block Count      : " << totalBlockCount << "\n"
+            << "        Compressed Offset      : " << formatBits( blockOffset ) << "\n"
+            << "        Uncompressed Offset    : " << uncompressedBlockOffset << " B\n"
+            << "        Compressed Data Offset : " << formatBits( blockDataOffset ) << "\n"
             << "    Gzip Stream Statistics:\n"
-            << "        Block Count         : " << streamBlockCount << "\n"
-            << "        Compressed Offset   : " << formatBits( blockOffset - headerOffset ) << "\n"
-            << "        Uncompressed Offset : " << uncompressedBlockOffsetInStream << " B\n"
-            << "    Compressed Size         : " << formatBits( compressedSizeInBits ) << "\n"
-            << "    Uncompressed Size       : " << uncompressedBlockSize << " B\n"
-            << "    Compression Ratio       : " << compressionRatio << "\n";
+            << "        Block Count            : " << streamBlockCount << "\n"
+            << "        Compressed Offset      : " << formatBits( blockOffset - headerOffset ) << "\n"
+            << "        Uncompressed Offset    : " << uncompressedBlockOffsetInStream << " B\n"
+            << "    Compressed Size            : " << formatBits( compressedSizeInBits ) << "\n"
+            << "    Uncompressed Size          : " << uncompressedBlockSize << " B\n"
+            << "    Compression Ratio          : " << compressionRatio << "\n";
         if ( block.compressionType() == deflate::CompressionType::DYNAMIC_HUFFMAN ) {
             const VectorView<uint8_t> precodeCL{ block.precodeCL().data(), block.precodeCL().size() };
             const VectorView<uint8_t> distanceCL{ block.distanceAndLiteralCL().data() + block.codeCounts.literal,
