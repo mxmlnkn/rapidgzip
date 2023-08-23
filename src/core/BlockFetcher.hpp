@@ -32,8 +32,7 @@
 template<typename T_BlockFinder,
          typename T_BlockData,
          typename FetchingStrategy,
-         bool     ENABLE_STATISTICS = false,
-         bool     SHOW_PROFILE = false>
+         bool     ENABLE_STATISTICS = false>
 class BlockFetcher
 {
 public:
@@ -185,7 +184,7 @@ protected:
             throw std::invalid_argument( "BlockFinder must be valid!" );
         }
 
-        if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+        if constexpr ( ENABLE_STATISTICS ) {
             m_statistics.parallelization = m_parallelization;
         }
     }
@@ -194,12 +193,21 @@ public:
     virtual
     ~BlockFetcher()
     {
-        if constexpr ( SHOW_PROFILE ) {
+        if ( m_showProfileOnDestruction ) {
             /* Clear caches while updating the unused entries statistic. */
             m_cache.shrinkTo( 0 );
             m_prefetchCache.shrinkTo( 0 );
             std::cerr << ( ThreadSafeOutput() << "[BlockFetcher::~BlockFetcher]" << statistics().print() );
         }
+    }
+
+    /**
+     * @note Only will work if ENABLE_STATISTICS is true.
+     */
+    void
+    setShowProfileOnDestruction( bool showProfileOnDestruction )
+    {
+        m_showProfileOnDestruction = showProfileOnDestruction;
     }
 
     [[nodiscard]] bool
@@ -237,7 +245,7 @@ public:
         const auto validDataBlockIndex = dataBlockIndex ? *dataBlockIndex : m_blockFinder->find( blockOffset );
         const auto nextBlockOffset = m_blockFinder->get( validDataBlockIndex + 1 );
 
-        if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+        if constexpr ( ENABLE_STATISTICS ) {
             m_statistics.recordBlockIndexGet( validDataBlockIndex );
         }
 
@@ -260,7 +268,7 @@ public:
         /* Return result */
         if ( cachedResult.has_value() ) {
             assert( !queuedResult.valid() );
-            if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+            if constexpr ( ENABLE_STATISTICS ) {
                 std::scoped_lock lock( m_analyticsMutex );
                 m_statistics.getTotalTime += duration( tGetStart );
             }
@@ -278,7 +286,7 @@ public:
 
         insertIntoCache( blockOffset, result );
 
-        if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+        if constexpr ( ENABLE_STATISTICS ) {
             std::scoped_lock lock( m_analyticsMutex );
             m_statistics.futureWaitTotalTime += futureGetDuration;
             m_statistics.getTotalTime += duration( tGetStart );
@@ -374,7 +382,7 @@ private:
             m_prefetching.erase( match );
             assert( resultFuture.valid() );
 
-            if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+            if constexpr ( ENABLE_STATISTICS ) {
                 ++m_statistics.prefetchDirectHits;
             }
         }
@@ -483,7 +491,7 @@ private:
                     && !nextPrefetchBlockOffset && ( nextPrefetchGetReturnCode != GetReturnCode::FAILURE )
                     && !stopPrefetching() );
 
-            if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+            if constexpr ( ENABLE_STATISTICS ) {
                 if ( !prefetchBlockOffset.has_value() ) {
                     m_statistics.waitOnBlockFinderCount++;
                 }
@@ -534,7 +542,7 @@ private:
     submitOnDemandTask( const size_t                blockOffset,
                         const std::optional<size_t> nextBlockOffset )
     {
-        if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+        if constexpr ( ENABLE_STATISTICS ) {
             ++m_statistics.onDemandFetchCount;
         }
         auto resultFuture = m_threadPool.submit(
@@ -595,7 +603,7 @@ private:
     {
         [[maybe_unused]] const auto tDecodeStart = now();
         auto blockData = decodeBlock( blockOffset, nextBlockOffset );
-        if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+        if constexpr ( ENABLE_STATISTICS ) {
             const auto tDecodeEnd = now();
 
             std::scoped_lock lock( this->m_analyticsMutex );
@@ -624,6 +632,8 @@ protected:
     const size_t m_parallelization;
 
     FetchingStrategy m_fetchingStrategy;
+
+    bool m_showProfileOnDestruction{ false };
 
 private:
     /**

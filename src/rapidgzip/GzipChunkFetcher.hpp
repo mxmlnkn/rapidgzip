@@ -57,15 +57,14 @@ public:
 
 template<typename T_FetchingStrategy,
          typename T_ChunkData = ChunkData,
-         bool     ENABLE_STATISTICS = false,
-         bool     SHOW_PROFILE = false>
+         bool     ENABLE_STATISTICS = false>
 class GzipChunkFetcher :
-    public BlockFetcher<GzipBlockFinder, T_ChunkData, T_FetchingStrategy, ENABLE_STATISTICS, SHOW_PROFILE>
+    public BlockFetcher<GzipBlockFinder, T_ChunkData, T_FetchingStrategy, ENABLE_STATISTICS>
 {
 public:
     using FetchingStrategy = T_FetchingStrategy;
     using ChunkData = T_ChunkData;
-    using BaseType = BlockFetcher<GzipBlockFinder, ChunkData, FetchingStrategy, ENABLE_STATISTICS, SHOW_PROFILE>;
+    using BaseType = BlockFetcher<GzipBlockFinder, ChunkData, FetchingStrategy, ENABLE_STATISTICS>;
     using BitReader = rapidgzip::BitReader;
     using WindowView = VectorView<uint8_t>;
     using BlockFinder = typename BaseType::BlockFinder;
@@ -107,7 +106,7 @@ public:
         m_cancelThreads = true;
         this->stopThreadPool();
 
-        if constexpr ( SHOW_PROFILE ) {
+        if ( BaseType::m_showProfileOnDestruction ) {
             std::stringstream out;
             out << "[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:\n";
             out << "    Number of false positives               : " << m_falsePositiveCount << "\n";
@@ -211,7 +210,7 @@ public:
             }
             m_nextUnprocessedBlockIndex += subblocks.size();
 
-            if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+            if constexpr ( ENABLE_STATISTICS ) {
                 std::scoped_lock lock( m_statisticsMutex );
                 m_falsePositiveCount += chunkData->falsePositiveCount;
                 m_blockFinderTime += chunkData->blockFinderDuration;
@@ -383,12 +382,12 @@ private:
                     const WindowView                  previousWindow )
     {
         [[maybe_unused]] const auto markerCount = chunkData->dataWithMarkersSize();
-        if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+        if constexpr ( ENABLE_STATISTICS ) {
             m_realMarkerCount += chunkData->countMarkerSymbols();
         }
         [[maybe_unused]] const auto tApplyStart = now();
         chunkData->applyWindow( previousWindow );
-        if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+        if constexpr ( ENABLE_STATISTICS ) {
             std::scoped_lock lock( m_statisticsMutex );
             if ( markerCount > 0 ) {
                 m_applyWindowTime += duration( tApplyStart );

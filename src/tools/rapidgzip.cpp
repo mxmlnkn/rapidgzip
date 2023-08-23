@@ -155,14 +155,16 @@ decompressParallel( const Arguments&    args,
                     const WriteFunctor& writeFunctor )
 {
     if ( args.verbose ) {
-        using Reader = rapidgzip::ParallelGzipReader<ChunkData, /* enable statistics */ true, /* show profile */ true>;
+        using Reader = rapidgzip::ParallelGzipReader<ChunkData, /* enable statistics */ true>;
         auto reader = std::make_unique<Reader>( std::move( inputFile ), args.decoderParallelism, args.chunkSize );
+        reader->setShowProfileOnDestruction( true );
         reader->setCRC32Enabled( args.crc32Enabled );
         return decompressParallel( std::move( reader ), args.indexLoadPath, args.indexSavePath, writeFunctor,
                                    args.verbose );
     } else {
-        using Reader = rapidgzip::ParallelGzipReader<ChunkData, /* enable statistics */ false, /* show profile */ false>;
+        using Reader = rapidgzip::ParallelGzipReader<ChunkData, /* enable statistics */ false>;
         auto reader = std::make_unique<Reader>( std::move( inputFile ), args.decoderParallelism, args.chunkSize );
+        reader->setShowProfileOnDestruction( false );
         reader->setCRC32Enabled( args.crc32Enabled );
         return decompressParallel( std::move( reader ), args.indexLoadPath, args.indexSavePath, writeFunctor,
                                    args.verbose );

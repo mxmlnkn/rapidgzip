@@ -39,8 +39,7 @@ namespace rapidgzip
  * @note Calls to this class are not thread-safe! Even though they use threads to evaluate them in parallel.
  */
 template<typename T_ChunkData = ChunkData,
-         bool ENABLE_STATISTICS = false,
-         bool SHOW_PROFILE = false>
+         bool ENABLE_STATISTICS = false>
 class ParallelGzipReader final :
     public FileReader
 
@@ -55,8 +54,7 @@ public:
      * because the prefetch and cache units are very large and striding or backward accessing over multiple
      * megabytes should be extremely rare.
      */
-    using ChunkFetcher = rapidgzip::GzipChunkFetcher<FetchingStrategy::FetchMultiStream, ChunkData,
-                                                   ENABLE_STATISTICS, SHOW_PROFILE>;
+    using ChunkFetcher = rapidgzip::GzipChunkFetcher<FetchingStrategy::FetchMultiStream, ChunkData, ENABLE_STATISTICS>;
     using BlockFinder = typename ChunkFetcher::BlockFinder;
     using BitReader = rapidgzip::BitReader;
     using WriteFunctor = std::function<void ( const std::shared_ptr<ChunkData>&, size_t, size_t )>;
@@ -213,7 +211,7 @@ public:
             }
         )
     {
-        m_sharedFileReader->setStatisticsEnabled( ENABLE_STATISTICS && SHOW_PROFILE );
+        m_sharedFileReader->setStatisticsEnabled( ENABLE_STATISTICS );
         if ( !m_bitReader.seekable() ) {
             throw std::invalid_argument( "Parallel BZ2 Reader will not work on non-seekable input like stdin (yet)!" );
         }
@@ -244,12 +242,24 @@ public:
 
     ~ParallelGzipReader()
     {
-        if constexpr ( SHOW_PROFILE ) {
+        if ( m_showProfileOnDestruction && ENABLE_STATISTICS ) {
             std::cerr << "[ParallelGzipReader] Time spent:";
             std::cerr << "\n    Writing to output         : " << m_writeOutputTime << " s";
             std::cerr << "\n    Computing CRC32           : " << m_crc32Time << " s";
             std::cerr << "\n    Number of verified CRC32s : " << m_verifiedCRC32Count;
             std::cerr << std::endl;
+        }
+    }
+
+    /**
+     * @note Only will work if ENABLE_STATISTICS is true.
+     */
+    void
+    setShowProfileOnDestruction( bool showProfileOnDestruction )
+    {
+        m_showProfileOnDestruction = showProfileOnDestruction;
+        if ( m_chunkFetcher ) {
+            m_chunkFetcher->setShowProfileOnDestruction( m_showProfileOnDestruction );
         }
     }
 
@@ -424,14 +434,14 @@ public:
 
             [[maybe_unused]] const auto tCRC32Start = now();
             processCRC32( chunkData, offsetInBlock, nBytesToDecode );
-            if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+            if constexpr ( ENABLE_STATISTICS ) {
                 m_crc32Time += duration( tCRC32Start );
             }
 
             if ( writeFunctor ) {
                 [[maybe_unused]] const auto tWriteStart = now();
                 writeFunctor( chunkData, offsetInBlock, nBytesToDecode );
-                if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+                if constexpr ( ENABLE_STATISTICS ) {
                     m_writeOutputTime += duration( tWriteStart );
                 }
             }
@@ -787,6 +797,7 @@ private:
 
         m_chunkFetcher->setCRC32Enabled( m_crc32.enabled() );
         m_chunkFetcher->setMaxDecompressedChunkSize( m_maxDecompressedChunkSize );
+        m_chunkFetcher->setShowProfileOnDestruction( m_showProfileOnDestruction );
 
         return *m_chunkFetcher;
     }
@@ -869,6 +880,7 @@ private:
     bool m_atEndOfFile = false;
 
     /** Benchmarking */
+    bool m_showProfileOnDestruction{ false };
     double m_writeOutputTime{ 0 };
     double m_crc32Time{ 0 };
     uint64_t m_verifiedCRC32Count{ 0 };

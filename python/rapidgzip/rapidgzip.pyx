@@ -25,7 +25,7 @@ cdef extern from "tools/rapidgzip.cpp":
 cdef extern from "rapidgzip/ParallelGzipReader.hpp" namespace "rapidgzip":
     cppclass ChunkData
 
-    cppclass ParallelGzipReader[ChunkData, ENABLE_STATISTICS=*, SHOW_PROFILE=*]:
+    cppclass ParallelGzipReader[ChunkData, ENABLE_STATISTICS=*]:
         ParallelGzipReader(string, size_t) except +
         ParallelGzipReader(int, size_t) except +
         ParallelGzipReader(PyObject*, size_t) except +
@@ -57,7 +57,7 @@ cdef extern from "rapidgzip/ParallelGzipReader.hpp" namespace "rapidgzip":
     cdef cppclass RapidgzipChunkData "rapidgzip::ChunkData":
         pass
 
-ctypedef ParallelGzipReader[RapidgzipChunkData, TrueValue, TrueValue] ParallelGzipReaderVerbose
+ctypedef ParallelGzipReader[RapidgzipChunkData, TrueValue] ParallelGzipReaderVerbose
 ctypedef ParallelGzipReader[RapidgzipChunkData] ParallelGzipReaderNonVerbose
 
 
