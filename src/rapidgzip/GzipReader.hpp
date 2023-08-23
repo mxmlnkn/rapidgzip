@@ -188,7 +188,7 @@ public:
     read( const int     outputFileDescriptor = -1,
           char* const   outputBuffer         = nullptr,
           const size_t  nBytesToRead         = std::numeric_limits<size_t>::max(),
-          StoppingPoint stoppingPoint        = StoppingPoint::NONE )
+          StoppingPoint stoppingPoints       = StoppingPoint::NONE )
     {
         const auto writeFunctor =
             [nBytesDecoded = uint64_t( 0 ), outputFileDescriptor, outputBuffer]
@@ -206,13 +206,13 @@ public:
                 nBytesDecoded += size;
             };
 
-        return read( writeFunctor, nBytesToRead, stoppingPoint );
+        return read( writeFunctor, nBytesToRead, stoppingPoints );
     }
 
     size_t
     read( const WriteFunctor& writeFunctor,
           const size_t        nBytesToRead = std::numeric_limits<size_t>::max(),
-          const StoppingPoint stoppingPoint = StoppingPoint::NONE )
+          const StoppingPoint stoppingPoints = StoppingPoint::NONE )
     {
         size_t nBytesDecoded = 0;
 
@@ -274,7 +274,7 @@ public:
             checkPythonSignalHandlers();
         #endif
 
-            if ( m_currentPoint.has_value() && testFlags( *m_currentPoint, stoppingPoint ) ) {
+            if ( m_currentPoint.has_value() && testFlags( *m_currentPoint, stoppingPoints ) ) {
                 break;
             }
         }
