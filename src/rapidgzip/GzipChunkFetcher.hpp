@@ -791,7 +791,7 @@ private:
             subchunk.shrink_to_fit();
             result.append( std::move( subchunk ) );
             if ( footer ) {
-                result.appendFooter( deflateWrapper.tellEncoded(), alreadyDecoded, *footer );
+                result.appendFooter( deflateWrapper.tellCompressed(), alreadyDecoded, *footer );
             }
 
             if ( ( nBytesReadPerCall == 0 ) && !footer && untilOffsetIsExact ) {
@@ -802,7 +802,7 @@ private:
         uint8_t dummy{ 0 };
         const auto [nBytesReadPerCall, footer] = deflateWrapper.readStream( &dummy, 1 );
         if ( ( nBytesReadPerCall == 0 ) && footer ) {
-            result.appendFooter( deflateWrapper.tellEncoded(), alreadyDecoded, *footer );
+            result.appendFooter( deflateWrapper.tellCompressed(), alreadyDecoded, *footer );
         }
 
         /* We cannot arbitarily use bitReader.tell here, because the zlib wrapper buffers input read from BitReader.

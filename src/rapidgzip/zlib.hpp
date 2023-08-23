@@ -140,7 +140,7 @@ public:
                 size_t   const outputSize );
 
     [[nodiscard]] size_t
-    tellEncoded() const
+    tellCompressed() const
     {
         return m_bitReader.tell() - m_stream.avail_in * BYTE_SIZE;
     }

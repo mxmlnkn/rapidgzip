@@ -59,7 +59,7 @@ testGettingFooter()
 
     constexpr auto GZIP_FOOTER_SIZE = 8U;
     uint8_t dummy{ 0 };
-    const auto position = inflateWrapper.tellEncoded();
+    const auto position = inflateWrapper.tellCompressed();
 
     /* Unfortunately, because of the zlib API, we only know that we are at the end of a stream
      * AFTER trying trying to read more from it.
@@ -80,7 +80,7 @@ testGettingFooter()
     }
 
     REQUIRE_EQUAL( decompressedSize, 0U );
-    REQUIRE_EQUAL( inflateWrapper.tellEncoded(), compressedRandomDNA.size() * BYTE_SIZE );
+    REQUIRE_EQUAL( inflateWrapper.tellCompressed(), compressedRandomDNA.size() * BYTE_SIZE );
     if ( footer ) {
         REQUIRE_EQUAL( footer->uncompressedSize, randomDNA.size() );
     }
@@ -237,7 +237,7 @@ testMultiGzipStream()
     REQUIRE_EQUAL( decompressedSize, dataToCompress.size() );
     /* InflateWrapper reads the next gzip header right after encountering any footer! */
     constexpr auto GZIP_HEADER_SIZE = 10U;
-    REQUIRE_EQUAL( inflateWrapper.tellEncoded(), ( compressedData.size() / 2 + GZIP_HEADER_SIZE ) * BYTE_SIZE );
+    REQUIRE_EQUAL( inflateWrapper.tellCompressed(), ( compressedData.size() / 2 + GZIP_HEADER_SIZE ) * BYTE_SIZE );
 
     std::tie( decompressedSize, footer ) = inflateWrapper.readStream(
         reinterpret_cast<uint8_t*>( decompressedResult.data() + 1U ), dataToCompress.size() );
@@ -247,12 +247,12 @@ testMultiGzipStream()
      * AFTER trying trying to read more from it. */
     constexpr auto GZIP_FOOTER_SIZE = 8U;
     if constexpr ( std::is_same_v<InflateWrapper, ZlibInflateWrapper> ) {
-        REQUIRE_EQUAL( inflateWrapper.tellEncoded(), ( compressedData.size() - GZIP_FOOTER_SIZE ) * BYTE_SIZE );
+        REQUIRE_EQUAL( inflateWrapper.tellCompressed(), ( compressedData.size() - GZIP_FOOTER_SIZE ) * BYTE_SIZE );
         uint8_t dummy{ 0 };
         std::tie( decompressedSize, footer ) = inflateWrapper.readStream( &dummy, 1 );
     }
 
-    REQUIRE_EQUAL( inflateWrapper.tellEncoded(), compressedData.size() * BYTE_SIZE );
+    REQUIRE_EQUAL( inflateWrapper.tellCompressed(), compressedData.size() * BYTE_SIZE );
 
     REQUIRE( decompressedResult == expectedResult );
 }
