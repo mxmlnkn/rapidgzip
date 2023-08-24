@@ -347,6 +347,11 @@ DecodedData::applyWindow( WindowView const& window )
 }
 
 
+/**
+ * @todo Shouldn't this be eqivalent to getWindowAt( previewWindow, size() )?
+ *       Probably can be replaced to reduce code complexity. getWindowAt is more complex and generic and
+ *       was introduced for block splitting while this method exists since the beginning.
+ */
 [[nodiscard]] inline DecodedVector
 DecodedData::getLastWindow( WindowView const& previousWindow ) const
 {
