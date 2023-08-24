@@ -872,11 +872,6 @@ private:
                 block.emplace();
                 block->setInitialWindow();
 
-                nextBlockOffset = bitReader->tell();
-                if ( nextBlockOffset >= untilOffset ) {
-                    break;
-                }
-
                 isAtStreamEnd = false;
             }
 
