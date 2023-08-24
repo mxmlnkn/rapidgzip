@@ -239,7 +239,11 @@ ZlibInflateWrapper::readStream( uint8_t* const output,
     m_stream.total_out = 0;
 
     size_t decodedSize{ 0 };
-    while ( ( decodedSize + m_stream.total_out < outputSize ) && ( m_stream.avail_out > 0 ) ) {
+    /* Do not check for avail_out == 0 here so that progress can still be made on empty blocks as might
+     * appear in pigz files or at the end of BGZF files. Note that zlib's inflate should return Z_BUF_ERROR
+     * anyway if the output buffer is full. It might be that the check was only here to idiomatically avoid
+     * a "while ( true )". */
+    while ( true ) {
         refillBuffer();
 
         const auto oldUnusedBits = getUnusedBits();

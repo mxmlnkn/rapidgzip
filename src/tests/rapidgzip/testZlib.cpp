@@ -66,19 +66,6 @@ testGettingFooter()
     constexpr auto GZIP_FOOTER_SIZE = 8U;
     uint8_t dummy{ 0 };
 
-    /* Unfortunately, because of the zlib API, we only know that we are at the end of a stream
-     * AFTER trying trying to read more from it.
-     * Because we have specified to read exactly as many bytes as there are, we will stop right before the footer.
-     * Unfortunately, zlib and ISA-l stop differently, i.e,. the former stops before the footer, which is byte-aligned,
-     * and ISA-l right after the block end, which might not be byte-aligned. Also, the ISA-l wrapper will return the
-     * next footer while zlib will not when exactly as many bytes were requested as there are in the deflate stream. */
-    if constexpr ( std::is_same_v<InflateWrapper, ZlibInflateWrapper> ) {
-        REQUIRE( !footer.has_value() );
-        const auto footerOffset = ceilDiv( inflateWrapper.tellCompressed(), BYTE_SIZE ) * BYTE_SIZE;
-        REQUIRE_EQUAL( footerOffset, ( compressedRandomDNA.size() - GZIP_FOOTER_SIZE ) * BYTE_SIZE );
-        std::tie( decompressedSize, footer ) = inflateWrapper.readStream( &dummy, 1 );
-    }
-
     REQUIRE( footer.has_value() );
     REQUIRE_EQUAL( inflateWrapper.tellCompressed(), compressedRandomDNA.size() * BYTE_SIZE );
     std::tie( decompressedSize, footer ) = inflateWrapper.readStream( &dummy, 1 );
@@ -248,18 +235,8 @@ testMultiGzipStream()
         reinterpret_cast<uint8_t*>( decompressedResult.data() + 1U ), dataToCompress.size() );
     REQUIRE_EQUAL( decompressedSize, dataToCompress.size() );
 
-    /* Unfortunately, because of the zlib API, we only know that we are at the end of a stream
-     * AFTER trying trying to read more from it. */
-    constexpr auto GZIP_FOOTER_SIZE = 8U;
-    if constexpr ( std::is_same_v<InflateWrapper, ZlibInflateWrapper> ) {
-        const auto footerOffset = ceilDiv( inflateWrapper.tellCompressed(), BYTE_SIZE ) * BYTE_SIZE;
-        REQUIRE_EQUAL( footerOffset, ( compressedData.size() - GZIP_FOOTER_SIZE ) * BYTE_SIZE );
-        uint8_t dummy{ 0 };
-        std::tie( decompressedSize, footer ) = inflateWrapper.readStream( &dummy, 1 );
-    }
-
+    REQUIRE( footer.has_value() );
     REQUIRE_EQUAL( inflateWrapper.tellCompressed(), compressedData.size() * BYTE_SIZE );
-
     REQUIRE( decompressedResult == expectedResult );
 }
 
