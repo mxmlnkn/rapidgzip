@@ -449,12 +449,6 @@ public:
     [[nodiscard]] Error
     readDynamicHuffmanCoding( BitReader& bitReader );
 
-    [[nodiscard]] constexpr const auto&
-    window() const noexcept
-    {
-        return m_window;
-    }
-
     [[nodiscard]] constexpr size_t
     uncompressedSize() const noexcept
     {
