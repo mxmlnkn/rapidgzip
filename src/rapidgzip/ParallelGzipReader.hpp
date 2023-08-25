@@ -261,6 +261,9 @@ public:
         if ( m_chunkFetcher ) {
             m_chunkFetcher->setShowProfileOnDestruction( m_showProfileOnDestruction );
         }
+        if ( m_sharedFileReader ) {
+            m_sharedFileReader->setShowProfileOnDestruction( m_showProfileOnDestruction );
+        }
     }
 
     /* FileReader overrides */

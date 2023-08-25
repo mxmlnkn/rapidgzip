@@ -81,7 +81,7 @@ public:
 
     ~SharedFileReader()
     {
-        if ( m_statistics && m_statistics->enabled && ( m_statistics.use_count() == 1 ) ) {
+        if ( m_statistics && m_statistics->showProfileOnDestruction && ( m_statistics.use_count() == 1 ) ) {
             std::cerr << ( ThreadSafeOutput()
                 << "[SharedFileReader::~SharedFileReader]\n"
                 << "   seeks back    : (" << m_statistics->seekBack.formatAverageWithUncertainty( true )
@@ -113,6 +113,14 @@ public:
     {
         if ( m_statistics ) {
             m_statistics->enabled = enabled;
+        }
+    }
+
+    void
+    setShowProfileOnDestruction( bool showProfileOnDestruction )
+    {
+        if ( m_statistics ) {
+            m_statistics->showProfileOnDestruction = showProfileOnDestruction;
         }
     }
 
@@ -309,6 +317,7 @@ private:
 
 private:
     struct AccessStatistics {
+        bool showProfileOnDestruction{ false };
         bool enabled{ false };
         uint64_t lastAccessOffset{ 0 };  // necessary for pread because tell() won't work
         Statistics<uint64_t> read;
