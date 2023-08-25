@@ -129,6 +129,10 @@ public:
     {
         std::lock_guard lock( m_mutex );
 
+        if ( m_threadCount == 0 ) {
+            return std::async( std::launch::deferred, std::move( task ) );
+        }
+
         /* Use a packaged task, which abstracts handling the return type and makes the task return void. */
         using ReturnType = decltype( std::declval<T_Functor>()() );
         std::packaged_task<ReturnType()> packagedTask{ std::move( task ) };
