@@ -62,10 +62,16 @@ public:
     [[nodiscard]] size_t
     tellCompressed() const
     {
-        return m_bitReader.tell() - m_stream.avail_in * BYTE_SIZE - m_stream.read_in_length;
+        return m_bitReader.tell() - getUnusedBits();
     }
 
 private:
+    [[nodiscard]] size_t
+    getUnusedBits() const
+    {
+        return m_stream.avail_in * BYTE_SIZE + m_stream.read_in_length;
+    }
+
     [[nodiscard]] bool
     hasInput() const
     {
@@ -154,19 +160,26 @@ IsalInflateWrapper::readStream( uint8_t* const output,
     size_t decodedSize{ 0 };
     while ( ( decodedSize + m_stream.total_out < outputSize ) && ( m_stream.avail_out > 0 ) ) {
         refillBuffer();
-        if ( ( m_stream.avail_in == 0 ) && ( m_stream.read_in_length == 0 ) ) {
+        /* Note that even with avail_in == 0 and read_in_length == 0, there still might be new output from
+         * an inflate call because of data in m_stream.tmp_out_buffer. Instead of checking almost non-public
+         * members whether progress is possible, simply call inflate and check whether progress was actually done.
+         * Of course, the latter assumes will always be done */
+        /*if ( ( m_stream.avail_in == 0 ) && ( m_stream.read_in_length == 0 ) && ( m_stream.tmp_out_valid == 0 ) ) {
             break;
-        }
+        }*/
 
         /* > If the crc_flag is set to ISAL_GZIP or ISAL_ZLIB, the
          * > gzip/zlib header is parsed, state->crc is set to the appropriate checksum,
          * > and the checksum is verified. If the crc_flag is set to ISAL_DEFLATE
-         * > (default), then the data is treated as a raw deflate block. */
-        const auto oldAvailIn = m_stream.avail_in;
-        const auto oldReadInLength = m_stream.read_in_length;
+         * > (default), then the data is treated as a raw deflate block.
+         * Not that m_stream has a tmp_out_buffer member, which might store some arbitrary amount of decompressed
+         * data that will be returned written on the next call possibly without making any progress on the input! */
+        const auto oldUnusedBits = getUnusedBits();
+        const auto oldTotalOut = m_stream.total_out;
+
+        /* == actual ISA-L inflate call == */
         const auto errorCode = isal_inflate( &m_stream );
-        const auto progressedBits = ( oldAvailIn - m_stream.avail_in ) * BYTE_SIZE
-                                    + ( oldReadInLength - m_stream.read_in_length );
+
         if ( errorCode != ISAL_DECOMP_OK ) {
             std::stringstream message;
             message << "[IsalInflateWrapper][Thread " << std::this_thread::get_id() << "] "
@@ -185,6 +198,9 @@ IsalInflateWrapper::readStream( uint8_t* const output,
             throw std::logic_error( "Decoded more than fits into the output buffer!" );
         }
 
+        const auto progressedBits = oldUnusedBits != getUnusedBits();
+        const auto progressedOutput = m_stream.total_out != oldTotalOut;
+
         if ( m_stream.block_state == ISAL_BLOCK_FINISH ) {
             decodedSize += m_stream.total_out;
 
@@ -202,7 +218,7 @@ IsalInflateWrapper::readStream( uint8_t* const output,
             return { decodedSize, footer };
         }
 
-        if ( progressedBits == 0 ) {
+        if ( !progressedBits && !progressedOutput ) {
             break;
         }
     }

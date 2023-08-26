@@ -149,7 +149,7 @@ public:
         throw std::invalid_argument( "Not fully tested!" );
     }
 
-    [[nodiscard]] size_t
+    size_t
     read( char*  outputBuffer,
           size_t nBytesToRead ) final
     {

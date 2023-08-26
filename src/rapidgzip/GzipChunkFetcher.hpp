@@ -543,11 +543,12 @@ public:
             if ( decodedSize && ( result.decodedSizeInBytes != *decodedSize ) ) {
                 std::stringstream message;
                 message << "Decoded chunk size does not match the requested decoded size!\n"
-                        << "  Block offset          : " << blockOffset << "\n"
-                        << "  Until offset          : " << untilOffset << "\n"
-                        << "  Encoded size          : " << ( untilOffset - blockOffset ) << "\n"
-                        << "  Decoded size          : " << result.decodedSizeInBytes << "\n"
-                        << "  Expected decoded size : " << *decodedSize << "\n"
+                        << "  Block offset          : " << blockOffset << " b\n"
+                        << "  Until offset          : " << untilOffset << " b\n"
+                        << "  Encoded size          : " << ( untilOffset - blockOffset ) << " b\n"
+                        << "  Actual encoded size   : " << result.encodedSizeInBits << " b\n"
+                        << "  Decoded size          : " << result.decodedSizeInBytes << " B\n"
+                        << "  Expected decoded size : " << *decodedSize << " B\n"
                         << "  Until offset is exact : " << untilOffsetIsExact << "\n"
                         << "  Initial Window        : " << ( initialWindow
                                                              ? std::to_string( initialWindow->size() )

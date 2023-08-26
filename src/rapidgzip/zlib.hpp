@@ -142,10 +142,22 @@ public:
     [[nodiscard]] size_t
     tellCompressed() const
     {
-        return m_bitReader.tell() - m_stream.avail_in * BYTE_SIZE;
+        return m_bitReader.tell() - getUnusedBits();
     }
 
 private:
+    [[nodiscard]] size_t
+    getUnusedBits() const
+    {
+        /* > on return inflate() always sets strm->data_type to the
+         * > number of unused bits in the last byte taken from strm->next_in, plus 64 if
+         * > inflate() is currently decoding the last block in the deflate stream [...]
+         * > The number of unused bits may in general be greater than seven, except when bit 7 of
+         * > data_type is set, in which case the number of unused bits will be less than eight.
+         * @see https://github.com/madler/zlib/blob/09155eaa2f9270dc4ed1fa13e2b4b2613e6e4851/zlib.h#L443C22-L444C66 */
+        return m_stream.avail_in * BYTE_SIZE + ( m_stream.data_type & 0b11'1111U );
+    }
+
     /**
      * Only works on and modifies m_stream.avail_in and m_stream.next_in.
      */
@@ -229,11 +241,22 @@ ZlibInflateWrapper::readStream( uint8_t* const output,
     size_t decodedSize{ 0 };
     while ( ( decodedSize + m_stream.total_out < outputSize ) && ( m_stream.avail_out > 0 ) ) {
         refillBuffer();
-        if ( m_stream.avail_in == 0 ) {
+
+        const auto oldUnusedBits = getUnusedBits();
+        const auto oldTotalOut = m_stream.total_out;
+
+        /* == actual zlib inflate call == */
+        const auto errorCode = ::inflate( &m_stream, Z_BLOCK );
+
+        /**
+         * > Z_BUF_ERROR if no progress was possible or if there was not enough room in the output
+         * > buffer when Z_FINISH is used
+         * @see https://github.com/madler/zlib/blob/09155eaa2f9270dc4ed1fa13e2b4b2613e6e4851/zlib.h#L511C68-L513C31
+         */
+        if ( errorCode == Z_BUF_ERROR ) {
             break;
         }
 
-        const auto errorCode = ::inflate( &m_stream, Z_BLOCK );
         if ( ( errorCode != Z_OK ) && ( errorCode != Z_STREAM_END ) ) {
             std::stringstream message;
             message << "[ZlibInflateWrapper][Thread " << std::this_thread::get_id() << "] "
@@ -253,6 +276,9 @@ ZlibInflateWrapper::readStream( uint8_t* const output,
             throw std::logic_error( "Decoded more than fits into the output buffer!" );
         }
 
+        const auto progressedBits = oldUnusedBits != getUnusedBits();
+        const auto progressedOutput = m_stream.total_out != oldTotalOut;
+
         if ( errorCode == Z_STREAM_END ) {
             decodedSize += m_stream.total_out;
 
@@ -270,6 +296,10 @@ ZlibInflateWrapper::readStream( uint8_t* const output,
             m_stream.avail_out = outputSize - decodedSize;
 
             return { decodedSize, footer };
+        }
+
+        if ( !progressedBits && !progressedOutput ) {
+            break;
         }
     }
 
