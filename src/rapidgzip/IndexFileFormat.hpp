@@ -120,16 +120,16 @@ countDecompressedBytes( rapidgzip::BitReader           bitReader,
         using InflateWrapper = rapidgzip::ZlibInflateWrapper;
     #endif
 
-    InflateWrapper deflateWrapper( std::move( bitReader ), std::numeric_limits<size_t>::max() );
-    deflateWrapper.setWindow( initialWindow );
+    InflateWrapper inflateWrapper( std::move( bitReader ), std::numeric_limits<size_t>::max() );
+    inflateWrapper.setWindow( initialWindow );
 
     size_t alreadyDecoded{ 0 };
     std::vector<uint8_t> subchunk( 128_Ki );
     while ( true ) {
-        std::optional<rapidgzip::gzip::Footer> footer;
+        std::optional<InflateWrapper::Footer> footer;
         size_t nBytesReadPerCall{ 0 };
         while ( !footer ) {
-            std::tie( nBytesReadPerCall, footer ) = deflateWrapper.readStream( subchunk.data(), subchunk.size() );
+            std::tie( nBytesReadPerCall, footer ) = inflateWrapper.readStream( subchunk.data(), subchunk.size() );
             if ( nBytesReadPerCall == 0 ) {
                 break;
             }

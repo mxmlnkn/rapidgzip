@@ -28,6 +28,12 @@ class IsalInflateWrapper
 public:
     using CompressionType = deflate::CompressionType;
 
+    struct Footer
+    {
+        gzip::Footer gzipFooter;
+        size_t footerEndEncodedOffset{ 0 };
+    };
+
 public:
     explicit
     IsalInflateWrapper( BitReader    bitReader,
@@ -58,7 +64,7 @@ public:
      * May return fewer bytes than requested. Only reads one deflate stream per call so that it can return
      * the gzip footer appearing after each deflate stream.
      */
-    [[nodiscard]] std::pair<size_t, std::optional<gzip::Footer> >
+    [[nodiscard]] std::pair<size_t, std::optional<Footer> >
     readStream( uint8_t* const output,
                 size_t   const outputSize );
 
@@ -128,7 +134,7 @@ private:
     /**
      * Only works on and modifies m_stream.avail_in and m_stream.next_in.
      */
-    std::optional<gzip::Footer>
+    std::optional<Footer>
     readGzipFooter();
 
     [[nodiscard]] bool
@@ -192,7 +198,7 @@ IsalInflateWrapper::refillBuffer()
 }
 
 
-[[nodiscard]] inline std::pair<size_t, std::optional<gzip::Footer> >
+[[nodiscard]] inline std::pair<size_t, std::optional<IsalInflateWrapper::Footer> >
 IsalInflateWrapper::readStream( uint8_t* const output,
                                 size_t   const outputSize )
 {
@@ -269,7 +275,7 @@ IsalInflateWrapper::readStream( uint8_t* const output,
 
             /* If we started with raw deflate, then we also have to skip over the gzip footer.
              * Assuming we are decoding gzip and not zlib or multiple raw deflate streams. */
-            std::optional<gzip::Footer> footer;
+            std::optional<Footer> footer;
             footer = readGzipFooter();  // This resets m_stream.total_out
             if ( footer ) {
                 if ( ( m_stream.points_to_stop_at & ISAL_STOPPING_POINT_END_OF_STREAM ) != 0 ) {
@@ -300,7 +306,7 @@ IsalInflateWrapper::readStream( uint8_t* const output,
 }
 
 
-inline std::optional<gzip::Footer>
+inline std::optional<IsalInflateWrapper::Footer>
 IsalInflateWrapper::readGzipFooter()
 {
     gzip::Footer footer{ 0, 0 };
@@ -347,7 +353,10 @@ IsalInflateWrapper::readGzipFooter()
         footer.uncompressedSize += static_cast<uint32_t>( subbyte ) << ( i * BYTE_SIZE );
     }
 
-    return footer;
+    Footer result;
+    result.gzipFooter = footer;
+    result.footerEndEncodedOffset = tellCompressed();
+    return result;
 }
 
 

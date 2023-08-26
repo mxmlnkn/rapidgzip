@@ -719,7 +719,7 @@ public:
         throw NoBlockInRange( std::move( message ).str() );
     }
 
-private:
+
     /**
      * @param decodedSize If given, it is used to avoid overallocations. It is NOT used as a stop condition.
      * @param exactlUntilOffset Decompress until this known bit offset in the encoded stream. It must lie on
@@ -794,7 +794,7 @@ private:
             deflate::DecodedVector subchunk( decodedSize
                                              ? std::min( ALLOCATION_CHUNK_SIZE, *decodedSize - alreadyDecoded )
                                              : ALLOCATION_CHUNK_SIZE );
-            std::optional<gzip::Footer> footer;
+            std::optional<typename InflateWrapper::Footer> footer;
 
             /* In order for CRC32 verification to work, we have to append at most one gzip stream per subchunk
              * because the CRC32 calculator is swapped inside ChunkData::append. That's why the stop condition
@@ -815,7 +815,7 @@ private:
             subchunk.shrink_to_fit();
             result.append( std::move( subchunk ) );
             if ( footer ) {
-                result.appendFooter( inflateWrapper.tellCompressed(), alreadyDecoded, *footer );
+                result.appendFooter( footer->footerEndEncodedOffset, alreadyDecoded, footer->gzipFooter );
             }
 
             if ( ( nBytesReadPerCall == 0 ) && !footer ) {
@@ -826,7 +826,7 @@ private:
         uint8_t dummy{ 0 };
         const auto [nBytesReadPerCall, footer] = inflateWrapper.readStream( &dummy, 1 );
         if ( ( nBytesReadPerCall == 0 ) && footer ) {
-            result.appendFooter( inflateWrapper.tellCompressed(), alreadyDecoded, *footer );
+            result.appendFooter( footer->footerEndEncodedOffset, alreadyDecoded, footer->gzipFooter );
         }
 
         if ( exactUntilOffset != inflateWrapper.tellCompressed() ) {
@@ -885,7 +885,7 @@ private:
         constexpr size_t ALLOCATION_CHUNK_SIZE = 128_Ki;
         while( !stoppingPointReached ) {
             deflate::DecodedVector subchunk( ALLOCATION_CHUNK_SIZE );
-            std::optional<gzip::Footer> footer;
+            std::optional<IsalInflateWrapper::Footer> footer;
 
             /* In order for CRC32 verification to work, we have to append at most one gzip stream per subchunk
              * because the CRC32 calculator is swapped inside ChunkData::append. */
@@ -919,6 +919,7 @@ private:
                         stoppingPointReached = true;
                     }
                     break;
+
                 case StoppingPoint::NONE:
                     if ( ( nBytesReadPerCall == 0 ) && !footer ) {
                         stoppingPointReached = true;
@@ -954,7 +955,7 @@ private:
             result.append( std::move( subchunk ) );
             if ( footer ) {
                 nextBlockOffset = inflateWrapper.tellCompressed();
-                result.appendFooter( inflateWrapper.tellCompressed(), alreadyDecoded, *footer );
+                result.appendFooter( footer->footerEndEncodedOffset, alreadyDecoded, footer->gzipFooter );
             }
 
             if ( ( inflateWrapper.stoppedAt() == StoppingPoint::NONE )
@@ -967,7 +968,7 @@ private:
         const auto [nBytesReadPerCall, footer] = inflateWrapper.readStream( &dummy, 1 );
         if ( ( inflateWrapper.stoppedAt() == StoppingPoint::NONE ) && ( nBytesReadPerCall == 0 ) && footer ) {
             nextBlockOffset = inflateWrapper.tellCompressed();
-            result.appendFooter( inflateWrapper.tellCompressed(), alreadyDecoded, *footer );
+            result.appendFooter( footer->footerEndEncodedOffset, alreadyDecoded, footer->gzipFooter );
         }
 
         result.finalize( nextBlockOffset );
@@ -983,7 +984,6 @@ private:
 #endif  // ifdef WITH_ISAL
 
 
-private:
     [[nodiscard]] static ChunkData
     decodeBlockWithRapidgzip( BitReader*                const bitReader,
                               size_t                    const untilOffset,
@@ -1131,8 +1131,8 @@ private:
             totalBytesRead += blockBytesRead;
 
             if ( block->isLastBlock() ) {
-                const auto footerOffset = bitReader->tell();
                 const auto footer = gzip::readFooter( *bitReader );
+                const auto footerOffset = bitReader->tell();
 
                 /* We only check for the stream size and CRC32 if we have read the whole stream including the header! */
                 if ( gzipHeader ) {

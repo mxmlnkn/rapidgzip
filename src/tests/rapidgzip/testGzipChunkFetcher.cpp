@@ -216,10 +216,184 @@ testIsalBug()
 }
 
 
+void
+compareBlockOffsets( const std::vector<std::pair<size_t, size_t> >& blockOffsets1,
+                     const std::vector<std::pair<size_t, size_t> >& blockOffsets2 )
+{
+    REQUIRE_EQUAL( blockOffsets1.size(), blockOffsets2.size() );
+    REQUIRE( blockOffsets1.size() > 0 );  // this is true even for an empty stream
+    REQUIRE( blockOffsets1 == blockOffsets2 );
+    if ( blockOffsets1 != blockOffsets2 ) {
+        std::cerr << "Block offset sizes:\n"
+                  << "    first  : " << blockOffsets1.size() << "\n"
+                  << "    second : " << blockOffsets2.size() << "\n";
+        std::cerr << "Block offsets:\n";
+        for ( size_t i = 0; i < std::max( blockOffsets1.size(), blockOffsets2.size() ); ++i ) {
+            if ( i < blockOffsets1.size() ) {
+                std::cerr << "    first  : " << blockOffsets1[i].first << " b -> " << blockOffsets1[i].second << " B\n";
+            }
+            if ( i < blockOffsets2.size() ) {
+                std::cerr << "    second : " << blockOffsets2[i].first << " b -> " << blockOffsets2[i].second << " B\n";
+            }
+        }
+    }
+}
+
+
+[[nodiscard]] std::vector<std::pair<size_t, size_t> >
+getFooterOffsetsWithGzipReader( const std::filesystem::path& filePath )
+{
+    std::vector<std::pair<size_t, size_t> > blockOffsets;
+
+    rapidgzip::GzipReader gzipReader{ std::make_unique<StandardFileReader>( filePath ) };
+    while ( !gzipReader.eof() ) {
+        const auto nBytesRead = gzipReader.read( -1, nullptr, std::numeric_limits<size_t>::max(),
+                                                 StoppingPoint::END_OF_STREAM );
+        /* Not strictly necessary but without it, the last offset will be appended twice because EOF is
+         * only set after trying to read past the end. */
+        if ( ( nBytesRead == 0 ) && gzipReader.eof() ) {
+            break;
+        }
+        blockOffsets.emplace_back( gzipReader.tellCompressed(), gzipReader.tell() );
+    }
+    if ( blockOffsets.empty() || ( gzipReader.tellCompressed() != blockOffsets.back().first ) ) {
+        blockOffsets.emplace_back( gzipReader.tellCompressed(), gzipReader.tell() );
+    }
+
+    return blockOffsets;
+}
+
+
+[[nodiscard]] std::vector<std::pair<size_t, size_t> >
+getFooterOffsets( const ChunkData& chunkData )
+{
+    std::vector<std::pair<size_t, size_t> > blockOffsets( chunkData.footers.size() );
+    std::transform( chunkData.footers.begin(), chunkData.footers.end(), blockOffsets.begin(),
+                    [] ( const auto& footer ) {
+                        return std::make_pair( footer.blockBoundary.encodedOffset,
+                                               footer.blockBoundary.decodedOffset );
+                    } );
+    return blockOffsets;
+}
+
+
+[[nodiscard]] rapidgzip::BitReader
+initBitReaderAtDeflateStream( const std::filesystem::path& filePath )
+{
+    rapidgzip::BitReader bitReader(
+        std::make_unique<SharedFileReader>(
+            std::make_unique<StandardFileReader>( filePath ) ) );
+    rapidgzip::gzip::readHeader( bitReader );
+    return bitReader;
+}
+
+
+[[nodiscard]] ChunkData
+decodeWithDecodeBlockWithRapidgzip( const std::filesystem::path& filePath )
+{
+    auto bitReader = initBitReaderAtDeflateStream( filePath );
+    const auto chunkData = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlockWithRapidgzip(
+        &bitReader,
+        /* untilOffset */ std::numeric_limits<size_t>::max(),
+        /* window */ std::nullopt,
+        /* crc32Enabled */ true,
+        /* maxDecompressedChunkSize */ std::numeric_limits<size_t>::max() );
+    return chunkData;
+}
+
+
+[[nodiscard]] ChunkData
+decodeWithDecodeBlock( const std::filesystem::path& filePath )
+{
+    auto bitReader = initBitReaderAtDeflateStream( filePath );
+    std::atomic<bool> cancel{ false };
+    const auto chunkData = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlock(
+        bitReader,
+        bitReader.tell(),
+        /* untilOffset */ std::numeric_limits<size_t>::max(),
+        /* window */ std::nullopt,
+        /* decodedSize */ std::nullopt,
+        cancel );
+    return chunkData;
+}
+
+
+template<typename InflateWrapper>
+[[nodiscard]] ChunkData
+decodeWithDecodeBlockWithInflateWrapper( const std::filesystem::path& filePath )
+{
+    auto bitReader = initBitReaderAtDeflateStream( filePath );
+    using ChunkFetcher = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>;
+    const auto chunkData = ChunkFetcher::decodeBlockWithInflateWrapper<IsalInflateWrapper>(
+        bitReader,
+        bitReader.tell(),
+        /* exactUntilOffset */ bitReader.size(),
+        /* window */ {},
+        /* decodedSize */ std::nullopt,
+        /* crc32Enabled */ true );
+    return chunkData;
+}
+
+
+void
+printFooters( const std::vector<std::pair<size_t, size_t> >& blockOffsets )
+{
+    std::cerr << "Footers: " << blockOffsets.size() << ", positions: ";
+    for ( const auto& [encodedOffset, decodedOffset] : blockOffsets ) {
+        std::cerr << encodedOffset << "->" << decodedOffset << ", ";
+    }
+    std::cerr << "\n";
+}
+
+
+void
+testGettingFooters( const std::filesystem::path& filePath )
+{
+    const auto footers = getFooterOffsetsWithGzipReader( filePath );
+    compareBlockOffsets( footers, getFooterOffsets( decodeWithDecodeBlock( filePath ) ) );
+    compareBlockOffsets( footers, getFooterOffsets( decodeWithDecodeBlockWithRapidgzip( filePath ) ) );
+    const auto zlibChunk = decodeWithDecodeBlockWithInflateWrapper<ZlibInflateWrapper>( filePath );
+    compareBlockOffsets( footers, getFooterOffsets( zlibChunk ) );
+#ifdef WITH_ISAL
+    const auto isalChunk = decodeWithDecodeBlockWithInflateWrapper<IsalInflateWrapper>( filePath );
+    compareBlockOffsets( footers, getFooterOffsets( isalChunk ) );
+#endif
+}
+
+
+static constexpr auto GZIP_FILE_NAMES = {
+    "empty",
+    "1B",
+    "256B-extended-ASCII-table-in-utf8-dynamic-Huffman",
+    "256B-extended-ASCII-table-uncompressed",
+    "32A-fixed-Huffman",
+    "base64-32KiB",
+    "base64-256KiB",
+    "dolorem-ipsum.txt",
+    "numbers-10,65-90",
+    "random-128KiB",
+    "zeros",
+};
+
+
+void
+testDecodeBlockWithInflateWrapperWithFiles( const std::filesystem::path& testFolder )
+{
+    using namespace std::literals::string_literals;
+    for ( const auto& extension : { ".gz"s, ".bgz"s, ".igz"s, ".pgz"s } ) {
+        for ( const auto* const fileName : GZIP_FILE_NAMES ) {
+            std::cerr << "Testing decodeBlockWithInflateWrapper with " << fileName + extension << "\n";
+            testGettingFooters( testFolder / ( fileName + extension ) );
+        }
+    }
+}
+
+
 int
 main( int    argc,
       char** argv )
 {
+    /* Disable this because it requires 20xsilesia.tar.gz, which is not in the repo because of its size. */
     //testIsalBug();
 
     if ( argc == 0 ) {
@@ -239,6 +413,14 @@ main( int    argc,
         static_cast<std::filesystem::path>(
             findParentFolderContaining( binaryFolder, "src/tests/data/base64-256KiB.bgz" )
         ) / "src" / "tests" / "data";
+
+
+    testDecodeBlockWithInflateWrapperWithFiles( testFolder );
+
+    std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
+
+    return gnTestErrors == 0 ? 0 : 1;
+
 
     const auto test =
         [&] ( const std::string&         fileName,

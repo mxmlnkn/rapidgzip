@@ -75,7 +75,7 @@ testGettingFooter()
     REQUIRE_EQUAL( decompressedSize, 0U );
     REQUIRE_EQUAL( inflateWrapper.tellCompressed(), compressedRandomDNA.size() * BYTE_SIZE );
     if ( footer ) {
-        REQUIRE_EQUAL( footer->uncompressedSize, randomDNA.size() );
+        REQUIRE_EQUAL( footer->gzipFooter.uncompressedSize, randomDNA.size() );
     }
 }
 
@@ -263,7 +263,7 @@ testSmallReads( const std::filesystem::path& compressedFilePath,
     std::vector<uint8_t> decompressedResult( originalData.size(), 3 );
 
     size_t decompressedSize{ 0 };
-    std::optional<rapidgzip::gzip::Footer> footer;
+    std::optional<typename InflateWrapper::Footer> footer;
     for ( size_t i = 0; i < decompressedResult.size(); ++i ) {
         std::tie( decompressedSize, footer ) = inflateWrapper.readStream( decompressedResult.data() + i, 1 );
         /* While loop in case there are lots of empty gzip streams for some reason.
@@ -431,7 +431,7 @@ testSmallReadsUntilOffset( const std::filesystem::path& compressedFilePath,
         std::vector<uint8_t> decompressedResult( expectedResult.size(), 3U );
 
         size_t decompressedSize{ 0 };
-        std::optional<rapidgzip::gzip::Footer> footer;
+        std::optional<typename InflateWrapper::Footer> footer;
         for ( size_t j = 0; j < decompressedResult.size(); ++j ) {
             std::tie( decompressedSize, footer ) = inflateWrapper.readStream( decompressedResult.data() + j, 1U );
             /* While loop in case there are lots of empty gzip streams for some reason.
@@ -544,6 +544,7 @@ testStoppingPoints()
     std::unordered_map<StoppingPoint, std::vector<size_t> > offsetsWithGzipReader;
     std::unordered_map<StoppingPoint, std::vector<size_t> > offsetsWithIsalWrapper;
 
+    /* Get offsets with GzipReader */
     {
         std::vector<char> decompressedResult( randomDNA.size() );
         rapidgzip::GzipReader gzipReader( std::make_unique<BufferViewFileReader>( compressedRandomDNA ) );
