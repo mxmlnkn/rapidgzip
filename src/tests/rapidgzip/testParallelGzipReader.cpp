@@ -55,6 +55,7 @@ const auto DNA_SYMBOLS =
         return allowedSymbols;
     }();
 
+
 [[nodiscard]] std::pair<std::vector<char>, std::vector<char> >
 duplicateNanoStream( size_t multiples )
 {
@@ -564,9 +565,8 @@ testParallelCRC32( const std::vector<std::byte>& uncompressed,
 
     REQUIRE_EQUAL( nBytesRead, decompressed.size() );
     REQUIRE( decompressed == uncompressed );
-    std::cerr << "Decompressed correctly\n";
 
-    /* Test with export and load */
+    /* Test with export and load with CRC32 */
 
     rapidgzip::ParallelGzipReader<rapidgzip::ChunkData, /* ENABLE_STATISTICS */ true> reader3(
         std::make_unique<BufferViewFileReader>( compressed ), /* parallelization */ 2, /* chunk size */ 1_Mi );

@@ -14,6 +14,7 @@
 #include <common.hpp>
 #include <ChunkData.hpp>
 #include <definitions.hpp>
+#include <filereader/Buffered.hpp>
 #include <filereader/Standard.hpp>
 #include <FileUtils.hpp>
 #include <GzipChunkFetcher.hpp>
@@ -220,8 +221,9 @@ void
 compareBlockOffsets( const std::vector<std::pair<size_t, size_t> >& blockOffsets1,
                      const std::vector<std::pair<size_t, size_t> >& blockOffsets2 )
 {
+    /* Note that block offsets might also be empty because the first deflate block is ignored because that
+     * is implied by the chunk data offset. */
     REQUIRE_EQUAL( blockOffsets1.size(), blockOffsets2.size() );
-    REQUIRE( blockOffsets1.size() > 0 );  // this is true even for an empty stream
     REQUIRE( blockOffsets1 == blockOffsets2 );
     if ( blockOffsets1 != blockOffsets2 ) {
         std::cerr << "Block offset sizes:\n"
@@ -241,11 +243,11 @@ compareBlockOffsets( const std::vector<std::pair<size_t, size_t> >& blockOffsets
 
 
 [[nodiscard]] std::vector<std::pair<size_t, size_t> >
-getFooterOffsetsWithGzipReader( const std::filesystem::path& filePath )
+getFooterOffsetsWithGzipReader( UniqueFileReader&& fileReader )
 {
     std::vector<std::pair<size_t, size_t> > blockOffsets;
 
-    rapidgzip::GzipReader gzipReader{ std::make_unique<StandardFileReader>( filePath ) };
+    rapidgzip::GzipReader gzipReader{ std::move( fileReader ) };
     while ( !gzipReader.eof() ) {
         const auto nBytesRead = gzipReader.read( -1, nullptr, std::numeric_limits<size_t>::max(),
                                                  StoppingPoint::END_OF_STREAM );
@@ -278,20 +280,18 @@ getFooterOffsets( const ChunkData& chunkData )
 
 
 [[nodiscard]] rapidgzip::BitReader
-initBitReaderAtDeflateStream( const std::filesystem::path& filePath )
+initBitReaderAtDeflateStream( UniqueFileReader&& fileReader )
 {
-    rapidgzip::BitReader bitReader(
-        std::make_unique<SharedFileReader>(
-            std::make_unique<StandardFileReader>( filePath ) ) );
+    rapidgzip::BitReader bitReader( std::move( fileReader ) );
     rapidgzip::gzip::readHeader( bitReader );
     return bitReader;
 }
 
 
 [[nodiscard]] ChunkData
-decodeWithDecodeBlockWithRapidgzip( const std::filesystem::path& filePath )
+decodeWithDecodeBlockWithRapidgzip( UniqueFileReader&& fileReader )
 {
-    auto bitReader = initBitReaderAtDeflateStream( filePath );
+    auto bitReader = initBitReaderAtDeflateStream( std::move( fileReader ) );
     const auto chunkData = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlockWithRapidgzip(
         &bitReader,
         /* untilOffset */ std::numeric_limits<size_t>::max(),
@@ -303,9 +303,9 @@ decodeWithDecodeBlockWithRapidgzip( const std::filesystem::path& filePath )
 
 
 [[nodiscard]] ChunkData
-decodeWithDecodeBlock( const std::filesystem::path& filePath )
+decodeWithDecodeBlock( UniqueFileReader&& fileReader )
 {
-    auto bitReader = initBitReaderAtDeflateStream( filePath );
+    auto bitReader = initBitReaderAtDeflateStream( std::move( fileReader ) );
     std::atomic<bool> cancel{ false };
     const auto chunkData = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlock(
         bitReader,
@@ -320,11 +320,11 @@ decodeWithDecodeBlock( const std::filesystem::path& filePath )
 
 template<typename InflateWrapper>
 [[nodiscard]] ChunkData
-decodeWithDecodeBlockWithInflateWrapper( const std::filesystem::path& filePath )
+decodeWithDecodeBlockWithInflateWrapper( UniqueFileReader&& fileReader )
 {
-    auto bitReader = initBitReaderAtDeflateStream( filePath );
+    auto bitReader = initBitReaderAtDeflateStream( std::move( fileReader ) );
     using ChunkFetcher = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>;
-    const auto chunkData = ChunkFetcher::decodeBlockWithInflateWrapper<IsalInflateWrapper>(
+    const auto chunkData = ChunkFetcher::decodeBlockWithInflateWrapper<InflateWrapper>(
         bitReader,
         bitReader.tell(),
         /* exactUntilOffset */ bitReader.size(),
@@ -336,28 +336,100 @@ decodeWithDecodeBlockWithInflateWrapper( const std::filesystem::path& filePath )
 
 
 void
-printFooters( const std::vector<std::pair<size_t, size_t> >& blockOffsets )
+printOffsets( const std::vector<std::pair<size_t, size_t> >& blockOffsets )
 {
-    std::cerr << "Footers: " << blockOffsets.size() << ", positions: ";
-    for ( const auto& [encodedOffset, decodedOffset] : blockOffsets ) {
-        std::cerr << encodedOffset << "->" << decodedOffset << ", ";
+    std::cerr << "Offsets: " << blockOffsets.size() << ", positions: ";
+    if ( blockOffsets.size() < 10 ) {
+        for ( const auto& [encodedOffset, decodedOffset] : blockOffsets ) {
+            std::cerr << encodedOffset << "->" << decodedOffset << ", ";
+        }
+    } else {
+        for ( const auto& [encodedOffset, decodedOffset] : blockOffsets ) {
+            std::cerr << "\n    " << encodedOffset << "->" << decodedOffset;
+        }
     }
     std::cerr << "\n";
 }
 
 
 void
-testGettingFooters( const std::filesystem::path& filePath )
+testGettingFooters( UniqueFileReader&& fileReader )
 {
-    const auto footers = getFooterOffsetsWithGzipReader( filePath );
-    compareBlockOffsets( footers, getFooterOffsets( decodeWithDecodeBlock( filePath ) ) );
-    compareBlockOffsets( footers, getFooterOffsets( decodeWithDecodeBlockWithRapidgzip( filePath ) ) );
-    const auto zlibChunk = decodeWithDecodeBlockWithInflateWrapper<ZlibInflateWrapper>( filePath );
+    const auto sharedFileReader = std::make_unique<SharedFileReader>( std::move( fileReader ) );
+
+    const auto footers = getFooterOffsetsWithGzipReader( sharedFileReader->clone() );
+    compareBlockOffsets( footers, getFooterOffsets( decodeWithDecodeBlock( sharedFileReader->clone() ) ) );
+    compareBlockOffsets( footers, getFooterOffsets( decodeWithDecodeBlockWithRapidgzip( sharedFileReader->clone() ) ) );
+    const auto zlibChunk = decodeWithDecodeBlockWithInflateWrapper<ZlibInflateWrapper>( sharedFileReader->clone() );
     compareBlockOffsets( footers, getFooterOffsets( zlibChunk ) );
 #ifdef WITH_ISAL
-    const auto isalChunk = decodeWithDecodeBlockWithInflateWrapper<IsalInflateWrapper>( filePath );
+    const auto isalChunk = decodeWithDecodeBlockWithInflateWrapper<IsalInflateWrapper>( sharedFileReader->clone() );
     compareBlockOffsets( footers, getFooterOffsets( isalChunk ) );
 #endif
+}
+
+
+[[nodiscard]] std::vector<std::pair<size_t, size_t> >
+getBlockStartsWithGzipReader( UniqueFileReader&& fileReader )
+{
+    std::vector<std::pair<size_t, size_t> > blockOffsets;
+
+    rapidgzip::GzipReader gzipReader{ std::move( fileReader ) };
+    const auto stoppingPoints =  static_cast<StoppingPoint>( StoppingPoint::END_OF_STREAM_HEADER
+                                                             | StoppingPoint::END_OF_BLOCK );
+    bool ignoredFirstHeader{ false };
+    while ( !gzipReader.eof() ) {
+        const auto nBytesRead = gzipReader.read( -1, nullptr, std::numeric_limits<size_t>::max(), stoppingPoints );
+        /* Not strictly necessary but without it, the last offset will be appended twice because EOF is
+         * only set after trying to read past the end. */
+        if ( ( nBytesRead == 0 ) && gzipReader.eof() ) {
+            break;
+        }
+
+        if ( ( gzipReader.currentPoint() == StoppingPoint::END_OF_STREAM_HEADER )
+             && blockOffsets.empty() && !ignoredFirstHeader )
+        {
+            ignoredFirstHeader = true;
+            continue;
+        }
+
+        if ( ( gzipReader.currentPoint() == StoppingPoint::END_OF_STREAM_HEADER )
+             || ( ( gzipReader.currentPoint() == StoppingPoint::END_OF_BLOCK )
+                  && gzipReader.currentDeflateBlock()
+                  && !gzipReader.currentDeflateBlock()->isLastBlock() ) )
+        {
+            blockOffsets.emplace_back( gzipReader.tellCompressed(), gzipReader.tell() );
+        }
+    }
+
+    return blockOffsets;
+}
+
+
+[[nodiscard]] std::vector<std::pair<size_t, size_t> >
+getOffsets( const ChunkData& chunkData )
+{
+    std::vector<std::pair<size_t, size_t> > blockOffsets( chunkData.blockBoundaries.size() );
+    std::transform( chunkData.blockBoundaries.begin(), chunkData.blockBoundaries.end(), blockOffsets.begin(),
+                    [] ( const auto& boundary ) {
+                        return std::make_pair( boundary.encodedOffset, boundary.decodedOffset );
+                    } );
+    return blockOffsets;
+}
+
+
+void
+testGettingBoundaries( UniqueFileReader&& fileReader )
+{
+    const auto sharedFileReader = std::make_unique<SharedFileReader>( std::move( fileReader ) );
+
+    const auto boundaries = getBlockStartsWithGzipReader( sharedFileReader->clone() );
+
+    compareBlockOffsets( boundaries, getOffsets( decodeWithDecodeBlock( sharedFileReader->clone() ) ) );
+    compareBlockOffsets( boundaries, getOffsets( decodeWithDecodeBlockWithRapidgzip( sharedFileReader->clone() ) ) );
+
+    /* decodeWithDecodeBlockWithInflateWrapper does not collect blockBoundaries
+     * because it is used for when the index is already known. */
 }
 
 
@@ -376,6 +448,51 @@ static constexpr auto GZIP_FILE_NAMES = {
 };
 
 
+[[nodiscard]] std::vector<std::byte>
+createRandomData( uint64_t                      size,
+                  const std::vector<std::byte>& allowedSymbols )
+{
+    std::mt19937_64 randomEngine;
+    std::vector<std::byte> result( size );
+    for ( auto& x : result ) {
+        x = allowedSymbols[static_cast<size_t>( randomEngine() ) % allowedSymbols.size()];
+    }
+    return result;
+}
+
+
+const auto DNA_SYMBOLS =
+    [] () {
+        using namespace std::literals;
+        constexpr auto DNA_SYMBOLS_STRING = "ACGT"sv;
+        std::vector<std::byte> allowedSymbols( DNA_SYMBOLS_STRING.size() );
+        std::transform( DNA_SYMBOLS_STRING.begin(), DNA_SYMBOLS_STRING.end(), allowedSymbols.begin(),
+                        [] ( const auto c ) { return static_cast<std::byte>( c ); } );
+        return allowedSymbols;
+    }();
+
+
+[[nodiscard]] UniqueFileReader
+createCompressedRandomDNA( const size_t chunkSize = 10_Mi,
+                           const size_t chunkCount = 10 )
+{
+    /* As there are 4 symbols, 2 bits per symbol should suffice and as the data is random, almost no backreferences
+     * should be viable. This leads to a compression ratio of ~4, which is large enough for splitting and benign
+     * enough to have multiple chunks with fairly little uncompressed data. */
+    const auto randomDNA = createRandomData( chunkSize, DNA_SYMBOLS );
+    const auto compressed = compressWithZlib( randomDNA, CompressionStrategy::HUFFMAN_ONLY );
+
+    std::vector<char> multiStreamDataCompressed;
+    for ( size_t i = 0; i < chunkCount; ++i ) {
+        multiStreamDataCompressed.insert( multiStreamDataCompressed.end(),
+                                          reinterpret_cast<const char*>( compressed.data() ),
+                                          reinterpret_cast<const char*>( compressed.data() + compressed.size() ) );
+    }
+
+    return std::make_unique<BufferedFileReader>( std::move( multiStreamDataCompressed ) );
+}
+
+
 void
 testDecodeBlockWithInflateWrapperWithFiles( const std::filesystem::path& testFolder )
 {
@@ -383,9 +500,12 @@ testDecodeBlockWithInflateWrapperWithFiles( const std::filesystem::path& testFol
     for ( const auto& extension : { ".gz"s, ".bgz"s, ".igz"s, ".pgz"s } ) {
         for ( const auto* const fileName : GZIP_FILE_NAMES ) {
             std::cerr << "Testing decodeBlockWithInflateWrapper with " << fileName + extension << "\n";
-            testGettingFooters( testFolder / ( fileName + extension ) );
+            testGettingBoundaries( std::make_unique<StandardFileReader>( testFolder / ( fileName + extension ) ) );
+            testGettingFooters( std::make_unique<StandardFileReader>( testFolder / ( fileName + extension ) ) );
         }
     }
+
+    testGettingBoundaries( createCompressedRandomDNA() );
 }
 
 
@@ -414,13 +534,7 @@ main( int    argc,
             findParentFolderContaining( binaryFolder, "src/tests/data/base64-256KiB.bgz" )
         ) / "src" / "tests" / "data";
 
-
     testDecodeBlockWithInflateWrapperWithFiles( testFolder );
-
-    std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
-
-    return gnTestErrors == 0 ? 0 : 1;
-
 
     const auto test =
         [&] ( const std::string&         fileName,

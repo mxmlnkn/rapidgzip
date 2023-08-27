@@ -264,9 +264,9 @@ analyze( UniqueFileReader inputFile )
             std::cout
                 << "    Symbol Types:\n"
                 << "        Literal         : " << formatSymbolType( block.symbolTypes.literal ) << "\n"
-                << "        Back-References : " << formatSymbolType( block.symbolTypes.backreference ) << "\n"
-                << "\n";
+                << "        Back-References : " << formatSymbolType( block.symbolTypes.backreference ) << "\n";
         }
+        std::cout << "\n";
 
         if ( block.isLastBlock() ) {
             const auto footer = gzip::readFooter( bitReader );
