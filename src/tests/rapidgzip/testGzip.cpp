@@ -360,7 +360,7 @@ main( int    argc,
         }
 
         const auto extension = entry.path().extension();
-        const std::unordered_set<std::string> validExtensions = { ".gz", ".bgz", ".igz", ".pgz" };
+        const std::unordered_set<std::string> validExtensions = { ".gz", ".bgz", ".igz", ".pigz" };
         if ( validExtensions.find( extension ) == validExtensions.end() ) {
             continue;
         }

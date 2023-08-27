@@ -185,11 +185,11 @@ main( int    argc,
 
     /* Note that rapidgzip --analyze shows the real offset to be 199507 but depending on the preceding bits
      * the range can go all the way back to the last byte boundary. In this case it goes back 1 bit. */
-    testUncompressedBlockFinder( testsFolder / "base64-64KiB.pgz", { { 199506, 199509 } } );
+    testUncompressedBlockFinder( testsFolder / "base64-64KiB.pigz", { { 199506, 199509 } } );
 
     /* Note that rapidgzip --analyze shows the real offset to be 24942 * BYTE_SIZE + 7 but depending on the preceding bits
      * the range can go all the way back to the last byte boundary. In this case it goes back 1 bit. */
-    testUncompressedBlockFinder( testsFolder / "base64-64KiB-7b-offset-uncompressed.pgz",
+    testUncompressedBlockFinder( testsFolder / "base64-64KiB-7b-offset-uncompressed.pigz",
                                  { { 24942 * BYTE_SIZE + 6, 24944 * BYTE_SIZE - 3 } } );
 
     /* Because the whole file consists of compressed blocks, the +5 can be easily explained.

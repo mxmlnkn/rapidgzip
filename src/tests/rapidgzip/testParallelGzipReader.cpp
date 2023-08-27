@@ -762,7 +762,7 @@ main( int    argc,
 
     using namespace std::string_literals;
 
-    for ( const auto& extension : { ".gz"s, ".bgz"s, ".igz"s, ".pgz"s } ) {
+    for ( const auto& extension : { ".gz"s, ".bgz"s, ".igz"s, ".pigz"s } ) {
         testParallelDecoder( rootFolder / ( "empty" + extension ) );
         testParallelDecoder( rootFolder / ( "1B" + extension ) );
         testParallelDecoder( rootFolder / ( "256B-extended-ASCII-table-in-utf8-dynamic-Huffman" + extension ) );
@@ -782,7 +782,7 @@ main( int    argc,
 
     /**
      * @todo add test with false pigz positive, e.g., pigz marker inside comment, extra, or file name field.
-     * @todo add test with valid empty pigz block. E.g., by concatenating empty.pgz. This might trip up
+     * @todo add test with valid empty pigz block. E.g., by concatenating empty.pigz. This might trip up
      *       ParallelGzipReader making it impossible to advance. Maybe use the EOS handling in the BlockFinder to filter
      *       these empty blocks? Maybe also skip empty deflate blocks inside PigzBlockFinder. BZ2 also never finds
      *       (empty) EOS blocks.

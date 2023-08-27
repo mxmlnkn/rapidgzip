@@ -654,7 +654,7 @@ testInflateWrapper( const std::filesystem::path& rootFolder )
         "zeros",
     };
 
-    for ( const auto& extension : { ".gz"s, ".bgz"s, ".igz"s, ".pgz"s } ) {
+    for ( const auto& extension : { ".gz"s, ".bgz"s, ".igz"s, ".pigz"s } ) {
         for ( const auto* const fileName : GZIP_FILE_NAMES ) {
             std::cerr << "Testing with " << fileName + extension << "\n";
             const auto compressedFilePath = rootFolder / ( fileName + extension );

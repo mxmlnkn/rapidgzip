@@ -56,7 +56,7 @@ protected:
         }
 
         /* A maximum code length of 0 is valid! It happens when encoding this with pigz:
-         * python3 -c 'import sys; sys.stdout.buffer.write(bytes(range(256)))' | pigz > 0CL.pgz */
+         * python3 -c 'import sys; sys.stdout.buffer.write(bytes(range(256)))' | pigz > 0CL.pigz */
         m_maxCodeLength = getMax( codeLengths );
 
         m_minCodeLength = getMinPositive( codeLengths );

@@ -497,7 +497,7 @@ void
 testDecodeBlockWithInflateWrapperWithFiles( const std::filesystem::path& testFolder )
 {
     using namespace std::literals::string_literals;
-    for ( const auto& extension : { ".gz"s, ".bgz"s, ".igz"s, ".pgz"s } ) {
+    for ( const auto& extension : { ".gz"s, ".bgz"s, ".igz"s, ".pigz"s } ) {
         for ( const auto* const fileName : GZIP_FILE_NAMES ) {
             std::cerr << "Testing decodeBlockWithInflateWrapper with " << fileName + extension << "\n";
             testGettingBoundaries( std::make_unique<StandardFileReader>( testFolder / ( fileName + extension ) ) );
@@ -549,8 +549,8 @@ main( int    argc,
     test( "base64-32KiB.gz" , 0, {}, { 32768 } );
     test( "base64-32KiB.bgz", 0, {}, { 32768 } );
     test( "base64-32KiB.igz", 0, {}, { 32768 } );
-    test( "base64-32KiB.pgz", 0, {}, { 16796, 15972 } );
-    test( "base64-32KiB.pgz", 1, { 15793 }, { 179 } );
+    test( "base64-32KiB.pigz", 0, {}, { 16796, 15972 } );
+    test( "base64-32KiB.pigz", 1, { 15793 }, { 179 } );
 
 #ifdef WITH_ISAL
     /* When decodeBlock is able to delegate ISA-l, then the resulting chunks will be sized 128 KiB
@@ -561,32 +561,32 @@ main( int    argc,
     test( "random-128KiB.gz" , 0, {}, { 32777, 98295 } );
     test( "random-128KiB.bgz", 0, {}, { 65280, 65280, 512 } );
     test( "random-128KiB.igz", 0, {}, { 65535, 65537 } );
-    test( "random-128KiB.pgz", 0, {}, { 16387, 16389, 16395, 81901 } );
+    test( "random-128KiB.pigz", 0, {}, { 16387, 16389, 16395, 81901 } );
 
     test( "random-128KiB.gz" , 1, {}, { 32793, 65502 } );
     test( "random-128KiB.bgz", 1, {}, { 65280, 512 } );
     test( "random-128KiB.igz", 1, {}, { 65224, 313 } );
-    test( "random-128KiB.pgz", 1, {}, { 16389, 16395, 16397, 65504 } );
+    test( "random-128KiB.pigz", 1, {}, { 16389, 16395, 16397, 65504 } );
 
     test( "random-128KiB.gz" , 2, {}, { 32777, 32725 } );
     test( "random-128KiB.bgz", 2, {}, { 512 } );
     test( "random-128KiB.igz", 2, {}, { 313 } );
-    test( "random-128KiB.pgz", 2, {}, { 16395, 16397, 16389, 49115 } );
+    test( "random-128KiB.pigz", 2, {}, { 16395, 16397, 16389, 49115 } );
 #else
     test( "random-128KiB.gz" , 0, {}, { 32777, 32793, 32777, 32725 } );
     test( "random-128KiB.bgz", 0, {}, { 65280, 65280, 512 } );
     test( "random-128KiB.igz", 0, {}, { 65535, 65224, 313 } );
-    test( "random-128KiB.pgz", 0, {}, { 16387, 16389, 16395, 16397, 16389, 16387, 16393, 16335 } );
+    test( "random-128KiB.pigz", 0, {}, { 16387, 16389, 16395, 16397, 16389, 16387, 16393, 16335 } );
 
     test( "random-128KiB.gz" , 1, {}, { 32793, 32777, 32725 } );
     test( "random-128KiB.bgz", 1, {}, { 65280, 512 } );
     test( "random-128KiB.igz", 1, {}, { 65224, 313 } );
-    test( "random-128KiB.pgz", 1, {}, { 16389, 16395, 16397, 16389, 16387, 16393, 16335 } );
+    test( "random-128KiB.pigz", 1, {}, { 16389, 16395, 16397, 16389, 16387, 16393, 16335 } );
 
     test( "random-128KiB.gz" , 2, {}, { 32777, 32725 } );
     test( "random-128KiB.bgz", 2, {}, { 512 } );
     test( "random-128KiB.igz", 2, {}, { 313 } );
-    test( "random-128KiB.pgz", 2, {}, { 16395, 16397, 16389, 16387, 16393, 16335 } );
+    test( "random-128KiB.pigz", 2, {}, { 16395, 16397, 16389, 16387, 16393, 16335 } );
 #endif
     // *INDENT-ON*
 
