@@ -9,6 +9,7 @@
 #include <memory>
 #include <optional>
 #include <stdexcept>
+#include <string_view>
 #include <sstream>
 #include <utility>
 #include <vector>
@@ -28,6 +29,182 @@
 
 namespace rapidgzip::deflate
 {
+void
+analyzeExtraString( std::string_view extra,
+                    std::string_view prefix = "" )
+{
+    if ( extra.empty() ) {
+        return;
+    }
+
+    if ( ( extra.size() == 6 )
+         && ( extra[0] == 'B' )   // BGZF subfield ID "BC"
+         && ( extra[1] == 'C' )
+         && ( extra[2] == 0x02 )  // subfield length is 2 B
+         && ( extra[3] == 0x00 ) )
+    {
+        const auto blockSize = ( static_cast<uint16_t>( static_cast<uint8_t>( extra[4] ) ) << 8U )
+                                 + static_cast<uint8_t>( extra[5] ) + 1U;
+        std::cout << prefix << "BGZF Metadata: Compressed Block Size: " << blockSize << "\n";
+    }
+
+    if ( ( extra.size() == 8 )
+         && ( extra[0] == 'I' )   // "Indexed Gzip" subfield ID "IG"
+         && ( extra[1] == 'G' )
+         && ( extra[2] == 0x04 )  // subfield length is 4 B
+         && ( extra[3] == 0x00 ) )
+    {
+        uint32_t blockSize{ 0 };
+        for ( size_t i = 0; i < 4; ++i ) {
+            blockSize |= static_cast<uint32_t>( static_cast<uint8_t>( extra[4 + i] ) ) << ( i * 8U );
+        }
+        std::cout << prefix << "Indexed Gzip (pgzip, mgzip) Metadata: Compressed Block Size: " << blockSize << "\n";
+    }
+
+    /**
+     * @verbatim
+     * mzip --help
+     * > Compresses data from stdin and outputs the GZip-compressed bytes to stdout.
+     * > Compressed data may be decompressed with any GZip utility single-threaded, or use MiGz to decompress it
+     *   using multiple threads
+     * > Optional arguments:
+     * >     -t [thread count] : sets the number of threads to use (default = 2 * number of logical cores)
+     * >     -b : sets the block size, in bytes (default = 512KB)
+     * >     -0, -1, -2...-#...-9 : sets the compression level (0 = no compression, 1 = fastest compression,
+     * >                                                        9 = best compression; default = 9)
+     * > Compressing stdin using 48 threads, blocks of size 524288, and compression level 9
+     * @endverbatim
+     * -> The default block size 512 KB is very usable for rapidgzip!
+     */
+    if ( ( extra.size() == 8 )
+         && ( extra[0] == 'M' )   // "MiGz" subfield ID "IG"
+         && ( extra[1] == 'Z' )
+         && ( extra[2] == 0x04 )  // subfield length is 4 B
+         && ( extra[3] == 0x00 ) )
+    {
+        uint32_t blockSize{ 0 };
+        for ( size_t i = 0; i < 4; ++i ) {
+            blockSize |= static_cast<uint32_t>( static_cast<uint8_t>( extra[4 + i] ) ) << ( i * 8U );
+        }
+        /* The size is the deflate stream size (excluding the size for the gzip header and footer). */
+        std::cout << prefix << "MiGz Metadata: Compressed Deflate Stream Size: " << blockSize << "\n";
+    }
+
+    if ( ( extra.size() == 12 )
+         && ( extra[0] == 'Q' )   // "QATzip" subfield ID "QZ"
+         && ( extra[1] == 'Z' )
+         && ( extra[2] == 0x08 )  // subfield length is 8 B
+         && ( extra[3] == 0x00 ) )
+    {
+        uint32_t chunkSize{ 0 };
+        for ( size_t i = 0; i < 4U; ++i ) {
+            chunkSize |= static_cast<uint32_t>( static_cast<uint8_t>( extra[4 + i] ) ) << ( i * 8U );
+        }
+        uint32_t blockSize{ 0 };
+        for ( size_t i = 0; i < 4U; ++i ) {
+            blockSize |= static_cast<uint32_t>( static_cast<uint8_t>( extra[8 + i] ) ) << ( i * 8U );
+        }
+        std::cout << prefix << "QATzip Metadata: Compressed Deflate Stream Size: " << blockSize
+                  << ", Decompressed Stream Size: " << chunkSize << "\n";
+        /* Based on further --analyze output, the "chunk size" seems to be the decompressed deflate / gzip stream size,
+         * while the block size seems to be the compressed deflate stream size, i.e., without gzip header and footer. */
+    }
+
+    /**
+     * @verbatim
+     * pgzf -h
+     * > PGZF: Parallel blocked gzip file IO
+     * > Author: Jue Ruan <ruanjue@caas.cn>
+     * > Version: 1.0
+     * > [...]
+     * >  -b <int>    Block size in MB, 1 ~ 256 [1]
+     * >              '-b 1,8000' means 1 MB block size + 8000 blocks per group
+     * >              that is one indexed group contains 8000 * 1MB bytes original data
+     * @endverbatim
+     * -> 1 MiB default block size is also very usable for rapidgzip. And first-class support for this file
+     *    type would make much sense because in contrast to 32 KB blocks, it might take up to 25 % of the
+     *    chunk size to arrive at a gzip stream boundary, which enables the ISA-L fastpath.
+     */
+    if ( ( extra.size() >= 8 )
+         && ( extra[0] == 'Z' )   // "PGZF" subfield ID "ZC"
+         && ( extra[1] == 'C' )
+         && ( extra[2] == 0x04 )  // subfield length is 4 B
+         && ( extra[3] == 0x00 ) )
+    {
+        uint32_t blockSize{ 0 };
+        for ( size_t i = 0; i < 4; ++i ) {
+            blockSize |= static_cast<uint32_t>( static_cast<uint8_t>( extra[4 + i] ) ) << ( i * 8U );
+        }
+        /* The size is the deflate stream size (excluding the size for the gzip header and footer). */
+        std::cout << prefix << "PGZF Metadata: Compressed Deflate Stream Size: " << blockSize;
+
+        if ( ( extra.size() == 20 )
+             && ( extra[8] == 'G' )   // "PGZF" "group compressed" subfield ID "GC"
+             && ( extra[9] == 'C' )
+             && ( extra[10] == 0x08 )  // subfield length is 8 B
+             && ( extra[11] == 0x00 ) )
+        {
+            uint64_t compressedGroupSize{ 0 };
+            for ( size_t i = 0; i < 8; ++i ) {
+                compressedGroupSize |= static_cast<uint64_t>( static_cast<uint8_t>( extra[12 + i] ) ) << ( i * 8U );
+            }
+            std::cout << ", Compressed Group Size: " << compressedGroupSize;
+        }
+
+        if ( ( extra.size() >= 20 )
+             && ( extra[8] == 'I' )   // "PGZF" "index" subfield ID "GC"
+             && ( extra[9] == 'X' )
+             && ( extra[10] == 0x08 )  // subfield length is 8 B
+             && ( extra[11] == 0x00 ) )
+        {
+            /* Index stores: nbin * {bzsize:u4i, busize:u4i}
+             * @see https://github.com/ruanjue/pgzf/blob/d88a2730d1767b5f0e9ce86f7b2fa698335eb7dc/pgzf.h#L150 */
+            std::cout << ", Index Data";
+        }
+
+        std::cout << "\n";
+    }
+
+    /**
+     * Extra Field
+     * @verbatim
+     * +---+---+---+---+==================================+
+     * |SI1|SI2|  LEN  |... LEN bytes of subfield data ...|
+     * +---+---+---+---+==================================+
+     * @endverbatim
+     * subfieldID1 = 'R';
+     * subfieldID2 = 'A';
+     * subfieldLength =  6 + (int) tmpCount * 2;
+     *
+     * @verbatim
+     * Random Access Field
+     * +---+---+---+---+---+---+===============================+
+     * |  VER  | CHLEN | CHCNT |  ... CHCNT words of data ...  |
+     * +---+---+---+---+---+---+===============================+
+     * @endverbatim
+     * subfieldVersion = 1;
+     * chunkLength = bufferSize;
+     * chunkCount = (int) tmpCount;
+     * chunks = new int[chunkCount];
+     * // Calculate total length
+     * extraLength = subfieldLength + 4;
+     * headerLength = GZIP_HEADER_LEN + extraLength;
+     * filename = null;
+     * comment = null;
+     *
+     * @see https://codeberg.org/miurahr/dictzip-java/src/commit/25bb56c6b2215a1ebfd5689dbc444e276edc166c/dictzip-lib/
+     *      src/main/java/org/dict/zip/DictZipHeader.java#L115-L140
+     * @note Unfortunately "gradle build" fails and the CLI tool is not on the releases page.
+     */
+    if ( ( extra.size() >= 10 )
+         && ( extra[0] == 'R' )   // "dictzip" subfield ID "RA" (random access)
+         && ( extra[1] == 'A' ) )
+    {
+        std::cout << prefix << "Dictzip Metadata\n";
+    }
+}
+
+
 [[nodiscard]] rapidgzip::Error
 analyze( UniqueFileReader inputFile )
 {
@@ -117,6 +294,9 @@ analyze( UniqueFileReader inputFile )
                     }
                 }
                 std::cout << "    Extra               : " << extraString.str() << "\n";
+                analyzeExtraString( { reinterpret_cast<const char*>( header.extra->data() ),
+                                      header.extra->size() },
+                                    "        " );
             }
             if ( header.crc16 ) {
                 std::stringstream crc16String;
