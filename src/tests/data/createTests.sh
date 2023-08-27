@@ -1,3 +1,6 @@
+# pgzf can be installed with sudo apt install wtdbg2
+# mzip (migz) can simply be downloaded as a binary from https://github.com/linkedin/migz/releases
+
 function allgzip()
 {
     local file=$1
@@ -5,6 +8,8 @@ function allgzip()
     test -f "${file}.igz" || igzip -c -- "$file" > "${file}.igz"
     test -f "${file}.pigz" || pigz -c -- "$file" > "${file}.pigz"
     test -f "${file}.bgz" || bgzip -c -- "$file" > "${file}.bgz"
+    test -f "${file}.pgzf" || pgzf -o "${file}.pgzf" "$file"
+    test -f "${file}.migz" || cat -- "$file" | mzip > "${file}.migz"
 }
 
 touch empty && allgzip empty
