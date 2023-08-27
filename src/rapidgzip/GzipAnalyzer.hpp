@@ -52,6 +52,9 @@ analyze( UniqueFileReader inputFile )
     std::vector<size_t> distanceCodeLengths;
     std::vector<size_t> literalCodeLengths;
 
+    std::vector<size_t> encodedStreamSizes;
+    std::vector<size_t> decodedStreamSizes;
+
     std::vector<size_t> encodedBlockSizes;
     std::vector<size_t> decodedBlockSizes;
     std::vector<double> compressionRatios;
@@ -290,6 +293,9 @@ analyze( UniqueFileReader inputFile )
             }
 
             gzipHeader = {};
+
+            encodedStreamSizes.emplace_back( bitReader.tell() - headerOffset );
+            decodedStreamSizes.emplace_back( streamBytesRead );
         }
 
         if ( bitReader.eof() ) {
@@ -376,10 +382,20 @@ analyze( UniqueFileReader inputFile )
         << "\n== Compression Ratio Distribution ==\n"
         << "\n"
         << Histogram<double>{ compressionRatios, 8, "Bytes" }.plot()
-        << "\n"
-        << "== Deflate Block Compression Types ==\n"
         << "\n";
+    if ( streamCount > 1 ) {
+        std::cout
+        << "\n== Compressed Stream Sizes for " << encodedStreamSizes.size() << " streams ==\n"
+        << "\n"
+        << Histogram<size_t>{ encodedStreamSizes, 8, "Bytes" }.plot()
+        << "\n"
+        << "\n== Decompressed Stream Sizes for " << decodedStreamSizes.size() << " streams ==\n"
+        << "\n"
+        << Histogram<size_t>{ decodedStreamSizes, 8, "Bytes" }.plot()
+        << "\n";
+    }
 
+    std::cout << "== Deflate Block Compression Types ==\n\n";
     for ( const auto& [compressionType, count] : compressionTypes ) {
         std::cout << std::setw( 10 ) << toString( compressionType ) << " : " << count << "\n";
     }
