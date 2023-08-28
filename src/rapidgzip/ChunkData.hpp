@@ -244,6 +244,8 @@ public:
     size_t falsePositiveCount{ 0 };
     double blockFinderDuration{ 0 };
     double decodeDuration{ 0 };
+    double decodeDurationInflateWrapper{ 0 };
+    double decodeDurationIsal{ 0 };
     double appendDuration{ 0 };
 
     bool stoppedPreemptively{ false };

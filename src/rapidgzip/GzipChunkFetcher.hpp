@@ -109,16 +109,21 @@ public:
         if ( BaseType::m_showProfileOnDestruction ) {
             std::stringstream out;
             out << "[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:\n";
-            out << "    Number of false positives               : " << m_falsePositiveCount << "\n";
-            out << "    Time spent in block finder              : " << m_blockFinderTime << " s\n";
-            out << "    Time spent decoding                     : " << m_decodeTime << " s\n";
-            out << "    Time spent allocating and copying       : " << m_appendTime << " s\n";
-            out << "    Time spent applying the last window     : " << m_applyWindowTime << " s\n";
-            out << "    Replaced marker buffers                 : " << formatBytes( m_markerCount ) << "\n";
-            out << "    Actual marker count                     : " << formatBytes( m_realMarkerCount )
-                << " (" << static_cast<double>( m_realMarkerCount ) / static_cast<double>( m_markerCount ) * 100
-                << " %)\n";
-            out << "    Chunks exceeding max. compression ratio : " << m_preemptiveStopCount << "\n";
+            out << "    Number of false positives                : " << m_falsePositiveCount << "\n";
+            out << "    Time spent in block finder               : " << m_blockFinderTime << " s\n";
+            out << "    Time spent decoding with custom inflate  : " << m_decodeTime << " s\n";
+            out << "    Time spent decoding with inflate wrapper : " << m_decodeTimeInflateWrapper << " s\n";
+            out << "    Time spent decoding with ISA-L           : " << m_decodeTimeIsal << " s\n";
+            out << "    Time spent allocating and copying        : " << m_appendTime << " s\n";
+            out << "    Time spent applying the last window      : " << m_applyWindowTime << " s\n";
+            out << "    Replaced marker buffers                  : " << formatBytes( m_markerCount ) << "\n";
+            out << "    Actual marker count                      : " << formatBytes( m_realMarkerCount );
+            if ( m_markerCount > 0 ) {
+                out << " (" << static_cast<double>( m_realMarkerCount ) / static_cast<double>( m_markerCount ) * 100
+                    << " %)";
+            }
+            out << "\n";
+            out << "    Chunks exceeding max. compression ratio  : " << m_preemptiveStopCount << "\n";
             std::cerr << std::move( out ).str();
         }
     }
@@ -215,6 +220,8 @@ public:
                 m_falsePositiveCount += chunkData->falsePositiveCount;
                 m_blockFinderTime += chunkData->blockFinderDuration;
                 m_decodeTime += chunkData->decodeDuration;
+                m_decodeTimeInflateWrapper += chunkData->decodeDurationInflateWrapper;
+                m_decodeTimeIsal += chunkData->decodeDurationIsal;
                 m_appendTime += chunkData->appendDuration;
             }
 
@@ -737,6 +744,8 @@ public:
                                    std::optional<size_t> const decodedSize,
                                    bool                  const crc32Enabled )
     {
+        const auto tStart = now();
+
         BitReader bitReader( originalBitReader );
         bitReader.seek( blockOffset );
         InflateWrapper inflateWrapper( std::move( bitReader ), exactUntilOffset );
@@ -846,6 +855,7 @@ public:
         }
 
         result.finalize( exactUntilOffset );
+        result.decodeDurationInflateWrapper = duration( tStart );
         return result;
     }
 
@@ -871,6 +881,7 @@ public:
             throw std::invalid_argument( "BitReader may not be nullptr!" );
         }
 
+        const auto tStart = now();
         auto nextBlockOffset = bitReader->tell();
         bool stoppingPointReached{ false };
         auto alreadyDecoded = result.size();
@@ -975,6 +986,7 @@ public:
         }
 
         result.finalize( nextBlockOffset );
+        result.decodeDurationIsal = duration( tStart );
         /**
          * Without the std::move, performance is halved! It seems like copy elision on return does not work
          * with function arguments! @see https://en.cppreference.com/w/cpp/language/copy_elision
@@ -1170,6 +1182,8 @@ private:
     double m_applyWindowTime{ 0 };
     double m_blockFinderTime{ 0 };
     double m_decodeTime{ 0 };
+    double m_decodeTimeInflateWrapper{ 0 };
+    double m_decodeTimeIsal{ 0 };
     double m_appendTime{ 0 };
     uint64_t m_markerCount{ 0 };
     uint64_t m_realMarkerCount{ 0 };
