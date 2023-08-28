@@ -434,16 +434,19 @@ private:
          *       waiting or if we don't wait, it might result in the same chunk being decompressed twice, once
          *       as a prefetch starting from a guessed position and once as an on-demand fetch given the exact
          *       position. */
-        if ( chunkData && !chunkData->matchesEncodedOffset( blockOffset ) && ( partitionOffset != blockOffset )
-             && ( m_preemptiveStopCount == 0 ) ) {
-            std::cerr << "[Info] Detected a performance problem. Decoding might take longer than necessary. "
-                      << "Please consider opening a performance bug report with "
-                      << "a reproducing compressed file. Detailed information:\n"
-                      << "[Info] Found mismatching block. Need offset " << formatBits( blockOffset )
-                      << ". Look in partition offset: " << formatBits( partitionOffset )
-                      << ". Found possible range: ["
-                      << formatBits( chunkData->encodedOffsetInBits ) << ", "
-                      << formatBits( chunkData->maxEncodedOffsetInBits ) << "]\n";
+        if constexpr ( ENABLE_STATISTICS ) {
+            if ( chunkData && !chunkData->matchesEncodedOffset( blockOffset ) && ( partitionOffset != blockOffset )
+                 && ( m_preemptiveStopCount == 0 ) )
+            {
+                std::cerr << "[Info] Detected a performance problem. Decoding might take longer than necessary. "
+                          << "Please consider opening a performance bug report with "
+                          << "a reproducing compressed file. Detailed information:\n"
+                          << "[Info] Found mismatching block. Need offset " << formatBits( blockOffset )
+                          << ". Look in partition offset: " << formatBits( partitionOffset )
+                          << ". Found possible range: ["
+                          << formatBits( chunkData->encodedOffsetInBits ) << ", "
+                          << formatBits( chunkData->maxEncodedOffsetInBits ) << "]\n";
+            }
         }
 
         /* If we got no block or one with the wrong data, then try again with the real offset, not the
