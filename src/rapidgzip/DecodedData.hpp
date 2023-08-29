@@ -327,8 +327,18 @@ DecodedData::applyWindow( WindowView const& window )
             }();
 
         for ( auto& chunk : dataWithMarkers ) {
-            std::transform( chunk.begin(), chunk.end(), reinterpret_cast<uint8_t*>( chunk.data() ),
-                            [&fullWindow] ( const auto value ) constexpr noexcept { return fullWindow[value]; } );
+            auto* const target = reinterpret_cast<uint8_t*>( chunk.data() );
+            /* Do not use std::transform because it allows out-of-order execution!
+             * std::transform might be ~3% faster for FASTQ files btu it is hard to measure as timings seem
+             * to vary a lot. Still, we need to be correct before being fast, but maybe something can be
+             * done with inline Assembler or the intermediary "compressed" marker format might also help.
+             * Note that these 3% shouldn't matter because we already are quite faster than before:
+             *     rapidgzip-v0.9.0 : 2706.3 <= 2862.5 +- 2.3 <= 2979.9
+             *     rapidgzip-v0.8.1 : 1988.2 <= 2067.8 +- 1.4 <= 2139.8
+             */
+            for ( size_t i = 0; i < chunk.size(); ++i ) {
+                target[i] = fullWindow[chunk[i]];
+            }
         }
     } else {
         /* For maximum size windows, we can skip one check because even UINT16_MAX is valid. */
@@ -336,12 +346,22 @@ DecodedData::applyWindow( WindowView const& window )
         if ( window.size() >= MAX_WINDOW_SIZE ) {
             const MapMarkers<true> mapMarkers( window );
             for ( auto& chunk : dataWithMarkers ) {
-                std::transform( chunk.begin(), chunk.end(), reinterpret_cast<uint8_t*>( chunk.data() ), mapMarkers );
+                /* Do not use std::transform because it allows out-of-order execution and if a later i
+                 * is computed first, it might overwrite values that are need for earlier i's because
+                 * we are transforming in-place into a vector with smaller element size! */
+                auto* const target = reinterpret_cast<uint8_t*>( chunk.data() );
+                for ( size_t i = 0; i < chunk.size(); ++i ) {
+                    target[i] = mapMarkers( chunk[i] );
+                }
             }
         } else {
             const MapMarkers<false> mapMarkers( window );
             for ( auto& chunk : dataWithMarkers ) {
-                std::transform( chunk.begin(), chunk.end(), reinterpret_cast<uint8_t*>( chunk.data() ), mapMarkers );
+                auto* const target = reinterpret_cast<uint8_t*>( chunk.data() );
+                /* Do not use std::transform because it allows out-of-order execution! */
+                for ( size_t i = 0; i < chunk.size(); ++i ) {
+                    target[i] = mapMarkers( chunk[i] );
+                }
             }
         }
     }
