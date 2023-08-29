@@ -745,7 +745,7 @@ public:
     void
     importIndex( PyObject* pythonObject )
     {
-        readGzipIndex( std::make_unique<PythonFileReader>( pythonObject ) );
+        importIndex( std::make_unique<PythonFileReader>( pythonObject ) );
     }
 
     void
