@@ -240,19 +240,47 @@ private:
 inline void
 DecodedData::append( DecodedDataView const& buffers )
 {
+    static constexpr auto ALLOCATION_CHUNK_SIZE = 128_Ki;
+
+    const auto& appendToEquallySizedChunks =
+        [] ( auto&       targetChunks,
+             const auto& buffer )
+        {
+            constexpr auto ALLOCATION_ELEMENT_COUNT = ALLOCATION_CHUNK_SIZE / sizeof( targetChunks[0][0] );
+
+            if ( targetChunks.empty() ) {
+                targetChunks.emplace_back().reserve( ALLOCATION_ELEMENT_COUNT );
+            }
+
+            for ( size_t nCopied = 0; nCopied < buffer.size(); ) {
+                auto& copyTarget = targetChunks.back();
+                const auto nFreeElements = copyTarget.capacity() - copyTarget.size();
+                if ( nFreeElements == 0 ) {
+                    targetChunks.emplace_back().reserve( ALLOCATION_ELEMENT_COUNT );
+                    continue;
+                }
+
+                const auto nToCopy = std::min( nFreeElements, buffer.size() - nCopied );
+                copyTarget.insert( copyTarget.end(), buffer.begin() + nCopied, buffer.begin() + nCopied + nToCopy );
+                nCopied += nToCopy;
+            }
+        };
+
     if ( buffers.dataWithMarkersSize() > 0 ) {
         if ( !data.empty() ) {
             throw std::invalid_argument( "It is not allowed to append data with markers when fully decoded data "
                                          "has already been appended because the ordering will be wrong!" );
         }
 
-        auto& copied = dataWithMarkers.emplace_back();
-        copied.reserve( buffers.dataWithMarkersSize() );
         for ( const auto& buffer : buffers.dataWithMarkers ) {
-            copied.insert( copied.end(), buffer.begin(), buffer.end() );
+            appendToEquallySizedChunks( dataWithMarkers, buffer );
         }
     }
 
+    /* Add complexity to the already complex dataBuffers + data (views) structure by trying to force the
+     * dataBuffer chunks to 128 KiB makes no sense because this method for appending views is only called
+     * when decompressing with rapidgzip and as soon as we have 32 KiB of symbols, the decompression should
+     * delegate to ISA-L except in pathological edge cases such as very large deflate blocks. */
     if ( buffers.dataSize() > 0 ) {
         auto& copied = dataBuffers.emplace_back();
         copied.reserve( buffers.dataSize() );
