@@ -1,4 +1,46 @@
 
+# Version 0.9.0 built on 2023-08-30
+
+## Added
+
+ - Support BGZI with `--import-index`. These can be created with `bgzip --reindex`.
+ - Check against a wrong index being loaded.
+ - Improve error messages when zlib or ISA-l wrappers are used.
+ - New output with `--analyze`:
+   - Show information about extra bytes written by pgzf, MiGz, QATzip, pgzip/mgzip, bgzip, dictzip.
+   - Print stream size statistics.
+   - Print out the position after the block header, i.e., the begin of the Huffman data.
+ - New profiling output with `--verbose`:
+   - Decompression durations split by ISA-l, zlib, rapidgzip internal
+   - The number of block offsets found with a block finder, from which decoding failed inside a chunk
+
+## Performance
+
+ - Avoid allocations by replacing the markers in-place by reinterpreting the buffer: Silesia +11 %, FASTQ +36 %.
+ - Allocate fixed 128 KiB chunks instead of one allocation per deflate block: FASTQ +3 %.
+ - Use ISA-L, if available, with -P 1: +110%.
+ - Use ISA-L when a window has become resolve inside a chunk: Silesia +12%, Random Base64 +70%.
+ - Use ISA-l Huffman decoder for literal/length alphabet in internal decoder: +20-40%.
+
+## Fixes
+
+ - Only show informational message about internal chunk fetcher with `--verbose`.
+ - Smaller fixes in the inflate wrappers.
+ - Check against zero-length end-of-block symbol.
+ - Reintroduce the error detection for distance code counts equal to 31 or 32, which was removed in 0.5.0.
+
+## API
+
+ - Add stopping points to inflate wrappers.
+ - `SharedFileReader`: Decouple statistics recording from printing.
+ - Add `VectorView` constructor taking a start and end pointer.
+ - Remove unused `deflate::Block::window` method.
+ - Make `SHOW_PROFILE` a simple bool member instead of template parameter.
+ - Make `DecodedData::data` private and a vector of views to actual buffers.
+ - Add `BufferViewFileReader(void*, size_t)` overload
+ - Remove unused argument to `ParallelGzipReader::maxDecompressedChunkSize()` getter.
+
+
 # Version 0.8.1 built on 2023-08-04
 
 ## Fixes
