@@ -64,7 +64,6 @@ testGettingFooter()
         reinterpret_cast<uint8_t*>( decompressedResult.data() ), decompressedResult.size() );
     REQUIRE_EQUAL( decompressedSize, randomDNA.size() );
 
-    constexpr auto GZIP_FOOTER_SIZE = 8U;
     uint8_t dummy{ 0 };
 
     REQUIRE( footer.has_value() );
