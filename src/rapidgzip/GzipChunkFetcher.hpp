@@ -70,6 +70,7 @@ public:
     using BlockFinder = typename BaseType::BlockFinder;
 
     static constexpr bool REPLACE_MARKERS_IN_PARALLEL = true;
+    static constexpr bool ENABLE_REAL_MARKER_COUNT = false;  // Adds 25% overhead for FASTQ files (worst case)
 
 public:
     GzipChunkFetcher( BitReader                    bitReader,
@@ -117,12 +118,14 @@ public:
             out << "    Time spent allocating and copying        : " << m_appendTime << " s\n";
             out << "    Time spent applying the last window      : " << m_applyWindowTime << " s\n";
             out << "    Replaced marker buffers                  : " << formatBytes( m_markerCount ) << "\n";
-            out << "    Actual marker count                      : " << formatBytes( m_realMarkerCount );
-            if ( m_markerCount > 0 ) {
-                out << " (" << static_cast<double>( m_realMarkerCount ) / static_cast<double>( m_markerCount ) * 100
-                    << " %)";
+            if constexpr ( ENABLE_REAL_MARKER_COUNT ) {
+                out << "    Actual marker count                      : " << formatBytes( m_realMarkerCount );
+                if ( m_markerCount > 0 ) {
+                    out << " (" << static_cast<double>( m_realMarkerCount ) / static_cast<double>( m_markerCount ) * 100
+                        << " %)";
+                }
+                out << "\n";
             }
-            out << "\n";
             out << "    Chunks exceeding max. compression ratio  : " << m_preemptiveStopCount << "\n";
             std::cerr << std::move( out ).str();
         }
@@ -389,7 +392,38 @@ private:
                     const WindowView                  previousWindow )
     {
         [[maybe_unused]] const auto markerCount = chunkData->dataWithMarkersSize();
-        if constexpr ( ENABLE_STATISTICS ) {
+        /* This is expensive! It adds 20-30% overhead for the FASTQ file! Therefore disable it.
+         * The result for this statistics for:
+         *     SRR22403185_2.fastq.gz:
+         *         Replaced marker buffers : 329 MiB 550 KiB 191 B
+         *         Actual marker count     : 46 MiB 705 KiB 331 B (14.168 %)
+         *     silesia.tar.gz
+         *         Replaced marker buffers : 70 MiB 575 KiB 654 B
+         *         Actual marker count     : 21 MiB 523 KiB 94 B (30.4849 %)
+         *     4GiB-base64.gz
+         *         Replaced marker buffers : 21 MiB 582 KiB 252 B
+         *         Actual marker count     : 158 KiB 538 B (0.717756 %)
+         *     CTU-13-Dataset.tar.gz
+         *         Replaced marker buffers : 22 GiB 273 MiB 34 KiB 574 B
+         *         Actual marker count     : 2 GiB 687 MiB 490 KiB 119 B (11.9972 %)
+         *
+         * -> An alternative format that uses a mix of 8-bit and 16-bit and maybe a separate 1-bit buffer
+         *    to store which byte is which, would reduce memory usage, and therefore also allocation
+         *    overhead by 80%! Or maybe run-time encode it a la: <n 8-bit values> <8-bit value> ... <m 16-bit values>
+         *    This would hopefully speed up window applying because hopefully long runs of 8-bit values could
+         *    simply be memcopied and even runs of 16-bit values could be processed in a loop.
+         *    This kind of compression would also add overhead though and it proabably would be too difficult
+         *    to do inside deflate::Block, so it should probably be applied in post in
+         *    ChunkData::append( DecodedDataViews ). This might be something that could be optimzied with SIMD,
+         *    the same applies to the equally necessary new ChunkData::applyWindow method.
+         *    -> The count could be 7-bit so that the 8-th bit can be used to store the 8/16-bit value flag.
+         *       In the worst case: interleaved 8-bit and 16-bit values, this would add an overhead of 25%:
+         *       <n><8><n><16hi><16lo> <n><8>...
+         *    Ideally a format that has no overhead even in the worst-case would be nice.
+         *    This would be possible by using 4-bit values for <n> but then the maximum runlength would be 3-bit -> 7,
+         *    which seems insufficient as it might lead to lots of slow execution branching in the applyWindow method.
+         */
+        if constexpr ( ENABLE_STATISTICS && ENABLE_REAL_MARKER_COUNT ) {
             m_realMarkerCount += chunkData->countMarkerSymbols();
         }
         [[maybe_unused]] const auto tApplyStart = now();
