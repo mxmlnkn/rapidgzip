@@ -44,10 +44,12 @@ SCOREP_REGION_NAMES_BEGIN
   EXCLUDE *BitReader*seekAfterPeek*
   EXCLUDE *BitReader*fillBitBuffer*
 
+  EXCLUDE *calculateLength*
   EXCLUDE *Block*appendToWindow*
   EXCLUDE *Block*getLength*
   EXCLUDE *Block*getDistance*
   EXCLUDE *Block*ShiftBackOnReturn*
+  EXCLUDE *Block*resolveBackreference*
   INCLUDE *Block*readCompressed*
 
   EXCLUDE *HuffmanCoding*decode*
@@ -78,8 +80,10 @@ function buildWithScoreP()
         /usr/lib/x86_64-linux-gnu/libz.a
 }
 
+echo "Building code with Score-P..."
 buildWithScoreP
+echo "Built executable."
 
-src/tools/rapidgzip -v -d -c 4GiB-base64.gz | wc -c
+src/tools/rapidgzip -v -d -o /dev/null 10xSRR22403185_2.fastq.gz
 
 scorep-score -r scorep-rapidgzip/profile.cubex
