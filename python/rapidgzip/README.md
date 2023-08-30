@@ -101,27 +101,40 @@ Thin blobs signal very reproducible timings while thick blobs signal a large var
 
 ### Decompression of Silesia Corpus
 
-![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/rapidgzip-0.8.1-scaling-benchmarks-2023-08-06/plots/result-parallel-decompression-silesia-dev-null-bandwidths-number-of-threads.png)
+![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/rapidgzip-0.9.0-scaling-benchmarks-2023-08-30/plots/result-parallel-decompression-silesia-dev-null-bandwidths-number-of-threads.png)
 
 This benchmark uses the [Silesia corpus](https://sun.aei.polsl.pl//~sdeor/index.php?page=silesia) compressed as a .tar.gz file to show the decompression performance.
 However, the compressed dataset is only ~69 MB, which is not sufficiently large to show parallelization over 128 cores.
 That's why the TAR file is repeated as often as there are number of cores in the benchmark times 2 and then compressed into a single large gzip file, which is ~18 GB compressed and 54 GB uncompressed for 128 cores.
 
-Rapidgzip achieves up to 24 GB/s with an index and 7 GB/s without.
+Rapidgzip achieves up to 24 GB/s with an index and 12 GB/s without.
 
 Pugz is not shown as comparison because it is not able to decompress the Silesia dataset because it contains binary data, which it cannot handle.
 
 
 ### Decompression of Gzip-Compressed Base64 Data
 
-![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/rapidgzip-0.8.1-scaling-benchmarks-2023-08-06/plots/result-parallel-decompression-base64-dev-null-bandwidths-number-of-threads.png)
+![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/rapidgzip-0.9.0-scaling-benchmarks-2023-08-30/plots/result-parallel-decompression-base64-dev-null-bandwidths-number-of-threads.png)
 
 This benchmarks uses random data, that has been base64 encoded and then gzip-compressed.
 This is the next best case for rapidgzip after the trivial case of purely random data, which cannot be compressed and therefore can be decompressed with a simple memory copy.
 This next best case results in mostly Huffman-coding compressed data with only very few LZ77 back-references.
 Without LZ77 back-references, parallel decompression can be done more independently and therefore faster than in the case of many LZ77 back-references.
 
-These two scaling plots were created with rapidgzip 0.8.1 while the ones in the [paper](<results/paper/Knespel, Brunst - 2023 - Rapidgzip - Parallel Decompression and Seeking in Gzip Files Using Cache Prefetching.pdf>) were created with 0.5.0.
+
+### Decompression of Gzip-Compressed FASTQ Data
+
+![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/rapidgzip-0.9.0-scaling-benchmarks-2023-08-30/plots/result-parallel-decompression-fastq-dev-null-bandwidths-number-of-threads.png)
+
+This benchmarks uses gzip-compressed [FASTQ data](http://ftp.sra.ebi.ac.uk/vol1/fastq/SRR224/085/SRR22403185/SRR22403185_2.fastq.gz).
+That's why the TAR file is repeated as often as there are number of cores in the benchmark to hold the decompression times roughly constant in order to make the benchmark over this large a range feasible.
+This is almost the worst case for rapidgzip because it contains many LZ77 back-references over very long ranges.
+This means that a fallback to ISA-L is not possible and it means that the costly two-staged decoding has to be done for almost all the data.
+This is also the reason why if fails to scale above 64 cores, i.e, to teh second CPU socket.
+The first and second decompression stages are completely independently submitted to a thread pool, which on this NUMA architecture means, that data needs to be costly transferred from one processor socket to the other if the second step for a chunk is not done on the same processor as the first.
+This should be fixable by making the ThreadPool NUMA-aware.
+
+These three scaling plots were created with rapidgzip 0.9.0 while the ones in the [paper](<results/paper/Knespel, Brunst - 2023 - Rapidgzip - Parallel Decompression and Seeking in Gzip Files Using Cache Prefetching.pdf>) were created with 0.5.0.
 
 
 ## Scaling Benchmarks on Ryzen 3900X
