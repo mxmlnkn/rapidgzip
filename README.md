@@ -36,10 +36,10 @@ The random seeking support is similar to the one provided by [indexed_gzip](http
 | Module                              | Bandwidth / (MB/s) | Speedup |
 |-------------------------------------|--------------------|---------|
 | gzip                                |  250               |  1      |
-| rapidgzip with parallelization = 1  |  222               |  0.9    |
-| rapidgzip with parallelization = 2  |  428               |  1.7    |
-| rapidgzip with parallelization = 12 | 2290               |  9.2    |
-| rapidgzip with parallelization = 24 | 3300               | 13.2    |
+| rapidgzip with parallelization = 1  |  488               |  1.9    |
+| rapidgzip with parallelization = 2  |  902               |  3.6    |
+| rapidgzip with parallelization = 12 | 4463               | 17.7    |
+| rapidgzip with parallelization = 24 | 5240               | 20.8    |
 
 [See here for the extended Readme.](python/rapidgzip)
 

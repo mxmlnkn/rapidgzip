@@ -136,13 +136,13 @@ These benchmarks on my local workstation with a Ryzen 3900X only has 12 cores (2
 | Compressed Size        | 3.04 GiB                     |                 | | 1.27 GiB                      |
 | **Module**             | **Bandwidth <br/> / (MB/s)** | **Speedup**     | |  **Bandwidth <br/> / (MB/s)** | **Speedup**
 | gzip                   |  250                         |    1            | |   293                         |  1
-| rapidgzip (0  threads) | 5060                         | 19.5            | |  5580                         | 18.6
-| rapidgzip (1  threads) |  445                         |  1.7            | |   624                         |  2.1
-| rapidgzip (2  threads) |  895                         |  3.5            | |  1190                         |  4.0
-| rapidgzip (6  threads) | 2500                         |  9.6            | |  3330                         | 11.1
-| rapidgzip (12 threads) | 4390                         | 16.9            | |  5810                         | 19.4
-| rapidgzip (24 threads) | 5150                         | 19.9            | |  5960                         | 19.9
-| rapidgzip (32 threads) | 5000                         | 19.3            | |  5640                         | 18.8
+| rapidgzip (0  threads) | 5179                         | 20.6            | |  5640                         | 18.8
+| rapidgzip (1  threads) |  488                         |  1.9            | |   684                         |  2.3
+| rapidgzip (2  threads) |  902                         |  3.6            | |  1200                         |  4.0
+| rapidgzip (6  threads) | 2617                         | 10.4            | |  3250                         | 10.9
+| rapidgzip (12 threads) | 4463                         | 17.7            | |  5600                         | 18.7
+| rapidgzip (24 threads) | 5240                         | 20.8            | |  5750                         | 19.2
+| rapidgzip (32 threads) | 4929                         | 19.6            | |  5300                         | 17.7
 
 
 ### Decompression From Scratch
@@ -153,13 +153,13 @@ These benchmarks on my local workstation with a Ryzen 3900X only has 12 cores (2
 | Compressed Size        | 3.04 GiB                     |                 | | 1.27 GiB                      |
 | **Module**             | **Bandwidth <br/> / (MB/s)** | **Speedup**     | |  **Bandwidth <br/> / (MB/s)** | **Speedup**
 | gzip                   |  250                         |    1            | |   293                         |  1
-| rapidgzip (0  threads) | 3390                         | 13.4            | |  2290                         |  7.5
-| rapidgzip (1  threads) |  225                         |  0.9            | |   336                         |  1.1
-| rapidgzip (2  threads) |  438                         |  1.7            | |   542                         |  1.8
-| rapidgzip (6  threads) | 1270                         |  5.0            | |  1520                         |  5.0
-| rapidgzip (12 threads) | 2380                         |  9.4            | |  2020                         |  6.6
-| rapidgzip (24 threads) | 3350                         | 13.3            | |  2320                         |  7.6
-| rapidgzip (32 threads) | 3300                         | 13.1            | |  2550                         |  8.3
+| rapidgzip (0  threads) | 5060                         | 20.1            | |  2070                         |  6.9
+| rapidgzip (1  threads) |  487                         |  1.9            | |  630                          |  2.1
+| rapidgzip (2  threads) |  839                         |  3.3            | |  694                          |  2.3
+| rapidgzip (6  threads) | 2365                         |  9.4            | |  1740                         |  5.8
+| rapidgzip (12 threads) | 4116                         | 16.4            | |  1900                         |  6.4
+| rapidgzip (24 threads) | 4974                         | 19.8            | |  2040                         |  6.8
+| rapidgzip (32 threads) | 4612                         | 18.3            | |  2580                         |  8.6
 
 
 # Usage
