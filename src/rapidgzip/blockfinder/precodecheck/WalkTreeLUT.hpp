@@ -201,9 +201,15 @@ precodesToHistogram( uint64_t precodeBits )
 }
 
 
-/* 5 * 5 = 25 bits LUT map to bool, i.e., 2^22 B = 4 MiB! */
+/**
+ * @todo Correctly parameterize everything so that it works with other values than 5.
+ * 4 * 5 = 20 bits LUT map to bool, i.e., 2^17 B = 512 KiB! -> segfault
+ * 5 * 5 = 25 bits LUT map to bool, i.e., 2^22 B =   4 MiB!
+ * 6 * 5 = 30 bits LUT map to bool, i.e., 2^27 B =  32 MiB! -> testPrecodeCheck fails
+ */
+static constexpr auto PRECODE_FREQUENCIES_LUT_COUNT = 5U;
 static constexpr auto PRECODE_FREQUENCIES_1_TO_5_VALID_LUT =
-    createPrecodeFrequenciesValidLUT<UNIFORM_FREQUENCY_BITS, 5>();
+    createPrecodeFrequenciesValidLUT<UNIFORM_FREQUENCY_BITS, PRECODE_FREQUENCIES_LUT_COUNT>();
 
 
 /**
@@ -226,7 +232,7 @@ checkPrecode( const uint64_t             next4Bits,
     const auto valueToLookUp = bitLengthFrequencies >> UNIFORM_FREQUENCY_BITS;  // ignore non-zero-counts;
     {
         const auto bitToLookUp = 1ULL << ( valueToLookUp % 64 );
-        constexpr auto INDEX_BIT_COUNT = UNIFORM_FREQUENCY_BITS * 5 - 6 /* log2 64 = 6 */;
+        constexpr auto INDEX_BIT_COUNT = UNIFORM_FREQUENCY_BITS * PRECODE_FREQUENCIES_LUT_COUNT - 6 /* log2 64 = 6 */;
         const auto elementIndex = ( valueToLookUp / 64 ) & nLowestBitsSet<CompressedHistogram, INDEX_BIT_COUNT>();
         if ( ( PRECODE_FREQUENCIES_1_TO_5_VALID_LUT[elementIndex] & bitToLookUp ) == 0 ) {
             /* Might also be bloating not only invalid. */

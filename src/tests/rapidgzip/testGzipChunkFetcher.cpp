@@ -9,9 +9,12 @@
 #include <string>
 #include <vector>
 
+#define TEST_DECODED_DATA
+
 #include <common.hpp>
 #include <ChunkData.hpp>
 #include <definitions.hpp>
+#include <filereader/Buffered.hpp>
 #include <filereader/Standard.hpp>
 #include <FileUtils.hpp>
 #include <GzipChunkFetcher.hpp>
@@ -64,12 +67,14 @@ testAutomaticMarkerResolution( const std::filesystem::path& filePath,
             /* decodedSize */ std::nullopt,
             cancel );
 
-        std::vector<size_t> markerBlockSizesFound( result.dataWithMarkers.size() );
-        std::transform( result.dataWithMarkers.begin(), result.dataWithMarkers.end(), markerBlockSizesFound.begin(),
+        const auto& dataWithMarkers = result.getDataWithMarkers();
+        std::vector<size_t> markerBlockSizesFound( dataWithMarkers.size() );
+        std::transform( dataWithMarkers.begin(), dataWithMarkers.end(), markerBlockSizesFound.begin(),
                         [] ( const auto& buffer ) { return buffer.size(); } );
 
-        std::vector<size_t> blockSizesFound( result.data.size() );
-        std::transform( result.data.begin(), result.data.end(), blockSizesFound.begin(),
+        const auto& data= result.getData();
+        std::vector<size_t> blockSizesFound( data.size() );
+        std::transform( data.begin(), data.end(), blockSizesFound.begin(),
                         [] ( const auto& buffer ) { return buffer.size(); } );
 
         if ( ( markerBlockSizesFound != markerBlockSizes ) || ( blockSizesFound != blockSizes ) ) {
@@ -115,6 +120,8 @@ operator<<( std::ostream&                                    out,
 void
 testBlockSplit()
 {
+    using DecodedDataView = rapidgzip::deflate::DecodedDataView;
+
     ChunkData chunk;
     chunk.encodedOffsetInBits = 0;
     chunk.maxEncodedOffsetInBits = 0;
@@ -125,31 +132,46 @@ testBlockSplit()
     chunk.finalize( 0 );
     REQUIRE( chunk.split( 1 ).empty() );
 
-    chunk.data.emplace_back();
-    chunk.data.back().resize( 1 );
-    chunk.finalize( 8 );
-    std::vector<Subblock> expected = { Subblock{ 0, 8, 1 } };
-    REQUIRE( chunk.split( 1 ) == expected );
-    REQUIRE( chunk.split( 2 ) == expected );
-    REQUIRE( chunk.split( 10 ) == expected );
+    /* Test split of data length == 1 and no block boundary. */
+    {
+        auto chunk2 = chunk;
+        std::vector<uint8_t> data( 1, 0 );
+        DecodedDataView toAppend;
+        toAppend.data[0] = VectorView<uint8_t>( data.data(), data.size() );
+        chunk2.append( toAppend );
 
-    chunk.data.back().resize( 1024 );
-    chunk.blockBoundaries = { BlockBoundary{ 128, 1024 } };
-    chunk.finalize( 128 );
-    expected = { Subblock{ 0, 128, 1024 } };
-    REQUIRE( chunk.split( 1 ) == expected );
-    REQUIRE( chunk.split( 1024 ) == expected );
-    REQUIRE( chunk.split( 10000 ) == expected );
+        chunk2.finalize( 8 );
+        const std::vector<Subblock> expected = { Subblock{ 0, 8, 1 } };
+        REQUIRE( chunk2.split( 1 ) == expected );
+        REQUIRE( chunk2.split( 2 ) == expected );
+        REQUIRE( chunk2.split( 10 ) == expected );
+    }
 
-    chunk.blockBoundaries = { BlockBoundary{ 30, 300 }, BlockBoundary{ 128, 1024 } };
-    REQUIRE( chunk.split( 1024 ) == expected );
-    REQUIRE( chunk.split( 10000 ) == expected );
+    /* Test split of data length == 1024 and 1 block boundary. */
+    {
+        std::vector<uint8_t> data( 1024, 0 );
+        DecodedDataView toAppend;
+        toAppend.data[0] = VectorView<uint8_t>( data.data(), data.size() );
+        chunk.append( toAppend );
 
-    expected = { Subblock{ 0, 30, 300 }, Subblock{ 30, 128 - 30, 1024 - 300 } };
-    REQUIRE( chunk.split( 400 ) == expected );
-    REQUIRE( chunk.split( 512 ) == expected );
-    REQUIRE( chunk.split( 600 ) == expected );
-    REQUIRE( chunk.split( 1 ) == expected );
+        chunk.blockBoundaries = { BlockBoundary{ 128, 1024 } };
+        chunk.finalize( 128 );
+        std::vector<Subblock> expected = { Subblock{ 0, 128, 1024 } };
+        REQUIRE( chunk.split( 1 ) == expected );
+        REQUIRE( chunk.split( 1024 ) == expected );
+        REQUIRE( chunk.split( 10000 ) == expected );
+
+        /* Test split of data length == 1024 and 2 block boundaries. */
+        chunk.blockBoundaries = { BlockBoundary{ 30, 300 }, BlockBoundary{ 128, 1024 } };
+        REQUIRE( chunk.split( 1024 ) == expected );
+        REQUIRE( chunk.split( 10000 ) == expected );
+
+        expected = { Subblock{ 0, 30, 300 }, Subblock{ 30, 128 - 30, 1024 - 300 } };
+        REQUIRE( chunk.split( 400 ) == expected );
+        REQUIRE( chunk.split( 512 ) == expected );
+        REQUIRE( chunk.split( 600 ) == expected );
+        REQUIRE( chunk.split( 1 ) == expected );
+    }
 }
 
 
@@ -195,10 +217,303 @@ testIsalBug()
 }
 
 
+void
+compareBlockOffsets( const std::vector<std::pair<size_t, size_t> >& blockOffsets1,
+                     const std::vector<std::pair<size_t, size_t> >& blockOffsets2 )
+{
+    /* Note that block offsets might also be empty because the first deflate block is ignored because that
+     * is implied by the chunk data offset. */
+    REQUIRE_EQUAL( blockOffsets1.size(), blockOffsets2.size() );
+    REQUIRE( blockOffsets1 == blockOffsets2 );
+    if ( blockOffsets1 != blockOffsets2 ) {
+        std::cerr << "Block offset sizes:\n"
+                  << "    first  : " << blockOffsets1.size() << "\n"
+                  << "    second : " << blockOffsets2.size() << "\n";
+        std::cerr << "Block offsets:\n";
+        for ( size_t i = 0; i < std::max( blockOffsets1.size(), blockOffsets2.size() ); ++i ) {
+            if ( i < blockOffsets1.size() ) {
+                std::cerr << "    first  : " << blockOffsets1[i].first << " b -> " << blockOffsets1[i].second << " B\n";
+            }
+            if ( i < blockOffsets2.size() ) {
+                std::cerr << "    second : " << blockOffsets2[i].first << " b -> " << blockOffsets2[i].second << " B\n";
+            }
+        }
+    }
+}
+
+
+[[nodiscard]] std::vector<std::pair<size_t, size_t> >
+getFooterOffsetsWithGzipReader( UniqueFileReader&& fileReader )
+{
+    std::vector<std::pair<size_t, size_t> > blockOffsets;
+
+    rapidgzip::GzipReader gzipReader{ std::move( fileReader ) };
+    while ( !gzipReader.eof() ) {
+        const auto nBytesRead = gzipReader.read( -1, nullptr, std::numeric_limits<size_t>::max(),
+                                                 StoppingPoint::END_OF_STREAM );
+        /* Not strictly necessary but without it, the last offset will be appended twice because EOF is
+         * only set after trying to read past the end. */
+        if ( ( nBytesRead == 0 ) && gzipReader.eof() ) {
+            break;
+        }
+        blockOffsets.emplace_back( gzipReader.tellCompressed(), gzipReader.tell() );
+    }
+    if ( blockOffsets.empty() || ( gzipReader.tellCompressed() != blockOffsets.back().first ) ) {
+        blockOffsets.emplace_back( gzipReader.tellCompressed(), gzipReader.tell() );
+    }
+
+    return blockOffsets;
+}
+
+
+[[nodiscard]] std::vector<std::pair<size_t, size_t> >
+getFooterOffsets( const ChunkData& chunkData )
+{
+    std::vector<std::pair<size_t, size_t> > blockOffsets( chunkData.footers.size() );
+    std::transform( chunkData.footers.begin(), chunkData.footers.end(), blockOffsets.begin(),
+                    [] ( const auto& footer ) {
+                        return std::make_pair( footer.blockBoundary.encodedOffset,
+                                               footer.blockBoundary.decodedOffset );
+                    } );
+    return blockOffsets;
+}
+
+
+[[nodiscard]] rapidgzip::BitReader
+initBitReaderAtDeflateStream( UniqueFileReader&& fileReader )
+{
+    rapidgzip::BitReader bitReader( std::move( fileReader ) );
+    rapidgzip::gzip::readHeader( bitReader );
+    return bitReader;
+}
+
+
+[[nodiscard]] ChunkData
+decodeWithDecodeBlockWithRapidgzip( UniqueFileReader&& fileReader )
+{
+    auto bitReader = initBitReaderAtDeflateStream( std::move( fileReader ) );
+    const auto chunkData = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlockWithRapidgzip(
+        &bitReader,
+        /* untilOffset */ std::numeric_limits<size_t>::max(),
+        /* window */ std::nullopt,
+        /* crc32Enabled */ true,
+        /* maxDecompressedChunkSize */ std::numeric_limits<size_t>::max() );
+    return chunkData;
+}
+
+
+[[nodiscard]] ChunkData
+decodeWithDecodeBlock( UniqueFileReader&& fileReader )
+{
+    auto bitReader = initBitReaderAtDeflateStream( std::move( fileReader ) );
+    std::atomic<bool> cancel{ false };
+    const auto chunkData = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlock(
+        bitReader,
+        bitReader.tell(),
+        /* untilOffset */ std::numeric_limits<size_t>::max(),
+        /* window */ std::nullopt,
+        /* decodedSize */ std::nullopt,
+        cancel );
+    return chunkData;
+}
+
+
+template<typename InflateWrapper>
+[[nodiscard]] ChunkData
+decodeWithDecodeBlockWithInflateWrapper( UniqueFileReader&& fileReader )
+{
+    auto bitReader = initBitReaderAtDeflateStream( std::move( fileReader ) );
+    using ChunkFetcher = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>;
+    const auto chunkData = ChunkFetcher::decodeBlockWithInflateWrapper<InflateWrapper>(
+        bitReader,
+        bitReader.tell(),
+        /* exactUntilOffset */ bitReader.size(),
+        /* window */ {},
+        /* decodedSize */ std::nullopt,
+        /* crc32Enabled */ true );
+    return chunkData;
+}
+
+
+void
+printOffsets( const std::vector<std::pair<size_t, size_t> >& blockOffsets )
+{
+    std::cerr << "Offsets: " << blockOffsets.size() << ", positions: ";
+    if ( blockOffsets.size() < 10 ) {
+        for ( const auto& [encodedOffset, decodedOffset] : blockOffsets ) {
+            std::cerr << encodedOffset << "->" << decodedOffset << ", ";
+        }
+    } else {
+        for ( const auto& [encodedOffset, decodedOffset] : blockOffsets ) {
+            std::cerr << "\n    " << encodedOffset << "->" << decodedOffset;
+        }
+    }
+    std::cerr << "\n";
+}
+
+
+void
+testGettingFooters( UniqueFileReader&& fileReader )
+{
+    const auto sharedFileReader = std::make_unique<SharedFileReader>( std::move( fileReader ) );
+
+    const auto footers = getFooterOffsetsWithGzipReader( sharedFileReader->clone() );
+    compareBlockOffsets( footers, getFooterOffsets( decodeWithDecodeBlock( sharedFileReader->clone() ) ) );
+    compareBlockOffsets( footers, getFooterOffsets( decodeWithDecodeBlockWithRapidgzip( sharedFileReader->clone() ) ) );
+    const auto zlibChunk = decodeWithDecodeBlockWithInflateWrapper<ZlibInflateWrapper>( sharedFileReader->clone() );
+    compareBlockOffsets( footers, getFooterOffsets( zlibChunk ) );
+#ifdef WITH_ISAL
+    const auto isalChunk = decodeWithDecodeBlockWithInflateWrapper<IsalInflateWrapper>( sharedFileReader->clone() );
+    compareBlockOffsets( footers, getFooterOffsets( isalChunk ) );
+#endif
+}
+
+
+[[nodiscard]] std::vector<std::pair<size_t, size_t> >
+getBlockStartsWithGzipReader( UniqueFileReader&& fileReader )
+{
+    std::vector<std::pair<size_t, size_t> > blockOffsets;
+
+    rapidgzip::GzipReader gzipReader{ std::move( fileReader ) };
+    const auto stoppingPoints =  static_cast<StoppingPoint>( StoppingPoint::END_OF_STREAM_HEADER
+                                                             | StoppingPoint::END_OF_BLOCK );
+    bool ignoredFirstHeader{ false };
+    while ( !gzipReader.eof() ) {
+        const auto nBytesRead = gzipReader.read( -1, nullptr, std::numeric_limits<size_t>::max(), stoppingPoints );
+        /* Not strictly necessary but without it, the last offset will be appended twice because EOF is
+         * only set after trying to read past the end. */
+        if ( ( nBytesRead == 0 ) && gzipReader.eof() ) {
+            break;
+        }
+
+        if ( ( gzipReader.currentPoint() == StoppingPoint::END_OF_STREAM_HEADER )
+             && blockOffsets.empty() && !ignoredFirstHeader )
+        {
+            ignoredFirstHeader = true;
+            continue;
+        }
+
+        if ( ( gzipReader.currentPoint() == StoppingPoint::END_OF_STREAM_HEADER )
+             || ( ( gzipReader.currentPoint() == StoppingPoint::END_OF_BLOCK )
+                  && gzipReader.currentDeflateBlock()
+                  && !gzipReader.currentDeflateBlock()->isLastBlock() ) )
+        {
+            blockOffsets.emplace_back( gzipReader.tellCompressed(), gzipReader.tell() );
+        }
+    }
+
+    return blockOffsets;
+}
+
+
+[[nodiscard]] std::vector<std::pair<size_t, size_t> >
+getOffsets( const ChunkData& chunkData )
+{
+    std::vector<std::pair<size_t, size_t> > blockOffsets( chunkData.blockBoundaries.size() );
+    std::transform( chunkData.blockBoundaries.begin(), chunkData.blockBoundaries.end(), blockOffsets.begin(),
+                    [] ( const auto& boundary ) {
+                        return std::make_pair( boundary.encodedOffset, boundary.decodedOffset );
+                    } );
+    return blockOffsets;
+}
+
+
+void
+testGettingBoundaries( UniqueFileReader&& fileReader )
+{
+    const auto sharedFileReader = std::make_unique<SharedFileReader>( std::move( fileReader ) );
+
+    const auto boundaries = getBlockStartsWithGzipReader( sharedFileReader->clone() );
+
+    compareBlockOffsets( boundaries, getOffsets( decodeWithDecodeBlock( sharedFileReader->clone() ) ) );
+    compareBlockOffsets( boundaries, getOffsets( decodeWithDecodeBlockWithRapidgzip( sharedFileReader->clone() ) ) );
+
+    /* decodeWithDecodeBlockWithInflateWrapper does not collect blockBoundaries
+     * because it is used for when the index is already known. */
+}
+
+
+static constexpr auto GZIP_FILE_NAMES = {
+    "empty",
+    "1B",
+    "256B-extended-ASCII-table-in-utf8-dynamic-Huffman",
+    "256B-extended-ASCII-table-uncompressed",
+    "32A-fixed-Huffman",
+    "base64-32KiB",
+    "base64-256KiB",
+    "dolorem-ipsum.txt",
+    "numbers-10,65-90",
+    "random-128KiB",
+    "zeros",
+};
+
+
+[[nodiscard]] std::vector<std::byte>
+createRandomData( uint64_t                      size,
+                  const std::vector<std::byte>& allowedSymbols )
+{
+    std::mt19937_64 randomEngine;
+    std::vector<std::byte> result( size );
+    for ( auto& x : result ) {
+        x = allowedSymbols[static_cast<size_t>( randomEngine() ) % allowedSymbols.size()];
+    }
+    return result;
+}
+
+
+const auto DNA_SYMBOLS =
+    [] () {
+        using namespace std::literals;
+        constexpr auto DNA_SYMBOLS_STRING = "ACGT"sv;
+        std::vector<std::byte> allowedSymbols( DNA_SYMBOLS_STRING.size() );
+        std::transform( DNA_SYMBOLS_STRING.begin(), DNA_SYMBOLS_STRING.end(), allowedSymbols.begin(),
+                        [] ( const auto c ) { return static_cast<std::byte>( c ); } );
+        return allowedSymbols;
+    }();
+
+
+[[nodiscard]] UniqueFileReader
+createCompressedRandomDNA( const size_t chunkSize = 10_Mi,
+                           const size_t chunkCount = 10 )
+{
+    /* As there are 4 symbols, 2 bits per symbol should suffice and as the data is random, almost no backreferences
+     * should be viable. This leads to a compression ratio of ~4, which is large enough for splitting and benign
+     * enough to have multiple chunks with fairly little uncompressed data. */
+    const auto randomDNA = createRandomData( chunkSize, DNA_SYMBOLS );
+    const auto compressed = compressWithZlib( randomDNA, CompressionStrategy::HUFFMAN_ONLY );
+
+    std::vector<char> multiStreamDataCompressed;
+    for ( size_t i = 0; i < chunkCount; ++i ) {
+        multiStreamDataCompressed.insert( multiStreamDataCompressed.end(),
+                                          reinterpret_cast<const char*>( compressed.data() ),
+                                          reinterpret_cast<const char*>( compressed.data() + compressed.size() ) );
+    }
+
+    return std::make_unique<BufferedFileReader>( std::move( multiStreamDataCompressed ) );
+}
+
+
+void
+testDecodeBlockWithInflateWrapperWithFiles( const std::filesystem::path& testFolder )
+{
+    using namespace std::literals::string_literals;
+    for ( const auto& extension : { ".gz"s, ".bgz"s, ".igz"s, ".pigz"s } ) {
+        for ( const auto* const fileName : GZIP_FILE_NAMES ) {
+            std::cerr << "Testing decodeBlockWithInflateWrapper with " << fileName + extension << "\n";
+            testGettingBoundaries( std::make_unique<StandardFileReader>( testFolder / ( fileName + extension ) ) );
+            testGettingFooters( std::make_unique<StandardFileReader>( testFolder / ( fileName + extension ) ) );
+        }
+    }
+
+    testGettingBoundaries( createCompressedRandomDNA() );
+}
+
+
 int
 main( int    argc,
       char** argv )
 {
+    /* Disable this because it requires 20xsilesia.tar.gz, which is not in the repo because of its size. */
     //testIsalBug();
 
     if ( argc == 0 ) {
@@ -219,6 +534,8 @@ main( int    argc,
             findParentFolderContaining( binaryFolder, "src/tests/data/base64-256KiB.bgz" )
         ) / "src" / "tests" / "data";
 
+    testDecodeBlockWithInflateWrapperWithFiles( testFolder );
+
     const auto test =
         [&] ( const std::string&         fileName,
               const size_t               blockIndex,
@@ -232,23 +549,45 @@ main( int    argc,
     test( "base64-32KiB.gz" , 0, {}, { 32768 } );
     test( "base64-32KiB.bgz", 0, {}, { 32768 } );
     test( "base64-32KiB.igz", 0, {}, { 32768 } );
-    test( "base64-32KiB.pgz", 0, {}, { 16796, 15972 } );
-    test( "base64-32KiB.pgz", 1, { 15793 }, { 179 } );
+    test( "base64-32KiB.pigz", 0, {}, { 16796, 15972 } );
+    test( "base64-32KiB.pigz", 1, { 15793 }, { 179 } );
 
-    test( "random-128KiB.gz" , 0, {}, { 32777, 32793, 32777, 32725 } );
+#ifdef WITH_ISAL
+    /* When decodeBlock is able to delegate ISA-l, then the resulting chunks will be sized 128 KiB
+     * to improve allocator behavior. All in all, testing the exact chunk sizes it not the most stable
+     * unit test as it might be subject to further changes :/. For example, when decoding with rapidgzip
+     * or replacing markers also tries to use chunk sizes of 128 KiB to reduce allocation fragmentation.
+     * What should be important is the sum of the block sizes for markers and without. */
+    test( "random-128KiB.gz" , 0, {}, { 32777, 98295 } );
     test( "random-128KiB.bgz", 0, {}, { 65280, 65280, 512 } );
-    test( "random-128KiB.igz", 0, {}, { 65535, 65224, 313 } );
-    test( "random-128KiB.pgz", 0, {}, { 16387, 16389, 16395, 16397, 16389, 16387, 16393, 16335 } );
+    test( "random-128KiB.igz", 0, {}, { 65535, 65537 } );
+    test( "random-128KiB.pigz", 0, {}, { 16387, 16389, 16395, 81901 } );
 
-    test( "random-128KiB.gz" , 1, {}, { 32793, 32777, 32725 } );
+    test( "random-128KiB.gz" , 1, {}, { 32793, 65502 } );
     test( "random-128KiB.bgz", 1, {}, { 65280, 512 } );
     test( "random-128KiB.igz", 1, {}, { 65224, 313 } );
-    test( "random-128KiB.pgz", 1, {}, { 16389, 16395, 16397, 16389, 16387, 16393, 16335 } );
+    test( "random-128KiB.pigz", 1, {}, { 16389, 16395, 16397, 65504 } );
 
     test( "random-128KiB.gz" , 2, {}, { 32777, 32725 } );
     test( "random-128KiB.bgz", 2, {}, { 512 } );
     test( "random-128KiB.igz", 2, {}, { 313 } );
-    test( "random-128KiB.pgz", 2, {}, { 16395, 16397, 16389, 16387, 16393, 16335 } );
+    test( "random-128KiB.pigz", 2, {}, { 16395, 16397, 16389, 49115 } );
+#else
+    test( "random-128KiB.gz" , 0, {}, { 32777, 32793, 32777, 32725 } );
+    test( "random-128KiB.bgz", 0, {}, { 65280, 65280, 512 } );
+    test( "random-128KiB.igz", 0, {}, { 65535, 65224, 313 } );
+    test( "random-128KiB.pigz", 0, {}, { 16387, 16389, 16395, 16397, 16389, 16387, 16393, 16335 } );
+
+    test( "random-128KiB.gz" , 1, {}, { 32793, 32777, 32725 } );
+    test( "random-128KiB.bgz", 1, {}, { 65280, 512 } );
+    test( "random-128KiB.igz", 1, {}, { 65224, 313 } );
+    test( "random-128KiB.pigz", 1, {}, { 16389, 16395, 16397, 16389, 16387, 16393, 16335 } );
+
+    test( "random-128KiB.gz" , 2, {}, { 32777, 32725 } );
+    test( "random-128KiB.bgz", 2, {}, { 512 } );
+    test( "random-128KiB.igz", 2, {}, { 313 } );
+    test( "random-128KiB.pigz", 2, {}, { 16395, 16397, 16389, 16387, 16393, 16335 } );
+#endif
     // *INDENT-ON*
 
     /**

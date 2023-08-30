@@ -347,14 +347,14 @@ def plotParallelDecompression(legacyPrefix, parallelPrefix, outputType='dev-null
         labels.append(tool)
 
         # Add ideal scaling for comparison
-        if fileName == f"{parallelPrefix}-pragzip-{outputType}.dat":
+        if fileName == f"{parallelPrefix}-pragzip-index-{outputType}.dat":
             threadCount = 1
             subdata = data[data[:, 0] == threadCount]
             bandwidths = subdata[:, 1] / subdata[:, 2] / 1e6
             ax.plot(threadCountsTicks, np.median(bandwidths) * np.array(threadCountsTicks), linestyle = '--',
-                    color = colors['red'], alpha = alpha)
-            symbols.append(Line2D([0], [0], color = colors['red'], alpha = alpha, linestyle = '--'))
-            labels.append("linear scal. (no index)")
+                    color = colors['rosa'], alpha = alpha)
+            symbols.append(Line2D([0], [0], color = colors['rosa'], alpha = alpha, linestyle = '--'))
+            labels.append("linear scal. (index)")
 
     if not labels:
         plt.close(fig)

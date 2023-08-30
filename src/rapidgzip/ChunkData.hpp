@@ -54,6 +54,30 @@ struct ChunkData :
 
     struct Footer
     {
+        /**
+         * The blockBoundary is currently (2023-08-26) unused. It is intended to aid block splitting in order
+         * to split after a gzip footer because then the window is known to be empty, which would save space
+         * and time.
+         * The uncompressed block boundary offset is unambiguous.
+         * The compressed block boundary is more ambiguous. There are three possibilities:
+         *  - The end of the preceding deflate block. The footer start is then the next byte-aligned boundary.
+         *  - The byte-aligned footer start.
+         *  - The byte-aligned footer end, which is the file end or the next gzip stream start.
+         *    For gzip, it is exactly FOOTER_SIZE bytes after the footer start.
+         * Thoughts about the choice:
+         *  - The offset after the footer is more relevant to the intended block splitting improvement.
+         *  - The previous deflate block end contains the most information because the other two possible
+         *    choices can be derived from it by rounding up and adding FOOTER_SIZE. The inverse is not true.
+         *  - The previous block end might be the most stable choice because stopping at that boundary is
+         *    already a requirement for using ISA-l without an exact untilOffset. Stopping at the footer end
+         *    might not work perfectly and might already have read some of the next block.
+         * Currently, the unit tests, test that all possibilities to derive the footer offsets: GzipReader, decodeBlock,
+         * decodeBlockWithInflateWrapper with ISA-L or zlib, return the same value.
+         * That value is currently the footer end because it seemed easier to implement. This might be subjecft to
+         * change until it is actually used for something (e.g. smarter block splitting).
+         * The most complicated to implement but least ambiguous solution would be to add all three boundaries to
+         * this struct.
+         */
         BlockBoundary blockBoundary;
         gzip::Footer gzipFooter;
     };
@@ -109,9 +133,9 @@ public:
              * been converted from dataWithMarkers inside DecodedData::cleanUnmarkedData. */
             const auto toProcessSize = BaseType::dataSize() - alreadyProcessedSize;
             CRC32Calculator crc32;
-            for ( size_t i = 0; ( i < data.size() ) && ( crc32.streamSize() < toProcessSize ); ++i ) {
-                crc32.update( data[i].data(),
-                              std::min<uint64_t>( toProcessSize - crc32.streamSize(), data[i].size() ) );
+            for ( auto it = DecodedData::Iterator( *this, 0, toProcessSize ); static_cast<bool>( it ); ++it ) {
+                const auto [buffer, size] = *it;
+                crc32.update( buffer, size );
             }
             crc32s.front().prepend( crc32 );
         }
@@ -144,9 +168,9 @@ public:
         if ( toProcessSize > 0 ) {
             CRC32Calculator crc32;
             /* Iterate over contiguous chunks of memory. */
-            for ( size_t i = 0; ( i < data.size() ) && ( crc32.streamSize() < toProcessSize ); ++i ) {
-                crc32.update( data[i].data(),
-                              std::min<uint64_t>( toProcessSize - crc32.streamSize(), data[i].size() ) );
+            for ( auto it = DecodedData::Iterator( *this, 0, toProcessSize ); static_cast<bool>( it ); ++it ) {
+                const auto [buffer, size] = *it;
+                crc32.update( buffer, size );
             }
             /* Note that the data with markers ought not cross footer boundaries because after a footer,
              * a new gzip stream begins, which should be known to not contain any unresolvable backreferences.
@@ -158,12 +182,6 @@ public:
         decodedSizeInBytes = BaseType::size();
     }
 
-    [[nodiscard]] constexpr size_t
-    size() const noexcept = delete;
-
-    [[nodiscard]] constexpr size_t
-    dataSize() const noexcept = delete;
-
     /**
      * Appends a deflate block boundary.
      */
@@ -171,7 +189,12 @@ public:
     appendDeflateBlockBoundary( const size_t encodedOffset,
                                 const size_t decodedOffset )
     {
-        blockBoundaries.emplace_back( BlockBoundary{ encodedOffset, decodedOffset } );
+        if ( blockBoundaries.empty()
+             || ( blockBoundaries.back().encodedOffset != encodedOffset )
+             || ( blockBoundaries.back().decodedOffset != decodedOffset ) )
+        {
+            blockBoundaries.emplace_back( BlockBoundary{ encodedOffset, decodedOffset } );
+        }
     }
 
     /**
@@ -218,8 +241,11 @@ public:
     std::vector<CRC32Calculator> crc32s{ std::vector<CRC32Calculator>( 1 ) };
 
     /* Benchmark results */
+    size_t falsePositiveCount{ 0 };
     double blockFinderDuration{ 0 };
     double decodeDuration{ 0 };
+    double decodeDurationInflateWrapper{ 0 };
+    double decodeDurationIsal{ 0 };
     double appendDuration{ 0 };
 
     bool stoppedPreemptively{ false };

@@ -13,6 +13,7 @@
 
 #include <crc32.hpp>
 #include <DecodedDataView.hpp>
+#include <definitions.hpp>
 #include <deflate.hpp>
 #include <FileUtils.hpp>
 #include <filereader/FileReader.hpp>
@@ -26,17 +27,6 @@
 
 namespace rapidgzip
 {
-enum StoppingPoint : uint32_t
-{
-    NONE                 = 0U,
-    END_OF_STREAM_HEADER = 1U << 0U,
-    END_OF_STREAM        = 1U << 1U,  // after gzip footer has been read
-    END_OF_BLOCK_HEADER  = 1U << 2U,
-    END_OF_BLOCK         = 1U << 3U,
-    ALL                  = 0xFFFF'FFFFU,
-};
-
-
 /**
  * A strictly sequential gzip interface that can iterate over multiple gzip streams and of course deflate blocks.
  * It cannot seek back nor is it parallelized but it can be used to implement a parallelization scheme.
@@ -149,7 +139,7 @@ public:
         throw std::invalid_argument( "Not fully tested!" );
     }
 
-    [[nodiscard]] size_t
+    size_t
     read( char*  outputBuffer,
           size_t nBytesToRead ) final
     {
@@ -188,7 +178,7 @@ public:
     read( const int     outputFileDescriptor = -1,
           char* const   outputBuffer         = nullptr,
           const size_t  nBytesToRead         = std::numeric_limits<size_t>::max(),
-          StoppingPoint stoppingPoint        = StoppingPoint::NONE )
+          StoppingPoint stoppingPoints       = StoppingPoint::NONE )
     {
         const auto writeFunctor =
             [nBytesDecoded = uint64_t( 0 ), outputFileDescriptor, outputBuffer]
@@ -206,13 +196,13 @@ public:
                 nBytesDecoded += size;
             };
 
-        return read( writeFunctor, nBytesToRead, stoppingPoint );
+        return read( writeFunctor, nBytesToRead, stoppingPoints );
     }
 
     size_t
     read( const WriteFunctor& writeFunctor,
           const size_t        nBytesToRead = std::numeric_limits<size_t>::max(),
-          const StoppingPoint stoppingPoint = StoppingPoint::NONE )
+          const StoppingPoint stoppingPoints = StoppingPoint::NONE )
     {
         size_t nBytesDecoded = 0;
 
@@ -274,7 +264,7 @@ public:
             checkPythonSignalHandlers();
         #endif
 
-            if ( m_currentPoint.has_value() && testFlags( *m_currentPoint, stoppingPoint ) ) {
+            if ( m_currentPoint.has_value() && testFlags( *m_currentPoint, stoppingPoints ) ) {
                 break;
             }
         }
@@ -518,23 +508,5 @@ GzipReader::readGzipFooter()
     }
 
     m_currentPoint = StoppingPoint::END_OF_STREAM;
-}
-
-
-[[nodiscard]] inline std::string
-toString( StoppingPoint stoppingPoint )
-{
-    // *INDENT-OFF*
-    switch ( stoppingPoint )
-    {
-    case StoppingPoint::NONE                 : return "None";
-    case StoppingPoint::END_OF_STREAM_HEADER : return "End of Stream Header";
-    case StoppingPoint::END_OF_STREAM        : return "End of Stream";
-    case StoppingPoint::END_OF_BLOCK_HEADER  : return "End of Block Header";
-    case StoppingPoint::END_OF_BLOCK         : return "End of Block";
-    case StoppingPoint::ALL                  : return "All";
-    };
-    return "Unknown";
-    // *INDENT-ON*
 }
 }  // namespace rapidgzip

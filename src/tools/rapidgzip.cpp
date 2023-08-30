@@ -113,7 +113,7 @@ decompressParallel( const Reader&       reader,
                     const bool          verbose )
 {
     if ( !indexLoadPath.empty() ) {
-        reader->setBlockOffsets( readGzipIndex( std::make_unique<StandardFileReader>( indexLoadPath ) ) );
+        reader->importIndex( std::make_unique<StandardFileReader>( indexLoadPath ) );
 
         if ( verbose && ( !indexSavePath.empty() || !indexLoadPath.empty() ) ) {
             printIndexAnalytics( reader );
@@ -155,14 +155,16 @@ decompressParallel( const Arguments&    args,
                     const WriteFunctor& writeFunctor )
 {
     if ( args.verbose ) {
-        using Reader = rapidgzip::ParallelGzipReader<ChunkData, /* enable statistics */ true, /* show profile */ true>;
+        using Reader = rapidgzip::ParallelGzipReader<ChunkData, /* enable statistics */ true>;
         auto reader = std::make_unique<Reader>( std::move( inputFile ), args.decoderParallelism, args.chunkSize );
+        reader->setShowProfileOnDestruction( true );
         reader->setCRC32Enabled( args.crc32Enabled );
         return decompressParallel( std::move( reader ), args.indexLoadPath, args.indexSavePath, writeFunctor,
                                    args.verbose );
     } else {
-        using Reader = rapidgzip::ParallelGzipReader<ChunkData, /* enable statistics */ false, /* show profile */ false>;
+        using Reader = rapidgzip::ParallelGzipReader<ChunkData, /* enable statistics */ false>;
         auto reader = std::make_unique<Reader>( std::move( inputFile ), args.decoderParallelism, args.chunkSize );
+        reader->setShowProfileOnDestruction( false );
         reader->setCRC32Enabled( args.crc32Enabled );
         return decompressParallel( std::move( reader ), args.indexLoadPath, args.indexSavePath, writeFunctor,
                                    args.verbose );
@@ -261,7 +263,7 @@ rapidgzipCLI( int argc, char** argv )
 
     if ( parsedArgs.count( "version" ) > 0 ) {
         std::cout << "rapidgzip, CLI to the parallelized, indexed, and seekable gzip decoding library rapidgzip "
-                  << "version 0.8.1.\n";
+                  << "version 0.9.0.\n";
         return 0;
     }
 
@@ -375,55 +377,35 @@ rapidgzipCLI( int argc, char** argv )
 
         const auto t0 = now();
 
+        const auto writeAndCount =
+            [outputFileDescriptor, countLines, &newlineCount]
+            ( const std::shared_ptr<rapidgzip::ChunkData>& chunkData,
+              size_t const                               offsetInBlock,
+              size_t const                               dataToWriteSize )
+            {
+                writeAll( chunkData, outputFileDescriptor, offsetInBlock, dataToWriteSize );
+                if ( countLines ) {
+                    using rapidgzip::deflate::DecodedData;
+                    for ( auto it = DecodedData::Iterator( *chunkData, offsetInBlock, dataToWriteSize );
+                          static_cast<bool>( it ); ++it )
+                    {
+                        const auto& [buffer, size] = *it;
+                        newlineCount += countNewlines( { reinterpret_cast<const char*>( buffer ), size } );
+                    }
+                }
+            };
+
+        args.chunkSize = parsedArgs["chunk-size"].as<unsigned int>() * 1_Ki;
+
         size_t totalBytesRead{ 0 };
-        if ( args.decoderParallelism == 1 ) {
-            const auto writeAndCount =
-                [outputFileDescriptor, countLines, &newlineCount]
-                ( const void* const buffer,
-                  uint64_t const    size )
-                {
-                    if ( outputFileDescriptor >= 0 ) {
-                        writeAllToFd( outputFileDescriptor, buffer, size );
-                    }
-                    if ( countLines ) {
-                        newlineCount += countNewlines( { reinterpret_cast<const char*>( buffer ),
-                                                         static_cast<size_t>( size ) } );
-                    }
-                };
+        if ( ( outputFileDescriptor == -1 ) && args.indexSavePath.empty() && countBytes ) {
+            /* Need to do nothing with the chunks because decompressParallel returns the decompressed size. */
+            const auto doNothing = [] ( const auto&, size_t, size_t ) {};
 
-            rapidgzip::GzipReader gzipReader{ std::move( inputFile ) };
-            gzipReader.setCRC32Enabled( args.crc32Enabled );
-            totalBytesRead = gzipReader.read( writeAndCount );
+            totalBytesRead = decompressParallel<rapidgzip::ChunkDataCounter>(
+                args, std::move( inputFile ), doNothing );
         } else {
-            const auto writeAndCount =
-                [outputFileDescriptor, countLines, &newlineCount]
-                ( const std::shared_ptr<rapidgzip::ChunkData>& chunkData,
-                  size_t const                               offsetInBlock,
-                  size_t const                               dataToWriteSize )
-                {
-                    writeAll( chunkData, outputFileDescriptor, offsetInBlock, dataToWriteSize );
-                    if ( countLines ) {
-                        using rapidgzip::deflate::DecodedData;
-                        for ( auto it = DecodedData::Iterator( *chunkData, offsetInBlock, dataToWriteSize );
-                              static_cast<bool>( it ); ++it )
-                        {
-                            const auto& [buffer, size] = *it;
-                            newlineCount += countNewlines( { reinterpret_cast<const char*>( buffer ), size } );
-                        }
-                    }
-                };
-
-            args.chunkSize = parsedArgs["chunk-size"].as<unsigned int>() * 1_Ki;
-
-            if ( ( outputFileDescriptor == -1 ) && args.indexSavePath.empty() && countBytes ) {
-                /* Need to do nothing with the chunks because decompressParallel returns the decompressed size. */
-                const auto doNothing = [] ( const auto&, size_t, size_t ) {};
-
-                totalBytesRead = decompressParallel<rapidgzip::ChunkDataCounter>(
-                    args, std::move( inputFile ), doNothing );
-            } else {
-                totalBytesRead = decompressParallel<rapidgzip::ChunkData>( args, std::move( inputFile ), writeAndCount );
-            }
+            totalBytesRead = decompressParallel<rapidgzip::ChunkData>( args, std::move( inputFile ), writeAndCount );
         }
 
         const auto writeToStdErr = outputFile && outputFile->writingToStdout();

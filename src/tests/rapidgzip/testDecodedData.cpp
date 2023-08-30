@@ -1,3 +1,10 @@
+#include <algorithm>
+#include <iostream>
+#include <utility>
+#include <vector>
+
+#define TEST_DECODED_DATA
+
 #include <DecodedData.hpp>
 #include <TestHelpers.hpp>
 
@@ -32,9 +39,12 @@ testIterator( const std::vector<size_t>&     chunkSizes,
     using namespace rapidgzip::deflate;
 
     DecodedData decodedData;
-    decodedData.data.reserve( chunkSizes.size() );
     for ( const auto chunkSize : chunkSizes ) {
-        decodedData.data.emplace_back( chunkSize, 0 );
+        std::vector<uint8_t> buffer( chunkSize, 0 );
+
+        DecodedDataView toAppend;
+        toAppend.data[0] = VectorView<uint8_t>( { buffer.data(), buffer.size() } );
+        decodedData.append( toAppend );
     }
 
     std::vector<std::pair<const void*, size_t> > iteratedViews;
@@ -44,7 +54,7 @@ testIterator( const std::vector<size_t>&     chunkSizes,
 
     std::vector<std::pair<const void*, size_t> > expectedViews;
     for ( const auto& chunkRange : expected ) {
-        expectedViews.emplace_back( decodedData.data.at( chunkRange.chunk ).data() + chunkRange.offset,
+        expectedViews.emplace_back( decodedData.getData().at( chunkRange.chunk ).data() + chunkRange.offset,
                                     chunkRange.size );
     }
 
@@ -125,12 +135,24 @@ testGetWindow()
 
     /* dataWithMarkers.size() == 0 */
     {
-        DecodedData decodedData;
-        decodedData.data.emplace_back();
+        const auto initDecodedData =
+            [] ( size_t  size,
+                 uint8_t value )
+            {
+                DecodedData decodedData;
+
+                std::vector<uint8_t> buffer( size, value );
+
+                DecodedDataView toAppend;
+                toAppend.data[0] = VectorView<uint8_t>( { buffer.data(), buffer.size() } );
+                decodedData.append( toAppend );
+
+                return decodedData;
+            };
 
         /* data.size() == MAX_WINDOW_SIZE */
         {
-            decodedData.data.back().resize( MAX_WINDOW_SIZE, 3 );
+            const auto decodedData = initDecodedData( MAX_WINDOW_SIZE, 3 );
             const std::vector<uint8_t> window( MAX_WINDOW_SIZE, 1 );
             const std::vector<uint8_t> expected( MAX_WINDOW_SIZE, 3 );
 
@@ -144,7 +166,7 @@ testGetWindow()
 
         /* data.size() > MAX_WINDOW_SIZE */
         {
-            decodedData.data.back().resize( MAX_WINDOW_SIZE + 10000, 3 );
+            const auto decodedData = initDecodedData( MAX_WINDOW_SIZE + 10000, 3 );
             const std::vector<uint8_t> window( MAX_WINDOW_SIZE, 1 );
             const std::vector<uint8_t> expected( MAX_WINDOW_SIZE, 3 );
 
@@ -158,7 +180,7 @@ testGetWindow()
 
         /* data.size() < MAX_WINDOW_SIZE */
         {
-            decodedData.data.back().resize( 100, 3 );
+            const auto decodedData = initDecodedData( 100, 3 );
 
             /* window.size() == 0 */
             {
@@ -215,14 +237,26 @@ testGetWindow()
 
     /* dataWithMarkers.size() > 0 */
     {
-        DecodedData decodedData;
-        decodedData.data.emplace_back();
-        decodedData.dataWithMarkers.emplace_back();
-        decodedData.dataWithMarkers.back().resize( 300, 5 );
+        const auto initDecodedDataWithMarkers =
+            [] ( size_t   size,
+                 uint8_t  value )
+            {
+                DecodedData decodedData;
+
+                std::vector<uint16_t> markersBuffer( 300, 5 );
+                std::vector<uint8_t> buffer( size, value );
+
+                DecodedDataView toAppend;
+                toAppend.dataWithMarkers[0] = VectorView<uint16_t>( { markersBuffer.data(), markersBuffer.size() } );
+                toAppend.data[0] = VectorView<uint8_t>( { buffer.data(), buffer.size() } );
+                decodedData.append( toAppend );
+
+                return decodedData;
+            };
 
         /* data.size() == MAX_WINDOW_SIZE */
         {
-            decodedData.data.back().resize( MAX_WINDOW_SIZE, 3 );
+            const auto decodedData = initDecodedDataWithMarkers( MAX_WINDOW_SIZE, 3 );
             const std::vector<uint8_t> window( MAX_WINDOW_SIZE, 1 );
             const std::vector<uint8_t> expected( MAX_WINDOW_SIZE, 3 );
 
@@ -236,7 +270,7 @@ testGetWindow()
 
         /* data.size() > MAX_WINDOW_SIZE */
         {
-            decodedData.data.back().resize( MAX_WINDOW_SIZE + 10000, 3 );
+            const auto decodedData = initDecodedDataWithMarkers( MAX_WINDOW_SIZE + 10000, 3 );
             const std::vector<uint8_t> window( MAX_WINDOW_SIZE, 1 );
             const std::vector<uint8_t> expected( MAX_WINDOW_SIZE, 3 );
 
@@ -252,7 +286,7 @@ testGetWindow()
 
         /* data.size() + dataWithMarkers.size() < MAX_WINDOW_SIZE */
         {
-            decodedData.data.back().resize( 100, 3 );
+            const auto decodedData = initDecodedDataWithMarkers( 100, 3 );
 
             /* window.size() == 0 */
             {

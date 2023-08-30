@@ -1,10 +1,15 @@
+# pgzf can be installed with sudo apt install wtdbg2
+# mzip (migz) can simply be downloaded as a binary from https://github.com/linkedin/migz/releases
+
 function allgzip()
 {
     local file=$1
     test -f "${file}.gz" || gzip -c -- "$file" > "${file}.gz"
     test -f "${file}.igz" || igzip -c -- "$file" > "${file}.igz"
-    test -f "${file}.pgz" || pigz -c -- "$file" > "${file}.pgz"
+    test -f "${file}.pigz" || pigz -c -- "$file" > "${file}.pigz"
     test -f "${file}.bgz" || bgzip -c -- "$file" > "${file}.bgz"
+    test -f "${file}.pgzf" || pgzf -o "${file}.pgzf" "$file"
+    test -f "${file}.migz" || cat -- "$file" | mzip > "${file}.migz"
 }
 
 touch empty && allgzip empty
@@ -21,7 +26,7 @@ fname='256B-extended-ASCII-table-uncompressed'
 python3 -c 'import sys; sys.stdout.buffer.write(bytes(range(256)))' > "$fname"
 allgzip "$fname"
 
-python3 -c 'import sys; sys.stdout.buffer.write(bytes(range(256)))' | pigz > 0CL.pgz
+python3 -c 'import sys; sys.stdout.buffer.write(bytes(range(256)))' | pigz > 0CL.pigz
 
 fname='base64-256KiB'; base64 /dev/urandom | head -c $(( 256*1024 )) > "$fname" && allgzip "$fname"
 python3 -c 'import sys; import indexed_gzip as igz; f = igz.IndexedGzipFile(sys.argv[1], spacing=64*1024); f.build_full_index(); f.export_index(sys.argv[1] + ".index")' "${fname}.gz"
@@ -37,7 +42,7 @@ fname='base64-32KiB'; base64 /dev/urandom | head -c $(( 32*1024 )) > "$fname" &&
 # Create a compressed file with one pigz flush block (uncompressed block of size 0).
 # 32KiB between flush blocks is the minimum.
 fname='base64-64KiB'; base64 /dev/urandom | head -c $(( 64*1024 )) > "$fname" &&
-pigz -c --blocksize 32 -- "$fname" > "${fname}.pgz"
+pigz -c --blocksize 32 -- "$fname" > "${fname}.pigz"
 
 
 function createRandomWordsFile()

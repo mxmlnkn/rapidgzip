@@ -24,26 +24,37 @@
 #include <vector>
 
 #include <BitReader.hpp>
-#include <huffman/HuffmanCodingDoubleLiteralCached.hpp>
-#include <huffman/HuffmanCodingLinearSearch.hpp>
+//#include <huffman/HuffmanCodingLinearSearch.hpp>
 #include <huffman/HuffmanCodingSymbolsPerLength.hpp>
 #include <huffman/HuffmanCodingReversedBitsCachedCompressed.hpp>
 #include <huffman/HuffmanCodingReversedBitsCached.hpp>
-#include <huffman/HuffmanCodingReversedCodesPerLength.hpp>
+//#include <huffman/HuffmanCodingReversedCodesPerLength.hpp>
+
+#ifdef WITH_ISAL
+    //#include <huffman/HuffmanCodingDistanceISAL.hpp>
+    #include <huffman/HuffmanCodingISAL.hpp>
+#else
+    #include <huffman/HuffmanCodingDoubleLiteralCached.hpp>
+#endif
 
 #include "DecodedDataView.hpp"
 #include "definitions.hpp"
 #include "Error.hpp"
 #include "gzip.hpp"
 #include "MarkerReplacement.hpp"
+#include "RFCTables.hpp"
 
 
 namespace rapidgzip
 {
 namespace deflate
 {
+#ifdef WITH_ISAL
+using LiteralOrLengthHuffmanCoding = HuffmanCodingISAL;
+#else
 using LiteralOrLengthHuffmanCoding =
     HuffmanCodingDoubleLiteralCached<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_LITERAL_HUFFMAN_CODE_COUNT>;
+#endif
 
 /**
  * Because the fixed Huffman coding is used by different threads it HAS TO BE immutable. It is constant anyway
@@ -155,11 +166,47 @@ using FixedHuffmanCoding =
 using PrecodeHuffmanCoding = HuffmanCodingReversedBitsCachedCompressed<uint8_t, MAX_PRECODE_LENGTH,
                                                                        uint8_t, MAX_PRECODE_COUNT>;
 
-/* HuffmanCodingReversedBitsCached is definitely faster for silesia.tar.gz which has more back-references than
+/**
+ * HuffmanCodingReversedBitsCached is definitely faster for silesia.tar.gz which has more back-references than
  * base64.gz for which the difference in changing this Huffman coding is negligible. Note that we can't use
- * double caching for this because that would mean merging the cache with ne next literal/length Huffman code! */
+ * double caching for this because that would mean merging the cache with ne next literal/length Huffman code!
+ *
+ * HuffmanCodingDistanceISAL:
+ *
+ *     m rapidgzip && src/tools/rapidgzip -d -o /dev/null 10xSRR22403185_2.fastq.gz
+ *     Decompressed in total 3618153020 B in:
+ *         1.60722 s -> 2251.18 MB/s
+ *         1.63562 s -> 2212.1 MB/s
+ *         1.63213 s -> 2216.83 MB/s
+ *
+ *     m rapidgzip && src/tools/rapidgzip -d -o /dev/null test-files/silesia/20xsilesia.tar.gz
+ *     Decompressed in total 4239155200 B in:
+ *         1.10059 s -> 3851.72 MB/s
+ *         1.13037 s -> 3750.25 MB/s
+ *         1.16631 s -> 3634.66 MB/s
+ *         1.12481 s -> 3768.77 MB/s
+ *
+ * HuffmanCodingReversedBitsCached:
+ *
+ *     m rapidgzip && src/tools/rapidgzip -d -o /dev/null 10xSRR22403185_2.fastq.g
+ *     Decompressed in total 3618153020 B in:
+ *         1.61128 s -> 2245.52 MB/s
+ *         1.61067 s -> 2246.36 MB/s
+ *         1.65374 s -> 2187.86 MB/s
+ *         1.60478 s -> 2254.61 MB/s
+ *
+ *     m rapidgzip && src/tools/rapidgzip -d -o /dev/null test-files/silesia/20xsilesia.tar.gz
+ *     Decompressed in total 4239155200 B in:
+ *         1.11193 s -> 3812.43 MB/s
+ *         1.0941 s -> 3874.56 MB/s
+ *         1.0993 s -> 3856.23 MB/s
+ *
+ * -> ISA-l is actually slightly (~1-2%) slower than my own simple distance Huffman decoder.
+ *    Probably because the table is small enough that short/long caching hinders performance more than it helps.
+ **/
 using DistanceHuffmanCoding = HuffmanCodingReversedBitsCached<uint16_t, MAX_CODE_LENGTH,
                                                               uint8_t, MAX_DISTANCE_SYMBOL_COUNT>;
+//using DistanceHuffmanCoding = HuffmanCodingDistanceISAL;
 
 /* Include 256 safety buffer so that we can avoid branches while filling. */
 using LiteralAndDistanceCLBuffer = std::array<uint8_t, MAX_LITERAL_OR_LENGTH_SYMBOLS + MAX_DISTANCE_SYMBOL_COUNT + 256>;
@@ -191,70 +238,6 @@ createFixedHC()
     return result;
 }
 
-
-[[nodiscard]] constexpr uint16_t
-calculateDistance( uint16_t distance,
-                   uint8_t  extraBitsCount,
-                   uint16_t extraBits ) noexcept
-{
-    assert( distance >= 4 );
-    return 1U + ( 1U << ( extraBitsCount + 1U ) ) + ( ( distance % 2U ) << extraBitsCount ) + extraBits;
-};
-
-
-[[nodiscard]] constexpr uint16_t
-calculateDistance( uint16_t distance ) noexcept
-{
-    assert( distance >= 4 );
-    const auto extraBitsCount = ( distance - 2U ) / 2U;
-    return 1U + ( 1U << ( extraBitsCount + 1U ) ) + ( ( distance % 2U ) << extraBitsCount );
-};
-
-
-using DistanceLUT = std::array<uint16_t, 30>;
-
-[[nodiscard]] constexpr DistanceLUT
-createDistanceLUT() noexcept
-{
-    DistanceLUT result{};
-    for ( uint16_t i = 0; i < 4; ++i ) {
-        result[i] = i + 1;
-    }
-    for ( uint16_t i = 4; i < result.size(); ++i ) {
-        result[i] = calculateDistance( i );
-    }
-    return result;
-}
-
-
-alignas( 8 ) static constexpr DistanceLUT
-distanceLUT = createDistanceLUT();
-
-
-[[nodiscard]] constexpr uint16_t
-calculateLength( uint16_t code ) noexcept
-{
-    assert( code < 285 - 261 );
-    const auto extraBits = code / 4U;
-    return 3U + ( 1U << ( extraBits + 2U ) ) + ( ( code % 4U ) << extraBits );
-};
-
-
-using LengthLUT = std::array<uint16_t, 285 - 261>;
-
-[[nodiscard]] constexpr LengthLUT
-createLengthLUT() noexcept
-{
-    LengthLUT result{};
-    for ( uint16_t i = 0; i < result.size(); ++i ) {
-        result[i] = calculateLength( i );
-    }
-    return result;
-}
-
-
-alignas( 8 ) static constexpr LengthLUT
-lengthLUT = createLengthLUT();
 
 namespace
 {
@@ -346,6 +329,7 @@ public:
     uint64_t failedDistanceInit{ 0 };
     uint64_t failedLiteralInit{ 0 };
     uint64_t failedPrecodeApply{ 0 };
+    uint64_t missingEOBSymbol{ 0 };
 
     std::array<uint64_t, /* codeLengthCount - 4 is 4 bits = 16 possible values */ 16> precodeCLHistogram{};
 
@@ -465,12 +449,6 @@ public:
     [[nodiscard]] Error
     readDynamicHuffmanCoding( BitReader& bitReader );
 
-    [[nodiscard]] constexpr const auto&
-    window() const noexcept
-    {
-        return m_window;
-    }
-
     [[nodiscard]] constexpr size_t
     uncompressedSize() const noexcept
     {
@@ -559,6 +537,15 @@ private:
                             size_t               nMaxToDecode,
                             Window&              window,
                             const HuffmanCoding& coding );
+
+#ifdef WITH_ISAL
+    template<typename Window>
+    [[nodiscard]] std::pair<size_t, Error>
+    readInternalCompressedIsal( BitReader&                bitReader,
+                                size_t                    nMaxToDecode,
+                                Window&                   window,
+                                const HuffmanCodingISAL& coding );
+#endif
 
     [[nodiscard]] static uint16_t
     getLength( uint16_t   code,
@@ -778,6 +765,10 @@ Block<ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& bitReader )
         return Error::EXCEEDED_LITERAL_RANGE;
     }
     const auto distanceCodeCount = 1 + bitReader.read<5>();
+    if ( distanceCodeCount > MAX_DISTANCE_SYMBOL_COUNT ) {
+        durations.readDynamicHeader += duration( times.readDynamicStart );
+        return Error::EXCEEDED_DISTANCE_RANGE;
+    }
     const auto codeLengthCount = 4 + bitReader.read<4>();
 
     if constexpr ( ENABLE_STATISTICS ) {
@@ -828,6 +819,15 @@ Block<ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& bitReader )
             durations.readDynamicHeader += duration( times.readDynamicStart );
         }
         return precodeApplyError;
+    }
+
+    /* Check for end-of-block symbol to have a non-zero code length. */
+    if ( m_literalCL[deflate::END_OF_BLOCK_SYMBOL] == 0 ) {
+        if constexpr ( ENABLE_STATISTICS ) {
+            durations.readDynamicHeader += duration( times.readDynamicStart );
+            this->missingEOBSymbol++;
+        }
+        return Error::INVALID_CODE_LENGTHS;
     }
 
     /* Create distance HC
@@ -892,6 +892,9 @@ Block<ENABLE_STATISTICS>::getDistance( BitReader& bitReader ) const
     uint16_t distance = 0;
     if ( m_compressionType == CompressionType::FIXED_HUFFMAN ) {
         distance = reverseBits( static_cast<uint8_t>( bitReader.read<5>() ) ) >> 3U;
+        if ( UNLIKELY( distance >= MAX_DISTANCE_SYMBOL_COUNT ) ) [[unlikely]] {
+            return { 0, Error::EXCEEDED_DISTANCE_RANGE };
+        }
     } else {
         const auto decodedDistance = m_distanceHC.decode( bitReader );
         if ( UNLIKELY( !decodedDistance ) ) [[unlikely]] {
@@ -1147,7 +1150,16 @@ Block<ENABLE_STATISTICS>::readInternal( BitReader& bitReader,
     if ( m_compressionType == CompressionType::FIXED_HUFFMAN ) {
         return readInternalCompressed( bitReader, nMaxToDecode, window, m_fixedHC );
     }
+
+#ifdef WITH_ISAL
+    if constexpr ( std::is_same_v<LiteralOrLengthHuffmanCoding, HuffmanCodingISAL> ) {
+        return readInternalCompressedIsal( bitReader, nMaxToDecode, window, m_literalHC );
+    } else {
+        return readInternalCompressed( bitReader, nMaxToDecode, window, m_literalHC );
+    }
+#else
     return readInternalCompressed( bitReader, nMaxToDecode, window, m_literalHC );
+#endif
 }
 
 
@@ -1230,7 +1242,7 @@ Block<ENABLE_STATISTICS>::readInternalCompressed( BitReader&           bitReader
             continue;
         }
 
-        if ( UNLIKELY( code == 256 ) ) [[unlikely]] {
+        if ( UNLIKELY( code == END_OF_BLOCK_SYMBOL /* 256 */ ) ) [[unlikely]] {
             m_atEndOfBlock = true;
             break;
         }
@@ -1264,6 +1276,88 @@ Block<ENABLE_STATISTICS>::readInternalCompressed( BitReader&           bitReader
     m_decodedBytes += nBytesRead;
     return { nBytesRead, Error::NONE };
 }
+
+
+#ifdef WITH_ISAL
+template<bool ENABLE_STATISTICS>
+template<typename Window>
+std::pair<size_t, Error>
+Block<ENABLE_STATISTICS>::readInternalCompressedIsal
+(
+    BitReader&               bitReader,
+    size_t                   nMaxToDecode,
+    Window&                  window,
+    const HuffmanCodingISAL& coding )
+{
+    if ( !coding.isValid() ) {
+        throw std::invalid_argument( "No Huffman coding loaded! Call readHeader first!" );
+    }
+
+    constexpr bool containsMarkerBytes = std::is_same_v<std::decay_t<decltype( *window.data() ) >, uint16_t>;
+
+    nMaxToDecode = std::min( nMaxToDecode, window.size() - MAX_RUN_LENGTH );
+
+    size_t nBytesRead{ 0 };
+    for ( nBytesRead = 0; nBytesRead < nMaxToDecode; )
+    {
+        auto [symbol, symbolCount] = coding.decode( bitReader );
+        if ( symbolCount == 0 ) {
+            return { nBytesRead, Error::INVALID_HUFFMAN_CODE };
+        }
+
+        for ( ; symbolCount > 0; symbolCount--, symbol >>= 8 ) {
+            const auto code = static_cast<uint16_t>( symbol & 0xFFFFU );
+
+            if ( ( code <= 255 ) || ( symbolCount > 1 ) ) {
+                if constexpr ( ENABLE_STATISTICS ) {
+                    symbolTypes.literal++;
+                }
+
+                appendToWindow( window, static_cast<uint8_t>( code ) );
+                ++nBytesRead;
+                continue;
+            }
+
+            if ( UNLIKELY( code == END_OF_BLOCK_SYMBOL /* 256 */ ) ) [[unlikely]] {
+                m_atEndOfBlock = true;
+                m_decodedBytes += nBytesRead;
+                return { nBytesRead, Error::NONE };
+            }
+
+            static constexpr auto MAX_LIT_LEN_SYM = 512U;
+            if ( UNLIKELY( code > MAX_LIT_LEN_SYM ) ) [[unlikely]] {
+                return { nBytesRead, Error::INVALID_HUFFMAN_CODE };
+            }
+
+            if constexpr ( ENABLE_STATISTICS ) {
+                symbolTypes.backreference++;
+            }
+
+            /* If the next symbol is a repeat length, read in the length extra bits, the distance code, the distance
+             * extra bits. Then write out the corresponding data and update the state data accordingly. */
+            const auto length = symbol - 254U;
+            if ( length != 0 ) {
+                const auto [distance, error] = getDistance( bitReader );
+                if ( error != Error::NONE ) {
+                    return { nBytesRead, error };
+                }
+
+                if constexpr ( !containsMarkerBytes ) {
+                    if ( distance > m_decodedBytes + nBytesRead ) {
+                        return { nBytesRead, Error::EXCEEDED_WINDOW_RANGE };
+                    }
+                }
+
+                resolveBackreference( window, distance, length );
+                nBytesRead += length;
+            }
+        }
+    }
+
+    m_decodedBytes += nBytesRead;
+    return { nBytesRead, Error::NONE };
+}
+#endif  // ifdef WITH_ISAL
 
 
 template<bool ENABLE_STATISTICS>

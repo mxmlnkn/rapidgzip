@@ -7,7 +7,7 @@
 [![PyPI version](https://badge.fury.io/py/rapidgzip.svg)](https://badge.fury.io/py/rapidgzip)
 [![Python Version](https://img.shields.io/pypi/pyversions/rapidgzip)](https://pypi.org/project/rapidgzip/)
 [![PyPI Platforms](https://img.shields.io/badge/pypi-linux%20%7C%20macOS%20%7C%20Windows-brightgreen)](https://pypi.org/project/rapidgzip/)
-[![Downloads](https://pepy.tech/badge/pragzip/month)](https://pepy.tech/project/rapidgzip)
+[![Downloads](https://static.pepy.tech/badge/rapidgzip/month)](https://pepy.tech/project/rapidgzip)
 <br>
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](http://opensource.org/licenses/MIT)
 [![Build Status](https://github.com/mxmlnkn/indexed_bzip2/workflows/tests/badge.svg)](https://github.com/mxmlnkn/rapidgzip/actions)
@@ -101,27 +101,40 @@ Thin blobs signal very reproducible timings while thick blobs signal a large var
 
 ### Decompression of Silesia Corpus
 
-![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/rapidgzip-0.8.1-scaling-benchmarks-2023-08-06/plots/result-parallel-decompression-silesia-dev-null-bandwidths-number-of-threads.png)
+![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/rapidgzip-0.9.0-scaling-benchmarks-2023-08-30/plots/result-parallel-decompression-silesia-dev-null-bandwidths-number-of-threads.png)
 
 This benchmark uses the [Silesia corpus](https://sun.aei.polsl.pl//~sdeor/index.php?page=silesia) compressed as a .tar.gz file to show the decompression performance.
 However, the compressed dataset is only ~69 MB, which is not sufficiently large to show parallelization over 128 cores.
 That's why the TAR file is repeated as often as there are number of cores in the benchmark times 2 and then compressed into a single large gzip file, which is ~18 GB compressed and 54 GB uncompressed for 128 cores.
 
-Rapidgzip achieves up to 24 GB/s with an index and 7 GB/s without.
+Rapidgzip achieves up to 24 GB/s with an index and 12 GB/s without.
 
 Pugz is not shown as comparison because it is not able to decompress the Silesia dataset because it contains binary data, which it cannot handle.
 
 
-### Decompression Gzip-Compressed Base64 Data
+### Decompression of Gzip-Compressed Base64 Data
 
-![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/rapidgzip-0.8.1-scaling-benchmarks-2023-08-06/plots/result-parallel-decompression-base64-dev-null-bandwidths-number-of-threads.png)
+![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/rapidgzip-0.9.0-scaling-benchmarks-2023-08-30/plots/result-parallel-decompression-base64-dev-null-bandwidths-number-of-threads.png)
 
 This benchmarks uses random data, that has been base64 encoded and then gzip-compressed.
 This is the next best case for rapidgzip after the trivial case of purely random data, which cannot be compressed and therefore can be decompressed with a simple memory copy.
 This next best case results in mostly Huffman-coding compressed data with only very few LZ77 back-references.
 Without LZ77 back-references, parallel decompression can be done more independently and therefore faster than in the case of many LZ77 back-references.
 
-These two scaling plots were created with rapidgzip 0.8.1 while the ones in the [paper](<results/paper/Knespel, Brunst - 2023 - Rapidgzip - Parallel Decompression and Seeking in Gzip Files Using Cache Prefetching.pdf>) were created with 0.5.0.
+
+### Decompression of Gzip-Compressed FASTQ Data
+
+![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/rapidgzip-0.9.0-scaling-benchmarks-2023-08-30/plots/result-parallel-decompression-fastq-dev-null-bandwidths-number-of-threads.png)
+
+This benchmarks uses gzip-compressed [FASTQ data](http://ftp.sra.ebi.ac.uk/vol1/fastq/SRR224/085/SRR22403185/SRR22403185_2.fastq.gz).
+That's why the TAR file is repeated as often as there are number of cores in the benchmark to hold the decompression times roughly constant in order to make the benchmark over this large a range feasible.
+This is almost the worst case for rapidgzip because it contains many LZ77 back-references over very long ranges.
+This means that a fallback to ISA-L is not possible and it means that the costly two-staged decoding has to be done for almost all the data.
+This is also the reason why if fails to scale above 64 cores, i.e, to teh second CPU socket.
+The first and second decompression stages are completely independently submitted to a thread pool, which on this NUMA architecture means, that data needs to be costly transferred from one processor socket to the other if the second step for a chunk is not done on the same processor as the first.
+This should be fixable by making the ThreadPool NUMA-aware.
+
+These three scaling plots were created with rapidgzip 0.9.0 while the ones in the [paper](<results/paper/Knespel, Brunst - 2023 - Rapidgzip - Parallel Decompression and Seeking in Gzip Files Using Cache Prefetching.pdf>) were created with 0.5.0.
 
 
 ## Scaling Benchmarks on Ryzen 3900X
@@ -136,13 +149,13 @@ These benchmarks on my local workstation with a Ryzen 3900X only has 12 cores (2
 | Compressed Size        | 3.04 GiB                     |                 | | 1.27 GiB                      |
 | **Module**             | **Bandwidth <br/> / (MB/s)** | **Speedup**     | |  **Bandwidth <br/> / (MB/s)** | **Speedup**
 | gzip                   |  250                         |    1            | |   293                         |  1
-| rapidgzip (0  threads) | 5060                         | 19.5            | |  5580                         | 18.6
-| rapidgzip (1  threads) |  445                         |  1.7            | |   624                         |  2.1
-| rapidgzip (2  threads) |  895                         |  3.5            | |  1190                         |  4.0
-| rapidgzip (6  threads) | 2500                         |  9.6            | |  3330                         | 11.1
-| rapidgzip (12 threads) | 4390                         | 16.9            | |  5810                         | 19.4
-| rapidgzip (24 threads) | 5150                         | 19.9            | |  5960                         | 19.9
-| rapidgzip (32 threads) | 5000                         | 19.3            | |  5640                         | 18.8
+| rapidgzip (0  threads) | 5179                         | 20.6            | |  5640                         | 18.8
+| rapidgzip (1  threads) |  488                         |  1.9            | |   684                         |  2.3
+| rapidgzip (2  threads) |  902                         |  3.6            | |  1200                         |  4.0
+| rapidgzip (6  threads) | 2617                         | 10.4            | |  3250                         | 10.9
+| rapidgzip (12 threads) | 4463                         | 17.7            | |  5600                         | 18.7
+| rapidgzip (24 threads) | 5240                         | 20.8            | |  5750                         | 19.2
+| rapidgzip (32 threads) | 4929                         | 19.6            | |  5300                         | 17.7
 
 
 ### Decompression From Scratch
@@ -153,13 +166,13 @@ These benchmarks on my local workstation with a Ryzen 3900X only has 12 cores (2
 | Compressed Size        | 3.04 GiB                     |                 | | 1.27 GiB                      |
 | **Module**             | **Bandwidth <br/> / (MB/s)** | **Speedup**     | |  **Bandwidth <br/> / (MB/s)** | **Speedup**
 | gzip                   |  250                         |    1            | |   293                         |  1
-| rapidgzip (0  threads) | 3290                         | 12.7            | |  1820                         |  6.1
-| rapidgzip (1  threads) |  222                         |  0.9            | |   238                         |  0.8
-| rapidgzip (2  threads) |  435                         |  1.7            | |   415                         |  1.4
-| rapidgzip (6  threads) | 1260                         |  4.9            | |  1140                         |  3.8
-| rapidgzip (12 threads) | 2310                         |  8.9            | |  1550                         |  5.2
-| rapidgzip (24 threads) | 3200                         | 12.4            | |  1890                         |  6.3
-| rapidgzip (32 threads) | 3210                         | 12.4            | |  2060                         |  6.9
+| rapidgzip (0  threads) | 5060                         | 20.1            | |  2070                         |  6.9
+| rapidgzip (1  threads) |  487                         |  1.9            | |  630                          |  2.1
+| rapidgzip (2  threads) |  839                         |  3.3            | |  694                          |  2.3
+| rapidgzip (6  threads) | 2365                         |  9.4            | |  1740                         |  5.8
+| rapidgzip (12 threads) | 4116                         | 16.4            | |  1900                         |  6.4
+| rapidgzip (24 threads) | 4974                         | 19.8            | |  2040                         |  6.8
+| rapidgzip (32 threads) | 4612                         | 18.3            | |  2580                         |  8.6
 
 
 # Usage
@@ -265,7 +278,8 @@ If you have suggestions and wishes like support with CMake or Conan, please open
 # Citation
 
 A paper describing the implementation details and showing the scaling behavior with up to 128 cores has been submitted to and [accepted](https://www.hpdc.org/2023/program/technical-sessions/) in [ACM HPDC'23](https://www.hpdc.org/2023/), The 32nd International Symposium on High-Performance Parallel and Distributed Computing.
-The author's version can be found [here](<results/paper/Knespel, Brunst - 2023 - Rapidgzip - Parallel Decompression and Seeking in Gzip Files Using Cache Prefetching.pdf>) and the accompanying presentation [here](results/Presentation-2023-06-22.pdf).
+The paper can be accessed [freely on ACM DL](https://doi.org/10.1145/3588195.3592992).
+The accompanying presentation can be found [here](results/Presentation-2023-06-22.pdf).
 
 If you use this software for your scientific publication, please cite it as:
 
@@ -276,16 +290,16 @@ This is preliminiary. The final citation will become available end of June 2023.
     author    = {Knespel, Maximilian and Brunst, Holger},
     title     = {Rapidgzip: Parallel Decompression and Seeking in Gzip Files Using Cache Prefetching},
     year      = {2023},
-    % isbn    = {},  % To be released end of June
+    isbn      = {9798400701559},
     publisher = {Association for Computing Machinery},
     address   = {New York, NY, USA},
     url       = {https://doi.org/10.1145/3588195.3592992},
     doi       = {10.1145/3588195.3592992},
     abstract  = {Gzip is a file compression format, which is ubiquitously used. Although a multitude of gzip implementations exist, only pugz can fully utilize current multi-core processor architectures for decompression. Yet, pugz cannot decompress arbitrary gzip files. It requires the decompressed stream to only contain byte values 9–126. In this work, we present a generalization of the parallelization scheme used by pugz that can be reliably applied to arbitrary gzip-compressed data without compromising performance. We show that the requirements on the file contents posed by pugz can be dropped by implementing an architecture based on a cache and a parallelized prefetcher. This architecture can safely handle faulty decompression results, which can appear when threads start decompressing in the middle of a gzip file by using trial and error. Using 128 cores, our implementation reaches 8.7 GB/s decompression bandwidth for gzip-compressed base64-encoded data, a speedup of 55 over the single-threaded GNU gzip, and 5.6 GB/s for the Silesia corpus, a speedup of 33 over GNU gzip.},
     booktitle = {Proceedings of the 32nd International Symposium on High-Performance Parallel and Distributed Computing},
-    % pages   = {16–29},  % To be released end of June
+    pages     = {295–307},
     numpages  = {13},
-    keywords  = {Gzip, Decompression, Parallel Algorithm, Performance, Random Access},
+    keywords  = {gzip, decompression, parallel algorithm, performance, random access},
     location  = {Orlando, FL, USA},
     series    = {HPDC '23},
 }
@@ -296,11 +310,11 @@ This is preliminiary. The final citation will become available end of June 2023.
 This tool originated as a backend for [ratarmount](https://github.com/mxmlnkn/ratarmount).
 After writing the bzip2 backend for [ratarmount](https://github.com/mxmlnkn/indexed_bzip2), my hesitation about reimplementing custom decoders for existing file formats has vastly diminished.
 And, while random access to gzip files did exist with [indexed_gzip](https://github.com/pauldmccarthy/indexed_gzip), it did not support parallel decompression neither for the index creation nor when the index already exists.
-The latter of which is trivial, when ignoring load balancing issues, but parallelizing even the idnex creation is vastly more complicated because decompressing data requires the previous 32 KiB of decompressed data to be known.
+The latter of which is trivial, when ignoring load balancing issues, but parallelizing even the index creation is vastly more complicated because decompressing data requires the previous 32 KiB of decompressed data to be known.
 
 After implementing a production-ready version by improving upon the algorithm used by [pugz](https://github.com/Piezoid/pugz), I submitted a [paper](Citation).
-The review process was double-blind and I was unsure whether pseudonymize Pragzip because it has already been uploaded to Github.
-In the end, I used Rapidgzip during the review process and because I was not sure, which form fields should be filled with the pseudonymized title, I simply stuck with it.
+The review process was double-blind and I was unsure whether to pseudonymize Pragzip because it has already been uploaded to Github.
+In the end, I used "rapidgzip" during the review process and because I was not sure, which form fields should be filled with the pseudonymized title, I simply stuck with it.
 Rapidgzip was chosen for similar reason to rapidgzip, namely the P and RA are acronyms for Parallel and Random Access.
 As rapgzip, did not stick, I used rapidgzip, which now also contains the foremost design goal in its name: being rapidly faster than single-threaded implementations.
 Furthermore, the additional ID could be interpreted to stand for Index and Decompression, making "rapid" a partial backronym.

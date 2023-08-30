@@ -43,6 +43,13 @@ public:
         m_size( size )
     {}
 
+    constexpr
+    VectorView( const T* data,
+                const T* dataEnd ) noexcept :
+        m_data( data ),
+        m_size( std::distance( data, dataEnd ) )
+    {}
+
     [[nodiscard]] constexpr T
     front() const noexcept
     {

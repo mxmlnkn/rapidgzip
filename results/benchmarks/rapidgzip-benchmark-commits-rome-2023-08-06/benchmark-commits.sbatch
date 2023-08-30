@@ -4,7 +4,7 @@
 #SBATCH --exclusive
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=128
-#SBATCH --time=04:00:00
+#SBATCH --time=08:00:00
 #SBATCH --mem-per-cpu=1972M
 #SBATCH --cpu-freq=2000000-2000000
 
@@ -142,7 +142,7 @@ function benchmarkCommits()
 url='http://ftp.sra.ebi.ac.uk/vol1/fastq/SRR224/085/SRR22403185/SRR22403185_2.fastq.gz'
 fileName="${url##*/}"
 wget -O "$fileName" "$url"
-fileGrowFactor=16
+fileGrowFactor=8
 fastqTestFile="/dev/shm/${fileGrowFactor}x$fileName"
 for (( i = 0; i < fileGrowFactor; ++i )); do gzip -d -c "$fileName"; done |
     pigz --blocksize $(( 128 * 4 * 1024 )) > "$fastqTestFile"
@@ -150,7 +150,7 @@ for (( i = 0; i < fileGrowFactor; ++i )); do gzip -d -c "$fileName"; done |
 # 211957760 B -> 212 MB, 203 MiB, gzip 66 MiB -> compression factor: 3.08
 getSilesiaTar
 fileName='silesia.tar'
-fileGrowFactor=32
+fileGrowFactor=16
 silesiaTestFile="/dev/shm/${fileGrowFactor}x$fileName.gz"
 for (( i = 0; i < fileGrowFactor; ++i )); do cat "$fileName"; done |
     pigz --blocksize $(( 128 * 4 * 1024 )) > "$silesiaTestFile"
@@ -160,8 +160,8 @@ for (( i = 0; i < fileGrowFactor; ++i )); do cat "$fileName"; done |
 # That's why we pregenerate 512 MiB of random data and then simply repeat that as needed.
 fileName='/dev/shm/base64-512MiB'
 base64 /dev/urandom | head -c $(( 512 * 1024 * 1024 )) > "$fileName"
-fileGrowFactor=32
-base64TestFile="/dev/shm/base64-16GiB.gz"
+fileGrowFactor=16
+base64TestFile="/dev/shm/base64-8GiB.gz"
 for (( i = 0; i < fileGrowFactor; ++i )); do cat "$fileName"; done |
     pigz --blocksize $(( 128 * 4 * 1024 )) > "$base64TestFile"
 

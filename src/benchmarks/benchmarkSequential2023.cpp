@@ -911,15 +911,19 @@ benchmarkCountNewlines()
 
 
 [[nodiscard]] std::pair<double, uint64_t>
-benchmarkApplyWindow( std::vector<uint16_t>       data,
-                      const std::vector<uint8_t>& window )
+benchmarkApplyWindow( const std::vector<uint16_t>& data,
+                      const std::vector<uint8_t>&  window )
 {
-    rapidgzip::deflate::DecodedData decoded;
-    decoded.dataWithMarkers.emplace_back( std::move( data ) );
+    using namespace rapidgzip::deflate;
+    DecodedData decoded;
+    DecodedDataView toAppend;
+    toAppend.dataWithMarkers[0] = VectorView<uint16_t>( data.data(), data.size() );
+    decoded.append( toAppend );
 
     const auto t0 = now();
     decoded.applyWindow( { window.data(), window.size() } );
-    const auto checksum = decoded.data.front().at( decoded.data.front().size() / 2 );
+    const auto [buffer, size] = *DecodedData::Iterator( decoded );
+    const auto checksum = reinterpret_cast<const uint8_t*>( buffer )[ size / 2];
 
     return { duration( t0 ), checksum };
 }

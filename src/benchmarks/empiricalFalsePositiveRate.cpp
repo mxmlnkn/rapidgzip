@@ -20,6 +20,7 @@
 #include <blockfinder/DynamicHuffman.hpp>
 #include <blockfinder/Uncompressed.hpp>
 #include <blockfinder/precodecheck/WithoutLUT.hpp>
+#include <definitions.hpp>
 #include <filereader/BufferView.hpp>
 #include <Statistics.hpp>
 #include <ThreadPool.hpp>
@@ -289,6 +290,9 @@ public:
     size_t filteredByFinalBlock{ 0 };
     size_t filteredByCompressionType{ 0 };
     size_t filteredByLiteralCount{ 0 };
+    size_t filteredByDistanceCount{ 0 };
+
+    size_t filteredByMissingEOBSymbol{ 0 };
 
     size_t filteredByInvalidDistanceCoding{ 0 };
     size_t filteredByBloatingDistanceCoding{ 0 };
@@ -364,9 +368,15 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>&
                 continue;
             }
 
-            const auto literalCodeCount = ( peeked >> 3U ) & 0b11111U;
-            if ( literalCodeCount >= 30 ) {
+            const auto literalCodeCount = 257 + ( ( peeked >> 3U ) & 0b11111U );
+            if ( literalCodeCount >= rapidgzip::deflate::MAX_LITERAL_OR_LENGTH_SYMBOLS ) {
                 ++filteredByLiteralCount;
+                continue;
+            }
+
+            const auto distanceCodeCount = 1 + ( ( peeked >> ( 3U + 5U ) ) & 0b11111U );
+            if ( distanceCodeCount >= rapidgzip::deflate::MAX_DISTANCE_SYMBOL_COUNT ) {
+                ++filteredByDistanceCount;
                 continue;
             }
 
@@ -400,6 +410,7 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>&
             m_offsetsTestedMoreInDepth++;
             auto error = precodeError;
             if ( precodeError == rapidgzip::Error::NONE ) {
+                const auto oldMissingEOBSymbol = block.missingEOBSymbol;
                 const auto oldFailedDistanceInit = block.failedDistanceInit;
                 const auto oldFailedLiteralInit = block.failedLiteralInit;
 
@@ -423,6 +434,10 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>&
                     std::cerr << std::bitset<57>( precodeBits ) << "\n";
 
                     throw std::logic_error( "After checkPrecode, it shouldn't fail inside the block!" );
+                }
+
+                if ( oldMissingEOBSymbol != block.missingEOBSymbol ) {
+                    ++filteredByMissingEOBSymbol;
                 }
 
                 if ( oldFailedDistanceInit != block.failedDistanceInit ) {
@@ -535,6 +550,7 @@ findDynamicFalsePositives( const size_t nBitsToTest )
 
         CountWithPercentage<size_t> filteredByFinalBlock;
         CountWithPercentage<size_t> filteredByCompressionType;
+        CountWithPercentage<size_t> filteredByDistanceCount;
         CountWithPercentage<size_t> filteredByLiteralCount;
         CountWithPercentage<size_t> passedDeflateHeaderTest;
 
@@ -543,6 +559,7 @@ findDynamicFalsePositives( const size_t nBitsToTest )
         CountWithPercentage<size_t> filteredByBloatingPrecode;
         CountWithPercentage<size_t> passedPrecodeCheck;
 
+        CountWithPercentage<size_t> filteredByMissingEOBSymbol;
         CountWithPercentage<size_t> failedDistanceInit;
         CountWithPercentage<size_t> filteredByInvalidDistanceCoding;
         CountWithPercentage<size_t> filteredByBloatingDistanceCoding;
@@ -564,6 +581,7 @@ findDynamicFalsePositives( const size_t nBitsToTest )
         stats.filteredByDeflateHeaderTest.merge( filteredByDeflateHeaderTest, nBitsToTest );
         stats.filteredByFinalBlock.merge( result->filteredByFinalBlock, nBitsToTest );
         stats.filteredByCompressionType.merge( result->filteredByCompressionType, nBitsToTest );
+        stats.filteredByDistanceCount.merge( result->filteredByDistanceCount, nBitsToTest );
         stats.filteredByLiteralCount.merge( result->filteredByLiteralCount, nBitsToTest );
         stats.passedDeflateHeaderTest.merge( result->passedDeflateHeaderTest, nBitsToTest );
 
@@ -574,12 +592,14 @@ findDynamicFalsePositives( const size_t nBitsToTest )
         const auto passedPrecodeCheck = result->passedDeflateHeaderTest - result->checkPrecodeFails;
         stats.passedPrecodeCheck.merge( passedPrecodeCheck, result->passedDeflateHeaderTest );
 
+        stats.filteredByMissingEOBSymbol.merge( result->filteredByMissingEOBSymbol, passedPrecodeCheck );
         stats.filteredByInvalidDistanceCoding.merge( result->filteredByInvalidDistanceCoding, passedPrecodeCheck );
         stats.filteredByBloatingDistanceCoding.merge( result->filteredByBloatingDistanceCoding, passedPrecodeCheck );
         stats.filteredByPrecodeApply.merge( result->block.failedPrecodeApply, passedPrecodeCheck );
 
         const auto passedDistanceInitCheck = passedPrecodeCheck
                                              - result->block.failedPrecodeApply
+                                             - result->block.missingEOBSymbol
                                              - result->block.failedDistanceInit;
         stats.passedDistanceInitCheck.merge( passedDistanceInitCheck, passedPrecodeCheck );
 
@@ -599,29 +619,29 @@ findDynamicFalsePositives( const size_t nBitsToTest )
     }
 
     std::cout
-        << "Filtering cascade:\n"
-        << "+-> Total number of test locations: " << nBitsToTest
-        << "\n"
-        << "    Filtered by final block bit: " << stats.filteredByFinalBlock.toString() << "\n"
-        << "    Filtered by compression type: " << stats.filteredByCompressionType.toString() << "\n"
-        << "    Filtered by literal code length count: " << stats.filteredByLiteralCount.toString() << "\n"
-        << "    +-> Remaining locations to test: " << stats.passedDeflateHeaderTest.toString()
-        << " (filtered: " << stats.filteredByDeflateHeaderTest.toString() << ")\n"
-        << "        Filtered by invalid precode: " << stats.filteredByInvalidPrecode.toString() << "\n"
-        << "        Filtered by non-optimal precode: " << stats.filteredByBloatingPrecode.toString() << "\n"
-        << "        +-> Remaining locations to test: " << stats.passedPrecodeCheck.toString()
-        << " (filtered: " << stats.checkPrecodeFails.toString() << ")\n"
-        << "            Failing precode usage: " << stats.filteredByPrecodeApply.toString() << "\n"
-        << "            Invalid Distance Huffman Coding: " << stats.filteredByInvalidDistanceCoding.toString() << "\n"
-        << "            Non-Optimal Distance Huffman Coding: "
-        << stats.filteredByBloatingDistanceCoding.toString() << "\n"
-        << "            +-> Remaining locations to test: " << stats.passedDistanceInitCheck.toString() << "\n"
-        << "                Invalid Literal Huffman Coding: " << stats.filteredByInvalidLiteralCoding.toString() << "\n"
-        << "                Non-Optimal Literal Huffman Coding: "
-        << stats.filteredByBloatingLiteralCoding.toString() << "\n"
-        << "                +-> Remaining locations to test: " << stats.passedReadHeader.toString() << "\n"
-        << "                    Location candidates: " << stats.foundOffsets.formatAverageWithUncertainty( false, 2 )
-        << "\n\n";
+    << "Filtering cascade:\n"
+    << "+-> Total number of test locations: " << nBitsToTest
+    << "\n"
+    << "    Filtered by final block bit            : " << stats.filteredByFinalBlock.toString() << "\n"
+    << "    Filtered by compression type           : " << stats.filteredByCompressionType.toString() << "\n"
+    << "    Filtered by literal code length count  : " << stats.filteredByLiteralCount.toString() << "\n"
+    << "    Filtered by distance code length count : " << stats.filteredByDistanceCount.toString() << "\n"
+    << "    +-> Remaining locations to test: " << stats.passedDeflateHeaderTest.toString()
+    << " (filtered: " << stats.filteredByDeflateHeaderTest.toString() << ")\n"
+    << "        Filtered by invalid precode    : " << stats.filteredByInvalidPrecode.toString() << "\n"
+    << "        Filtered by non-optimal precode: " << stats.filteredByBloatingPrecode.toString() << "\n"
+    << "        +-> Remaining locations to test: " << stats.passedPrecodeCheck.toString()
+    << " (filtered: " << stats.checkPrecodeFails.toString() << ")\n"
+    << "            Failing precode usage              : " << stats.filteredByPrecodeApply.toString() << "\n"
+    << "            Zero-length end-of-block symbol    : " << stats.filteredByMissingEOBSymbol.toString() << "\n"
+    << "            Invalid Distance Huffman Coding    : " << stats.filteredByInvalidDistanceCoding.toString() << "\n"
+    << "            Non-Optimal Distance Huffman Coding: " << stats.filteredByBloatingDistanceCoding.toString() << "\n"
+    << "            +-> Remaining locations to test: " << stats.passedDistanceInitCheck.toString() << "\n"
+    << "                Invalid Literal Huffman Coding    : " << stats.filteredByInvalidLiteralCoding.toString() << "\n"
+    << "                Non-Optimal Literal Huffman Coding: " << stats.filteredByBloatingLiteralCoding.toString() << "\n"
+    << "                +-> Remaining locations to test: " << stats.passedReadHeader.toString() << "\n"
+    << "                    Location candidates: " << stats.foundOffsets.formatAverageWithUncertainty( false, 2 )
+    << "\n\n";
 }
 
 
@@ -660,21 +680,25 @@ main( int    argc,
 
 
 /*
+False positives for non-compressed deflate block: 2070 +- 90, (0.0000241 +- 0.0000010) %
+Match ratio: (12.5008 +- 0.00167367) %
+
 Filtering cascade:
-+-> Total number of test locations: 1000000000000
-    Filtered by final block bit: 500000100000 +- 900000, (50.00001 +- 0.00009) %
-    Filtered by compression type: 375000000000 +- 800000, (37.50000 +- 0.00008) %
-    Filtered by literal code length count: 7812470000 +- 140000, (0.781247 +- 0.000014) %
++-> Total number of test locations        : 1000000000000
+    Filtered by final block bit           :  500000100000 +- 900000, (50.00001 +- 0.00009) %
+    Filtered by compression type          :  375000000000 +- 800000, (37.50000 +- 0.00008) %
+    Filtered by literal code length count :    7812470000 +- 140000, (0.781247 +- 0.000014) %
+    Filtered by literal code length count :    7812470000 +- 140000, (0.781247 +- 0.000014) %
     +-> Remaining locations to test: 117187500000 +- 400000, (11.71875 +- 0.00004) % (filtered: 882812500000 +- 400000, (88.28125 +- 0.00004) %)
-        Filtered by invalid precode: 77451600000 +- 600000, (66.0920 +- 0.0003) %
-        Filtered by non-optimal precode: 39256900000 +- 400000, (33.4993 +- 0.0003) %
-        +-> Remaining locations to test: 478940000 +- 40000, (0.40870 +- 0.00004) % (filtered: 116708500000 +- 400000, (99.59130 +- 0.00004) %)
-            Failing precode usage: 386660000 +- 50000, (80.733 +- 0.004) %
-            Invalid Distance Huffman Coding: 14291000 +- 6000, (2.9839 +- 0.0013) %
-            Non-Optimal Distance Huffman Coding: 77126000 +- 16000, (16.103 +- 0.004) %
-            +-> Remaining locations to test: 858000 +- 1700, (0.1791 +- 0.0004) %
-                Invalid Literal Huffman Coding: 340600 +- 1000, (39.69 +- 0.10) %
-                Non-Optimal Literal Huffman Coding: 517200 +- 1400, (60.28 +- 0.10) %
+        Filtered by invalid precode     : 77451600000 +- 600000, (66.0920 +- 0.0003) %
+        Filtered by non-optimal precode : 39256900000 +- 400000, (33.4993 +- 0.0003) %
+        +-> Remaining locations to test : 478940000 +- 40000, (0.40870 +- 0.00004) % (filtered: 116708500000 +- 400000, (99.59130 +- 0.00004) %)
+            Failing precode usage               : 386660000 +- 50000, (80.733 +- 0.004) %
+            Invalid Distance Huffman Coding     : 14291000 +- 6000, (2.9839 +- 0.0013) %
+            Non-Optimal Distance Huffman Coding : 77126000 +- 16000, (16.103 +- 0.004) %
+            +-> Remaining locations to test        : 858000 +- 1700, (0.1791 +- 0.0004) %
+                Invalid Literal Huffman Coding     : 340600 +- 1000, (39.69 +- 0.10) %
+                Non-Optimal Literal Huffman Coding : 517200 +- 1400, (60.28 +- 0.10) %
                 +-> Remaining locations to test: 202 +- 27, (0.024 +- 0.003) %
                     Location candidates: 202 +- 27
 
@@ -684,4 +708,57 @@ for i in 1 10 100 1000; do
      src/benchmarks/empiricalFalsePositiveRate $(( i * 1000 * 1000 * 1000 )) 2>&1 |
          tee empiricalFalsePositiveRate-${i}Gb.log
 done
+
+
+Without "Zero-length end-of-block symbol" check:
+
+    Filtering cascade:
+    +-> Total number of test locations: 1000000000
+        Filtered by final block bit            : 499991000 +- 26000, (49.9991 +- 0.0026) %
+        Filtered by compression type           : 375005000 +- 20000, (37.5005 +- 0.0020) %
+        Filtered by literal code length count  :  11718000 +- 5000, (1.1718 +- 0.0005) %
+        Filtered by distance code length count :  10619000 +- 7000, (1.0619 +- 0.0007) %
+        +-> Remaining locations to test: 102667000 +- 19000, (10.2667 +- 0.0019) % (filtered: 897333000 +- 19000, (89.7333 +- 0.0019) %)
+            Filtered by invalid precode    : 67856000 +- 19000, (66.093 +- 0.012) %
+            Filtered by non-optimal precode: 34391000 +- 13000, (33.498 +- 0.012) %
+            +-> Remaining locations to test: 419500 +- 1500, (0.4086 +- 0.0015) % (filtered: 102247000 +- 19000, (99.5914 +- 0.0015) %)
+                Failing precode usage              : 338800 +- 1000, (80.74 +- 0.12) %
+                Zero-length end-of-block symbol    : -nan +- -nan, (-nan +- -nan) %
+                Invalid Distance Huffman Coding    : 12450 +- 220, (2.97 +- 0.05) %
+                Non-Optimal Distance Huffman Coding: 67500 +- 700, (16.09 +- 0.12) %
+                +-> Remaining locations to test: 850 +- 60, (0.203 +- 0.015) %
+                    Invalid Literal Huffman Coding    : 340 +- 40, (40.0 +- 2.2) %
+                    Non-Optimal Literal Huffman Coding: 510 +- 40, (60.0 +- 2.2) %
+                    +-> Remaining locations to test: 0.2 +- 0.8, (0.02 +- 0.09) %
+                        Location candidates: 0.2 +- 0.8
+
+  -> Remaining locations to test: 850
+
+
+With "Zero-length end-of-block symbol" check:
+
+    Filtering cascade:
+    +-> Total number of test locations: 1000000000
+        Filtered by final block bit            : 500000000 +- 40000, (50.000 +- 0.004) %
+        Filtered by compression type           : 375000000 +- 40000, (37.500 +- 0.004) %
+        Filtered by literal code length count  :  11719000 +- 7000, (1.1719 +- 0.0007) %
+        Filtered by distance code length count :  10622000 +- 6000, (1.0622 +- 0.0006) %
+        +-> Remaining locations to test: 102657000 +- 16000, (10.2657 +- 0.0016) % (filtered: 897343000 +- 16000, (89.7343 +- 0.0016) %)
+            Filtered by invalid precode    : 67848000 +- 15000, (66.092 +- 0.010) %
+            Filtered by non-optimal precode: 34389000 +- 11000, (33.499 +- 0.010) %
+            +-> Remaining locations to test: 419500 +- 1400, (0.4087 +- 0.0014) % (filtered: 102238000 +- 17000, (99.5913 +- 0.0014) %)
+                Failing precode usage              : 338700 +- 1300, (80.73 +- 0.12) %
+                Zero-length end-of-block symbol    : 44400 +- 400, (10.58 +- 0.09) %
+                Invalid Distance Huffman Coding    : 2310 +- 110, (0.550 +- 0.025) %
+                Non-Optimal Distance Huffman Coding: 34000 +- 400, (8.10 +- 0.09) %
+                +-> Remaining locations to test: 200 +- 30, (0.048 +- 0.008) %
+                    Invalid Literal Huffman Coding    : 102 +- 26, (50 +- 9) %
+                    Non-Optimal Literal Huffman Coding: 101 +- 24, (50 +- 9) %
+                    +-> Remaining locations to test: 0.1 +- 0.6, (0.04 +- 0.30) %
+                        Location candidates: 0.1 +- 0.6
+
+  -> Remaining locations to test: 200
+
+  -> Remaining locations, which need to be checked for valid distance and literal-length code has been quartered!
+     However, the block finder is still not much faster, meaning most of the performance is lost in the earlier checks.
 */

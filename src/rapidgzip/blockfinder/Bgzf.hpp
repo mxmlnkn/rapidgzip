@@ -106,7 +106,8 @@ public:
 public:
     explicit
     Bgzf( UniqueFileReader fileReader ) :
-        m_fileReader( std::move( fileReader ) )
+        m_fileReader( std::move( fileReader ) ),
+        m_currentBlockOffset( m_fileReader->tell() )
     {
         HeaderBytes header;
         const auto nBytesRead = m_fileReader->read( reinterpret_cast<char*>( header.data() ), header.size() );
@@ -129,7 +130,7 @@ public:
             throw std::invalid_argument( "Given file does not end with a BGZF footer!" );
         }
 
-        m_fileReader->seek( 0 );
+        m_fileReader->seek( m_currentBlockOffset );
     }
 
     [[nodiscard]] static bool

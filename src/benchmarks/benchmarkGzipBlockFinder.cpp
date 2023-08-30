@@ -740,6 +740,46 @@ toString( CheckPrecodeMethod method )
 }
 
 
+static constexpr uint8_t CLS_TO_CHECK = 6U;
+
+static const std::array<bool, ( 1U << ( CLS_TO_CHECK * rapidgzip::deflate::PRECODE_BITS ) )> PRECHECK_PRECODE_LUT =
+    [] () {
+        using CodeLengthsHistogram = std::array<uint8_t, 8>;
+
+        const auto checkHistogram = []( const CodeLengthsHistogram& bitLengthFrequencies )
+        {
+            /* Note that bitLengthFrequencies[0] must not be checked because multiple symbols may have code length
+             * 0 simply when they do not appear in the text at all! And this may very well happen because the
+             * order for the code lengths per symbol in the bit stream is fixed. */
+            bool invalidCodeLength{ false };
+            uint32_t unusedSymbolCount{ 2 };
+            constexpr auto MAX_LENGTH = ( 1U << rapidgzip::deflate::PRECODE_BITS );
+            for ( size_t bitLength = 1; bitLength < MAX_LENGTH; ++bitLength ) {
+                const auto frequency = bitLengthFrequencies[bitLength];
+                invalidCodeLength |= frequency > unusedSymbolCount;
+                unusedSymbolCount -= static_cast<uint32_t>( frequency );
+                unusedSymbolCount *= 2;  /* Because we go down one more level for all unused tree nodes! */
+            }
+            return !invalidCodeLength;
+        };
+
+        std::array<bool, ( 1U << ( CLS_TO_CHECK * rapidgzip::deflate::PRECODE_BITS ) )> result{};
+
+        for ( uint32_t bits = 0; bits < result.size(); ++bits ) {
+            CodeLengthsHistogram histogram{};
+            for ( size_t i = 0; i < CLS_TO_CHECK; ++i ) {
+                const auto cl = ( bits >> ( i * 3U ) ) & 0b111U;
+                histogram[cl]++;
+            }
+            if ( checkHistogram( histogram ) ){
+                result[bits] = true;
+            }
+        }
+
+        return result;
+    } ();
+
+
 template<CheckPrecodeMethod CHECK_PRECODE_METHOD>
 constexpr rapidgzip::Error
 checkPrecode( const uint64_t next4Bits,
@@ -869,6 +909,25 @@ checkDeflateBlock( const uint64_t        bitBufferForLUT,
     uint64_t histogram{ 0 };
     auto error = Error::NONE;
     if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_LUT ) {
+        /**
+         * Bogus benchmarks for adding a simple return rapidgzip::Error::INVALID_HUFFMAN_CODE here, which
+         * of course will then find nothing!
+         * @verbatim
+         * [13 bits, Walk Tree LUT] ( 138.2 <= 139.6 +- 0.5 <= 140.1 ) MB/s (candidates: 0)
+         * [14 bits, Walk Tree LUT] ( 143.5 <= 145.0 +- 0.7 <= 145.8 ) MB/s (candidates: 0)
+         * [15 bits, Walk Tree LUT] ( 142.29 <= 142.61 +- 0.26 <= 143.16 ) MB/s (candidates: 0)
+         * [16 bits, Walk Tree LUT] ( 114.5 <= 114.9 +- 0.4 <= 115.4 ) MB/s (candidates: 0)
+         * [17 bits, Walk Tree LUT] ( 104.25 <= 104.51 +- 0.19 <= 104.76 ) MB/s (candidates: 0)
+         * [18 bits, Walk Tree LUT] ( 100.31 <= 100.71 +- 0.23 <= 101.08 ) MB/s (candidates: 0)
+         * @endverbatim
+         * return rapidgzip::Error::INVALID_HUFFMAN_CODE;
+         */
+        /* This makes the block finder ~15% slower (from ~70 MB/s to 60 MB/s) */
+        //constexpr auto MASK = nLowestBitsSet<uint64_t, CLS_TO_CHECK * rapidgzip::deflate::PRECODE_BITS>();
+        //if ( !PRECHECK_PRECODE_LUT[next57Bits & MASK] ) {
+        //    return rapidgzip::Error::INVALID_HUFFMAN_CODE;
+        //}
+
         error = PrecodeCheck::WalkTreeLUT::checkPrecode( next4Bits, next57Bits, &histogram );
     } else {
         error = checkPrecode<CHECK_PRECODE_METHOD>( next4Bits, next57Bits );
@@ -937,6 +996,10 @@ checkDeflateBlock( const uint64_t        bitBufferForLUT,
 
     if ( LIKELY( error != Error::NONE ) ) [[likely]] {
         return error;
+    }
+
+    if ( literalCL[deflate::END_OF_BLOCK_SYMBOL] == 0 ) {
+        return Error::INVALID_CODE_LENGTHS;
     }
 
     /* Check distance code lengths. */
@@ -1302,6 +1365,8 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
               << static_cast<double>( block.failedDistanceInit ) / static_cast<double>( nBitsToTest ) * 100 << " %)\n"
               << "    Invalid Symbol   HC: " << block.failedLiteralInit   << " ("
               << static_cast<double>( block.failedLiteralInit ) / static_cast<double>( nBitsToTest ) * 100 << " %)\n"
+              << "    No end-of-block symbol: " << block.missingEOBSymbol   << " ("
+              << static_cast<double>( block.missingEOBSymbol ) / static_cast<double>( nBitsToTest ) * 100 << " %)\n"
               << "    Failed checkPrecode calls: " << checkPrecodeFails << "\n\n";
 
     std::cerr << "Cumulative time spent during tests with deflate::block::readDynamicHuffmanCoding:\n"
@@ -1324,6 +1389,9 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
               << static_cast<double>( checkPrecodeFails ) / static_cast<double>( passedDeflateHeaderTest ) * 100
               << " %)\n"
               << "        Remaining locations to test: " << ( passedDeflateHeaderTest - checkPrecodeFails ) << "\n"
+              << "        +-> Missing end-of-block symbol: " << block.missingEOBSymbol << " ("
+              << static_cast<double>( block.missingEOBSymbol )
+                 / static_cast<double>( passedDeflateHeaderTest - checkPrecodeFails ) * 100 << " %)\n"
               << "        +-> Invalid Distance Huffman Coding: " << block.failedDistanceInit << " ("
               << static_cast<double>( block.failedDistanceInit )
                  / static_cast<double>( passedDeflateHeaderTest - checkPrecodeFails ) * 100 << " %)\n"

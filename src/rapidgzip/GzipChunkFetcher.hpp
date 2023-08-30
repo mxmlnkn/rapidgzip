@@ -57,20 +57,20 @@ public:
 
 template<typename T_FetchingStrategy,
          typename T_ChunkData = ChunkData,
-         bool     ENABLE_STATISTICS = false,
-         bool     SHOW_PROFILE = false>
+         bool     ENABLE_STATISTICS = false>
 class GzipChunkFetcher :
-    public BlockFetcher<GzipBlockFinder, T_ChunkData, T_FetchingStrategy, ENABLE_STATISTICS, SHOW_PROFILE>
+    public BlockFetcher<GzipBlockFinder, T_ChunkData, T_FetchingStrategy, ENABLE_STATISTICS>
 {
 public:
     using FetchingStrategy = T_FetchingStrategy;
     using ChunkData = T_ChunkData;
-    using BaseType = BlockFetcher<GzipBlockFinder, ChunkData, FetchingStrategy, ENABLE_STATISTICS, SHOW_PROFILE>;
+    using BaseType = BlockFetcher<GzipBlockFinder, ChunkData, FetchingStrategy, ENABLE_STATISTICS>;
     using BitReader = rapidgzip::BitReader;
     using WindowView = VectorView<uint8_t>;
     using BlockFinder = typename BaseType::BlockFinder;
 
     static constexpr bool REPLACE_MARKERS_IN_PARALLEL = true;
+    static constexpr bool ENABLE_REAL_MARKER_COUNT = false;  // Adds 25% overhead for FASTQ files (worst case)
 
 public:
     GzipChunkFetcher( BitReader                    bitReader,
@@ -107,15 +107,26 @@ public:
         m_cancelThreads = true;
         this->stopThreadPool();
 
-        if constexpr ( SHOW_PROFILE ) {
+        if ( BaseType::m_showProfileOnDestruction ) {
             std::stringstream out;
             out << "[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:\n";
-            out << "    Time spent in block finder              : " << m_blockFinderTime << " s\n";
-            out << "    Time spent decoding                     : " << m_decodeTime << " s\n";
-            out << "    Time spent allocating and copying       : " << m_appendTime << " s\n";
-            out << "    Time spent applying the last window     : " << m_applyWindowTime << " s\n";
-            out << "    Replaced marker bytes                   : " << formatBytes( m_markerCount ) << "\n";
-            out << "    Chunks exceeding max. compression ratio : " << m_preemptiveStopCount << "\n";
+            out << "    Number of false positives                : " << m_falsePositiveCount << "\n";
+            out << "    Time spent in block finder               : " << m_blockFinderTime << " s\n";
+            out << "    Time spent decoding with custom inflate  : " << m_decodeTime << " s\n";
+            out << "    Time spent decoding with inflate wrapper : " << m_decodeTimeInflateWrapper << " s\n";
+            out << "    Time spent decoding with ISA-L           : " << m_decodeTimeIsal << " s\n";
+            out << "    Time spent allocating and copying        : " << m_appendTime << " s\n";
+            out << "    Time spent applying the last window      : " << m_applyWindowTime << " s\n";
+            out << "    Replaced marker buffers                  : " << formatBytes( m_markerCount ) << "\n";
+            if constexpr ( ENABLE_REAL_MARKER_COUNT ) {
+                out << "    Actual marker count                      : " << formatBytes( m_realMarkerCount );
+                if ( m_markerCount > 0 ) {
+                    out << " (" << static_cast<double>( m_realMarkerCount ) / static_cast<double>( m_markerCount ) * 100
+                        << " %)";
+                }
+                out << "\n";
+            }
+            out << "    Chunks exceeding max. compression ratio  : " << m_preemptiveStopCount << "\n";
             std::cerr << std::move( out ).str();
         }
     }
@@ -207,10 +218,13 @@ public:
             }
             m_nextUnprocessedBlockIndex += subblocks.size();
 
-            if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+            if constexpr ( ENABLE_STATISTICS ) {
                 std::scoped_lock lock( m_statisticsMutex );
+                m_falsePositiveCount += chunkData->falsePositiveCount;
                 m_blockFinderTime += chunkData->blockFinderDuration;
                 m_decodeTime += chunkData->decodeDuration;
+                m_decodeTimeInflateWrapper += chunkData->decodeDurationInflateWrapper;
+                m_decodeTimeIsal += chunkData->decodeDurationIsal;
                 m_appendTime += chunkData->appendDuration;
             }
 
@@ -378,9 +392,43 @@ private:
                     const WindowView                  previousWindow )
     {
         [[maybe_unused]] const auto markerCount = chunkData->dataWithMarkersSize();
+        /* This is expensive! It adds 20-30% overhead for the FASTQ file! Therefore disable it.
+         * The result for this statistics for:
+         *     SRR22403185_2.fastq.gz:
+         *         Replaced marker buffers : 329 MiB 550 KiB 191 B
+         *         Actual marker count     : 46 MiB 705 KiB 331 B (14.168 %)
+         *     silesia.tar.gz
+         *         Replaced marker buffers : 70 MiB 575 KiB 654 B
+         *         Actual marker count     : 21 MiB 523 KiB 94 B (30.4849 %)
+         *     4GiB-base64.gz
+         *         Replaced marker buffers : 21 MiB 582 KiB 252 B
+         *         Actual marker count     : 158 KiB 538 B (0.717756 %)
+         *     CTU-13-Dataset.tar.gz
+         *         Replaced marker buffers : 22 GiB 273 MiB 34 KiB 574 B
+         *         Actual marker count     : 2 GiB 687 MiB 490 KiB 119 B (11.9972 %)
+         *
+         * -> An alternative format that uses a mix of 8-bit and 16-bit and maybe a separate 1-bit buffer
+         *    to store which byte is which, would reduce memory usage, and therefore also allocation
+         *    overhead by 80%! Or maybe run-time encode it a la: <n 8-bit values> <8-bit value> ... <m 16-bit values>
+         *    This would hopefully speed up window applying because hopefully long runs of 8-bit values could
+         *    simply be memcopied and even runs of 16-bit values could be processed in a loop.
+         *    This kind of compression would also add overhead though and it proabably would be too difficult
+         *    to do inside deflate::Block, so it should probably be applied in post in
+         *    ChunkData::append( DecodedDataViews ). This might be something that could be optimzied with SIMD,
+         *    the same applies to the equally necessary new ChunkData::applyWindow method.
+         *    -> The count could be 7-bit so that the 8-th bit can be used to store the 8/16-bit value flag.
+         *       In the worst case: interleaved 8-bit and 16-bit values, this would add an overhead of 25%:
+         *       <n><8><n><16hi><16lo> <n><8>...
+         *    Ideally a format that has no overhead even in the worst-case would be nice.
+         *    This would be possible by using 4-bit values for <n> but then the maximum runlength would be 3-bit -> 7,
+         *    which seems insufficient as it might lead to lots of slow execution branching in the applyWindow method.
+         */
+        if constexpr ( ENABLE_STATISTICS && ENABLE_REAL_MARKER_COUNT ) {
+            m_realMarkerCount += chunkData->countMarkerSymbols();
+        }
         [[maybe_unused]] const auto tApplyStart = now();
         chunkData->applyWindow( previousWindow );
-        if constexpr ( ENABLE_STATISTICS || SHOW_PROFILE ) {
+        if constexpr ( ENABLE_STATISTICS ) {
             std::scoped_lock lock( m_statisticsMutex );
             if ( markerCount > 0 ) {
                 m_applyWindowTime += duration( tApplyStart );
@@ -427,16 +475,19 @@ private:
          *       waiting or if we don't wait, it might result in the same chunk being decompressed twice, once
          *       as a prefetch starting from a guessed position and once as an on-demand fetch given the exact
          *       position. */
-        if ( chunkData && !chunkData->matchesEncodedOffset( blockOffset ) && ( partitionOffset != blockOffset )
-             && ( m_preemptiveStopCount == 0 ) ) {
-            std::cerr << "[Info] Detected a performance problem. Decoding might take longer than necessary. "
-                      << "Please consider opening a performance bug report with "
-                      << "a reproducing compressed file. Detailed information:\n"
-                      << "[Info] Found mismatching block. Need offset " << formatBits( blockOffset )
-                      << ". Look in partition offset: " << formatBits( partitionOffset )
-                      << ". Found possible range: ["
-                      << formatBits( chunkData->encodedOffsetInBits ) << ", "
-                      << formatBits( chunkData->maxEncodedOffsetInBits ) << "]\n";
+        if constexpr ( ENABLE_STATISTICS ) {
+            if ( chunkData && !chunkData->matchesEncodedOffset( blockOffset ) && ( partitionOffset != blockOffset )
+                 && ( m_preemptiveStopCount == 0 ) )
+            {
+                std::cerr << "[Info] Detected a performance problem. Decoding might take longer than necessary. "
+                          << "Please consider opening a performance bug report with "
+                          << "a reproducing compressed file. Detailed information:\n"
+                          << "[Info] Found mismatching block. Need offset " << formatBits( blockOffset )
+                          << ". Look in partition offset: " << formatBits( partitionOffset )
+                          << ". Found possible range: ["
+                          << formatBits( chunkData->encodedOffsetInBits ) << ", "
+                          << formatBits( chunkData->maxEncodedOffsetInBits ) << "]\n";
+            }
         }
 
         /* If we got no block or one with the wrong data, then try again with the real offset, not the
@@ -456,11 +507,18 @@ private:
         }
 
         if ( !chunkData->matchesEncodedOffset( blockOffset ) ) {
+            /* This error should be equivalent to trying to start to decode from the requested blockOffset
+             * and failing to do so. It should only happen when a previous decodeBlock call did not stop
+             * on a deflate block boundary. */
             std::stringstream message;
-            message << "Got wrong block to searched offset! Looked for " << std::to_string( blockOffset )
+            message << "Got wrong block to searched offset! Looked for " << blockOffset
                     << " and looked up cache successively for estimated offset "
-                    << std::to_string( partitionOffset ) << " but got block with actual offset "
-                    << std::to_string( blockOffset );
+                    << partitionOffset << " but got block with actual offset ";
+            if ( chunkData->encodedOffsetInBits == chunkData->maxEncodedOffsetInBits ) {
+                message << chunkData->encodedOffsetInBits;
+            } else {
+                message << "[" << chunkData->encodedOffsetInBits << ", " << chunkData->maxEncodedOffsetInBits << "]";
+            }
             throw std::logic_error( std::move( message ).str() );
         }
 
@@ -476,7 +534,11 @@ private:
         /* The decoded size of the block is only for optimization purposes. Therefore, we do not have to take care
          * of the correct ordering between BlockMap accesses and modifications (the BlockMap is still thread-safe). */
         const auto blockInfo = m_blockMap->getEncodedOffset( blockOffset );
-        return decodeBlock( m_bitReader, blockOffset, nextBlockOffset,
+        return decodeBlock( m_bitReader, blockOffset,
+                            /* untilOffset */
+                            ( blockInfo
+                              ? blockInfo->encodedOffsetInBits + blockInfo->encodedSizeInBits
+                              : nextBlockOffset ),
                             /**
                              * If we are a BGZF file and we have not imported an index, then we can assume the
                              * window to be empty because we should only get offsets at gzip stream starts.
@@ -490,12 +552,14 @@ private:
                              *       remove the check against imported indexes because we cannot be sure that the
                              *       indexes were created by us and follow that scheme.
                              */
-                            m_isBgzfFile && !m_blockFinder->finalized()
-                            ? std::make_optional( WindowView{} )
-                            : m_windowMap->get( blockOffset ),
-                            blockInfo ? blockInfo->decodedSizeInBytes : std::optional<size_t>{},
-                            m_cancelThreads, m_crc32Enabled, m_maxDecompressedChunkSize,
-                            /* untilOffsetIsExact */ m_isBgzfFile );
+                            ( m_isBgzfFile && !m_blockFinder->finalized()
+                              ? std::make_optional( WindowView{} )
+                              : m_windowMap->get( blockOffset ) ),
+                            /* decodedSize */ blockInfo ? blockInfo->decodedSizeInBytes : std::optional<size_t>{},
+                            m_cancelThreads,
+                            m_crc32Enabled,
+                            m_maxDecompressedChunkSize,
+                            /* untilOffsetIsExact */ m_isBgzfFile || blockInfo );
     }
 
 public:
@@ -523,24 +587,24 @@ public:
             using InflateWrapper = ZlibInflateWrapper;
         #endif
 
-        if ( initialWindow && ( ( decodedSize && ( *decodedSize > 0 ) ) || untilOffsetIsExact ) ) {
+        if ( initialWindow && untilOffsetIsExact ) {
             auto result = decodeBlockWithInflateWrapper<InflateWrapper>(
                 originalBitReader,
                 blockOffset,
                 std::min( untilOffset, originalBitReader.size() ),
                 *initialWindow,
                 decodedSize,
-                crc32Enabled,
-                untilOffsetIsExact );
+                crc32Enabled );
 
             if ( decodedSize && ( result.decodedSizeInBytes != *decodedSize ) ) {
                 std::stringstream message;
                 message << "Decoded chunk size does not match the requested decoded size!\n"
-                        << "  Block offset          : " << blockOffset << "\n"
-                        << "  Until offset          : " << untilOffset << "\n"
-                        << "  Encoded size          : " << ( untilOffset - blockOffset ) << "\n"
-                        << "  Decoded size          : " << result.decodedSizeInBytes << "\n"
-                        << "  Expected decoded size : " << *decodedSize << "\n"
+                        << "  Block offset          : " << blockOffset << " b\n"
+                        << "  Until offset          : " << untilOffset << " b\n"
+                        << "  Encoded size          : " << ( untilOffset - blockOffset ) << " b\n"
+                        << "  Actual encoded size   : " << result.encodedSizeInBits << " b\n"
+                        << "  Decoded size          : " << result.decodedSizeInBytes << " B\n"
+                        << "  Expected decoded size : " << *decodedSize << " B\n"
                         << "  Until offset is exact : " << untilOffsetIsExact << "\n"
                         << "  Initial Window        : " << ( initialWindow
                                                              ? std::to_string( initialWindow->size() )
@@ -565,8 +629,8 @@ public:
                     /* For decoding, it does not matter whether we seek to offset.first or offset.second but it DOES
                      * matter a lot for interpreting and correcting the encodedSizeInBits in GzipBlockFetcer::get! */
                     bitReader.seek( offset.second );
-                    auto result = decodeBlockWithRapidgzip( &bitReader, untilOffset, initialWindow, crc32Enabled,
-                                                            maxDecompressedChunkSize );
+                    auto result = decodeBlockWithRapidgzip( &bitReader, untilOffset, /* initialWindow */ std::nullopt,
+                                                            crc32Enabled, maxDecompressedChunkSize );
                     result.encodedOffsetInBits = offset.first;
                     result.maxEncodedOffsetInBits = offset.second;
                     /** @todo Avoid out of memory issues for very large compression ratios by using a simple runtime
@@ -650,6 +714,7 @@ public:
          */
         const auto tBlockFinderStart = now();
         static constexpr auto CHUNK_SIZE = 8_Ki * BYTE_SIZE;
+        size_t falsePositiveCount{ 0 };
         for ( auto chunkBegin = blockOffset; chunkBegin < untilOffset; chunkBegin += CHUNK_SIZE ) {
             /* Only look in the first 512 KiB of data. If nothing can be found there, then something is likely
              * to be wrong with the file and looking in the rest will also likely fail. And looking in the whole
@@ -684,8 +749,11 @@ public:
                 if ( auto result = tryToDecode( offsetToTest ); result ) {
                     result->blockFinderDuration = duration( tBlockFinderStart, tBlockFinderStop );
                     result->decodeDuration = duration( tBlockFinderStop );
+                    result->falsePositiveCount = falsePositiveCount;
                     return *std::move( result );
                 }
+
+                falsePositiveCount++;
             }
         }
 
@@ -695,23 +763,27 @@ public:
         throw NoBlockInRange( std::move( message ).str() );
     }
 
-private:
+
+    /**
+     * @param decodedSize If given, it is used to avoid overallocations. It is NOT used as a stop condition.
+     * @param exactlUntilOffset Decompress until this known bit offset in the encoded stream. It must lie on
+     *                          a deflate block boundary.
+     */
     template<typename InflateWrapper>
     [[nodiscard]] static ChunkData
     decodeBlockWithInflateWrapper( const BitReader&            originalBitReader,
                                    size_t                const blockOffset,
-                                   size_t                const untilOffset,
+                                   size_t                const exactUntilOffset,
                                    WindowView            const initialWindow,
-                                   /** @todo get rid of this and use untilOffsetIsExact instead */
                                    std::optional<size_t> const decodedSize,
-                                   bool                  const crc32Enabled,
-                                   bool                  const untilOffsetIsExact )
+                                   bool                  const crc32Enabled )
     {
+        const auto tStart = now();
+
         BitReader bitReader( originalBitReader );
         bitReader.seek( blockOffset );
-        InflateWrapper deflateWrapper( std::move( bitReader ),
-                                       untilOffsetIsExact ? untilOffset : std::numeric_limits<size_t>::max() );
-        deflateWrapper.setWindow( initialWindow );
+        InflateWrapper inflateWrapper( std::move( bitReader ), exactUntilOffset );
+        inflateWrapper.setWindow( initialWindow );
 
         ChunkData result;
         result.setCRC32Enabled( crc32Enabled );
@@ -764,24 +836,22 @@ private:
          */
         constexpr size_t ALLOCATION_CHUNK_SIZE = 128_Ki;
         size_t alreadyDecoded{ 0 };
-        while( !decodedSize.has_value() || ( alreadyDecoded < *decodedSize ) ) {
+        while( true ) {
             deflate::DecodedVector subchunk( decodedSize
                                              ? std::min( ALLOCATION_CHUNK_SIZE, *decodedSize - alreadyDecoded )
                                              : ALLOCATION_CHUNK_SIZE );
-            std::optional<gzip::Footer> footer;
+            std::optional<typename InflateWrapper::Footer> footer;
 
             /* In order for CRC32 verification to work, we have to append at most one gzip stream per subchunk
-             * because the CRC32 calculator is swapped inside ChunkData::append. */
+             * because the CRC32 calculator is swapped inside ChunkData::append. That's why the stop condition
+             * tests for footer.has_value(). */
             size_t nBytesRead = 0;
             size_t nBytesReadPerCall{ 0 };
             for ( ; ( nBytesRead < subchunk.size() ) && !footer; nBytesRead += nBytesReadPerCall ) {
-                std::tie( nBytesReadPerCall, footer ) = deflateWrapper.readStream( subchunk.data() + nBytesRead,
+                std::tie( nBytesReadPerCall, footer ) = inflateWrapper.readStream( subchunk.data() + nBytesRead,
                                                                                    subchunk.size() - nBytesRead );
                 if ( ( nBytesReadPerCall == 0 ) && !footer ) {
-                    if ( untilOffsetIsExact ) {
-                        break;
-                    }
-                    throw std::runtime_error( "Could not decode as much as requested!" );
+                    break;
                 }
             }
 
@@ -791,38 +861,199 @@ private:
             subchunk.shrink_to_fit();
             result.append( std::move( subchunk ) );
             if ( footer ) {
-                result.appendFooter( deflateWrapper.tellEncoded(), alreadyDecoded, *footer );
+                result.appendFooter( footer->footerEndEncodedOffset, alreadyDecoded, footer->gzipFooter );
             }
 
-            if ( ( nBytesReadPerCall == 0 ) && !footer && untilOffsetIsExact ) {
+            if ( ( nBytesReadPerCall == 0 ) && !footer ) {
                 break;
             }
         }
 
         uint8_t dummy{ 0 };
-        const auto [nBytesReadPerCall, footer] = deflateWrapper.readStream( &dummy, 1 );
+        const auto [nBytesReadPerCall, footer] = inflateWrapper.readStream( &dummy, 1 );
         if ( ( nBytesReadPerCall == 0 ) && footer ) {
-            result.appendFooter( deflateWrapper.tellEncoded(), alreadyDecoded, *footer );
+            result.appendFooter( footer->footerEndEncodedOffset, alreadyDecoded, footer->gzipFooter );
         }
 
-        /* We cannot arbitarily use bitReader.tell here, because the zlib wrapper buffers input read from BitReader.
-         * If untilOffset is nullopt, then we are to read to the end of the file. */
-        result.finalize( untilOffset );
+        if ( exactUntilOffset != inflateWrapper.tellCompressed() ) {
+            std::stringstream message;
+            message << "The inflate wrapper offset (" << inflateWrapper.tellCompressed() << ") "
+                    << "does not match the requested exact stop offset: " << exactUntilOffset << ". "
+                    << "The archive or the index may be corrupted or the stop condition might contain a bug. "
+                    << "Decoded: " << alreadyDecoded << " B";
+            if ( decodedSize ) {
+                 message << " out of requested " << *decodedSize << " B";
+            }
+            message << ".";
+            throw std::runtime_error( std::move( message ).str() );
+        }
+
+        result.finalize( exactUntilOffset );
+        result.decodeDurationInflateWrapper = duration( tStart );
         return result;
     }
 
+
+#ifdef WITH_ISAL
+    /**
+     * This is called from @ref decodeBlockWithRapidgzip in case the window has been fully resolved so that
+     * normal decompression instead of two-staged one becomes possible.
+     *
+     * @param untilOffset In contrast to @ref decodeBlockWithInflateWrapper, this may be an inexact guess
+     *                    from which another thread starts decoding!
+     * @note This code is copy-pasted from decodeBlockWithInflateWrapper and adjusted to use the stopping
+     *       points and deflate block properties as stop criterion.
+     */
     [[nodiscard]] static ChunkData
-    decodeBlockWithRapidgzip( BitReader*                      bitReader,
-                              size_t                          untilOffset,
+    finishDecodeBlockWithIsal( BitReader* const bitReader,
+                               size_t     const untilOffset,
+                               WindowView const initialWindow,
+                               size_t     const maxDecompressedChunkSize,
+                               ChunkData&&      result )
+    {
+        if ( bitReader == nullptr ) {
+            throw std::invalid_argument( "BitReader may not be nullptr!" );
+        }
+
+        const auto tStart = now();
+        auto nextBlockOffset = bitReader->tell();
+        bool stoppingPointReached{ false };
+        auto alreadyDecoded = result.size();
+
+        if ( ( alreadyDecoded > 0 ) && !bitReader->eof() ) {
+            result.appendDeflateBlockBoundary( nextBlockOffset, alreadyDecoded );
+        }
+
+        IsalInflateWrapper inflateWrapper{ BitReader( *bitReader ) };
+        inflateWrapper.setWindow( initialWindow );
+        inflateWrapper.setStoppingPoints( static_cast<StoppingPoint>( StoppingPoint::END_OF_BLOCK |
+                                                                      StoppingPoint::END_OF_BLOCK_HEADER |
+                                                                      StoppingPoint::END_OF_STREAM_HEADER ) );
+
+        constexpr size_t ALLOCATION_CHUNK_SIZE = 128_Ki;
+        while( !stoppingPointReached ) {
+            deflate::DecodedVector subchunk( ALLOCATION_CHUNK_SIZE );
+            std::optional<IsalInflateWrapper::Footer> footer;
+
+            /* In order for CRC32 verification to work, we have to append at most one gzip stream per subchunk
+             * because the CRC32 calculator is swapped inside ChunkData::append. */
+            size_t nBytesRead = 0;
+            size_t nBytesReadPerCall{ 0 };
+            while ( ( nBytesRead < subchunk.size() ) && !footer && !stoppingPointReached ) {
+                std::tie( nBytesReadPerCall, footer ) = inflateWrapper.readStream( subchunk.data() + nBytesRead,
+                                                                                   subchunk.size() - nBytesRead );
+                nBytesRead += nBytesReadPerCall;
+
+                /* We cannot stop decoding after a final block because the following decoder does not
+                 * expect to start a gzip footer. Put another way, we are interested in START_OF_BLOCK
+                 * not END_OF_BLOCK and therefore we have to infer one from the other. */
+                bool isBlockStart{ false };
+
+                switch ( inflateWrapper.stoppedAt() )
+                {
+                case StoppingPoint::END_OF_STREAM_HEADER:
+                    isBlockStart = true;
+                    break;
+
+                case StoppingPoint::END_OF_BLOCK:
+                    isBlockStart = !inflateWrapper.isFinalBlock();
+                    break;
+
+                case StoppingPoint::END_OF_BLOCK_HEADER:
+                    if ( ( ( nextBlockOffset >= untilOffset )
+                           && !inflateWrapper.isFinalBlock()
+                           && ( inflateWrapper.compressionType() != deflate::CompressionType::FIXED_HUFFMAN ) )
+                         || ( nextBlockOffset == untilOffset ) ) {
+                        stoppingPointReached = true;
+                    }
+                    break;
+
+                case StoppingPoint::NONE:
+                    if ( ( nBytesReadPerCall == 0 ) && !footer ) {
+                        stoppingPointReached = true;
+                    }
+                    break;
+
+                default:
+                    throw std::logic_error( "Got stopping point of a type that was not requested!" );
+                }
+
+                if ( isBlockStart ) {
+                    nextBlockOffset = inflateWrapper.tellCompressed();
+
+                    /* Do not push back the first boundary because it is redundant as it should contain the same encoded
+                     * offset as @ref result and it also would have the same problem that the real offset is ambiguous
+                     * for non-compressed blocks. */
+                    if ( alreadyDecoded + nBytesRead > 0 ) {
+                        result.appendDeflateBlockBoundary( nextBlockOffset, alreadyDecoded + nBytesRead );
+                    }
+
+                    if ( alreadyDecoded >= maxDecompressedChunkSize ) {
+                        stoppingPointReached = true;
+                        result.stoppedPreemptively = true;
+                        break;
+                    }
+                }
+            }
+
+            alreadyDecoded += nBytesRead;
+
+            subchunk.resize( nBytesRead );
+            subchunk.shrink_to_fit();
+            result.append( std::move( subchunk ) );
+            if ( footer ) {
+                nextBlockOffset = inflateWrapper.tellCompressed();
+                result.appendFooter( footer->footerEndEncodedOffset, alreadyDecoded, footer->gzipFooter );
+            }
+
+            if ( ( inflateWrapper.stoppedAt() == StoppingPoint::NONE )
+                 && ( nBytesReadPerCall == 0 ) && !footer ) {
+                break;
+            }
+        }
+
+        uint8_t dummy{ 0 };
+        const auto [nBytesReadPerCall, footer] = inflateWrapper.readStream( &dummy, 1 );
+        if ( ( inflateWrapper.stoppedAt() == StoppingPoint::NONE ) && ( nBytesReadPerCall == 0 ) && footer ) {
+            nextBlockOffset = inflateWrapper.tellCompressed();
+            result.appendFooter( footer->footerEndEncodedOffset, alreadyDecoded, footer->gzipFooter );
+        }
+
+        result.finalize( nextBlockOffset );
+        result.decodeDurationIsal = duration( tStart );
+        /**
+         * Without the std::move, performance is halved! It seems like copy elision on return does not work
+         * with function arguments! @see https://en.cppreference.com/w/cpp/language/copy_elision
+         * > In a return statement, when the operand is the name of a non-volatile object with automatic
+         * > storage duration, **which isn't a function parameter** [...]
+         * And that is only the non-mandatory copy elision, which isn't even guaranteed in C++17!
+         */
+        return std::move( result );
+    }
+#endif  // ifdef WITH_ISAL
+
+
+    [[nodiscard]] static ChunkData
+    decodeBlockWithRapidgzip( BitReader*                const bitReader,
+                              size_t                    const untilOffset,
                               std::optional<WindowView> const initialWindow,
-                              bool                            crc32Enabled,
-                              size_t                          maxDecompressedChunkSize )
+                              bool                      const crc32Enabled,
+                              size_t                    const maxDecompressedChunkSize )
     {
         if ( bitReader == nullptr ) {
             throw std::invalid_argument( "BitReader must be non-null!" );
         }
 
-        const auto chunkOffset = bitReader->tell();
+        ChunkData result;
+        result.setCRC32Enabled( crc32Enabled );
+        result.encodedOffsetInBits = bitReader->tell();
+
+    #ifdef WITH_ISAL
+        if ( initialWindow ) {
+            return finishDecodeBlockWithIsal( bitReader, untilOffset, *initialWindow, maxDecompressedChunkSize,
+                                              std::move( result ) );
+        }
+    #endif
 
         /* If true, then read the gzip header. We cannot simply check the gzipHeader optional because we might
          * start reading in the middle of a gzip stream and will not meet the gzip header for a while or never. */
@@ -837,14 +1068,11 @@ private:
             block->setInitialWindow( *initialWindow );
         }
 
-        ChunkData result;
-        result.setCRC32Enabled( crc32Enabled );
-        result.encodedOffsetInBits = bitReader->tell();
-
         /* Loop over possibly gzip streams and deflate blocks. We cannot use GzipReader even though it does
          * something very similar because GzipReader only works with fully decodable streams but we
          * might want to return buffer with placeholders in case we don't know the initial window, yet! */
         size_t nextBlockOffset{ 0 };
+        size_t cleanDataCount{ 0 };
         while ( true )
         {
             if ( isAtStreamEnd ) {
@@ -857,14 +1085,14 @@ private:
                     throw std::domain_error( std::move( message ).str() );
                 }
 
+            #ifdef WITH_ISAL
+                return finishDecodeBlockWithIsal( bitReader, untilOffset, /* initialWindow */ {},
+                                                  maxDecompressedChunkSize, std::move( result ) );
+            #endif
+
                 gzipHeader = std::move( header );
                 block.emplace();
                 block->setInitialWindow();
-
-                nextBlockOffset = bitReader->tell();
-                if ( nextBlockOffset >= untilOffset ) {
-                    break;
-                }
 
                 isAtStreamEnd = false;
             }
@@ -876,9 +1104,18 @@ private:
                 break;
             }
 
+        #ifdef WITH_ISAL
+            if ( cleanDataCount >= deflate::MAX_WINDOW_SIZE ) {
+                const deflate::DecodedVector window = result.getLastWindow( {} );
+                return finishDecodeBlockWithIsal( bitReader, untilOffset,
+                                                  VectorView<uint8_t>( window.data(), window.size() ),
+                                                  maxDecompressedChunkSize, std::move( result ) );
+            }
+        #endif
+
             if ( auto error = block->readHeader( *bitReader ); error != Error::NONE ) {
                 std::stringstream message;
-                message << "Failed to read deflate block header at offset " << formatBits( chunkOffset )
+                message << "Failed to read deflate block header at offset " << formatBits( result.encodedOffsetInBits )
                         << " (position after trying: " << formatBits( bitReader->tell() ) << ": "
                         << toString( error );
                 throw std::domain_error( std::move( message ).str() );
@@ -912,10 +1149,12 @@ private:
                 const auto [bufferViews, error] = block->read( *bitReader, std::numeric_limits<size_t>::max() );
                 if ( error != Error::NONE ) {
                     std::stringstream message;
-                    message << "Failed to decode deflate block at " << formatBits( chunkOffset )
+                    message << "Failed to decode deflate block at " << formatBits( result.encodedOffsetInBits )
                             << " because of: " << toString( error );
                     throw std::domain_error( std::move( message ).str() );
                 }
+
+                cleanDataCount += bufferViews.dataSize();
 
                 const auto tAppendStart = now();
                 result.append( bufferViews );
@@ -941,8 +1180,8 @@ private:
             totalBytesRead += blockBytesRead;
 
             if ( block->isLastBlock() ) {
-                const auto footerOffset = bitReader->tell();
                 const auto footer = gzip::readFooter( *bitReader );
+                const auto footerOffset = bitReader->tell();
 
                 /* We only check for the stream size and CRC32 if we have read the whole stream including the header! */
                 if ( gzipHeader ) {
@@ -973,11 +1212,15 @@ private:
 
 private:
     /* Members for benchmark statistics */
+    size_t m_falsePositiveCount{ 0 };
     double m_applyWindowTime{ 0 };
     double m_blockFinderTime{ 0 };
     double m_decodeTime{ 0 };
+    double m_decodeTimeInflateWrapper{ 0 };
+    double m_decodeTimeIsal{ 0 };
     double m_appendTime{ 0 };
     uint64_t m_markerCount{ 0 };
+    uint64_t m_realMarkerCount{ 0 };
     uint64_t m_preemptiveStopCount{ 0 };
     mutable std::mutex m_statisticsMutex;
 

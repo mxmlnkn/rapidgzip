@@ -106,7 +106,28 @@ jobs:
     - name: Run Tests With Sanitizers
       run: |
         mkdir -p "build" && cd -- "$_"
-        CXX=g++ CC=gcc cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug ..
+        CXX=g++ CC=gcc cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWITH_ISAL=1 ..
+        cmake --build . -- check
+
+  Check-Without-Isal:
+    name: Check without Sanitizer and without ISA-l
+    # And especially without -DSHORT_TESTS, which makes it non redundant to the sanitizer checks!
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get -y install g++ ninja-build gzip tabix pigz libarchive-dev zlib1g-dev isal nasm
+        python3 -m pip install --upgrade pip
+        python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
+
+    - name: Run Tests With Sanitizers
+      run: |
+        mkdir -p "build" && cd -- "$_"
+        CXX=g++ CC=gcc cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWITH_ISAL=0 ..
         cmake --build . -- check
 
   Asan:
