@@ -941,6 +941,27 @@ gzip small.tar
 python3 -c 'import indexed_gzip as igz; import time; t0 = time.time(); igz.open("small.gz").read(); print(f"Decompression took {time.time() - t0:.3f} s")'
     Decompression took 4.594 s
 
+python3 -c '
+import indexed_gzip as igz;
+import time; t0 = time.time();
+with igz.open("10x.silesia.tar.gz") as file:
+    while result := file.read( 16*1024*1024 ):
+        pass
+print(f"Decompression took {time.time() - t0:.3f} s")
+'
+
+    Chunk size | decompression time
+    -----------+-------------------
+         4 MiB | 14.3 s
+        16 MiB | 11.3 s
+        64 MiB | 11.3 s
+       256 MiB | 10.9 s
+      1024 MiB | 11.5 s
+           inf | 13.1 s
+
+ -> Note small.gz as used in the other benchmarks is only 398 MiB compressed, so that the "inf" case,
+    which is used for the other benchmarks, should be almost optimal.
+
 python3 -c 'import gzip; import time; t0 = time.time(); gzip.open("small.gz").read(); print(f"Decompression took {time.time() - t0:.3f} s")'
     Decompression took 3.069 s
 
