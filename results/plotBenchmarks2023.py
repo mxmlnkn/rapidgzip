@@ -347,7 +347,7 @@ def plotParallelDecompression(legacyPrefix, parallelPrefix, outputType='dev-null
         labels.append(tool)
 
         # Add ideal scaling for comparison
-        if fileName == f"{parallelPrefix}-pragzip-{outputType}.dat":
+        if fileName in [rapidgzipName1, rapidgzipName2]:
             threadCount = 1
             subdata = data[data[:, 0] == threadCount]
             bandwidths = subdata[:, 1] / subdata[:, 2] / 1e6
