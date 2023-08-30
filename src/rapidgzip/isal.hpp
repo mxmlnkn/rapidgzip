@@ -154,7 +154,6 @@ private:
      * decoding it in one go is 4x slower than processing it in chunks of 128 KiB! */
     std::array<char, 128_Ki> m_buffer;
 
-    StoppingPoint m_stoppingPoints{ StoppingPoint::ALL };
     std::optional<StoppingPoint> m_currentPoint;
     bool m_needToReadGzipHeader{ false };
 };
