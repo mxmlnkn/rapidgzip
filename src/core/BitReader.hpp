@@ -176,26 +176,26 @@ public:
         /* Reading the whole buffer is not allowed because it would require another expensive rarely used branch! */
         assert( bitsWanted < MAX_BIT_BUFFER_SIZE );
 
-        if ( LIKELY( bitsWanted <= m_bitBufferSize ) ) [[likely]] {
+        if ( LIKELY( bitsWanted <= bitBufferSize() ) ) [[likely]] {
             const auto result = peekUnsafe( bitsWanted );
-            m_bitBufferSize -= bitsWanted;
+            seekAfterPeek( bitsWanted );
             return result;
         }
 
-        const auto bitsInResult = m_bitBufferSize;
+        const auto bitsInResult = bitBufferSize();
         const auto bitsNeeded = bitsWanted - bitsInResult;
         BitBuffer bits{ 0 };
 
         /* Read out the remaining bits from m_bitBuffer to the lowest bits in @ref bits.
          * This is copy-pasted from @ref peekUnsafe because for MSB, we don't have to do the expensive
-         * m_bitBufferSize == 0 branching! */
+         * bitBufferSize() == 0 branching! */
         if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
-            bits = m_bitBuffer & nLowestBitsSet<BitBuffer>( m_bitBufferSize );
+            bits = m_bitBuffer & nLowestBitsSet<BitBuffer>( bitBufferSize() );
         } else {
-            bits = m_bitBufferSize == 0
+            bits = bitBufferSize() == 0
                    ? BitBuffer( 0 )
                    : ( m_bitBuffer >> ( MAX_BIT_BUFFER_SIZE - m_bitBufferSize ) )
-                     & nLowestBitsSet<BitBuffer>( m_bitBufferSize );
+                     & nLowestBitsSet<BitBuffer>( bitBufferSize() );
         }
 
         if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST && ( ENDIAN == Endian::LITTLE ) ) {
@@ -210,7 +210,7 @@ public:
                 m_inputBufferPosition += BYTES_WANTED;
 
                 bits |= peekUnsafe( bitsNeeded ) << bitsInResult;
-                m_bitBufferSize -= bitsNeeded;
+                seekAfterPeek( bitsNeeded );
                 return bits;
             }
         }
@@ -226,7 +226,7 @@ public:
                 /* When fillBitBuffer does not throw, then it has been filled almost completely and it is ensured
                  * that we have enough bits as long as fewer than the bit buffer size were requested.
                  * Removing this if from the non-throwing frequent path, improves performance measurably! */
-                if ( UNLIKELY( bitsNeeded > m_bitBufferSize ) ) [[unlikely]] {
+                if ( UNLIKELY( bitsNeeded > bitBufferSize() ) ) [[unlikely]] {
                     throw EndOfFileReached();
                 }
             }
@@ -238,7 +238,7 @@ public:
         } else {
             bits |= peekUnsafe( bitsNeeded ) << bitsInResult;
         }
-        m_bitBufferSize -= bitsNeeded;
+        seekAfterPeek( bitsNeeded );
 
         return bits;
     }
@@ -288,10 +288,10 @@ public:
         } else {
             size_t nBytesRead{ 0 };
             /* Should be true because of oldTell % BYTE_SIZE == 0! */
-            assert( m_bitBufferSize % CHAR_BIT == 0 );
+            assert( bitBufferSize() % CHAR_BIT == 0 );
 
             /* 1. Empty bit buffer */
-            for ( ; ( nBytesRead < nBytesToRead ) && ( m_bitBufferSize >= CHAR_BIT ); ++nBytesRead ) {
+            for ( ; ( nBytesRead < nBytesToRead ) && ( bitBufferSize() >= CHAR_BIT ); ++nBytesRead ) {
                 outputBuffer[nBytesRead] = static_cast<char>( peekUnsafe( CHAR_BIT ) );
                 seekAfterPeek( CHAR_BIT );
             }
@@ -345,11 +345,11 @@ public:
                 && "The last 7 bits of the buffer may not be readable because we can only refill 8-bits at a time." );
         assert( bitsWanted > 0 );
 
-        if ( UNLIKELY( bitsWanted > m_bitBufferSize ) ) [[unlikely]] {
+        if ( UNLIKELY( bitsWanted > bitBufferSize() ) ) [[unlikely]] {
             if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST && ( ENDIAN == Endian::LITTLE ) ) {
                 if ( LIKELY( m_inputBufferPosition + sizeof( BitBuffer ) < m_inputBuffer.size() ) ) [[likely]] {
                     /* There is no way around this special case because of the damn undefined behavior when shifting! */
-                    if ( m_bitBufferSize == 0 ) {
+                    if ( bitBufferSize() == 0 ) {
                         m_originalBitBufferSize = sizeof( BitBuffer ) * CHAR_BIT;
                         m_bitBufferSize = sizeof( BitBuffer ) * CHAR_BIT;
                         m_bitBuffer = loadUnaligned<BitBuffer>( &m_inputBuffer[m_inputBufferPosition] );
@@ -358,7 +358,7 @@ public:
                         return peekUnsafe( bitsWanted );
                     }
 
-                    const auto shrinkedBitBufferSize = ceilDiv( m_bitBufferSize, CHAR_BIT ) * CHAR_BIT;
+                    const auto shrinkedBitBufferSize = ceilDiv( bitBufferSize(), CHAR_BIT ) * CHAR_BIT;
                     const auto bitsToLoad  = static_cast<uint8_t>( MAX_BIT_BUFFER_SIZE - shrinkedBitBufferSize );
                     const auto bytesToLoad = static_cast<uint8_t>( bitsToLoad / CHAR_BIT );
 
@@ -384,7 +384,7 @@ public:
                     /* This point should only happen rarely, e.g., when the byte buffer needs to be refilled. */
                     refillBitBuffer();
                 } else {
-                    if ( m_bitBufferSize == 0 ) {
+                    if ( bitBufferSize() == 0 ) {
                         m_bitBuffer = 0;
                         m_originalBitBufferSize = 0;
                     } else {
@@ -405,7 +405,7 @@ public:
                     /* When fillBitBuffer does not throw, then it has been filled almost completely and it is ensured
                      * that we have enough bits as long as fewer than the bit buffer size were requested.
                      * Removing this if from the non-throwing frequent path, improves performance measurably! */
-                    if ( UNLIKELY( bitsWanted > m_bitBufferSize ) ) [[unlikely]] {
+                    if ( UNLIKELY( bitsWanted > bitBufferSize() ) ) [[unlikely]] {
                         throw EndOfFileReached();
                     }
                 }
@@ -480,10 +480,10 @@ private:
     tellBuffer() const
     {
         size_t position = m_inputBufferPosition * CHAR_BIT;
-        if ( UNLIKELY( position < m_bitBufferSize ) ) [[unlikely]] {
+        if ( UNLIKELY( position < bitBufferSize() ) ) [[unlikely]] {
             std::logic_error( "The bit buffer should not contain data if the byte buffer doesn't!" );
         }
-        return position - m_bitBufferSize;
+        return position - bitBufferSize();
     }
 
     void
@@ -508,22 +508,22 @@ private:
     }
 
     /**
-     * Decreases m_originalBitBufferSize by CHAR_BIT until it is as close to m_bitBufferSize as possible
+     * Decreases m_originalBitBufferSize by CHAR_BIT until it is as close to bitBufferSize() as possible
      * and clears all bits outside of m_originalBitBufferSize.
      */
     void
     shrinkBitBuffer()
     {
-        if ( m_originalBitBufferSize == m_bitBufferSize ) {
+        if ( m_originalBitBufferSize == bitBufferSize() ) {
             return;
         }
 
         assert( ( m_originalBitBufferSize % CHAR_BIT == 0 ) &&
                 "Not necessary but should be true because we only load byte-wise and only shrink byte-wise!" );
-        assert( m_originalBitBufferSize >= m_bitBufferSize );
-        assert( m_originalBitBufferSize >= ceilDiv( m_bitBufferSize, CHAR_BIT ) * CHAR_BIT );
+        assert( m_originalBitBufferSize >= bitBufferSize() );
+        assert( m_originalBitBufferSize >= ceilDiv( bitBufferSize(), CHAR_BIT ) * CHAR_BIT );
 
-        m_originalBitBufferSize = ceilDiv( m_bitBufferSize, CHAR_BIT ) * CHAR_BIT;
+        m_originalBitBufferSize = ceilDiv( bitBufferSize(), CHAR_BIT ) * CHAR_BIT;
 
         if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
             m_bitBuffer &= nLowestBitsSet<BitBuffer>( m_originalBitBufferSize );
@@ -548,11 +548,11 @@ private:
     refillBitBuffer()
     {
         /* Skip refill if it already is full (except for up to 7 empty bits) */
-        if ( m_bitBufferSize + CHAR_BIT > MAX_BIT_BUFFER_SIZE ) {
+        if ( bitBufferSize() + CHAR_BIT > MAX_BIT_BUFFER_SIZE ) {
             return;
         }
 
-        if ( m_bitBufferSize == 0 ) {
+        if ( bitBufferSize() == 0 ) {
             m_bitBuffer = 0;
             m_originalBitBufferSize = 0;
         } else {
@@ -561,8 +561,8 @@ private:
             if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
                 assert( m_originalBitBufferSize > 0 );
                 /* Always checking for m_originalBitBufferSize for this damn bit shift would be too cost-prohibitive.
-                 * It should never happen because in this branch we know that m_bitBufferSize > 0 and at any point
-                 * in time m_originalBitBufferSize >= m_bitBufferSize should be true!
+                 * It should never happen because in this branch we know that bitBufferSize() > 0 and at any point
+                 * in time m_originalBitBufferSize >= bitBufferSize() should be true!
                  * Run unit tests in debug mode to ensure that the assert won't be triggered. */
                 // NOLINTNEXTLINE(clang-analyzer-core.uninitialized.Assign)
                 m_bitBuffer >>= MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize;
@@ -630,15 +630,15 @@ private:
     [[nodiscard]] forceinline BitBuffer
     peekUnsafe( uint8_t bitsWanted ) const
     {
-        assert( bitsWanted <= m_bitBufferSize );
+        assert( bitsWanted <= bitBufferSize() );
         assert( bitsWanted > 0 );
 
         if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
-            return ( m_bitBuffer >> ( m_bitBufferSize - bitsWanted ) )
+            return ( m_bitBuffer >> ( bitBufferSize() - bitsWanted ) )
                    & nLowestBitsSet<BitBuffer>( bitsWanted );
         } else {
-            assert( m_bitBufferSize > 0 );
-            /* Always checking for m_bitBufferSize for this damn bit shift would be too cost-prohibitive.
+            assert( bitBufferSize() > 0 );
+            /* Always checking for bitBufferSize() for this damn bit shift would be too cost-prohibitive.
              * It should only happen when the caller tries to read, e.g., 0 bits, in which case undefined behavior
              * for the shift result value does not matter. Run unit tests in debug mode to ensure that the assert
              * won't be triggered. */
@@ -654,6 +654,13 @@ private:
         m_originalBitBufferSize = 0;
         m_bitBufferSize = 0;
         m_bitBuffer = 0;
+    }
+
+private:
+    [[nodiscard]] forceinline constexpr auto
+    bitBufferSize() const noexcept
+    {
+        return m_bitBufferSize;
     }
 
 private:
@@ -753,14 +760,14 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
     /* Performance optimizations for faster seeking inside the buffer to avoid expensive refillBuffer calls. */
     if ( const auto relativeOffsets = offsetBits - static_cast<long long int>( tell() ); relativeOffsets >= 0 ) {
         /* Seek forward inside bit buffer. */
-        if ( relativeOffsets <= m_bitBufferSize ) {
-            m_bitBufferSize -= static_cast<decltype( m_bitBufferSize )>( relativeOffsets );
+        if ( relativeOffsets <= bitBufferSize() ) {
+            seekAfterPeek( static_cast<decltype( bitBufferSize() )>( relativeOffsets ) );
             return static_cast<size_t>( offsetBits );
         }
 
         /* Seek forward inside byte buffer. */
         if ( tellBuffer() + relativeOffsets <= m_inputBuffer.size() ) {
-            auto stillToSeek = relativeOffsets - m_bitBufferSize;
+            auto stillToSeek = relativeOffsets - bitBufferSize();
             clearBitBuffer();
 
             m_inputBufferPosition += stillToSeek / CHAR_BIT;
@@ -772,12 +779,12 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
         }
     } else {  /* Seek back. */
         /* Seek back inside bit buffer. */
-        if ( static_cast<size_t>( -relativeOffsets ) + m_bitBufferSize <= m_originalBitBufferSize ) {
-            m_bitBufferSize += static_cast<decltype( m_bitBufferSize )>( -relativeOffsets );
+        if ( static_cast<size_t>( -relativeOffsets ) + bitBufferSize() <= m_originalBitBufferSize ) {
+            m_bitBufferSize += static_cast<decltype( bitBufferSize() )>( -relativeOffsets );
             return static_cast<size_t>( offsetBits );
         }
 
-        const auto seekBackWithBuffer = -relativeOffsets + m_bitBufferSize;
+        const auto seekBackWithBuffer = -relativeOffsets + bitBufferSize();
         const auto bytesToSeekBack = static_cast<size_t>( ceilDiv( seekBackWithBuffer, CHAR_BIT ) );
         /* Seek back inside byte buffer. */
         if ( bytesToSeekBack <= m_inputBufferPosition ) {
