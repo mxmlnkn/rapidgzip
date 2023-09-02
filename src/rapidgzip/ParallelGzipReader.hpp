@@ -931,8 +931,6 @@ private:
     uint64_t m_verifiedCRC32Count{ 0 };
 
     size_t const m_fetcherParallelization;
-    /** The block finder is much faster than the fetcher and therefore does not require es much parallelization! */
-    size_t const m_finderParallelization{ ceilDiv( m_fetcherParallelization, 8U ) };
 
     std::function<std::shared_ptr<BlockFinder>( void )> const m_startBlockFinder;
 
