@@ -182,6 +182,13 @@ public:
             return result;
         }
 
+        return read2( bitsWanted );
+    }
+
+private:
+    BitBuffer
+    read2( uint8_t bitsWanted )
+    {
         const auto bitsInResult = bitBufferSize();
         const auto bitsNeeded = bitsWanted - bitsInResult;
         BitBuffer bits{ 0 };
@@ -243,6 +250,7 @@ public:
         return bits;
     }
 
+public:
     /**
      * This is a performant unchecked helper to seek forward the same amount that has already been peeked.
      * Calling this function without calling peek beforehand with the same number of bits may corrupt the BitReader!
@@ -338,8 +346,9 @@ public:
         }
     }
 
-    forceinline BitBuffer
-    peek( uint8_t bitsWanted )
+private:
+    BitBuffer
+    peek2( uint8_t bitsWanted )
     {
         assert( ( bitsWanted <= MAX_BIT_BUFFER_SIZE - ( CHAR_BIT - 1 ) )
                 && "The last 7 bits of the buffer may not be readable because we can only refill 8-bits at a time." );
@@ -412,6 +421,16 @@ public:
             }
         }
 
+        return peekUnsafe( bitsWanted );
+    }
+
+public:
+    forceinline BitBuffer
+    peek( uint8_t bitsWanted )
+    {
+        if ( UNLIKELY( bitsWanted > bitBufferSize() ) ) [[unlikely]] {
+            return peek2( bitsWanted );
+        }
         return peekUnsafe( bitsWanted );
     }
 
