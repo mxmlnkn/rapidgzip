@@ -203,7 +203,7 @@ private:
         } else {
             bits = bitBufferSize() == 0
                    ? BitBuffer( 0 )
-                   : ( m_bitBuffer >> ( MAX_BIT_BUFFER_SIZE - m_bitBufferSize ) )
+                   : ( m_bitBuffer >> m_bitBufferFree )
                      & nLowestBitsSet<BitBuffer>( bitBufferSize() );
         }
 
@@ -213,7 +213,7 @@ private:
 
             if ( LIKELY( m_inputBufferPosition + BYTES_WANTED < m_inputBuffer.size() ) ) [[likely]] {
                 m_originalBitBufferSize = BITS_WANTED;
-                m_bitBufferSize = BITS_WANTED;
+                m_bitBufferFree = MAX_BIT_BUFFER_SIZE - BITS_WANTED;
                 m_bitBuffer = loadUnaligned<BitBuffer>( &m_inputBuffer[m_inputBufferPosition] );
 
                 m_inputBufferPosition += BYTES_WANTED;
@@ -260,8 +260,8 @@ public:
     forceinline void
     seekAfterPeek( bit_count_t bitsWanted )
     {
-        assert( bitsWanted <= m_bitBufferSize );
-        m_bitBufferSize -= bitsWanted;
+        assert( bitsWanted <= bitBufferSize() );
+        m_bitBufferFree += bitsWanted;
     }
 
     /**
@@ -362,7 +362,7 @@ private:
                     /* There is no way around this special case because of the damn undefined behavior when shifting! */
                     if ( bitBufferSize() == 0 ) {
                         m_originalBitBufferSize = sizeof( BitBuffer ) * CHAR_BIT;
-                        m_bitBufferSize = sizeof( BitBuffer ) * CHAR_BIT;
+                        m_bitBufferFree = MAX_BIT_BUFFER_SIZE - sizeof( BitBuffer ) * CHAR_BIT;
                         m_bitBuffer = loadUnaligned<BitBuffer>( &m_inputBuffer[m_inputBufferPosition] );
 
                         m_inputBufferPosition += sizeof( BitBuffer );
@@ -381,7 +381,7 @@ private:
                                   | ( bytesToAppend << ( MAX_BIT_BUFFER_SIZE - bitsToLoad ) );
 
                     m_originalBitBufferSize = MAX_BIT_BUFFER_SIZE;
-                    m_bitBufferSize += bitsToLoad;
+                    m_bitBufferFree -= bitsToLoad;
                     m_inputBufferPosition += bytesToLoad;
 
                     return peekUnsafe( bitsWanted );
@@ -622,7 +622,7 @@ private:
 
         /* Refill buffer one byte at a time to enforce endianness and avoid unaligned access. */
         for ( ; m_originalBitBufferSize + CHAR_BIT <= MAX_BIT_BUFFER_SIZE;
-              m_bitBufferSize += CHAR_BIT, m_originalBitBufferSize += CHAR_BIT )
+              m_bitBufferFree -= CHAR_BIT, m_originalBitBufferSize += CHAR_BIT )
         {
             if ( UNLIKELY( m_inputBufferPosition >= m_inputBuffer.size() ) ) [[unlikely]] {
                 throw BufferNeedsToBeRefilled();
@@ -664,7 +664,7 @@ private:
              * for the shift result value does not matter. Run unit tests in debug mode to ensure that the assert
              * won't be triggered. */
             // NOLINTNEXTLINE(clang-analyzer-core.UndefinedBinaryOperatorResult)
-            return ( m_bitBuffer >> ( MAX_BIT_BUFFER_SIZE - m_bitBufferSize ) )
+            return ( m_bitBuffer >> m_bitBufferFree )
                    & nLowestBitsSet<BitBuffer>( bitsWanted );
         }
     }
@@ -673,7 +673,7 @@ private:
     clearBitBuffer()
     {
         m_originalBitBufferSize = 0;
-        m_bitBufferSize = 0;
+        m_bitBufferFree = MAX_BIT_BUFFER_SIZE;
         m_bitBuffer = 0;
     }
 
@@ -681,7 +681,7 @@ private:
     [[nodiscard]] forceinline constexpr auto
     bitBufferSize() const noexcept
     {
-        return m_bitBufferSize;
+        return MAX_BIT_BUFFER_SIZE - m_bitBufferFree;
     }
 
 private:
@@ -767,7 +767,22 @@ public:
      * Changing the width of m_originalBitBufferSize to 32-bit does not help, it even worsens the performance
      * back to ~415 MB/s. Well, this is probably VERY compiler-dependent. No idea what it is thinking.
      */
-    uint32_t m_bitBufferSize = 0;  // size of bitbuffer in bits
+    //uint32_t m_bitBufferSize = 0;  // size of bitbuffer in bits
+    /**
+     * Same time measurements as for @ref m_bitBufferSize. Storing m_bitBufferFree instead safes one subtractions
+     * on every peekUnsafe! It was always: m_bitBuffer >> ( MAX_BIT_BUFFER_SIZE - m_bitBufferSize ) and not simply is:
+     * m_bitBuffer >> m_bitBufferFree. This anoter ~1 %:
+     * @verbatim
+     * m_bitBufferFree: 419.05 | 424.46 +- 0.07 | 427.36
+     * m_bitBufferSize: 414.00 | 419.25 +- 0.05 | 422.02
+     * @endverbatim
+     * Note that this might slow down the BZ2 decoder, but I guess at this point it isn't the main goal anymore
+     * and it is much slower anyway, so probably the BitReader isn't the bottleneck. If it turns out to be, then
+     * it will be hard to include both variants in the same class via constexpr ifs, it might be necessary to
+     * split the BitReader class into two versions.
+     */
+    uint32_t m_bitBufferFree{ MAX_BIT_BUFFER_SIZE };
+
     uint8_t m_originalBitBufferSize = 0;  // size of valid bitbuffer bits including already read ones
 };
 
@@ -828,7 +843,7 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
     } else {  /* Seek back. */
         /* Seek back inside bit buffer. */
         if ( static_cast<size_t>( -relativeOffsets ) + bitBufferSize() <= m_originalBitBufferSize ) {
-            m_bitBufferSize += static_cast<decltype( bitBufferSize() )>( -relativeOffsets );
+            m_bitBufferFree -= static_cast<decltype( bitBufferSize() )>( -relativeOffsets );
             return static_cast<size_t>( offsetBits );
         }
 
