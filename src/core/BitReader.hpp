@@ -738,7 +738,34 @@ public:
      * In both cases, the amount of bits wanted are extracted by shifting to the right and and'ing with a bit mask.
      */
     BitBuffer m_bitBuffer = 0;
-    uint8_t m_bitBufferSize = 0;  // size of bitbuffer in bits
+
+    /**
+     * Performance consideration for the used type were done with taskset because else the timings did vary more.
+     * @verbatim
+     * m rapidgzip && for i in $( seq 30 ); do
+     *     taskset --cpu-list 5 src/tools/rapidgzip -P 1 -d -o /dev/null 10xSRR22403185_2.fastq.gz
+     * done 2>&1 | tee output &&
+     * uncertainValue $( sed -nr 's|.* ([0-9.]+) MB/s|\1|p' output )
+     * @endverbatim
+     *
+     * Results:
+     * @verbatim
+     * Type     | Min    | Mean +- StdDev | Max
+     * ---------+--------+----------------+-------
+     * uint8_t  | 401.78 | 406.42 +- 0.05 | 408.59
+     * uint16_t | 398.88 | 402.83 +- 0.05 | 405.33
+     * uint32_t | 414.00 | 419.25 +- 0.05 | 422.02
+     * uint64_t | 412.44 | 418.06 +- 0.07 | 420.72
+     * int32_t  | 411.85 | 416.47 +- 0.05 | 419.51
+     * @endverbatim
+     *
+     * Note that the range of bit buffer size should [0,64], i.e., whether it is 8-bit or 16-bit or 8-bit signed
+     * or anything else, it does not matter. None of them represent the exact allowed range and are all larger.
+     * Therefore, using anything else for performance reasons makes sense to me.
+     * Changing the width of m_originalBitBufferSize to 32-bit does not help, it even worsens the performance
+     * back to ~415 MB/s. Well, this is probably VERY compiler-dependent. No idea what it is thinking.
+     */
+    uint32_t m_bitBufferSize = 0;  // size of bitbuffer in bits
     uint8_t m_originalBitBufferSize = 0;  // size of valid bitbuffer bits including already read ones
 };
 
@@ -779,7 +806,7 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
     /* Performance optimizations for faster seeking inside the buffer to avoid expensive refillBuffer calls. */
     if ( const auto relativeOffsets = offsetBits - static_cast<long long int>( tell() ); relativeOffsets >= 0 ) {
         /* Seek forward inside bit buffer. */
-        if ( relativeOffsets <= bitBufferSize() ) {
+        if ( static_cast<size_t>( relativeOffsets ) <= bitBufferSize() ) {
             seekAfterPeek( static_cast<decltype( bitBufferSize() )>( relativeOffsets ) );
             return static_cast<size_t>( offsetBits );
         }
