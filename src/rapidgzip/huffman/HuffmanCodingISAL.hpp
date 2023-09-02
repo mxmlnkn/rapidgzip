@@ -88,7 +88,7 @@ private:
 
 public:
     /* Decodes the next symbol symbol in in_buffer using the huff code defined by
-     * huff_code  and returns the value in next_lits and sym_count */
+     * huff_code and returns the value in next_lits and sym_count */
     [[nodiscard]] forceinline std::pair<uint32_t, uint32_t>
     decode( BitReader& bitReader ) const
     {
@@ -104,7 +104,15 @@ public:
         static constexpr auto LARGE_LONG_CODE_LEN_OFFSET = 10U;
         static constexpr auto INVALID_SYMBOL = 0x1FFFU;
 
-        auto next_bits = bitReader.peek<ISAL_DECODE_LONG_BITS /* 12 */>();
+        /**
+         * I have also tested other fixed peek sizes, such as 24 and 48 but they all were significantly slower.
+         * It seems that 32 is most amenable when it comes to refilling the bit buffer.
+         * @verbatim
+         * peek<32>                                      : 431.67 | 439.15 +- 0.09 | 442.87
+         * peek<ISAL_DECODE_LONG_BITS(12)> and peek<...> : 419.05 | 424.46 +- 0.07 | 427.36
+         * @endverbatim
+         */
+        auto nextBits = bitReader.peek<32>();
 
         /* next_sym is a possible symbol decoded from next_bits. If bit 15 is 0,
          * next_code is a symbol. Bits 9:0 represent the symbol, and bits 14:10
@@ -112,7 +120,8 @@ public:
          * a symbol, it provides a hint of where the large symbols containing
          * this code are located. Note the hint is at largest the location the
          * first actual symbol in the long code list.*/
-        uint32_t next_sym = m_huffmanCode.short_code_lookup[next_bits];
+        const auto next12Bits = nextBits & N_LOWEST_BITS_SET_LUT<uint64_t>[ISAL_DECODE_LONG_BITS /* 12 */];
+        uint32_t next_sym = m_huffmanCode.short_code_lookup[next12Bits];
         if ( LIKELY( ( next_sym & LARGE_FLAG_BIT ) == 0 ) ) [[likely]] {
             /* Return symbol found if next_code is a complete huffman code
              * and shift in buffer over by the length of the next_code */
@@ -127,11 +136,28 @@ public:
                      ( next_sym >> LARGE_SYM_COUNT_OFFSET ) & LARGE_SYM_COUNT_MASK };
         }
 
-        /* If a symbol is not found, do a lookup in the long code
-         * list starting from the hint in next_sym */
-        next_bits = bitReader.peek( next_sym >> LARGE_SHORT_MAX_LEN_OFFSET );
+        /* If a symbol is not found, do a lookup in the long code list starting from the hint in next_sym.
+         * > If bit 15 is set, the i  corresponds to the first DECODE_LOOKUP_SIZE bits of a Huffman code which has
+         * > length longer than DECODE_LOOKUP_SIZE. In this case, bits 0 through 8
+         * > represent an offset into long_code_lookup table and bits 9 through 12
+         * > represent the maximum length of a Huffman code starting with the bits in the index i.
+         * Ergo, the maximum length itself is stored in 4 bits and therefore cat at most be 16.
+         * And probably, because it never is double-cached in the long table, it can at most be
+         * deflate::MAX_CODE_LENGTH = 15.
+         * In practice, I have encountered peek sizes of up to 20. So, maybe it also includes the distance count?
+         * With a distance code, it should only need up to 13 further bits, so 32 bits in the peek above should
+         * still be sufficient. But as I am not 100% sure, I cannot get rid of the fallback to bitReader.peek.
+         * It probably will never be called and the if also does not seem to add any measurable overhead, probably
+         * because branch prediction is never wrong.
+         */
+        const auto bitCount = next_sym >> LARGE_SHORT_MAX_LEN_OFFSET;
+        if ( LIKELY( bitCount <= 32U ) ) {
+            nextBits &= N_LOWEST_BITS_SET_LUT<uint64_t>[bitCount];
+        } else {
+            nextBits = bitReader.peek( bitCount );
+        }
         next_sym = m_huffmanCode.long_code_lookup[( next_sym & LARGE_SHORT_SYM_MASK )
-                                                  + ( next_bits >> ISAL_DECODE_LONG_BITS )];
+                                                  + ( nextBits >> ISAL_DECODE_LONG_BITS )];
         const auto bit_count = next_sym >> LARGE_LONG_CODE_LEN_OFFSET;
         bitReader.seekAfterPeek( bit_count );
 
