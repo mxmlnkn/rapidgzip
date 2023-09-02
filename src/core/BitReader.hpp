@@ -199,12 +199,12 @@ private:
          * This is copy-pasted from @ref peekUnsafe because for MSB, we don't have to do the expensive
          * bitBufferSize() == 0 branching! */
         if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
-            bits = m_bitBuffer & nLowestBitsSet<BitBuffer>( bitBufferSize() );
+            bits = m_bitBuffer & N_LOWEST_BITS_SET_LUT<BitBuffer>[bitBufferSize()];
         } else {
             bits = bitBufferSize() == 0
                    ? BitBuffer( 0 )
                    : ( m_bitBuffer >> m_bitBufferFree )
-                     & nLowestBitsSet<BitBuffer>( bitBufferSize() );
+                     & N_LOWEST_BITS_SET_LUT<BitBuffer>[bitBufferSize()];
         }
 
         if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST && ( ENDIAN == Endian::LITTLE ) ) {
@@ -547,9 +547,9 @@ private:
         m_originalBitBufferSize = ceilDiv( bitBufferSize(), CHAR_BIT ) * CHAR_BIT;
 
         if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
-            m_bitBuffer &= nLowestBitsSet<BitBuffer>( m_originalBitBufferSize );
+            m_bitBuffer &= N_LOWEST_BITS_SET_LUT<BitBuffer>[m_originalBitBufferSize];
         } else {
-            m_bitBuffer &= nHighestBitsSet<BitBuffer>( m_originalBitBufferSize );
+            m_bitBuffer &= N_HIGHEST_BITS_SET_LUT<BitBuffer>[m_originalBitBufferSize];
         }
     }
 
@@ -656,7 +656,7 @@ private:
 
         if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
             return ( m_bitBuffer >> ( bitBufferSize() - bitsWanted ) )
-                   & nLowestBitsSet<BitBuffer>( bitsWanted );
+                   & N_LOWEST_BITS_SET_LUT<BitBuffer>[bitsWanted];
         } else {
             assert( bitBufferSize() > 0 );
             /* Always checking for bitBufferSize() for this damn bit shift would be too cost-prohibitive.
@@ -665,7 +665,7 @@ private:
              * won't be triggered. */
             // NOLINTNEXTLINE(clang-analyzer-core.UndefinedBinaryOperatorResult)
             return ( m_bitBuffer >> m_bitBufferFree )
-                   & nLowestBitsSet<BitBuffer>( bitsWanted );
+                   & N_LOWEST_BITS_SET_LUT<BitBuffer>[bitsWanted];
         }
     }
 
