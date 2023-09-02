@@ -44,6 +44,8 @@ class BitReader :
 public:
     static_assert( std::is_unsigned_v<BitBuffer>, "Bit buffer type must be unsigned!" );
 
+    using bit_count_t = uint32_t;
+
     /**
      * If it is too large, then the use case of only reading one Bzip2 block per opened BitReader
      * will load much more data than necessary because of the too large buffer.
@@ -168,7 +170,7 @@ public:
      * inline this now small function and thereby sped up runtimes significantly!
      */
     forceinline BitBuffer
-    read( uint8_t bitsWanted )
+    read( bit_count_t bitsWanted )
     {
         /* Handling bitsWanted == 0 here would incure a 75% slowdown for the benchmark reading single bits!
          * Just let the caller handle that case. Performance comes first, especially at this steep price for safety. */
@@ -187,7 +189,7 @@ public:
 
 private:
     BitBuffer
-    read2( uint8_t bitsWanted )
+    read2( bit_count_t bitsWanted )
     {
         const auto bitsInResult = bitBufferSize();
         const auto bitsNeeded = bitsWanted - bitsInResult;
@@ -206,8 +208,8 @@ private:
         }
 
         if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST && ( ENDIAN == Endian::LITTLE ) ) {
-            constexpr uint8_t BYTES_WANTED = sizeof( BitBuffer );
-            constexpr uint8_t BITS_WANTED = sizeof( BitBuffer ) * CHAR_BIT;
+            constexpr bit_count_t BYTES_WANTED = sizeof( BitBuffer );
+            constexpr bit_count_t BITS_WANTED = sizeof( BitBuffer ) * CHAR_BIT;
 
             if ( LIKELY( m_inputBufferPosition + BYTES_WANTED < m_inputBuffer.size() ) ) [[likely]] {
                 m_originalBitBufferSize = BITS_WANTED;
@@ -256,7 +258,7 @@ public:
      * Calling this function without calling peek beforehand with the same number of bits may corrupt the BitReader!
      */
     forceinline void
-    seekAfterPeek( uint8_t bitsWanted )
+    seekAfterPeek( bit_count_t bitsWanted )
     {
         assert( bitsWanted <= m_bitBufferSize );
         m_bitBufferSize -= bitsWanted;
@@ -348,7 +350,7 @@ public:
 
 private:
     BitBuffer
-    peek2( uint8_t bitsWanted )
+    peek2( bit_count_t bitsWanted )
     {
         assert( ( bitsWanted <= MAX_BIT_BUFFER_SIZE - ( CHAR_BIT - 1 ) )
                 && "The last 7 bits of the buffer may not be readable because we can only refill 8-bits at a time." );
@@ -368,8 +370,8 @@ private:
                     }
 
                     const auto shrinkedBitBufferSize = ceilDiv( bitBufferSize(), CHAR_BIT ) * CHAR_BIT;
-                    const auto bitsToLoad  = static_cast<uint8_t>( MAX_BIT_BUFFER_SIZE - shrinkedBitBufferSize );
-                    const auto bytesToLoad = static_cast<uint8_t>( bitsToLoad / CHAR_BIT );
+                    const auto bitsToLoad  = MAX_BIT_BUFFER_SIZE - shrinkedBitBufferSize;
+                    const auto bytesToLoad = bitsToLoad / CHAR_BIT;
 
                     /* Load new bytes directly to the left if the (virtually) shrinked bit buffer.
                      * This is possibly because read but still "loaded" (m_originalBitBufferSize) bits are to the
@@ -426,7 +428,7 @@ private:
 
 public:
     forceinline BitBuffer
-    peek( uint8_t bitsWanted )
+    peek( bit_count_t bitsWanted )
     {
         if ( UNLIKELY( bitsWanted > bitBufferSize() ) ) [[unlikely]] {
             return peek2( bitsWanted );
@@ -647,7 +649,7 @@ private:
     }
 
     [[nodiscard]] forceinline BitBuffer
-    peekUnsafe( uint8_t bitsWanted ) const
+    peekUnsafe( bit_count_t bitsWanted ) const
     {
         assert( bitsWanted <= bitBufferSize() );
         assert( bitsWanted > 0 );
@@ -859,7 +861,7 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::fullSeek( size_t offsetBits )
     }
 
     const auto bytesToSeek = offsetBits >> 3U;
-    const auto subBitsToSeek = static_cast<uint8_t>( offsetBits & 7U );
+    const auto subBitsToSeek = offsetBits & 7U;
 
     clearBitBuffer();
 
