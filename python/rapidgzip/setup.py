@@ -209,6 +209,10 @@ class Build(build_ext):
                 elif supportsFlag(self.compiler, '-fconstexpr-steps=99000100'):
                     ext.extra_compile_args += ['-fconstexpr-steps=99000100']
 
+                if sys.platform.startswith('darwin') and supportsFlag(self.compiler, '-mmacosx-version-min=10.14'):
+                    ext.extra_compile_args += ['-mmacosx-version-min=10.14']
+                    ext.extra_link_args += ['-mmacosx-version-min=10.14']
+
             if hasInclude(self.compiler, 'unistd.h'):
                 ext.extra_compile_args += ['-DZ_HAVE_UNISTD_H']
 
