@@ -26,7 +26,7 @@
 struct Arguments
 {
     unsigned int decoderParallelism{ 0 };
-    unsigned int chunkSize{ 4_Mi };
+    size_t chunkSize{ 4_Mi };
     std::string indexLoadPath;
     std::string indexSavePath;
     bool verbose{ false };
