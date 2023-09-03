@@ -121,7 +121,13 @@ callPyObject( PyObject* pythonObject,
     } else {
         const auto result = PyObject_Call( pythonObject, PyTuple_Pack( nArgs, toPyObject( args )... ), nullptr );
         if ( result == nullptr ) {
-            throw std::invalid_argument( "Can't convert nullptr Python object!" );
+            std::stringstream message;
+            message << "Cannot convert nullptr Python object to the requested result type ("
+                    << typeid( Result ).name() << ")!";
+            if ( ( pythonObject != nullptr ) && ( pythonObject->ob_type != nullptr ) ) {
+                message << " Got no result when calling: " << pythonObject->ob_type->tp_name;
+            }
+            throw std::invalid_argument( std::move( message ).str() );
         }
         return fromPyObject<Result>( result );
     }
@@ -146,15 +152,8 @@ public:
         m_initialPosition( callPyObject<long long int>( mpo_tell ) ),
         m_seekable( callPyObject<bool>( mpo_seekable ) )
     {
-        if ( !m_seekable ) {
-            throw std::invalid_argument( "Currently need seekable files to get size and detect EOF!" );
-        }
-
-        m_fileSizeBytes = seek( 0, SEEK_END );
-
-        /* On macOS opening special files like /dev/fd/3 might result in the file position
-         * not being 0 in the case it has been seeked or read from somewhere else! */
         if ( m_seekable ) {
+            m_fileSizeBytes = seek( 0, SEEK_END );
             seek( 0, SEEK_SET );
         }
 
