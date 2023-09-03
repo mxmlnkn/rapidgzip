@@ -372,10 +372,10 @@ public:
                     for ( auto it = DecodedData::Iterator( *chunkData, offsetInBlock, dataToWriteSize );
                           static_cast<bool>( it ); ++it )
                     {
-                        const auto& [buffer, size] = *it;
+                        const auto& [buffer, bufferSize] = *it;
                         auto* const currentBufferPosition = outputBuffer + nBytesDecoded + nBytesCopied;
-                        std::memcpy( currentBufferPosition, buffer, size );
-                        nBytesCopied += size;
+                        std::memcpy( currentBufferPosition, buffer, bufferSize );
+                        nBytesCopied += bufferSize;
                     }
                 }
 
