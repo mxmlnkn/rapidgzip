@@ -1,4 +1,17 @@
 
+# Version 0.10.0 built on 2023-09-03
+
+## Performance
+
+ - Several miniscule performance improvements in `BitReader` and `HuffmanCodingISAL`: +10 %
+
+## Fixes
+
+ - Make `export_index` work with non-seekable output Python file objects.
+ - Add -mmacosx-version-min=10.14 on macOS to avoid build problems.
+ - Avoid possible race condition when checking for markers in chunk data.
+
+
 # Version 0.9.0 built on 2023-08-30
 
 ## Added
