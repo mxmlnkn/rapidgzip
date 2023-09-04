@@ -354,13 +354,14 @@ private:
         for ( const auto triedStartOffset : sortedOffsets ) {
             const auto chunkData = cacheElements.at( triedStartOffset );
 
-            /* Ignore ready blocks. */
-            if ( !chunkData->containsMarkers() ) {
+            /* Ignore blocks already enqueued for marker replacement. */
+            if ( m_markersBeingReplaced.find( chunkData->encodedOffsetInBits ) != m_markersBeingReplaced.end() ) {
                 continue;
             }
 
-            /* Ignore blocks already enqueued for marker replacement. */
-            if ( m_markersBeingReplaced.find( chunkData->encodedOffsetInBits ) != m_markersBeingReplaced.end() ) {
+            /* Ignore ready blocks. Do this check after the enqueued check above to avoid race conditions when
+             * checking for markers while replacing markers in another thread. */
+            if ( !chunkData->containsMarkers() ) {
                 continue;
             }
 

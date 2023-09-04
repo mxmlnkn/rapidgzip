@@ -89,6 +89,18 @@ nLowestBitsSet()
 
 
 template<typename T>
+static constexpr std::array<T, 256U> N_LOWEST_BITS_SET_LUT =
+    [] ()
+    {
+        std::array<T, 256U> result{};
+        for ( size_t i = 0; i < result.size(); ++i ) {
+            result[i] = nLowestBitsSet<T>( i );
+        }
+        return result;
+    }();
+
+
+template<typename T>
 [[nodiscard]] constexpr T
 nHighestBitsSet( uint8_t nBitsSet )
 {
@@ -102,6 +114,18 @@ nHighestBitsSet( uint8_t nBitsSet )
     const auto nZeroBits = std::max( 0, std::numeric_limits<T>::digits - nBitsSet );
     return static_cast<T>( static_cast<T>( ~T( 0 ) ) << nZeroBits );
 }
+
+
+template<typename T>
+static constexpr std::array<T, 256U> N_HIGHEST_BITS_SET_LUT =
+    [] ()
+    {
+        std::array<T, 256U> result{};
+        for ( size_t i = 0; i < result.size(); ++i ) {
+            result[i] = nHighestBitsSet<T>( i );
+        }
+        return result;
+    }();
 
 
 template<typename T, uint8_t nBitsSet>
