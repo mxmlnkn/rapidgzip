@@ -1,4 +1,12 @@
 
+# Version 0.10.1 built on 2023-09-04
+
+## Fixes
+
+ - Avoid crash on some MSVC versions during building the project.
+   This happened only for the Conda builds, not the Windows wheel builds.
+
+
 # Version 0.10.0 built on 2023-09-03
 
 ## Performance

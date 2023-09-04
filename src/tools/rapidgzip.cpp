@@ -26,7 +26,7 @@
 struct Arguments
 {
     unsigned int decoderParallelism{ 0 };
-    unsigned int chunkSize{ 4_Mi };
+    size_t chunkSize{ 4_Mi };
     std::string indexLoadPath;
     std::string indexSavePath;
     bool verbose{ false };
@@ -263,7 +263,7 @@ rapidgzipCLI( int argc, char** argv )
 
     if ( parsedArgs.count( "version" ) > 0 ) {
         std::cout << "rapidgzip, CLI to the parallelized, indexed, and seekable gzip decoding library rapidgzip "
-                  << "version 0.10.0.\n";
+                  << "version 0.10.1.\n";
         return 0;
     }
 

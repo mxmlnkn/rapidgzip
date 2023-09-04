@@ -20,7 +20,7 @@
 
 </div>
 
-This repository contains the command line tool `rapidgzip`, which can be used for parallel decompression of almost any gzip file.
+This repository contains the command line tool `rapidgzip`, which can be used for parallel decompression of almost any gzip file. Other tools, such as [bgzip](http://www.htslib.org/doc/bgzip.html), can only parallelize decompression of gzip files produced by themselves. `rapidgzip` works with all files, especially those produced by the usually installed [GNU gzip](https://www.gzip.org/). How this works can be read in the [pugz paper](https://arxiv.org/abs/1905.07224) or in the [rapidgzip paper](https://dl.acm.org/doi/abs/10.1145/3588195.3592992), which builds upon the former.
 
 The Python module provides a `RapidgzipFile` class, which can be used to seek inside gzip files without having to decompress them first.
 Alternatively, you can use this simply as a **parallelized** gzip decoder as a replacement for Python's builtin `gzip` module in order to fully utilize all your cores.

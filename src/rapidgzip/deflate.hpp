@@ -481,7 +481,11 @@ public:
             return true;
 
         case CompressionType::FIXED_HUFFMAN:
+        #ifdef _MSC_VER
+            return true;
+        #else
             return m_fixedHC.isValid();
+        #endif
 
         case CompressionType::DYNAMIC_HUFFMAN:
             return m_literalHC.isValid();
@@ -640,10 +644,16 @@ private:
      */
     uint8_t m_padding{ 0 };
 
-    /* Initializing m_fixedHC statically leads to very weird problems when compiling with ASAN.
+#ifndef _MSC_VER
+    /**
+     * Initializing m_fixedHC statically without constexpr leads to very weird problems when compiling with ASAN.
      * The code might be too complex and run into the static initialization order fiasco.
-     * But having this static const is very important to get a 10-100x speedup for finding deflate blocks! */
+     * But having this static const is very important to get a 10-100x speedup for finding deflate blocks!
+     * MSVC chokes, i.e., crashes, on this line. That's why on MSVC, m_fixedHC is a function-local static variable.
+     * > fatal error C1001: An internal error has occurred in the compiler.
+     */
     static constexpr FixedHuffmanCoding m_fixedHC = createFixedHC();
+#endif
     LiteralOrLengthHuffmanCoding m_literalHC;
 
     DistanceHuffmanCoding m_distanceHC;
@@ -1148,7 +1158,17 @@ Block<ENABLE_STATISTICS>::readInternal( BitReader& bitReader,
     }
 
     if ( m_compressionType == CompressionType::FIXED_HUFFMAN ) {
+    #ifdef _MSC_VER
+        /**
+         * Initialization of a local static variable is thread-safe and happens on first pass as opposed to
+         * the static initialization ordering fiasco for global or class-scope static variables.
+         * @see https://stackoverflow.com/questions/8102125/is-local-static-variable-initialization-thread-safe-in-c11
+         */
+        static const auto fixedHC = createFixedHC();
+        return readInternalCompressed( bitReader, nMaxToDecode, window, fixedHC );
+    #else
         return readInternalCompressed( bitReader, nMaxToDecode, window, m_fixedHC );
+    #endif
     }
 
 #ifdef WITH_ISAL
