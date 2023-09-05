@@ -197,11 +197,11 @@ time gzip -d -c sample.gz | wc -c
 ```python3
 from rapidgzip import RapidgzipFile
 
-file = RapidgzipFile( "example.gz", parallelization = os.cpu_count() )
+file = RapidgzipFile("example.gz", parallelization=os.cpu_count())
 
 # You can now use it like a normal file
-file.seek( 123 )
-data = file.read( 100 )
+file.seek(123)
+data = file.read(100)
 file.close()
 ```
 
@@ -215,9 +215,9 @@ Because of this the first call to seek might take a while.
 import os
 import rapidgzip
 
-with rapidgzip.open( "example.gz", parallelization = os.cpu_count() ) as file:
-    file.seek( 123 )
-    data = file.read( 100 )
+with rapidgzip.open("example.gz", parallelization=os.cpu_count()) as file:
+    file.seek(123)
+    data = file.read(100)
 ```
 
 
@@ -234,18 +234,18 @@ import io
 import os
 import rapidgzip as rapidgzip
 
-with open( "example.gz", 'rb' ) as file:
-    in_memory_file = io.BytesIO( file.read() )
+with open("example.gz", "rb") as file:
+    in_memory_file = io.BytesIO(file.read())
 
-with rapidgzip.open( in_memory_file, parallelization = os.cpu_count() ) as file:
-    file.seek( 123 )
-    data = file.read( 100 )
+with rapidgzip.open(in_memory_file, parallelization=os.cpu_count()) as file:
+    file.seek(123)
+    data = file.read(100)
 ```
 
 
 ## Via Ratarmount
 
-`rapidgzip` is **planned** to be used as a backend inside ratarmount with version 0.12.
+`rapidgzip` is the default backend in ratarmount since version 0.14.0.
 Then, you can use [ratarmount](https://github.com/mxmlnkn/ratarmount) to mount single gzip files easily.
 
 ```bash
@@ -283,8 +283,6 @@ The accompanying presentation can be found [here](results/Presentation-2023-06-2
 
 If you use this software for your scientific publication, please cite it as:
 
-This is preliminiary. The final citation will become available end of June 2023.
-
 ```bibtex
 @inproceedings{rapidgzip,
     author    = {Knespel, Maximilian and Brunst, Holger},
@@ -315,7 +313,7 @@ The latter of which is trivial, when ignoring load balancing issues, but paralle
 After implementing a production-ready version by improving upon the algorithm used by [pugz](https://github.com/Piezoid/pugz), I submitted a [paper](Citation).
 The review process was double-blind and I was unsure whether to pseudonymize Pragzip because it has already been uploaded to Github.
 In the end, I used "rapidgzip" during the review process and because I was not sure, which form fields should be filled with the pseudonymized title, I simply stuck with it.
-Rapidgzip was chosen for similar reason to rapidgzip, namely the P and RA are acronyms for Parallel and Random Access.
+Rapidgzip was chosen for similar reason to pragzip, namely the P and RA are acronyms for Parallel and Random Access.
 As rapgzip, did not stick, I used rapidgzip, which now also contains the foremost design goal in its name: being rapidly faster than single-threaded implementations.
 Furthermore, the additional ID could be interpreted to stand for Index and Decompression, making "rapid" a partial backronym.
 
