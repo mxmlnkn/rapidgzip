@@ -465,7 +465,7 @@ public:
     [[nodiscard]] int
     fileno() const override final
     {
-        if ( UNLIKELY( m_file ) ) [[unlikely]] {
+        if ( UNLIKELY( !m_file ) ) [[unlikely]] {
             throw std::invalid_argument( "The file is not open!" );
         }
         return m_file->fileno();
