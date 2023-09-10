@@ -1,4 +1,11 @@
 
+# Version 0.10.2 built on 2023-09-10
+
+## Fixes
+
+ - `fileno` did not work because of an inverted smart pointer check.
+
+
 # Version 0.10.1 built on 2023-09-04
 
 ## Fixes
