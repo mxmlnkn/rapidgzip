@@ -203,7 +203,7 @@ rapidgzipCLI( int argc, char** argv )
           "Use the parallel decoder. "
           "If an optional integer >= 1 is given, then that is the number of decoder threads to use. "
           "Note that there might be further threads being started with non-decoding work. "
-          "If 0 is given, then the parallelism will be determiend automatically.",
+          "If 0 is given, then the parallelism will be determined automatically.",
           cxxopts::value<unsigned int>()->default_value( "0" ) )
 
         ( "verify", "Verify CRC32 checksum. Will slow down decompression and there are already some implicit "
@@ -214,7 +214,7 @@ rapidgzipCLI( int argc, char** argv )
         ( "export-index", "Write out a gzip index file.", cxxopts::value<std::string>() );
 
     options.add_options( "Output" )
-        ( "h,help"   , "Print this help mesage." )
+        ( "h,help"   , "Print this help message." )
         ( "q,quiet"  , "Suppress noncritical error messages." )
         ( "v,verbose", "Print debug output and profiling statistics." )
         ( "V,version", "Display software version." )
