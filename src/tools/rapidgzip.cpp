@@ -158,6 +158,9 @@ int
 rapidgzipCLI( int                  argc,
               char const * const * argv )
 {
+    /* Cleaned, checked, and typed arguments. */
+    Arguments args;
+
     /**
      * @note For some reason implicit values do not mix very well with positional parameters!
      *       Parameters given to arguments with implicit values will be matched by the positional argument instead!
@@ -191,7 +194,12 @@ rapidgzipCLI( int                  argc,
 
         ( "verify", "Verify CRC32 checksum. Will slow down decompression and there are already some implicit "
                     "and explicit checks like whether the end of the file could be reached and whether the stream "
-                    "size is correct. ")
+                    "size is correct. ",
+          cxxopts::value( args.crc32Enabled )->implicit_value( "true" ) )
+        ( "no-verify", "Do not verify CRC32 checksum. Might speed up decompression and there are already some implicit "
+                       "and explicit checks like whether the end of the file could be reached and whether the stream "
+                       "size is correct.",
+          cxxopts::value( args.crc32Enabled )->implicit_value( "false" ) )
 
         ( "import-index", "Uses an existing gzip index.", cxxopts::value<std::string>() )
         ( "export-index", "Write out a gzip index file.", cxxopts::value<std::string>() );
@@ -216,13 +224,9 @@ rapidgzipCLI( int                  argc,
 
     const auto parsedArgs = options.parse( argc, argv );
 
-    /* Cleaned, checked, and typed arguments. */
-    Arguments args;
-
     const auto force = parsedArgs["force"].as<bool>();
     const auto quiet = parsedArgs["quiet"].as<bool>();
     args.verbose = parsedArgs["verbose"].as<bool>();
-    args.crc32Enabled = parsedArgs["verify"].as<bool>();
 
     const auto getParallelism = [] ( const auto p ) { return p > 0 ? p : availableCores(); };
     args.decoderParallelism = getParallelism( parsedArgs["decoder-parallelism"].as<unsigned int>() );

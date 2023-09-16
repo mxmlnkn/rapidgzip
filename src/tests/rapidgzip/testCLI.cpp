@@ -339,7 +339,7 @@ testCLI()
     combinableOptions = concatenateChoices( combinableOptions, { { { "-P"s, "1"s } }, { { "-P"s, "4"s } } } );
     combinableOptions = concatenateChoices( combinableOptions, { {}, { { "--import-index"s, indexFilePath } } } );
 #ifndef SHORT_TESTS
-    combinableOptions = concatenateChoices( combinableOptions, { { { "--verify"s } }, {} } );
+    combinableOptions = concatenateChoices( combinableOptions, { { { "--verify"s } }, { { "--no-verify"s } } } );
 #endif
 
     ArgumentLists combinedArguments;
