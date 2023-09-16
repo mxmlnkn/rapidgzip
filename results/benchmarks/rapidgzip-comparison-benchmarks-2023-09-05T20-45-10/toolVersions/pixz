@@ -1,0 +1,33 @@
+pixz: invalid option -- '-'
+
+
+pixz: Parallel Indexing XZ compression, fully compatible with XZ
+
+Basic usage:
+  pixz input output.pxz           # Compress a file in parallel
+  pixz -d input.pxz output        # Decompress
+
+Tarballs:
+  pixz input.tar output.tpxz      # Compress and index a tarball
+  pixz -d input.tpxz output.tar   # Decompress
+  pixz -l input.tpxz              # List tarball contents very fast
+  pixz -x path/to/file < input.tpxz | tar x  # Extract one file very fast
+  tar -Ipixz -cf output.tpxz dir  # Make tar use pixz automatically
+
+Input and output:
+  pixz < input > output.pxz       # Same as `pixz input output.pxz`
+  pixz -i input -o output.pxz     # Ditto
+  pixz [-d] input                 # Automatically choose output filename
+
+Other flags:
+  -0, -1 ... -9      Set compression level, from fastest to strongest
+  -p NUM             Use a maximum of NUM CPU-intensive threads
+  -t                 Don't assume input is in tar format
+  -k                 Keep original input (do not remove it)
+  -c                 ignored
+  -h                 Print this help
+
+pixz 1.0.7
+(C) 2009-2012 Dave Vasilevsky <dave@vasilevsky.ca>
+https://github.com/vasi/pixz
+You may use this software under the FreeBSD License

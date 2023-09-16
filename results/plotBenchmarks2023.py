@@ -541,7 +541,27 @@ def plotChunkSizes():
     return fig
 
 
-def formatCompressionLevelBandwidths():
+def roundToMagnitude(value, magnitude):
+    return round(value / 10**magnitude) * 10**magnitude
+
+
+def properRounding(mean, uncertainty):
+    # Round uncertainty and value according to DIN 1333
+    # See https://www.tu-chemnitz.de/physik/PGP/files/Allgemeines/Rundungsregeln.pdf
+
+    # Log10: 0.1 -> -1, 1 -> 0, 2 -> 0.301, 10 -> 1.
+    # In order to scale to a range [0,100), we have to divide by 10^magnitude.
+    magnitude = np.floor(np.log10(uncertainty)) - 1
+    if round(uncertainty / 10**magnitude) >= 30:
+        magnitude += 1
+
+    # To be exact, we would also have to avoid trailing zeros beyond the certainty but that would require
+    # integrating unit formatting into this routine. E.g., do not write (13000 +- 1000) MB but instead
+    # (13 +- 1) GB.
+    return roundToMagnitude(mean, magnitude), roundToMagnitude(uncertainty, magnitude)
+
+
+def plotCompressionLevelBandwidths():
     filePath = os.path.join(folder, "compression-levels-pragzip-dev-null.dat")
     if not os.path.isfile(filePath):
         return
@@ -564,8 +584,56 @@ def formatCompressionLevelBandwidths():
 
     print(result)
 
+    fig = plt.figure(figsize=(4.5, 4))
+    ax = fig.add_subplot(
+        111,
+        xlabel="Decompression Bandwidth / (GB/s)",
+        ylabel="Tool Used for Compression",
+    )
 
-def formatCompressionFormatBandwidths():
+    maxP = max([x[1] for x in result.index])
+    result = result.loc[(slice(None), maxP), :]
+
+    results = []
+    for mindex, row in zip(result.index, result.to_numpy()):
+        results.append((mindex[0], row[0], row[1]))
+
+    minBandwidth = min([x[1] for x in results])
+    maxBandwidth = max([x[1] for x in results])
+
+    # Xlim needs to be adjusted so that the bar labels fit
+    ax.set_xlim([0, 1.2 * maxBandwidth])
+    ax.set_ylim([-0.5, len(results) - 0.5])
+
+    tickPositions = []
+    tickLabels = []
+    for i, result in enumerate(results[::-1]):
+        tool, bandwidth, deviation = result
+
+        color = 'tab:blue'
+        if bandwidth <= minBandwidth + 0.1 * (maxBandwidth - minBandwidth):
+            color = 'tab:red'
+        elif bandwidth >= maxBandwidth - 0.1 * (maxBandwidth - minBandwidth):
+            color = 'tab:green'
+
+        bandwidth, _ = properRounding(bandwidth, deviation)
+
+        bars = ax.barh([i], [bandwidth], xerr = [deviation], capsize = 0, color = color, label = tool)
+        ax.bar_label(bars, fmt = ' %g')
+        tickPositions += [i]
+        tickLabels += [tool]
+
+    for y in [4, 8, 12]:
+        ax.axhline(y - 0.5, color = '0.75', linestyle = "-", linewidth = 1)
+
+    ax.set_yticks(tickPositions, labels = tickLabels, ha="right", family = 'monospace')
+
+    fig.tight_layout()
+    fig.savefig("rapidgzip-compressor-comparison.pdf")
+    fig.savefig("rapidgzip-compressor-comparison.png", dpi=150)
+
+
+def plotCompressionFormatBandwidths():
     filePath = os.path.join(folder, "compression-formats-dev-null.dat")
     if not os.path.isfile(filePath):
         return
@@ -599,21 +667,98 @@ def formatCompressionFormatBandwidths():
     print(result)
 
 
-# Old tests as to how to plot but the samples correctly but violing plots are sufficient
-#plotBitReaderHistograms()
-#plotBitReaderSelectedHistogram([24])
+    fig = plt.figure(figsize=(6, 4))
+    ax = fig.add_subplot(
+        111,
+        xlabel="Decompression Bandwidth / (GB/s)",
+        ylabel="Compression Tool → Decompression Tool",
+    )
 
-plotChunkSizes()
-plotParallelDecompression("result-decompression-fastq", "result-parallel-decompression-fastq", "dev-null")
-plotParallelDecompression("result-decompression-base64", "result-parallel-decompression-base64", "dev-null")
-plotParallelDecompression("result-decompression-silesia", "result-parallel-decompression-silesia", "dev-null")
-plotParallelDecompressionPerChunkSize("result-decompression-base64", "result-parallel-decompression-base64", "dev-null")
-plotParallelDecompressionPerChunkSize("result-decompression-silesia", "result-parallel-decompression-silesia", "dev-null")
-plotParallelReadingBandwidths()
-plotBitReaderBandwidths()
-plotComponentBandwidths()
+    selections = [
+        ("bgzip → bgzip     ", 1),
+        (" gzip → bgzip     ", 1),
+        (" gzip → rapidgzip ", 1),
+        (" gzip → igzip     ", 1),
+        (" zstd → zstd      ", 1),
+        (" zstd → pzstd     ", 1),
+        ("pzstd → pzstd     ", 1),
 
-formatCompressionLevelBandwidths()
-formatCompressionFormatBandwidths()
+        ("bgzip → bgzip     ", 16),
+        (" gzip → bgzip     ", 16),
+        (" gzip → rapidgzip ", 16),
+        (" gzip → rapidgzipⁱ", 16),
+        (" zstd → pzstd     ", 16),
+        ("pzstd → pzstd     ", 16),
 
-plt.show()
+        ("bgzip → bgzip     ", 128),
+        (" gzip → rapidgzip ", 128),
+        (" gzip → rapidgzipⁱ", 128),
+        ("pzstd → pzstd    ", 128),
+    ]
+
+    results = []
+    for tool, P in selections:
+        compressor = tool.split("→")[0].strip()
+        decompressor = tool.split("→")[1].replace("ⁱ", " (index)").strip()
+        row = result.loc[(P, compressor, decompressor), :]
+        bandwidth = row[0]
+        deviation = row[1]
+        results.append((tool, P, bandwidth, deviation))
+
+    maxBandwidth = max([x[2] for x in results])
+    ax.set_xlim([0, 1.2 * maxBandwidth])
+    ax.set_ylim([-0.5, len(results) - 0.5])
+
+    tickPositions = []
+    tickLabels = []
+    for i, value in enumerate(results[::-1]):
+        tool, P, bandwidth, deviation = value
+        minBandwidth = min([x[2] for x in results if x[1] == P])
+        maxBandwidth = max([x[2] for x in results if x[1] == P])
+
+        color = 'tab:blue'
+        if bandwidth <= minBandwidth + 0.1 * (maxBandwidth - minBandwidth):
+            if P != 128:
+                color = 'tab:red'
+        elif bandwidth >= maxBandwidth - 0.1 * (maxBandwidth - minBandwidth):
+            color = 'tab:green'
+
+        bandwidth, _ = properRounding(bandwidth, deviation)
+
+        bars = ax.barh([i], [bandwidth], xerr=[deviation], capsize=0, color = color, label = tool)
+        ax.bar_label(bars, fmt = ' %g')
+        tickPositions += [i]
+        tickLabels += [tool]
+
+    for y in [4, 10]:
+        ax.axhline(y - 0.5, color = '0.75', linestyle = "-", linewidth = 1)
+    ax.text(ax.get_xlim()[1] / 2, 13, "1 core")
+    ax.text(ax.get_xlim()[1] / 2, 6, "16 cores")
+    ax.text(ax.get_xlim()[1] / 2, 2.65, "128 cores")
+
+    ax.set_yticks(tickPositions, labels = tickLabels, ha="right", family = 'monospace')
+
+    fig.tight_layout()
+    fig.savefig("rapidgzip-compression-format-comparison.pdf")
+    fig.savefig("rapidgzip-compression-format-comparison.png", dpi=150)
+
+
+if __name__ == "__main__":
+    # Old tests as to how to plot but the samples correctly but violing plots are sufficient
+    #plotBitReaderHistograms()
+    #plotBitReaderSelectedHistogram([24])
+
+    plotChunkSizes()
+    plotParallelDecompression("result-decompression-fastq", "result-parallel-decompression-fastq", "dev-null")
+    plotParallelDecompression("result-decompression-base64", "result-parallel-decompression-base64", "dev-null")
+    plotParallelDecompression("result-decompression-silesia", "result-parallel-decompression-silesia", "dev-null")
+    plotParallelDecompressionPerChunkSize("result-decompression-base64", "result-parallel-decompression-base64", "dev-null")
+    plotParallelDecompressionPerChunkSize("result-decompression-silesia", "result-parallel-decompression-silesia", "dev-null")
+    plotParallelReadingBandwidths()
+    plotBitReaderBandwidths()
+    plotComponentBandwidths()
+
+    plotCompressionLevelBandwidths()
+    plotCompressionFormatBandwidths()
+
+    plt.show()

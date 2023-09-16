@@ -1,0 +1,501 @@
+# compressor decompressor parallelization dataSize/B runtime/s compressedDataSize/B
+lz4;lz4;1;423915520;0.346;201866820
+lz4;lz4;1;423915520;0.335;201866820
+lz4;lz4;1;423915520;0.335;201866820
+lz4;lz4;1;423915520;0.335;201866820
+lz4;lz4;1;423915520;0.336;201866820
+lz4;lz4;1;423915520;0.335;201866820
+lz4;lz4;1;423915520;0.334;201866820
+lz4;lz4;1;423915520;0.340;201866820
+lz4;lz4;1;423915520;0.338;201866820
+lz4;lz4;1;423915520;0.338;201866820
+lz4;lz4;1;423915520;0.335;201866820
+lz4;lz4;1;423915520;0.335;201866820
+lz4;lz4;1;423915520;0.336;201866820
+lz4;lz4;1;423915520;0.335;201866820
+lz4;lz4;1;423915520;0.335;201866820
+lz4;lz4;1;423915520;0.334;201866820
+lz4;lz4;1;423915520;0.335;201866820
+lz4;lz4;1;423915520;0.336;201866820
+lz4;lz4;1;423915520;0.335;201866820
+lz4;lz4;1;423915520;0.335;201866820
+bzip2;lbzip2 -k -c -n 1;1;423915520;9.419;109153990
+bzip2;lbzip2 -k -c -n 1;1;423915520;9.414;109153990
+bzip2;lbzip2 -k -c -n 1;1;423915520;9.406;109153990
+bzip2;lbzip2 -k -c -n 1;1;423915520;9.456;109153990
+bzip2;lbzip2 -k -c -n 1;1;423915520;9.466;109153990
+bzip2;lbzip2 -k -c -n 1;1;423915520;9.475;109153990
+bzip2;lbzip2 -k -c -n 1;1;423915520;9.427;109153990
+bzip2;lbzip2 -k -c -n 1;1;423915520;9.412;109153990
+bzip2;lbzip2 -k -c -n 1;1;423915520;9.409;109153990
+bzip2;lbzip2 -k -c -n 1;1;423915520;9.430;109153990
+bzip2;lbzip2 -k -c -n 1;1;423915520;9.467;109153990
+bzip2;lbzip2 -k -c -n 1;1;423915520;9.476;109153990
+bzip2;lbzip2 -k -c -n 1;1;423915520;9.453;109153990
+bzip2;lbzip2 -k -c -n 1;1;423915520;9.417;109153990
+bzip2;lbzip2 -k -c -n 1;1;423915520;9.410;109153990
+bzip2;lbzip2 -k -c -n 1;1;423915520;9.426;109153990
+bzip2;lbzip2 -k -c -n 1;1;423915520;9.472;109153990
+bzip2;lbzip2 -k -c -n 1;1;423915520;9.461;109153990
+bzip2;lbzip2 -k -c -n 1;1;423915520;9.468;109153990
+bzip2;lbzip2 -k -c -n 1;1;423915520;9.423;109153990
+gzip;rapidgzip -o /dev/null -P 1;1;423915520;0.718;136477377
+gzip;rapidgzip -o /dev/null -P 1;1;423915520;0.711;136477377
+gzip;rapidgzip -o /dev/null -P 1;1;423915520;0.712;136477377
+gzip;rapidgzip -o /dev/null -P 1;1;423915520;0.710;136477377
+gzip;rapidgzip -o /dev/null -P 1;1;423915520;0.709;136477377
+gzip;rapidgzip -o /dev/null -P 1;1;423915520;0.710;136477377
+gzip;rapidgzip -o /dev/null -P 1;1;423915520;0.711;136477377
+gzip;rapidgzip -o /dev/null -P 1;1;423915520;0.710;136477377
+gzip;rapidgzip -o /dev/null -P 1;1;423915520;0.706;136477377
+gzip;rapidgzip -o /dev/null -P 1;1;423915520;0.708;136477377
+gzip;rapidgzip -o /dev/null -P 1;1;423915520;0.709;136477377
+gzip;rapidgzip -o /dev/null -P 1;1;423915520;0.709;136477377
+gzip;rapidgzip -o /dev/null -P 1;1;423915520;0.708;136477377
+gzip;rapidgzip -o /dev/null -P 1;1;423915520;0.709;136477377
+gzip;rapidgzip -o /dev/null -P 1;1;423915520;0.708;136477377
+gzip;rapidgzip -o /dev/null -P 1;1;423915520;0.709;136477377
+gzip;rapidgzip -o /dev/null -P 1;1;423915520;0.709;136477377
+gzip;rapidgzip -o /dev/null -P 1;1;423915520;0.710;136477377
+gzip;rapidgzip -o /dev/null -P 1;1;423915520;0.711;136477377
+gzip;rapidgzip -o /dev/null -P 1;1;423915520;0.714;136477377
+gzip;rapidgzip -o /dev/null -P 1 --import-index;1;423915520;0.672;136477377
+gzip;rapidgzip -o /dev/null -P 1 --import-index;1;423915520;0.666;136477377
+gzip;rapidgzip -o /dev/null -P 1 --import-index;1;423915520;0.663;136477377
+gzip;rapidgzip -o /dev/null -P 1 --import-index;1;423915520;0.662;136477377
+gzip;rapidgzip -o /dev/null -P 1 --import-index;1;423915520;0.662;136477377
+gzip;rapidgzip -o /dev/null -P 1 --import-index;1;423915520;0.666;136477377
+gzip;rapidgzip -o /dev/null -P 1 --import-index;1;423915520;0.663;136477377
+gzip;rapidgzip -o /dev/null -P 1 --import-index;1;423915520;0.662;136477377
+gzip;rapidgzip -o /dev/null -P 1 --import-index;1;423915520;0.668;136477377
+gzip;rapidgzip -o /dev/null -P 1 --import-index;1;423915520;0.665;136477377
+gzip;rapidgzip -o /dev/null -P 1 --import-index;1;423915520;0.666;136477377
+gzip;rapidgzip -o /dev/null -P 1 --import-index;1;423915520;0.669;136477377
+gzip;rapidgzip -o /dev/null -P 1 --import-index;1;423915520;0.666;136477377
+gzip;rapidgzip -o /dev/null -P 1 --import-index;1;423915520;0.667;136477377
+gzip;rapidgzip -o /dev/null -P 1 --import-index;1;423915520;0.669;136477377
+gzip;rapidgzip -o /dev/null -P 1 --import-index;1;423915520;0.666;136477377
+gzip;rapidgzip -o /dev/null -P 1 --import-index;1;423915520;0.669;136477377
+gzip;rapidgzip -o /dev/null -P 1 --import-index;1;423915520;0.666;136477377
+gzip;rapidgzip -o /dev/null -P 1 --import-index;1;423915520;0.668;136477377
+gzip;rapidgzip -o /dev/null -P 1 --import-index;1;423915520;0.669;136477377
+gzip;bgzip -k -c --threads 1;1;423915520;1.453;136477377
+gzip;bgzip -k -c --threads 1;1;423915520;1.448;136477377
+gzip;bgzip -k -c --threads 1;1;423915520;1.443;136477377
+gzip;bgzip -k -c --threads 1;1;423915520;1.444;136477377
+gzip;bgzip -k -c --threads 1;1;423915520;1.442;136477377
+gzip;bgzip -k -c --threads 1;1;423915520;1.443;136477377
+gzip;bgzip -k -c --threads 1;1;423915520;1.450;136477377
+gzip;bgzip -k -c --threads 1;1;423915520;1.447;136477377
+gzip;bgzip -k -c --threads 1;1;423915520;1.440;136477377
+gzip;bgzip -k -c --threads 1;1;423915520;1.443;136477377
+gzip;bgzip -k -c --threads 1;1;423915520;1.442;136477377
+gzip;bgzip -k -c --threads 1;1;423915520;1.439;136477377
+gzip;bgzip -k -c --threads 1;1;423915520;1.440;136477377
+gzip;bgzip -k -c --threads 1;1;423915520;1.445;136477377
+gzip;bgzip -k -c --threads 1;1;423915520;1.431;136477377
+gzip;bgzip -k -c --threads 1;1;423915520;1.430;136477377
+gzip;bgzip -k -c --threads 1;1;423915520;1.439;136477377
+gzip;bgzip -k -c --threads 1;1;423915520;1.433;136477377
+gzip;bgzip -k -c --threads 1;1;423915520;1.430;136477377
+gzip;bgzip -k -c --threads 1;1;423915520;1.450;136477377
+bgzip;bgzip -k -c --threads 1;1;423915520;1.434;141998366
+bgzip;bgzip -k -c --threads 1;1;423915520;1.434;141998366
+bgzip;bgzip -k -c --threads 1;1;423915520;1.437;141998366
+bgzip;bgzip -k -c --threads 1;1;423915520;1.436;141998366
+bgzip;bgzip -k -c --threads 1;1;423915520;1.428;141998366
+bgzip;bgzip -k -c --threads 1;1;423915520;1.439;141998366
+bgzip;bgzip -k -c --threads 1;1;423915520;1.439;141998366
+bgzip;bgzip -k -c --threads 1;1;423915520;1.430;141998366
+bgzip;bgzip -k -c --threads 1;1;423915520;1.434;141998366
+bgzip;bgzip -k -c --threads 1;1;423915520;1.431;141998366
+bgzip;bgzip -k -c --threads 1;1;423915520;1.434;141998366
+bgzip;bgzip -k -c --threads 1;1;423915520;1.428;141998366
+bgzip;bgzip -k -c --threads 1;1;423915520;1.430;141998366
+bgzip;bgzip -k -c --threads 1;1;423915520;1.433;141998366
+bgzip;bgzip -k -c --threads 1;1;423915520;1.436;141998366
+bgzip;bgzip -k -c --threads 1;1;423915520;1.438;141998366
+bgzip;bgzip -k -c --threads 1;1;423915520;1.445;141998366
+bgzip;bgzip -k -c --threads 1;1;423915520;1.440;141998366
+bgzip;bgzip -k -c --threads 1;1;423915520;1.440;141998366
+bgzip;bgzip -k -c --threads 1;1;423915520;1.439;141998366
+gzip;igzip -k -f -o /dev/null;1;423915520;0.671;136477377
+gzip;igzip -k -f -o /dev/null;1;423915520;0.654;136477377
+gzip;igzip -k -f -o /dev/null;1;423915520;0.655;136477377
+gzip;igzip -k -f -o /dev/null;1;423915520;0.654;136477377
+gzip;igzip -k -f -o /dev/null;1;423915520;0.658;136477377
+gzip;igzip -k -f -o /dev/null;1;423915520;0.669;136477377
+gzip;igzip -k -f -o /dev/null;1;423915520;0.658;136477377
+gzip;igzip -k -f -o /dev/null;1;423915520;0.654;136477377
+gzip;igzip -k -f -o /dev/null;1;423915520;0.656;136477377
+gzip;igzip -k -f -o /dev/null;1;423915520;0.656;136477377
+gzip;igzip -k -f -o /dev/null;1;423915520;0.656;136477377
+gzip;igzip -k -f -o /dev/null;1;423915520;0.659;136477377
+gzip;igzip -k -f -o /dev/null;1;423915520;0.655;136477377
+gzip;igzip -k -f -o /dev/null;1;423915520;0.657;136477377
+gzip;igzip -k -f -o /dev/null;1;423915520;0.662;136477377
+gzip;igzip -k -f -o /dev/null;1;423915520;0.656;136477377
+gzip;igzip -k -f -o /dev/null;1;423915520;0.658;136477377
+gzip;igzip -k -f -o /dev/null;1;423915520;0.661;136477377
+gzip;igzip -k -f -o /dev/null;1;423915520;0.676;136477377
+gzip;igzip -k -f -o /dev/null;1;423915520;0.656;136477377
+zstd;zstd -o /dev/null;1;423915520;0.540;133121560
+zstd;zstd -o /dev/null;1;423915520;0.524;133121560
+zstd;zstd -o /dev/null;1;423915520;0.525;133121560
+zstd;zstd -o /dev/null;1;423915520;0.525;133121560
+zstd;zstd -o /dev/null;1;423915520;0.526;133121560
+zstd;zstd -o /dev/null;1;423915520;0.524;133121560
+zstd;zstd -o /dev/null;1;423915520;0.527;133121560
+zstd;zstd -o /dev/null;1;423915520;0.524;133121560
+zstd;zstd -o /dev/null;1;423915520;0.528;133121560
+zstd;zstd -o /dev/null;1;423915520;0.530;133121560
+zstd;zstd -o /dev/null;1;423915520;0.525;133121560
+zstd;zstd -o /dev/null;1;423915520;0.526;133121560
+zstd;zstd -o /dev/null;1;423915520;0.525;133121560
+zstd;zstd -o /dev/null;1;423915520;0.526;133121560
+zstd;zstd -o /dev/null;1;423915520;0.521;133121560
+zstd;zstd -o /dev/null;1;423915520;0.522;133121560
+zstd;zstd -o /dev/null;1;423915520;0.525;133121560
+zstd;zstd -o /dev/null;1;423915520;0.523;133121560
+zstd;zstd -o /dev/null;1;423915520;0.525;133121560
+zstd;zstd -o /dev/null;1;423915520;0.523;133121560
+zstd;pzstd -o /dev/null -p 1;1;423915520;0.538;133121560
+zstd;pzstd -o /dev/null -p 1;1;423915520;0.530;133121560
+zstd;pzstd -o /dev/null -p 1;1;423915520;0.525;133121560
+zstd;pzstd -o /dev/null -p 1;1;423915520;0.528;133121560
+zstd;pzstd -o /dev/null -p 1;1;423915520;0.528;133121560
+zstd;pzstd -o /dev/null -p 1;1;423915520;0.525;133121560
+zstd;pzstd -o /dev/null -p 1;1;423915520;0.524;133121560
+zstd;pzstd -o /dev/null -p 1;1;423915520;0.526;133121560
+zstd;pzstd -o /dev/null -p 1;1;423915520;0.524;133121560
+zstd;pzstd -o /dev/null -p 1;1;423915520;0.528;133121560
+zstd;pzstd -o /dev/null -p 1;1;423915520;0.527;133121560
+zstd;pzstd -o /dev/null -p 1;1;423915520;0.525;133121560
+zstd;pzstd -o /dev/null -p 1;1;423915520;0.525;133121560
+zstd;pzstd -o /dev/null -p 1;1;423915520;0.525;133121560
+zstd;pzstd -o /dev/null -p 1;1;423915520;0.526;133121560
+zstd;pzstd -o /dev/null -p 1;1;423915520;0.524;133121560
+zstd;pzstd -o /dev/null -p 1;1;423915520;0.524;133121560
+zstd;pzstd -o /dev/null -p 1;1;423915520;0.525;133121560
+zstd;pzstd -o /dev/null -p 1;1;423915520;0.525;133121560
+zstd;pzstd -o /dev/null -p 1;1;423915520;0.526;133121560
+pzstd;pzstd -o /dev/null -p 1;1;423915520;0.541;133548167
+pzstd;pzstd -o /dev/null -p 1;1;423915520;0.530;133548167
+pzstd;pzstd -o /dev/null -p 1;1;423915520;0.530;133548167
+pzstd;pzstd -o /dev/null -p 1;1;423915520;0.535;133548167
+pzstd;pzstd -o /dev/null -p 1;1;423915520;0.534;133548167
+pzstd;pzstd -o /dev/null -p 1;1;423915520;0.533;133548167
+pzstd;pzstd -o /dev/null -p 1;1;423915520;0.531;133548167
+pzstd;pzstd -o /dev/null -p 1;1;423915520;0.535;133548167
+pzstd;pzstd -o /dev/null -p 1;1;423915520;0.537;133548167
+pzstd;pzstd -o /dev/null -p 1;1;423915520;0.534;133548167
+pzstd;pzstd -o /dev/null -p 1;1;423915520;0.533;133548167
+pzstd;pzstd -o /dev/null -p 1;1;423915520;0.532;133548167
+pzstd;pzstd -o /dev/null -p 1;1;423915520;0.534;133548167
+pzstd;pzstd -o /dev/null -p 1;1;423915520;0.535;133548167
+pzstd;pzstd -o /dev/null -p 1;1;423915520;0.537;133548167
+pzstd;pzstd -o /dev/null -p 1;1;423915520;0.533;133548167
+pzstd;pzstd -o /dev/null -p 1;1;423915520;0.534;133548167
+pzstd;pzstd -o /dev/null -p 1;1;423915520;0.534;133548167
+pzstd;pzstd -o /dev/null -p 1;1;423915520;0.531;133548167
+pzstd;pzstd -o /dev/null -p 1;1;423915520;0.533;133548167
+pzstd;pzstd -o /dev/null -p 1 --no-check;1;423915520;0.541;133548167
+pzstd;pzstd -o /dev/null -p 1 --no-check;1;423915520;0.533;133548167
+pzstd;pzstd -o /dev/null -p 1 --no-check;1;423915520;0.537;133548167
+pzstd;pzstd -o /dev/null -p 1 --no-check;1;423915520;0.535;133548167
+pzstd;pzstd -o /dev/null -p 1 --no-check;1;423915520;0.536;133548167
+pzstd;pzstd -o /dev/null -p 1 --no-check;1;423915520;0.533;133548167
+pzstd;pzstd -o /dev/null -p 1 --no-check;1;423915520;0.537;133548167
+pzstd;pzstd -o /dev/null -p 1 --no-check;1;423915520;0.533;133548167
+pzstd;pzstd -o /dev/null -p 1 --no-check;1;423915520;0.536;133548167
+pzstd;pzstd -o /dev/null -p 1 --no-check;1;423915520;0.535;133548167
+pzstd;pzstd -o /dev/null -p 1 --no-check;1;423915520;0.533;133548167
+pzstd;pzstd -o /dev/null -p 1 --no-check;1;423915520;0.537;133548167
+pzstd;pzstd -o /dev/null -p 1 --no-check;1;423915520;0.538;133548167
+pzstd;pzstd -o /dev/null -p 1 --no-check;1;423915520;0.536;133548167
+pzstd;pzstd -o /dev/null -p 1 --no-check;1;423915520;0.533;133548167
+pzstd;pzstd -o /dev/null -p 1 --no-check;1;423915520;0.535;133548167
+pzstd;pzstd -o /dev/null -p 1 --no-check;1;423915520;0.534;133548167
+pzstd;pzstd -o /dev/null -p 1 --no-check;1;423915520;0.538;133548167
+pzstd;pzstd -o /dev/null -p 1 --no-check;1;423915520;0.534;133548167
+pzstd;pzstd -o /dev/null -p 1 --no-check;1;423915520;0.537;133548167
+bzip2;lbzip2 -k -c -n 16;16;6782648320;10.137;1746463840
+bzip2;lbzip2 -k -c -n 16;16;6782648320;10.130;1746463840
+bzip2;lbzip2 -k -c -n 16;16;6782648320;10.121;1746463840
+bzip2;lbzip2 -k -c -n 16;16;6782648320;10.143;1746463840
+bzip2;lbzip2 -k -c -n 16;16;6782648320;10.140;1746463840
+bzip2;lbzip2 -k -c -n 16;16;6782648320;10.137;1746463840
+bzip2;lbzip2 -k -c -n 16;16;6782648320;10.153;1746463840
+bzip2;lbzip2 -k -c -n 16;16;6782648320;10.136;1746463840
+bzip2;lbzip2 -k -c -n 16;16;6782648320;10.152;1746463840
+bzip2;lbzip2 -k -c -n 16;16;6782648320;10.152;1746463840
+bzip2;lbzip2 -k -c -n 16;16;6782648320;10.154;1746463840
+bzip2;lbzip2 -k -c -n 16;16;6782648320;10.105;1746463840
+bzip2;lbzip2 -k -c -n 16;16;6782648320;10.240;1746463840
+bzip2;lbzip2 -k -c -n 16;16;6782648320;10.144;1746463840
+bzip2;lbzip2 -k -c -n 16;16;6782648320;10.128;1746463840
+bzip2;lbzip2 -k -c -n 16;16;6782648320;10.198;1746463840
+bzip2;lbzip2 -k -c -n 16;16;6782648320;10.176;1746463840
+bzip2;lbzip2 -k -c -n 16;16;6782648320;10.158;1746463840
+bzip2;lbzip2 -k -c -n 16;16;6782648320;10.155;1746463840
+bzip2;lbzip2 -k -c -n 16;16;6782648320;10.163;1746463840
+gzip;rapidgzip -o /dev/null -P 16;16;6782648320;1.615;2183712667
+gzip;rapidgzip -o /dev/null -P 16;16;6782648320;1.624;2183712667
+gzip;rapidgzip -o /dev/null -P 16;16;6782648320;1.624;2183712667
+gzip;rapidgzip -o /dev/null -P 16;16;6782648320;1.625;2183712667
+gzip;rapidgzip -o /dev/null -P 16;16;6782648320;1.654;2183712667
+gzip;rapidgzip -o /dev/null -P 16;16;6782648320;1.666;2183712667
+gzip;rapidgzip -o /dev/null -P 16;16;6782648320;1.631;2183712667
+gzip;rapidgzip -o /dev/null -P 16;16;6782648320;1.633;2183712667
+gzip;rapidgzip -o /dev/null -P 16;16;6782648320;1.608;2183712667
+gzip;rapidgzip -o /dev/null -P 16;16;6782648320;1.669;2183712667
+gzip;rapidgzip -o /dev/null -P 16;16;6782648320;1.630;2183712667
+gzip;rapidgzip -o /dev/null -P 16;16;6782648320;1.625;2183712667
+gzip;rapidgzip -o /dev/null -P 16;16;6782648320;1.643;2183712667
+gzip;rapidgzip -o /dev/null -P 16;16;6782648320;1.621;2183712667
+gzip;rapidgzip -o /dev/null -P 16;16;6782648320;1.636;2183712667
+gzip;rapidgzip -o /dev/null -P 16;16;6782648320;1.672;2183712667
+gzip;rapidgzip -o /dev/null -P 16;16;6782648320;1.634;2183712667
+gzip;rapidgzip -o /dev/null -P 16;16;6782648320;1.617;2183712667
+gzip;rapidgzip -o /dev/null -P 16;16;6782648320;1.600;2183712667
+gzip;rapidgzip -o /dev/null -P 16;16;6782648320;1.654;2183712667
+gzip;rapidgzip -o /dev/null -P 16 --import-index;16;6782648320;0.916;2183712667
+gzip;rapidgzip -o /dev/null -P 16 --import-index;16;6782648320;0.935;2183712667
+gzip;rapidgzip -o /dev/null -P 16 --import-index;16;6782648320;0.921;2183712667
+gzip;rapidgzip -o /dev/null -P 16 --import-index;16;6782648320;0.932;2183712667
+gzip;rapidgzip -o /dev/null -P 16 --import-index;16;6782648320;0.920;2183712667
+gzip;rapidgzip -o /dev/null -P 16 --import-index;16;6782648320;0.917;2183712667
+gzip;rapidgzip -o /dev/null -P 16 --import-index;16;6782648320;0.936;2183712667
+gzip;rapidgzip -o /dev/null -P 16 --import-index;16;6782648320;0.920;2183712667
+gzip;rapidgzip -o /dev/null -P 16 --import-index;16;6782648320;0.947;2183712667
+gzip;rapidgzip -o /dev/null -P 16 --import-index;16;6782648320;0.911;2183712667
+gzip;rapidgzip -o /dev/null -P 16 --import-index;16;6782648320;0.915;2183712667
+gzip;rapidgzip -o /dev/null -P 16 --import-index;16;6782648320;0.917;2183712667
+gzip;rapidgzip -o /dev/null -P 16 --import-index;16;6782648320;0.912;2183712667
+gzip;rapidgzip -o /dev/null -P 16 --import-index;16;6782648320;0.901;2183712667
+gzip;rapidgzip -o /dev/null -P 16 --import-index;16;6782648320;0.917;2183712667
+gzip;rapidgzip -o /dev/null -P 16 --import-index;16;6782648320;0.915;2183712667
+gzip;rapidgzip -o /dev/null -P 16 --import-index;16;6782648320;0.913;2183712667
+gzip;rapidgzip -o /dev/null -P 16 --import-index;16;6782648320;0.921;2183712667
+gzip;rapidgzip -o /dev/null -P 16 --import-index;16;6782648320;0.920;2183712667
+gzip;rapidgzip -o /dev/null -P 16 --import-index;16;6782648320;0.927;2183712667
+gzip;bgzip -k -c --threads 16;16;6782648320;22.558;2183712667
+gzip;bgzip -k -c --threads 16;16;6782648320;22.532;2183712667
+gzip;bgzip -k -c --threads 16;16;6782648320;22.564;2183712667
+gzip;bgzip -k -c --threads 16;16;6782648320;22.610;2183712667
+gzip;bgzip -k -c --threads 16;16;6782648320;22.658;2183712667
+gzip;bgzip -k -c --threads 16;16;6782648320;22.520;2183712667
+gzip;bgzip -k -c --threads 16;16;6782648320;22.690;2183712667
+gzip;bgzip -k -c --threads 16;16;6782648320;22.696;2183712667
+gzip;bgzip -k -c --threads 16;16;6782648320;22.634;2183712667
+gzip;bgzip -k -c --threads 16;16;6782648320;22.544;2183712667
+gzip;bgzip -k -c --threads 16;16;6782648320;22.629;2183712667
+gzip;bgzip -k -c --threads 16;16;6782648320;22.536;2183712667
+gzip;bgzip -k -c --threads 16;16;6782648320;22.749;2183712667
+gzip;bgzip -k -c --threads 16;16;6782648320;22.604;2183712667
+gzip;bgzip -k -c --threads 16;16;6782648320;22.730;2183712667
+gzip;bgzip -k -c --threads 16;16;6782648320;22.566;2183712667
+gzip;bgzip -k -c --threads 16;16;6782648320;22.643;2183712667
+gzip;bgzip -k -c --threads 16;16;6782648320;22.761;2183712667
+gzip;bgzip -k -c --threads 16;16;6782648320;22.617;2183712667
+gzip;bgzip -k -c --threads 16;16;6782648320;22.656;2183712667
+bgzip;bgzip -k -c --threads 16;16;6782648320;2.369;2272050509
+bgzip;bgzip -k -c --threads 16;16;6782648320;2.487;2272050509
+bgzip;bgzip -k -c --threads 16;16;6782648320;2.435;2272050509
+bgzip;bgzip -k -c --threads 16;16;6782648320;2.445;2272050509
+bgzip;bgzip -k -c --threads 16;16;6782648320;2.438;2272050509
+bgzip;bgzip -k -c --threads 16;16;6782648320;2.476;2272050509
+bgzip;bgzip -k -c --threads 16;16;6782648320;2.402;2272050509
+bgzip;bgzip -k -c --threads 16;16;6782648320;2.356;2272050509
+bgzip;bgzip -k -c --threads 16;16;6782648320;2.486;2272050509
+bgzip;bgzip -k -c --threads 16;16;6782648320;2.456;2272050509
+bgzip;bgzip -k -c --threads 16;16;6782648320;2.413;2272050509
+bgzip;bgzip -k -c --threads 16;16;6782648320;2.353;2272050509
+bgzip;bgzip -k -c --threads 16;16;6782648320;2.374;2272050509
+bgzip;bgzip -k -c --threads 16;16;6782648320;2.459;2272050509
+bgzip;bgzip -k -c --threads 16;16;6782648320;2.492;2272050509
+bgzip;bgzip -k -c --threads 16;16;6782648320;2.509;2272050509
+bgzip;bgzip -k -c --threads 16;16;6782648320;2.383;2272050509
+bgzip;bgzip -k -c --threads 16;16;6782648320;2.351;2272050509
+bgzip;bgzip -k -c --threads 16;16;6782648320;2.371;2272050509
+bgzip;bgzip -k -c --threads 16;16;6782648320;2.464;2272050509
+zstd;pzstd -o /dev/null -p 16;16;6782648320;7.705;2130294511
+zstd;pzstd -o /dev/null -p 16;16;6782648320;7.689;2130294511
+zstd;pzstd -o /dev/null -p 16;16;6782648320;7.724;2130294511
+zstd;pzstd -o /dev/null -p 16;16;6782648320;7.692;2130294511
+zstd;pzstd -o /dev/null -p 16;16;6782648320;7.679;2130294511
+zstd;pzstd -o /dev/null -p 16;16;6782648320;7.703;2130294511
+zstd;pzstd -o /dev/null -p 16;16;6782648320;7.702;2130294511
+zstd;pzstd -o /dev/null -p 16;16;6782648320;7.697;2130294511
+zstd;pzstd -o /dev/null -p 16;16;6782648320;7.695;2130294511
+zstd;pzstd -o /dev/null -p 16;16;6782648320;7.829;2130294511
+zstd;pzstd -o /dev/null -p 16;16;6782648320;7.691;2130294511
+zstd;pzstd -o /dev/null -p 16;16;6782648320;7.788;2130294511
+zstd;pzstd -o /dev/null -p 16;16;6782648320;7.695;2130294511
+zstd;pzstd -o /dev/null -p 16;16;6782648320;7.705;2130294511
+zstd;pzstd -o /dev/null -p 16;16;6782648320;7.690;2130294511
+zstd;pzstd -o /dev/null -p 16;16;6782648320;7.684;2130294511
+zstd;pzstd -o /dev/null -p 16;16;6782648320;7.686;2130294511
+zstd;pzstd -o /dev/null -p 16;16;6782648320;7.723;2130294511
+zstd;pzstd -o /dev/null -p 16;16;6782648320;7.684;2130294511
+zstd;pzstd -o /dev/null -p 16;16;6782648320;7.683;2130294511
+pzstd;pzstd -o /dev/null -p 16;16;6782648320;0.975;2136473357
+pzstd;pzstd -o /dev/null -p 16;16;6782648320;1.055;2136473357
+pzstd;pzstd -o /dev/null -p 16;16;6782648320;1.011;2136473357
+pzstd;pzstd -o /dev/null -p 16;16;6782648320;1.022;2136473357
+pzstd;pzstd -o /dev/null -p 16;16;6782648320;1.028;2136473357
+pzstd;pzstd -o /dev/null -p 16;16;6782648320;0.987;2136473357
+pzstd;pzstd -o /dev/null -p 16;16;6782648320;1.002;2136473357
+pzstd;pzstd -o /dev/null -p 16;16;6782648320;1.040;2136473357
+pzstd;pzstd -o /dev/null -p 16;16;6782648320;1.034;2136473357
+pzstd;pzstd -o /dev/null -p 16;16;6782648320;1.016;2136473357
+pzstd;pzstd -o /dev/null -p 16;16;6782648320;0.970;2136473357
+pzstd;pzstd -o /dev/null -p 16;16;6782648320;1.025;2136473357
+pzstd;pzstd -o /dev/null -p 16;16;6782648320;1.015;2136473357
+pzstd;pzstd -o /dev/null -p 16;16;6782648320;1.020;2136473357
+pzstd;pzstd -o /dev/null -p 16;16;6782648320;1.000;2136473357
+pzstd;pzstd -o /dev/null -p 16;16;6782648320;0.999;2136473357
+pzstd;pzstd -o /dev/null -p 16;16;6782648320;1.033;2136473357
+pzstd;pzstd -o /dev/null -p 16;16;6782648320;0.987;2136473357
+pzstd;pzstd -o /dev/null -p 16;16;6782648320;1.038;2136473357
+pzstd;pzstd -o /dev/null -p 16;16;6782648320;0.993;2136473357
+pzstd;pzstd -o /dev/null -p 16 --no-check;16;6782648320;0.991;2136473357
+pzstd;pzstd -o /dev/null -p 16 --no-check;16;6782648320;1.011;2136473357
+pzstd;pzstd -o /dev/null -p 16 --no-check;16;6782648320;1.013;2136473357
+pzstd;pzstd -o /dev/null -p 16 --no-check;16;6782648320;1.002;2136473357
+pzstd;pzstd -o /dev/null -p 16 --no-check;16;6782648320;1.013;2136473357
+pzstd;pzstd -o /dev/null -p 16 --no-check;16;6782648320;0.999;2136473357
+pzstd;pzstd -o /dev/null -p 16 --no-check;16;6782648320;0.979;2136473357
+pzstd;pzstd -o /dev/null -p 16 --no-check;16;6782648320;1.007;2136473357
+pzstd;pzstd -o /dev/null -p 16 --no-check;16;6782648320;1.029;2136473357
+pzstd;pzstd -o /dev/null -p 16 --no-check;16;6782648320;1.003;2136473357
+pzstd;pzstd -o /dev/null -p 16 --no-check;16;6782648320;1.011;2136473357
+pzstd;pzstd -o /dev/null -p 16 --no-check;16;6782648320;1.018;2136473357
+pzstd;pzstd -o /dev/null -p 16 --no-check;16;6782648320;0.993;2136473357
+pzstd;pzstd -o /dev/null -p 16 --no-check;16;6782648320;1.015;2136473357
+pzstd;pzstd -o /dev/null -p 16 --no-check;16;6782648320;1.008;2136473357
+pzstd;pzstd -o /dev/null -p 16 --no-check;16;6782648320;1.023;2136473357
+pzstd;pzstd -o /dev/null -p 16 --no-check;16;6782648320;1.007;2136473357
+pzstd;pzstd -o /dev/null -p 16 --no-check;16;6782648320;0.994;2136473357
+pzstd;pzstd -o /dev/null -p 16 --no-check;16;6782648320;1.012;2136473357
+pzstd;pzstd -o /dev/null -p 16 --no-check;16;6782648320;1.004;2136473357
+bzip2;lbzip2 -k -c -n 128;128;54261186560;13.144;13971710720
+bzip2;lbzip2 -k -c -n 128;128;54261186560;13.211;13971710720
+bzip2;lbzip2 -k -c -n 128;128;54261186560;13.195;13971710720
+bzip2;lbzip2 -k -c -n 128;128;54261186560;13.252;13971710720
+bzip2;lbzip2 -k -c -n 128;128;54261186560;13.179;13971710720
+bzip2;lbzip2 -k -c -n 128;128;54261186560;13.263;13971710720
+bzip2;lbzip2 -k -c -n 128;128;54261186560;13.252;13971710720
+bzip2;lbzip2 -k -c -n 128;128;54261186560;13.128;13971710720
+bzip2;lbzip2 -k -c -n 128;128;54261186560;13.151;13971710720
+bzip2;lbzip2 -k -c -n 128;128;54261186560;13.193;13971710720
+bzip2;lbzip2 -k -c -n 128;128;54261186560;13.085;13971710720
+bzip2;lbzip2 -k -c -n 128;128;54261186560;13.342;13971710720
+bzip2;lbzip2 -k -c -n 128;128;54261186560;13.285;13971710720
+bzip2;lbzip2 -k -c -n 128;128;54261186560;13.095;13971710720
+bzip2;lbzip2 -k -c -n 128;128;54261186560;13.195;13971710720
+bzip2;lbzip2 -k -c -n 128;128;54261186560;13.200;13971710720
+bzip2;lbzip2 -k -c -n 128;128;54261186560;13.251;13971710720
+bzip2;lbzip2 -k -c -n 128;128;54261186560;13.210;13971710720
+bzip2;lbzip2 -k -c -n 128;128;54261186560;13.343;13971710720
+bzip2;lbzip2 -k -c -n 128;128;54261186560;13.225;13971710720
+gzip;rapidgzip -o /dev/null -P 128;128;54261186560;3.985;17469701336
+gzip;rapidgzip -o /dev/null -P 128;128;54261186560;4.092;17469701336
+gzip;rapidgzip -o /dev/null -P 128;128;54261186560;3.997;17469701336
+gzip;rapidgzip -o /dev/null -P 128;128;54261186560;4.002;17469701336
+gzip;rapidgzip -o /dev/null -P 128;128;54261186560;4.095;17469701336
+gzip;rapidgzip -o /dev/null -P 128;128;54261186560;3.950;17469701336
+gzip;rapidgzip -o /dev/null -P 128;128;54261186560;4.018;17469701336
+gzip;rapidgzip -o /dev/null -P 128;128;54261186560;4.112;17469701336
+gzip;rapidgzip -o /dev/null -P 128;128;54261186560;4.071;17469701336
+gzip;rapidgzip -o /dev/null -P 128;128;54261186560;4.158;17469701336
+gzip;rapidgzip -o /dev/null -P 128;128;54261186560;3.982;17469701336
+gzip;rapidgzip -o /dev/null -P 128;128;54261186560;3.965;17469701336
+gzip;rapidgzip -o /dev/null -P 128;128;54261186560;4.078;17469701336
+gzip;rapidgzip -o /dev/null -P 128;128;54261186560;3.947;17469701336
+gzip;rapidgzip -o /dev/null -P 128;128;54261186560;4.100;17469701336
+gzip;rapidgzip -o /dev/null -P 128;128;54261186560;3.989;17469701336
+gzip;rapidgzip -o /dev/null -P 128;128;54261186560;4.031;17469701336
+gzip;rapidgzip -o /dev/null -P 128;128;54261186560;4.038;17469701336
+gzip;rapidgzip -o /dev/null -P 128;128;54261186560;4.100;17469701336
+gzip;rapidgzip -o /dev/null -P 128;128;54261186560;4.034;17469701336
+gzip;rapidgzip -o /dev/null -P 128 --import-index;128;54261186560;2.304;17469701336
+gzip;rapidgzip -o /dev/null -P 128 --import-index;128;54261186560;2.335;17469701336
+gzip;rapidgzip -o /dev/null -P 128 --import-index;128;54261186560;2.301;17469701336
+gzip;rapidgzip -o /dev/null -P 128 --import-index;128;54261186560;2.220;17469701336
+gzip;rapidgzip -o /dev/null -P 128 --import-index;128;54261186560;2.204;17469701336
+gzip;rapidgzip -o /dev/null -P 128 --import-index;128;54261186560;2.197;17469701336
+gzip;rapidgzip -o /dev/null -P 128 --import-index;128;54261186560;2.294;17469701336
+gzip;rapidgzip -o /dev/null -P 128 --import-index;128;54261186560;2.095;17469701336
+gzip;rapidgzip -o /dev/null -P 128 --import-index;128;54261186560;2.154;17469701336
+gzip;rapidgzip -o /dev/null -P 128 --import-index;128;54261186560;2.339;17469701336
+gzip;rapidgzip -o /dev/null -P 128 --import-index;128;54261186560;2.276;17469701336
+gzip;rapidgzip -o /dev/null -P 128 --import-index;128;54261186560;2.183;17469701336
+gzip;rapidgzip -o /dev/null -P 128 --import-index;128;54261186560;2.189;17469701336
+gzip;rapidgzip -o /dev/null -P 128 --import-index;128;54261186560;2.186;17469701336
+gzip;rapidgzip -o /dev/null -P 128 --import-index;128;54261186560;2.255;17469701336
+gzip;rapidgzip -o /dev/null -P 128 --import-index;128;54261186560;2.257;17469701336
+gzip;rapidgzip -o /dev/null -P 128 --import-index;128;54261186560;2.290;17469701336
+gzip;rapidgzip -o /dev/null -P 128 --import-index;128;54261186560;2.220;17469701336
+gzip;rapidgzip -o /dev/null -P 128 --import-index;128;54261186560;2.213;17469701336
+gzip;rapidgzip -o /dev/null -P 128 --import-index;128;54261186560;2.111;17469701336
+bgzip;bgzip -k -c --threads 128;128;54261186560;9.816;18176539061
+bgzip;bgzip -k -c --threads 128;128;54261186560;9.608;18176539061
+bgzip;bgzip -k -c --threads 128;128;54261186560;9.635;18176539061
+bgzip;bgzip -k -c --threads 128;128;54261186560;9.376;18176539061
+bgzip;bgzip -k -c --threads 128;128;54261186560;9.881;18176539061
+bgzip;bgzip -k -c --threads 128;128;54261186560;8.760;18176539061
+bgzip;bgzip -k -c --threads 128;128;54261186560;9.421;18176539061
+bgzip;bgzip -k -c --threads 128;128;54261186560;10.220;18176539061
+bgzip;bgzip -k -c --threads 128;128;54261186560;9.319;18176539061
+bgzip;bgzip -k -c --threads 128;128;54261186560;9.220;18176539061
+bgzip;bgzip -k -c --threads 128;128;54261186560;9.538;18176539061
+bgzip;bgzip -k -c --threads 128;128;54261186560;9.822;18176539061
+bgzip;bgzip -k -c --threads 128;128;54261186560;10.204;18176539061
+bgzip;bgzip -k -c --threads 128;128;54261186560;10.328;18176539061
+bgzip;bgzip -k -c --threads 128;128;54261186560;8.966;18176539061
+bgzip;bgzip -k -c --threads 128;128;54261186560;9.705;18176539061
+bgzip;bgzip -k -c --threads 128;128;54261186560;8.045;18176539061
+bgzip;bgzip -k -c --threads 128;128;54261186560;10.297;18176539061
+bgzip;bgzip -k -c --threads 128;128;54261186560;8.989;18176539061
+bgzip;bgzip -k -c --threads 128;128;54261186560;9.652;18176539061
+pzstd;pzstd -o /dev/null -p 128;128;54261186560;6.127;17092136505
+pzstd;pzstd -o /dev/null -p 128;128;54261186560;6.095;17092136505
+pzstd;pzstd -o /dev/null -p 128;128;54261186560;5.320;17092136505
+pzstd;pzstd -o /dev/null -p 128;128;54261186560;5.112;17092136505
+pzstd;pzstd -o /dev/null -p 128;128;54261186560;5.417;17092136505
+pzstd;pzstd -o /dev/null -p 128;128;54261186560;5.540;17092136505
+pzstd;pzstd -o /dev/null -p 128;128;54261186560;5.806;17092136505
+pzstd;pzstd -o /dev/null -p 128;128;54261186560;5.630;17092136505
+pzstd;pzstd -o /dev/null -p 128;128;54261186560;6.093;17092136505
+pzstd;pzstd -o /dev/null -p 128;128;54261186560;5.940;17092136505
+pzstd;pzstd -o /dev/null -p 128;128;54261186560;5.596;17092136505
+pzstd;pzstd -o /dev/null -p 128;128;54261186560;5.380;17092136505
+pzstd;pzstd -o /dev/null -p 128;128;54261186560;5.683;17092136505
+pzstd;pzstd -o /dev/null -p 128;128;54261186560;6.508;17092136505
+pzstd;pzstd -o /dev/null -p 128;128;54261186560;5.979;17092136505
+pzstd;pzstd -o /dev/null -p 128;128;54261186560;6.061;17092136505
+pzstd;pzstd -o /dev/null -p 128;128;54261186560;6.348;17092136505
+pzstd;pzstd -o /dev/null -p 128;128;54261186560;5.680;17092136505
+pzstd;pzstd -o /dev/null -p 128;128;54261186560;5.904;17092136505
+pzstd;pzstd -o /dev/null -p 128;128;54261186560;6.136;17092136505
+pzstd;pzstd -o /dev/null -p 128 --no-check;128;54261186560;6.466;17092136505
+pzstd;pzstd -o /dev/null -p 128 --no-check;128;54261186560;6.115;17092136505
+pzstd;pzstd -o /dev/null -p 128 --no-check;128;54261186560;5.429;17092136505
+pzstd;pzstd -o /dev/null -p 128 --no-check;128;54261186560;6.084;17092136505
+pzstd;pzstd -o /dev/null -p 128 --no-check;128;54261186560;5.425;17092136505
+pzstd;pzstd -o /dev/null -p 128 --no-check;128;54261186560;5.789;17092136505
+pzstd;pzstd -o /dev/null -p 128 --no-check;128;54261186560;6.135;17092136505
+pzstd;pzstd -o /dev/null -p 128 --no-check;128;54261186560;5.913;17092136505
+pzstd;pzstd -o /dev/null -p 128 --no-check;128;54261186560;6.153;17092136505
+pzstd;pzstd -o /dev/null -p 128 --no-check;128;54261186560;5.825;17092136505
+pzstd;pzstd -o /dev/null -p 128 --no-check;128;54261186560;6.326;17092136505
+pzstd;pzstd -o /dev/null -p 128 --no-check;128;54261186560;5.090;17092136505
+pzstd;pzstd -o /dev/null -p 128 --no-check;128;54261186560;5.858;17092136505
+pzstd;pzstd -o /dev/null -p 128 --no-check;128;54261186560;6.158;17092136505
+pzstd;pzstd -o /dev/null -p 128 --no-check;128;54261186560;5.854;17092136505
+pzstd;pzstd -o /dev/null -p 128 --no-check;128;54261186560;6.010;17092136505
+pzstd;pzstd -o /dev/null -p 128 --no-check;128;54261186560;6.174;17092136505
+pzstd;pzstd -o /dev/null -p 128 --no-check;128;54261186560;6.170;17092136505
+pzstd;pzstd -o /dev/null -p 128 --no-check;128;54261186560;5.642;17092136505
+pzstd;pzstd -o /dev/null -p 128 --no-check;128;54261186560;5.510;17092136505

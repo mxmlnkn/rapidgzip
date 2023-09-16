@@ -1,0 +1,77 @@
+Ignore missing file: ./result-chunk-size-pragzip-dev-null.dat
+Ignore missing file: ./result-chunk-size-pugz-dev-null.dat
+Skipping missing file: ./result-parallel-decompression-fastq-pragzip-index-dev-null.dat
+Skipping missing file: ./result-parallel-decompression-fastq-pragzip-4-MiB-chunks-dev-null.dat
+Skipping missing file: ./result-parallel-decompression-fastq-pugz-sync-dev-null.dat
+Skipping missing file: ./result-decompression-fastq-pigz-dev-null.dat
+Skipping missing file: ./result-decompression-fastq-igzip-dev-null.dat
+Skipping missing file: ./result-decompression-fastq-gzip-dev-null.dat
+Skipping missing file: ./result-parallel-decompression-base64-pragzip-index-dev-null.dat
+Skipping missing file: ./result-parallel-decompression-base64-pragzip-4-MiB-chunks-dev-null.dat
+Skipping missing file: ./result-parallel-decompression-base64-pugz-sync-dev-null.dat
+Skipping missing file: ./result-decompression-base64-pigz-dev-null.dat
+Skipping missing file: ./result-decompression-base64-igzip-dev-null.dat
+Skipping missing file: ./result-decompression-base64-gzip-dev-null.dat
+Skipping missing file: ./result-parallel-decompression-silesia-pragzip-index-dev-null.dat
+Skipping missing file: ./result-parallel-decompression-silesia-pragzip-4-MiB-chunks-dev-null.dat
+Skipping missing file: ./result-parallel-decompression-silesia-pugz-sync-dev-null.dat
+Skipping missing file: ./result-decompression-silesia-pigz-dev-null.dat
+Skipping missing file: ./result-decompression-silesia-igzip-dev-null.dat
+Skipping missing file: ./result-decompression-silesia-gzip-dev-null.dat
+Skipping missing file: ./result-parallel-decompression-base64-pragzip-8-MiB-chunks-dev-null.dat
+Skipping missing file: ./result-parallel-decompression-base64-pragzip-4-MiB-chunks-dev-null.dat
+Skipping missing file: ./result-parallel-decompression-base64-pragzip-2-MiB-chunks-dev-null.dat
+Skipping missing file: ./result-parallel-decompression-base64-pragzip-1-MiB-chunks-dev-null.dat
+Skipping missing file: ./result-parallel-decompression-silesia-pragzip-8-MiB-chunks-dev-null.dat
+Skipping missing file: ./result-parallel-decompression-silesia-pragzip-4-MiB-chunks-dev-null.dat
+Skipping missing file: ./result-parallel-decompression-silesia-pragzip-2-MiB-chunks-dev-null.dat
+Skipping missing file: ./result-parallel-decompression-silesia-pragzip-1-MiB-chunks-dev-null.dat
+Benchmark & 25th Percentile & Median & 75th Percentile\\
+                 mean bandwidth  stddev bandwidth  compression ratio
+tool        P                                                       
+bgzip -l -1 128       21.846194          0.717514               2.99
+bgzip -l 0  128       17.959201          0.613218               1.00
+bgzip -l 3  128       22.535201          0.882820               2.81
+bgzip -l 6  128       22.600855          0.681454               2.99
+bgzip -l 9  128       22.367983          0.836011               3.01
+gzip -1     128       14.345812          0.505431               2.74
+gzip -3     128       13.382027          0.421121               2.90
+gzip -6     128       13.845278          0.208721               3.11
+gzip -9     128       13.581740          0.268034               3.13
+igzip -0    128        0.500827          0.006984               2.42
+igzip -1    128        9.971553          0.164528               2.71
+igzip -2    128       10.425435          0.192421               2.77
+igzip -3    128       13.775261          0.259762               2.82
+pigz -1     128        5.574740          0.052011               2.75
+pigz -3     128        5.527220          0.029539               2.91
+pigz -6     128        5.849639          0.056093               3.11
+pigz -9     128        5.814972          0.069543               3.13
+                                  mean bandwidth  ...  compression ratio
+P   compressor tool                               ...                   
+1   bgzip      bgzip                    0.295363  ...               2.99
+    bzip2      lbzip2                   0.044910  ...               3.88
+    gzip       bgzip                    0.294065  ...               3.11
+               igzip                    0.643274  ...               3.11
+               rapidgzip                0.597029  ...               3.11
+               rapidgzip (index)        0.636329  ...               3.11
+    lz4        lz4                      1.261168  ...               2.10
+    pzstd      pzstd                    0.794164  ...               3.17
+               pzstd --no-check         0.791564  ...               3.17
+    zstd       pzstd                    0.805338  ...               3.18
+               zstd                     0.806425  ...               3.18
+16  bgzip      bgzip                    2.797123  ...               2.99
+    bzip2      lbzip2                   0.668174  ...               3.88
+    gzip       bgzip                    0.299791  ...               3.11
+               rapidgzip                4.151409  ...               3.11
+               rapidgzip (index)        7.368120  ...               3.11
+    pzstd      pzstd                    6.702195  ...               3.17
+               pzstd --no-check         6.739035  ...               3.17
+    zstd       pzstd                    0.880060  ...               3.18
+128 bgzip      bgzip                    5.707844  ...               2.99
+    bzip2      lbzip2                   4.107710  ...               3.88
+    gzip       rapidgzip               13.443162  ...               3.11
+               rapidgzip (index)       24.342209  ...               3.11
+    pzstd      pzstd                    9.361891  ...               3.17
+               pzstd --no-check         9.218330  ...               3.17
+
+[25 rows x 3 columns]

@@ -38,11 +38,9 @@ Issues regarding rapidgzip should be opened [here](https://github.com/mxmlnkn/ra
 1. [Installation](#installation)
 2. [Performance](#performance)
    1. [Scaling Benchmarks on 2xAMD EPYC CPU 7702 (2x64 cores)](#scaling-benchmarks-on-2xamd-epyc-cpu-7702-2x64-cores)
-      1. [Decompression of Silesia Corpus](#decompression-of-silesia-corpus)
-      2. [Decompression Gzip-Compressed Base64 Data](#decompression-gzip-compressed-base64-data)
    2. [Scaling Benchmarks on Ryzen 3900X](#scaling-benchmarks-on-ryzen-3900x)
-      1. [Decompression with Existing Index](#decompression-with-existing-index)
-      2. [Decompression from Scratch](#decompression-from-scratch)
+   3. [Benchmarks for Different Compressors](#benchmarks-for-different-compressors)
+   4. [Benchmarks for Different Decompressors](#benchmarks-for-different-decompressors)
 3. [Usage](#usage)
    1. [Command Line Tool](#command-line-tool)
    2. [Python Library](#python-library)
@@ -112,6 +110,9 @@ Rapidgzip achieves up to 24 GB/s with an index and 12 GB/s without.
 Pugz is not shown as comparison because it is not able to decompress the Silesia dataset because it contains binary data, which it cannot handle.
 
 
+<details>
+<summary>More Benchmarks</summary>
+
 ### Decompression of Gzip-Compressed Base64 Data
 
 ![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/rapidgzip-0.9.0-scaling-benchmarks-2023-08-30/plots/result-parallel-decompression-base64-dev-null-bandwidths-number-of-threads.png)
@@ -173,6 +174,46 @@ These benchmarks on my local workstation with a Ryzen 3900X only has 12 cores (2
 | rapidgzip (12 threads) | 4116                         | 16.4            | |  1900                         |  6.4
 | rapidgzip (24 threads) | 4974                         | 19.8            | |  2040                         |  6.8
 | rapidgzip (32 threads) | 4612                         | 18.3            | |  2580                         |  8.6
+
+
+## Benchmarks for Different Compressors
+
+![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/rapidgzip-comparison-benchmarks-2023-09-05T20-45-10/rapidgzip-compressor-comparison.png)
+
+This benchmarks compresses the enlarged Silesia TAR with different gzip implementations, each with different compression levels.
+Rapidgzip is then used to decompress the resulting files with 128 cores.
+
+Rapidgzip can parallelize decompression for almost all tested cases.
+The only exception are files compressed with `igzip -0`, because these files conain only a single several gigabytes large deflate block.
+This is the only known tool to produce such a pathological deflate block.
+
+The decompression bandwidth for the other compressors, varies quite a lot.
+The fastest decompression is reached with 22 GB/s for bgzip-compressed files because the bgzip format is directly supported, which enabled rapidgzip to avoid the two-staged decompression method and also enables rapidgzip to offload all of the work to ISA-L.
+Files compressed with `bgzip -l 0` decompress slightly slower with "only" 18 GB/s, because it creates a fully non-compressed gzip stream and therefore is more I/O bound than the other bgzip-generated files.
+
+Decompression of pigz-generated files is the slowest with 6 GB/s as opposed to 10-14 GB/s for gzip and igzip.
+It is not clear why that is.
+It might be because `pigz` generates small deflate blocks and adds flush markers.
+
+The values in this chart are higher than in table 3 in the [paper](#citation) because the measurements were done with rapidgzip 0.10.1 instead of version 0.5.0.
+
+
+## Benchmarks for Different Decompressors
+
+![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/rapidgzip-comparison-benchmarks-2023-09-05T20-45-10/rapidgzip-compression-format-comparison.png)
+
+This benchmarks uses different compressors and different decompressors to show multiple things:
+
+ - Single-core decompression of rapidgzip is close to `igzip` and roughly twice as fast as `bgzip`, which uses zlib.
+ - Decompression bandwidth with ISA-L can somewhat compete with zstd and is only 25% slower.
+ - Both, `bgzip` and `pzstd` can only parallelize decompression of files compressed with `bgzip` / `pzstd`.
+   This especially means, that files compressed with the standard `zstd` tool cannot be decompressed in parallel and tops out at ~800 MB/s.
+ - Even for bgzip-compressed files, rapidgzip is always faster than `bgzip` for decompression, thanks to ISA-L and better multi-threading.
+ - Rapidgzip scales higher than pzstd for decompression with many cores, and can be more than twice as fast when an index exists: 24.3 GB/s vs. 9.5 GB/s.
+
+The values in this chart are higher than in table 4 in the [paper](#citation) because the measurements were done with rapidgzip 0.10.1 instead of [version 0.5.0](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/rapidgzip-comparison-benchmarks-2023-09-05T20-45-10/rapidgzip-0.5.0-compression-format-comparison.png).
+
+</details>
 
 
 # Usage
