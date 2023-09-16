@@ -464,13 +464,14 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>&
                         break;
                     case rapidgzip::Error::EMPTY_ALPHABET:
                     case rapidgzip::Error::INVALID_CODE_LENGTHS:
+                    case rapidgzip::Error::INVALID_HUFFMAN_CODE:
                         ++filteredByInvalidLiteralCoding;
                         break;
                     case rapidgzip::Error::BLOATING_HUFFMAN_CODING:
                         ++filteredByBloatingLiteralCoding;
                         break;
                     default:
-                        throw std::logic_error( "Unexpected error for Literal Huffman init!" );
+                        throw std::logic_error( "Unexpected error for Literal Huffman init! " + toString( error ) );
                     }
                 }
             } else {
