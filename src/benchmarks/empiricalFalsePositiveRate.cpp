@@ -166,7 +166,7 @@ findNonCompressedFalsePositives()
         [] () {
             const auto randomData = createRandomData<char>( testDataSize );
             rapidgzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( randomData ) );
-            const auto bitReaderSize = bitReader.size();
+            const auto bitReaderSize = bitReader.size().value();
 
             size_t matches{ 0 };
             for ( size_t offset = 0; offset < bitReaderSize;
@@ -424,7 +424,8 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>&
                     const auto precodeBits = next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS );
 
                     std::cerr << "Failed to handle the following precode correctly:\n";
-                    std::cerr << "    bitReader.tell(): " << bitReader.tell() << " out of " << bitReader.size() << "\n";
+                    std::cerr << "    bitReader.tell(): " << bitReader.tell() << " out of "
+                              << bitReader.size().value_or( 0 ) << "\n";
                     std::cerr << "    precode code length count: " << codeLengthCount << "\n";
                     std::cerr << "    code lengths:";
                     for ( size_t i = 0; i < codeLengthCount; ++i ) {

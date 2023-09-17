@@ -6,6 +6,7 @@ from libc.stdlib cimport malloc, free
 from libc.stdio cimport SEEK_SET
 from libcpp.string cimport string
 from libcpp.map cimport map
+from libcpp.optional cimport optional
 from libcpp.vector cimport vector
 from libcpp cimport bool
 from cpython.buffer cimport PyObject_GetBuffer, PyBuffer_Release, PyBUF_ANY_CONTIGUOUS, PyBUF_SIMPLE
@@ -37,7 +38,7 @@ cdef extern from "rapidgzip/ParallelGzipReader.hpp" namespace "rapidgzip":
         bool closed() except +
         size_t seek(lli, int) except +
         size_t tell() except +
-        size_t size() except +
+        optional[size_t] size() except +
 
         size_t tellCompressed() except +
         int read(int, char*, size_t) except +
@@ -194,11 +195,14 @@ cdef class _RapidgzipFile():
         raise Exception("Invalid file object!")
 
     def size(self):
+        cdef optional[size_t] result
         if self.gzipReader:
-            return self.gzipReader.size()
-        if self.gzipReaderVerbose:
-            return self.gzipReaderVerbose.size()
-        raise Exception("Invalid file object!")
+            result = self.gzipReader.size()
+        elif self.gzipReaderVerbose:
+            result = self.gzipReaderVerbose.size()
+        else:
+            raise Exception("Invalid file object!")
+        return result.value_or( 0 )
 
     def tell_compressed(self):
         if self.gzipReader:

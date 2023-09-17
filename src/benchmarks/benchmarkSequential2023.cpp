@@ -632,7 +632,7 @@ benchmarkFileReaderParallel( ThreadPool&        threadPool,
             std::vector<char> buffer( chunkSize );
 
             uint64_t checksum{ 0 };
-            const auto fileSize = fileReader->size();
+            const auto fileSize = fileReader->size().value();
             for ( auto currentOffset = offset; currentOffset < fileSize; currentOffset += stride ) {
                 fileReader->seek( static_cast<long long int>( currentOffset ) );
                 const auto nBytesRead = fileReader->read( buffer.data(), buffer.size() );

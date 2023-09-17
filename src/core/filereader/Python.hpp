@@ -458,7 +458,7 @@ public:
         return m_currentPosition;
     }
 
-    [[nodiscard]] virtual size_t
+    [[nodiscard]] std::optional<size_t>
     size() const override
     {
         return m_fileSizeBytes;

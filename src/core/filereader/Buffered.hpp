@@ -151,7 +151,11 @@ public:
                 {
                 case SEEK_SET: return offset;
                 case SEEK_CUR: return static_cast<long long int>( m_bufferPosition ) + offset;
-                case SEEK_END: return static_cast<long long int>( size() ) + offset;
+                case SEEK_END:
+                    if ( const auto fileSize = size() ) {
+                        return static_cast<long long int>( *fileSize ) + offset;
+                    }
+                    throw std::invalid_argument( "Cannot seek from end of file because its size is not known!" );
                 }
                 throw std::invalid_argument( "Invalid origin value!" );
             }();
@@ -174,7 +178,7 @@ public:
         return tell();
     }
 
-    [[nodiscard]] size_t
+    [[nodiscard]] std::optional<size_t>
     size() const override
     {
         return m_file ? m_file->size() : m_buffer.size();

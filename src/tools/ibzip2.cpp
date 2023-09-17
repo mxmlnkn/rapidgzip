@@ -407,10 +407,14 @@ ibzip2CLI( int argc, char** argv )
         if ( test ) {
             checkOffsets( inputFilePath, compressedOffsets );
 
-            if ( nBytesWrittenTotal != reader->size() ) {
+            const auto readerSize = reader->size();
+            if ( !readerSize  ) {
+                throw std::logic_error( "Bzip2 reader size should be available at this point!" );
+            }
+            if ( nBytesWrittenTotal != *readerSize ) {
                 std::stringstream msg;
                 msg << "Wrote less bytes (" << nBytesWrittenTotal << " B) than decoded stream is large("
-                    << reader->size() << " B)!";
+                    << *readerSize << " B)!";
                 throw std::logic_error( std::move( msg ).str() );
             }
         }

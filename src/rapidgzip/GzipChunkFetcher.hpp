@@ -180,7 +180,11 @@ public:
             }
 
             const auto nextBlockOffset = m_blockFinder->get( m_nextUnprocessedBlockIndex );
-            if ( !nextBlockOffset ) {
+
+            if ( const auto inputFileSize = m_bitReader.size();
+                 !nextBlockOffset ||
+                 ( inputFileSize && ( *inputFileSize > 0 ) && ( *nextBlockOffset >= *inputFileSize ) ) )
+            {
                 m_blockMap->finalize();
                 m_blockFinder->finalize();
                 return std::nullopt;
@@ -228,7 +232,9 @@ public:
                 m_appendTime += chunkData->appendDuration;
             }
 
-            if ( blockOffsetAfterNext >= m_bitReader.size() ) {
+            if ( const auto inputFileSize = m_bitReader.size();
+                 inputFileSize && ( *inputFileSize > 0 ) && ( blockOffsetAfterNext >= *inputFileSize ) )
+            {
                 m_blockMap->finalize();
                 m_blockFinder->finalize();
             }
@@ -598,10 +604,11 @@ public:
         #endif
 
         if ( initialWindow && untilOffsetIsExact ) {
+            const auto fileSize = originalBitReader.size();
             auto result = decodeBlockWithInflateWrapper<InflateWrapper>(
                 originalBitReader,
                 blockOffset,
-                std::min( untilOffset, originalBitReader.size() ),
+                fileSize ? std::min( untilOffset, *fileSize ) : untilOffset,
                 *initialWindow,
                 decodedSize,
                 crc32Enabled );

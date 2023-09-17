@@ -352,7 +352,7 @@ decodeWithDecodeBlockWithInflateWrapper( UniqueFileReader&& fileReader )
     return ChunkFetcher::decodeBlockWithInflateWrapper<InflateWrapper>(
         bitReader,
         bitReader.tell(),
-        /* exactUntilOffset */ bitReader.size(),
+        /* exactUntilOffset */ bitReader.size().value(),
         /* window */ {},
         /* decodedSize */ std::nullopt,
         /* crc32Enabled */ true );

@@ -102,7 +102,7 @@ public:
         return m_currentPosition;
     }
 
-    [[nodiscard]] size_t
+    [[nodiscard]] std::optional<size_t>
     size() const override
     {
         return m_data.size();

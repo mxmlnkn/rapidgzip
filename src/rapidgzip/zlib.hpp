@@ -111,7 +111,11 @@ public:
                         const size_t untilOffset = std::numeric_limits<size_t>::max() ) :
         m_bitReader( std::move( bitReader ) ),
         m_encodedStartOffset( m_bitReader.tell() ),
-        m_encodedUntilOffset( std::min( m_bitReader.size(), untilOffset ) )
+        m_encodedUntilOffset(
+            [untilOffset] ( const auto& size ) {
+                return size ? std::min( *size, untilOffset ) : untilOffset;
+            } ( m_bitReader.size() )
+        )
     {
         initStream();
         /* 2^15 = 32 KiB window buffer and minus signaling raw deflate stream to decode.

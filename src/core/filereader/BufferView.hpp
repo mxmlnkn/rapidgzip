@@ -118,7 +118,7 @@ public:
                 {
                 case SEEK_SET: return offset;
                 case SEEK_CUR: return static_cast<long long int>( m_bufferPosition ) + offset;
-                case SEEK_END: return static_cast<long long int>( size() ) + offset;
+                case SEEK_END: return static_cast<long long int>( m_size ) + offset;
                 }
                 throw std::invalid_argument( "Invalid origin value!" );
             }();
@@ -132,7 +132,7 @@ public:
         throw std::invalid_argument( "Cannot seek outside of in-memory file range!" );
     }
 
-    [[nodiscard]] size_t
+    [[nodiscard]] std::optional<size_t>
     size() const override
     {
         return m_size;

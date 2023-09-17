@@ -168,8 +168,13 @@ readGzipIndex( UniqueFileReader        indexFile,
     checkedRead( formatId.data(), formatId.size() );
     if ( formatId != std::vector<char>( { 'G', 'Z', 'I', 'D', 'X' } ) ) {
         /* We need a seekable archive to add the very first and very last offset pairs.
-         * If the archive is not seekable, loading the index makes not much sense anyways. */
-        if ( archiveFile && !archiveFile->seekable() ) {
+         * If the archive is not seekable, loading the index makes not much sense anyways.
+         * If it is still needed, then use a better index file format instead of BGZI. */
+        if ( !archiveFile || !archiveFile->seekable() ) {
+            return index;
+        }
+        const auto archiveSize = archiveFile->size();
+        if ( !archiveSize.has_value() ) {
             return index;
         }
 
@@ -201,7 +206,7 @@ readGzipIndex( UniqueFileReader        indexFile,
         if ( ( indexFile->size() > 0 ) && ( indexFile->size() != expectedFileSize ) ) {
             throw std::invalid_argument( "Invalid magic bytes!" );
         }
-        index.compressedSizeInBytes = archiveFile->size();
+        index.compressedSizeInBytes = *archiveSize;
 
         index.checkpoints.reserve( numberOfEntries + 1 );
 
@@ -277,14 +282,14 @@ readGzipIndex( UniqueFileReader        indexFile,
     loadValue( index.checkpointSpacing );
     loadValue( index.windowSizeInBytes );
 
-    if ( archiveFile
-         && ( archiveFile->size() > 0 )
-         && ( archiveFile->size() != index.compressedSizeInBytes ) )
-    {
-        std::stringstream message;
-        message << "File size for the compressed file (" << archiveFile->size()
-                << ") does not fit the size stored in the given index (" << index.compressedSizeInBytes << ")!";
-        throw std::invalid_argument( std::move( message ).str() );
+    if ( archiveFile ) {
+        const auto archiveSize = archiveFile->size();
+        if ( archiveSize && ( *archiveSize != index.compressedSizeInBytes ) ) {
+            std::stringstream message;
+            message << "File size for the compressed file (" << *archiveSize
+                    << ") does not fit the size stored in the given index (" << index.compressedSizeInBytes << ")!";
+            throw std::invalid_argument( std::move( message ).str() );
+        }
     }
 
     /* However, a window size larger than 32 KiB makes no sense bacause the Lempel-Ziv back-references

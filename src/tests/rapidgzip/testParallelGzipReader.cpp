@@ -91,7 +91,9 @@ testParallelDecoder( UniqueFileReader         encoded,
         REQUIRE( reader.blockOffsetsComplete() );
     }
 
-    std::vector<char> result( decoded->size() * 2 );
+    const auto decodedSize = decoded->size().value();
+
+    std::vector<char> result( decodedSize * 2 );
     size_t nBytesRead{ 0 };
     if ( readInChunks ) {
         static constexpr size_t CHUNK_SIZE = 4_Ki;
@@ -107,11 +109,11 @@ testParallelDecoder( UniqueFileReader         encoded,
     } else {
         nBytesRead = reader.read( result.data(), std::max( size_t( 1 ), result.size() ) );
     }
-    REQUIRE( nBytesRead == decoded->size() );
+    REQUIRE( nBytesRead == decodedSize );
     result.resize( nBytesRead );
     REQUIRE( reader.eof() );
 
-    std::vector<char> decodedBuffer( decoded->size() );
+    std::vector<char> decodedBuffer( decodedSize );
     const auto nDecodedBytesRead = decoded->read( decodedBuffer.data(), decodedBuffer.size() );
     REQUIRE( nDecodedBytesRead == decodedBuffer.size() );
     REQUIRE( result == decodedBuffer );
@@ -119,7 +121,7 @@ testParallelDecoder( UniqueFileReader         encoded,
     if ( result != decodedBuffer ) {
         for ( size_t i = 0; i < result.size(); ++i ) {
             if ( result[i] != decodedBuffer[i] ) {
-                std::cerr << "Decoded contents differ at position " << i << " B out of " << decoded->size() << " B: "
+                std::cerr << "Decoded contents differ at position " << i << " B out of " << decodedSize << " B: "
                           << "Decoded != Truth: "
                           << result[i] << " != " << decodedBuffer[i] << " ("
                           << (int)result[i] << " != " << (int)decodedBuffer[i] << ")\n";

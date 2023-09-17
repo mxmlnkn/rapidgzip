@@ -108,13 +108,10 @@ public:
     [[nodiscard]] size_t
     tell() const final
     {
-        if ( m_atEndOfFile ) {
-            return size();
-        }
         return m_currentPosition;
     }
 
-    [[nodiscard]] size_t
+    [[nodiscard]] std::optional<size_t>
     size() const final
     {
         if ( m_atEndOfFile ) {

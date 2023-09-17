@@ -138,16 +138,21 @@ public:
     tell() const override
     {
         if ( m_atEndOfFile ) {
-            return size();
+            const auto fileSize = size();
+            if ( !fileSize ) {
+                throw std::logic_error( "When the file end has been reached, the block map should have been finalized "
+                                        "and the file size should be available!" );
+            }
+            return *fileSize;
         }
         return m_currentPosition;
     }
 
-    [[nodiscard]] size_t
+    [[nodiscard]] std::optional<size_t>
     size() const override
     {
         if ( !m_blockMap->finalized() ) {
-            throw std::invalid_argument( "Can't get stream size in BZ2 when not finished reading at least once!" );
+            return std::nullopt;
         }
         return m_blockMap->back().second;
     }
@@ -288,7 +293,11 @@ public:
             if ( !m_blockMap->finalized() ) {
                 read();
             }
-            offset = size() + offset;
+            if ( const auto fileSize = size(); fileSize ) {
+                offset = *fileSize + offset;
+            } else {
+                throw std::logic_error( "The file size should have become available after reading until the end!" );
+            }
             break;
         }
 
@@ -321,7 +330,7 @@ public:
 
         if ( m_blockMap->finalized() ) {
             m_atEndOfFile = true;
-            m_currentPosition = size();
+            m_currentPosition = m_blockMap->back().second;
             return tell();
         }
 

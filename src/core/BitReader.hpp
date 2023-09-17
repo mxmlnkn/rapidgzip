@@ -136,8 +136,8 @@ public:
     [[nodiscard]] bool
     eof() const override final
     {
-        if ( seekable() ) {
-            return tell() >= size();
+        if ( const auto fileSize = size(); seekable() && fileSize.has_value() ) {
+            return tell() >= *fileSize;
         }
         return ( m_inputBufferPosition >= m_inputBuffer.size() ) && ( !m_file || m_file->eof() );
     }
@@ -475,10 +475,18 @@ public:
     seek( long long int offsetBits,
           int           origin = SEEK_SET ) override final;
 
-    [[nodiscard]] size_t
+    [[nodiscard]] std::optional<size_t>
     size() const override final
     {
-        return ( m_file ? m_file->size() : m_inputBuffer.size() ) * CHAR_BIT;
+        auto sizeInBytes = m_inputBuffer.size();
+        if ( m_file ) {
+            const auto fileSize = m_file->size();
+            if ( !fileSize ) {
+                return std::nullopt;
+            }
+            sizeInBytes = *fileSize;
+        }
+        return sizeInBytes * CHAR_BIT;
     }
 
     [[nodiscard]] const std::vector<std::uint8_t>&
@@ -793,26 +801,49 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
     long long int offsetBits,
     int           origin )
 {
+    const auto fileSize = size();
+
     switch ( origin )
     {
     case SEEK_CUR:
-        offsetBits = tell() + offsetBits;
+        offsetBits += tell();
         break;
     case SEEK_SET:
         break;
     case SEEK_END:
-        offsetBits = size() + offsetBits;
+        if ( !fileSize.has_value() ) {
+            if ( !m_file ) {
+                throw std::logic_error( "File has already been closed!" );
+            }
+
+            if ( !m_file->seekable() ) {
+                throw std::logic_error( "File is not seekable!" );
+            }
+
+            const auto realFileSize = static_cast<long long int>( m_file->seek( 0, SEEK_END ) );
+            /* Because we have seeked to get the full size, we have to force a full seek
+             * to restore a valid file position for the next refillBuffer call. */
+            return fullSeek( static_cast<size_t>( std::max( std::min( offsetBits, 0LL ) + realFileSize, 0LL ) ) );
+        }
+        offsetBits += static_cast<long long int>( *fileSize );
         break;
     }
 
-    offsetBits = std::clamp( offsetBits, 0LL, static_cast<long long int>( size() ) );
+    offsetBits = std::max( offsetBits, 0LL );
+    /* Streaming file readers may return nullopt until EOF has been reached. */
+    if ( fileSize ) {
+        offsetBits = std::min( offsetBits, static_cast<long long int>( *fileSize ) );
+    }
 
     if ( static_cast<size_t>( offsetBits ) == tell() ) {
         return static_cast<size_t>( offsetBits );
     }
 
     if ( !seekable() && ( static_cast<size_t>( offsetBits ) < tell() ) ) {
-        throw std::invalid_argument( "File is not seekable!" );
+        std::stringstream message;
+        message << "File is not seekable! Requested to seek to " << formatBits( offsetBits )
+                << ". Currently at: " << formatBits( tell() );
+        throw std::invalid_argument( std::move( message ).str() );
     }
 
     /* Currently, buffer-only is not supported, use BufferedFileReader as a memory-only file reader! */
@@ -891,7 +922,7 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::fullSeek( size_t offsetBits )
             std::stringstream msg;
             msg << "[BitReader] Could not seek to specified byte " << bytesToSeek
                 << " subbit " << static_cast<int>( subBitsToSeek )
-                << ", size: " << m_file->size()
+                << ", size: " << m_file->size().value_or( 0 )
                 << ", feof: " << m_file->eof()
                 << ", ferror: " << m_file->fail()
                 << ", newPosition: " << newPosition;

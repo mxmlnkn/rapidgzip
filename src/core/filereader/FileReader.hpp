@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <memory>
+#include <optional>
 
 
 class FileReader;
@@ -64,7 +65,7 @@ public:
     seek( long long int offset,
           int           origin = SEEK_SET ) = 0;
 
-    [[nodiscard]] virtual size_t
+    [[nodiscard]] virtual std::optional<size_t>
     size() const = 0;
 
     [[nodiscard]] virtual size_t

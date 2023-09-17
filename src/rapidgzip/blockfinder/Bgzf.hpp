@@ -205,7 +205,8 @@ public:
             const auto blockSize = getBgzfCompressedSize( header );
             if ( blockSize ) {
                 m_currentBlockOffset += *blockSize + 1;
-                if ( m_currentBlockOffset >= m_fileReader->size() ) {
+                const auto fileSize = m_fileReader->size();
+                if ( fileSize && ( m_currentBlockOffset >= *fileSize ) ) {
                     m_currentBlockOffset = std::numeric_limits<size_t>::max();
                 }
             } else {
