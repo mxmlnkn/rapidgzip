@@ -83,7 +83,7 @@ stdinHasInput()
     pollfd fds{};
     fds.fd = STDIN_FILENO;
     fds.events = POLLIN;
-    return poll( &fds, 1, /* timeout in ms */ 0 ) == 1;
+    return poll( &fds, 1, /* timeout in ms */ 100 ) == 1;
 }
 
 
