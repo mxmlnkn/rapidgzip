@@ -510,10 +510,20 @@ private:
          * speculatively prefetched one. */
         if ( !chunkData
              || ( !chunkData->matchesEncodedOffset( blockOffset )
-                  && ( partitionOffset != blockOffset ) ) ) {
-            /* This call given the exact block offset must always yield the correct data and should be equivalent
-             * to directly call @ref decodeBlock with that offset. */
-            chunkData = BaseType::get( blockOffset, blockIndex, getPartitionOffsetFromOffset );
+                  && ( partitionOffset != blockOffset ) ) )
+        {
+            try
+            {
+                /* This call given the exact block offset must always yield the correct data and should be equivalent
+                 * to directly call @ref decodeBlock with that offset. */
+                chunkData = BaseType::get( blockOffset, blockIndex, getPartitionOffsetFromOffset );
+            }
+            catch ( const rapidgzip::BitReader::EndOfFileReached& exception )
+            {
+                std::cerr << "Unexpected end of file when getting block at " << formatBits( blockOffset )
+                          << " (block index: " << blockIndex << ") on demand\n";
+                throw exception;
+            }
         }
 
         if ( !chunkData || ( chunkData->encodedOffsetInBits == std::numeric_limits<size_t>::max() ) ) {
