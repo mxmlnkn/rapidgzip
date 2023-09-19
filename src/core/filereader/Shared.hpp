@@ -353,6 +353,16 @@ public:
                                      "set an error again right away, which makes this interface useless." );
     }
 
+    /**
+     * @return Raw pointer to underlying FileReader and lock, which acts as a kind of borrow together.
+     *         The raw pointer must not be used after the lock has been destroyed.
+     */
+    [[nodiscard]] std::pair<std::unique_lock<std::mutex>, FileReader*>
+    underlyingFile()
+    {
+        return std::pair<std::unique_lock<std::mutex>, FileReader*>( std::unique_lock( *m_mutex ), m_sharedFile.get() );
+    }
+
 private:
     [[nodiscard]] std::scoped_lock<std::mutex>
     getLock() const

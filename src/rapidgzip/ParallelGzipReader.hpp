@@ -216,6 +216,15 @@ public:
             /* The ensureSharedFileReader helper should wrap non-seekable file readers inside SinglePassFileReader. */
             throw std::logic_error( "BitReader should always be seekable even if the underlying file is not!" );
         }
+
+        const auto& [lock, file] = m_sharedFileReader->underlyingFile();
+        const auto singlePassFileReader = dynamic_cast<SinglePassFileReader*>( file );
+        if ( singlePassFileReader != nullptr ) {
+            singlePassFileReader->setMaxReusableChunkCount(
+                static_cast<size_t>(
+                    std::ceil( static_cast<double>( parallelization ) * static_cast<double>( m_chunkSizeInBytes )
+                               / static_cast<double>( SinglePassFileReader::CHUNK_SIZE ) ) ) );
+        }
     }
 
 #ifdef WITH_PYTHON_SUPPORT
@@ -284,7 +293,13 @@ public:
     [[nodiscard]] bool
     seekable() const override
     {
-        return m_bitReader.seekable();
+        if ( !m_bitReader.seekable() || !m_sharedFileReader ) {
+            return false;
+        }
+
+        const auto& [lock, file] = m_sharedFileReader->underlyingFile();
+        const auto singlePassFileReader = dynamic_cast<SinglePassFileReader*>( file );
+        return singlePassFileReader == nullptr;
     }
 
     void
@@ -467,6 +482,15 @@ public:
 
             nBytesDecoded += nBytesToDecode;
             m_currentPosition += nBytesToDecode;
+
+            const auto& [lock, file] = m_sharedFileReader->underlyingFile();
+            const auto singlePassFileReader = dynamic_cast<SinglePassFileReader*>( file );
+            if ( singlePassFileReader != nullptr ) {
+                /* Release only up to the beginning of the currently used chunk in order to theoretically enable
+                 * to clear the full cache and then continue again. This effectively require a recomputation of
+                 * the current chunk if it was not fully read yet. */
+                singlePassFileReader->releaseUpTo( /* floor int division */ chunkData->encodedOffsetInBits / CHAR_BIT );
+            }
         }
 
         return nBytesDecoded;
@@ -509,6 +533,9 @@ public:
         /* Backward seeking is no problem at all! 'tell' may only return <= size()
          * as value meaning we are now < size() and therefore EOF can be cleared! */
         if ( positiveOffset < tell() ) {
+            if ( !seekable() ) {
+                throw std::invalid_argument( "Cannot seek backwards with non-seekable input!" );
+            }
             m_atEndOfFile = false;
             m_currentPosition = positiveOffset;
             return positiveOffset;
