@@ -192,6 +192,13 @@ public:
 
             chunkData = getBlock( *nextBlockOffset, m_nextUnprocessedBlockIndex );
 
+            /* Should only happen when encountering EOF during decodeBlock call. */
+            if ( chunkData->encodedSizeInBits == 0 ) {
+                m_blockMap->finalize();
+                m_blockFinder->finalize();
+                return std::nullopt;
+            }
+
             /* This should also work for multi-stream gzip files because encodedSizeInBits is such that it
              * points across the gzip footer and next header to the next deflate block. */
             const auto blockOffsetAfterNext = chunkData->encodedOffsetInBits + chunkData->encodedSizeInBits;
@@ -1106,6 +1113,9 @@ public:
                 const auto headerOffset = bitReader->tell();
                 const auto [header, error] = gzip::readHeader( *bitReader );
                 if ( error != Error::NONE ) {
+                    if ( error == Error::END_OF_FILE ) {
+                        break;
+                    }
                     std::stringstream message;
                     message << "Failed to read gzip header at offset " << formatBits( headerOffset )
                             << " because of error: " << toString( error );
@@ -1141,6 +1151,13 @@ public:
         #endif
 
             if ( auto error = block->readHeader( *bitReader ); error != Error::NONE ) {
+                /* Encountering EOF while reading the (first bit for the) deflate block header is only
+                 * valid if it is the very first deflate block given to us. Else, it should not happen
+                 * because the final block bit should be set in the previous deflate block. */
+                if ( ( error == Error::END_OF_FILE ) && ( bitReader->tell() == result.encodedOffsetInBits ) ) {
+                    break;
+                }
+
                 std::stringstream message;
                 message << "Failed to read deflate block header at offset " << formatBits( result.encodedOffsetInBits )
                         << " (position after trying: " << formatBits( bitReader->tell() ) << ": "

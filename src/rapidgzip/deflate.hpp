@@ -698,7 +698,12 @@ template<bool treatLastBlockAsError>
 Error
 Block<ENABLE_STATISTICS>::readHeader( BitReader& bitReader )
 {
-    m_isLastBlock = bitReader.read<1>();
+    try {
+        m_isLastBlock = bitReader.read<1>();
+    } catch ( const BitReader::EndOfFileReached& ) {
+        return Error::END_OF_FILE;
+    }
+
     if constexpr ( treatLastBlockAsError ) {
         if ( m_isLastBlock ) {
             return Error::UNEXPECTED_LAST_BLOCK;

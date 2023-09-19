@@ -295,7 +295,8 @@ Block::readBlockHeader()
 
     if ( magicBytes != MAGIC_BITS_BLOCK ) {
         std::stringstream msg;
-        msg << "[BZip2 block header] invalid compressed magic 0x" << std::hex << magicBytes;
+        msg << "[BZip2 block header] invalid compressed magic 0x" << std::hex << magicBytes
+            << " at offset " << formatBits( encodedOffsetInBits );
         throw std::domain_error( std::move( msg ).str() );
     }
 

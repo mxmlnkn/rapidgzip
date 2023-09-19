@@ -213,7 +213,8 @@ public:
     {
         m_sharedFileReader->setStatisticsEnabled( ENABLE_STATISTICS );
         if ( !m_bitReader.seekable() ) {
-            throw std::invalid_argument( "Parallel BZ2 Reader will not work on non-seekable input like stdin (yet)!" );
+            /* The ensureSharedFileReader helper should wrap non-seekable file readers inside SinglePassFileReader. */
+            throw std::logic_error( "BitReader should always be seekable even if the underlying file is not!" );
         }
     }
 

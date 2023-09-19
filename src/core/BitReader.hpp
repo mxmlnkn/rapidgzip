@@ -922,6 +922,9 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::fullSeek( size_t offsetBits )
             std::stringstream msg;
             msg << "[BitReader] Could not seek to specified byte " << bytesToSeek
                 << " subbit " << static_cast<int>( subBitsToSeek )
+                << ", SharedFileReader: " << ( dynamic_cast<SharedFileReader*>( m_file.get() ) != nullptr )
+                << ", SinglePassFileReader: " << ( dynamic_cast<SinglePassFileReader*>( m_file.get() ) != nullptr )
+                << ", tell: " << m_file->tell()
                 << ", size: " << m_file->size().value_or( 0 )
                 << ", feof: " << m_file->eof()
                 << ", ferror: " << m_file->fail()

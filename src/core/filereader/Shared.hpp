@@ -17,6 +17,7 @@
 #include <Statistics.hpp>
 
 #include "FileReader.hpp"
+#include "SinglePass.hpp"
 #ifndef _MSC_VER
     #include "Standard.hpp"
 #endif
@@ -274,13 +275,20 @@ public:
              * the purpose of pread for speed. */
             if ( m_statistics && m_statistics->enabled ) {
                 const std::scoped_lock lock{ m_statistics->mutex };
-                const auto oldOffset = m_statistics->lastAccessOffset;
-                if ( m_currentPosition > oldOffset ) {
-                    m_statistics->seekForward.merge( m_currentPosition - oldOffset );
-                } else if ( m_currentPosition < oldOffset ) {
-                    m_statistics->seekBack.merge( oldOffset - m_currentPosition );
+
+                auto oldOffset = static_cast<size_t>( m_statistics->lastAccessOffset );
+                auto newOffset = m_currentPosition;
+                if ( m_fileSizeBytes ) {
+                    oldOffset = std::min( oldOffset, *m_fileSizeBytes );
+                    newOffset = std::min( newOffset, *m_fileSizeBytes );
                 }
-                m_statistics->lastAccessOffset = m_currentPosition;
+
+                if ( newOffset > oldOffset ) {
+                    m_statistics->seekForward.merge( newOffset - oldOffset );
+                } else if ( newOffset < oldOffset ) {
+                    m_statistics->seekBack.merge( oldOffset - newOffset );
+                }
+                m_statistics->lastAccessOffset = newOffset;
             }
 
             nMaxBytesToRead = std::min( nMaxBytesToRead, *fileSize - m_currentPosition );
@@ -397,5 +405,10 @@ ensureSharedFileReader( UniqueFileReader&& fileReader )
         fileReader.release();
         return std::unique_ptr<SharedFileReader>( casted );
     }
+
+    if ( !fileReader->seekable() ) {
+        return std::make_unique<SharedFileReader>( std::make_unique<SinglePassFileReader>( std::move( fileReader ) ) );
+    }
+
     return std::make_unique<SharedFileReader>( std::move( fileReader ) );
 }
