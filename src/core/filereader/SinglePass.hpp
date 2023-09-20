@@ -1,16 +1,20 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
+#include <condition_variable>
 #include <cstddef>
 #include <cstring>
 #include <deque>
 #include <limits>
+#include <mutex>
 #include <sstream>
 #include <stdexcept>
 #include <utility>
 
 #include <common.hpp>
 #include <FasterVector.hpp>
+#include <JoiningThread.hpp>
 
 #include "FileReader.hpp"
 
@@ -103,7 +107,8 @@ private:
 public:
     explicit
     SinglePassFileReader( UniqueFileReader fileReader ) :
-        m_file( std::move( fileReader ) )
+        m_file( std::move( fileReader ) ),
+        m_fileno( m_file ? m_file->fileno() : -1 )
     {}
 
     ~SinglePassFileReader()
@@ -123,6 +128,10 @@ public:
     void
     close() override
     {
+        m_cancelReaderThread = true;
+        m_notifyReaderThread.notify_one();
+        m_readerThread.reset();
+
         if ( m_file ) {
             m_file->close();
         }
@@ -151,7 +160,7 @@ public:
     fileno() const override
     {
         if ( m_file ) {
-            return m_file->fileno();
+            return m_fileno;
         }
         throw std::invalid_argument( "Trying to get fileno of an invalid file!" );
     }
@@ -166,16 +175,13 @@ public:
     read( char*  buffer,
           size_t nMaxBytesToRead ) override
     {
-        if ( !m_file ) {
-            throw std::invalid_argument( "Invalid or file cannot be seeked!" );
-        }
-
         if ( nMaxBytesToRead == 0 ) {
             return 0;
         }
 
         bufferUpTo( saturatingAddition( m_currentPosition, nMaxBytesToRead ) );
-        const auto startChunk = getChunkIndex( m_currentPosition );
+        const std::lock_guard lock( m_bufferMutex );
+        const auto startChunk = getChunkIndexUnsafe( m_currentPosition );
 
         size_t nBytesRead{ 0 };
         for ( size_t i = startChunk; ( i < m_buffer.size() ) && ( nBytesRead < nMaxBytesToRead ); ++i ) {
@@ -210,10 +216,6 @@ public:
     seek( long long int offset,
           int           origin = SEEK_SET ) override
     {
-        if ( !m_file ) {
-            throw std::invalid_argument( "Invalid or file cannot be seeked!" );
-        }
-
         switch ( origin )
         {
         case SEEK_CUR:
@@ -258,6 +260,8 @@ public:
     void
     releaseUpTo( const size_t untilOffset )
     {
+        const std::scoped_lock lock( m_bufferMutex );
+
         /* Always leave the last chunk as is. Else, interleaved calls to bufferUpTo und releaseUpTo might
          * read the whole file while only ever leaving m_chunk.size() == 1, meaning the assumption that
          * offset = chunk index * CHUNK_SIZE will not hold! */
@@ -295,32 +299,98 @@ private:
     void
     bufferUpTo( const size_t untilOffset )
     {
-        while ( m_file && !m_underlyingFileEOF && ( m_numberOfBytesRead < untilOffset ) ) {
-            /* If the last chunk is already full, create a new empty one. */
-            if ( m_buffer.empty() || ( m_buffer.back().size() >= CHUNK_SIZE ) ) {
-                if ( m_reusableChunks.empty() ) {
-                    m_buffer.emplace_back();
-                } else {
-                    m_buffer.emplace_back( std::move( m_reusableChunks.back() ) );
-                    m_buffer.back().clear();
+        if ( m_underlyingFileEOF || ( untilOffset <= m_bufferUntilOffset ) ) {
+            return;
+        }
+
+        m_bufferUntilOffset = untilOffset;
+        m_notifyReaderThread.notify_one();
+
+        std::unique_lock lock( m_bufferMutex );
+        m_bufferChanged.wait( lock, [this, untilOffset] () {
+            return m_underlyingFileEOF || ( m_buffer.size () * CHUNK_SIZE >= untilOffset );
+        } );
+    }
+
+    void
+    readerThreadMain()
+    {
+        /* The smart pointer m_file must never change while this thread runs!
+         * The FileReader object it points to might change, e.g., via clearerr. */
+        if ( !m_file ) {
+            return;
+        }
+
+        while ( !m_cancelReaderThread && !m_underlyingFileEOF ) {
+            if ( m_numberOfBytesRead >= saturatingAddition( m_bufferUntilOffset.load(), 64 * CHUNK_SIZE ) ) {
+                std::unique_lock lock( m_bufferUntilOffsetMutex );
+                m_notifyReaderThread.wait( lock, [this] () {
+                    return m_cancelReaderThread
+                           || ( m_numberOfBytesRead < saturatingAddition( m_bufferUntilOffset.load(),
+                                                                          64 * CHUNK_SIZE ) );
+                } );
+                continue;
+            }
+
+            Chunk chunk;
+            {
+                const std::lock_guard lock( m_bufferMutex );
+                if ( !m_reusableChunks.empty() ) {
+                    std::swap( chunk, m_reusableChunks.back() );
                     m_reusableChunks.pop_back();
                 }
             }
+            /**
+             * Fill up the last buffer chunk to CHUNK_SIZE.
+             * Beware! Resize does initialize newly added elements unnecessarily to zero!
+             * That's the reason why we avoid the clear() call when reusing a chunk.
+             * @see https://en.cppreference.com/w/cpp/container/vector/resize
+             * > 1) additional default-inserted elements are appended.
+             * https://en.cppreference.com/w/cpp/named_req/DefaultInsertable
+             * > If value-initialization is undesirable, for example, if the object is of non-class type and zeroing
+             * > out is not needed, it can be avoided by providing a custom Allocator::construct.
+             * @see https://stackoverflow.com/q/21028299
+             * Benchmarks with Score-P and manual time measurements have shown that 1/3 of the time spent in
+             * bufferUpTo is spent inside resize, while 2/3 are spent inside the read call.
+             * With m_buffer.back().clear():
+             *  - Spent inside bufferUpTo (excluding read):
+             *    - min: 3e-05 ms, average: 0.0703630 ms, max: 2.02770 ms
+             *    - min: 2e-05 ms, average: 0.0713057 ms, max: 2.24966 ms
+             *    - min: 2e-05 ms, average: 0.0833472 ms, max: 1.98964 ms
+             * Without m_buffer.back().clear:
+             *  - Spent inside bufferUpTo (excluding read):
+             *    - min: 0.27420 ms, average: 0.449753 ms, max: 2.27393 ms
+             *    - min: 0.07365 ms, average: 0.447090 ms, max: 2.37177 ms
+             *    - min: 0.27882 ms, average: 0.462400 ms, max: 2.38367 ms
+             * As can be seen from this, only when we avoid clear+resize, can we reach a minimum overhead
+             * of several microseconds as opposed to almost a third of a millisecond. The maximum values
+             * occur when allocations become necessary, which also shifts the average value of course.
+             */
+            chunk.resize( CHUNK_SIZE );
 
-            /* Fill up the last buffer chunk to CHUNK_SIZE. */
-            const auto oldChunkSize = m_buffer.back().size();
-            m_buffer.back().resize( CHUNK_SIZE );
-            const auto nBytesRead = m_file->read( reinterpret_cast<char*>( m_buffer.back().data() + oldChunkSize ),
-                                                  m_buffer.back().size() - oldChunkSize );
-            m_buffer.back().resize( oldChunkSize + nBytesRead );
+            size_t nBytesBuffered{ 0 };
+            while ( nBytesBuffered < chunk.size() ) {
+                const auto nBytesRead = m_file->read( reinterpret_cast<char*>( chunk.data() ) + nBytesBuffered,
+                                                      chunk.size() - nBytesBuffered );
+                if ( nBytesRead == 0 ) {
+                    break;
+                }
+                nBytesBuffered += nBytesRead;
+            }
+            chunk.resize( nBytesBuffered );
 
-            m_numberOfBytesRead += nBytesRead;
-            m_underlyingFileEOF = nBytesRead == 0;
+            {
+                const std::lock_guard lock( m_bufferMutex );
+                m_numberOfBytesRead += nBytesBuffered;
+                m_underlyingFileEOF = nBytesBuffered < CHUNK_SIZE;
+                m_buffer.emplace_back( std::move( chunk ) );
+            }
+            m_bufferChanged.notify_all();
         }
     }
 
     [[nodiscard]] size_t
-    getChunkIndex( const size_t offset ) const
+    getChunkIndexUnsafe( const size_t offset ) const
     {
         /* Find start chunk to start reading from. */
         const auto startChunk = offset / CHUNK_SIZE;
@@ -356,9 +426,18 @@ private:
 
 protected:
     const UniqueFileReader m_file;
-    bool m_underlyingFileEOF{ false };
+    const int m_fileno;
 
-    size_t m_numberOfBytesRead{ 0 };
+    size_t m_currentPosition{ 0 };
+
+    /** Ensures that up to offset is buffered. Might also buffer more. May only increase. */
+    std::atomic<size_t> m_bufferUntilOffset{ 0 };
+    mutable std::mutex m_bufferUntilOffsetMutex;
+
+    /** These are only modified by @ref m_readerThread. */
+    std::atomic<bool> m_underlyingFileEOF{ false };
+    std::atomic<size_t> m_numberOfBytesRead{ 0 };
+
     /**
      * This only exists to speed up subsequent @ref releaseUpTo calls to avoid having to check all chunks up
      * to the specified position. In the future these chunks might actually be fully removed from @ref m_buffer.
@@ -366,9 +445,42 @@ protected:
      */
     size_t m_releasedChunkCount{ 0 };
     std::deque<Chunk> m_buffer;
+    mutable std::mutex m_bufferMutex;
+    std::condition_variable m_bufferChanged;
 
     size_t m_maxReusableChunkCount{ 1 };
     std::deque<Chunk> m_reusableChunks;
 
-    size_t m_currentPosition{ 0 };
+    std::atomic<bool> m_cancelReaderThread{ false };
+
+    /** Signaled on m_bufferUntilOffset and also m_cancelReaderThread changes. */
+    std::condition_variable m_notifyReaderThread;
+
+    /** Fills m_buffer on demand. */
+    std::unique_ptr<JoiningThread> m_readerThread{
+        std::make_unique<JoiningThread>( [this] () { readerThreadMain(); } )
+    };
 };
+
+
+/*
+Communication protocol between the SinglePass interface called
+from one thread (not reentrant!) and the reader thread:
+
+SinglePass                  readerThreadMain
+    |                              |
+    |---------- creates ---------->|
+    |                              |
+    |                              | wait for m_untilOffset change
+    |                              |
+    |--- increment m_untilOffset ->|
+    |                              | buffer block-wise
+    |                              |   1. unlock during reading
+    |                              |   2. lock during appending to the deque
+    |                              |   3. signal after each append
+    |                              |      so that the requester can resume ASAP
+    |                              | wait for m_untilOffset change
+    |                              |
+    |--- increment m_untilOffset ->|
+    |                              |
+*/
