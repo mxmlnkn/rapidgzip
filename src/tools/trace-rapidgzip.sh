@@ -43,6 +43,7 @@ SCOREP_REGION_NAMES_BEGIN
   EXCLUDE *BitReader*peekUnsafe*
   EXCLUDE *BitReader*seekAfterPeek*
   EXCLUDE *BitReader*fillBitBuffer*
+  EXCLUDE *BitReader*bitBufferSize*
 
   EXCLUDE *calculateLength*
   EXCLUDE *Block*appendToWindow*
@@ -66,10 +67,12 @@ function buildWithScoreP()
             -I../src/rapidgzip/huffman \
             -I../src/rapidgzip/huffman/.. \
             -I../src/core \
-            -I../src/core/filereader \
+            -I../src/external/rpmalloc/rpmalloc \
+            -I../src/external/isa-l/include \
             -isystem ../src/external/cxxopts/include \
             -march=native -O3 -DNDEBUG \
             -Wall -Wextra -Wshadow -Wunused -Werror=return-type -Wno-attributes -Wsuggest-override \
+            -DWITH_RPMALLOC -DWITH_ISAL \
             -fconstexpr-ops-limit=99000100 \
             -o rapidgzip.cpp.scorep.o \
             -c ../src/tools/rapidgzip.cpp
@@ -77,13 +80,13 @@ function buildWithScoreP()
         g++ -march=native -O3 -DNDEBUG \
         rapidgzip.cpp.scorep.o \
         -o src/tools/rapidgzip \
-        /usr/lib/x86_64-linux-gnu/libz.a
+        src/librpmalloc.a \
+        src/libzlibstatic.a \
+        src/libisal_inflate.a
 }
 
 echo "Building code with Score-P..."
 buildWithScoreP
 echo "Built executable."
 
-src/tools/rapidgzip -v -d -o /dev/null 10xSRR22403185_2.fastq.gz
-
-scorep-score -r scorep-rapidgzip/profile.cubex
+src/tools/rapidgzip -d -o /dev/null <( fcat 4GiB-base64.bgz )
