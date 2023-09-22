@@ -29,7 +29,7 @@ Both are built upon the same basic architecture to enable block-parallel decodin
 
 This module provides: 
  - a `rapidgzip` command line tool for parallel decompression of gzip files with a similar command line interface to `gzip` so that it can be used as a replacement.
- - a `rapidgzip.open` Python method for reading and seeking inside gzip files using multiple threads for a speedup of **14** over the built-in gzip module using a 12-core processor.
+ - a `rapidgzip.open` Python method for reading and seeking inside gzip files using multiple threads for a speedup of **21** over the built-in gzip module using a 12-core processor.
 
 The random seeking support is similar to the one provided by [indexed_gzip](https://github.com/pauldmccarthy/indexed_gzip) and the parallel capabilities are effectively a working version of [pugz](https://github.com/Piezoid/pugz), which is only a concept and only works with a limited subset of file contents, namely non-binary (ASCII characters 0 to 127) compressed files.
 
