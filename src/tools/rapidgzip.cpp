@@ -20,6 +20,7 @@
 #include <rapidgzip.hpp>
 #include <Statistics.hpp>
 
+#include "CLIHelper.hpp"
 #include "licenses.hpp"
 
 
@@ -35,7 +36,7 @@ struct Arguments
 
 
 void
-printHelp( const cxxopts::Options& options )
+printRapidgzipHelp( const cxxopts::Options& options )
 {
     std::cout
     << options.help()
@@ -55,20 +56,6 @@ printHelp( const cxxopts::Options& options )
     << "List information about all gzip streams and deflate blocks:\n"
     << "  rapidgzip --analyze file.gz\n"
     << std::endl;
-}
-
-
-std::string
-getFilePath( cxxopts::ParseResult const& parsedArgs,
-             std::string          const& argument )
-{
-    if ( parsedArgs.count( argument ) > 0 ) {
-        auto path = parsedArgs[argument].as<std::string>();
-        if ( path != "-" ) {
-            return path;
-        }
-    }
-    return {};
 }
 
 
@@ -253,7 +240,7 @@ rapidgzipCLI( int                  argc,
     /* Check against simple commands like help and version. */
 
     if ( parsedArgs.count( "help" ) > 0 ) {
-        printHelp( options );
+        printRapidgzipHelp( options );
         return 0;
     }
 
@@ -438,7 +425,7 @@ rapidgzipCLI( int                  argc,
 
     std::cerr << "No suitable arguments were given. Please refer to the help!\n\n";
 
-    printHelp( options );
+    printRapidgzipHelp( options );
 
     return 1;
 }

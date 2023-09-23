@@ -103,6 +103,7 @@ include_dirs = [
     'core',
     'rapidgzip',
     'rapidgzip/huffman',
+    'indexed_bzip2',
 ]
 isal_includes = ['external/isa-l/include', 'external/isa-l/igzip']
 if withIsal == 'enable':
