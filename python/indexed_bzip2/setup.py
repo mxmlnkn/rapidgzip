@@ -47,7 +47,14 @@ def supportsFlag(compiler, flag):
 class Build(build_ext):
     def build_extensions(self):
         for ext in self.extensions:
-            ext.extra_compile_args = ['-std=c++17', '-O3', '-DNDEBUG', '-DWITH_PYTHON_SUPPORT']
+            ext.extra_compile_args = [
+                '-std=c++17',
+                '-O3',
+                '-DNDEBUG',
+                '-DWITH_PYTHON_SUPPORT',
+                '-D_FORTIFY_SOURCE=2',
+                '-D_GLIBCXX_ASSERTIONS',
+            ]
 
             # https://github.com/cython/cython/issues/2670#issuecomment-432212671
             # https://github.com/cython/cython/issues/3405#issuecomment-596975159
@@ -79,6 +86,15 @@ class Build(build_ext):
                     ext.extra_compile_args += ['-fconstexpr-ops-limit=99000100']
                 elif supportsFlag(self.compiler, '-fconstexpr-steps=99000100'):
                     ext.extra_compile_args += ['-fconstexpr-steps=99000100']
+
+                # Add some hardening. See e.g.:
+                # https://www.phoronix.com/news/GCC-fhardened-Hardening-Option
+                # https://developers.redhat.com/blog/2018/03/21/compiler-and-linker-flags-gcc
+                # I have not observed any performance impact for these.
+                ext.extra_compile_args += ['-fstack-protector-strong', '-fstack-clash-protection']
+                # AppleClang seems to not like this flag:
+                if supportsFlag(self.compiler, '-fcf-protection=full'):
+                    ext.extra_compile_args += ['-fcf-protection=full']
 
         super(Build, self).build_extensions()
 
