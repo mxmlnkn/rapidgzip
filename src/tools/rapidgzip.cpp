@@ -308,6 +308,12 @@ rapidgzipCLI( int argc, char** argv )
         return rapidgzip::deflate::analyze( std::move( inputFile ) ) == rapidgzip::Error::NONE ? 0 : 1;
     }
 
+    /* Parse action arguments. */
+
+    const auto countBytes = parsedArgs.count( "count" ) > 0;
+    const auto countLines = parsedArgs.count( "count-lines" ) > 0;
+    const auto decompress = parsedArgs.count( "decompress" ) > 0;
+
     /* Parse output file specifications. */
 
     auto outputFilePath = getFilePath( parsedArgs, "output" );
@@ -320,17 +326,13 @@ rapidgzipCLI( int argc, char** argv )
                                           - static_cast<std::string::difference_type>( suffix.size() ) );
         } else {
             outputFilePath = inputFilePath + ".out";
-            if ( !quiet ) {
+            if ( !quiet && decompress ) {
                 std::cerr << "[Warning] Could not deduce output file name. Will write to '" << outputFilePath << "'\n";
             }
         }
     }
 
     /* Parse other arguments. */
-
-    const auto countBytes = parsedArgs.count( "count" ) > 0;
-    const auto countLines = parsedArgs.count( "count-lines" ) > 0;
-    const auto decompress = parsedArgs.count( "decompress" ) > 0;
 
     if ( decompress && ( outputFilePath != "/dev/null" ) && fileExists( outputFilePath ) && !force ) {
         std::cerr << "Output file '" << outputFilePath << "' already exists! Use --force to overwrite.\n";
