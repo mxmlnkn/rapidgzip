@@ -144,7 +144,7 @@ public:
         auto blockInfo = m_blockMap->findDataOffset( offset );
         if ( blockInfo.contains( offset ) ) {
             const auto blockOffset = blockInfo.encodedOffsetInBits;
-            /* Try to look up the offset based on an offset of for the unsplit block.
+            /* Try to look up the offset based on the offset of the unsplit block.
              * Do not use BaseType::get because it has too many side effects. Even if we know that the cache
              * contains the chunk, the access might break the perfect sequential fetching pattern because
              * the chunk was split into multiple indexes in the fetching strategy while we might now access
@@ -161,14 +161,38 @@ public:
                          && ( blockOffset >= ( *chunkData )->encodedOffsetInBits )
                          && ( blockOffset < ( *chunkData )->encodedOffsetInBits + ( *chunkData )->encodedSizeInBits ) )
                     {
+                        if ( ( *chunkData )->containsMarkers() ) {
+                            std::stringstream message;
+                            message << "[GzipChunkFetcher] Did not expect to get results with markers! "
+                                    << "Requested offset: " << formatBits( offset ) << " found to belong to chunk at: "
+                                    << formatBits( blockOffset ) << ", found matching unsplit block with range ["
+                                    << formatBits( ( *chunkData )->encodedOffsetInBits ) << ", "
+                                    << formatBits( ( *chunkData )->encodedOffsetInBits
+                                                   + ( *chunkData )->encodedSizeInBits ) << "] in the list of "
+                                    << m_unsplitBlocks.size() << " unsplit blocks.";
+                            throw std::logic_error( std::move( message ).str() );
+                        }
                         return std::make_pair( unsplitBlockInfo->decodedOffsetInBytes, *chunkData );
                     }
                 }
             }
 
             /* Get block normally */
-            return std::make_pair( blockInfo.decodedOffsetInBytes,
-                                   getBlock( blockInfo.encodedOffsetInBits, blockInfo.blockIndex ) );
+            auto chunkData = getBlock( blockInfo.encodedOffsetInBits, blockInfo.blockIndex );
+            if ( chunkData && chunkData->containsMarkers() ) {
+                auto lastWindow = m_windowMap->get( chunkData->encodedOffsetInBits );
+                std::stringstream message;
+                message << "[GzipChunkFetcher] Did not expect to get results with markers because the offset already "
+                        << "exists in the block map!\n"
+                        << "    Requested decompressed offset: " << formatBytes( offset ) << " found to belong to chunk at: "
+                        << formatBits( blockOffset ) << " with range ["
+                        << formatBits( chunkData->encodedOffsetInBits ) << ", "
+                        << formatBits( chunkData->encodedOffsetInBits + chunkData->encodedSizeInBits ) << "].\n"
+                        << "    Window size for the chunk offset: "
+                        << ( lastWindow.has_value() ? std::to_string( lastWindow->size() ) : "no window" ) << ".";
+                throw std::logic_error( std::move( message ).str() );
+            }
+            return std::make_pair( blockInfo.decodedOffsetInBytes, std::move( chunkData ) );
         }
 
         /* If the requested offset lies outside the last known block, then we need to keep fetching the next blocks

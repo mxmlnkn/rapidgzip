@@ -224,6 +224,7 @@ public:
                 static_cast<size_t>(
                     std::ceil( static_cast<double>( parallelization ) * static_cast<double>( m_chunkSizeInBytes )
                                / static_cast<double>( SinglePassFileReader::CHUNK_SIZE ) ) ) );
+            m_keepIndex = false;
         }
     }
 
@@ -491,6 +492,10 @@ public:
                  * the current chunk if it was not fully read yet. */
                 singlePassFileReader->releaseUpTo( /* floor int division */ chunkData->encodedOffsetInBits / CHAR_BIT );
             }
+
+            if ( !m_keepIndex && m_windowMap ) {
+                m_windowMap->releaseUpTo( chunkData->encodedOffsetInBits );
+            }
         }
 
         return nBytesDecoded;
@@ -533,6 +538,10 @@ public:
         /* Backward seeking is no problem at all! 'tell' may only return <= size()
          * as value meaning we are now < size() and therefore EOF can be cleared! */
         if ( positiveOffset < tell() ) {
+            if ( !m_keepIndex ) {
+                throw std::invalid_argument( "Seeking (back) not supported when index-keeping has been disabled!" );
+            }
+
             if ( !seekable() ) {
                 throw std::invalid_argument( "Cannot seek backwards with non-seekable input!" );
             }
@@ -796,6 +805,10 @@ public:
     {
         const auto t0 = now();
 
+        if ( !m_keepIndex ) {
+            throw std::invalid_argument( "Exporting index not supported when index-keeping has been disabled!" );
+        }
+
         writeGzipIndex( gzipIndex(), checkedWrite );
 
         if ( m_showProfileOnDestruction ) {
@@ -859,6 +872,17 @@ public:
     {
         m_chunkFetcher.reset();
         m_blockFinder.reset();
+    }
+
+    /**
+     * Index-keeping can be disabled as a memory usage optimization when it will never be needed.
+     * Currently, this will clear windows for chunks that have been fully decompressed once.
+     * Trying to seek in the file with this option enabled will throw an error!
+     */
+    void
+    setKeepIndex( bool keep )
+    {
+        m_keepIndex = keep;
     }
 
 private:
@@ -1007,6 +1031,7 @@ private:
      * in order into @ref m_blockMap.
      */
     std::shared_ptr<WindowMap> const m_windowMap{ std::make_shared<WindowMap>() };
+    bool m_keepIndex{ true };
     std::unique_ptr<ChunkFetcher> m_chunkFetcher;
 
     CRC32Calculator m_crc32;

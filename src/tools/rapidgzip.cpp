@@ -99,6 +99,7 @@ decompressParallel( const Arguments&    args,
 {
     reader->setShowProfileOnDestruction( args.verbose );
     reader->setCRC32Enabled( args.crc32Enabled );
+    reader->setKeepIndex( !args.indexSavePath.empty() || !args.indexLoadPath.empty() );
 
     if ( !args.indexLoadPath.empty() ) {
         reader->importIndex( std::make_unique<StandardFileReader>( args.indexLoadPath ) );
