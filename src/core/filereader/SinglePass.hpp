@@ -269,15 +269,16 @@ public:
             return;
         }
 
+        /* The untilOffset is exclusive, i.e., 0 should release nothing! */
         const auto lastChunkToRelease = std::min( untilOffset / CHUNK_SIZE, m_buffer.size() - 2 );
-        for ( auto i = m_releasedChunkCount; i <= lastChunkToRelease; ++i ) {
+        for ( auto i = m_releasedChunkCount; i < lastChunkToRelease; ++i ) {
             if ( m_reusableChunks.size() < m_maxReusableChunkCount ) {
                 std::swap( m_buffer[i], m_reusableChunks.emplace_back() );
             } else {
                 m_buffer[i] = Chunk();
             }
         }
-        m_releasedChunkCount = lastChunkToRelease + 1;
+        m_releasedChunkCount = lastChunkToRelease;
     }
 
     [[nodiscard]] size_t
@@ -400,8 +401,11 @@ private:
                                         "chunk!" );
             }
             if ( m_buffer[startChunk].empty() ) {
-                throw std::invalid_argument( "[SinglePassFileReader] Trying to access a chunk that has already been "
-                                             "released!" );
+                std::stringstream message;
+                message << "[SinglePassFileReader] Trying to access chunk " << startChunk << " out of "
+                        << m_buffer.size() << " at offset " << formatBits( offset )
+                        << ", which has already been released! Released chunk count: " << m_releasedChunkCount << "\n";
+                throw std::invalid_argument( std::move( message ).str() );
             }
         }
 
