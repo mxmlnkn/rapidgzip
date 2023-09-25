@@ -885,7 +885,7 @@ public:
             if ( decodedSize ) {
                  message << " out of requested " << *decodedSize << " B";
             }
-            message << ".";
+            message << ", started at offset: " << blockOffset << ".";
             throw std::runtime_error( std::move( message ).str() );
         }
 
