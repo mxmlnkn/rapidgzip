@@ -20,7 +20,7 @@
 
 </div>
 
-This repository contains the command line tool `rapidgzip`, which can be used for parallel decompression of almost any gzip file. Other tools, such as [bgzip](http://www.htslib.org/doc/bgzip.html), can only parallelize decompression of gzip files produced by themselves. `rapidgzip` works with all files, especially those produced by the usually installed [GNU gzip](https://www.gzip.org/). How this works can be read in the [pugz paper](https://arxiv.org/abs/1905.07224) or in the [rapidgzip paper](https://dl.acm.org/doi/abs/10.1145/3588195.3592992), which builds upon the former.
+This repository contains the command line tool `rapidgzip`, which can be used for parallel decompression of almost any gzip file. Other tools, such as [bgzip](http://www.htslib.org/doc/bgzip.html), can only parallelize decompression of gzip files produced by themselves. `rapidgzip` works with all files, especially those produced by the usually installed [GNU gzip](https://www.gzip.org/). How this works can be read in the [pugz paper](https://arxiv.org/abs/1905.07224) or in the [rapidgzip paper](https://arxiv.org/abs/2308.08955), which builds upon the former.
 
 The Python module provides a `RapidgzipFile` class, which can be used to seek inside gzip files without having to decompress them first.
 Alternatively, you can use this simply as a **parallelized** gzip decoder as a replacement for Python's builtin `gzip` module in order to fully utilize all your cores.
@@ -319,7 +319,7 @@ If you have suggestions and wishes like support with CMake or Conan, please open
 # Citation
 
 A paper describing the implementation details and showing the scaling behavior with up to 128 cores has been submitted to and [accepted](https://www.hpdc.org/2023/program/technical-sessions/) in [ACM HPDC'23](https://www.hpdc.org/2023/), The 32nd International Symposium on High-Performance Parallel and Distributed Computing.
-The paper can be accessed [freely on ACM DL](https://doi.org/10.1145/3588195.3592992).
+The paper can also be accessed [on ACM DL](https://doi.org/10.1145/3588195.3592992) or [Arxiv](https://arxiv.org/abs/2308.08955).
 The accompanying presentation can be found [here](results/Presentation-2023-06-22.pdf).
 
 If you use this software for your scientific publication, please cite it as:
