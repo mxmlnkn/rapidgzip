@@ -4,8 +4,10 @@
 #include <cstdio>
 #include <memory>
 #include <numeric>
+#include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <blockfinder/Bgzf.hpp>
@@ -17,6 +19,8 @@
 #endif
 #include <VectorView.hpp>
 #include <zlib.hpp>
+
+#include "WindowMap.hpp"
 
 
 /**
@@ -53,23 +57,39 @@ struct Checkpoint
 {
     uint64_t compressedOffsetInBits{ 0 };
     uint64_t uncompressedOffsetInBytes{ 0 };
-    /** The window may be empty for the first deflate block in each gzip stream. */
-    std::vector<uint8_t> window;
 
     [[nodiscard]] constexpr bool
     operator==( const Checkpoint& other ) const noexcept
     {
-        // *INDENT-OFF*
-        return ( compressedOffsetInBits    == other.compressedOffsetInBits    ) &&
-               ( uncompressedOffsetInBytes == other.uncompressedOffsetInBytes ) &&
-               ( window                    == other.window                    );
-        // *INDENT-ON*
+        return ( compressedOffsetInBits == other.compressedOffsetInBits ) &&
+               ( uncompressedOffsetInBytes == other.uncompressedOffsetInBytes );
     }
 };
 
 
 struct GzipIndex
 {
+public:
+    GzipIndex() = default;
+    GzipIndex( GzipIndex&& ) = default;
+    GzipIndex& operator=( GzipIndex&& ) = default;
+
+    [[nodiscard]] GzipIndex
+    clone() const
+    {
+        GzipIndex result( *this );
+        if ( windows ) {
+            result.windows = std::make_shared<WindowMap>( *windows );
+        }
+        return result;
+    }
+
+private:
+    /* Forbid copies because it is unexpected that the windows are shared between copies! */
+    GzipIndex( const GzipIndex& ) = default;
+    GzipIndex& operator=( const GzipIndex& ) = default;
+
+public:
     uint64_t compressedSizeInBytes{ std::numeric_limits<uint64_t>::max() };
     uint64_t uncompressedSizeInBytes{ std::numeric_limits<uint64_t>::max() };
     /**
@@ -81,6 +101,8 @@ struct GzipIndex
     uint32_t windowSizeInBytes{ 0 };
     std::vector<Checkpoint> checkpoints;
 
+    std::shared_ptr<WindowMap> windows;
+
     [[nodiscard]] constexpr bool
     operator==( const GzipIndex& other ) const noexcept
     {
@@ -89,7 +111,8 @@ struct GzipIndex
                ( uncompressedSizeInBytes == other.uncompressedSizeInBytes ) &&
                ( checkpointSpacing       == other.checkpointSpacing       ) &&
                ( windowSizeInBytes       == other.windowSizeInBytes       ) &&
-               ( checkpoints             == other.checkpoints             );
+               ( checkpoints             == other.checkpoints             ) &&
+               ( ( windows == other.windows ) || ( windows && other.windows && ( *windows == *other.windows ) ) );
         // *INDENT-ON*
     }
 };
@@ -146,8 +169,8 @@ countDecompressedBytes( rapidgzip::BitReader           bitReader,
 
 
 [[nodiscard]] inline GzipIndex
-readGzipIndex( UniqueFileReader        indexFile,
-               const UniqueFileReader& archiveFile = {} )
+readGzipIndex( UniqueFileReader indexFile,
+               UniqueFileReader archiveFile = {} )
 {
     GzipIndex index;
 
@@ -210,8 +233,10 @@ readGzipIndex( UniqueFileReader        indexFile,
 
         index.checkpoints.reserve( numberOfEntries + 1 );
 
+        const auto sharedArchiveFile = ensureSharedFileReader( std::move( archiveFile ) );
+
         try {
-            rapidgzip::blockfinder::Bgzf blockfinder( archiveFile->clone() );
+            rapidgzip::blockfinder::Bgzf blockfinder( sharedArchiveFile->clone() );
             const auto firstBlockOffset = blockfinder.find();
             if ( firstBlockOffset == std::numeric_limits<size_t>::max() ) {
                 throw std::invalid_argument( "" );
@@ -220,9 +245,17 @@ readGzipIndex( UniqueFileReader        indexFile,
             auto& firstCheckPoint = index.checkpoints.emplace_back();
             firstCheckPoint.compressedOffsetInBits = firstBlockOffset;
             firstCheckPoint.uncompressedOffsetInBytes = 0;
-        } catch ( const std::invalid_argument& ) {
-            throw std::invalid_argument( "Trying to load a BGZF index for a non-BGZF file!" );
+        } catch ( const std::invalid_argument& exception ) {
+            std::stringstream message;
+            message << "Trying to load a BGZF index for a non-BGZF file!";
+            const std::string_view what( exception.what() );
+            if ( !what.empty() ) {
+                message << " (" << what << ")";
+            }
+            throw std::invalid_argument( std::move( message ).str() );
         }
+
+        index.windows = std::make_shared<WindowMap>();
 
         for ( uint64_t i = 1; i < numberOfEntries; ++i ) {
             auto& checkpoint = index.checkpoints.emplace_back();
@@ -256,10 +289,13 @@ readGzipIndex( UniqueFileReader        indexFile,
                         << lastCheckPoint.uncompressedOffsetInBytes << ")!";
                 throw std::invalid_argument( std::move( message ).str() );
             }
+
+            /* Emplace an empty window to show that the block does not need data. */
+            index.windows->emplace( checkpoint.compressedOffsetInBits, {} );
         }
 
         try {
-            rapidgzip::BitReader bitReader( archiveFile->clone() );
+            rapidgzip::BitReader bitReader( sharedArchiveFile->clone() );
             bitReader.seek( index.checkpoints.back().compressedOffsetInBits );
             index.uncompressedSizeInBytes = index.checkpoints.back().uncompressedOffsetInBytes
                                             + countDecompressedBytes( std::move( bitReader ), {} );
@@ -303,6 +339,8 @@ readGzipIndex( UniqueFileReader        indexFile,
     }
     const auto checkpointCount = readValue<uint32_t>( indexFile.get() );
 
+    std::vector<std::pair</* encoded offset */ size_t, /* window size */ size_t> > windowInfos;
+
     index.checkpoints.resize( checkpointCount );
     for ( uint32_t i = 0; i < checkpointCount; ++i ) {
         auto& checkpoint = index.checkpoints[i];
@@ -330,21 +368,27 @@ readGzipIndex( UniqueFileReader        indexFile,
             checkpoint.compressedOffsetInBits -= bits;
         }
 
+        size_t windowSize{ 0 };
         if ( formatVersion == 0 ) {
             if ( i != 0 ) {
-                checkpoint.window.resize( index.windowSizeInBytes );
+                windowSize = index.windowSizeInBytes;
             }
         } else {
             if ( /* data flag */ readValue<uint8_t>( indexFile.get() ) != 0 ) {
-                checkpoint.window.resize( index.windowSizeInBytes );
+                windowSize = index.windowSizeInBytes;
             }
         }
+        windowInfos.emplace_back( checkpoint.compressedOffsetInBits, windowSize );
     }
 
-    for ( auto& checkpoint : index.checkpoints ) {
-        if ( !checkpoint.window.empty() ) {
-            checkedRead( checkpoint.window.data(), checkpoint.window.size() );
+    index.windows = std::make_shared<WindowMap>();
+    for ( auto& [offset, windowSize] : windowInfos ) {
+        FasterVector<uint8_t> window;
+        if ( windowSize > 0 ) {
+            window.resize( windowSize );
+            checkedRead( window.data(), window.size() );
         }
+        index.windows->emplace( offset, std::move( window ) );
     }
 
     return index;
@@ -360,8 +404,9 @@ writeGzipIndex( const GzipIndex&                                              in
     const auto& checkpoints = index.checkpoints;
     const uint32_t windowSizeInBytes = static_cast<uint32_t>( 32_Ki );
 
-    if ( !std::all_of( checkpoints.begin(), checkpoints.end(), [windowSizeInBytes] ( const auto& checkpoint ) {
-                           return checkpoint.window.empty() || ( checkpoint.window.size() >= windowSizeInBytes );
+    if ( !std::all_of( checkpoints.begin(), checkpoints.end(), [&index, windowSizeInBytes] ( const auto& checkpoint ) {
+                           const auto window = index.windows->get( checkpoint.compressedOffsetInBits );
+                           return window.has_value() && ( window->empty() || ( window->size() >= windowSizeInBytes ) );
                        } ) )
     {
         throw std::invalid_argument( "All window sizes must be at least 32 KiB!" );
@@ -395,11 +440,17 @@ writeGzipIndex( const GzipIndex&                                              in
         writeValue( checkpoint.compressedOffsetInBits / 8 + ( bits == 0 ? 0 : 1 ) );
         writeValue( checkpoint.uncompressedOffsetInBytes );
         writeValue( static_cast<uint8_t>( bits == 0 ? 0 : 8 - bits ) );
-        writeValue( static_cast<uint8_t>( checkpoint.window.empty() ? 0 : 1 ) );
+        const auto window = index.windows->get( checkpoint.compressedOffsetInBits );
+        writeValue( static_cast<uint8_t>( !window || window->empty() ? 0 : 1 ) );
     }
 
     for ( const auto& checkpoint : checkpoints ) {
-        const auto& window = checkpoint.window;
+        const auto result = index.windows->get( checkpoint.compressedOffsetInBits );
+        if ( !result ) {
+            continue;
+        }
+
+        const auto window = *result;
         if ( window.empty() ) {
             continue;
         }

@@ -58,6 +58,7 @@ public:
     using BlockFinder = typename ChunkFetcher::BlockFinder;
     using BitReader = rapidgzip::BitReader;
     using WriteFunctor = std::function<void ( const std::shared_ptr<ChunkData>&, size_t, size_t )>;
+    using Window = WindowMap::Window;
 
 public:
     /**
@@ -589,11 +590,17 @@ public:
         return m_blockMap->blockOffsets();
     }
 
-    [[nodiscard]] GzipIndex
+    /**
+     * This is the first instance for me where returning a const value makes sense because it contains
+     * a shared pointer to the WindowMap, which is not to be modified. Making GzipIndex const forces
+     * the caller to deep clone the index and WindowMap for, e.g., the setBlockOffsets API, which
+     * destructively moves from the WindowMap.
+     */
+    [[nodiscard]] const GzipIndex
     gzipIndex()
     {
         const auto offsets = blockOffsets();  // Also finalizes reading implicitly.
-        if ( offsets.empty() ) {
+        if ( offsets.empty() || !m_windowMap ) {
             return {};
         }
 
@@ -617,12 +624,14 @@ public:
             checkpoint.uncompressedOffsetInBytes = uncompressedOffsetInBytes;
 
             const auto window = m_windowMap->get( compressedOffsetInBits );
-            if ( window ) {
-                checkpoint.window.assign( window->begin(), window->end() );
+            if ( !window ) {
+                throw std::logic_error( "Did not find window to offset " + formatBits( compressedOffsetInBits ) );
             }
 
             index.checkpoints.emplace_back( std::move( checkpoint ) );
         }
+
+        index.windows = m_windowMap;
 
         return index;
     }
@@ -710,7 +719,33 @@ public:
     void
     setBlockOffsets( const GzipIndex& index )
     {
-        if ( index.checkpoints.empty() ) {
+        const auto result = index.windows->data();
+        setBlockOffsets( index, [&windows = result.second] ( size_t offset ) -> Window {
+            return windows->at( offset );
+        } );
+    }
+
+    void
+    setBlockOffsets( GzipIndex&& index )
+    {
+        const auto result = index.windows->data();
+        setBlockOffsets( std::move( index ), [&windows = result.second] ( size_t offset ) -> Window {
+            Window window;
+            std::swap( windows->at( offset ), window );
+            return window;
+        } );
+    }
+
+    /**
+     * @param getWindow A functor that returns the window to the requested encoded bit offset.
+     *                  It shall be a bug if this function is called twice with the same offset.
+     *                  This makes it possible to destructively return the Window to avoid a copy!
+     */
+    void
+    setBlockOffsets( const GzipIndex&                       index,
+                     const std::function<Window( size_t )>& getWindow )
+    {
+        if ( index.checkpoints.empty() || !index.windows || !getWindow ) {
             return;
         }
 
@@ -757,9 +792,7 @@ public:
              * For some reason, indexed_gzip also stores windows for the very last checkpoint at the end of the file,
              * which is useless because there is nothing thereafter. But, don't filter it here so that exportIndex
              * mirrors importIndex better. */
-            m_windowMap->emplace( checkpoint.compressedOffsetInBits,
-                                  WindowMap::Window( checkpoint.window.data(),
-                                                     checkpoint.window.data() + checkpoint.window.size() ) );
+            m_windowMap->emplace( checkpoint.compressedOffsetInBits, getWindow( checkpoint.compressedOffsetInBits ) );
         }
 
         /* Input file-end offset if not included in checkpoints. */

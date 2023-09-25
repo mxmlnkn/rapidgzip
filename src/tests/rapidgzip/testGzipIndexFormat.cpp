@@ -10,33 +10,31 @@
 #include <TestHelpers.hpp>
 
 
-int
-main( int    argc,
-      char** argv )
+GzipIndex
+testIndexRead( const std::filesystem::path& compressedPath,
+               const std::filesystem::path& uncompressedPath,
+               const std::filesystem::path& indexPath )
 {
-    if ( argc == 0 ) {
-        std::cerr << "Expected at least the launch command as the first argument!\n";
-        return 1;
-    }
+    auto index = readGzipIndex( std::make_unique<StandardFileReader>( indexPath ) );
 
-    const std::string binaryFilePath( argv[0] );
-    std::string binaryFolder = std::filesystem::path( binaryFilePath ).parent_path();
-    if ( binaryFolder.empty() ) {
-        binaryFolder = ".";
-    }
-    const auto rootFolder =
-        static_cast<std::filesystem::path>(
-            findParentFolderContaining( binaryFolder, "src/tests/data/base64-256KiB.bgz" )
-        ) / "src" / "tests" / "data";
+    REQUIRE_EQUAL( index.compressedSizeInBytes, fileSize( compressedPath ) );
+    REQUIRE_EQUAL( index.uncompressedSizeInBytes, fileSize( uncompressedPath ) );
 
-    const auto index = readGzipIndex(
-        std::make_unique<StandardFileReader>( rootFolder / "base64-256KiB.gz.index" ) );
+    REQUIRE_EQUAL( index.checkpointSpacing, 64_Ki );
+    REQUIRE_EQUAL( index.checkpoints.size(), 5U );
 
-    REQUIRE( index.compressedSizeInBytes == fileSize( rootFolder / "base64-256KiB.gz" ) );
-    REQUIRE( index.uncompressedSizeInBytes == fileSize( rootFolder / "base64-256KiB" ) );
+    REQUIRE( static_cast<bool>( index.windows ) );
 
-    REQUIRE( index.checkpointSpacing == 64_Ki );
-    REQUIRE( index.checkpoints.size() == 5 );
+    return index;
+}
+
+
+void
+testIndexReadWrite( const std::filesystem::path& compressedPath,
+                    const std::filesystem::path& uncompressedPath,
+                    const std::filesystem::path& indexPath )
+{
+    const auto index = testIndexRead( compressedPath, uncompressedPath, indexPath );
 
     try
     {
@@ -64,6 +62,56 @@ main( int    argc,
         std::cerr << "Caught exception: " << exception.what() << "\n";
         REQUIRE( false );
     }
+}
+
+
+GzipIndex
+testBzipIndexRead( const std::filesystem::path& compressedPath,
+                   const std::filesystem::path& uncompressedPath,
+                   const std::filesystem::path& indexPath )
+{
+    auto index = readGzipIndex( std::make_unique<StandardFileReader>( indexPath ),
+                                /* This second argument is only necessary when reading bgzip indexes! */
+                                std::make_unique<StandardFileReader>( compressedPath ) );
+
+    REQUIRE_EQUAL( index.compressedSizeInBytes, fileSize( compressedPath ) );
+    REQUIRE_EQUAL( index.uncompressedSizeInBytes, fileSize( uncompressedPath ) );
+
+    /* checkpointSpacing is not available for bgzip indexes. */
+    REQUIRE_EQUAL( index.checkpointSpacing, 0U );
+    REQUIRE_EQUAL( index.checkpoints.size(), 4U );
+
+    REQUIRE( static_cast<bool>( index.windows ) );
+
+    return index;
+}
+
+
+int
+main( int    argc,
+      char** argv )
+{
+    if ( argc == 0 ) {
+        std::cerr << "Expected at least the launch command as the first argument!\n";
+        return 1;
+    }
+
+    const std::string binaryFilePath( argv[0] );
+    std::string binaryFolder = std::filesystem::path( binaryFilePath ).parent_path();
+    if ( binaryFolder.empty() ) {
+        binaryFolder = ".";
+    }
+    const auto rootFolder =
+        static_cast<std::filesystem::path>(
+            findParentFolderContaining( binaryFolder, "src/tests/data/base64-256KiB.bgz" )
+        ) / "src" / "tests" / "data";
+
+    testIndexReadWrite( rootFolder / "base64-256KiB.gz",
+                        rootFolder / "base64-256KiB",
+                        rootFolder / "base64-256KiB.gz.index" );
+    testBzipIndexRead( rootFolder / "base64-256KiB.bgz",
+                       rootFolder / "base64-256KiB",
+                       rootFolder / "base64-256KiB.bgz.gzi" );
 
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
 

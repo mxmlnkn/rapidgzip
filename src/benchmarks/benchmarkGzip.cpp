@@ -297,14 +297,14 @@ createGzipIndex( const std::string& fileName )
         + R"(" ); f.build_full_index(); f.export_index( ")"
         + std::string( indexFile )
         + R"(" );')";
+
     const auto returnCode = std::system( command.c_str() );
     REQUIRE( returnCode == 0 );
     if ( returnCode != 0 ) {
         throw std::runtime_error( "Failed to create index using indexed_gzip Python module" );
     }
 
-    auto index = readGzipIndex( std::make_unique<StandardFileReader>( indexFile ) );
-    return { fileName, index };
+    return { fileName, readGzipIndex( std::make_unique<StandardFileReader>( indexFile ) ) };
 }
 
 

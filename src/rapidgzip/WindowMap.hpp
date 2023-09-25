@@ -17,9 +17,17 @@ class WindowMap
 public:
     using Window = rapidgzip::deflate::DecodedVector;
     using WindowView = VectorView<std::uint8_t>;
+    using Windows = std::map</* encoded block offset */ size_t, Window>;
 
 public:
     WindowMap() = default;
+
+    explicit
+    WindowMap( const WindowMap& other )
+    {
+        const auto [lock, windows] = other.data();
+        m_windows = *windows;
+    }
 
     void
     emplace( size_t encodedBlockOffset,
@@ -74,6 +82,32 @@ public:
         m_windows.erase( start, end );
     }
 
+    [[nodiscard]] std::pair<std::unique_lock<std::mutex>, Windows*>
+    data()
+    {
+        return { std::unique_lock( m_mutex ), &m_windows };
+    }
+
+    [[nodiscard]] std::pair<std::unique_lock<std::mutex>, const Windows*>
+    data() const
+    {
+        return { std::unique_lock( m_mutex ), &m_windows };
+    }
+
+    [[nodiscard]] size_t
+    size() const
+    {
+        std::scoped_lock lock( m_mutex );
+        return m_windows.size();
+    }
+
+    [[nodiscard]] bool
+    operator==( const WindowMap& other ) const
+    {
+        std::scoped_lock lock( m_mutex );
+        return m_windows == other.m_windows;
+    }
+
 private:
     mutable std::mutex m_mutex;
 
@@ -88,5 +122,5 @@ private:
      * This should normally be the case because windows should be inserted in order as are the offsets,
      * i.e., the hint can always be end():
      */
-    std::map</* encoded block offset */ size_t, Window> m_windows;
+    Windows m_windows;
 };
