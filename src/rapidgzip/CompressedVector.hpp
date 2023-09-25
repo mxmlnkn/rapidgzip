@@ -201,6 +201,12 @@ public:
                && ( m_decompressedSize == other.m_decompressedSize );
     }
 
+    [[nodiscard]] bool
+    operator!=( const CompressedVector& other ) const
+    {
+        return !( *this == other );
+    }
+
 private:
     CompressionType m_compressionType{ CompressionType::GZIP };
     std::shared_ptr<const Container> m_data;

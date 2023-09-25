@@ -636,12 +636,6 @@ public:
             Checkpoint checkpoint;
             checkpoint.compressedOffsetInBits = compressedOffsetInBits;
             checkpoint.uncompressedOffsetInBytes = uncompressedOffsetInBytes;
-
-            const auto window = m_windowMap->get( compressedOffsetInBits );
-            if ( !window ) {
-                throw std::logic_error( "Did not find window to offset " + formatBits( compressedOffsetInBits ) );
-            }
-
             index.checkpoints.emplace_back( std::move( checkpoint ) );
         }
 

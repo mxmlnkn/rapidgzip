@@ -68,8 +68,10 @@ public:
     using BaseType = BlockFetcher<GzipBlockFinder, ChunkData, FetchingStrategy>;
     using BitReader = rapidgzip::BitReader;
     using SharedWindow = WindowMap::SharedWindow;
+    using SharedDecompressedWindow = std::shared_ptr<const FasterVector<uint8_t> >;
     using WindowView = VectorView<uint8_t>;
     using BlockFinder = typename BaseType::BlockFinder;
+    using PostProcessingFutures = std::map</* block offset */ size_t, std::future<void> >;
 
     static constexpr bool REPLACE_MARKERS_IN_PARALLEL = true;
 
@@ -118,7 +120,7 @@ public:
             if ( !firstBlockInStream ) {
                 throw std::logic_error( "The block finder is required to find the first block itself!" );
             }
-            m_windowMap->emplace( *firstBlockInStream, {} );
+            m_windowMap->emplace( *firstBlockInStream, {}, CompressionType::NONE );
         }
 
         /* Choose default value for CRC32 enable flag. Can still be overwritten by the setter. */
@@ -310,7 +312,7 @@ private:
                     << formatBits( chunkData->encodedOffsetInBits ) << ", "
                     << formatBits( chunkData->encodedOffsetInBits + chunkData->encodedSizeInBits ) << "].\n"
                     << "    Window size for the chunk offset: "
-                    << ( lastWindow ? std::to_string( lastWindow->size() ) : "no window" ) << ".";
+                    << ( lastWindow ? std::to_string( lastWindow->decompressedSize() ) : "no window" ) << ".";
             throw std::logic_error( std::move( message ).str() );
         }
 
@@ -337,6 +339,25 @@ private:
 
         auto chunkData = getBlock( *nextBlockOffset, m_nextUnprocessedBlockIndex );
 
+        /* Because this is a new block, it might contain markers that we have to replace with the window
+         * of the last block. The very first block should not contain any markers, ensuring that we
+         * can successively propagate the window through all blocks. */
+        auto sharedLastWindow = m_windowMap->get( *nextBlockOffset );
+        if ( !sharedLastWindow ) {
+            std::stringstream message;
+            message << "The window of the last block at " << formatBits( *nextBlockOffset )
+                    << " should exist at this point!";
+            throw std::logic_error( std::move( message ).str() );
+        }
+        const auto lastWindow = sharedLastWindow->decompress();
+
+        postProcessChunk( chunkData, lastWindow );
+
+        /* Care has to be taken that we store the correct block offset not the speculative possible range!
+         * This call corrects encodedSizeInBits, which only contains a guess from finalize().
+         * This should only be called after post-processing has finished because encodedSizeInBits is also
+         * used in windowCompressionType() during post-processing to compress the windows. */
+        chunkData->setEncodedOffset( *nextBlockOffset );
         /* Should only happen when encountering EOF during decodeBlock call. */
         if ( chunkData->encodedSizeInBits == 0 ) {
             m_blockMap->finalize();
@@ -344,20 +365,7 @@ private:
             return {};
         }
 
-        /* Because this is a new block, it might contain markers that we have to replace with the window
-         * of the last block. The very first block should not contain any markers, ensuring that we
-         * can successively propagate the window through all blocks. */
-        auto sharedLastWindow = m_windowMap->get( chunkData->encodedOffsetInBits );
-        if ( !sharedLastWindow ) {
-            std::stringstream message;
-            message << "The window of the last block at " << formatBits( chunkData->encodedOffsetInBits )
-                    << " should exist at this point!";
-            throw std::logic_error( std::move( message ).str() );
-        }
-        const auto& lastWindow = *sharedLastWindow;
-
-        postProcessChunk( chunkData, lastWindow );
-        appendSubchunksToIndexes( chunkData, chunkData->subchunks, lastWindow );
+        appendSubchunksToIndexes( chunkData, chunkData->subchunks, *lastWindow );
 
         m_statistics.merge( *chunkData );
 
@@ -427,25 +435,26 @@ private:
             const auto windowOffset = subchunk.encodedOffset + subchunk.encodedSize;
             /* Avoid recalculating what we already emplaced in waitForReplacedMarkers when calling getLastWindow. */
             if ( !m_windowMap->get( windowOffset ) ) {
-                m_windowMap->emplace( windowOffset, chunkData->getWindowAt( lastWindow, decodedOffsetInBlock ) );
+                m_windowMap->emplace( windowOffset, chunkData->getWindowAt( lastWindow, decodedOffsetInBlock ),
+                                      chunkData->windowCompressionType() );
             }
         }
     }
 
     void
     postProcessChunk( const std::shared_ptr<ChunkData>& chunkData,
-                      const FasterVector<uint8_t>&      lastWindow )
+                      const SharedDecompressedWindow&   lastWindow )
     {
         if constexpr ( REPLACE_MARKERS_IN_PARALLEL ) {
             waitForReplacedMarkers( chunkData, lastWindow );
         } else {
-            replaceMarkers( chunkData, lastWindow );
+            replaceMarkers( chunkData, *lastWindow );
         }
     }
 
     void
     waitForReplacedMarkers( const std::shared_ptr<ChunkData>& chunkData,
-                            const WindowView                  lastWindow )
+                            const SharedDecompressedWindow&   lastWindow )
     {
         using namespace std::chrono_literals;
 
@@ -458,17 +467,7 @@ private:
         std::optional<std::future<void> > queuedFuture;
         if ( markerReplaceFuture == m_markersBeingReplaced.end() ) {
             /* First, we need to emplace the last window or else we cannot queue further blocks. */
-            const auto windowOffset = chunkData->encodedOffsetInBits + chunkData->encodedSizeInBits;
-            if ( !m_windowMap->get( windowOffset ) ) {
-                m_windowMap->emplace( windowOffset, chunkData->getLastWindow( lastWindow ) );
-            }
-
-            markerReplaceFuture = m_markersBeingReplaced.emplace(
-                chunkData->encodedOffsetInBits,
-                this->submitTaskWithHighPriority(
-                    [this, chunkData, lastWindow] () { replaceMarkers( chunkData, lastWindow ); }
-                )
-            ).first;
+            markerReplaceFuture = queueChunkForPostProcessing( chunkData, lastWindow );
         }
 
         /* Check other enqueued marker replacements whether they are finished. */
@@ -521,26 +520,35 @@ private:
             if ( !sharedPreviousWindow ) {
                 continue;
             }
-            const auto& previousWindow = *sharedPreviousWindow;
 
-            const auto windowOffset = chunkData->encodedOffsetInBits + chunkData->encodedSizeInBits;
-            if ( !m_windowMap->get( windowOffset ) ) {
-                m_windowMap->emplace( windowOffset, chunkData->getLastWindow( previousWindow ) );
-            }
-
-            m_markersBeingReplaced.emplace(
-                chunkData->encodedOffsetInBits,
-                this->submitTaskWithHighPriority(
-                    [this, chunkData, sharedPreviousWindow] () { replaceMarkers( chunkData, *sharedPreviousWindow ); }
-                )
-            );
+            queueChunkForPostProcessing( chunkData, sharedPreviousWindow->decompress() );
         }
+    }
+
+    PostProcessingFutures::iterator
+    queueChunkForPostProcessing( const std::shared_ptr<ChunkData>& chunkData,
+                                 SharedDecompressedWindow          previousWindow )
+    {
+        const auto windowOffset = chunkData->encodedOffsetInBits + chunkData->encodedSizeInBits;
+        if ( !m_windowMap->get( windowOffset ) ) {
+            /* The last window is always inserted into the window map by the main thread because else
+             * it wouldn't be able queue the next chunk for post-processing in parallel. This is the critical
+             * path that cannot be parallelized. Therefore, do not compress the last window to save time. */
+            m_windowMap->emplace( windowOffset, chunkData->getLastWindow( *previousWindow ), CompressionType::NONE );
+        }
+
+        return m_markersBeingReplaced.emplace(
+            chunkData->encodedOffsetInBits,
+            this->submitTaskWithHighPriority(
+                [chunkData, window = std::move( previousWindow )] () {
+                    replaceMarkers( chunkData, *window );
+                } ) ).first;
     }
 
     /**
      * Must be thread-safe because it is submitted to the thread pool.
      */
-    void
+    static void
     replaceMarkers( const std::shared_ptr<ChunkData>& chunkData,
                     const WindowView                  previousWindow )
     {
@@ -642,8 +650,6 @@ private:
             throw std::logic_error( std::move( message ).str() );
         }
 
-        /* Care has to be taken that we store the correct block offset not the speculative possible range! */
-        chunkData->setEncodedOffset( blockOffset );
         return chunkData;
     }
 
@@ -710,14 +716,14 @@ public:
         #endif
 
             const auto fileSize = originalBitReader.size();
-            const auto& window = *initialWindow;
+            const auto window = initialWindow->decompress();
 
             auto configuration = chunkDataConfiguration;
             configuration.encodedOffsetInBits = blockOffset;
             auto result = decodeBlockWithInflateWrapper<InflateWrapper>(
                 originalBitReader,
                 fileSize ? std::min( untilOffset, *fileSize ) : untilOffset,
-                window,
+                *window,
                 decodedSize,
                 configuration );
 
@@ -731,7 +737,7 @@ public:
                         << "  Decoded size          : " << result.decodedSizeInBytes << " B\n"
                         << "  Expected decoded size : " << *decodedSize << " B\n"
                         << "  Until offset is exact : " << untilOffsetIsExact << "\n"
-                        << "  Initial Window        : " << std::to_string( window.size() ) << "\n";
+                        << "  Initial Window        : " << std::to_string( window->size() ) << "\n";
                 throw std::runtime_error( std::move( message ).str() );
             }
 
@@ -741,8 +747,8 @@ public:
         BitReader bitReader( originalBitReader );
         if ( initialWindow ) {
             bitReader.seek( blockOffset );
-            const auto& window = *initialWindow;
-            return decodeBlockWithRapidgzip( &bitReader, untilOffset, window, maxDecompressedChunkSize,
+            const auto window = initialWindow->decompress();
+            return decodeBlockWithRapidgzip( &bitReader, untilOffset, *window, maxDecompressedChunkSize,
                                               chunkDataConfiguration );
         }
 
@@ -1301,9 +1307,7 @@ public:
 
         #ifdef WITH_ISAL
             if ( cleanDataCount >= deflate::MAX_WINDOW_SIZE ) {
-                const deflate::DecodedVector window = result.getLastWindow( {} );
-                return finishDecodeBlockWithIsal( bitReader, untilOffset,
-                                                  VectorView<uint8_t>( window.data(), window.size() ),
+                return finishDecodeBlockWithIsal( bitReader, untilOffset, result.getLastWindow( {} ),
                                                   maxDecompressedChunkSize, std::move( result ) );
             }
         #endif
@@ -1460,6 +1464,6 @@ private:
     /* This is necessary when blocks have been split in order to find and reuse cached unsplit chunks. */
     std::unordered_map</* block offset */ size_t, /* block offset of unsplit "parent" chunk */ size_t> m_unsplitBlocks;
 
-    std::map</* block offset */ size_t, std::future<void> > m_markersBeingReplaced;
+    PostProcessingFutures m_markersBeingReplaced;
 };
 }  // namespace rapidgzip

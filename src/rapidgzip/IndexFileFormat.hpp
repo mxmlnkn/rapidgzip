@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <vector>
 
 #include <blockfinder/Bgzf.hpp>
@@ -319,7 +320,7 @@ readGzipIndex( UniqueFileReader         indexFile,
         }
 
         /* Emplace an empty window to show that the block does not need data. */
-        index.windows->emplace( checkpoint.compressedOffsetInBits, {} );
+        index.windows->emplace( checkpoint.compressedOffsetInBits, {}, CompressionType::NONE );
     }
 
     try {
@@ -400,7 +401,8 @@ readGzipIndex( UniqueFileReader         indexFile,
     }
     const auto checkpointCount = readValue<uint32_t>( indexFile.get() );
 
-    std::vector<std::pair</* encoded offset */ size_t, /* window size */ size_t> > windowInfos;
+    std::vector<std::tuple</* encoded offset */ size_t, /* window size */ size_t,
+                           /* compression ratio */ double> > windowInfos;
 
     index.checkpoints.resize( checkpointCount );
     for ( uint32_t i = 0; i < checkpointCount; ++i ) {
@@ -439,17 +441,29 @@ readGzipIndex( UniqueFileReader         indexFile,
                 windowSize = index.windowSizeInBytes;
             }
         }
-        windowInfos.emplace_back( checkpoint.compressedOffsetInBits, windowSize );
+
+        auto compressionRatio = 1.0;
+        if ( i >= 1 ) {
+            const auto& previousCheckpoint = index.checkpoints[i - 1];
+            compressionRatio = static_cast<double>( checkpoint.uncompressedOffsetInBytes
+                                                    - previousCheckpoint.uncompressedOffsetInBytes ) * 8
+                               / static_cast<double>( checkpoint.compressedOffsetInBits
+                                                      - previousCheckpoint.compressedOffsetInBits );
+        }
+        windowInfos.emplace_back( checkpoint.compressedOffsetInBits, windowSize, compressionRatio );
     }
 
     index.windows = std::make_shared<WindowMap>();
-    for ( auto& [offset, windowSize] : windowInfos ) {
+    for ( auto& [offset, windowSize, compressionRatio] : windowInfos ) {
         FasterVector<uint8_t> window;
         if ( windowSize > 0 ) {
             window.resize( windowSize );
             checkedRead( indexFile.get(), window.data(), window.size() );
         }
-        index.windows->emplace( offset, std::move( window ) );
+
+        /* Only bother with overhead-introducing compression for large chunk compression ratios. */
+        index.windows->emplace( offset, std::move( window ),
+                                compressionRatio > 2 ? CompressionType::GZIP : CompressionType::NONE );
     }
 
     return index;
@@ -483,7 +497,7 @@ writeGzipIndex( const GzipIndex&                                              in
 
     if ( !std::all_of( checkpoints.begin(), checkpoints.end(), [&index, windowSizeInBytes] ( const auto& checkpoint ) {
                            const auto window = index.windows->get( checkpoint.compressedOffsetInBits );
-                           return window && ( window->empty() || ( window->size() >= windowSizeInBytes ) );
+                           return window && ( window->empty() || ( window->decompressedSize() >= windowSizeInBytes ) );
                        } ) )
     {
         throw std::invalid_argument( "All window sizes must be at least 32 KiB or empty!" );
@@ -527,7 +541,12 @@ writeGzipIndex( const GzipIndex&                                              in
             continue;
         }
 
-        const auto window = *result;
+        const auto windowPointer = result->decompress();
+        if ( !windowPointer ) {
+            continue;
+        }
+
+        const auto& window = *windowPointer;
         if ( window.empty() ) {
             continue;
         }

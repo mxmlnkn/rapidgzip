@@ -9,6 +9,7 @@
 #include <vector>
 
 #include <crc32.hpp>
+#include <CompressedVector.hpp>
 #include <DecodedData.hpp>
 #include <gzip.hpp>
 
@@ -154,6 +155,13 @@ public:
     ChunkData( const ChunkData& ) = delete;
     ChunkData& operator=( ChunkData&& ) = default;
     ChunkData& operator=( const ChunkData& ) = delete;
+
+    [[nodiscard]] CompressionType
+    windowCompressionType() const
+    {
+        /* Only bother with overhead-introducing compression for large chunk compression ratios. */
+        return decodedSizeInBytes * 8 > 2 * encodedSizeInBits ? CompressionType::GZIP : CompressionType::NONE;
+    }
 
     void
     append( deflate::DecodedVector&& toAppend )
