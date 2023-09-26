@@ -318,7 +318,6 @@ public:
             return tell();
         }
 
-        assert( positiveOffset - blockInfo.decodedOffsetInBytes > blockInfo.decodedSizeInBytes );
         if ( m_blockMap->finalized() ) {
             m_atEndOfFile = true;
             m_currentPosition = size();
