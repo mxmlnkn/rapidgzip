@@ -389,6 +389,12 @@ public:
     read( const WriteFunctor& writeFunctor,
           const size_t        nBytesToRead = std::numeric_limits<size_t>::max() )
     {
+        if ( !writeFunctor && m_blockMap->finalized() ) {
+            const auto oldOffset = tell();
+            const auto newOffset = seek( nBytesToRead, SEEK_CUR );
+            return newOffset - oldOffset;
+        }
+
         if ( closed() ) {
             throw std::invalid_argument( "You may not call read on closed ParallelGzipReader!" );
         }

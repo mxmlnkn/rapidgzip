@@ -103,8 +103,10 @@ printIndexAnalytics( const Reader& reader )
 }
 
 
-template<typename Reader,
-         typename WriteFunctor>
+using WriteFunctor = std::function<void ( const std::shared_ptr<rapidgzip::ChunkData>&, size_t, size_t )>;
+
+
+template<typename Reader>
 size_t
 decompressParallel( const Reader&       reader,
                     const std::string&  indexLoadPath,
@@ -147,8 +149,7 @@ decompressParallel( const Reader&       reader,
 /**
  * Dispatch to the appropriate ParallelGzipReader template arguments based on @p verbose.
  */
-template<typename ChunkData,
-         typename WriteFunctor = std::function<void ( const std::shared_ptr<ChunkData>&, size_t, size_t )> >
+template<typename ChunkData>
 size_t
 decompressParallel( const Arguments&    args,
                     UniqueFileReader    inputFile,
@@ -400,12 +401,10 @@ rapidgzipCLI( int argc, char** argv )
         args.chunkSize = parsedArgs["chunk-size"].as<unsigned int>() * 1_Ki;
 
         size_t totalBytesRead{ 0 };
-        if ( ( outputFileDescriptor == -1 ) && args.indexSavePath.empty() && countBytes ) {
+        if ( ( outputFileDescriptor == -1 ) && !countLines ) {
             /* Need to do nothing with the chunks because decompressParallel returns the decompressed size. */
-            const auto doNothing = [] ( const auto&, size_t, size_t ) {};
-
             totalBytesRead = decompressParallel<rapidgzip::ChunkDataCounter>(
-                args, std::move( inputFile ), doNothing );
+                args, std::move( inputFile ), /* do nothing */ {} );
         } else {
             totalBytesRead = decompressParallel<rapidgzip::ChunkData>( args, std::move( inputFile ), writeAndCount );
         }
