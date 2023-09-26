@@ -792,3 +792,21 @@ private:
     unique_file_descriptor m_ownedFd;  // This should not be used, it is only for automatic closing!
 #endif
 };
+
+
+[[nodiscard]] std::ios_base::seekdir
+toSeekdir( int origin )
+{
+    switch ( origin )
+    {
+    case SEEK_SET:
+        return std::ios_base::beg;
+    case SEEK_CUR:
+        return std::ios_base::cur;
+    case SEEK_END:
+        return std::ios_base::end;
+    default: break;
+    }
+
+    throw std::invalid_argument( "Unknown origin" );
+}
