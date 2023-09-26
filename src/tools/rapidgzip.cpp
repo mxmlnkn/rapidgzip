@@ -112,7 +112,6 @@ decompressParallel( const Arguments&    args,
 
     if ( !args.indexSavePath.empty() ) {
         const auto file = throwingOpen( args.indexSavePath, "wb" );
-
         const auto checkedWrite =
             [&file] ( const void* buffer, size_t size )
             {
@@ -121,7 +120,7 @@ decompressParallel( const Arguments&    args,
                 }
             };
 
-        writeGzipIndex( reader->gzipIndex(), checkedWrite );
+        reader->exportIndex( checkedWrite );
     }
 
     if ( args.verbose && args.indexLoadPath.empty() && !args.indexSavePath.empty() ) {

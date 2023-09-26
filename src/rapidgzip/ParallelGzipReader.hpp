@@ -784,7 +784,23 @@ public:
     void
     importIndex( UniqueFileReader indexFile )
     {
+        const auto t0 = now();
         setBlockOffsets( readGzipIndex( std::move( indexFile ), m_sharedFileReader->clone() ) );
+        if ( m_showProfileOnDestruction ) {
+            std::cerr << "[ParallelGzipReader::importIndex] Took " << duration( t0 ) << " s\n";
+        }
+    }
+
+    void
+    exportIndex( const std::function<void( const void* buffer, size_t size )>& checkedWrite )
+    {
+        const auto t0 = now();
+
+        writeGzipIndex( gzipIndex(), checkedWrite );
+
+        if ( m_showProfileOnDestruction ) {
+            std::cerr << "[ParallelGzipReader::exportIndex] Took " << duration( t0 ) << " s\n";
+        }
     }
 
 #ifdef WITH_PYTHON_SUPPORT
@@ -806,7 +822,7 @@ public:
                 }
             };
 
-        writeGzipIndex( gzipIndex(), checkedWrite );
+        exportIndex( checkedWrite );
     }
 #endif
 
