@@ -211,31 +211,20 @@ public:
     seek( long long int offset,
           int           origin = SEEK_SET ) override
     {
-        const auto fileSize = size();
+        if ( ( origin == SEEK_END ) && !size().has_value() ) {
+            const auto fileLock = getLock();
+            offset = m_sharedFile->seek( offset, origin );
+            /* File size must have become available when seeking relative to end. */
+            m_fileSizeBytes = m_sharedFile->size();
 
-        switch ( origin )
-        {
-        case SEEK_CUR:
-            offset += static_cast<long long int>( m_currentPosition );
-            break;
-        case SEEK_SET:
-            break;
-        case SEEK_END:
-            if ( fileSize ) {
-                offset += static_cast<long long int>( *fileSize );
-            } else {
-                const auto fileLock = getLock();
-                offset = m_sharedFile->seek( offset, origin );
-                /* File size must have become available when seeking relative to end. */
-                m_fileSizeBytes = m_sharedFile->size();
+            m_currentPosition = static_cast<size_t>( std::max( 0LL, offset ) );
+            if ( const auto fileSize = size(); fileSize ) {
+                m_currentPosition = std::min( m_currentPosition, *fileSize );
             }
-            break;
+        } else {
+            m_currentPosition = effectiveOffset( offset, origin );
         }
 
-        m_currentPosition = static_cast<size_t>( std::max( 0LL, offset ) );
-        if ( fileSize ) {
-            m_currentPosition = std::min( m_currentPosition, *fileSize );
-        }
         return m_currentPosition;
     }
 

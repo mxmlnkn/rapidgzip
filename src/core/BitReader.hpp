@@ -801,16 +801,8 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
     long long int offsetBits,
     int           origin )
 {
-    const auto fileSize = size();
-
-    switch ( origin )
-    {
-    case SEEK_CUR:
-        offsetBits += tell();
-        break;
-    case SEEK_SET:
-        break;
-    case SEEK_END:
+    if ( origin == SEEK_END ) {
+        const auto fileSize = size();
         if ( !fileSize.has_value() ) {
             if ( !m_file ) {
                 throw std::logic_error( "File has already been closed!" );
@@ -823,25 +815,20 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
             const auto realFileSize = static_cast<long long int>( m_file->seek( 0, SEEK_END ) );
             /* Because we have seeked to get the full size, we have to force a full seek
              * to restore a valid file position for the next refillBuffer call. */
-            return fullSeek( static_cast<size_t>( std::max( std::min( offsetBits, 0LL ) + realFileSize, 0LL ) ) );
+            const auto absoluteOffset = saturatingAddition( std::min( offsetBits, 0LL ), realFileSize );
+            return fullSeek( static_cast<size_t>( std::max( absoluteOffset, 0LL ) ) );
         }
-        offsetBits += static_cast<long long int>( *fileSize );
-        break;
     }
 
-    offsetBits = std::max( offsetBits, 0LL );
-    /* Streaming file readers may return nullopt until EOF has been reached. */
-    if ( fileSize ) {
-        offsetBits = std::min( offsetBits, static_cast<long long int>( *fileSize ) );
+    const auto positiveOffsetBits = effectiveOffset( offsetBits, origin );
+
+    if ( positiveOffsetBits == tell() ) {
+        return positiveOffsetBits;
     }
 
-    if ( static_cast<size_t>( offsetBits ) == tell() ) {
-        return static_cast<size_t>( offsetBits );
-    }
-
-    if ( !seekable() && ( static_cast<size_t>( offsetBits ) < tell() ) ) {
+    if ( !seekable() && ( positiveOffsetBits < tell() ) ) {
         std::stringstream message;
-        message << "File is not seekable! Requested to seek to " << formatBits( offsetBits )
+        message << "File is not seekable! Requested to seek to " << formatBits( positiveOffsetBits )
                 << ". Currently at: " << formatBits( tell() );
         throw std::invalid_argument( std::move( message ).str() );
     }
@@ -852,11 +839,12 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
     }
 
     /* Performance optimizations for faster seeking inside the buffer to avoid expensive refillBuffer calls. */
-    if ( const auto relativeOffsets = offsetBits - static_cast<long long int>( tell() ); relativeOffsets >= 0 ) {
+    if ( positiveOffsetBits >= tell() ) {
+        const auto relativeOffsets = positiveOffsetBits - tell();
         /* Seek forward inside bit buffer. */
         if ( static_cast<size_t>( relativeOffsets ) <= bitBufferSize() ) {
             seekAfterPeek( static_cast<decltype( bitBufferSize() )>( relativeOffsets ) );
-            return static_cast<size_t>( offsetBits );
+            return positiveOffsetBits;
         }
 
         /* Seek forward inside byte buffer. */
@@ -869,16 +857,17 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
                 read( stillToSeek % CHAR_BIT );
             }
 
-            return static_cast<size_t>( offsetBits );
+            return positiveOffsetBits;
         }
     } else {  /* Seek back. */
+        const auto relativeOffsets = tell() - positiveOffsetBits;
         /* Seek back inside bit buffer. */
-        if ( static_cast<size_t>( -relativeOffsets ) + bitBufferSize() <= m_originalBitBufferSize ) {
-            m_bitBufferFree -= static_cast<decltype( bitBufferSize() )>( -relativeOffsets );
-            return static_cast<size_t>( offsetBits );
+        if ( relativeOffsets + bitBufferSize() <= m_originalBitBufferSize ) {
+            m_bitBufferFree -= static_cast<decltype( bitBufferSize() )>( relativeOffsets );
+            return positiveOffsetBits;
         }
 
-        const auto seekBackWithBuffer = -relativeOffsets + bitBufferSize();
+        const auto seekBackWithBuffer = relativeOffsets + bitBufferSize();
         const auto bytesToSeekBack = static_cast<size_t>( ceilDiv( seekBackWithBuffer, CHAR_BIT ) );
         /* Seek back inside byte buffer. */
         if ( bytesToSeekBack <= m_inputBufferPosition ) {
@@ -890,11 +879,11 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
                 read( static_cast<uint8_t>( bitsToSeekForward ) );
             }
 
-            return static_cast<size_t>( offsetBits );
+            return positiveOffsetBits;
         }
     }
 
-    return fullSeek( static_cast<size_t>( offsetBits ) );
+    return fullSeek( positiveOffsetBits );
 }
 
 

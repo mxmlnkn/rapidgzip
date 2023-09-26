@@ -216,22 +216,10 @@ public:
     seek( long long int offset,
           int           origin = SEEK_SET ) override
     {
-        switch ( origin )
-        {
-        case SEEK_CUR:
-            offset = static_cast<long long int>( tell() ) + offset;
-            break;
-        case SEEK_SET:
-            break;
-        case SEEK_END:
+        if ( origin == SEEK_END ) {
             bufferUpTo( std::numeric_limits<size_t>::max() );
-            offset += static_cast<long long int>( m_numberOfBytesRead );
-            break;
         }
-
-        bufferUpTo( offset );
-        m_currentPosition = static_cast<size_t>( std::max( 0LL, offset ) );
-
+        m_currentPosition = effectiveOffset( offset, origin );
         return m_currentPosition;
     }
 

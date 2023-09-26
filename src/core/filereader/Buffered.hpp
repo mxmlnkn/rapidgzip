@@ -144,24 +144,10 @@ public:
             throw std::invalid_argument( "Cannot seek closed file!" );
         }
 
-        /* Translate offset. */
-        const auto newBufferPosition =
-            [this, offset, origin] () {
-                switch ( origin )
-                {
-                case SEEK_SET: return offset;
-                case SEEK_CUR: return static_cast<long long int>( m_bufferPosition ) + offset;
-                case SEEK_END:
-                    if ( const auto fileSize = size() ) {
-                        return static_cast<long long int>( *fileSize ) + offset;
-                    }
-                    throw std::invalid_argument( "Cannot seek from end of file because its size is not known!" );
-                }
-                throw std::invalid_argument( "Invalid origin value!" );
-            }();
+        const auto newBufferPosition = effectiveOffset( offset, origin );
 
         /* Check if we can simply seek inside the buffer. */
-        if ( ( newBufferPosition >= 0 ) && ( static_cast<size_t>( newBufferPosition ) <= m_buffer.size() ) ) {
+        if ( newBufferPosition <= m_buffer.size() ) {
             m_bufferPosition = newBufferPosition;
             return tell();
         }

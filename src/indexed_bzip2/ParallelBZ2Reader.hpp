@@ -281,27 +281,13 @@ public:
             throw std::invalid_argument( "You may not call seek on closed ParallelBZ2Reader!" );
         }
 
-        switch ( origin )
-        {
-        case SEEK_CUR:
-            offset = tell() + offset;
-            break;
-        case SEEK_SET:
-            break;
-        case SEEK_END:
+        if ( origin == SEEK_END ) {
             /* size() requires the block offsets to be available! */
             if ( !m_blockMap->finalized() ) {
                 read();
             }
-            if ( const auto fileSize = size(); fileSize ) {
-                offset = *fileSize + offset;
-            } else {
-                throw std::logic_error( "The file size should have become available after reading until the end!" );
-            }
-            break;
         }
-
-        const auto positiveOffset = static_cast<size_t>( std::max<decltype( offset )>( 0, offset ) );
+        const auto positiveOffset = effectiveOffset( offset, origin );
 
         if ( positiveOffset == tell() ) {
             return positiveOffset;
