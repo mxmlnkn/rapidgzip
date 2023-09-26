@@ -108,24 +108,25 @@ using WriteFunctor = std::function<void ( const std::shared_ptr<rapidgzip::Chunk
 
 template<typename Reader>
 size_t
-decompressParallel( const Reader&       reader,
-                    const std::string&  indexLoadPath,
-                    const std::string&  indexSavePath,
-                    const WriteFunctor& writeFunctor,
-                    const bool          verbose )
+decompressParallel( const Arguments&    args,
+                    const Reader&       reader,
+                    const WriteFunctor& writeFunctor )
 {
-    if ( !indexLoadPath.empty() ) {
-        reader->importIndex( std::make_unique<StandardFileReader>( indexLoadPath ) );
+    reader->setShowProfileOnDestruction( args.verbose );
+    reader->setCRC32Enabled( args.crc32Enabled );
 
-        if ( verbose && ( !indexSavePath.empty() || !indexLoadPath.empty() ) ) {
+    if ( !args.indexLoadPath.empty() ) {
+        reader->importIndex( std::make_unique<StandardFileReader>( args.indexLoadPath ) );
+
+        if ( args.verbose && ( !args.indexSavePath.empty() || !args.indexLoadPath.empty() ) ) {
             printIndexAnalytics( reader );
         }
     }
 
     const auto totalBytesRead = reader->read( writeFunctor );
 
-    if ( !indexSavePath.empty() ) {
-        const auto file = throwingOpen( indexSavePath, "wb" );
+    if ( !args.indexSavePath.empty() ) {
+        const auto file = throwingOpen( args.indexSavePath, "wb" );
 
         const auto checkedWrite =
             [&file] ( const void* buffer, size_t size )
@@ -138,7 +139,7 @@ decompressParallel( const Reader&       reader,
         writeGzipIndex( reader->gzipIndex(), checkedWrite );
     }
 
-    if ( verbose && indexLoadPath.empty() && !indexSavePath.empty() ) {
+    if ( args.verbose && args.indexLoadPath.empty() && !args.indexSavePath.empty() ) {
         printIndexAnalytics( reader );
     }
 
@@ -158,17 +159,11 @@ decompressParallel( const Arguments&    args,
     if ( args.verbose ) {
         using Reader = rapidgzip::ParallelGzipReader<ChunkData, /* enable statistics */ true>;
         auto reader = std::make_unique<Reader>( std::move( inputFile ), args.decoderParallelism, args.chunkSize );
-        reader->setShowProfileOnDestruction( true );
-        reader->setCRC32Enabled( args.crc32Enabled );
-        return decompressParallel( std::move( reader ), args.indexLoadPath, args.indexSavePath, writeFunctor,
-                                   args.verbose );
+        return decompressParallel( args, std::move( reader ), writeFunctor );
     } else {
         using Reader = rapidgzip::ParallelGzipReader<ChunkData, /* enable statistics */ false>;
         auto reader = std::make_unique<Reader>( std::move( inputFile ), args.decoderParallelism, args.chunkSize );
-        reader->setShowProfileOnDestruction( false );
-        reader->setCRC32Enabled( args.crc32Enabled );
-        return decompressParallel( std::move( reader ), args.indexLoadPath, args.indexSavePath, writeFunctor,
-                                   args.verbose );
+        return decompressParallel( args, std::move( reader ), writeFunctor );
     }
 }
 
