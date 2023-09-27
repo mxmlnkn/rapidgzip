@@ -54,7 +54,7 @@ benchmarkPipeRead( const UniqueFileReader& inputFile,
 
         if ( sharedFileReader != nullptr ) {
             const auto& [lock, file] = sharedFileReader->underlyingFile();
-            const auto fileReader = dynamic_cast<SinglePassFileReader*>( file );
+            auto* const fileReader = dynamic_cast<SinglePassFileReader*>( file );
             if ( fileReader != nullptr ) {
                 fileReader->releaseUpTo( nBytesRead );
             }
@@ -145,7 +145,7 @@ main( int    argc,
     const auto dt = duration( t0 );
     std::stringstream message;
     message << "Read " << formatBytes( nBytesRead ) << " from pipe with in " << dt << " s -> "
-            << std::round( nBytesRead / dt / 1e6 ) << " MB/s\n";
+            << std::round( static_cast<double>( nBytesRead ) / dt / 1e6 ) << " MB/s\n";
     std::cerr << std::move( message ).str();
 
     return 0;
