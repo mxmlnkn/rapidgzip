@@ -320,13 +320,12 @@ initBitReaderAtDeflateStream( UniqueFileReader&& fileReader )
 decodeWithDecodeBlockWithRapidgzip( UniqueFileReader&& fileReader )
 {
     auto bitReader = initBitReaderAtDeflateStream( std::move( fileReader ) );
-    const auto chunkData = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlockWithRapidgzip(
+    return GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlockWithRapidgzip(
         &bitReader,
         /* untilOffset */ std::numeric_limits<size_t>::max(),
         /* window */ std::nullopt,
         /* crc32Enabled */ true,
         /* maxDecompressedChunkSize */ std::numeric_limits<size_t>::max() );
-    return chunkData;
 }
 
 
@@ -335,14 +334,13 @@ decodeWithDecodeBlock( UniqueFileReader&& fileReader )
 {
     auto bitReader = initBitReaderAtDeflateStream( std::move( fileReader ) );
     std::atomic<bool> cancel{ false };
-    const auto chunkData = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlock(
+    return GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlock(
         bitReader,
         bitReader.tell(),
         /* untilOffset */ std::numeric_limits<size_t>::max(),
         /* window */ std::nullopt,
         /* decodedSize */ std::nullopt,
         cancel );
-    return chunkData;
 }
 
 
@@ -352,14 +350,13 @@ decodeWithDecodeBlockWithInflateWrapper( UniqueFileReader&& fileReader )
 {
     auto bitReader = initBitReaderAtDeflateStream( std::move( fileReader ) );
     using ChunkFetcher = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>;
-    const auto chunkData = ChunkFetcher::decodeBlockWithInflateWrapper<InflateWrapper>(
+    return ChunkFetcher::decodeBlockWithInflateWrapper<InflateWrapper>(
         bitReader,
         bitReader.tell(),
         /* exactUntilOffset */ bitReader.size(),
         /* window */ {},
         /* decodedSize */ std::nullopt,
         /* crc32Enabled */ true );
-    return chunkData;
 }
 
 

@@ -53,6 +53,7 @@ testIterator( const std::vector<size_t>&     chunkSizes,
     }
 
     std::vector<std::pair<const void*, size_t> > expectedViews;
+    expectedViews.reserve( expected.size() );
     for ( const auto& chunkRange : expected ) {
         expectedViews.emplace_back( decodedData.getData().at( chunkRange.chunk ).data() + chunkRange.offset,
                                     chunkRange.size );
