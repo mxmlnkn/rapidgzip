@@ -22,12 +22,16 @@ include external/zlib/inflate.h
 include external/zlib/crc32.c
 include external/zlib/crc32.h
 include external/zlib/adler32.c
+include external/zlib/deflate.c
+include external/zlib/deflate.h
 include external/zlib/inffast.c
 include external/zlib/inffast.h
 include external/zlib/inffixed.h
 include external/zlib/inftrees.c
 include external/zlib/inftrees.h
 include external/zlib/gzguts.h
+include external/zlib/trees.c
+include external/zlib/trees.h
 include external/zlib/zconf.h
 include external/zlib/zutil.c
 include external/zlib/zutil.h
