@@ -118,21 +118,37 @@ public:
 };
 
 
+void
+checkedRead( FileReader* const indexFile,
+             void*             buffer,
+             size_t            size )
+{
+    if ( indexFile == nullptr ) {
+        throw std::invalid_argument( "Index file reader must be valid!" );
+    }
+    const auto nBytesRead = indexFile->read( reinterpret_cast<char*>( buffer ), size );
+    if ( nBytesRead != size ) {
+        throw std::runtime_error( "Premature end of index file! Got only " + std::to_string( nBytesRead )
+                                  + " out of " + std::to_string( size ) + " requested bytes." );
+    }
+}
+
+
 template<typename T>
 [[nodiscard]] T
-readValue( FileReader* file )
+readValue( FileReader* const file )
 {
     /* Note that indexed_gzip itself does no endiannes check or conversion during writing,
      * so this system-specific reading is as portable as it gets assuming that the indexes are
      * read on the same system they are written. */
     T value;
-    if ( file->read( reinterpret_cast<char*>( &value ), sizeof( value ) ) != sizeof( value ) ) {
-        throw std::invalid_argument( "Premature end of file!" );
-    }
+    checkedRead( file, &value, sizeof( value ) );
     return value;
 }
 
 
+namespace bgzip
+{
 [[nodiscard]] size_t
 countDecompressedBytes( rapidgzip::BitReader           bitReader,
                         VectorView<std::uint8_t> const initialWindow )
@@ -169,154 +185,181 @@ countDecompressedBytes( rapidgzip::BitReader           bitReader,
 
 
 [[nodiscard]] inline GzipIndex
-readGzipIndex( UniqueFileReader indexFile,
-               UniqueFileReader archiveFile = {} )
+readGzipIndex( UniqueFileReader         indexFile,
+               UniqueFileReader         archiveFile = {},
+               const std::vector<char>& alreadyReadBytes = {} )
 {
+    if ( !indexFile ) {
+        throw std::invalid_argument( "Index file reader must be valid!" );
+    }
+    if ( alreadyReadBytes.size() != indexFile->tell() ) {
+        throw std::invalid_argument( "The file position must match the number of given bytes." );
+    }
+    static constexpr size_t MAGIC_BYTE_COUNT = sizeof( uint64_t );
+    if ( alreadyReadBytes.size() > MAGIC_BYTE_COUNT ) {
+        throw std::invalid_argument( "This function only supports skipping up to over the magic bytes if given." );
+    }
+
+    /* We need a seekable archive to add the very first and very last offset pairs.
+     * If the archive is not seekable, loading the index makes not much sense anyways.
+     * If it is still needed, then use a better index file format instead of BGZI. */
+    if ( !archiveFile || !archiveFile->size().has_value() ) {
+        throw std::invalid_argument( "Cannot import bgzip index without knowing the archive size!" );
+    }
+    const auto archiveSize = archiveFile->size();
+
+    /**
+     * Try to interpret it as BGZF index, which is simply a list of 64-bit values stored in little endian:
+     * uint64_t number_entries
+     * [Repated number_entries times]:
+     *     uint64_t compressed_offset
+     *     uint64_t uncompressed_offset
+     * Such an index can be created with: bgzip -c file > file.bgz; bgzip --reindex file.bgz
+     * @see http://www.htslib.org/doc/bgzip.html#GZI_FORMAT
+     * @note by reusing the already read 5 bytes we can avoid any seek, making it possible to work
+     *       with a non-seekable input although I doubt it will be used.
+     */
+    uint64_t numberOfEntries{ 0 };
+    std::memcpy( &numberOfEntries, alreadyReadBytes.data(), alreadyReadBytes.size() );
+    checkedRead( indexFile.get(),
+                 reinterpret_cast<char*>( &numberOfEntries ) + alreadyReadBytes.size(),
+                 sizeof( uint64_t ) - alreadyReadBytes.size() );
+
     GzipIndex index;
 
-    const auto checkedRead =
-        [&indexFile] ( void* buffer, size_t size )
-        {
-            const auto nBytesRead = indexFile->read( reinterpret_cast<char*>( buffer ), size );
-            if ( nBytesRead != size ) {
-                throw std::runtime_error( "Premature end of index file! Got only " + std::to_string( nBytesRead )
-                                          + " out of " + std::to_string( size ) + " requested bytes." );
-            }
-        };
+    /* I don't understand why bgzip writes out 0xFFFF'FFFF'FFFF'FFFFULL in case of an empty file
+     * instead of simply 0, but it does. */
+    if ( numberOfEntries == std::numeric_limits<uint64_t>::max() ) {
+        numberOfEntries = 0;  // Set it to a sane value which also will make the file size check work.
+        index.compressedSizeInBytes = 0;
+        index.uncompressedSizeInBytes = 0;
+    }
 
-    const auto loadValue =
-        [&checkedRead] ( auto& destination ) { checkedRead( &destination, sizeof( destination ) ); };
+    const auto expectedFileSize = ( 2U * numberOfEntries + 1U ) * sizeof( uint64_t );
+    if ( ( indexFile->size() > 0 ) && ( indexFile->size() != expectedFileSize ) ) {
+        throw std::invalid_argument( "Invalid magic bytes!" );
+    }
+    index.compressedSizeInBytes = *archiveSize;
 
-    std::vector<char> formatId( 5, 0 );
-    checkedRead( formatId.data(), formatId.size() );
-    if ( formatId != std::vector<char>( { 'G', 'Z', 'I', 'D', 'X' } ) ) {
-        /* We need a seekable archive to add the very first and very last offset pairs.
-         * If the archive is not seekable, loading the index makes not much sense anyways.
-         * If it is still needed, then use a better index file format instead of BGZI. */
-        if ( !archiveFile || !archiveFile->seekable() ) {
-            return index;
-        }
-        const auto archiveSize = archiveFile->size();
-        if ( !archiveSize.has_value() ) {
-            return index;
+    index.checkpoints.reserve( numberOfEntries + 1 );
+
+    const auto sharedArchiveFile = ensureSharedFileReader( std::move( archiveFile ) );
+
+    try {
+        rapidgzip::blockfinder::Bgzf blockfinder( sharedArchiveFile->clone() );
+        const auto firstBlockOffset = blockfinder.find();
+        if ( firstBlockOffset == std::numeric_limits<size_t>::max() ) {
+            throw std::invalid_argument( "" );
         }
 
-        /**
-         * Try to interpret it as BGZF index, which is simply a list of 64-bit values stored in little endian:
-         * uint64_t number_entries
-         * [Repated number_entries times]:
-         *     uint64_t compressed_offset
-         *     uint64_t uncompressed_offset
-         * Such an index can be created with: bgzip -c file > file.bgz; bgzip --reindex file.bgz
-         * @see http://www.htslib.org/doc/bgzip.html#GZI_FORMAT
-         * @note by reusing the already read 5 bytes we can avoid any seek, making it possible to work
-         *       with a non-seekable input although I doubt it will be used.
-         */
-        uint64_t numberOfEntries{ 0 };
-        std::memcpy( &numberOfEntries, formatId.data(), formatId.size() );
-        checkedRead( reinterpret_cast<char*>( &numberOfEntries ) + formatId.size(),
-                     sizeof( uint64_t ) - formatId.size() /* 3 */ );
-
-        /* I don't understand why bgzip writes out 0xFFFF'FFFF'FFFF'FFFFULL in case of an empty file
-         * instead of simply 0, but it does. */
-        if ( numberOfEntries == std::numeric_limits<uint64_t>::max() ) {
-            numberOfEntries = 0;  // Set it to a sane value which also will make the file size check work.
-            index.compressedSizeInBytes = 0;
-            index.uncompressedSizeInBytes = 0;
+        auto& firstCheckPoint = index.checkpoints.emplace_back();
+        firstCheckPoint.compressedOffsetInBits = firstBlockOffset;
+        firstCheckPoint.uncompressedOffsetInBytes = 0;
+    } catch ( const std::invalid_argument& exception ) {
+        std::stringstream message;
+        message << "Trying to load a BGZF index for a non-BGZF file!";
+        const std::string_view what( exception.what() );
+        if ( !what.empty() ) {
+            message << " (" << what << ")";
         }
+        throw std::invalid_argument( std::move( message ).str() );
+    }
 
-        const auto expectedFileSize = ( 2U * numberOfEntries + 1U ) * sizeof( uint64_t );
-        if ( ( indexFile->size() > 0 ) && ( indexFile->size() != expectedFileSize ) ) {
-            throw std::invalid_argument( "Invalid magic bytes!" );
-        }
-        index.compressedSizeInBytes = *archiveSize;
+    index.windows = std::make_shared<WindowMap>();
 
-        index.checkpoints.reserve( numberOfEntries + 1 );
+    for ( uint64_t i = 1; i < numberOfEntries; ++i ) {
+        auto& checkpoint = index.checkpoints.emplace_back();
+        checkpoint.compressedOffsetInBits = readValue<uint64_t>( indexFile.get() );
+        checkpoint.uncompressedOffsetInBytes = readValue<uint64_t>( indexFile.get() );
+        checkpoint.compressedOffsetInBits += 18U;  // Jump over gzip header
+        checkpoint.compressedOffsetInBits *= 8U;
 
-        const auto sharedArchiveFile = ensureSharedFileReader( std::move( archiveFile ) );
+        const auto& lastCheckPoint = *( index.checkpoints.rbegin() + 1 );
 
-        try {
-            rapidgzip::blockfinder::Bgzf blockfinder( sharedArchiveFile->clone() );
-            const auto firstBlockOffset = blockfinder.find();
-            if ( firstBlockOffset == std::numeric_limits<size_t>::max() ) {
-                throw std::invalid_argument( "" );
-            }
-
-            auto& firstCheckPoint = index.checkpoints.emplace_back();
-            firstCheckPoint.compressedOffsetInBits = firstBlockOffset;
-            firstCheckPoint.uncompressedOffsetInBytes = 0;
-        } catch ( const std::invalid_argument& exception ) {
+        if ( checkpoint.compressedOffsetInBits > index.compressedSizeInBytes * 8U ) {
             std::stringstream message;
-            message << "Trying to load a BGZF index for a non-BGZF file!";
-            const std::string_view what( exception.what() );
-            if ( !what.empty() ) {
-                message << " (" << what << ")";
-            }
+            message << "Compressed bit offset (" << checkpoint.compressedOffsetInBits
+                    << ") should be smaller or equal than the file size ("
+                    << index.compressedSizeInBytes * 8U << ")!";
             throw std::invalid_argument( std::move( message ).str() );
         }
 
-        index.windows = std::make_shared<WindowMap>();
-
-        for ( uint64_t i = 1; i < numberOfEntries; ++i ) {
-            auto& checkpoint = index.checkpoints.emplace_back();
-            loadValue( checkpoint.compressedOffsetInBits );
-            loadValue( checkpoint.uncompressedOffsetInBytes );
-            checkpoint.compressedOffsetInBits += 18U;  // Jump over gzip header
-            checkpoint.compressedOffsetInBits *= 8U;
-
-            const auto& lastCheckPoint = *( index.checkpoints.rbegin() + 1 );
-
-            if ( checkpoint.compressedOffsetInBits > index.compressedSizeInBytes * 8U ) {
-                std::stringstream message;
-                message << "Compressed bit offset (" << checkpoint.compressedOffsetInBits
-                        << ") should be smaller or equal than the file size ("
-                        << index.compressedSizeInBytes * 8U << ")!";
-                throw std::invalid_argument( std::move( message ).str() );
-            }
-
-            if ( checkpoint.compressedOffsetInBits <= lastCheckPoint.compressedOffsetInBits ) {
-                std::stringstream message;
-                message << "Compressed bit offset (" << checkpoint.compressedOffsetInBits
-                        << ") should be greater than predecessor ("
-                        << lastCheckPoint.compressedOffsetInBits << ")!";
-                throw std::invalid_argument( std::move( message ).str() );
-            }
-
-            if ( checkpoint.uncompressedOffsetInBytes < lastCheckPoint.uncompressedOffsetInBytes ) {
-                std::stringstream message;
-                message << "Uncompressed offset (" << checkpoint.uncompressedOffsetInBytes
-                        << ") should be greater or equal than predecessor ("
-                        << lastCheckPoint.uncompressedOffsetInBytes << ")!";
-                throw std::invalid_argument( std::move( message ).str() );
-            }
-
-            /* Emplace an empty window to show that the block does not need data. */
-            index.windows->emplace( checkpoint.compressedOffsetInBits, {} );
+        if ( checkpoint.compressedOffsetInBits <= lastCheckPoint.compressedOffsetInBits ) {
+            std::stringstream message;
+            message << "Compressed bit offset (" << checkpoint.compressedOffsetInBits
+                    << ") should be greater than predecessor ("
+                    << lastCheckPoint.compressedOffsetInBits << ")!";
+            throw std::invalid_argument( std::move( message ).str() );
         }
 
-        try {
-            rapidgzip::BitReader bitReader( sharedArchiveFile->clone() );
-            bitReader.seek( index.checkpoints.back().compressedOffsetInBits );
-            index.uncompressedSizeInBytes = index.checkpoints.back().uncompressedOffsetInBytes
-                                            + countDecompressedBytes( std::move( bitReader ), {} );
-        } catch ( const std::invalid_argument& ) {
-            throw std::invalid_argument( "Unable to read from the last given offset in the index!" );
+        if ( checkpoint.uncompressedOffsetInBytes < lastCheckPoint.uncompressedOffsetInBytes ) {
+            std::stringstream message;
+            message << "Uncompressed offset (" << checkpoint.uncompressedOffsetInBytes
+                    << ") should be greater or equal than predecessor ("
+                    << lastCheckPoint.uncompressedOffsetInBytes << ")!";
+            throw std::invalid_argument( std::move( message ).str() );
         }
 
-        return index;
+        /* Emplace an empty window to show that the block does not need data. */
+        index.windows->emplace( checkpoint.compressedOffsetInBits, {} );
     }
 
-    const auto formatVersion = readValue<uint8_t>( indexFile.get() );
+    try {
+        rapidgzip::BitReader bitReader( sharedArchiveFile->clone() );
+        bitReader.seek( index.checkpoints.back().compressedOffsetInBits );
+        index.uncompressedSizeInBytes = index.checkpoints.back().uncompressedOffsetInBytes
+                                        + countDecompressedBytes( std::move( bitReader ), {} );
+    } catch ( const std::invalid_argument& ) {
+        throw std::invalid_argument( "Unable to read from the last given offset in the index!" );
+    }
+
+    return index;
+}
+}  // namespace bgzip
+
+
+namespace indexed_gzip
+{
+[[nodiscard]] inline GzipIndex
+readGzipIndex( UniqueFileReader         indexFile,
+               UniqueFileReader         archiveFile = {},
+               const std::vector<char>& alreadyReadBytes = {} )
+{
+    if ( !indexFile ) {
+        throw std::invalid_argument( "Index file reader must be valid!" );
+    }
+    if ( alreadyReadBytes.size() != indexFile->tell() ) {
+        throw std::invalid_argument( "The file position must match the number of given bytes." );
+    }
+    static constexpr size_t MAGIC_BYTE_COUNT = 6U;
+    if ( alreadyReadBytes.size() > MAGIC_BYTE_COUNT ) {
+        throw std::invalid_argument( "This function only supports skipping up to over the magic bytes if given." );
+    }
+
+    auto magicBytes = alreadyReadBytes;
+    if ( magicBytes.size() < MAGIC_BYTE_COUNT ) {
+        const auto oldSize = magicBytes.size();
+        magicBytes.resize( MAGIC_BYTE_COUNT );
+        checkedRead( indexFile.get(), magicBytes.data() + oldSize, magicBytes.size() - oldSize );
+    }
+
+    const std::string_view MAGIC_BYTES = "GZIDX";
+    if ( !std::equal( MAGIC_BYTES.begin(), MAGIC_BYTES.end(), magicBytes.begin() ) ) {
+        throw std::invalid_argument( "Magic bytes do not match! Expected 'GZIDX'." );
+    }
+
+    const auto formatVersion = static_cast<uint8_t>( magicBytes[magicBytes.size() - 1] );
     if ( formatVersion > 1 ) {
         throw std::invalid_argument( "Index was written with a newer indexed_gzip version than supported!" );
     }
 
     indexFile->seek( 1, SEEK_CUR );  // Skip reserved flags 1B
 
-    loadValue( index.compressedSizeInBytes );
-    loadValue( index.uncompressedSizeInBytes );
-    loadValue( index.checkpointSpacing );
-    loadValue( index.windowSizeInBytes );
+    GzipIndex index;
+    index.compressedSizeInBytes   = readValue<uint64_t>( indexFile.get() );
+    index.uncompressedSizeInBytes = readValue<uint64_t>( indexFile.get() );
+    index.checkpointSpacing       = readValue<uint32_t>( indexFile.get() );
+    index.windowSizeInBytes       = readValue<uint32_t>( indexFile.get() );
 
     if ( archiveFile ) {
         const auto archiveSize = archiveFile->size();
@@ -346,13 +389,13 @@ readGzipIndex( UniqueFileReader indexFile,
         auto& checkpoint = index.checkpoints[i];
 
         /* First load only compressed offset rounded down in bytes, the bits are loaded down below! */
-        loadValue( checkpoint.compressedOffsetInBits );
+        checkpoint.compressedOffsetInBits = readValue<uint64_t>( indexFile.get() );
         if ( checkpoint.compressedOffsetInBits > index.compressedSizeInBytes ) {
             throw std::invalid_argument( "Checkpoint compressed offset is after the file end!" );
         }
         checkpoint.compressedOffsetInBits *= 8;
 
-        loadValue( checkpoint.uncompressedOffsetInBytes );
+        checkpoint.uncompressedOffsetInBytes = readValue<uint64_t>( indexFile.get() );
         if ( checkpoint.uncompressedOffsetInBytes > index.uncompressedSizeInBytes ) {
             throw std::invalid_argument( "Checkpoint uncompressed offset is after the file end!" );
         }
@@ -386,12 +429,28 @@ readGzipIndex( UniqueFileReader indexFile,
         FasterVector<uint8_t> window;
         if ( windowSize > 0 ) {
             window.resize( windowSize );
-            checkedRead( window.data(), window.size() );
+            checkedRead( indexFile.get(), window.data(), window.size() );
         }
         index.windows->emplace( offset, std::move( window ) );
     }
 
     return index;
+}
+}  // namespace indexed_gzip
+
+
+[[nodiscard]] inline GzipIndex
+readGzipIndex( UniqueFileReader indexFile,
+               UniqueFileReader archiveFile = {} )
+{
+    std::vector<char> formatId( 5, 0 );
+    checkedRead( indexFile.get(), formatId.data(), formatId.size() );
+
+    if ( formatId == std::vector<char>( { 'G', 'Z', 'I', 'D', 'X' } ) ) {
+        return indexed_gzip::readGzipIndex( std::move( indexFile ), std::move( archiveFile ), formatId );
+    }
+    /* Bgzip indexes have no magic bytes and simply start with the number of chunks. */
+    return bgzip::readGzipIndex( std::move( indexFile ), std::move( archiveFile ), formatId );
 }
 
 
