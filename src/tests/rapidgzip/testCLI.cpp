@@ -340,6 +340,8 @@ testCLI()
     combinableOptions = concatenateChoices( combinableOptions, { {}, { { "--import-index"s, indexFilePath } } } );
 #ifndef SHORT_TESTS
     combinableOptions = concatenateChoices( combinableOptions, { { { "--verify"s } }, { { "--no-verify"s } } } );
+    combinableOptions = concatenateChoices( combinableOptions, { { { "--io-read-method"s, "sequential"s } },
+                                                                 { { "--io-read-method"s, "pread"s } } } );
 #endif
 
     ArgumentLists combinedArguments;

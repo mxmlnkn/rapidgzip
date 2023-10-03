@@ -196,7 +196,10 @@ rapidgzipCLI( int                  argc,
         ( "no-verify", "Do not verify CRC32 checksum. Might speed up decompression and there are already some implicit "
                        "and explicit checks like whether the end of the file could be reached and whether the stream "
                        "size is correct.",
-          cxxopts::value( args.crc32Enabled )->implicit_value( "false" ) );
+          cxxopts::value( args.crc32Enabled )->implicit_value( "false" ) )
+        ( "io-read-method", "Option to force a certain I/O method for reading. By default, pread will be used "
+                            "when possible. Possible values: pread, sequential, locked-read",
+          cxxopts::value<std::string>()->default_value( "pread" ) );
 
     options.add_options( "Output Options" )
         ( "h,help"   , "Print this help message." )
@@ -286,6 +289,14 @@ rapidgzipCLI( int                  argc,
     }
 
     auto inputFile = openFileOrStdin( inputFilePath );
+    const auto ioReadMethod = parsedArgs["io-read-method"].as<std::string>();
+    if ( ioReadMethod == "sequential" ) {
+        inputFile = std::make_unique<SinglePassFileReader>( std::move( inputFile ) );
+    } else if ( ( ioReadMethod == "locked-read" ) || ( ioReadMethod == "pread" ) ) {
+        auto sharedFile = ensureSharedFileReader( std::move( inputFile ) );
+        sharedFile->setUsePread( ioReadMethod == "pread" );
+        inputFile = std::move( sharedFile );
+    }
 
     /* Check if analysis is requested. */
 

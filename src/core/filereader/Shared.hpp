@@ -258,7 +258,7 @@ public:
         const auto t0 = now();
         size_t nBytesRead{ 0 };
     #ifndef _MSC_VER
-        if ( ( m_fileDescriptor >= 0 ) && fileSize.has_value() && sharedFile->seekable() ) {
+        if ( m_usePread && ( m_fileDescriptor >= 0 ) && fileSize.has_value() && sharedFile->seekable() ) {
             /* This statistic only approximates the actual pread behavior. The OS can probably reorder
              * concurrent pread calls and we would have to enclose pread itself in a lock, which defeats
              * the purpose of pread for speed. */
@@ -352,6 +352,18 @@ public:
         return std::pair<std::unique_lock<std::mutex>, FileReader*>( std::unique_lock( *m_mutex ), m_sharedFile.get() );
     }
 
+    void
+    setUsePread( bool use )
+    {
+        m_usePread = use;
+    }
+
+    [[nodiscard]] bool
+    usePread() const noexcept
+    {
+        return m_usePread;
+    }
+
 private:
     [[nodiscard]] std::scoped_lock<std::mutex>
     getLock() const
@@ -390,6 +402,8 @@ private:
      * each read call will seek to this offset in an atomic manner before reading from the underlying file.
      */
     size_t m_currentPosition{ 0 };
+
+    bool m_usePread{ true };
 };
 
 
