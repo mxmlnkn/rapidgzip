@@ -167,9 +167,8 @@ rapidgzipCLI( int                  argc,
      */
     cxxopts::Options options( "rapidgzip",
                               "A gzip decompressor tool based on the rapidgzip backend from ratarmount" );
-    options.add_options( "Decompression" )
+    options.add_options( "Decompression Options" )
         ( "c,stdout"     , "Output to standard output. This is the default, when reading from standard input." )
-        ( "d,decompress" , "Force decompression. Only for compatibility. No compression supported anyways." )
         ( "f,force"      , "Force overwriting existing output files. "
                            "Also forces decompression even when piped to /dev/null." )
         ( "i,input"      , "Input file. If none is given, data is read from standard input.",
@@ -180,18 +179,16 @@ rapidgzipCLI( int                  argc,
           cxxopts::value<std::string>() )
         ( "k,keep"       , "Keep (do not delete) input file. Only for compatibility. "
                            "This tool will not delete anything automatically!" )
-        ( "analyze"      , "Print output about the internal file format structure like the block types." )
-
-        ( "chunk-size"   , "The chunk size decoded by the parallel workers in KiB.",
-          cxxopts::value<unsigned int>()->default_value( "4096" ) )
-
         ( "P,decoder-parallelism",
           "Use the parallel decoder. "
           "If an optional integer >= 1 is given, then that is the number of decoder threads to use. "
           "Note that there might be further threads being started with non-decoding work. "
           "If 0 is given, then the parallelism will be determined automatically.",
-          cxxopts::value<unsigned int>()->default_value( "0" ) )
+          cxxopts::value<unsigned int>()->default_value( "0" ) );
 
+    options.add_options( "Advanced" )
+        ( "chunk-size", "The chunk size decoded by the parallel workers in KiB.",
+          cxxopts::value<unsigned int>()->default_value( "4096" ) )
         ( "verify", "Verify CRC32 checksum. Will slow down decompression and there are already some implicit "
                     "and explicit checks like whether the end of the file could be reached and whether the stream "
                     "size is correct. ",
@@ -199,12 +196,9 @@ rapidgzipCLI( int                  argc,
         ( "no-verify", "Do not verify CRC32 checksum. Might speed up decompression and there are already some implicit "
                        "and explicit checks like whether the end of the file could be reached and whether the stream "
                        "size is correct.",
-          cxxopts::value( args.crc32Enabled )->implicit_value( "false" ) )
+          cxxopts::value( args.crc32Enabled )->implicit_value( "false" ) );
 
-        ( "import-index", "Uses an existing gzip index.", cxxopts::value<std::string>() )
-        ( "export-index", "Write out a gzip index file.", cxxopts::value<std::string>() );
-
-    options.add_options( "Output" )
+    options.add_options( "Output Options" )
         ( "h,help"   , "Print this help message." )
         ( "q,quiet"  , "Suppress noncritical error messages." )
         ( "v,verbose", "Print debug output and profiling statistics." )
@@ -212,9 +206,13 @@ rapidgzipCLI( int                  argc,
         ( "oss-attributions", "Display open-source software licenses." );
 
     /* These options are offered because just piping to other tools can already bottleneck everything! */
-    options.add_options( "Processing" )
-        ( "count"      , "Prints the decompressed size." )
-        ( "l,count-lines", "Prints the number of newline characters in the decompressed data." );
+    options.add_options( "Actions" )
+        ( "d,decompress" , "Force decompression. Only for compatibility. No compression supported anyways." )
+        ( "import-index" , "Uses an existing gzip index.", cxxopts::value<std::string>() )
+        ( "export-index" , "Write out a gzip index file.", cxxopts::value<std::string>() )
+        ( "count"        , "Prints the decompressed size." )
+        ( "l,count-lines", "Prints the number of newline characters in the decompressed data." )
+        ( "analyze"      , "Print output about the internal file format structure like the block types." );
 
     options.parse_positional( { "input" } );
 
