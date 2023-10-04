@@ -168,7 +168,8 @@ decompressParallel( const Arguments&    args,
 
 
 int
-rapidgzipCLI( int argc, char** argv )
+rapidgzipCLI( int                  argc,
+              char const * const * argv )
 {
     /**
      * @note For some reason implicit values do not mix very well with positional parameters!
@@ -395,10 +396,12 @@ rapidgzipCLI( int argc, char** argv )
         args.chunkSize = parsedArgs["chunk-size"].as<unsigned int>() * 1_Ki;
 
         size_t totalBytesRead{ 0 };
-        if ( ( outputFileDescriptor == -1 ) && args.indexSavePath.empty() && countBytes && !countLines ) {
+        if ( ( outputFileDescriptor == -1 ) && args.indexSavePath.empty() && countBytes && !countLines
+             && !args.crc32Enabled )
+        {
             /* Need to do nothing with the chunks because decompressParallel returns the decompressed size.
              * Note that we use rapidgzip::ChunkDataCounter to speed up decompression. Therefore an index
-             * will not be created! */
+             * will not be created and there also will be no checksum verification! */
             totalBytesRead = decompressParallel<rapidgzip::ChunkDataCounter>(
                 args, std::move( inputFile ), /* do nothing */ {} );
         } else {
@@ -441,7 +444,7 @@ rapidgzipCLI( int argc, char** argv )
 }
 
 
-#ifndef WITH_PYTHON_SUPPORT
+#if !defined( WITH_PYTHON_SUPPORT ) && !defined( WITHOUT_MAIN )
 int
 main( int argc, char** argv )
 {

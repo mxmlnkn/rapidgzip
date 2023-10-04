@@ -179,6 +179,30 @@ endsWith( const S& fullString,
 }
 
 
+[[nodiscard]] std::vector<std::string_view>
+split( const std::string_view toSplit,
+       const char             separator )
+{
+    std::vector<std::string_view> result;
+    auto start = toSplit.begin();
+    for ( auto it = toSplit.begin(); it != toSplit.end(); ++it ) {
+        if ( *it == separator ) {
+            result.emplace_back( toSplit.data() + std::distance( toSplit.begin(), start ),
+                                 std::distance( start, it ) );
+            start = it;
+            ++start;
+        }
+    }
+
+    if ( start != toSplit.end() ) {
+        result.emplace_back( toSplit.data() + std::distance( toSplit.begin(), start ),
+                             std::distance( start, toSplit.end() ) );
+    }
+
+    return result;
+}
+
+
 [[nodiscard]] inline std::string
 formatBits( const uint64_t value )
 {
