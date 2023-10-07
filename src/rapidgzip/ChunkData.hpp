@@ -498,14 +498,15 @@ struct ChunkDataCounter final :
     }
 
     /**
-     * The internal index will only contain the offsets and empty windows but that is fine because
-     * this subclass does never require windows. The index should not be exported when this is used.
+     * The internal index will only contain the offsets and empty windows.
+     * The index should not be exported when this is used.
+     * Return a dummy window so that decoding can be resumed after stopping.
      */
     [[nodiscard]] deflate::DecodedVector
     getWindowAt( WindowView const& /* previousWindow */,
                  size_t            /* skipBytes */ ) const
     {
-        return {};
+        return deflate::DecodedVector( deflate::MAX_WINDOW_SIZE, 0 );
     }
 };
 }  // namespace rapidgzip
