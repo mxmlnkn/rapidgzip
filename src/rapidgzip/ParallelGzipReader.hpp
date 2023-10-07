@@ -391,7 +391,10 @@ public:
     {
         if ( !writeFunctor && m_blockMap->finalized() ) {
             const auto oldOffset = tell();
-            const auto newOffset = seek( nBytesToRead, SEEK_CUR );
+            const auto newOffset = seek( nBytesToRead > static_cast<size_t>( std::numeric_limits<long long int>::max() )
+                                         ? std::numeric_limits<long long int>::max()
+                                         : nBytesToRead,
+                                         SEEK_CUR );
             return newOffset - oldOffset;
         }
 
