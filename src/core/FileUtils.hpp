@@ -810,3 +810,19 @@ toSeekdir( int origin )
 
     throw std::invalid_argument( "Unknown origin" );
 }
+
+
+template<typename Container = std::vector<char> >
+[[nodiscard]] Container
+readFile( const std::string& fileName )
+{
+    Container contents( fileSize( fileName ) );
+    const auto file = throwingOpen( fileName, "rb" );
+    const auto nBytesRead = std::fread( contents.data(), sizeof( contents[0] ), contents.size(), file.get() );
+
+    if ( nBytesRead != contents.size() ) {
+        throw std::logic_error( "Did read less bytes than file is large!" );
+    }
+
+    return contents;
+}
