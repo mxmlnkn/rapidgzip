@@ -570,4 +570,86 @@ IsalInflateWrapper::getErrorString( int errorCode ) noexcept
     }
     return "Unknown Error";
 }
+
+
+template<typename ResultContainer = std::vector<uint8_t> >
+[[nodiscard]] ResultContainer
+compressWithIsal( const VectorView<uint8_t> toCompress,
+                  const VectorView<uint8_t> dictionary = {} )
+{
+    /* > Parameter avail_out must be large enough to fit the entire compressed output.
+     * > Max expansion is limited to the input size plus the header size of a stored/raw block.
+     * The computation in igzip/igzip_rand_test.c is not much more sophisticated, it basically is
+     * 2 * in_size + 300 + extra/trailer bytes (<20).
+     * igzip_cli.c uses this for the multi-threaded code! It initializes the output buffer size to 2 * BLOCK_SIZE,
+     * while the input is limited to BLOCK_SIZE. */
+    ResultContainer compressed( toCompress.size() + 1000 );
+
+    isal_zstream stream;
+    isal_deflate_stateless_init( &stream );
+
+    if ( !dictionary.empty() ) {
+        isal_deflate_set_dict( &stream, const_cast<uint8_t*>( dictionary.data() ), dictionary.size() );
+    }
+    stream.level = 1;
+    std::array<uint8_t, ISAL_DEF_LVL1_DEFAULT /* 282624 */> compressionBuffer;
+    stream.level_buf = compressionBuffer.data();
+    stream.level_buf_size = compressionBuffer.size();
+
+    stream.next_in = const_cast<uint8_t*>( reinterpret_cast<const uint8_t*>( toCompress.data() ) );
+    stream.avail_in = toCompress.size();
+    stream.next_out = const_cast<uint8_t*>( reinterpret_cast<const uint8_t*>( compressed.data() ) );
+    stream.avail_out = compressed.size();
+    stream.gzip_flag = IGZIP_GZIP;
+    const auto result = isal_deflate_stateless( &stream );
+    if ( result != COMP_OK ) {
+        throw std::runtime_error( "Compression failed with error code: " + std::to_string( result ) );
+    }
+    if ( stream.avail_out >= compressed.size() ) {
+        std::stringstream message;
+        message << "Something went wrong. Avail_out should be smaller or equal than it was before, but it gew from "
+                << formatBytes( compressed.size() ) << " to " << formatBytes( stream.avail_out );
+        throw std::logic_error( std::move( message ).str() );
+    }
+    compressed.resize( compressed.size() - stream.avail_out );
+    compressed.shrink_to_fit();
+
+    return compressed;
+}
+
+
+/**
+ * If @p decompressedSize is not known, use IsalInflateWrapper and gzip::readHeader (if necessary) instead.
+ */
+template<typename Container>
+[[nodiscard]] Container
+inflateWithIsal( const Container& toDecompress,
+                 const size_t     decompressedSize )
+{
+    Container decompressed( decompressedSize );
+
+    inflate_state stream;
+    isal_inflate_init( &stream );
+
+    stream.next_in = const_cast<uint8_t*>( reinterpret_cast<const uint8_t*>( toDecompress.data() ) );
+    stream.avail_in = toDecompress.size();
+    stream.next_out = const_cast<uint8_t*>( reinterpret_cast<const uint8_t*>( decompressed.data() ) );
+    stream.avail_out = decompressed.size();
+
+    isal_gzip_header header;
+    isal_read_gzip_header( &stream, &header );
+
+    const auto result = isal_inflate_stateless( &stream );
+    if ( result != ISAL_DECOMP_OK ) {
+        throw std::runtime_error( "Decompression failed with error code: " + std::to_string( result ) );
+    }
+    if ( stream.avail_out > 0 ) {
+        std::stringstream message;
+        message << "Something went wrong. Decompressed only " << formatBytes( decompressedSize - stream.avail_out )
+                << " out of " << formatBytes( decompressedSize ) << " requested!";
+        throw std::logic_error( std::move( message ).str() );
+    }
+
+    return decompressed;
+}
 }  // namespace rapidgzip

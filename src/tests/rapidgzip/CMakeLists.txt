@@ -60,6 +60,12 @@ target_link_libraries(testCLI PRIVATE librapidgzip cxxopts)
 add_test(NAME Test-CLI COMMAND testCLI)
 add_dependencies(all_tests testCLI)
 
+add_executable(testCompressedVector)
+target_sources(testCompressedVector PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testCompressedVector.cpp)
+target_link_libraries(testCompressedVector PRIVATE librapidgzip)
+add_test(NAME Test-CompressedVector COMMAND testCompressedVector)
+add_dependencies(all_tests testCompressedVector)
+
 add_executable(testCRC32)
 target_sources(testCRC32 PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testCRC32.cpp)
 target_link_libraries(testCRC32 PRIVATE librapidgzip)
