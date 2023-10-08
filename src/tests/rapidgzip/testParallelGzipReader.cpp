@@ -611,7 +611,8 @@ testCRC32AndCleanUnmarkedDataWithRandomDNA()
      * enough to have multiple chunks with fairly little uncompressed data. */
     constexpr auto UNCOMPRESSED_SIZE = 10_Mi;
     const auto randomDNA = createRandomData( UNCOMPRESSED_SIZE, DNA_SYMBOLS );
-    const auto compressedRandomDNA = compressWithZlib( randomDNA, CompressionStrategy::HUFFMAN_ONLY );
+    const auto compressedRandomDNA =
+        compressWithZlib<std::vector<std::byte> >( randomDNA, CompressionStrategy::HUFFMAN_ONLY );
     const auto compressionRatio = static_cast<double>( UNCOMPRESSED_SIZE )
                                   / static_cast<double>( compressedRandomDNA.size() );
     std::cerr << "Random DNA compression ratio: " << compressionRatio << "\n";  // 3.54874
@@ -647,7 +648,7 @@ testCRC32AndCleanUnmarkedDataWithRandomBackreferences()
     std::cout << "Created " << formatBytes( randomData.size() )
               << " data with random backreferences in " << creationDuration << " s\n";
 
-    const auto compressed = compressWithZlib( randomData );
+    const auto compressed = compressWithZlib<std::vector<std::byte> >( randomData );
 
     testCRC32AndCleanUnmarkedData( randomData, compressed );
 }

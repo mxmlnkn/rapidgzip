@@ -45,11 +45,13 @@ toString( const CompressionStrategy compressionStrategy )
 }
 
 
-[[nodiscard]] inline std::vector<std::byte>
-compressWithZlib( const std::vector<std::byte>& toCompress,
-                  const CompressionStrategy     compressionStrategy = CompressionStrategy::DEFAULT )
+template<typename ResultContainer = std::vector<uint8_t> >
+[[nodiscard]] ResultContainer
+compressWithZlib( const VectorView<uint8_t> toCompress,
+                  const CompressionStrategy compressionStrategy = CompressionStrategy::DEFAULT,
+                  const VectorView<uint8_t> dictionary = {} )
 {
-    std::vector<std::byte> output;
+    ResultContainer output;
     output.reserve( toCompress.size() );
 
     z_stream stream;
@@ -57,14 +59,19 @@ compressWithZlib( const std::vector<std::byte>& toCompress,
     stream.zfree = Z_NULL;
     stream.opaque = Z_NULL;
     stream.avail_in = toCompress.size();
-    stream.next_in = reinterpret_cast<Bytef*>( const_cast<std::byte*>( toCompress.data() ) );
+    stream.next_in = const_cast<Bytef*>( reinterpret_cast<const Bytef*>( toCompress.data() ) );
     stream.avail_out = 0;
     stream.next_out = nullptr;
 
     /* > Add 16 to windowBits to write a simple gzip header and trailer around the
      * > compressed data instead of a zlib wrapper. */
     deflateInit2( &stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED,
-                  MAX_WBITS | 16, /* memLevel */ 8, static_cast<int>( compressionStrategy ) );
+                  MAX_WBITS | /* gzip output */ 16, /* memLevel */ 8, static_cast<int>( compressionStrategy ) );
+
+    if ( !dictionary.empty() ) {
+        deflateSetDictionary( &stream, const_cast<Bytef*>( reinterpret_cast<const Bytef*>( dictionary.data() ) ),
+                              dictionary.size() );
+    }
 
     auto status = Z_OK;
     constexpr auto CHUNK_SIZE = 1_Mi;
