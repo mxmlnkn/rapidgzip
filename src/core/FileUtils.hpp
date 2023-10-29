@@ -805,7 +805,27 @@ toSeekdir( int origin )
         return std::ios_base::cur;
     case SEEK_END:
         return std::ios_base::end;
-    default: break;
+    default:
+        break;
+    }
+
+    throw std::invalid_argument( "Unknown origin" );
+}
+
+
+[[nodiscard]] const char*
+originToString( int origin )
+{
+    switch ( origin )
+    {
+    case SEEK_SET:
+        return "SEEK_SET";
+    case SEEK_CUR:
+        return "SEEK_CUR";
+    case SEEK_END:
+        return "SEEK_END";
+    default:
+        break;
     }
 
     throw std::invalid_argument( "Unknown origin" );

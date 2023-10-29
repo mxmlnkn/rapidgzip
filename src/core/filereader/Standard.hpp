@@ -202,7 +202,10 @@ public:
 
         const auto returnCode = std::fseek( m_file.get(), static_cast<long int>( offset ), origin );
         if ( returnCode != 0 ) {
-            throw std::runtime_error( "Seeking failed!" );
+            std::stringstream message;
+            message << "Seeking to " << offset << " from origin " << originToString( origin ) << " failed with code: "
+                    << returnCode << ", " << std::strerror( errno ) << "!";
+            throw std::runtime_error( std::move( message ).str() );
         }
 
         if ( origin == SEEK_SET ) {
