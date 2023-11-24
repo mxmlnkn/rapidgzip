@@ -82,10 +82,9 @@ jobs:
         ibzip2 --help
         ibzip2 --version
 
-    - name: Test BZip2 Decoder Python Package
-      if: github.ref == 'refs/heads/master'
-      # indexed_bzip2 should be installed for this step!
-      run: python3 src/tests/testBz2.py
+    - name: Test Python Packages
+      run: |
+        python3 -u src/tests/testPythonWrappers.py
 
     - name: Test rapidgzip Installation From Tarball
       working-directory: python/rapidgzip
