@@ -417,8 +417,10 @@ rapidgzipCLI( int argc, char** argv )
         }
 
         const auto t1 = now();
-        std::cerr << "Decompressed in total " << totalBytesRead << " B in " << duration( t0, t1 ) << " s -> "
-                  << static_cast<double>( totalBytesRead ) / 1e6 / duration( t0, t1 ) << " MB/s\n";
+        if ( args.verbose ) {
+            std::cerr << "Decompressed in total " << totalBytesRead << " B in " << duration( t0, t1 ) << " s -> "
+                      << static_cast<double>( totalBytesRead ) / 1e6 / duration( t0, t1 ) << " MB/s\n";
+        }
 
         auto& out = writeToStdErr ? std::cerr : std::cout;
         if ( countBytes != countLines ) {
