@@ -634,6 +634,14 @@ class RapidgzipFile(io.RawIOBase):
     def readable(self):
         return True
 
+    def peek(self, size=0):
+        oldOffset = self.tell()
+        try:
+            result = self.read(size)
+        finally:
+            self.seek(oldOffset)
+        return result
+
 
 def open(filename, parallelization = 0, verbose = False):
     """
