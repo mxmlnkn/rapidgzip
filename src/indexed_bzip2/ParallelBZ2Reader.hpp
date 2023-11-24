@@ -182,6 +182,7 @@ public:
 
         #ifdef WITH_PYTHON_SUPPORT
             checkPythonSignalHandlers();
+            const ScopedGILUnlock unlockedGIL;
         #endif
 
             auto blockInfo = m_blockMap->findDataOffset( m_currentPosition );

@@ -408,6 +408,11 @@ public:
 
         size_t nBytesDecoded = 0;
         while ( ( nBytesDecoded < nBytesToRead ) && !eof() ) {
+        #ifdef WITH_PYTHON_SUPPORT
+            checkPythonSignalHandlers();
+            const ScopedGILUnlock unlockedGIL;
+        #endif
+
             const auto blockResult = chunkFetcher().get( m_currentPosition );
             if ( !blockResult ) {
                 m_atEndOfFile = true;
@@ -437,10 +442,6 @@ public:
                         << " markers: " << chunkData->dataWithMarkersSize();
                 throw std::logic_error( std::move( message ).str() );
             }
-
-        #ifdef WITH_PYTHON_SUPPORT
-            checkPythonSignalHandlers();
-        #endif
 
             const auto nBytesToDecode = std::min( blockSize - offsetInBlock, nBytesToRead - nBytesDecoded );
 

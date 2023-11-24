@@ -18,6 +18,10 @@
 #include "AffinityHelpers.hpp"
 #include "JoiningThread.hpp"
 
+#ifdef WITH_PYTHON_SUPPORT
+    #include "filereader/Python.hpp"
+#endif
+
 
 /**
  * Function evaluations can be given to a ThreadPool instance,
@@ -113,6 +117,14 @@ public:
             m_threadPoolRunning = false;
             m_pingWorkers.notify_all();
         }
+
+    #ifdef WITH_PYTHON_SUPPORT
+        /* The GIL needs to be unlocked for the worker threads to not wait infinitely when calling methods
+         * on a given Python file object. In this waiting time, they also wouldn't check m_threadPoolRunning,
+         * nor PyErr_CheckSignals and therefore would deadlock. */
+        const ScopedGILUnlock unlockedGIL;
+    #endif
+
         m_threads.clear();
     }
 

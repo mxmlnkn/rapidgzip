@@ -23,6 +23,10 @@
 #include <Prefetcher.hpp>
 #include <ThreadPool.hpp>
 
+#ifdef WITH_PYTHON_SUPPORT
+    #include <filereader/Python.hpp>  // For unlocking the GIL in case the block fetch code uses PythonFileReader
+#endif
+
 
 /**
  * Manages block data access. Calls to members are not thread-safe!
@@ -236,6 +240,15 @@ public:
          const GetPartitionOffset&   getPartitionOffsetFromOffset = {} )
     {
         [[maybe_unused]] const auto tGetStart = now();
+
+    #ifdef WITH_PYTHON_SUPPORT
+        /* The GIL needs to be unlocked for the worker threads to not wait infinitely when calling methods
+         * on a given Python file object. In theory, it suffices to call this unlock here to avoid deadlocks
+         * because it is the only method that waits for results from the worker threads. But, it might be
+         * more efficient to unlock the GIL outside to avoid many unlock/lock cycles and to leave it unlocked
+         * for longer so as to not hinder the worker threads. */
+        const ScopedGILUnlock unlockedGIL;
+    #endif
 
         /* Not using capture bindings here because C++ is too dumb to capture those, yet.
          * @see https://stackoverflow.com/a/46115028/2191065 */
