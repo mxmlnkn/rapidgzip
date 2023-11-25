@@ -297,7 +297,7 @@ main( int    argc,
                               "Simple tool to count 0s and 1s in respect to the last n bits before it." );
 
     options.add_options()
-        ( "h,help", "Print this help mesage." )
+        ( "h,help", "Print this help message." )
         ( "i,input", "Input file.",
           cxxopts::value<std::string>() )
         ( "n,pattern-bits",

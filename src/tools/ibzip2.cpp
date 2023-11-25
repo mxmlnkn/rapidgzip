@@ -203,18 +203,18 @@ ibzip2CLI( int argc, char** argv )
         ( "p,block-finder-parallelism",
           "This only has an effect if the parallel decoder is used with the -P option. "
           "If an optional integer >= 1 is given, then that is the number of threads to use for finding bzip2 blocks. "
-          "If 0 is given, then the parallelism will be determiend automatically.",
+          "If 0 is given, then the parallelism will be determined automatically.",
           cxxopts::value<unsigned int>()->default_value( "1" ) )
 
         ( "P,decoder-parallelism",
           "Use the parallel decoder. "
           "If an optional integer >= 1 is given, then that is the number of decoder threads to use. "
           "Note that there might be further threads being started with non-decoding work. "
-          "If 0 is given, then the parallelism will be determiend automatically.",
+          "If 0 is given, then the parallelism will be determined automatically.",
           cxxopts::value<unsigned int>()->default_value( "0" ) );
 
     options.add_options( "Output" )
-        ( "h,help"   , "Print this help mesage." )
+        ( "h,help"   , "Print this help message." )
         ( "q,quiet"  , "Suppress noncritical error messages." )
         ( "v,verbose", "Be verbose. A second -v (or shorthand -vv) gives even more verbosity." )
         ( "V,version", "Display software version." )
@@ -232,13 +232,13 @@ ibzip2CLI( int argc, char** argv )
 
     options.add_options( "Advanced" )
         ( "buffer-size",
-          "Specifies the output buffer size between calls to the Bzip2 decoder and writing to sandard out. "
+          "Specifies the output buffer size between calls to the Bzip2 decoder and writing to standard out. "
           "If only --list-offsets is used with nothing else then it affects the input buffer for the block finder.",
           cxxopts::value<unsigned int>()->default_value( "0" ) );
 
     options.parse_positional( { "input" } );
 
-    /* cxxopts allows to specifiy arguments multiple times. But if the argument type is not a vector, then only
+    /* cxxopts allows to specify arguments multiple times. But if the argument type is not a vector, then only
      * the last value will be kept! Therefore, do not check against this usage and simply use that value.
      * Arguments may only be queried with as if they have (default) values. */
 

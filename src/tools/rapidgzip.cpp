@@ -222,7 +222,7 @@ rapidgzipCLI( int argc, char** argv )
 
     options.parse_positional( { "input" } );
 
-    /* cxxopts allows to specifiy arguments multiple times. But if the argument type is not a vector, then only
+    /* cxxopts allows to specify arguments multiple times. But if the argument type is not a vector, then only
      * the last value will be kept! Therefore, do not check against this usage and simply use that value.
      * Arguments may only be queried with as if they have (default) values. */
 
