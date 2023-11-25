@@ -1,4 +1,11 @@
 
+# Version 0.10.3 built on 2023-09-12
+
+## Fixes
+
+ - Do not build with ISA-L on aarch64 for now because it fails.
+
+
 # Version 0.10.2 built on 2023-09-10
 
 ## Fixes

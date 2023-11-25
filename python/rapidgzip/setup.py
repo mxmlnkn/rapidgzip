@@ -23,7 +23,12 @@ except ImportError:
 # ISA-l does not compile on 32-bit becaue it contains statements such as [bits 64].
 # It simply is not supported and I also don't see a reason. 32-bit should be long dead exactly
 # like almost all (96% according to Steam) PCs have AVX support.
-withIsal = shutil.which("nasm") is not None and platform.machine().endswith('64')
+# On aarch64 macOS, ISA-L causes: ImportError: dlopen(python3.10/site-packages/rapidgzip.cpython-310-darwin.so, 0x0002):
+#   symbol not found in flat namespace '_decode_huffman_code_block_stateless'
+# On aarch64 linux, ISA-L causes:
+#   /bin/ld: external/isa-l/igzip/igzip_decode_block_stateless_01.obj: error adding symbols: file in wrong format
+# -> I need to migrate the ARM build settings to CMake. ISA-L has aarch64 subfolders with assembly files.
+withIsal = shutil.which("nasm") is not None and platform.machine() in ['x86_64', 'AMD64']
 
 zlib_sources = ['inflate.c', 'crc32.c', 'adler32.c', 'inftrees.c', 'inffast.c', 'zutil.c']
 zlib_sources = ['external/zlib/' + source for source in zlib_sources]
