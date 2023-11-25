@@ -229,7 +229,7 @@ testWikidataException( const std::filesystem::path& rootFolder )
     const auto startOffset = 0ULL;
     const auto exactUntilOffset = 2097164ULL;
     const auto decodedSize = 4'140'634ULL;
-    std::array<uint8_t, 32_Ki> window;
+    std::array<uint8_t, 32_Ki> window{};
     const auto initialWindow = VectorView<uint8_t>( window.data(), window.size() );
     /* This did throw because it checks whether the exactUntilOffset has been reached. However, when a decoded size
      * is specified, it is used as a stop criterium. This means that for ISA-L the very last symbol, the end-of-block
