@@ -20,7 +20,7 @@
 #include <rapidgzip.hpp>
 #include <Statistics.hpp>
 
-#include "licenses.cpp"
+#include "licenses.hpp"
 
 
 struct Arguments

@@ -6,7 +6,7 @@ include CHANGELOG.md
 include rapidgzip.pyx
 recursive-include core *.hpp
 recursive-include rapidgzip *.hpp
-include tools/licenses.cpp
+include tools/licenses.hpp
 include tools/rapidgzip.cpp
 include external/cxxopts/LICENSE
 include external/cxxopts/include/cxxopts.hpp

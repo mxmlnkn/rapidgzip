@@ -6,6 +6,6 @@ include indexed_bzip2.pyx
 recursive-include indexed_bzip2 *.hpp
 recursive-include core *.hpp
 include tools/ibzip2.cpp
-include tools/licenses.cpp
+include tools/licenses.hpp
 include external/cxxopts/LICENSE
 include external/cxxopts/include/cxxopts.hpp

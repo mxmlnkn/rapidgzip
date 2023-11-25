@@ -25,7 +25,7 @@
 #include <ParallelBZ2Reader.hpp>
 #include <ParallelBitStringFinder.hpp>
 
-#include "licenses.cpp"
+#include "licenses.hpp"
 
 
 /* Check whether the found offsets actually point to BZ2 magic bytes. */
