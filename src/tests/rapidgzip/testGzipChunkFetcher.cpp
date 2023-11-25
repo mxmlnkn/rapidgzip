@@ -217,6 +217,34 @@ testIsalBug()
 }
 
 
+template<typename InflateWrapper>
+void
+testWikidataException( const std::filesystem::path& rootFolder )
+{
+    rapidgzip::BitReader bitReader(
+        std::make_unique<SharedFileReader>(
+            std::make_unique<StandardFileReader>(
+                rootFolder / "wikidata-20220103-all.json.gz-379508635534b--379510732698b.deflate" ) ) );
+
+    const auto startOffset = 0ULL;
+    const auto exactUntilOffset = 2097164ULL;
+    const auto decodedSize = 4'140'634ULL;
+    std::array<uint8_t, 32_Ki> window{};
+    const auto initialWindow = VectorView<uint8_t>( window.data(), window.size() );
+    /* This did throw because it checks whether the exactUntilOffset has been reached. However, when a decoded size
+     * is specified, it is used as a stop criterium. This means that for ISA-L the very last symbol, the end-of-block
+     * symbol, might not be read from the input stream and, therefore, the exactUntilOffset was not reached.
+     * This can be remedied by trying to read a single byte, which shouold reda nothing because the BitReader
+     * is also given the exactUntilOffset and does not move more bits than that to the ISA-L input buffers. */
+    const auto chunk =
+        rapidgzip::GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlockWithInflateWrapper<InflateWrapper>(
+            bitReader, startOffset, exactUntilOffset, initialWindow, decodedSize, false );
+
+    REQUIRE_EQUAL( chunk.encodedSizeInBits, exactUntilOffset );
+    REQUIRE_EQUAL( chunk.decodedSizeInBytes, decodedSize );
+}
+
+
 void
 compareBlockOffsets( const std::vector<std::pair<size_t, size_t> >& blockOffsets1,
                      const std::vector<std::pair<size_t, size_t> >& blockOffsets2 )
@@ -292,13 +320,12 @@ initBitReaderAtDeflateStream( UniqueFileReader&& fileReader )
 decodeWithDecodeBlockWithRapidgzip( UniqueFileReader&& fileReader )
 {
     auto bitReader = initBitReaderAtDeflateStream( std::move( fileReader ) );
-    const auto chunkData = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlockWithRapidgzip(
+    return GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlockWithRapidgzip(
         &bitReader,
         /* untilOffset */ std::numeric_limits<size_t>::max(),
         /* window */ std::nullopt,
         /* crc32Enabled */ true,
         /* maxDecompressedChunkSize */ std::numeric_limits<size_t>::max() );
-    return chunkData;
 }
 
 
@@ -307,14 +334,13 @@ decodeWithDecodeBlock( UniqueFileReader&& fileReader )
 {
     auto bitReader = initBitReaderAtDeflateStream( std::move( fileReader ) );
     std::atomic<bool> cancel{ false };
-    const auto chunkData = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlock(
+    return GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlock(
         bitReader,
         bitReader.tell(),
         /* untilOffset */ std::numeric_limits<size_t>::max(),
         /* window */ std::nullopt,
         /* decodedSize */ std::nullopt,
         cancel );
-    return chunkData;
 }
 
 
@@ -324,14 +350,13 @@ decodeWithDecodeBlockWithInflateWrapper( UniqueFileReader&& fileReader )
 {
     auto bitReader = initBitReaderAtDeflateStream( std::move( fileReader ) );
     using ChunkFetcher = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>;
-    const auto chunkData = ChunkFetcher::decodeBlockWithInflateWrapper<InflateWrapper>(
+    return ChunkFetcher::decodeBlockWithInflateWrapper<InflateWrapper>(
         bitReader,
         bitReader.tell(),
         /* exactUntilOffset */ bitReader.size(),
         /* window */ {},
         /* decodedSize */ std::nullopt,
         /* crc32Enabled */ true );
-    return chunkData;
 }
 
 
@@ -533,6 +558,11 @@ main( int    argc,
         static_cast<std::filesystem::path>(
             findParentFolderContaining( binaryFolder, "src/tests/data/base64-256KiB.bgz" )
         ) / "src" / "tests" / "data";
+
+    testWikidataException<ZlibInflateWrapper>( testFolder );
+#ifdef WITH_ISAL
+    testWikidataException<IsalInflateWrapper>( testFolder );
+#endif
 
     testDecodeBlockWithInflateWrapperWithFiles( testFolder );
 

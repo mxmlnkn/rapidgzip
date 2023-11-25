@@ -151,22 +151,6 @@ private:
 };
 
 
-
-[[nodiscard]] std::vector<uint8_t>
-readFile( const std::string& fileName )
-{
-    std::vector<uint8_t> contents( std::filesystem::file_size( fileName ) );
-    const auto file = throwingOpen( fileName, "rb" );
-    const auto nBytesRead = std::fread( contents.data(), sizeof( contents[0] ), contents.size(), file.get() );
-
-    if ( nBytesRead != contents.size() ) {
-        throw std::logic_error( "Did read less bytes than file is large!" );
-    }
-
-    return contents;
-}
-
-
 [[nodiscard]] size_t
 decompressWithZlib( const std::vector<uint8_t>& compressedData )
 {
@@ -375,7 +359,7 @@ printBandwidths( const std::vector<double>& durations,
 void
 benchmarkChunkedParallelDecompression( const std::string& fileName )
 {
-    const auto fileContents = readFile( fileName );
+    const auto fileContents = readFile<std::vector<uint8_t> >( fileName );
 
     std::cout << "\n== Benchmarking with rapidgzip in parallel with different decoding chunk sizes ==\n\n";
 
@@ -407,7 +391,7 @@ benchmarkChunkedParallelDecompression( const std::string& fileName )
 void
 benchmarkDecompression( const std::string& fileName )
 {
-    const auto fileContents = readFile( fileName );
+    const auto fileContents = readFile<std::vector<uint8_t> >( fileName );
 
     const auto [sizeLibArchive, durationsLibArchive] = benchmarkFunction<3>(
         [&fileContents] () { return decompressWithLibArchive( fileContents ); } );

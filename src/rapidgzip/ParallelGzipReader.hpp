@@ -389,6 +389,15 @@ public:
     read( const WriteFunctor& writeFunctor,
           const size_t        nBytesToRead = std::numeric_limits<size_t>::max() )
     {
+        if ( !writeFunctor && m_blockMap->finalized() ) {
+            const auto oldOffset = tell();
+            const auto newOffset = seek( nBytesToRead > static_cast<size_t>( std::numeric_limits<long long int>::max() )
+                                         ? std::numeric_limits<long long int>::max()
+                                         : nBytesToRead,
+                                         SEEK_CUR );
+            return newOffset - oldOffset;
+        }
+
         if ( closed() ) {
             throw std::invalid_argument( "You may not call read on closed ParallelGzipReader!" );
         }
@@ -399,6 +408,11 @@ public:
 
         size_t nBytesDecoded = 0;
         while ( ( nBytesDecoded < nBytesToRead ) && !eof() ) {
+        #ifdef WITH_PYTHON_SUPPORT
+            checkPythonSignalHandlers();
+            const ScopedGILUnlock unlockedGIL;
+        #endif
+
             const auto blockResult = chunkFetcher().get( m_currentPosition );
             if ( !blockResult ) {
                 m_atEndOfFile = true;
@@ -428,10 +442,6 @@ public:
                         << " markers: " << chunkData->dataWithMarkersSize();
                 throw std::logic_error( std::move( message ).str() );
             }
-
-        #ifdef WITH_PYTHON_SUPPORT
-            checkPythonSignalHandlers();
-        #endif
 
             const auto nBytesToDecode = std::min( blockSize - offsetInBlock, nBytesToRead - nBytesDecoded );
 
@@ -507,7 +517,6 @@ public:
             return tell();
         }
 
-        assert( positiveOffset - blockInfo.decodedOffsetInBytes > blockInfo.decodedSizeInBytes );
         if ( m_blockMap->finalized() ) {
             m_atEndOfFile = true;
             m_currentPosition = size();

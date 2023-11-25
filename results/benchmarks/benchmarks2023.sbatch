@@ -82,7 +82,7 @@ else
     (
         git clone 'https://github.com/mxmlnkn/indexed_bzip2'
         cd indexed_bzip2
-        git checkout -f ed5c77f7
+        git checkout -f rapidgzip-v0.9.0
         mkdir -p build
         cd build
         cmake -GNinja ..

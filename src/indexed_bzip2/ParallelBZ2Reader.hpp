@@ -182,6 +182,7 @@ public:
 
         #ifdef WITH_PYTHON_SUPPORT
             checkPythonSignalHandlers();
+            const ScopedGILUnlock unlockedGIL;
         #endif
 
             auto blockInfo = m_blockMap->findDataOffset( m_currentPosition );
@@ -318,7 +319,6 @@ public:
             return tell();
         }
 
-        assert( positiveOffset - blockInfo.decodedOffsetInBytes > blockInfo.decodedSizeInBytes );
         if ( m_blockMap->finalized() ) {
             m_atEndOfFile = true;
             m_currentPosition = size();

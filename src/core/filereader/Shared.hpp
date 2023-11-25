@@ -230,7 +230,16 @@ public:
             return 0;
         }
 
-        if ( !m_sharedFile ) {
+        /* Copy the shared pointer in order to avoid race-conditions with @ref close, which might clear
+         * @ref m_sharedFile. This copy avoids having to keep m_mutex locked the whole time. Else, we would
+         * have to recheck m_sharedFile before after each relock. Note that there are two semantics here:
+         * 1. Locking access to the underlying file
+         * 2. Locking access to the shared_ptr member. */
+        const auto sharedFile = [this] () {
+            const auto lock = getLock();
+            return std::shared_ptr<FileReader>( m_sharedFile );
+        } ();
+        if ( !sharedFile ) {
             throw std::invalid_argument( "Invalid SharedFileReader cannot be read from!" );
         }
 
@@ -254,7 +263,7 @@ public:
                 m_statistics->lastAccessOffset = m_currentPosition;
             }
 
-            const auto nBytesReadWithPread = ::pread( m_sharedFile->fileno(), buffer, nMaxBytesToRead,
+            const auto nBytesReadWithPread = ::pread( sharedFile->fileno(), buffer, nMaxBytesToRead,
                                                       m_currentPosition );
             if ( nBytesReadWithPread < 0 ) {
                 throw std::runtime_error( "Failed to read from file!" );
@@ -267,7 +276,7 @@ public:
 
             if ( m_statistics && m_statistics->enabled ) {
                 const std::scoped_lock lock{ m_statistics->mutex };
-                const auto oldOffset = m_sharedFile->tell();
+                const auto oldOffset = sharedFile->tell();
                 if ( m_currentPosition > oldOffset ) {
                     m_statistics->seekForward.merge( m_currentPosition - oldOffset );
                 } else if ( m_currentPosition < oldOffset ) {
@@ -276,9 +285,9 @@ public:
             }
 
             /* Seeking alone does not clear the EOF nor fail bit if the last read did set it. */
-            m_sharedFile->clearerr();
-            m_sharedFile->seek( m_currentPosition, SEEK_SET );
-            nBytesRead = m_sharedFile->read( buffer, nMaxBytesToRead );
+            sharedFile->clearerr();
+            sharedFile->seek( m_currentPosition, SEEK_SET );
+            nBytesRead = sharedFile->read( buffer, nMaxBytesToRead );
         }
 
         if ( m_statistics && m_statistics->enabled ) {

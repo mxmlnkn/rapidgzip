@@ -160,6 +160,10 @@ template<uint8_t bitStringSize>
 size_t
 ParallelBitStringFinder<bitStringSize>::find()
 {
+#ifdef WITH_PYTHON_SUPPORT
+        const ScopedGILUnlock unlockedGIL;
+#endif
+
     while ( !BaseType::eof() || !m_threadResults.empty() )
     {
         /* Check whether there are results available and return those. Take care to return results in order! */

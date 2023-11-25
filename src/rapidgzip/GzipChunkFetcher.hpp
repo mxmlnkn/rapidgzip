@@ -239,7 +239,16 @@ public:
             {
                 /* We could also keep track of the next block offset instead of the block index but then we would
                  * have to do a bisection for each block to find the block index from the offset. */
-                throw std::logic_error( "Next block offset index is out of sync!" );
+                std::stringstream message;
+                message << "Next block offset index is out of sync! Requested offset to index "
+                        << m_nextUnprocessedBlockIndex;
+                if ( insertedNextBlockOffset.has_value() ) {
+                    message << " and got " << *insertedNextBlockOffset;
+                } else {
+                    message << " and did not get a value";
+                }
+                message << " but expected " << blockOffsetAfterNext;
+                throw std::logic_error( std::move( message ).str() );
             }
 
             /* Because this is a new block, it might contain markers that we have to replace with the window
@@ -885,7 +894,7 @@ public:
             if ( decodedSize ) {
                  message << " out of requested " << *decodedSize << " B";
             }
-            message << ".";
+            message << ", started at offset: " << blockOffset << ".";
             throw std::runtime_error( std::move( message ).str() );
         }
 

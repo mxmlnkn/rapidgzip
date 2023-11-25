@@ -15,26 +15,9 @@
 #include <BitStringFinder.hpp>
 #include <common.hpp>
 #include <filereader/Standard.hpp>
+#include <FileUtils.hpp>
 #include <ParallelBZ2Reader.hpp>
 #include <TestHelpers.hpp>
-
-
-namespace
-{
-std::ios_base::seekdir
-toSeekdir( int origin )
-{
-    switch ( origin )
-    {
-    case SEEK_SET: return std::ios_base::beg;
-    case SEEK_CUR: return std::ios_base::cur;
-    case SEEK_END: return std::ios_base::end;
-    default: break;
-    }
-
-    throw std::invalid_argument( "Unknown origin" );
-}
-}
 
 
 void

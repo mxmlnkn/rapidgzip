@@ -34,20 +34,20 @@ zlib_sources = ['inflate.c', 'crc32.c', 'adler32.c', 'inftrees.c', 'inffast.c', 
 zlib_sources = ['external/zlib/' + source for source in zlib_sources]
 
 isal_sources = [
-    #"include/igzip_lib.h",
-    #"include/unaligned.h",
+    # "include/igzip_lib.h",
+    # "include/unaligned.h",
     "include/reg_sizes.asm",
     "include/multibinary.asm",
     "igzip/igzip_inflate.c",
     "igzip/igzip.c",
     "igzip/hufftables_c.c",
-    #"igzip/igzip_checksums.h",
+    # "igzip/igzip_checksums.h",
     "igzip/igzip_inflate_multibinary.asm",
     "igzip/igzip_decode_block_stateless_01.asm",
     "igzip/igzip_decode_block_stateless_04.asm",
     "igzip/rfc1951_lookup.asm",
-    #"igzip/igzip_wrapper.h",
-    #"igzip/static_inflate.h",
+    # "igzip/igzip_wrapper.h",
+    # "igzip/static_inflate.h",
     "igzip/stdmac.asm",
 ]
 isal_sources = ['external/isa-l/' + source for source in isal_sources] if withIsal else []
@@ -110,9 +110,11 @@ class Build(build_ext):
             nasmCompiler = None
         elif sys.platform == "win32":
             from nasm_extension.winnasmcompiler import WinNasmCompiler
+
             nasmCompiler = WinNasmCompiler(verbose=True)
         else:
             from nasm_extension.nasmcompiler import NasmCompiler
+
             nasmCompiler = NasmCompiler(verbose=True)
 
         def newCompile(sources, *args, **kwargs):
@@ -174,6 +176,8 @@ class Build(build_ext):
                 '-DWITH_PYTHON_SUPPORT',
                 '-DWITH_RPMALLOC',
                 '-D_LARGEFILE64_SOURCE=1',
+                '-D_FORTIFY_SOURCE=2',
+                '-D_GLIBCXX_ASSERTIONS',
             ]
             if nasmCompiler:
                 ext.extra_compile_args.append('-DWITH_ISAL')
@@ -217,6 +221,15 @@ class Build(build_ext):
                 if sys.platform.startswith('darwin') and supportsFlag(self.compiler, '-mmacosx-version-min=10.14'):
                     ext.extra_compile_args += ['-mmacosx-version-min=10.14']
                     ext.extra_link_args += ['-mmacosx-version-min=10.14']
+
+                # Add some hardening. See e.g.:
+                # https://www.phoronix.com/news/GCC-fhardened-Hardening-Option
+                # https://developers.redhat.com/blog/2018/03/21/compiler-and-linker-flags-gcc
+                # I have not observed any performance impact for these.
+                ext.extra_compile_args += ['-fstack-protector-strong', '-fstack-clash-protection']
+                # AppleClang seems to not like this flag:
+                if supportsFlag(self.compiler, '-fcf-protection=full'):
+                    ext.extra_compile_args += ['-fcf-protection=full']
 
             if hasInclude(self.compiler, 'unistd.h'):
                 ext.extra_compile_args += ['-DZ_HAVE_UNISTD_H']

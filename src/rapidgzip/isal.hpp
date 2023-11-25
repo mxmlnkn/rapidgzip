@@ -230,14 +230,19 @@ IsalInflateWrapper::readStream( uint8_t* const output,
             break;
         }*/
 
-        /* > If the crc_flag is set to ISAL_GZIP or ISAL_ZLIB, the
+        /**
+         * > If the crc_flag is set to ISAL_GZIP or ISAL_ZLIB, the
          * > gzip/zlib header is parsed, state->crc is set to the appropriate checksum,
          * > and the checksum is verified. If the crc_flag is set to ISAL_DEFLATE
          * > (default), then the data is treated as a raw deflate block.
          * Not that m_stream has a tmp_out_buffer member, which might store some arbitrary amount of decompressed
-         * data that will be returned written on the next call possibly without making any progress on the input! */
-        const auto oldUnusedBits = getUnusedBits();
-        const auto oldTotalOut = m_stream.total_out;
+         * data that will be returned written on the next call possibly without making any progress on the input!
+         * Note that in some very rare cases, the call to isal_inflate only moves bytes from avail_in to read_in!
+         * This seems to happen right before the EOB symbol. Therefore, do not check the getUnusedBits but instead
+         * check the unused bytes and bits separately! For this pathological case, see the test that uses:
+         * src/tests/data/wikidata-20220103-all.json.gz-379508635534b--379510732698b.deflate
+         */
+        const auto oldPosition = std::make_tuple( m_stream.avail_in, m_stream.read_in_length, m_stream.total_out );
 
         /* == actual ISA-L inflate call == */
         const auto errorCode = isal_inflate( &m_stream );
@@ -266,8 +271,8 @@ IsalInflateWrapper::readStream( uint8_t* const output,
             break;
         }
 
-        const auto progressedBits = oldUnusedBits != getUnusedBits();
-        const auto progressedOutput = m_stream.total_out != oldTotalOut;
+        const auto newPosition = std::make_tuple( m_stream.avail_in, m_stream.read_in_length, m_stream.total_out );
+        const auto progressed = oldPosition != newPosition;
 
         if ( m_stream.block_state == ISAL_BLOCK_FINISH ) {
             decodedSize += m_stream.total_out;
@@ -296,7 +301,7 @@ IsalInflateWrapper::readStream( uint8_t* const output,
             return { decodedSize, footer };
         }
 
-        if ( !progressedBits && !progressedOutput ) {
+        if ( !progressed ) {
             break;
         }
     }

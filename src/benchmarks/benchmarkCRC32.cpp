@@ -153,8 +153,8 @@ computeCRC32SSE4u64( const std::vector<char>& buffer ) noexcept
 computeCRC32LUT( const std::vector<char>& buffer ) noexcept
 {
     auto crc = ~uint32_t( 0 );
-    for ( size_t i = 0; i < buffer.size(); ++i ) {
-        crc = ( crc >> 8U ) ^ rapidgzip::CRC32_TABLE[( crc ^ buffer[i] ) & 0xFFU];
+    for ( const auto byte : buffer ) {
+        crc = ( crc >> 8U ) ^ rapidgzip::CRC32_TABLE[( crc ^ static_cast<uint8_t>( byte ) ) & 0xFFU];
     }
     return ~crc;
 }

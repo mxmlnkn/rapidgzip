@@ -1,4 +1,25 @@
 
+# Version 0.10.4 built on 2023-11-25
+
+## Fixes
+
+ - Do not warn about the output file when it is not used.
+ - The encoded end offset check on the chunk fired erroneously when decoding with an imported index.
+ - Do not needlessly decompress for these command line combinations:
+   - `rapidgzip --import-index <index> --export-index <index>`, which currently can be used to check and
+     copy an index and in the future can be used to convert index formats.
+   - `rapidgzip --import-index <index> --count`, which can be used to quickly print the decompressed file size.
+ - The combination `--export-index -d` did not work.
+ - Size formatting with units did drop any parts larger than 1 TiB.
+ - Avoid error for `--count --no-verify -P 1`.
+ - Avoid error for `--count --no-verify` for some files with large compression ratios.
+ - Only print the decompression duration and bandwidth with `-v`.
+ - Fix some typos.
+ - Fix "Python memory allocator called without holding the GIL" consistency check with `PYTHONDEVMODE=1`
+   or `python3 -X dev`. No actual race condition has been observed. All Python callbacks were always serialized.
+ - Add tests for many command line parameter combinations.
+
+
 # Version 0.10.3 built on 2023-09-12
 
 ## Fixes

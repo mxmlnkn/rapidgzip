@@ -18,6 +18,10 @@
 #include <JoiningThread.hpp>
 #include <StreamedResults.hpp>
 
+#ifdef WITH_PYTHON_SUPPORT
+    #include <filereader/Python.hpp>
+#endif
+
 
 /**
  * This is a future-like wrapper around a given actual block finder, which is running asynchronously.
@@ -108,6 +112,10 @@ public:
     get( size_t blockNumber,
          double timeoutInSeconds ) override
     {
+#ifdef WITH_PYTHON_SUPPORT
+        const ScopedGILUnlock unlockedGIL;
+#endif
+
         if ( !m_blockOffsets.finalized() ) {
             startThreads();
         }

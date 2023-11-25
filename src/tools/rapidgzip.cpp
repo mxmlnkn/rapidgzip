@@ -106,24 +106,25 @@ printIndexAnalytics( const Reader& reader )
 template<typename Reader,
          typename WriteFunctor>
 size_t
-decompressParallel( const Reader&       reader,
-                    const std::string&  indexLoadPath,
-                    const std::string&  indexSavePath,
-                    const WriteFunctor& writeFunctor,
-                    const bool          verbose )
+decompressParallel( const Arguments&    args,
+                    const Reader&       reader,
+                    const WriteFunctor& writeFunctor )
 {
-    if ( !indexLoadPath.empty() ) {
-        reader->importIndex( std::make_unique<StandardFileReader>( indexLoadPath ) );
+    reader->setShowProfileOnDestruction( args.verbose );
+    reader->setCRC32Enabled( args.crc32Enabled );
 
-        if ( verbose && ( !indexSavePath.empty() || !indexLoadPath.empty() ) ) {
+    if ( !args.indexLoadPath.empty() ) {
+        reader->importIndex( std::make_unique<StandardFileReader>( args.indexLoadPath ) );
+
+        if ( args.verbose && ( !args.indexSavePath.empty() || !args.indexLoadPath.empty() ) ) {
             printIndexAnalytics( reader );
         }
     }
 
     const auto totalBytesRead = reader->read( writeFunctor );
 
-    if ( !indexSavePath.empty() ) {
-        const auto file = throwingOpen( indexSavePath, "wb" );
+    if ( !args.indexSavePath.empty() ) {
+        const auto file = throwingOpen( args.indexSavePath, "wb" );
 
         const auto checkedWrite =
             [&file] ( const void* buffer, size_t size )
@@ -136,7 +137,7 @@ decompressParallel( const Reader&       reader,
         writeGzipIndex( reader->gzipIndex(), checkedWrite );
     }
 
-    if ( verbose && indexLoadPath.empty() && !indexSavePath.empty() ) {
+    if ( args.verbose && args.indexLoadPath.empty() && !args.indexSavePath.empty() ) {
         printIndexAnalytics( reader );
     }
 
@@ -157,17 +158,11 @@ decompressParallel( const Arguments&    args,
     if ( args.verbose ) {
         using Reader = rapidgzip::ParallelGzipReader<ChunkData, /* enable statistics */ true>;
         auto reader = std::make_unique<Reader>( std::move( inputFile ), args.decoderParallelism, args.chunkSize );
-        reader->setShowProfileOnDestruction( true );
-        reader->setCRC32Enabled( args.crc32Enabled );
-        return decompressParallel( std::move( reader ), args.indexLoadPath, args.indexSavePath, writeFunctor,
-                                   args.verbose );
+        return decompressParallel( args, std::move( reader ), writeFunctor );
     } else {
         using Reader = rapidgzip::ParallelGzipReader<ChunkData, /* enable statistics */ false>;
         auto reader = std::make_unique<Reader>( std::move( inputFile ), args.decoderParallelism, args.chunkSize );
-        reader->setShowProfileOnDestruction( false );
-        reader->setCRC32Enabled( args.crc32Enabled );
-        return decompressParallel( std::move( reader ), args.indexLoadPath, args.indexSavePath, writeFunctor,
-                                   args.verbose );
+        return decompressParallel( args, std::move( reader ), writeFunctor );
     }
 }
 
@@ -227,7 +222,7 @@ rapidgzipCLI( int argc, char** argv )
 
     options.parse_positional( { "input" } );
 
-    /* cxxopts allows to specifiy arguments multiple times. But if the argument type is not a vector, then only
+    /* cxxopts allows to specify arguments multiple times. But if the argument type is not a vector, then only
      * the last value will be kept! Therefore, do not check against this usage and simply use that value.
      * Arguments may only be queried with as if they have (default) values. */
 
@@ -263,7 +258,7 @@ rapidgzipCLI( int argc, char** argv )
 
     if ( parsedArgs.count( "version" ) > 0 ) {
         std::cout << "rapidgzip, CLI to the parallelized, indexed, and seekable gzip decoding library rapidgzip "
-                  << "version 0.10.3.\n";
+                  << "version 0.10.4.\n";
         return 0;
     }
 
@@ -308,6 +303,12 @@ rapidgzipCLI( int argc, char** argv )
         return rapidgzip::deflate::analyze( std::move( inputFile ) ) == rapidgzip::Error::NONE ? 0 : 1;
     }
 
+    /* Parse action arguments. */
+
+    const auto countBytes = parsedArgs.count( "count" ) > 0;
+    const auto countLines = parsedArgs.count( "count-lines" ) > 0;
+    const auto decompress = parsedArgs.count( "decompress" ) > 0;
+
     /* Parse output file specifications. */
 
     auto outputFilePath = getFilePath( parsedArgs, "output" );
@@ -320,17 +321,13 @@ rapidgzipCLI( int argc, char** argv )
                                           - static_cast<std::string::difference_type>( suffix.size() ) );
         } else {
             outputFilePath = inputFilePath + ".out";
-            if ( !quiet ) {
+            if ( !quiet && decompress ) {
                 std::cerr << "[Warning] Could not deduce output file name. Will write to '" << outputFilePath << "'\n";
             }
         }
     }
 
     /* Parse other arguments. */
-
-    const auto countBytes = parsedArgs.count( "count" ) > 0;
-    const auto countLines = parsedArgs.count( "count-lines" ) > 0;
-    const auto decompress = parsedArgs.count( "decompress" ) > 0;
 
     if ( decompress && ( outputFilePath != "/dev/null" ) && fileExists( outputFilePath ) && !force ) {
         std::cerr << "Output file '" << outputFilePath << "' already exists! Use --force to overwrite.\n";
@@ -398,14 +395,19 @@ rapidgzipCLI( int argc, char** argv )
         args.chunkSize = parsedArgs["chunk-size"].as<unsigned int>() * 1_Ki;
 
         size_t totalBytesRead{ 0 };
-        if ( ( outputFileDescriptor == -1 ) && args.indexSavePath.empty() && countBytes ) {
-            /* Need to do nothing with the chunks because decompressParallel returns the decompressed size. */
-            const auto doNothing = [] ( const auto&, size_t, size_t ) {};
-
+        if ( ( outputFileDescriptor == -1 ) && args.indexSavePath.empty() && countBytes && !countLines ) {
+            /* Need to do nothing with the chunks because decompressParallel returns the decompressed size.
+             * Note that we use rapidgzip::ChunkDataCounter to speed up decompression. Therefore an index
+             * will not be created! */
             totalBytesRead = decompressParallel<rapidgzip::ChunkDataCounter>(
-                args, std::move( inputFile ), doNothing );
+                args, std::move( inputFile ), /* do nothing */ {} );
         } else {
-            totalBytesRead = decompressParallel<rapidgzip::ChunkData>( args, std::move( inputFile ), writeAndCount );
+            std::function<void( const std::shared_ptr<rapidgzip::ChunkData>, size_t, size_t )> writeFunctor;
+            /* Else, do nothing. An empty functor will lead to decompression to be skipped if the index is finalized! */
+            if ( ( outputFileDescriptor != -1 ) || countLines ) {
+                writeFunctor = writeAndCount;
+            }
+            totalBytesRead = decompressParallel<rapidgzip::ChunkData>( args, std::move( inputFile ), writeFunctor );
         }
 
         const auto writeToStdErr = outputFile && outputFile->writingToStdout();
@@ -415,8 +417,10 @@ rapidgzipCLI( int argc, char** argv )
         }
 
         const auto t1 = now();
-        std::cerr << "Decompressed in total " << totalBytesRead << " B in " << duration( t0, t1 ) << " s -> "
-                  << static_cast<double>( totalBytesRead ) / 1e6 / duration( t0, t1 ) << " MB/s\n";
+        if ( args.verbose ) {
+            std::cerr << "Decompressed in total " << totalBytesRead << " B in " << duration( t0, t1 ) << " s -> "
+                      << static_cast<double>( totalBytesRead ) / 1e6 / duration( t0, t1 ) << " MB/s\n";
+        }
 
         auto& out = writeToStdErr ? std::cerr : std::cout;
         if ( countBytes != countLines ) {

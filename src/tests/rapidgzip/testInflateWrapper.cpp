@@ -278,9 +278,6 @@ testSmallReads( const std::filesystem::path& compressedFilePath,
             }
         }
         REQUIRE_EQUAL( decompressedSize, 1U );
-        if ( decompressedSize != 1U ) {
-            throw 3;
-        }
     }
 
     REQUIRE( decompressedResult == originalData );
@@ -598,7 +595,7 @@ testStoppingPoints()
                 offsetsWithIsalWrapper[inflateWrapper.stoppedAt()].emplace_back( inflateWrapper.tellCompressed() );
             }
 
-            if ( inflateWrapper.stoppedAt() ) {
+            if ( inflateWrapper.stoppedAt() != StoppingPoint::NONE ) {
                 std::cerr << toString( inflateWrapper.stoppedAt() ) << " @ " << inflateWrapper.tellCompressed();
                 if ( const auto compressionType = inflateWrapper.compressionType(); compressionType ) {
                     std::cerr << " type: " << toString( *compressionType ) << "\n";

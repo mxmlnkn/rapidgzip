@@ -498,14 +498,27 @@ struct ChunkDataCounter final :
     }
 
     /**
-     * The internal index will only contain the offsets and empty windows but that is fine because
-     * this subclass does never require windows. The index should not be exported when this is used.
+     * The internal index will only contain the offsets and empty windows.
+     * The index should not be exported when this is used.
+     * Return a dummy window so that decoding can be resumed after stopping.
      */
     [[nodiscard]] deflate::DecodedVector
     getWindowAt( WindowView const& /* previousWindow */,
                  size_t            /* skipBytes */ ) const
     {
-        return {};
+        return deflate::DecodedVector( deflate::MAX_WINDOW_SIZE, 0 );
+    }
+
+    /**
+     * No splitting necessary for memory reduction because we don't hold the results anyway.
+     * @todo I'm not sure why the block splitting triggers the "Next block offset index is out of sync"
+     *       exception without this override. And it also does not happen with zeros-32GiB.gz, it happens
+     *       only with wikidata.json.gz.
+     */
+    [[nodiscard]] std::vector<Subblock>
+    split( [[maybe_unused]] const size_t spacing ) const
+    {
+        return ChunkData::split( std::numeric_limits<size_t>::max() );
     }
 };
 }  // namespace rapidgzip

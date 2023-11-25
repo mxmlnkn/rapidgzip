@@ -22,14 +22,21 @@ add_compile_options(
     "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-fconstexpr-ops-limit=99000100>"
     "$<$<COMPILE_LANG_AND_ID:CXX,Clang>:-fconstexpr-steps=99000100>"
     "$<$<AND:$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>,$<BOOL:${CODE_COVERAGE}>>:-O0;-g;--coverage>"
+    # Add some hardening. See e.g.:
+    # https://www.phoronix.com/news/GCC-fhardened-Hardening-Option
+    # https://developers.redhat.com/blog/2018/03/21/compiler-and-linker-flags-gcc
+    # I have not observed any performance impact for these.
+    "$<$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>:-fpie;-fstack-protector-strong;-fstack-clash-protection;-fcf-protection=full>"
 )
 
 add_link_options(
     "$<$<AND:$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>,$<BOOL:${CODE_COVERAGE}>>:--coverage>"
+    # See the note about hardening inside add_compile_options.
+    "$<$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>:-Wl,-pie,-z,relro,-z,now,-z,defs>"
 )
 
 if(CODE_COVERAGE)
-    add_definitions(-DSHORT_TESTS)
+    add_definitions(-DSHORT_TESTS -D_FORTIFY_SOURCE=2 -D_GLIBCXX_ASSERTIONS)
 endif()
 
 

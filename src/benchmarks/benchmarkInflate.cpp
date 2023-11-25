@@ -21,21 +21,6 @@
 #include <TestHelpers.hpp>
 
 
-[[nodiscard]] std::vector<uint8_t>
-readFile( const std::string& fileName )
-{
-    std::vector<uint8_t> contents( std::filesystem::file_size( fileName ) );
-    const auto file = throwingOpen( fileName, "rb" );
-    const auto nBytesRead = std::fread( contents.data(), sizeof( contents[0] ), contents.size(), file.get() );
-
-    if ( nBytesRead != contents.size() ) {
-        throw std::logic_error( "Did read less bytes than file is large!" );
-    }
-
-    return contents;
-}
-
-
 [[nodiscard]] size_t
 decompressWithRapidgzip( UniqueFileReader fileReader )
 {

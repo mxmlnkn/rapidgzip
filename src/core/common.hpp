@@ -189,7 +189,11 @@ formatBits( const uint64_t value )
 [[nodiscard]] inline std::string
 formatBytes( const uint64_t value )
 {
-    const std::array<std::pair<std::string_view, uint64_t>, 4> UNITS{ {
+    const std::array<std::pair<std::string_view, uint64_t>, 7U> UNITS{ {
+        /* 64-bit maximum is 16 EiB, so these units cover all cases. */
+        { "EiB", 1024ULL * 1024ULL * 1024ULL * 1024ULL * 1024ULL * 1024ULL },
+        { "PiB", 1024ULL * 1024ULL * 1024ULL * 1024ULL * 1024ULL },
+        { "TiB", 1024ULL * 1024ULL * 1024ULL * 1024ULL },
         { "GiB", 1024ULL * 1024ULL * 1024ULL },
         { "MiB", 1024ULL * 1024ULL },
         { "KiB", 1024ULL },
@@ -198,7 +202,7 @@ formatBytes( const uint64_t value )
 
     std::stringstream result;
     for ( const auto& [unit, multiplier] : UNITS ) {
-        const auto remainder = ( value / multiplier ) % 1024;
+        const auto remainder = ( value / multiplier ) % 1024ULL;
         if ( remainder != 0 ) {
             if ( result.tellp() > 0 ) {
                 result << " ";

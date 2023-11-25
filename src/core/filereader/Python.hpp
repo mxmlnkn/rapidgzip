@@ -25,9 +25,129 @@ public:
 };
 
 
+class ScopedGIL
+{
+public:
+    struct ReferenceCounter
+    {
+        bool isLocked;
+        size_t counter{ 0 };
+    };
+
+public:
+    ScopedGIL( bool doLock )
+    {
+        if ( !m_referenceCounters.empty() && ( m_referenceCounters.back().isLocked == doLock ) ) {
+            ++m_referenceCounters.back().counter;
+        } else {
+            const auto wasLocked = lock( doLock );
+            if ( !m_referenceCounters.empty() || ( wasLocked != doLock ) ) {
+                m_referenceCounters.emplace_back( ReferenceCounter{ doLock, 1 } );
+            }
+        }
+    }
+
+    ~ScopedGIL()
+    {
+        if ( m_referenceCounters.empty() ) {
+            /* This happens when, e.g., trying to look the Python main thread when it already held the GIL. */
+            return;
+        }
+
+        if ( m_referenceCounters.back().counter == 0 ) {
+            std::cerr << "Something went wrong. The counter shouldn't be zero at this point!\n";
+            return;
+        }
+
+        --m_referenceCounters.back().counter;
+        if ( m_referenceCounters.back().counter == 0 ) {
+            lock( !m_referenceCounters.back().isLocked );
+            m_referenceCounters.pop_back();
+        }
+    }
+
+    ScopedGIL( const ScopedGIL& ) = delete;
+    ScopedGIL( ScopedGIL&& ) = delete;
+    ScopedGIL& operator=( const ScopedGIL& ) = delete;
+    ScopedGIL& operator=( ScopedGIL&& ) = delete;
+
+private:
+    /**
+     * @return the old lock state.
+     */
+    bool
+    lock( bool doLock = true )
+    {
+        /**
+         * I would have liked a GILMutex class that can be declared as a static thread_local member but
+         * on Windows, these members are initialized too soon, i.e., at static initialization time instead of
+         * on first usage, which leads to bugs because PyGILState_Check will return 0 at this point.
+         * Therefore, use block-scoped thread_local variables, which are initialized on first pass as per the standard.
+         * @see https://stackoverflow.com/a/49821006/2191065
+         */
+        static thread_local bool isLocked{ PyGILState_Check() == 1 };
+        static thread_local bool const isPythonThread{ isLocked };
+
+        /** Used for locking non-Python threads. */
+        static thread_local PyGILState_STATE lockState{};
+        /** Used for unlocking and relocking the Python main thread. */
+        static thread_local PyThreadState* unlockState{ nullptr };
+
+        const auto wasLocked = isLocked;
+        if ( isLocked == doLock ) {
+            return wasLocked;
+        }
+
+        if ( doLock ) {
+            if ( isPythonThread ) {
+                PyEval_RestoreThread( unlockState );
+                unlockState = nullptr;
+            } else {
+                lockState = PyGILState_Ensure();
+            }
+        } else {
+            if ( isPythonThread ) {
+                unlockState = PyEval_SaveThread();
+            } else {
+                PyGILState_Release( lockState );
+                lockState = {};
+            }
+        }
+
+        isLocked = doLock;
+        return wasLocked;
+    }
+
+private:
+    inline static thread_local std::vector<ReferenceCounter> m_referenceCounters;
+};
+
+
+class ScopedGILLock :
+    public ScopedGIL
+{
+public:
+    ScopedGILLock() :
+        ScopedGIL( true )
+    {}
+};
+
+
+class ScopedGILUnlock :
+    public ScopedGIL
+{
+public:
+    ScopedGILUnlock() :
+        ScopedGIL( false )
+    {}
+};
+
+
 void
 checkPythonSignalHandlers()
 {
+    const ScopedGILLock gilLock;
+
     /**
      * @see https://docs.python.org/3/c-api/exceptions.html#signal-handling
      * > The function attempts to handle all pending signals, and then returns 0.
@@ -116,6 +236,8 @@ callPyObject( PyObject* pythonObject,
 {
     constexpr auto nArgs = sizeof...( Args );
 
+    const ScopedGILLock gilLock;
+
     if constexpr ( std::is_same_v<Result, void> ) {
         PyObject_Call( pythonObject, PyTuple_Pack( nArgs, toPyObject( args )... ), nullptr );
     } else {
@@ -188,6 +310,7 @@ public:
             seek( m_initialPosition );
         }
 
+        const ScopedGILLock gilLock;
         if ( Py_REFCNT( m_pythonObject ) == 1 ) {
             callPyObject<void>( mpo_close );
         }
@@ -236,6 +359,8 @@ public:
         if ( nMaxBytesToRead == 0 ) {
             return 0;
         }
+
+        const ScopedGILLock gilLock;
 
         /** @todo better to use readinto because read might return less than requested even before the EOF! */
         auto* const bytes = callPyObject<PyObject*>( mpo_read, nMaxBytesToRead );
@@ -286,6 +411,8 @@ public:
             return 0;
         }
 
+        const ScopedGILLock gilLock;
+
         auto* const bytes = PyBytes_FromStringAndSize( buffer, nBytesToWrite );
         const auto nBytesWritten = callPyObject<long long int>( mpo_write, bytes );
 
@@ -327,7 +454,6 @@ public:
         }
 
         m_currentPosition = callPyObject<size_t>( mpo_seek, offset, pythonWhence );
-        //m_currentPosition = fromPyObject<size_t>( PyObject_Call( mpo_seek, PyTuple_Pack( 2, PyLong_FromLongLong( offset ), PyLong_FromLongLong( (long long)pythonWhence ) ), nullptr ) );
 
         return m_currentPosition;
     }
