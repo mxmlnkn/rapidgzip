@@ -36,7 +36,7 @@
     #include <sys/uio.h>
     #include <unistd.h>
 
-    #if not defined( HAVE_VMSPLICE ) and defined( __linux__ )
+    #if not defined( HAVE_VMSPLICE ) and defined( __linux__ ) and defined( F_GETPIPE_SZ )
         #define HAVE_VMSPLICE
     #endif
 
