@@ -54,7 +54,7 @@ withZlib = getDependencyOption('ZLIB')
 
 if withCxxopts == 'disable':
     print("[Warning] Cxxopts can not be disabled! Will enable it.")
-    withCxxopts = 'enabled'
+    withCxxopts = 'enable'
 
 # ISA-l does not compile on 32-bit becaue it contains statements such as [bits 64].
 # It simply is not supported and I also don't see a reason. 32-bit should be long dead exactly

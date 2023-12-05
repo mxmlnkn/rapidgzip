@@ -49,6 +49,8 @@ jobs:
       run: |
         conda install conda conda-build anaconda-client conda-verify packaging
         conda config --set anaconda_upload no
+        conda config --add channels conda-forge
+        conda config --set report_errors false
         cd python/rapidgzip/conda
         python3 -m pip install --user build
         python3 -m build -o . --sdist ..
