@@ -12,6 +12,7 @@ source:
   url: src.tar
 
 build:
+  script: {{ PYTHON }} -m pip install . -vv
   number: 0
 
 requirements:
