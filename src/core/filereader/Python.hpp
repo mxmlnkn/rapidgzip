@@ -15,6 +15,19 @@
 #include "FileReader.hpp"
 
 
+[[nodiscard]] bool
+pythonIsFinalizing()
+{
+    #if ( PY_MAJOR_VERSION != 3 ) || ( PY_MINOR_VERSION < 8 )
+        return false;
+    #elif PY_MINOR_VERSION < 13
+        return _Py_IsFinalizing();
+    #else
+        return Py_IsFinalizing();
+    #endif
+}
+
+
 class PythonExceptionThrownBySignal :
     public std::runtime_error
 {
@@ -76,6 +89,19 @@ private:
         static thread_local PyGILState_STATE lockState{};
         /** Used for unlocking and relocking the Python main thread. */
         static thread_local PyThreadState* unlockState{ nullptr };
+
+        /* When Python is finalizing, we might get our acquired GIL rugpulled from us, meaning isLocked=true but
+         * PyGILState_Check() is 0 / unlocked!
+         * Python 3.10 has _Py_IsFinalizing, 3.13 has Py_IsFinalizing, however on Python 3.6, these are missing. */
+        if ( pythonIsFinalizing() || ( isLocked && ( PyGILState_Check() == 0 ) ) ) {
+            if ( ( PyGILState_Check() == 1 ) && !isPythonThread ) {
+                PyGILState_Release( lockState );
+                lockState = {};
+            }
+            throw std::runtime_error( "Detected Python finalization from running rapidgzip thread. "
+                                      "To avoid this exception you should close all RapidgzipFile objects correctly, "
+                                      "or better, use the with-statement if possible to automatically close it." );
+        }
 
         const auto wasLocked = isLocked;
         if ( isLocked == doLock ) {
