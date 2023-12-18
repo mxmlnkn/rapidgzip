@@ -7,6 +7,7 @@ function allgzip()
     test -f "${file}.gz" || gzip -c -- "$file" > "${file}.gz"
     test -f "${file}.igz" || igzip -c -- "$file" > "${file}.igz"
     test -f "${file}.pigz" || pigz -c -- "$file" > "${file}.pigz"
+    test -f "${file}.zlib" || pigz -c --zlib -- "$file" > "${file}.zlib"
     test -f "${file}.bgz" || bgzip -c -- "$file" > "${file}.bgz"
     test -f "${file}.pgzf" || pgzf -o "${file}.pgzf" "$file"
     test -f "${file}.migz" || cat -- "$file" | mzip > "${file}.migz"
