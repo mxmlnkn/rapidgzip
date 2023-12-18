@@ -37,33 +37,17 @@ public:
 public:
     ScopedGIL( bool doLock )
     {
-        if ( !m_referenceCounters.empty() && ( m_referenceCounters.back().isLocked == doLock ) ) {
-            ++m_referenceCounters.back().counter;
-        } else {
-            const auto wasLocked = lock( doLock );
-            if ( !m_referenceCounters.empty() || ( wasLocked != doLock ) ) {
-                m_referenceCounters.emplace_back( ReferenceCounter{ doLock, 1 } );
-            }
-        }
+        m_referenceCounters.emplace_back( lock( doLock ) );
     }
 
     ~ScopedGIL()
     {
         if ( m_referenceCounters.empty() ) {
-            /* This happens when, e.g., trying to look the Python main thread when it already held the GIL. */
-            return;
+            throw std::logic_error( "It seems there were more unlocks than locks!" );
         }
 
-        if ( m_referenceCounters.back().counter == 0 ) {
-            std::cerr << "Something went wrong. The counter shouldn't be zero at this point!\n";
-            return;
-        }
-
-        --m_referenceCounters.back().counter;
-        if ( m_referenceCounters.back().counter == 0 ) {
-            lock( !m_referenceCounters.back().isLocked );
-            m_referenceCounters.pop_back();
-        }
+        lock( m_referenceCounters.back() );
+        m_referenceCounters.pop_back();
     }
 
     ScopedGIL( const ScopedGIL& ) = delete;
@@ -119,7 +103,7 @@ private:
     }
 
 private:
-    inline static thread_local std::vector<ReferenceCounter> m_referenceCounters;
+    inline static thread_local std::vector<bool> m_referenceCounters;
 };
 
 
