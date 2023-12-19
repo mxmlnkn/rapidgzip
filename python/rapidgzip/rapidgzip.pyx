@@ -687,4 +687,4 @@ def ibzip2_cli():
             PyBuffer_Release(&buffer)
 
 
-__version__ = '0.10.4'
+__version__ = '0.11.0'
