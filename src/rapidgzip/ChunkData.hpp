@@ -80,6 +80,7 @@ struct ChunkData :
          */
         BlockBoundary blockBoundary;
         gzip::Footer gzipFooter;
+        zlib::Footer zlibFooter;
     };
 
     struct Subblock
@@ -201,6 +202,19 @@ public:
      * Appends gzip footer information at the given offset.
      */
     void
+    appendFooter( ChunkData::Footer&& footer )
+    {
+        footers.emplace_back( std::move( footer ) );
+
+        const auto wasEnabled = crc32s.back().enabled();
+        crc32s.emplace_back();
+        crc32s.back().setEnabled( wasEnabled );
+    }
+
+    /**
+     * Appends gzip footer information at the given offset.
+     */
+    void
     appendFooter( const size_t encodedOffset,
                   const size_t decodedOffset,
                   gzip::Footer footer )
@@ -208,11 +222,33 @@ public:
         typename ChunkData::Footer footerResult;
         footerResult.blockBoundary = { encodedOffset, decodedOffset };
         footerResult.gzipFooter = footer;
-        footers.emplace_back( footerResult );
+        appendFooter( std::move( footerResult ) );
+    }
 
-        const auto wasEnabled = crc32s.back().enabled();
-        crc32s.emplace_back();
-        crc32s.back().setEnabled( wasEnabled );
+    /**
+     * Appends zlib footer information at the given offset.
+     */
+    void
+    appendFooter( const size_t encodedOffset,
+                  const size_t decodedOffset,
+                  zlib::Footer footer )
+    {
+        typename ChunkData::Footer footerResult;
+        footerResult.blockBoundary = { encodedOffset, decodedOffset };
+        footerResult.zlibFooter = footer;
+        appendFooter( std::move( footerResult ) );
+    }
+
+    /**
+     * Appends raw deflate stream footer meta information at the given offset.
+     */
+    void
+    appendFooter( const size_t encodedOffset,
+                  const size_t decodedOffset )
+    {
+        typename ChunkData::Footer footerResult;
+        footerResult.blockBoundary = { encodedOffset, decodedOffset };
+        appendFooter( std::move( footerResult ) );
     }
 
     void
@@ -224,6 +260,9 @@ public:
     }
 
 public:
+    /** This should be used to decide what kind of footer to expect and what to do after the footer. */
+    FileType fileType{ FileType::NONE };
+
     /* This should only be evaluated when it is unequal std::numeric_limits<size_t>::max() and unequal
      * Base::encodedOffsetInBits. Then, [Base::encodedOffsetInBits, maxEncodedOffsetInBits] specifies a valid range
      * for the block offset. Such a range might happen for finding uncompressed deflate blocks because of the
@@ -250,6 +289,30 @@ public:
 
     bool stoppedPreemptively{ false };
 };
+
+
+std::ostream&
+operator<<( std::ostream&    out,
+            const ChunkData& chunk )
+{
+    out << "ChunkData{\n";
+    out << "  encodedOffsetInBits: " << chunk.encodedOffsetInBits << "\n";
+    out << "  encodedSizeInBits: " << chunk.encodedSizeInBits << "\n";
+    out << "  maxEncodedOffsetInBits: " << chunk.maxEncodedOffsetInBits << "\n";
+    out << "  decodedSizeInBytes: " << chunk.decodedSizeInBytes << "\n";
+    out << "  blockBoundaries: { ";
+    for ( const auto& boundary : chunk.blockBoundaries ) {
+        out << boundary.encodedOffset << ":" << boundary.decodedOffset << ", ";
+    }
+    out << "}\n";
+    out << "  footers: { ";
+    for ( const auto& footer : chunk.footers ) {
+        out << footer.blockBoundary.encodedOffset << ":" << footer.blockBoundary.decodedOffset << ", ";
+    }
+    out << "}\n";
+    out << "}\n";
+    return out;
+}
 
 
 inline void

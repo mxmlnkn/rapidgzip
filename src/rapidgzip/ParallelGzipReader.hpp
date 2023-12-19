@@ -1010,7 +1010,7 @@ private:
         /* Process CRC32 of chunk. */
         m_crc32.append( chunkData->crc32s.front() );
         for ( size_t i = 0; i < chunkData->footers.size(); ++i ) {
-            if ( m_crc32.verify( chunkData->footers[i].gzipFooter.crc32 ) ) {
+            if ( hasCRC32( chunkData->fileType ) && m_crc32.verify( chunkData->footers[i].gzipFooter.crc32 ) ) {
                 m_verifiedCRC32Count++;
             }
             m_crc32 = chunkData->crc32s.at( i + 1 );

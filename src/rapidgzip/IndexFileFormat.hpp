@@ -118,6 +118,24 @@ public:
 };
 
 
+std::ostream&
+operator<<( std::ostream&    out,
+            const GzipIndex& index )
+{
+    out << "GzipIndex{\n";
+    out << "  compressedSizeInBytes: " << index.compressedSizeInBytes << "\n";
+    out << "  uncompressedSizeInBytes: " << index.uncompressedSizeInBytes << "\n";
+    out << "  checkpointSpacing: " << index.checkpointSpacing << "\n";
+    out << "  windowSizeInBytes: " << index.windowSizeInBytes << "\n";
+    out << "  checkpoints: {\n    ";
+    for ( const auto& checkpoint : index.checkpoints ) {
+        out << checkpoint.compressedOffsetInBits << ":" << checkpoint.uncompressedOffsetInBytes << ", ";
+    }
+    out << "  }\n}\n";
+    return out;
+}
+
+
 void
 checkedRead( FileReader* const indexFile,
              void*             buffer,

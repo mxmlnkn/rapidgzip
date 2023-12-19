@@ -102,6 +102,7 @@ public:
     struct Footer
     {
         gzip::Footer gzipFooter;
+        zlib::Footer zlibFooter;
         size_t footerEndEncodedOffset{ 0 };
     };
 
@@ -118,12 +119,6 @@ public:
         )
     {
         initStream();
-        /* 2^15 = 32 KiB window buffer and minus signaling raw deflate stream to decode.
-         * n in [8,15]
-         * -n for raw inflate, not looking for zlib/gzip header and not generating a check value!
-         * n + 16 for gzip decoding but not zlib
-         * n + 32 for gzip or zlib decoding with automatic detection */
-        m_windowFlags = -15;
         if ( inflateInit2( &m_stream, m_windowFlags ) != Z_OK ) {
             throw std::runtime_error( "Probably encountered invalid deflate data!" );
         }
@@ -163,6 +158,12 @@ public:
         return m_bitReader.tell() - getUnusedBits();
     }
 
+    void
+    setFileType( FileType fileType )
+    {
+        m_fileType = fileType;
+    }
+
 private:
     [[nodiscard]] size_t
     getUnusedBits() const
@@ -180,14 +181,39 @@ private:
     std::array<std::byte, SIZE>
     readBytes();
 
-    /**
-     * Only works on and modifies m_stream.avail_in and m_stream.next_in.
-     */
-    Footer
+    [[nodiscard]] Footer
     readGzipFooter();
 
+    [[nodiscard]] Footer
+    readZlibFooter();
+
+    [[nodiscard]] Footer
+    readDeflateFooter()
+    {
+        /* Effectively skip over some bits to align to the next byte. */
+        readBytes<0>();
+        return Footer{};
+    }
+
+    Footer
+    readFooter()
+    {
+        switch ( m_fileType )
+        {
+        case FileType::NONE:
+        case FileType::DEFLATE:
+            return readDeflateFooter();
+        case FileType::GZIP:
+        case FileType::BGZF:
+            return readGzipFooter();
+        case FileType::ZLIB:
+            return readZlibFooter();
+        }
+        throw std::logic_error( "[ZlibInflateWrapper::readFooter] Invalid file type!" );
+    }
+
     void
-    readGzipHeader();
+    readHeader();
 
 private:
     BitReader m_bitReader;
@@ -195,11 +221,20 @@ private:
     const size_t m_encodedUntilOffset;
     std::optional<size_t> m_setWindowSize;
 
-    int m_windowFlags{ 0 };
+    /* 2^15 = 32 KiB window buffer and minus signaling raw deflate stream to decode.
+     * n in [8,15]
+     * -n for raw inflate, not looking for zlib/gzip header and not generating a check value!
+     * n + 16 for gzip decoding but not zlib
+     * n + 32 for gzip or zlib decoding with automatic detection
+     * 0 for automatic window size detection based on the zlib header.
+     * We set it to -15 to always force raw deflate decoding so that we can decode the header and footer ourselves. */
+    const int m_windowFlags{ -15 };
     z_stream m_stream{};
     /* Loading the whole encoded data (multiple MiB) into memory first and then
      * decoding it in one go is 4x slower than processing it in chunks of 128 KiB! */
     std::array<char, 128_Ki> m_buffer;
+
+    FileType m_fileType{ FileType::GZIP };
 };
 
 
@@ -330,14 +365,17 @@ ZlibInflateWrapper::readStream( uint8_t* const output,
         const auto progressedOutput = m_stream.total_out != oldTotalOut;
 
         if ( errorCode == Z_STREAM_END ) {
+            if ( ( m_stream.total_out == 0 ) && !progressedBits ) {
+                break;
+            }
             decodedSize += m_stream.total_out;
 
             /* If we started with raw deflate, then we also have to skip over the gzip footer.
              * Assuming we are decoding gzip and not zlib or multiple raw deflate streams. */
             std::optional<Footer> footer;
             if ( m_windowFlags < 0 ) {
-                footer = readGzipFooter();
-                readGzipHeader();
+                footer = readFooter();
+                readHeader();
             }
 
             m_stream.next_out = output + decodedSize;
@@ -409,43 +447,117 @@ ZlibInflateWrapper::readGzipFooter()
 }
 
 
+inline ZlibInflateWrapper::Footer
+ZlibInflateWrapper::readZlibFooter()
+{
+    const auto footerBuffer = readBytes<4U>();
+    zlib::Footer footer;
+
+    /* Get Adler32 machine-endian-agnostically. */
+    for ( auto i = 0U; i < 4U; ++i ) {
+        const auto subbyte = static_cast<uint8_t>( footerBuffer[i] );
+        footer.adler32 += static_cast<uint32_t>( subbyte ) << ( i * BYTE_SIZE );
+    }
+
+    Footer result;
+    result.zlibFooter = footer;
+    result.footerEndEncodedOffset = tellCompressed();
+    return result;
+}
+
+
+inline int
+getZlibWindowBits( FileType fileType,
+                   int      windowSize )
+{
+    switch ( fileType )
+    {
+    case FileType::NONE:
+        throw std::logic_error( "[getZlibWindowBits] Invalid file type!" );
+    case FileType::BGZF:
+    case FileType::GZIP:
+        return 16 + windowSize;
+    case FileType::DEFLATE:
+        return -windowSize;
+    case FileType::ZLIB:
+        /* > windowBits can also be zero to request that inflate use the window size in
+         * > the zlib header of the compressed stream. */
+        return 0;
+    }
+    throw std::logic_error( "[getZlibWindowBits] Invalid file type!" );
+}
+
+
+/**
+ * It really only reads the header and then proceeds to reinitialize the stream for raw deflate decoding so
+ * that we can decode the footer ourselves.
+ */
 inline void
-ZlibInflateWrapper::readGzipHeader()
+ZlibInflateWrapper::readHeader()
 {
     const auto oldNextOut = m_stream.next_out;
 
-    /* Note that inflateInit and inflateReset set total_out to 0 among other things. */
-    if ( inflateReset2( &m_stream, /* decode gzip */ 16 + /* 2^15 buffer */ 15 ) != Z_OK ) {
-        throw std::logic_error( "Probably encountered invalid gzip header!" );
-    }
-
-    gz_header gzipHeader{};
-    if ( inflateGetHeader( &m_stream, &gzipHeader ) != Z_OK ) {
-        throw std::logic_error( "Failed to initialize gzip header structure. Inconsistent zlib stream object?" );
-    }
-
-    refillBuffer();
-    while ( ( m_stream.avail_in > 0 ) && ( gzipHeader.done == 0 ) ) {
-        const auto errorCode = ::inflate( &m_stream, Z_BLOCK );
-        if ( errorCode != Z_OK ) {
-            /* Even Z_STREAM_END would be unexpected here because we test for avail_in > 0. */
-            throw std::runtime_error( "Failed to parse gzip header!" );
+    switch ( m_fileType )
+    {
+    case FileType::NONE:
+        throw std::logic_error( "[ZlibInflateWrapper::readHeader] Invalid file type!" );
+    case FileType::DEFLATE:
+        break;
+    case FileType::BGZF:
+    case FileType::GZIP:
+    {
+        /* Note that inflateInit and inflateReset set total_out to 0 among other things. */
+        if ( inflateReset2( &m_stream, getZlibWindowBits( m_fileType, /* 2^15 buffer */ 15 ) ) != Z_OK ) {
+            throw std::logic_error( "Probably encountered invalid gzip header!" );
         }
 
-        if ( gzipHeader.done == 1 ) {
-            break;
+        gz_header gzipHeader{};
+        const auto getHeaderError = inflateGetHeader( &m_stream, &gzipHeader );
+        if ( getHeaderError != Z_OK ) {
+            std::stringstream message;
+            message << "Failed to initialize gzip header structure (error: " << getHeaderError
+                    << "). Inconsistent zlib stream object?";
+            throw std::logic_error( std::move( message ).str() );
         }
 
-        if ( gzipHeader.done == 0 ) {
+        refillBuffer();
+        while ( ( m_stream.avail_in > 0 ) && ( gzipHeader.done == 0 ) ) {
+            const auto errorCode = ::inflate( &m_stream, Z_BLOCK );
+            if ( errorCode != Z_OK ) {
+                /* Even Z_STREAM_END would be unexpected here because we test for avail_in > 0. */
+                throw std::runtime_error( "Failed to parse gzip header!" );
+            }
+
+            /* > As inflate() processes the gzip stream, head->done is zero until the header
+             * > is completed, at which time head->done is set to one.
+             * > If a zlib stream is being decoded, then head->done is set to -1. */
+            if ( gzipHeader.done != 0 ) {
+                break;
+            }
+
             refillBuffer();
-            continue;
         }
 
-        throw std::runtime_error( "Failed to parse gzip header! Is it a Zlib stream?" );
+        if ( m_stream.next_out != oldNextOut ) {
+            throw std::logic_error( "Zlib wrote some output even though we only wanted to read the gzip header!" );
+        }
+        break;
     }
-
-    if ( m_stream.next_out != oldNextOut ) {
-        throw std::logic_error( "Zlib wrote some output even though we only wanted to read the gzip header!" );
+    case FileType::ZLIB:
+    {
+        const auto& [header, error] = zlib::readHeader( [this] () {
+            return static_cast<uint64_t>( readBytes<1U>().front() );
+        } );
+        if ( error == Error::END_OF_FILE ) {
+            return;
+        }
+        if ( error != Error::NONE ) {
+            std::stringstream message;
+            message << "Error reading zlib header: " << toString( error ) << "!";
+            throw std::logic_error( std::move( message ).str() );
+        }
+        break;
+    }
     }
 
     if ( inflateReset2( &m_stream, m_windowFlags ) != Z_OK ) {

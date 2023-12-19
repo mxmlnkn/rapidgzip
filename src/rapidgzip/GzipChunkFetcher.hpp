@@ -83,7 +83,7 @@ public:
         m_blockFinder( std::move( blockFinder ) ),
         m_blockMap( std::move( blockMap ) ),
         m_windowMap( std::move( windowMap ) ),
-        m_isBgzfFile( m_blockFinder->isBgzfFile() )
+        m_isBgzfFile( m_blockFinder->fileType() == FileType::BGZF )
     {
         if ( !m_blockMap ) {
             throw std::invalid_argument( "Block map must be valid!" );
@@ -98,6 +98,11 @@ public:
                 throw std::logic_error( "The block finder is required to find the first block itself!" );
             }
             m_windowMap->emplace( *firstBlockInStream, {} );
+        }
+
+        /* Choose default value for CRC32 enable flag. Can still be overwritten by the setter. */
+        if ( hasCRC32( m_blockFinder->fileType() ) ) {
+            m_crc32Enabled = false;
         }
     }
 
@@ -614,6 +619,7 @@ private:
                               : m_windowMap->get( blockOffset ) ),
                             /* decodedSize */ blockInfo ? blockInfo->decodedSizeInBytes : std::optional<size_t>{},
                             m_cancelThreads,
+                            m_blockFinder->fileType(),
                             m_crc32Enabled,
                             m_maxDecompressedChunkSize,
                             /* untilOffsetIsExact */ m_isBgzfFile || blockInfo );
@@ -634,6 +640,7 @@ public:
                  std::optional<WindowView> const initialWindow,
                  std::optional<size_t>     const decodedSize,
                  std::atomic<bool>        const& cancelThreads,
+                 FileType                  const fileType = FileType::GZIP,
                  bool                      const crc32Enabled = false,
                  size_t                    const maxDecompressedChunkSize = std::numeric_limits<size_t>::max(),
                  bool                      const untilOffsetIsExact = false )
@@ -646,13 +653,17 @@ public:
 
         if ( initialWindow && untilOffsetIsExact ) {
             const auto fileSize = originalBitReader.size();
-            auto result = decodeBlockWithInflateWrapper<InflateWrapper>(
+
+            ChunkData result;
+            result.setCRC32Enabled( crc32Enabled );
+            result.fileType = fileType;
+            result.encodedOffsetInBits = blockOffset;
+            result = decodeBlockWithInflateWrapper<InflateWrapper>(
                 originalBitReader,
-                blockOffset,
                 fileSize ? std::min( untilOffset, *fileSize ) : untilOffset,
                 *initialWindow,
                 decodedSize,
-                crc32Enabled );
+                std::move( result ) );
 
             if ( decodedSize && ( result.decodedSizeInBytes != *decodedSize ) ) {
                 std::stringstream message;
@@ -676,8 +687,12 @@ public:
         BitReader bitReader( originalBitReader );
         if ( initialWindow ) {
             bitReader.seek( blockOffset );
-            return decodeBlockWithRapidgzip( &bitReader, untilOffset, initialWindow, crc32Enabled,
-                                             maxDecompressedChunkSize );
+
+            ChunkData result;
+            result.setCRC32Enabled( crc32Enabled );
+            result.fileType = fileType;
+            return decodeBlockWithRapidgzip( &bitReader, untilOffset, initialWindow, maxDecompressedChunkSize,
+                                             std::move( result ) );
         }
 
         const auto tryToDecode =
@@ -687,8 +702,12 @@ public:
                     /* For decoding, it does not matter whether we seek to offset.first or offset.second but it DOES
                      * matter a lot for interpreting and correcting the encodedSizeInBits in GzipBlockFetcer::get! */
                     bitReader.seek( offset.second );
-                    auto result = decodeBlockWithRapidgzip( &bitReader, untilOffset, /* initialWindow */ std::nullopt,
-                                                            crc32Enabled, maxDecompressedChunkSize );
+
+                    ChunkData result;
+                    result.setCRC32Enabled( crc32Enabled );
+                    result.fileType = fileType;
+                    result = decodeBlockWithRapidgzip( &bitReader, untilOffset, /* initialWindow */ std::nullopt,
+                                                       maxDecompressedChunkSize, std::move( result ) );
                     result.encodedOffsetInBits = offset.first;
                     result.maxEncodedOffsetInBits = offset.second;
                     /** @todo Avoid out of memory issues for very large compression ratios by using a simple runtime
@@ -824,28 +843,49 @@ public:
 
     /**
      * @param decodedSize If given, it is used to avoid overallocations. It is NOT used as a stop condition.
-     * @param exactlUntilOffset Decompress until this known bit offset in the encoded stream. It must lie on
-     *                          a deflate block boundary.
+     * @param exactUntilOffset Decompress until this known bit offset in the encoded stream. It must lie on
+     *                         a deflate block boundary.
      */
     template<typename InflateWrapper>
     [[nodiscard]] static ChunkData
     decodeBlockWithInflateWrapper( const BitReader&            originalBitReader,
-                                   size_t                const blockOffset,
                                    size_t                const exactUntilOffset,
                                    WindowView            const initialWindow,
                                    std::optional<size_t> const decodedSize,
-                                   bool                  const crc32Enabled )
+                                   ChunkData&&                 result )
     {
         const auto tStart = now();
 
         BitReader bitReader( originalBitReader );
-        bitReader.seek( blockOffset );
+        bitReader.seek( result.encodedOffsetInBits );
         InflateWrapper inflateWrapper( std::move( bitReader ), exactUntilOffset );
         inflateWrapper.setWindow( initialWindow );
+        inflateWrapper.setFileType( result.fileType );
 
-        ChunkData result;
-        result.setCRC32Enabled( crc32Enabled );
-        result.encodedOffsetInBits = blockOffset;
+        const auto appendFooter =
+            [&] ( size_t encodedOffset,
+                  size_t decodedOffset,
+                  const typename InflateWrapper::Footer& footer )
+            {
+                result.appendFooter( encodedOffset, decodedOffset, footer.gzipFooter );
+                return;
+                switch ( result.fileType )
+                {
+                case FileType::BGZF:
+                case FileType::GZIP:
+                    result.appendFooter( encodedOffset, decodedOffset, footer.gzipFooter );
+                    break;
+
+                case FileType::ZLIB:
+                    result.appendFooter( encodedOffset, decodedOffset, footer.zlibFooter );
+                    break;
+
+                case FileType::NONE:
+                case FileType::DEFLATE:
+                    result.appendFooter( encodedOffset, decodedOffset );
+                    break;
+                }
+            };
 
         /**
          * Rpmalloc does worse than standard malloc (Clang 13) for the case when using 128 cores, chunk size 4 MiB
@@ -919,7 +959,7 @@ public:
             subchunk.shrink_to_fit();
             result.append( std::move( subchunk ) );
             if ( footer ) {
-                result.appendFooter( footer->footerEndEncodedOffset, alreadyDecoded, footer->gzipFooter );
+                appendFooter( footer->footerEndEncodedOffset, alreadyDecoded, *footer );
             }
 
             if ( ( nBytesReadPerCall == 0 ) && !footer ) {
@@ -930,7 +970,7 @@ public:
         uint8_t dummy{ 0 };
         const auto [nBytesReadPerCall, footer] = inflateWrapper.readStream( &dummy, 1 );
         if ( ( nBytesReadPerCall == 0 ) && footer ) {
-            result.appendFooter( footer->footerEndEncodedOffset, alreadyDecoded, footer->gzipFooter );
+            appendFooter( footer->footerEndEncodedOffset, alreadyDecoded, *footer );
         }
 
         if ( exactUntilOffset != inflateWrapper.tellCompressed() ) {
@@ -942,13 +982,13 @@ public:
             if ( decodedSize ) {
                  message << " out of requested " << *decodedSize << " B";
             }
-            message << ", started at offset: " << blockOffset << ".";
+            message << ", started at offset: " << result.encodedOffsetInBits << ".";
             throw std::runtime_error( std::move( message ).str() );
         }
 
         result.finalize( exactUntilOffset );
         result.decodeDurationInflateWrapper = duration( tStart );
-        return result;
+        return std::move( result );
     }
 
 
@@ -983,10 +1023,34 @@ public:
         }
 
         IsalInflateWrapper inflateWrapper{ BitReader( *bitReader ) };
+        inflateWrapper.setFileType( result.fileType );
         inflateWrapper.setWindow( initialWindow );
         inflateWrapper.setStoppingPoints( static_cast<StoppingPoint>( StoppingPoint::END_OF_BLOCK |
                                                                       StoppingPoint::END_OF_BLOCK_HEADER |
                                                                       StoppingPoint::END_OF_STREAM_HEADER ) );
+
+        const auto appendFooter =
+            [&] ( size_t encodedOffset,
+                  size_t decodedOffset,
+                  const IsalInflateWrapper::Footer& footer )
+            {
+                switch ( result.fileType )
+                {
+                case FileType::BGZF:
+                case FileType::GZIP:
+                    result.appendFooter( encodedOffset, decodedOffset, footer.gzipFooter );
+                    break;
+
+                case FileType::ZLIB:
+                    result.appendFooter( encodedOffset, decodedOffset, footer.zlibFooter );
+                    break;
+
+                case FileType::NONE:
+                case FileType::DEFLATE:
+                    result.appendFooter( encodedOffset, decodedOffset );
+                    break;
+                }
+            };
 
         constexpr size_t ALLOCATION_CHUNK_SIZE = 128_Ki;
         while( !stoppingPointReached ) {
@@ -1061,7 +1125,7 @@ public:
             result.append( std::move( subchunk ) );
             if ( footer ) {
                 nextBlockOffset = inflateWrapper.tellCompressed();
-                result.appendFooter( footer->footerEndEncodedOffset, alreadyDecoded, footer->gzipFooter );
+                appendFooter( footer->footerEndEncodedOffset, alreadyDecoded, *footer );
             }
 
             if ( ( inflateWrapper.stoppedAt() == StoppingPoint::NONE )
@@ -1074,7 +1138,7 @@ public:
         const auto [nBytesReadPerCall, footer] = inflateWrapper.readStream( &dummy, 1 );
         if ( ( inflateWrapper.stoppedAt() == StoppingPoint::NONE ) && ( nBytesReadPerCall == 0 ) && footer ) {
             nextBlockOffset = inflateWrapper.tellCompressed();
-            result.appendFooter( footer->footerEndEncodedOffset, alreadyDecoded, footer->gzipFooter );
+            appendFooter( footer->footerEndEncodedOffset, alreadyDecoded, *footer );
         }
 
         result.finalize( nextBlockOffset );
@@ -1095,15 +1159,13 @@ public:
     decodeBlockWithRapidgzip( BitReader*                const bitReader,
                               size_t                    const untilOffset,
                               std::optional<WindowView> const initialWindow,
-                              bool                      const crc32Enabled,
-                              size_t                    const maxDecompressedChunkSize )
+                              size_t                    const maxDecompressedChunkSize,
+                              ChunkData&&                     result )
     {
         if ( bitReader == nullptr ) {
             throw std::invalid_argument( "BitReader must be non-null!" );
         }
 
-        ChunkData result;
-        result.setCRC32Enabled( crc32Enabled );
         result.encodedOffsetInBits = bitReader->tell();
 
     #ifdef WITH_ISAL
@@ -1118,7 +1180,7 @@ public:
         bool isAtStreamEnd = false;
         size_t streamBytesRead = 0;
         size_t totalBytesRead = 0;
-        std::optional<gzip::Header> gzipHeader;
+        bool didReadHeader{ false };
 
         std::optional<deflate::Block<> > block;
         block.emplace();
@@ -1135,13 +1197,30 @@ public:
         {
             if ( isAtStreamEnd ) {
                 const auto headerOffset = bitReader->tell();
-                const auto [header, error] = gzip::readHeader( *bitReader );
+                auto error = Error::NONE;
+
+                switch ( result.fileType )
+                {
+                case FileType::NONE:
+                    throw std::logic_error( "[GzipChunkFetcher::decodeBlockWithRapidgzip] Invalid file type!" );
+                case FileType::BGZF:
+                case FileType::GZIP:
+                    error = gzip::readHeader( *bitReader ).second;
+                    break;
+                case FileType::ZLIB:
+                    error = zlib::readHeader( *bitReader ).second;
+                    break;
+                case FileType::DEFLATE:
+                    error = Error::NONE;
+                    break;
+                }
+
                 if ( error != Error::NONE ) {
                     if ( error == Error::END_OF_FILE ) {
                         break;
                     }
                     std::stringstream message;
-                    message << "Failed to read gzip header at offset " << formatBits( headerOffset )
+                    message << "Failed to read gzip/zlib header at offset " << formatBits( headerOffset )
                             << " because of error: " << toString( error );
                     throw std::domain_error( std::move( message ).str() );
                 }
@@ -1151,7 +1230,7 @@ public:
                                                   maxDecompressedChunkSize, std::move( result ) );
             #endif
 
-                gzipHeader = std::move( header );
+                didReadHeader = true;
                 block.emplace();
                 block->setInitialWindow();
 
@@ -1248,23 +1327,49 @@ public:
             totalBytesRead += blockBytesRead;
 
             if ( block->isLastBlock() ) {
-                const auto footer = gzip::readFooter( *bitReader );
-                const auto footerOffset = bitReader->tell();
+                switch ( result.fileType )
+                {
+                case FileType::NONE:
+                    throw std::logic_error( "Cannot decode stream if the file type is not specified!" );
 
-                /* We only check for the stream size and CRC32 if we have read the whole stream including the header! */
-                if ( gzipHeader ) {
-                    if ( streamBytesRead != footer.uncompressedSize ) {
-                        std::stringstream message;
-                        message << "Mismatching size (" << streamBytesRead << " <-> footer: "
-                                << footer.uncompressedSize << ") for gzip stream!";
-                        throw std::runtime_error( std::move( message ).str() );
+                case FileType::DEFLATE:
+                    if ( bitReader->tell() % BYTE_SIZE != 0 ) {
+                        bitReader->read( BYTE_SIZE - bitReader->tell() % BYTE_SIZE );
                     }
+                    result.appendFooter( bitReader->tell(), totalBytesRead );
+                    break;
+
+                case FileType::ZLIB:
+                {
+                    const auto footer = zlib::readFooter( *bitReader );
+                    const auto footerOffset = bitReader->tell();
+                    result.appendFooter( footerOffset, totalBytesRead, footer );
+                    break;
                 }
 
-                result.appendFooter( footerOffset, totalBytesRead, footer );
+                case FileType::BGZF:
+                case FileType::GZIP:
+                {
+                    const auto footer = gzip::readFooter( *bitReader );
+                    const auto footerOffset = bitReader->tell();
+
+                    /* We only check for the stream size and CRC32 if we have read the whole stream including the header! */
+                    if ( didReadHeader ) {
+                        if ( streamBytesRead != footer.uncompressedSize ) {
+                            std::stringstream message;
+                            message << "Mismatching size (" << streamBytesRead << " <-> footer: "
+                                    << footer.uncompressedSize << ") for gzip stream!";
+                            throw std::runtime_error( std::move( message ).str() );
+                        }
+                    }
+
+                    result.appendFooter( footerOffset, totalBytesRead, footer );
+                    break;
+                }
+                }
 
                 isAtStreamEnd = true;
-                gzipHeader = {};
+                didReadHeader = false;
                 streamBytesRead = 0;
 
                 if ( bitReader->eof() ) {
@@ -1275,7 +1380,7 @@ public:
         }
 
         result.finalize( nextBlockOffset );
-        return result;
+        return std::move( result );
     }
 
 private:

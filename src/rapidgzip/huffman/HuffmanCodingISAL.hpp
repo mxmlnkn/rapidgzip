@@ -112,7 +112,19 @@ public:
          * peek<ISAL_DECODE_LONG_BITS(12)> and peek<...> : 419.05 | 424.46 +- 0.07 | 427.36
          * @endverbatim
          */
-        auto nextBits = bitReader.peek<32>();
+        uint64_t nextBits{ 0 };
+        try
+        {
+            nextBits = bitReader.peek<32>();
+        } catch ( const BitReader::EndOfFileReached& exception ) {
+            /* This should only happen in the error case or for raw deflate streams because those don't have
+             * any footer acting as a kind of buffer to ensure that peek always works. */
+            const auto [availableBits, count] = bitReader.peekAvailable();
+            if ( count == 0 ) {
+                throw exception;
+            }
+            nextBits = availableBits;
+        }
 
         /* next_sym is a possible symbol decoded from next_bits. If bit 15 is 0,
          * next_code is a symbol. Bits 9:0 represent the symbol, and bits 14:10

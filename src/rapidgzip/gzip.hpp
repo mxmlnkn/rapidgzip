@@ -2,10 +2,14 @@
 
 #include <cstdint>
 #include <optional>
+#include <sstream>
+#include <stdexcept>
 #include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
+
+#include <BitManipulation.hpp>
 
 #include "definitions.hpp"
 #include "Error.hpp"
@@ -13,6 +17,56 @@
 
 namespace rapidgzip
 {
+enum class FileType
+{
+    NONE,
+    BGZF,
+    GZIP,
+    ZLIB,
+    DEFLATE,
+};
+
+
+[[nodiscard]] inline const char*
+toString( FileType fileType )
+{
+    switch ( fileType )
+    {
+    case FileType::NONE:
+        return "None";
+    case FileType::BGZF:
+        return "BGZF";
+    case FileType::GZIP:
+        return "GZIP";
+    case FileType::ZLIB:
+        return "ZLIB";
+    case FileType::DEFLATE:
+        return "DEFLATE";
+    }
+    return "";
+}
+
+
+[[nodiscard]] inline bool
+hasCRC32( FileType fileType )
+{
+    switch ( fileType )
+    {
+    case FileType::NONE:
+    case FileType::DEFLATE:
+    case FileType::ZLIB:
+        return false;
+    case FileType::BGZF:
+    case FileType::GZIP:
+        return true;
+    }
+
+    std::stringstream message;
+    message << "Invalid file type: " << static_cast<int>( fileType );
+    throw std::invalid_argument( std::move( message ).str() );
+}
+
+
 namespace gzip
 {
 /** For this namespace, refer to @see RFC 1952 "GZIP File Format Specification" */
@@ -242,4 +296,100 @@ readFooter( BitReader& bitReader )
     return footer;
 }
 }  // namespace gzip
+}  // namespace rapidgzip
+
+
+namespace rapidgzip
+{
+namespace zlib
+{
+enum class CompressionLevel
+{
+    FASTEST = 0,
+    FAST = 1,
+    DEFAULT = 2,
+    SLOWEST = 3,  /* maximum compression */
+};
+
+
+struct Header
+{
+    uint16_t windowSize{ 0 };
+    CompressionLevel compressionLevel{ CompressionLevel::DEFAULT };
+    uint32_t dictionaryID{ 1 /* ADLER32 of empty data stream */ };
+};
+
+
+struct Footer
+{
+    uint32_t adler32{ 1 };
+};
+
+
+inline std::pair<Header, Error>
+readHeader( const std::function<uint64_t()>& readByte )
+{
+    Header header;
+    bool readPartialHeader{ false };
+
+    try {
+        const auto cmf = readByte();
+        readPartialHeader = true;
+        const auto compressionMethod = cmf & nLowestBitsSet<uint64_t, 4>();
+        if ( compressionMethod != /* deflate */ 8 ) {
+            return { header, Error::INVALID_GZIP_HEADER };
+        }
+
+        /* > For CM = 8, CINFO is the base-2 logarithm of the LZ77 window size, minus eight (CINFO=7 indicates
+         * > a 32K window size). Values of CINFO above 7 are not allowed in this version of the specification. */
+        const auto compressionInfo = cmf >> 4U;
+        if ( compressionInfo > 7 ) {
+            return { header, Error::INVALID_GZIP_HEADER };
+        }
+        header.windowSize = static_cast<uint16_t>( 2U << ( 8U + compressionInfo ) );
+
+        const auto flags = readByte();
+        if ( ( ( cmf << 8U ) + flags ) % 31 != 0 ) {
+            return { header, Error::INVALID_GZIP_HEADER };
+        }
+
+        const auto usesDictionary = ( ( flags >> 5U ) & 1U ) != 0;
+        if ( usesDictionary ) {
+            header.dictionaryID = 0;
+            for ( size_t i = 0; i < 4U; ++i ) {
+                header.dictionaryID = ( header.dictionaryID << BYTE_SIZE ) | readByte();
+            }
+            /* For now, dictionaries are not supported because there is no centralized database for dictionary IDs
+             * and no API to set dictionary-ID-to-dictionary-contents mappings. */
+            return { header, Error::INVALID_GZIP_HEADER };
+        }
+
+        header.compressionLevel = static_cast<CompressionLevel>( ( flags >> 6U ) & 0b11U );
+    } catch ( const BitReader::EndOfFileReached& ) {
+        return { header, readPartialHeader ? Error::INCOMPLETE_GZIP_HEADER : Error::END_OF_FILE };
+    }
+
+    return { header, Error::NONE };
+}
+
+
+inline std::pair<Header, Error>
+readHeader( BitReader& bitReader )
+{
+    return readHeader( [&] () { return bitReader.read<BYTE_SIZE>(); } );
+}
+
+
+inline Footer
+readFooter( BitReader& bitReader )
+{
+    if ( bitReader.tell() % BYTE_SIZE != 0 ) {
+        bitReader.read( BYTE_SIZE - ( bitReader.tell() % BYTE_SIZE ) );
+    }
+
+    Footer footer;
+    footer.adler32 = static_cast<uint32_t>( bitReader.read<32>() );
+    return footer;
+}
+}  // namespace zlib
 }  // namespace rapidgzip

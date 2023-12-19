@@ -31,6 +31,7 @@ public:
     struct Footer
     {
         gzip::Footer gzipFooter;
+        zlib::Footer zlibFooter;
         size_t footerEndEncodedOffset{ 0 };
     };
 
@@ -114,6 +115,12 @@ public:
         return std::nullopt;
     }
 
+    void
+    setFileType( FileType fileType )
+    {
+        m_fileType = fileType;
+    }
+
 private:
     [[nodiscard]] size_t
     getUnusedBits() const
@@ -139,14 +146,45 @@ private:
     std::array<std::byte, SIZE>
     readBytes();
 
-    /**
-     * Only works on and modifies m_stream.avail_in and m_stream.next_in.
-     */
-    Footer
+    [[nodiscard]] Footer
     readGzipFooter();
 
+    [[nodiscard]] Footer
+    readZlibFooter();
+
+    [[nodiscard]] Footer
+    readDeflateFooter()
+    {
+        /* Effectively skip over some bits to align to the next byte. */
+        readBytes<0>();
+        return Footer{};
+    }
+
+    Footer
+    readFooter()
+    {
+        switch ( m_fileType )
+        {
+        case FileType::NONE:
+        case FileType::DEFLATE:
+            return readDeflateFooter();
+        case FileType::GZIP:
+        case FileType::BGZF:
+            return readGzipFooter();
+        case FileType::ZLIB:
+            return readZlibFooter();
+        }
+        throw std::logic_error( "[IsalInflateWrapper::readFooter] Invalid file type!" );
+    }
+
     [[nodiscard]] bool
-    readGzipHeader();
+    readHeader();
+
+    template<typename Header,
+             typename GetHeader>
+    inline bool
+    readIsalHeader( Header* const    header,
+                    const GetHeader& getHeader );
 
     [[nodiscard]] static std::string_view
     getErrorString( int errorCode ) noexcept;
@@ -163,7 +201,8 @@ private:
     std::array<char, 128_Ki> m_buffer;
 
     std::optional<StoppingPoint> m_currentPoint;
-    bool m_needToReadGzipHeader{ false };
+    bool m_needToReadHeader{ false };
+    FileType m_fileType{ FileType::GZIP };
 };
 
 
@@ -215,12 +254,12 @@ IsalInflateWrapper::readStream( uint8_t* const output,
     /* isal_inflate also clears it like this but isal_inflate might not be called in this function! */
     m_stream.stopped_at = ISAL_STOPPING_POINT_NONE;
 
-    if ( m_needToReadGzipHeader ) {
-        const auto headerSuccess = readGzipHeader();
+    if ( m_needToReadHeader ) {
+        const auto headerSuccess = readHeader();
         if ( !headerSuccess ) {
             return { 0, std::nullopt };
         }
-        m_needToReadGzipHeader = false;
+        m_needToReadHeader = false;
         if ( ( m_stream.points_to_stop_at & ISAL_STOPPING_POINT_END_OF_STREAM_HEADER ) != 0 ) {
             m_stream.stopped_at = ISAL_STOPPING_POINT_END_OF_STREAM_HEADER;
             return { 0, std::nullopt };
@@ -312,12 +351,12 @@ IsalInflateWrapper::readStream( uint8_t* const output,
 
             /* If we started with raw deflate, then we also have to skip over the gzip footer.
              * Assuming we are decoding gzip and not zlib or multiple raw deflate streams. */
-            const auto footer = readGzipFooter();  // This resets m_stream.total_out
+            const auto footer = readFooter();  // This resets m_stream.total_out
             if ( ( m_stream.points_to_stop_at & ISAL_STOPPING_POINT_END_OF_STREAM ) != 0 ) {
-                m_needToReadGzipHeader = true;
+                m_needToReadHeader = true;
                 m_stream.stopped_at = ISAL_STOPPING_POINT_END_OF_STREAM;
             } else {
-                const auto headerSuccess = readGzipHeader();
+                const auto headerSuccess = readHeader();
                 if ( headerSuccess
                      && ( ( m_stream.points_to_stop_at & ISAL_STOPPING_POINT_END_OF_STREAM_HEADER ) != 0 ) )
                 {
@@ -402,17 +441,77 @@ IsalInflateWrapper::readGzipFooter()
 }
 
 
-inline bool
-IsalInflateWrapper::readGzipHeader()
+inline IsalInflateWrapper::Footer
+IsalInflateWrapper::readZlibFooter()
 {
-    const auto oldNextOut = m_stream.next_out;
+    const auto footerBuffer = readBytes<4U>();
+    zlib::Footer footer;
 
+    /* Get Adler32 machine-endian-agnostically. */
+    for ( auto i = 0U; i < 4U; ++i ) {
+        const auto subbyte = static_cast<uint8_t>( footerBuffer[i] );
+        footer.adler32 += static_cast<uint32_t>( subbyte ) << ( i * BYTE_SIZE );
+    }
+
+    Footer result;
+    result.zlibFooter = footer;
+    result.footerEndEncodedOffset = tellCompressed();
+    return result;
+}
+
+
+inline bool
+IsalInflateWrapper::readHeader()
+{
     /* Note that inflateInit and inflateReset set total_out to 0 among other things. */
     isal_inflate_reset( &m_stream );
     m_stream.crc_flag = ISAL_DEFLATE;  // This way no gzip header or footer is read
 
-    isal_gzip_header gzipHeader{};
-    isal_gzip_header_init( &gzipHeader );
+    switch ( m_fileType )
+    {
+    case FileType::NONE:
+        break;
+
+    case FileType::DEFLATE:
+        /* There is no outer header to read. We need to directly read the deflate stream next. */
+        return true;
+
+    case FileType::BGZF:
+    case FileType::GZIP:
+    {
+        isal_gzip_header gzipHeader{};
+        isal_gzip_header_init( &gzipHeader );
+        return readIsalHeader( &gzipHeader, isal_read_gzip_header );
+    }
+
+    case FileType::ZLIB:
+    {
+        const auto& [header, error] = zlib::readHeader( [this] () {
+            return static_cast<uint64_t>( readBytes<1U>().front() );
+        } );
+        if ( error == Error::END_OF_FILE ) {
+            return false;
+        }
+        if ( error != Error::NONE ) {
+            std::stringstream message;
+            message << "Error reading zlib header: " << toString( error ) << "!";
+            throw std::logic_error( std::move( message ).str() );
+        }
+        return true;
+    }
+    }
+
+    throw std::logic_error( "[IsalInflateWrapper::readHeader] Invalid file type!" );
+}
+
+
+template<typename Header,
+         typename GetHeader>
+inline bool
+IsalInflateWrapper::readIsalHeader( Header* const    header,
+                                    const GetHeader& getHeader )
+{
+    const auto oldNextOut = m_stream.next_out;
 
     refillBuffer();
     if ( !hasInput() ) {
@@ -420,14 +519,14 @@ IsalInflateWrapper::readGzipHeader()
     }
 
     while ( hasInput() ) {
-        const auto errorCode = isal_read_gzip_header( &m_stream, &gzipHeader );
+        const auto errorCode = getHeader( &m_stream, header );
         if ( errorCode == ISAL_DECOMP_OK ) {
             break;
         }
 
         if ( errorCode != ISAL_END_INPUT ) {
             std::stringstream message;
-            message << "Failed to parse gzip header (" << errorCode << ": " << getErrorString( errorCode ) << ")!";
+            message << "Failed to parse gzip/zlib header (" << errorCode << ": " << getErrorString( errorCode ) << ")!";
             throw std::runtime_error( std::move( message ).str() );
         }
 
