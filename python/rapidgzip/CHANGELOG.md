@@ -1,4 +1,46 @@
 
+# Version 0.11.0 built on 2023-12-19
+
+## Added
+
+ - Make parallel decompression work from stdin and other non-seekable inputs.
+ - The setup.py file now comes with fine-granular dependency control via the environment variables:
+   `RAPIDGZIP_BUILD_CXXOPT`, `RAPIDGZIP_BUILD_ISAL`, `RAPIDGZIP_BUILD_RPMALLOC`, `RAPIDGZIP_BUILD_ZLIB`,
+   which can be set to `enable`, `disable`, or `system`. Cxxopts and zlib may not be disabled.
+ - Include `indexed_bzip2` classes and CLI method with the rapidgzip Python module. This only adds ~15%
+   space overhead to the precompiled binaries. This is a step towards one Python module offering seekable
+   access to many different file formats.
+ - Add import/export timings with `--verbose`.
+ - Enable checksum verification by default. This adds ~5 % overhead.
+ - Show a message about mismatching CRC32 during `--analyze` but try to read further.
+ - Track symbol usage in windows and show information with `--analyze`.
+ - Reorganize output of `--help`.
+ - Add `--io-read-method=...` option, which can be set to `pread`, `sequential`, or `locked-read`.
+   `--io-read-method=sequential` is advisable when decompressing from files on slow I/O devices such as HDDs.
+ - Add `RapidgzipFile.peek` method.
+
+## Performance
+
+ - Clear seek points / windows when they are not needed, e.g., for one-pass sequential decompression
+   without `--export-index`. This reduces the memory usage for decompressing `wikidata-20220103-all.json.gz`
+   from 20 GB down to 10 GB and can have even larger effects for larger files.
+ - Avoid doubling memory usage during index import and export by streaming the data directly to the output file
+   without an internal copy.
+
+## Fixes
+
+ - Show better error message when quitting via SIGINT during a long-running read loop over a RapidgzipFile
+   object working on a Python file object without using Python context managers / the with-statement.
+   This leads to the decompression threads being left running and trying to acquire a non-existing GIL
+   while Python interpreter finalization has already started.
+ - Fix compile error when compiling with Conda because it defines `__linux__` while not having `F_GETPIPE_SZ`.
+ - Improve error messages on EOF, for ISA-L and Zlib wrappers, and when file seeking fails.
+
+## API
+
+ - Change `size_t FileReader::size()` to `std::optional<size_t> FileReader::size()`
+
+
 # Version 0.10.4 built on 2023-11-25
 
 ## Fixes

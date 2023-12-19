@@ -138,16 +138,21 @@ public:
     tell() const override
     {
         if ( m_atEndOfFile ) {
-            return size();
+            const auto fileSize = size();
+            if ( !fileSize ) {
+                throw std::logic_error( "When the file end has been reached, the block map should have been finalized "
+                                        "and the file size should be available!" );
+            }
+            return *fileSize;
         }
         return m_currentPosition;
     }
 
-    [[nodiscard]] size_t
+    [[nodiscard]] std::optional<size_t>
     size() const override
     {
         if ( !m_blockMap->finalized() ) {
-            throw std::invalid_argument( "Can't get stream size in BZ2 when not finished reading at least once!" );
+            return std::nullopt;
         }
         return m_blockMap->back().second;
     }
@@ -276,23 +281,13 @@ public:
             throw std::invalid_argument( "You may not call seek on closed ParallelBZ2Reader!" );
         }
 
-        switch ( origin )
-        {
-        case SEEK_CUR:
-            offset = tell() + offset;
-            break;
-        case SEEK_SET:
-            break;
-        case SEEK_END:
+        if ( origin == SEEK_END ) {
             /* size() requires the block offsets to be available! */
             if ( !m_blockMap->finalized() ) {
                 read();
             }
-            offset = size() + offset;
-            break;
         }
-
-        const auto positiveOffset = static_cast<size_t>( std::max<decltype( offset )>( 0, offset ) );
+        const auto positiveOffset = effectiveOffset( offset, origin );
 
         if ( positiveOffset == tell() ) {
             return positiveOffset;
@@ -321,7 +316,7 @@ public:
 
         if ( m_blockMap->finalized() ) {
             m_atEndOfFile = true;
-            m_currentPosition = size();
+            m_currentPosition = m_blockMap->back().second;
             return tell();
         }
 

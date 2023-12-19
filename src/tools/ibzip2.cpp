@@ -25,7 +25,8 @@
 #include <ParallelBZ2Reader.hpp>
 #include <ParallelBitStringFinder.hpp>
 
-#include "licenses.cpp"
+#include "CLIHelper.hpp"
+#include "licenses.hpp"
 
 
 /* Check whether the found offsets actually point to BZ2 magic bytes. */
@@ -136,7 +137,7 @@ findCompressedBlocks( const std::string& inputFilePath,
 }
 
 void
-printHelp( const cxxopts::Options& options )
+printIbzip2Help( const cxxopts::Options& options )
 {
     std::cout
     << options.help()
@@ -159,20 +160,6 @@ printHelp( const cxxopts::Options& options )
     << "List block offsets in both the compressed as well as the decompressed data during downloading:\n"
     << "  wget -O- 'ftp://example.com/file.bz2' | tee saved-file.bz2 | ibzip2 -L blockoffsets.dat > /dev/null\n"
     << std::endl;
-}
-
-
-std::string
-getFilePath( cxxopts::ParseResult const& parsedArgs,
-             std::string          const& argument )
-{
-    if ( parsedArgs.count( argument ) > 0 ) {
-        auto path = parsedArgs[argument].as<std::string>();
-        if ( path != "-" ) {
-            return path;
-        }
-    }
-    return {};
 }
 
 
@@ -266,7 +253,7 @@ ibzip2CLI( int argc, char** argv )
     /* Check against simple commands like help and version. */
 
     if ( parsedArgs.count( "help" ) > 0 ) {
-        printHelp( options );
+        printIbzip2Help( options );
         return 0;
     }
 
@@ -407,10 +394,14 @@ ibzip2CLI( int argc, char** argv )
         if ( test ) {
             checkOffsets( inputFilePath, compressedOffsets );
 
-            if ( nBytesWrittenTotal != reader->size() ) {
+            const auto readerSize = reader->size();
+            if ( !readerSize  ) {
+                throw std::logic_error( "Bzip2 reader size should be available at this point!" );
+            }
+            if ( nBytesWrittenTotal != *readerSize ) {
                 std::stringstream msg;
                 msg << "Wrote less bytes (" << nBytesWrittenTotal << " B) than decoded stream is large("
-                    << reader->size() << " B)!";
+                    << *readerSize << " B)!";
                 throw std::logic_error( std::move( msg ).str() );
             }
         }
@@ -459,7 +450,7 @@ ibzip2CLI( int argc, char** argv )
 
     std::cerr << "No suitable arguments were given. Please refer to the help!\n\n";
 
-    printHelp( options );
+    printIbzip2Help( options );
 
     return 1;
 }

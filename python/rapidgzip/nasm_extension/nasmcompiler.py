@@ -2,6 +2,7 @@
 Distutils doesn't support nasm, so this is a custom compiler for NASM
 """
 
+from distutils.errors import CompileError, DistutilsExecError
 from distutils.unixccompiler import UnixCCompiler
 from distutils.sysconfig import get_config_var
 import platform

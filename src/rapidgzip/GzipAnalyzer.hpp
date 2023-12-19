@@ -206,7 +206,8 @@ analyzeExtraString( std::string_view extra,
 
 
 [[nodiscard]] rapidgzip::Error
-analyze( UniqueFileReader inputFile )
+analyze( UniqueFileReader inputFile,
+         const bool       verbose = false )
 {
     using namespace rapidgzip;
     using Block = rapidgzip::deflate::Block</* Statistics */ true>;
@@ -215,6 +216,7 @@ analyze( UniqueFileReader inputFile )
 
     std::optional<gzip::Header> gzipHeader;
     Block block;
+    block.setTrackBackreferences( true );
 
     size_t totalBytesRead = 0;
     size_t streamBytesRead = 0;
@@ -240,6 +242,8 @@ analyze( UniqueFileReader inputFile )
     std::map<std::vector<uint8_t>, size_t> precodeCodings;
     std::map<std::vector<uint8_t>, size_t> distanceCodings;
     std::map<std::vector<uint8_t>, size_t> literalCodings;
+
+    std::vector<size_t> farthestBackreferences;
 
     CRC32Calculator crc32Calculator;
 
@@ -323,6 +327,7 @@ analyze( UniqueFileReader inputFile )
 
         block.symbolTypes.literal = 0;
         block.symbolTypes.backreference = 0;
+        block.symbolTypes.copies = 0;
 
         while ( !block.eob() ) {
             const auto [buffers, error] = block.read( bitReader, std::numeric_limits<size_t>::max() );
@@ -359,6 +364,13 @@ analyze( UniqueFileReader inputFile )
         if ( !wasInserted ) {
             compressionTypeCount->second++;
         }
+
+        const auto& backreferences = block.backreferences();
+        const auto farthestBackreference =
+            std::accumulate( backreferences.begin(), backreferences.end(),
+                             uint16_t( 0 ), [] ( uint16_t max, const auto& reference ) {
+                                 return std::max( max, reference.first );
+                             } );
 
         const auto printCodeLengthStatistics =
             [] ( const auto&  codeLengths,
@@ -420,6 +432,7 @@ analyze( UniqueFileReader inputFile )
             << "        Block Count            : " << streamBlockCount << "\n"
             << "        Compressed Offset      : " << formatBits( blockOffset - headerOffset ) << "\n"
             << "        Uncompressed Offset    : " << uncompressedBlockOffsetInStream << " B\n"
+            << "    Farthest Backreference     : " << formatBytes( farthestBackreference ) << "\n"
             << "    Compressed Size            : " << formatBits( compressedSizeInBits ) << "\n"
             << "    Uncompressed Size          : " << uncompressedBlockSize << " B\n"
             << "    Compression Ratio          : " << compressionRatio << "\n";
@@ -447,9 +460,65 @@ analyze( UniqueFileReader inputFile )
             std::cout
                 << "    Symbol Types:\n"
                 << "        Literal         : " << formatSymbolType( block.symbolTypes.literal ) << "\n"
-                << "        Back-References : " << formatSymbolType( block.symbolTypes.backreference ) << "\n";
+                << "        Back-References : " << formatSymbolType( block.symbolTypes.backreference ) << "\n"
+                << "        Copied Symbols  : " << block.symbolTypes.copies << " ("
+                << static_cast<double>( block.symbolTypes.copies ) * 100.0
+                   / static_cast<double>( uncompressedBlockSize ) << " %)\n";
+        }
+
+        /* Merge overlapping or adjacent back-references. */
+        auto mergedBackreferences = backreferences;
+        std::sort( mergedBackreferences.begin(), mergedBackreferences.end(),
+                   [] ( const auto& a, const auto& b ) { return a.first < b.first; } );
+        size_t currentRef = 0;
+        for ( auto otherRef = currentRef + 1; otherRef < mergedBackreferences.size(); ++otherRef ) {
+            const auto intersect =
+                [] ( const auto& a, const auto& b ) {
+                    return a.first + a.second >= b.first;
+                };
+            if ( intersect( mergedBackreferences[currentRef], mergedBackreferences[otherRef] ) ) {
+                mergedBackreferences[currentRef].second = mergedBackreferences[otherRef].first
+                                                          + mergedBackreferences[otherRef].second
+                                                          - mergedBackreferences[currentRef].first;
+            } else {
+                ++currentRef;
+                mergedBackreferences[currentRef] = mergedBackreferences[otherRef];
+            }
+        }
+        mergedBackreferences.resize( currentRef + 1 );
+
+        if ( verbose ) {
+            std::cout << "    Back-references to the preceding window:";
+            for ( const auto& [distance, length] : backreferences ) {
+                std::cout << " " << length << "@" << distance;
+            }
+            std::cout << "\n";
+
+            std::cout << "    Merged back-references to preceding window:";
+            for ( const auto& [distance, length] : mergedBackreferences ) {
+                std::cout << " " << length << "@" << distance;
+            }
+            std::cout << "\n";
+        }
+        std::cout << "    Number of back-references        : " << backreferences.size() << "\n";
+        std::cout << "    Number of merged back-references : " << mergedBackreferences.size() << "\n";
+
+        if ( uncompressedBlockSize >= 32_Ki ) {
+            std::vector<bool> usedWindowSymbols( 32_Ki, false );
+            for ( const auto& [distance, length] : backreferences ) {
+                const auto begin = distance >= 32_Ki ? 0 : ( 32_Ki - distance );
+                const auto end = std::min( 32_Ki, begin + length );
+                for ( auto it = usedWindowSymbols.begin() + begin; it != usedWindowSymbols.begin() + end; ++it ) {
+                    *it = true;
+                }
+            }
+            const auto usedWindowSymbolCount = std::count( usedWindowSymbols.begin(), usedWindowSymbols.end(), true );
+            std::cout << "    Used window symbols              : " << usedWindowSymbolCount << " ("
+                      << static_cast<double>( usedWindowSymbolCount ) / static_cast<double>( 32_Ki ) * 100.0 << " %)\n";
         }
         std::cout << "\n";
+
+        farthestBackreferences.emplace_back( farthestBackreference );
 
         if ( block.isLastBlock() ) {
             const auto footer = gzip::readFooter( bitReader );
@@ -467,9 +536,13 @@ analyze( UniqueFileReader inputFile )
                 throw std::runtime_error( std::move( message ).str() );
             }
 
-            if ( crc32Calculator.verify( footer.crc32 ) ) {
-                std::cerr << "Validated CRC32 0x" << std::hex << crc32Calculator.crc32() << std::dec
-                          << " for gzip stream!\n";
+            try {
+                if ( crc32Calculator.verify( footer.crc32 ) ) {
+                    std::cerr << "Validated CRC32 0x" << std::hex << crc32Calculator.crc32() << std::dec
+                              << " for gzip stream!\n";
+                }
+            } catch ( const std::domain_error& exception ) {
+                std::cerr << "CRC32 validation for gzip stream failed with: " << exception.what() << "\n";
             }
 
             gzipHeader = {};
@@ -549,6 +622,10 @@ analyze( UniqueFileReader inputFile )
         << "\n"
         << Histogram<size_t>{ literalCodeLengths, /* bin count */ 8 }.plot()
         << "\n"
+        << "\n"
+        << "\n== Farthest Backreferences Distribution ==\n"
+        << "\n"
+        << Histogram<size_t>{ farthestBackreferences, 8, "Bytes" }.plot()
         << "\n"
         << "== Encoded Block Size Distribution ==\n"
         << "\n"

@@ -81,7 +81,8 @@ private:
                  && ( ( static_cast<uint8_t>( stringView[position - 1] ) & 0b1110'0000 ) == 0 ) )
             {
                 const auto totalOffset = offset + position + EMPTY_DEFLATE_BLOCK.size();
-                if ( totalOffset < m_fileSize ) {
+                auto fileSize = m_fileSize ? m_fileSize : m_fileReader->size();
+                if ( !fileSize || ( totalOffset < *fileSize ) ) {
                     m_blockOffsets.push_back( totalOffset );
                 }
             }
@@ -160,7 +161,7 @@ private:
 
 private:
     const UniqueFileReader m_fileReader;
-    const std::size_t m_fileSize;
+    const std::optional<std::size_t> m_fileSize;
 
     alignas( 64 ) std::array<char, BUFFER_SIZE> m_buffer;
     size_t m_bufferSize{ 0 };

@@ -88,7 +88,7 @@ public:
     [[nodiscard]] bool
     eof() const override
     {
-        return m_seekable ? tell() >= size() : !m_lastReadSuccessful;
+        return m_seekable ? m_currentPosition >= m_fileSizeBytes : !m_lastReadSuccessful;
     }
 
     [[nodiscard]] bool
@@ -132,11 +132,24 @@ public:
          * Because of this, it is not possible to simply use std::fseek. Because then, we would not be able to infer
          * whether we read past the end nor how many bytes we would have been able to read if the buffer was valid!
          */
-        const auto nBytesRead = buffer == nullptr
-                                ? std::min( nMaxBytesToRead, size() - tell() )
-                                : std::fread( buffer, /* element size */ 1, nMaxBytesToRead, m_file.get() );
+        size_t nBytesRead = 0;
         if ( buffer == nullptr ) {
-            std::fseek( m_file.get(), static_cast<long int>( nBytesRead ), SEEK_CUR );
+            if ( seekable() ) {
+                nBytesRead = std::min( nMaxBytesToRead, m_fileSizeBytes - m_currentPosition );
+                std::fseek( m_file.get(), static_cast<long int>( nBytesRead ), SEEK_CUR );
+            } else {
+                std::array<char, 16_Ki> tmpBuffer;
+                while ( nBytesRead < nMaxBytesToRead ) {
+                    const auto nBytesReadPerCall =
+                        std::fread( tmpBuffer.data(), /* element size */ 1, tmpBuffer.size(), m_file.get() );
+                    if ( nBytesReadPerCall == 0 ) {
+                        break;
+                    }
+                    nBytesRead += nBytesReadPerCall;
+                }
+            }
+        } else {
+            nBytesRead = std::fread( buffer, /* element size */ 1, nMaxBytesToRead, m_file.get() );
         }
 
         if ( nBytesRead == 0 ) {
@@ -189,7 +202,10 @@ public:
 
         const auto returnCode = std::fseek( m_file.get(), static_cast<long int>( offset ), origin );
         if ( returnCode != 0 ) {
-            throw std::runtime_error( "Seeking failed!" );
+            std::stringstream message;
+            message << "Seeking to " << offset << " from origin " << originToString( origin ) << " failed with code: "
+                    << returnCode << ", " << std::strerror( errno ) << "!";
+            throw std::runtime_error( std::move( message ).str() );
         }
 
         if ( origin == SEEK_SET ) {
@@ -202,7 +218,7 @@ public:
         return m_currentPosition;
     }
 
-    [[nodiscard]] size_t
+    [[nodiscard]] std::optional<size_t>
     size() const override
     {
         return m_fileSizeBytes;

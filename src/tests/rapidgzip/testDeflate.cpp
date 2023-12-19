@@ -120,7 +120,7 @@ decodeHuffmanAndCompare( const HuffmanCoding&                               codi
         }
         REQUIRE( decodedSymbol == symbol );
     }
-    REQUIRE( ceilDiv( bitReader.tell(), CHAR_BIT ) * CHAR_BIT == bitReader.size() );
+    REQUIRE_EQUAL( ceilDiv( bitReader.tell(), CHAR_BIT ) * CHAR_BIT, bitReader.size().value() );
 }
 
 

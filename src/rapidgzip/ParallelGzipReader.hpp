@@ -58,6 +58,7 @@ public:
     using BlockFinder = typename ChunkFetcher::BlockFinder;
     using BitReader = rapidgzip::BitReader;
     using WriteFunctor = std::function<void ( const std::shared_ptr<ChunkData>&, size_t, size_t )>;
+    using Window = WindowMap::Window;
 
 public:
     /**
@@ -213,7 +214,18 @@ public:
     {
         m_sharedFileReader->setStatisticsEnabled( ENABLE_STATISTICS );
         if ( !m_bitReader.seekable() ) {
-            throw std::invalid_argument( "Parallel BZ2 Reader will not work on non-seekable input like stdin (yet)!" );
+            /* The ensureSharedFileReader helper should wrap non-seekable file readers inside SinglePassFileReader. */
+            throw std::logic_error( "BitReader should always be seekable even if the underlying file is not!" );
+        }
+
+        const auto& [lock, file] = m_sharedFileReader->underlyingFile();
+        const auto singlePassFileReader = dynamic_cast<SinglePassFileReader*>( file );
+        if ( singlePassFileReader != nullptr ) {
+            singlePassFileReader->setMaxReusableChunkCount(
+                static_cast<size_t>(
+                    std::ceil( static_cast<double>( parallelization ) * static_cast<double>( m_chunkSizeInBytes )
+                               / static_cast<double>( SinglePassFileReader::CHUNK_SIZE ) ) ) );
+            m_keepIndex = false;
         }
     }
 
@@ -283,7 +295,13 @@ public:
     [[nodiscard]] bool
     seekable() const override
     {
-        return m_bitReader.seekable();
+        if ( !m_bitReader.seekable() || !m_sharedFileReader ) {
+            return false;
+        }
+
+        const auto& [lock, file] = m_sharedFileReader->underlyingFile();
+        const auto singlePassFileReader = dynamic_cast<SinglePassFileReader*>( file );
+        return singlePassFileReader == nullptr;
     }
 
     void
@@ -317,16 +335,21 @@ public:
     tell() const override
     {
         if ( m_atEndOfFile ) {
-            return size();
+            const auto fileSize = size();
+            if ( !fileSize ) {
+                throw std::logic_error( "When the file end has been reached, the block map should have been finalized "
+                                        "and the file size should be available!" );
+            }
+            return *fileSize;
         }
         return m_currentPosition;
     }
 
-    [[nodiscard]] size_t
+    [[nodiscard]] std::optional<size_t>
     size() const override
     {
         if ( !m_blockMap->finalized() ) {
-            throw std::invalid_argument( "Cannot get stream size in gzip when not finished reading at least once!" );
+            return std::nullopt;
         }
         return m_blockMap->back().second;
     }
@@ -461,6 +484,19 @@ public:
 
             nBytesDecoded += nBytesToDecode;
             m_currentPosition += nBytesToDecode;
+
+            const auto& [lock, file] = m_sharedFileReader->underlyingFile();
+            const auto singlePassFileReader = dynamic_cast<SinglePassFileReader*>( file );
+            if ( singlePassFileReader != nullptr ) {
+                /* Release only up to the beginning of the currently used chunk in order to theoretically enable
+                 * to clear the full cache and then continue again. This effectively require a recomputation of
+                 * the current chunk if it was not fully read yet. */
+                singlePassFileReader->releaseUpTo( /* floor int division */ chunkData->encodedOffsetInBits / CHAR_BIT );
+            }
+
+            if ( !m_keepIndex && m_windowMap ) {
+                m_windowMap->releaseUpTo( chunkData->encodedOffsetInBits );
+            }
         }
 
         return nBytesDecoded;
@@ -474,23 +510,13 @@ public:
             throw std::invalid_argument( "You may not call seek on closed ParallelGzipReader!" );
         }
 
-        switch ( origin )
-        {
-        case SEEK_CUR:
-            offset = tell() + offset;
-            break;
-        case SEEK_SET:
-            break;
-        case SEEK_END:
+        if ( origin == SEEK_END ) {
             /* size() requires the block offsets to be available! */
             if ( !m_blockMap->finalized() ) {
                 read();
             }
-            offset = size() + offset;
-            break;
         }
-
-        const auto positiveOffset = static_cast<size_t>( std::max<decltype( offset )>( 0, offset ) );
+        const auto positiveOffset = effectiveOffset( offset, origin );
 
         if ( positiveOffset == tell() ) {
             return positiveOffset;
@@ -499,6 +525,13 @@ public:
         /* Backward seeking is no problem at all! 'tell' may only return <= size()
          * as value meaning we are now < size() and therefore EOF can be cleared! */
         if ( positiveOffset < tell() ) {
+            if ( !m_keepIndex ) {
+                throw std::invalid_argument( "Seeking (back) not supported when index-keeping has been disabled!" );
+            }
+
+            if ( !seekable() ) {
+                throw std::invalid_argument( "Cannot seek backwards with non-seekable input!" );
+            }
             m_atEndOfFile = false;
             m_currentPosition = positiveOffset;
             return positiveOffset;
@@ -519,7 +552,7 @@ public:
 
         if ( m_blockMap->finalized() ) {
             m_atEndOfFile = true;
-            m_currentPosition = size();
+            m_currentPosition = m_blockMap->back().second;
             return tell();
         }
 
@@ -557,11 +590,17 @@ public:
         return m_blockMap->blockOffsets();
     }
 
-    [[nodiscard]] GzipIndex
+    /**
+     * This is the first instance for me where returning a const value makes sense because it contains
+     * a shared pointer to the WindowMap, which is not to be modified. Making GzipIndex const forces
+     * the caller to deep clone the index and WindowMap for, e.g., the setBlockOffsets API, which
+     * destructively moves from the WindowMap.
+     */
+    [[nodiscard]] const GzipIndex
     gzipIndex()
     {
         const auto offsets = blockOffsets();  // Also finalizes reading implicitly.
-        if ( offsets.empty() ) {
+        if ( offsets.empty() || !m_windowMap ) {
             return {};
         }
 
@@ -585,12 +624,14 @@ public:
             checkpoint.uncompressedOffsetInBytes = uncompressedOffsetInBytes;
 
             const auto window = m_windowMap->get( compressedOffsetInBits );
-            if ( window ) {
-                checkpoint.window.assign( window->begin(), window->end() );
+            if ( !window ) {
+                throw std::logic_error( "Did not find window to offset " + formatBits( compressedOffsetInBits ) );
             }
 
             index.checkpoints.emplace_back( std::move( checkpoint ) );
         }
+
+        index.windows = m_windowMap;
 
         return index;
     }
@@ -678,7 +719,33 @@ public:
     void
     setBlockOffsets( const GzipIndex& index )
     {
-        if ( index.checkpoints.empty() ) {
+        const auto result = index.windows->data();
+        setBlockOffsets( index, [&windows = result.second] ( size_t offset ) -> Window {
+            return windows->at( offset );
+        } );
+    }
+
+    void
+    setBlockOffsets( GzipIndex&& index )
+    {
+        const auto result = index.windows->data();
+        setBlockOffsets( std::move( index ), [&windows = result.second] ( size_t offset ) -> Window {
+            Window window;
+            std::swap( windows->at( offset ), window );
+            return window;
+        } );
+    }
+
+    /**
+     * @param getWindow A functor that returns the window to the requested encoded bit offset.
+     *                  It shall be a bug if this function is called twice with the same offset.
+     *                  This makes it possible to destructively return the Window to avoid a copy!
+     */
+    void
+    setBlockOffsets( const GzipIndex&                       index,
+                     const std::function<Window( size_t )>& getWindow )
+    {
+        if ( index.checkpoints.empty() || !index.windows || !getWindow ) {
             return;
         }
 
@@ -725,9 +792,7 @@ public:
              * For some reason, indexed_gzip also stores windows for the very last checkpoint at the end of the file,
              * which is useless because there is nothing thereafter. But, don't filter it here so that exportIndex
              * mirrors importIndex better. */
-            m_windowMap->emplace( checkpoint.compressedOffsetInBits,
-                                  WindowMap::Window( checkpoint.window.data(),
-                                                     checkpoint.window.data() + checkpoint.window.size() ) );
+            m_windowMap->emplace( checkpoint.compressedOffsetInBits, getWindow( checkpoint.compressedOffsetInBits ) );
         }
 
         /* Input file-end offset if not included in checkpoints. */
@@ -747,7 +812,27 @@ public:
     void
     importIndex( UniqueFileReader indexFile )
     {
+        const auto t0 = now();
         setBlockOffsets( readGzipIndex( std::move( indexFile ), m_sharedFileReader->clone() ) );
+        if ( m_showProfileOnDestruction ) {
+            std::cerr << "[ParallelGzipReader::importIndex] Took " << duration( t0 ) << " s\n";
+        }
+    }
+
+    void
+    exportIndex( const std::function<void( const void* buffer, size_t size )>& checkedWrite )
+    {
+        const auto t0 = now();
+
+        if ( !m_keepIndex ) {
+            throw std::invalid_argument( "Exporting index not supported when index-keeping has been disabled!" );
+        }
+
+        writeGzipIndex( gzipIndex(), checkedWrite );
+
+        if ( m_showProfileOnDestruction ) {
+            std::cerr << "[ParallelGzipReader::exportIndex] Took " << duration( t0 ) << " s\n";
+        }
     }
 
 #ifdef WITH_PYTHON_SUPPORT
@@ -769,7 +854,7 @@ public:
                 }
             };
 
-        writeGzipIndex( gzipIndex(), checkedWrite );
+        exportIndex( checkedWrite );
     }
 #endif
 
@@ -806,6 +891,17 @@ public:
     {
         m_chunkFetcher.reset();
         m_blockFinder.reset();
+    }
+
+    /**
+     * Index-keeping can be disabled as a memory usage optimization when it will never be needed.
+     * Currently, this will clear windows for chunks that have been fully decompressed once.
+     * Trying to seek in the file with this option enabled will throw an error!
+     */
+    void
+    setKeepIndex( bool keep )
+    {
+        m_keepIndex = keep;
     }
 
 private:
@@ -954,6 +1050,7 @@ private:
      * in order into @ref m_blockMap.
      */
     std::shared_ptr<WindowMap> const m_windowMap{ std::make_shared<WindowMap>() };
+    bool m_keepIndex{ true };
     std::unique_ptr<ChunkFetcher> m_chunkFetcher;
 
     CRC32Calculator m_crc32;

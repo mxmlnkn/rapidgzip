@@ -144,7 +144,7 @@ public:
         auto blockInfo = m_blockMap->findDataOffset( offset );
         if ( blockInfo.contains( offset ) ) {
             const auto blockOffset = blockInfo.encodedOffsetInBits;
-            /* Try to look up the offset based on an offset of for the unsplit block.
+            /* Try to look up the offset based on the offset of the unsplit block.
              * Do not use BaseType::get because it has too many side effects. Even if we know that the cache
              * contains the chunk, the access might break the perfect sequential fetching pattern because
              * the chunk was split into multiple indexes in the fetching strategy while we might now access
@@ -161,14 +161,38 @@ public:
                          && ( blockOffset >= ( *chunkData )->encodedOffsetInBits )
                          && ( blockOffset < ( *chunkData )->encodedOffsetInBits + ( *chunkData )->encodedSizeInBits ) )
                     {
+                        if ( ( *chunkData )->containsMarkers() ) {
+                            std::stringstream message;
+                            message << "[GzipChunkFetcher] Did not expect to get results with markers! "
+                                    << "Requested offset: " << formatBits( offset ) << " found to belong to chunk at: "
+                                    << formatBits( blockOffset ) << ", found matching unsplit block with range ["
+                                    << formatBits( ( *chunkData )->encodedOffsetInBits ) << ", "
+                                    << formatBits( ( *chunkData )->encodedOffsetInBits
+                                                   + ( *chunkData )->encodedSizeInBits ) << "] in the list of "
+                                    << m_unsplitBlocks.size() << " unsplit blocks.";
+                            throw std::logic_error( std::move( message ).str() );
+                        }
                         return std::make_pair( unsplitBlockInfo->decodedOffsetInBytes, *chunkData );
                     }
                 }
             }
 
             /* Get block normally */
-            return std::make_pair( blockInfo.decodedOffsetInBytes,
-                                   getBlock( blockInfo.encodedOffsetInBits, blockInfo.blockIndex ) );
+            auto chunkData = getBlock( blockInfo.encodedOffsetInBits, blockInfo.blockIndex );
+            if ( chunkData && chunkData->containsMarkers() ) {
+                auto lastWindow = m_windowMap->get( chunkData->encodedOffsetInBits );
+                std::stringstream message;
+                message << "[GzipChunkFetcher] Did not expect to get results with markers because the offset already "
+                        << "exists in the block map!\n"
+                        << "    Requested decompressed offset: " << formatBytes( offset ) << " found to belong to chunk at: "
+                        << formatBits( blockOffset ) << " with range ["
+                        << formatBits( chunkData->encodedOffsetInBits ) << ", "
+                        << formatBits( chunkData->encodedOffsetInBits + chunkData->encodedSizeInBits ) << "].\n"
+                        << "    Window size for the chunk offset: "
+                        << ( lastWindow.has_value() ? std::to_string( lastWindow->size() ) : "no window" ) << ".";
+                throw std::logic_error( std::move( message ).str() );
+            }
+            return std::make_pair( blockInfo.decodedOffsetInBytes, std::move( chunkData ) );
         }
 
         /* If the requested offset lies outside the last known block, then we need to keep fetching the next blocks
@@ -180,13 +204,24 @@ public:
             }
 
             const auto nextBlockOffset = m_blockFinder->get( m_nextUnprocessedBlockIndex );
-            if ( !nextBlockOffset ) {
+
+            if ( const auto inputFileSize = m_bitReader.size();
+                 !nextBlockOffset ||
+                 ( inputFileSize && ( *inputFileSize > 0 ) && ( *nextBlockOffset >= *inputFileSize ) ) )
+            {
                 m_blockMap->finalize();
                 m_blockFinder->finalize();
                 return std::nullopt;
             }
 
             chunkData = getBlock( *nextBlockOffset, m_nextUnprocessedBlockIndex );
+
+            /* Should only happen when encountering EOF during decodeBlock call. */
+            if ( chunkData->encodedSizeInBits == 0 ) {
+                m_blockMap->finalize();
+                m_blockFinder->finalize();
+                return std::nullopt;
+            }
 
             /* This should also work for multi-stream gzip files because encodedSizeInBits is such that it
              * points across the gzip footer and next header to the next deflate block. */
@@ -228,7 +263,9 @@ public:
                 m_appendTime += chunkData->appendDuration;
             }
 
-            if ( blockOffsetAfterNext >= m_bitReader.size() ) {
+            if ( const auto inputFileSize = m_bitReader.size();
+                 inputFileSize && ( *inputFileSize > 0 ) && ( blockOffsetAfterNext >= *inputFileSize ) )
+            {
                 m_blockMap->finalize();
                 m_blockFinder->finalize();
             }
@@ -504,10 +541,20 @@ private:
          * speculatively prefetched one. */
         if ( !chunkData
              || ( !chunkData->matchesEncodedOffset( blockOffset )
-                  && ( partitionOffset != blockOffset ) ) ) {
-            /* This call given the exact block offset must always yield the correct data and should be equivalent
-             * to directly call @ref decodeBlock with that offset. */
-            chunkData = BaseType::get( blockOffset, blockIndex, getPartitionOffsetFromOffset );
+                  && ( partitionOffset != blockOffset ) ) )
+        {
+            try
+            {
+                /* This call given the exact block offset must always yield the correct data and should be equivalent
+                 * to directly call @ref decodeBlock with that offset. */
+                chunkData = BaseType::get( blockOffset, blockIndex, getPartitionOffsetFromOffset );
+            }
+            catch ( const rapidgzip::BitReader::EndOfFileReached& exception )
+            {
+                std::cerr << "Unexpected end of file when getting block at " << formatBits( blockOffset )
+                          << " (block index: " << blockIndex << ") on demand\n";
+                throw exception;
+            }
         }
 
         if ( !chunkData || ( chunkData->encodedOffsetInBits == std::numeric_limits<size_t>::max() ) ) {
@@ -598,10 +645,11 @@ public:
         #endif
 
         if ( initialWindow && untilOffsetIsExact ) {
+            const auto fileSize = originalBitReader.size();
             auto result = decodeBlockWithInflateWrapper<InflateWrapper>(
                 originalBitReader,
                 blockOffset,
-                std::min( untilOffset, originalBitReader.size() ),
+                fileSize ? std::min( untilOffset, *fileSize ) : untilOffset,
                 *initialWindow,
                 decodedSize,
                 crc32Enabled );
@@ -1089,6 +1137,9 @@ public:
                 const auto headerOffset = bitReader->tell();
                 const auto [header, error] = gzip::readHeader( *bitReader );
                 if ( error != Error::NONE ) {
+                    if ( error == Error::END_OF_FILE ) {
+                        break;
+                    }
                     std::stringstream message;
                     message << "Failed to read gzip header at offset " << formatBits( headerOffset )
                             << " because of error: " << toString( error );
@@ -1124,6 +1175,13 @@ public:
         #endif
 
             if ( auto error = block->readHeader( *bitReader ); error != Error::NONE ) {
+                /* Encountering EOF while reading the (first bit for the) deflate block header is only
+                 * valid if it is the very first deflate block given to us. Else, it should not happen
+                 * because the final block bit should be set in the previous deflate block. */
+                if ( ( error == Error::END_OF_FILE ) && ( bitReader->tell() == result.encodedOffsetInBits ) ) {
+                    break;
+                }
+
                 std::stringstream message;
                 message << "Failed to read deflate block header at offset " << formatBits( result.encodedOffsetInBits )
                         << " (position after trying: " << formatBits( bitReader->tell() ) << ": "

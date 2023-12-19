@@ -119,18 +119,21 @@ public:
             throw std::invalid_argument( "Given file does not start with a BGZF header!" );
         }
 
-        FooterBytes footer;
-        m_fileReader->seek( -static_cast<int>( footer.size() ), SEEK_END );
-        const auto nBytesReadFooter = m_fileReader->read( reinterpret_cast<char*>( footer.data() ), footer.size() );
-        if ( nBytesReadFooter != footer.size() ) {
-            throw std::invalid_argument( "Could not read enough data from given file for BGZF footer!" );
-        }
+        /* Check the footer, but only if it does not result in buffering the whole file as in SinglePassReader. */
+        if ( m_fileReader->seekable() && m_fileReader->size().has_value() ) {
+            FooterBytes footer;
+            m_fileReader->seek( -static_cast<int>( footer.size() ), SEEK_END );
+            const auto nBytesReadFooter = m_fileReader->read( reinterpret_cast<char*>( footer.data() ), footer.size() );
+            if ( nBytesReadFooter != footer.size() ) {
+                throw std::invalid_argument( "Could not read enough data from given file for BGZF footer!" );
+            }
 
-        if ( footer != BGZF_FOOTER ) {
-            throw std::invalid_argument( "Given file does not end with a BGZF footer!" );
-        }
+            if ( footer != BGZF_FOOTER ) {
+                throw std::invalid_argument( "Given file does not end with a BGZF footer!" );
+            }
 
-        m_fileReader->seek( m_currentBlockOffset );
+            m_fileReader->seek( m_currentBlockOffset );
+        }
     }
 
     [[nodiscard]] static bool
@@ -145,12 +148,15 @@ public:
             return false;
         }
 
-        FooterBytes footer;
-        file->seek( -static_cast<int>( footer.size() ), SEEK_END );
-        const auto nBytesReadFooter = file->read( reinterpret_cast<char*>( footer.data() ), footer.size() );
-        if ( ( nBytesReadFooter != footer.size() ) || ( footer != BGZF_FOOTER ) ) {
-            file->seek( oldPos );
-            return false;
+        /* Check the footer, but only if it does not result in buffering the whole file as in SinglePassReader. */
+        if ( file->seekable() && file->size().has_value() ) {
+            FooterBytes footer;
+            file->seek( -static_cast<int>( footer.size() ), SEEK_END );
+            const auto nBytesReadFooter = file->read( reinterpret_cast<char*>( footer.data() ), footer.size() );
+            if ( ( nBytesReadFooter != footer.size() ) || ( footer != BGZF_FOOTER ) ) {
+                file->seek( oldPos );
+                return false;
+            }
         }
 
         file->seek( oldPos );
@@ -205,7 +211,8 @@ public:
             const auto blockSize = getBgzfCompressedSize( header );
             if ( blockSize ) {
                 m_currentBlockOffset += *blockSize + 1;
-                if ( m_currentBlockOffset >= m_fileReader->size() ) {
+                const auto fileSize = m_fileReader->size();
+                if ( fileSize && ( m_currentBlockOffset >= *fileSize ) ) {
                     m_currentBlockOffset = std::numeric_limits<size_t>::max();
                 }
             } else {

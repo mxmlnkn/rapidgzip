@@ -201,14 +201,14 @@ testIsalBug()
     using ChunkFetcher = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>;
 
     std::atomic<bool> cancel{ false };
-    std::array<uint8_t, 32_Ki> window{};
+    std::vector<uint8_t> window( 32_Ki, 0 );
     const auto blockOffset = 4727960325ULL;
     const auto untilOffset = 4731261455ULL;
     const auto result = ChunkFetcher::decodeBlock(
         bitReader,
         blockOffset,
         untilOffset,
-        /* window */ ChunkFetcher::WindowView( window.data(), window.size() ),
+        /* window */ window,
         /* decodedSize */ 4171816,
         cancel,
         /* crc32Enabled */ false,
@@ -229,8 +229,7 @@ testWikidataException( const std::filesystem::path& rootFolder )
     const auto startOffset = 0ULL;
     const auto exactUntilOffset = 2097164ULL;
     const auto decodedSize = 4'140'634ULL;
-    std::array<uint8_t, 32_Ki> window{};
-    const auto initialWindow = VectorView<uint8_t>( window.data(), window.size() );
+    std::vector<uint8_t> initialWindow( 32_Ki, 0 );
     /* This did throw because it checks whether the exactUntilOffset has been reached. However, when a decoded size
      * is specified, it is used as a stop criterium. This means that for ISA-L the very last symbol, the end-of-block
      * symbol, might not be read from the input stream and, therefore, the exactUntilOffset was not reached.
@@ -353,7 +352,7 @@ decodeWithDecodeBlockWithInflateWrapper( UniqueFileReader&& fileReader )
     return ChunkFetcher::decodeBlockWithInflateWrapper<InflateWrapper>(
         bitReader,
         bitReader.tell(),
-        /* exactUntilOffset */ bitReader.size(),
+        /* exactUntilOffset */ bitReader.size().value(),
         /* window */ {},
         /* decodedSize */ std::nullopt,
         /* crc32Enabled */ true );

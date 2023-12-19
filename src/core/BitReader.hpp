@@ -136,8 +136,8 @@ public:
     [[nodiscard]] bool
     eof() const override final
     {
-        if ( seekable() ) {
-            return tell() >= size();
+        if ( const auto fileSize = size(); seekable() && fileSize.has_value() ) {
+            return tell() >= *fileSize;
         }
         return ( m_inputBufferPosition >= m_inputBuffer.size() ) && ( !m_file || m_file->eof() );
     }
@@ -475,10 +475,18 @@ public:
     seek( long long int offsetBits,
           int           origin = SEEK_SET ) override final;
 
-    [[nodiscard]] size_t
+    [[nodiscard]] std::optional<size_t>
     size() const override final
     {
-        return ( m_file ? m_file->size() : m_inputBuffer.size() ) * CHAR_BIT;
+        auto sizeInBytes = m_inputBuffer.size();
+        if ( m_file ) {
+            const auto fileSize = m_file->size();
+            if ( !fileSize ) {
+                return std::nullopt;
+            }
+            sizeInBytes = *fileSize;
+        }
+        return sizeInBytes * CHAR_BIT;
     }
 
     [[nodiscard]] const std::vector<std::uint8_t>&
@@ -793,26 +801,36 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
     long long int offsetBits,
     int           origin )
 {
-    switch ( origin )
-    {
-    case SEEK_CUR:
-        offsetBits = tell() + offsetBits;
-        break;
-    case SEEK_SET:
-        break;
-    case SEEK_END:
-        offsetBits = size() + offsetBits;
-        break;
+    if ( origin == SEEK_END ) {
+        const auto fileSize = size();
+        if ( !fileSize.has_value() ) {
+            if ( !m_file ) {
+                throw std::logic_error( "File has already been closed!" );
+            }
+
+            if ( !m_file->seekable() ) {
+                throw std::logic_error( "File is not seekable!" );
+            }
+
+            const auto realFileSize = static_cast<long long int>( m_file->seek( 0, SEEK_END ) );
+            /* Because we have seeked to get the full size, we have to force a full seek
+             * to restore a valid file position for the next refillBuffer call. */
+            const auto absoluteOffset = saturatingAddition( std::min( offsetBits, 0LL ), realFileSize );
+            return fullSeek( static_cast<size_t>( std::max( absoluteOffset, 0LL ) ) );
+        }
     }
 
-    offsetBits = std::clamp( offsetBits, 0LL, static_cast<long long int>( size() ) );
+    const auto positiveOffsetBits = effectiveOffset( offsetBits, origin );
 
-    if ( static_cast<size_t>( offsetBits ) == tell() ) {
-        return static_cast<size_t>( offsetBits );
+    if ( positiveOffsetBits == tell() ) {
+        return positiveOffsetBits;
     }
 
-    if ( !seekable() && ( static_cast<size_t>( offsetBits ) < tell() ) ) {
-        throw std::invalid_argument( "File is not seekable!" );
+    if ( !seekable() && ( positiveOffsetBits < tell() ) ) {
+        std::stringstream message;
+        message << "File is not seekable! Requested to seek to " << formatBits( positiveOffsetBits )
+                << ". Currently at: " << formatBits( tell() );
+        throw std::invalid_argument( std::move( message ).str() );
     }
 
     /* Currently, buffer-only is not supported, use BufferedFileReader as a memory-only file reader! */
@@ -821,11 +839,12 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
     }
 
     /* Performance optimizations for faster seeking inside the buffer to avoid expensive refillBuffer calls. */
-    if ( const auto relativeOffsets = offsetBits - static_cast<long long int>( tell() ); relativeOffsets >= 0 ) {
+    if ( positiveOffsetBits >= tell() ) {
+        const auto relativeOffsets = positiveOffsetBits - tell();
         /* Seek forward inside bit buffer. */
         if ( static_cast<size_t>( relativeOffsets ) <= bitBufferSize() ) {
             seekAfterPeek( static_cast<decltype( bitBufferSize() )>( relativeOffsets ) );
-            return static_cast<size_t>( offsetBits );
+            return positiveOffsetBits;
         }
 
         /* Seek forward inside byte buffer. */
@@ -838,16 +857,17 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
                 read( stillToSeek % CHAR_BIT );
             }
 
-            return static_cast<size_t>( offsetBits );
+            return positiveOffsetBits;
         }
     } else {  /* Seek back. */
+        const auto relativeOffsets = tell() - positiveOffsetBits;
         /* Seek back inside bit buffer. */
-        if ( static_cast<size_t>( -relativeOffsets ) + bitBufferSize() <= m_originalBitBufferSize ) {
-            m_bitBufferFree -= static_cast<decltype( bitBufferSize() )>( -relativeOffsets );
-            return static_cast<size_t>( offsetBits );
+        if ( relativeOffsets + bitBufferSize() <= m_originalBitBufferSize ) {
+            m_bitBufferFree -= static_cast<decltype( bitBufferSize() )>( relativeOffsets );
+            return positiveOffsetBits;
         }
 
-        const auto seekBackWithBuffer = -relativeOffsets + bitBufferSize();
+        const auto seekBackWithBuffer = relativeOffsets + bitBufferSize();
         const auto bytesToSeekBack = static_cast<size_t>( ceilDiv( seekBackWithBuffer, CHAR_BIT ) );
         /* Seek back inside byte buffer. */
         if ( bytesToSeekBack <= m_inputBufferPosition ) {
@@ -859,11 +879,11 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
                 read( static_cast<uint8_t>( bitsToSeekForward ) );
             }
 
-            return static_cast<size_t>( offsetBits );
+            return positiveOffsetBits;
         }
     }
 
-    return fullSeek( static_cast<size_t>( offsetBits ) );
+    return fullSeek( positiveOffsetBits );
 }
 
 
@@ -891,7 +911,10 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::fullSeek( size_t offsetBits )
             std::stringstream msg;
             msg << "[BitReader] Could not seek to specified byte " << bytesToSeek
                 << " subbit " << static_cast<int>( subBitsToSeek )
-                << ", size: " << m_file->size()
+                << ", SharedFileReader: " << ( dynamic_cast<SharedFileReader*>( m_file.get() ) != nullptr )
+                << ", SinglePassFileReader: " << ( dynamic_cast<SinglePassFileReader*>( m_file.get() ) != nullptr )
+                << ", tell: " << m_file->tell()
+                << ", size: " << m_file->size().value_or( 0 )
                 << ", feof: " << m_file->eof()
                 << ", ferror: " << m_file->fail()
                 << ", newPosition: " << newPosition;

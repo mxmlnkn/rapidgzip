@@ -86,23 +86,11 @@ public:
     seek( long long int offset,
           int           origin = SEEK_SET ) override
     {
-        switch ( origin )
-        {
-        case SEEK_SET:
-            m_currentPosition = std::min( static_cast<size_t>( std::max( 0ll, offset ) ), m_data.size() );
-            break;
-        case SEEK_CUR:
-            m_currentPosition = std::max( 0ll, static_cast<long long int>( m_currentPosition ) + offset );
-            break;
-        case SEEK_END:
-            m_currentPosition = std::max( 0ll, static_cast<long long int>( m_data.size() ) + offset );
-            break;
-        }
-
+        m_currentPosition = effectiveOffset( offset, origin );
         return m_currentPosition;
     }
 
-    [[nodiscard]] size_t
+    [[nodiscard]] std::optional<size_t>
     size() const override
     {
         return m_data.size();

@@ -2,7 +2,10 @@
 
 #include <array>
 #include <stdexcept>
+#include <type_traits>
 #include <vector>
+
+#include "FasterVector.hpp"
 
 
 /**
@@ -30,9 +33,19 @@ public:
     constexpr VectorView<T>&
     operator=( VectorView<T>&& ) noexcept = default;
 
+    template<typename Container,
+             std::enable_if_t<std::is_same_v<Container, std::vector<T> >
+                              || std::is_same_v<Container, FasterVector<T> >
+                              || ( ( std::is_same_v<T, uint8_t>
+                                     || std::is_same_v<T, char>
+                                     || std::is_same_v<T, std::byte> ) &&
+                                   ( std::is_same_v<typename Container::value_type, uint8_t>
+                                     || std::is_same_v<typename Container::value_type, char>
+                                     || std::is_same_v<typename Container::value_type, std::byte> ) )
+             >* = nullptr>
     constexpr
-    VectorView( const std::vector<T>& vector ) noexcept :
-        m_data( vector.data() ),
+    VectorView( const Container& vector ) noexcept :
+        m_data( reinterpret_cast<const T*>( vector.data() ) ),
         m_size( vector.size() )
     {}
 

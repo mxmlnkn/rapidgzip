@@ -53,6 +53,13 @@ target_link_libraries(testPrecodeCheck PRIVATE librapidgzip)
 add_test(NAME Test-Precode-Check COMMAND testPrecodeCheck)
 add_dependencies(all_tests testPrecodeCheck)
 
+add_executable(testCLI)
+target_sources(testCLI PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testCLI.cpp)
+target_include_directories(testCLI PRIVATE ${CMAKE_CURRENT_LIST_DIR}/../../tools)
+target_link_libraries(testCLI PRIVATE librapidgzip cxxopts)
+add_test(NAME Test-CLI COMMAND testCLI)
+add_dependencies(all_tests testCLI)
+
 add_executable(testCRC32)
 target_sources(testCRC32 PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testCRC32.cpp)
 target_link_libraries(testCRC32 PRIVATE librapidgzip)

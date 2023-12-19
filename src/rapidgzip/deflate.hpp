@@ -343,6 +343,7 @@ public:
     struct {
         uint64_t literal{ 0 };
         uint64_t backreference{ 0 };
+        uint64_t copies{ 0 };
     } symbolTypes;
 
     /* These are cumulative counters but they can be manually reset before calls to readHeader. */
@@ -384,6 +385,7 @@ class Block :
 {
 public:
     using CompressionType = deflate::CompressionType;
+    using Backreference = std::pair<uint16_t, uint16_t>;
 
 public:
     [[nodiscard]] bool
@@ -506,6 +508,24 @@ public:
         return m_literalCL;
     }
 
+    void
+    setTrackBackreferences( bool enable ) noexcept
+    {
+        m_trackBackreferences = enable;
+    }
+
+    [[nodiscard]] bool
+    trackBackreferences() const noexcept
+    {
+        return m_trackBackreferences;
+    }
+
+    [[nodiscard]] const std::vector<Backreference>&
+    backreferences() const noexcept
+    {
+        return m_backreferences;
+    }
+
 private:
     template<typename Window>
     forceinline void
@@ -521,7 +541,8 @@ private:
     forceinline void
     resolveBackreference( Window&        window,
                           const uint16_t distance,
-                          const uint16_t length );
+                          const uint16_t length,
+                          const size_t   nBytesRead );
 
     template<typename Window>
     [[nodiscard]] std::pair<size_t, Error>
@@ -686,6 +707,10 @@ private:
      */
     size_t m_distanceToLastMarkerByte{ 0 };
 
+    bool m_trackBackreferences{ false };
+    size_t m_decodedBytesAtBlockStart{ 0 };
+    std::vector<Backreference> m_backreferences;
+
     /* Large buffers required only temporarily inside readHeader. */
     alignas( 64 ) std::array<uint8_t, MAX_PRECODE_COUNT> m_precodeCL;
     alignas( 64 ) PrecodeHuffmanCoding m_precodeHC;
@@ -698,7 +723,12 @@ template<bool treatLastBlockAsError>
 Error
 Block<ENABLE_STATISTICS>::readHeader( BitReader& bitReader )
 {
-    m_isLastBlock = bitReader.read<1>();
+    try {
+        m_isLastBlock = bitReader.read<1>();
+    } catch ( const BitReader::EndOfFileReached& ) {
+        return Error::END_OF_FILE;
+    }
+
     if constexpr ( treatLastBlockAsError ) {
         if ( m_isLastBlock ) {
             return Error::UNEXPECTED_LAST_BLOCK;
@@ -742,6 +772,8 @@ Block<ENABLE_STATISTICS>::readHeader( BitReader& bitReader )
     };
 
     m_atEndOfBlock = false;
+    m_decodedBytesAtBlockStart = m_decodedBytes;
+    m_backreferences.clear();
 
     return error;
 }
@@ -1085,8 +1117,19 @@ template<typename Window>
 inline void
 Block<ENABLE_STATISTICS>::resolveBackreference( Window&        window,
                                                 const uint16_t distance,
-                                                const uint16_t length )
+                                                const uint16_t length,
+                                                const size_t   nBytesRead )
 {
+    if ( m_trackBackreferences ) {
+        if ( m_decodedBytes < m_decodedBytesAtBlockStart ) {
+            throw std::logic_error( "Somehow the decoded bytes counter seems to have shrunk!" );
+        }
+        const auto decodedBytesInBlock = m_decodedBytes - m_decodedBytesAtBlockStart + nBytesRead;
+        if ( distance > decodedBytesInBlock ) {
+            m_backreferences.emplace_back( distance - decodedBytesInBlock, length );
+        }
+    }
+
     constexpr bool containsMarkerBytes = std::is_same_v<std::decay_t<decltype( *window.data() ) >, uint16_t>;
 
     const auto offset = ( m_windowPosition + window.size() - distance ) % window.size();
@@ -1277,6 +1320,9 @@ Block<ENABLE_STATISTICS>::readInternalCompressed( BitReader&           bitReader
 
         const auto length = getLength( code, bitReader );
         if ( length != 0 ) {
+            if constexpr ( ENABLE_STATISTICS ) {
+                symbolTypes.copies += length;
+            }
             const auto [distance, error] = getDistance( bitReader );
             if ( error != Error::NONE ) {
                 return { nBytesRead, error };
@@ -1288,7 +1334,7 @@ Block<ENABLE_STATISTICS>::readInternalCompressed( BitReader&           bitReader
                 }
             }
 
-            resolveBackreference( window, distance, length );
+            resolveBackreference( window, distance, length, nBytesRead );
             nBytesRead += length;
         }
     }
@@ -1357,6 +1403,9 @@ Block<ENABLE_STATISTICS>::readInternalCompressedIsal
              * extra bits. Then write out the corresponding data and update the state data accordingly. */
             const auto length = symbol - 254U;
             if ( length != 0 ) {
+                if constexpr ( ENABLE_STATISTICS ) {
+                    symbolTypes.copies += length;
+                }
                 const auto [distance, error] = getDistance( bitReader );
                 if ( error != Error::NONE ) {
                     return { nBytesRead, error };
@@ -1368,7 +1417,7 @@ Block<ENABLE_STATISTICS>::readInternalCompressedIsal
                     }
                 }
 
-                resolveBackreference( window, distance, length );
+                resolveBackreference( window, distance, length, nBytesRead );
                 nBytesRead += length;
             }
         }

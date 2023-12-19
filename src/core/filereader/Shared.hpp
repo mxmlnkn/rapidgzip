@@ -17,6 +17,7 @@
 #include <Statistics.hpp>
 
 #include "FileReader.hpp"
+#include "SinglePass.hpp"
 #ifndef _MSC_VER
     #include "Standard.hpp"
 #endif
@@ -37,7 +38,7 @@ private:
         m_mutex( dynamic_cast<SharedFileReader*>( file ) == nullptr
                  ? std::make_shared<std::mutex>()
                  : dynamic_cast<SharedFileReader*>( file )->m_mutex ),
-        m_fileSizeBytes( file == nullptr ? 0 : file->size() ),
+        m_fileSizeBytes( file == nullptr ? std::make_optional<size_t>( 0 ) : file->size() ),
         m_currentPosition( file == nullptr ? 0 : file->tell() )
     {
         if ( file == nullptr ) {
@@ -82,6 +83,8 @@ public:
     ~SharedFileReader()
     {
         if ( m_statistics && m_statistics->showProfileOnDestruction && ( m_statistics.use_count() == 1 ) ) {
+            const auto nTimesRead = m_fileSizeBytes ? m_statistics->read.sum / *m_fileSizeBytes : 0;
+
             std::cerr << ( ThreadSafeOutput()
                 << "[SharedFileReader::~SharedFileReader]\n"
                 << "   seeks back    : (" << m_statistics->seekBack.formatAverageWithUncertainty( true )
@@ -92,8 +95,8 @@ public:
                 << " ) B (" << m_statistics->read.count << "calls )\n"
                 << "   locks         :" << m_statistics->locks << "\n"
                 << "   read in total" << static_cast<uint64_t>( m_statistics->read.sum )
-                << "B out of" << m_fileSizeBytes << "B,"
-                << "i.e., read the file" << m_statistics->read.sum / m_fileSizeBytes << "times\n"
+                << "B out of" << size().value_or( 0 ) << "B,"
+                << "i.e., read the file" << nTimesRead << "times\n"
                 << "   time spent seeking and reading:" << m_statistics->readingTime << "s\n"
             );
         }
@@ -162,7 +165,8 @@ public:
     eof() const override
     {
         /* m_sharedFile->eof() won't work because some other thread might set the EOF bit on the underlying file! */
-        return m_currentPosition >= m_fileSizeBytes;
+        const auto fileSize = size();
+        return fileSize ? m_currentPosition >= *fileSize : false;
     }
 
     [[nodiscard]] bool
@@ -192,29 +196,35 @@ public:
         return true;
     }
 
-    [[nodiscard]] size_t
+    [[nodiscard]] std::optional<size_t>
     size() const override
     {
-        return m_fileSizeBytes;
+        if ( m_fileSizeBytes.has_value() ) {
+            return m_fileSizeBytes;
+        }
+
+        const auto lock = getLock();
+        return m_sharedFile ? m_sharedFile->size() : std::nullopt;
     }
 
     size_t
     seek( long long int offset,
           int           origin = SEEK_SET ) override
     {
-        switch ( origin )
-        {
-        case SEEK_CUR:
-            offset += static_cast<long long int>( m_currentPosition );
-            break;
-        case SEEK_SET:
-            break;
-        case SEEK_END:
-            offset += static_cast<long long int>( m_fileSizeBytes );
-            break;
+        if ( ( origin == SEEK_END ) && !size().has_value() ) {
+            const auto fileLock = getLock();
+            offset = m_sharedFile->seek( offset, origin );
+            /* File size must have become available when seeking relative to end. */
+            m_fileSizeBytes = m_sharedFile->size();
+
+            m_currentPosition = static_cast<size_t>( std::max( 0LL, offset ) );
+            if ( const auto fileSize = size(); fileSize ) {
+                m_currentPosition = std::min( m_currentPosition, *fileSize );
+            }
+        } else {
+            m_currentPosition = effectiveOffset( offset, origin );
         }
 
-        m_currentPosition = std::min( static_cast<size_t>( std::max( 0LL, offset ) ), m_fileSizeBytes );
         return m_currentPosition;
     }
 
@@ -243,28 +253,43 @@ public:
             throw std::invalid_argument( "Invalid SharedFileReader cannot be read from!" );
         }
 
-        nMaxBytesToRead = std::min( nMaxBytesToRead, m_fileSizeBytes - m_currentPosition );
+        const auto fileSize = size();
 
         const auto t0 = now();
         size_t nBytesRead{ 0 };
     #ifndef _MSC_VER
-        if ( m_fileDescriptor >= 0 ) {
+        if ( m_usePread && ( m_fileDescriptor >= 0 ) && fileSize.has_value() && sharedFile->seekable() ) {
             /* This statistic only approximates the actual pread behavior. The OS can probably reorder
              * concurrent pread calls and we would have to enclose pread itself in a lock, which defeats
              * the purpose of pread for speed. */
             if ( m_statistics && m_statistics->enabled ) {
                 const std::scoped_lock lock{ m_statistics->mutex };
-                const auto oldOffset = m_statistics->lastAccessOffset;
-                if ( m_currentPosition > oldOffset ) {
-                    m_statistics->seekForward.merge( m_currentPosition - oldOffset );
-                } else if ( m_currentPosition < oldOffset ) {
-                    m_statistics->seekBack.merge( oldOffset - m_currentPosition );
+
+                auto oldOffset = static_cast<size_t>( m_statistics->lastAccessOffset );
+                auto newOffset = m_currentPosition;
+                if ( m_fileSizeBytes ) {
+                    oldOffset = std::min( oldOffset, *m_fileSizeBytes );
+                    newOffset = std::min( newOffset, *m_fileSizeBytes );
                 }
-                m_statistics->lastAccessOffset = m_currentPosition;
+
+                if ( newOffset > oldOffset ) {
+                    m_statistics->seekForward.merge( newOffset - oldOffset );
+                } else if ( newOffset < oldOffset ) {
+                    m_statistics->seekBack.merge( oldOffset - newOffset );
+                }
+                m_statistics->lastAccessOffset = newOffset;
             }
 
+            nMaxBytesToRead = std::min( nMaxBytesToRead, *fileSize - m_currentPosition );
             const auto nBytesReadWithPread = ::pread( sharedFile->fileno(), buffer, nMaxBytesToRead,
                                                       m_currentPosition );
+            if ( ( nBytesReadWithPread == 0 ) && !m_fileSizeBytes.has_value() ) {
+                /* EOF reached. A lock should not be necessary because the file size should not change after EOF has
+                 * has been reached but, as it will only be locked once, the performance overhead is negligible
+                 * for the amount of security it brings against weird implementations for m_sharedFile. */
+                const auto fileLock = getLock();
+                m_fileSizeBytes = sharedFile->size();
+            }
             if ( nBytesReadWithPread < 0 ) {
                 throw std::runtime_error( "Failed to read from file!" );
             }
@@ -288,6 +313,9 @@ public:
             sharedFile->clearerr();
             sharedFile->seek( m_currentPosition, SEEK_SET );
             nBytesRead = sharedFile->read( buffer, nMaxBytesToRead );
+            if ( ( nBytesRead == 0 ) && !m_fileSizeBytes ) {
+                m_fileSizeBytes = sharedFile->size();
+            }
         }
 
         if ( m_statistics && m_statistics->enabled ) {
@@ -312,6 +340,28 @@ public:
     {
         throw std::invalid_argument( "Not implemented because after clearing error another thread might "
                                      "set an error again right away, which makes this interface useless." );
+    }
+
+    /**
+     * @return Raw pointer to underlying FileReader and lock, which acts as a kind of borrow together.
+     *         The raw pointer must not be used after the lock has been destroyed.
+     */
+    [[nodiscard]] std::pair<std::unique_lock<std::mutex>, FileReader*>
+    underlyingFile()
+    {
+        return std::pair<std::unique_lock<std::mutex>, FileReader*>( std::unique_lock( *m_mutex ), m_sharedFile.get() );
+    }
+
+    void
+    setUsePread( bool use )
+    {
+        m_usePread = use;
+    }
+
+    [[nodiscard]] bool
+    usePread() const noexcept
+    {
+        return m_usePread;
     }
 
 private:
@@ -345,13 +395,15 @@ private:
     const std::shared_ptr<std::mutex> m_mutex;
 
     /** This is only for performance to avoid querying the file. */
-    const size_t m_fileSizeBytes;
+    std::optional<size_t> m_fileSizeBytes;
 
     /**
      * This is the independent file pointer that this class offers! Each seek call will only update this and
      * each read call will seek to this offset in an atomic manner before reading from the underlying file.
      */
     size_t m_currentPosition{ 0 };
+
+    bool m_usePread{ true };
 };
 
 
@@ -366,5 +418,10 @@ ensureSharedFileReader( UniqueFileReader&& fileReader )
         fileReader.release();
         return std::unique_ptr<SharedFileReader>( casted );
     }
+
+    if ( !fileReader->seekable() ) {
+        return std::make_unique<SharedFileReader>( std::make_unique<SinglePassFileReader>( std::move( fileReader ) ) );
+    }
+
     return std::make_unique<SharedFileReader>( std::move( fileReader ) );
 }

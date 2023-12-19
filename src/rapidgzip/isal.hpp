@@ -40,7 +40,11 @@ public:
                         const size_t untilOffset = std::numeric_limits<size_t>::max() ) :
         m_bitReader( std::move( bitReader ) ),
         m_encodedStartOffset( m_bitReader.tell() ),
-        m_encodedUntilOffset( std::min( m_bitReader.size(), untilOffset ) )
+        m_encodedUntilOffset(
+            [untilOffset] ( const auto& size ) {
+                return size ? std::min( *size, untilOffset ) : untilOffset;
+            } ( m_bitReader.size() )
+        )
     {
         initStream();
     }
@@ -243,6 +247,7 @@ IsalInflateWrapper::readStream( uint8_t* const output,
          * src/tests/data/wikidata-20220103-all.json.gz-379508635534b--379510732698b.deflate
          */
         const auto oldPosition = std::make_tuple( m_stream.avail_in, m_stream.read_in_length, m_stream.total_out );
+        const auto oldUnusedBits = getUnusedBits();  // Only used for debug output.
 
         /* == actual ISA-L inflate call == */
         const auto errorCode = isal_inflate( &m_stream );
@@ -254,12 +259,36 @@ IsalInflateWrapper::readStream( uint8_t* const output,
             message << "[IsalInflateWrapper][Thread " << std::this_thread::get_id() << "] "
                     << "Decoding failed with error code " << errorCode << ": " << getErrorString( errorCode )
                     << "! Already decoded " << m_stream.total_out << " B. "
-                    << "Bit range to decode: [" << m_encodedStartOffset << ", " << m_encodedUntilOffset << "]. ";
+                    << "Read " << formatBits( oldUnusedBits - getUnusedBits() ) << " during the failing isal_inflate "
+                    << "from offset " << formatBits( m_bitReader.tell() - oldUnusedBits ) << ". "
+                    << "Bit range to decode: [" << m_encodedStartOffset << ", " << m_encodedUntilOffset << "]. "
+                    << "BitReader::size: " << m_bitReader.size().value_or( 0 ) << ".";
+
             if ( m_setWindowSize ) {
-                message << "Set window size: " << *m_setWindowSize << " B.";
+                message << " Set window size: " << *m_setWindowSize << " B.";
             } else {
-                message << "No window was set.";
+                message << " No window was set.";
             }
+
+        #ifndef NDEBUG
+            message << " First bytes: 0x\n";
+            const auto oldOffset = m_bitReader.tell();
+            m_bitReader.seek( m_encodedStartOffset );
+            size_t nPrintedBytes{ 0 };
+            for ( size_t offset = m_encodedStartOffset;
+                  ( !m_bitReader.size() || ( offset < *m_bitReader.size() ) ) && ( nPrintedBytes < 128 );
+                  offset += BYTE_SIZE, ++nPrintedBytes )
+            {
+                if ( ( offset / BYTE_SIZE ) % 16 == 0 ) {
+                    message << '\n';
+                } else if ( ( offset / BYTE_SIZE ) % 8 == 0 ) {
+                    message << ' ';
+                }
+                message << ' ' << std::setw( 2 ) << std::setfill( '0' ) << std::hex << m_bitReader.read<BYTE_SIZE>();
+            }
+            m_bitReader.seek( oldOffset );
+        #endif
+
             throw std::runtime_error( std::move( message ).str() );
         }
 

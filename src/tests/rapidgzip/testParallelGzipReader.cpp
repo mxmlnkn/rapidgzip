@@ -87,11 +87,13 @@ testParallelDecoder( UniqueFileReader         encoded,
     ParallelGzipReader reader( std::move( encoded ), /* parallelization */ 0, nBlocksToSkip * 32_Ki );
     reader.setCRC32Enabled( true );
     if ( index ) {
-        reader.setBlockOffsets( *index );
+        reader.setBlockOffsets( std::move( *index ) );
         REQUIRE( reader.blockOffsetsComplete() );
     }
 
-    std::vector<char> result( decoded->size() * 2 );
+    const auto decodedSize = decoded->size().value();
+
+    std::vector<char> result( decodedSize * 2 );
     size_t nBytesRead{ 0 };
     if ( readInChunks ) {
         static constexpr size_t CHUNK_SIZE = 4_Ki;
@@ -107,11 +109,11 @@ testParallelDecoder( UniqueFileReader         encoded,
     } else {
         nBytesRead = reader.read( result.data(), std::max( size_t( 1 ), result.size() ) );
     }
-    REQUIRE( nBytesRead == decoded->size() );
+    REQUIRE( nBytesRead == decodedSize );
     result.resize( nBytesRead );
     REQUIRE( reader.eof() );
 
-    std::vector<char> decodedBuffer( decoded->size() );
+    std::vector<char> decodedBuffer( decodedSize );
     const auto nDecodedBytesRead = decoded->read( decodedBuffer.data(), decodedBuffer.size() );
     REQUIRE( nDecodedBytesRead == decodedBuffer.size() );
     REQUIRE( result == decodedBuffer );
@@ -119,7 +121,7 @@ testParallelDecoder( UniqueFileReader         encoded,
     if ( result != decodedBuffer ) {
         for ( size_t i = 0; i < result.size(); ++i ) {
             if ( result[i] != decodedBuffer[i] ) {
-                std::cerr << "Decoded contents differ at position " << i << " B out of " << decoded->size() << " B: "
+                std::cerr << "Decoded contents differ at position " << i << " B out of " << decodedSize << " B: "
                           << "Decoded != Truth: "
                           << result[i] << " != " << decodedBuffer[i] << " ("
                           << (int)result[i] << " != " << (int)decodedBuffer[i] << ")\n";
@@ -159,14 +161,14 @@ testParallelDecoder( const std::filesystem::path& encoded,
         for ( const size_t nBlocksToSkip : blocksToSkip ) {
             testParallelDecoder( std::make_unique<StandardFileReader>( encoded.string() ),
                                  std::make_unique<StandardFileReader>( decodedFilePath.string() ),
-                                 givenIndexData,
+                                 givenIndexData.clone(),
                                  nBlocksToSkip,
                                  /* readInChunks */ true );
         }
         for ( const size_t nBlocksToSkip : blocksToSkip ) {
             testParallelDecoder( std::make_unique<StandardFileReader>( encoded.string() ),
                                  std::make_unique<StandardFileReader>( decodedFilePath.string() ),
-                                 givenIndexData,
+                                 givenIndexData.clone(),
                                  nBlocksToSkip );
         }
     }
@@ -175,15 +177,15 @@ testParallelDecoder( const std::filesystem::path& encoded,
     {
         std::cerr << "Testing " << encoded.filename() << " with generated index ("
                   << std::filesystem::file_size( encoded ) << " B)\n";
-        GzipIndex generatedIndex;
-        {
-            ParallelGzipReader reader( std::make_unique<StandardFileReader>( encoded.string() ) );
-            generatedIndex = reader.gzipIndex();
-        }
+        const auto generatedIndex =
+            [&] {
+                ParallelGzipReader reader( std::make_unique<StandardFileReader>( encoded.string() ) );
+                return reader.gzipIndex();
+            } ();
         for ( const size_t nBlocksToSkip : blocksToSkip ) {
             testParallelDecoder( std::make_unique<StandardFileReader>( encoded.string() ),
                                  std::make_unique<StandardFileReader>( decodedFilePath.string() ),
-                                 generatedIndex,
+                                 generatedIndex.clone(),
                                  nBlocksToSkip );
         }
     }
@@ -238,7 +240,7 @@ testParallelDecodingWithIndex( const TemporaryDirectory& tmpFolder )
     for ( const size_t nBlocksToSkip : { 0, 1, 2, 4, 8, 16, 24, 32, 64, 128 } ) {
         testParallelDecoder( std::make_unique<StandardFileReader>( encodedFile ),
                              std::make_unique<StandardFileReader>( decodedFile ),
-                             realIndex, nBlocksToSkip );
+                             realIndex.clone(), nBlocksToSkip );
     }
 
     std::cerr << "Test exporting and reimporting index.\n";
@@ -252,20 +254,32 @@ testParallelDecodingWithIndex( const TemporaryDirectory& tmpFolder )
     REQUIRE_EQUAL( reconstructedIndex.windowSizeInBytes, 32_Ki );
     REQUIRE( reconstructedIndex.checkpointSpacing >= reconstructedIndex.windowSizeInBytes );
     REQUIRE_EQUAL( reconstructedIndex.checkpoints.size(), realIndex.checkpoints.size() );
+
+    if ( !realIndex.windows ) {
+        throw std::logic_error( "Real index window map is not set!" );
+    }
+    if ( !reconstructedIndex.windows ) {
+        throw std::logic_error( "Reconstructed index window map is not set!" );
+    }
+
     if ( reconstructedIndex.checkpoints.size() == realIndex.checkpoints.size() ) {
         for ( size_t i = 0; i < reconstructedIndex.checkpoints.size(); ++i ) {
             const auto& reconstructed = reconstructedIndex.checkpoints[i];
             const auto& real = realIndex.checkpoints[i];
             REQUIRE_EQUAL( reconstructed.compressedOffsetInBits, real.compressedOffsetInBits );
             REQUIRE_EQUAL( reconstructed.uncompressedOffsetInBytes, real.uncompressedOffsetInBytes );
-            REQUIRE_EQUAL( reconstructed.window.size(), real.window.size() );
-            REQUIRE( reconstructed.window == real.window );
+
+            const auto reconstructedWindow = reconstructedIndex.windows->get( reconstructed.compressedOffsetInBits );
+            const auto realWindow = realIndex.windows->get( real.compressedOffsetInBits );
+            REQUIRE( reconstructedWindow.has_value() );
+            REQUIRE( realWindow.has_value() );
         }
     }
+    REQUIRE( *reconstructedIndex.windows == *realIndex.windows );
 
     testParallelDecoder( std::make_unique<StandardFileReader>( encodedFile ),
                          std::make_unique<StandardFileReader>( decodedFile ),
-                         reconstructedIndex );
+                         reconstructedIndex.clone() );
 
     const auto writtenIndexFile = tmpFolder.path() / "decoded.gz.written-index";
     {
@@ -290,7 +304,7 @@ testParallelDecodingWithIndex( const TemporaryDirectory& tmpFolder )
 
     testParallelDecoder( std::make_unique<StandardFileReader>( encodedFile ),
                          std::make_unique<StandardFileReader>( decodedFile ),
-                         rewrittenIndex );
+                         rewrittenIndex.clone() );
 }
 
 
@@ -611,7 +625,8 @@ testCRC32AndCleanUnmarkedDataWithRandomDNA()
      * enough to have multiple chunks with fairly little uncompressed data. */
     constexpr auto UNCOMPRESSED_SIZE = 10_Mi;
     const auto randomDNA = createRandomData( UNCOMPRESSED_SIZE, DNA_SYMBOLS );
-    const auto compressedRandomDNA = compressWithZlib( randomDNA, CompressionStrategy::HUFFMAN_ONLY );
+    const auto compressedRandomDNA =
+        compressWithZlib<std::vector<std::byte> >( randomDNA, CompressionStrategy::HUFFMAN_ONLY );
     const auto compressionRatio = static_cast<double>( UNCOMPRESSED_SIZE )
                                   / static_cast<double>( compressedRandomDNA.size() );
     std::cerr << "Random DNA compression ratio: " << compressionRatio << "\n";  // 3.54874
@@ -647,7 +662,7 @@ testCRC32AndCleanUnmarkedDataWithRandomBackreferences()
     std::cout << "Created " << formatBytes( randomData.size() )
               << " data with random backreferences in " << creationDuration << " s\n";
 
-    const auto compressed = compressWithZlib( randomData );
+    const auto compressed = compressWithZlib<std::vector<std::byte> >( randomData );
 
     testCRC32AndCleanUnmarkedData( randomData, compressed );
 }

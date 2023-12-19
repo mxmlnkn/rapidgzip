@@ -20,7 +20,8 @@
 #include <rapidgzip.hpp>
 #include <Statistics.hpp>
 
-#include "licenses.cpp"
+#include "CLIHelper.hpp"
+#include "licenses.hpp"
 
 
 struct Arguments
@@ -35,7 +36,7 @@ struct Arguments
 
 
 void
-printHelp( const cxxopts::Options& options )
+printRapidgzipHelp( const cxxopts::Options& options )
 {
     std::cout
     << options.help()
@@ -55,20 +56,6 @@ printHelp( const cxxopts::Options& options )
     << "List information about all gzip streams and deflate blocks:\n"
     << "  rapidgzip --analyze file.gz\n"
     << std::endl;
-}
-
-
-std::string
-getFilePath( cxxopts::ParseResult const& parsedArgs,
-             std::string          const& argument )
-{
-    if ( parsedArgs.count( argument ) > 0 ) {
-        auto path = parsedArgs[argument].as<std::string>();
-        if ( path != "-" ) {
-            return path;
-        }
-    }
-    return {};
 }
 
 
@@ -112,6 +99,7 @@ decompressParallel( const Arguments&    args,
 {
     reader->setShowProfileOnDestruction( args.verbose );
     reader->setCRC32Enabled( args.crc32Enabled );
+    reader->setKeepIndex( !args.indexSavePath.empty() || !args.indexLoadPath.empty() );
 
     if ( !args.indexLoadPath.empty() ) {
         reader->importIndex( std::make_unique<StandardFileReader>( args.indexLoadPath ) );
@@ -125,7 +113,6 @@ decompressParallel( const Arguments&    args,
 
     if ( !args.indexSavePath.empty() ) {
         const auto file = throwingOpen( args.indexSavePath, "wb" );
-
         const auto checkedWrite =
             [&file] ( const void* buffer, size_t size )
             {
@@ -134,7 +121,7 @@ decompressParallel( const Arguments&    args,
                 }
             };
 
-        writeGzipIndex( reader->gzipIndex(), checkedWrite );
+        reader->exportIndex( checkedWrite );
     }
 
     if ( args.verbose && args.indexLoadPath.empty() && !args.indexSavePath.empty() ) {
@@ -168,17 +155,20 @@ decompressParallel( const Arguments&    args,
 
 
 int
-rapidgzipCLI( int argc, char** argv )
+rapidgzipCLI( int                  argc,
+              char const * const * argv )
 {
+    /* Cleaned, checked, and typed arguments. */
+    Arguments args;
+
     /**
      * @note For some reason implicit values do not mix very well with positional parameters!
      *       Parameters given to arguments with implicit values will be matched by the positional argument instead!
      */
     cxxopts::Options options( "rapidgzip",
                               "A gzip decompressor tool based on the rapidgzip backend from ratarmount" );
-    options.add_options( "Decompression" )
+    options.add_options( "Decompression Options" )
         ( "c,stdout"     , "Output to standard output. This is the default, when reading from standard input." )
-        ( "d,decompress" , "Force decompression. Only for compatibility. No compression supported anyways." )
         ( "f,force"      , "Force overwriting existing output files. "
                            "Also forces decompression even when piped to /dev/null." )
         ( "i,input"      , "Input file. If none is given, data is read from standard input.",
@@ -189,26 +179,29 @@ rapidgzipCLI( int argc, char** argv )
           cxxopts::value<std::string>() )
         ( "k,keep"       , "Keep (do not delete) input file. Only for compatibility. "
                            "This tool will not delete anything automatically!" )
-        ( "analyze"      , "Print output about the internal file format structure like the block types." )
-
-        ( "chunk-size"   , "The chunk size decoded by the parallel workers in KiB.",
-          cxxopts::value<unsigned int>()->default_value( "4096" ) )
-
         ( "P,decoder-parallelism",
           "Use the parallel decoder. "
           "If an optional integer >= 1 is given, then that is the number of decoder threads to use. "
           "Note that there might be further threads being started with non-decoding work. "
           "If 0 is given, then the parallelism will be determined automatically.",
-          cxxopts::value<unsigned int>()->default_value( "0" ) )
+          cxxopts::value<unsigned int>()->default_value( "0" ) );
 
+    options.add_options( "Advanced" )
+        ( "chunk-size", "The chunk size decoded by the parallel workers in KiB.",
+          cxxopts::value<unsigned int>()->default_value( "4096" ) )
         ( "verify", "Verify CRC32 checksum. Will slow down decompression and there are already some implicit "
                     "and explicit checks like whether the end of the file could be reached and whether the stream "
-                    "size is correct. ")
+                    "size is correct. ",
+          cxxopts::value( args.crc32Enabled )->implicit_value( "true" ) )
+        ( "no-verify", "Do not verify CRC32 checksum. Might speed up decompression and there are already some implicit "
+                       "and explicit checks like whether the end of the file could be reached and whether the stream "
+                       "size is correct.",
+          cxxopts::value( args.crc32Enabled )->implicit_value( "false" ) )
+        ( "io-read-method", "Option to force a certain I/O method for reading. By default, pread will be used "
+                            "when possible. Possible values: pread, sequential, locked-read",
+          cxxopts::value<std::string>()->default_value( "pread" ) );
 
-        ( "import-index", "Uses an existing gzip index.", cxxopts::value<std::string>() )
-        ( "export-index", "Write out a gzip index file.", cxxopts::value<std::string>() );
-
-    options.add_options( "Output" )
+    options.add_options( "Output Options" )
         ( "h,help"   , "Print this help message." )
         ( "q,quiet"  , "Suppress noncritical error messages." )
         ( "v,verbose", "Print debug output and profiling statistics." )
@@ -216,9 +209,13 @@ rapidgzipCLI( int argc, char** argv )
         ( "oss-attributions", "Display open-source software licenses." );
 
     /* These options are offered because just piping to other tools can already bottleneck everything! */
-    options.add_options( "Processing" )
-        ( "count"      , "Prints the decompressed size." )
-        ( "l,count-lines", "Prints the number of newline characters in the decompressed data." );
+    options.add_options( "Actions" )
+        ( "d,decompress" , "Force decompression. Only for compatibility. No compression supported anyways." )
+        ( "import-index" , "Uses an existing gzip index.", cxxopts::value<std::string>() )
+        ( "export-index" , "Write out a gzip index file.", cxxopts::value<std::string>() )
+        ( "count"        , "Prints the decompressed size." )
+        ( "l,count-lines", "Prints the number of newline characters in the decompressed data." )
+        ( "analyze"      , "Print output about the internal file format structure like the block types." );
 
     options.parse_positional( { "input" } );
 
@@ -228,13 +225,9 @@ rapidgzipCLI( int argc, char** argv )
 
     const auto parsedArgs = options.parse( argc, argv );
 
-    /* Cleaned, checked, and typed arguments. */
-    Arguments args;
-
     const auto force = parsedArgs["force"].as<bool>();
     const auto quiet = parsedArgs["quiet"].as<bool>();
     args.verbose = parsedArgs["verbose"].as<bool>();
-    args.crc32Enabled = parsedArgs["verify"].as<bool>();
 
     const auto getParallelism = [] ( const auto p ) { return p > 0 ? p : availableCores(); };
     args.decoderParallelism = getParallelism( parsedArgs["decoder-parallelism"].as<unsigned int>() );
@@ -252,13 +245,13 @@ rapidgzipCLI( int argc, char** argv )
     /* Check against simple commands like help and version. */
 
     if ( parsedArgs.count( "help" ) > 0 ) {
-        printHelp( options );
+        printRapidgzipHelp( options );
         return 0;
     }
 
     if ( parsedArgs.count( "version" ) > 0 ) {
         std::cout << "rapidgzip, CLI to the parallelized, indexed, and seekable gzip decoding library rapidgzip "
-                  << "version 0.10.4.\n";
+                  << "version 0.11.0.\n";
         return 0;
     }
 
@@ -296,11 +289,19 @@ rapidgzipCLI( int argc, char** argv )
     }
 
     auto inputFile = openFileOrStdin( inputFilePath );
+    const auto ioReadMethod = parsedArgs["io-read-method"].as<std::string>();
+    if ( ioReadMethod == "sequential" ) {
+        inputFile = std::make_unique<SinglePassFileReader>( std::move( inputFile ) );
+    } else if ( ( ioReadMethod == "locked-read" ) || ( ioReadMethod == "pread" ) ) {
+        auto sharedFile = ensureSharedFileReader( std::move( inputFile ) );
+        sharedFile->setUsePread( ioReadMethod == "pread" );
+        inputFile = std::move( sharedFile );
+    }
 
     /* Check if analysis is requested. */
 
     if ( parsedArgs.count( "analyze" ) > 0 ) {
-        return rapidgzip::deflate::analyze( std::move( inputFile ) ) == rapidgzip::Error::NONE ? 0 : 1;
+        return rapidgzip::deflate::analyze( std::move( inputFile ), args.verbose ) == rapidgzip::Error::NONE ? 0 : 1;
     }
 
     /* Parse action arguments. */
@@ -395,10 +396,12 @@ rapidgzipCLI( int argc, char** argv )
         args.chunkSize = parsedArgs["chunk-size"].as<unsigned int>() * 1_Ki;
 
         size_t totalBytesRead{ 0 };
-        if ( ( outputFileDescriptor == -1 ) && args.indexSavePath.empty() && countBytes && !countLines ) {
+        if ( ( outputFileDescriptor == -1 ) && args.indexSavePath.empty() && countBytes && !countLines
+             && !args.crc32Enabled )
+        {
             /* Need to do nothing with the chunks because decompressParallel returns the decompressed size.
              * Note that we use rapidgzip::ChunkDataCounter to speed up decompression. Therefore an index
-             * will not be created! */
+             * will not be created and there also will be no checksum verification! */
             totalBytesRead = decompressParallel<rapidgzip::ChunkDataCounter>(
                 args, std::move( inputFile ), /* do nothing */ {} );
         } else {
@@ -435,13 +438,13 @@ rapidgzipCLI( int argc, char** argv )
 
     std::cerr << "No suitable arguments were given. Please refer to the help!\n\n";
 
-    printHelp( options );
+    printRapidgzipHelp( options );
 
     return 1;
 }
 
 
-#ifndef WITH_PYTHON_SUPPORT
+#if !defined( WITH_PYTHON_SUPPORT ) && !defined( WITHOUT_MAIN )
 int
 main( int argc, char** argv )
 {

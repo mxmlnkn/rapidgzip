@@ -125,16 +125,21 @@ public:
     tell() const override
     {
         if ( m_atEndOfFile ) {
-            return size();
+            const auto fileSize = size();
+            if ( !fileSize ) {
+                throw std::logic_error( "When the file end has been reached, the block map should have been finalized "
+                                        "and the file size should be available!" );
+            }
+            return *fileSize;
         }
         return m_currentPosition;
     }
 
-    [[nodiscard]] size_t
+    [[nodiscard]] std::optional<size_t>
     size() const override
     {
         if ( !m_blockToDataOffsetsComplete ) {
-            throw std::invalid_argument( "Can't get stream size in BZ2 when not finished reading at least once!" );
+            return std::nullopt;
         }
         return m_blockToDataOffsets.rbegin()->second;
     }
@@ -314,29 +319,22 @@ size_t
 BZ2Reader::seek( long long int offset,
                  int           origin )
 {
-    switch ( origin )
-    {
-    case SEEK_CUR:
-        offset = tell() + offset;
-        break;
-    case SEEK_SET:
-        break;
-    case SEEK_END:
+    if ( origin == SEEK_END ) {
         /* size() requires the block offsets to be available! */
         if ( !m_blockToDataOffsetsComplete ) {
             read();
         }
-        offset = size() + offset;
-        break;
     }
 
-    if ( ( offset > 0 ) && ( static_cast<size_t>( offset ) == tell() ) ) {
-        return static_cast<size_t>( offset );
+    const auto positiveOffset = effectiveOffset( offset, origin );
+
+    if ( positiveOffset == tell() ) {
+        return positiveOffset;
     }
 
     /* When block offsets are not complete yet, emulate forward seeking with a read. */
-    if ( !m_blockToDataOffsetsComplete && ( offset > static_cast<long long int>( tell() ) ) ) {
-        read( -1, nullptr, static_cast<size_t>( offset - tell() ) );
+    if ( !m_blockToDataOffsetsComplete && ( positiveOffset > tell() ) ) {
+        read( -1, nullptr, positiveOffset - tell() );
         return tell();
     }
 
@@ -345,25 +343,24 @@ BZ2Reader::seek( long long int offset,
         read();
     }
 
-    offset = std::max<decltype( offset )>( 0, offset );
-    m_currentPosition = static_cast<size_t>( offset );
+    m_currentPosition = positiveOffset;
 
     flushOutputBuffer();  // ensure that no old data is left over
 
-    m_atEndOfFile = static_cast<size_t>( offset ) >= size();
+    m_atEndOfFile = positiveOffset >= size();
     if ( m_atEndOfFile ) {
-        return size();
+        return tell();
     }
 
     /* find offset from map (key and values are sorted, so we can bisect!) */
     const auto blockOffset = std::lower_bound(
-        m_blockToDataOffsets.rbegin(), m_blockToDataOffsets.rend(), std::make_pair( 0, offset ),
+        m_blockToDataOffsets.rbegin(), m_blockToDataOffsets.rend(), std::make_pair( 0, positiveOffset ),
         [] ( std::pair<size_t, size_t> a, std::pair<size_t, size_t> b ) { return a.second > b.second; } );
 
-    if ( ( blockOffset == m_blockToDataOffsets.rend() ) || ( static_cast<size_t>( offset ) < blockOffset->second ) ) {
+    if ( ( blockOffset == m_blockToDataOffsets.rend() ) || ( positiveOffset < blockOffset->second ) ) {
         throw std::runtime_error( "Could not find block to seek to for given offset" );
     }
-    const auto nBytesSeekInBlock = static_cast<size_t>( offset - blockOffset->second );
+    const auto nBytesSeekInBlock = positiveOffset - blockOffset->second;
 
     m_lastHeader = readBlockHeader( blockOffset->first );
     m_lastHeader.readBlockData();
@@ -377,7 +374,7 @@ BZ2Reader::seek( long long int offset,
         throw std::runtime_error( std::move( msg ).str() );
     }
 
-    return offset;
+    return m_currentPosition;
 }
 
 

@@ -6,6 +6,7 @@ from libc.stdlib cimport malloc, free
 from libc.stdio cimport SEEK_SET
 from libcpp.string cimport string
 from libcpp.map cimport map
+from libcpp.optional cimport optional
 from libcpp.vector cimport vector
 from libcpp cimport bool
 from cpython.buffer cimport PyObject_GetBuffer, PyBuffer_Release, PyBUF_ANY_CONTIGUOUS, PyBUF_SIMPLE
@@ -35,7 +36,7 @@ cdef extern from "indexed_bzip2/BZ2Reader.hpp":
         bool closed() except +
         size_t seek(lli, int) except +
         size_t tell() except +
-        size_t size() except +
+        optional[size_t] size() except +
 
         size_t tellCompressed() except +
         int read(int, char*, size_t) except +
@@ -57,7 +58,7 @@ cdef extern from "indexed_bzip2/ParallelBZ2Reader.hpp":
         bool closed() except +
         size_t seek(lli, int) except +
         size_t tell() except +
-        size_t size() except +
+        optional[size_t] size() except +
 
         size_t tellCompressed() except +
         int read(int, char*, size_t) except +
@@ -159,7 +160,8 @@ cdef class _IndexedBzip2File():
     def size(self):
         if not self.bz2reader:
             raise Exception("Invalid file object!")
-        return self.bz2reader.size()
+        result = self.bz2reader.size()
+        return result.value_or( 0 )
 
     def tell_compressed(self):
         if not self.bz2reader:
@@ -265,7 +267,8 @@ cdef class _IndexedBzip2FileParallel():
     def size(self):
         if not self.bz2reader:
             raise Exception("Invalid file object!")
-        return self.bz2reader.size()
+        result = self.bz2reader.size()
+        return result.value_or( 0 )
 
     def tell_compressed(self):
         if not self.bz2reader:

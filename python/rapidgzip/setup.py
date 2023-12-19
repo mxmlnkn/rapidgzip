@@ -20,6 +20,42 @@ try:
 except ImportError:
     cythonize = None
 
+# Valid options for dependencies:
+#   RAPIDGZIP_BUILD_CXXOPT
+#   RAPIDGZIP_BUILD_ISAL
+#   RAPIDGZIP_BUILD_RPMALLOC
+#   RAPIDGZIP_BUILD_ZLIB
+# Valid values for dependencies:
+#   enable
+#   disable
+#   system
+# Not specifying and option, implies 'enable', which will use the packaged source code for each dependency.
+# cxxopts can not be disabled!
+optionsPrefix = 'RAPIDGZIP_BUILD_'
+buildConfig = {key: value for key, value in os.environ.items() if key.startswith(optionsPrefix)}
+print("\nRapidgzip build options:")
+for key, value in buildConfig.items():
+    print(f"  {key}={value}")
+
+
+def getDependencyOption(key):
+    key = optionsPrefix + key
+    option = buildConfig.get(key, 'enable')
+    validValues = ['enable', 'disable', 'system']
+    if option not in validValues:
+        print(f"Unrecognized option for rapidgzip dependency: {key}={option}. Valid values are: {validValues}")
+    return option if option == 'system' or option == 'enable' else 'disable'
+
+
+withCxxopts = getDependencyOption('CXXOPTS')
+withIsal = getDependencyOption('ISAL')
+withRpmalloc = getDependencyOption('RPMALLOC')
+withZlib = getDependencyOption('ZLIB')
+
+if withCxxopts == 'disable':
+    print("[Warning] Cxxopts can not be disabled! Will enable it.")
+    withCxxopts = 'enable'
+
 # ISA-l does not compile on 32-bit becaue it contains statements such as [bits 64].
 # It simply is not supported and I also don't see a reason. 32-bit should be long dead exactly
 # like almost all (96% according to Steam) PCs have AVX support.
@@ -28,10 +64,20 @@ except ImportError:
 # On aarch64 linux, ISA-L causes:
 #   /bin/ld: external/isa-l/igzip/igzip_decode_block_stateless_01.obj: error adding symbols: file in wrong format
 # -> I need to migrate the ARM build settings to CMake. ISA-L has aarch64 subfolders with assembly files.
-withIsal = shutil.which("nasm") is not None and platform.machine() in ['x86_64', 'AMD64']
+canBuildIsal = shutil.which("nasm") is not None and platform.machine() in ['x86_64', 'AMD64']
+if not canBuildIsal:
+    withIsal = 'disable'
 
-zlib_sources = ['inflate.c', 'crc32.c', 'adler32.c', 'inftrees.c', 'inffast.c', 'zutil.c']
-zlib_sources = ['external/zlib/' + source for source in zlib_sources]
+print("Final rapidgzip build configuration:")
+print(f"  isal: {withIsal}")
+print(f"  zlib: {withZlib}")
+print(f"  rpmalloc: {withRpmalloc}")
+print(f"  cxxopts: {withCxxopts}")
+
+zlib_sources = []
+if withZlib == 'enable':
+    zlib_sources = ['inflate.c', 'crc32.c', 'adler32.c', 'inftrees.c', 'inffast.c', 'zutil.c']
+    zlib_sources = ['external/zlib/' + source for source in zlib_sources]
 
 isal_sources = [
     # "include/igzip_lib.h",
@@ -50,19 +96,32 @@ isal_sources = [
     # "igzip/static_inflate.h",
     "igzip/stdmac.asm",
 ]
-isal_sources = ['external/isa-l/' + source for source in isal_sources] if withIsal else []
+isal_sources = ['external/isa-l/' + source for source in isal_sources] if withIsal == 'enable' else []
 
-include_dirs = ['.', 'core', 'rapidgzip', 'rapidgzip/huffman', 'external/zlib', 'external/cxxopts/include',
-                'external/rpmalloc/rpmalloc']
+include_dirs = [
+    '.',
+    'core',
+    'rapidgzip',
+    'rapidgzip/huffman',
+    'indexed_bzip2',
+]
 isal_includes = ['external/isa-l/include', 'external/isa-l/igzip']
-if withIsal:
+if withIsal == 'enable':
     include_dirs += isal_includes
+if withZlib == 'enable':
+    include_dirs += ['external/zlib']
+if withRpmalloc == 'enable':
+    include_dirs += ['external/rpmalloc/rpmalloc']
+if withCxxopts == 'enable':
+    include_dirs += ['external/cxxopts/include']
+
+rpmalloc_sources = ['external/rpmalloc/rpmalloc/rpmalloc.c'] if withRpmalloc == 'enable' else []
 
 extensions = [
     Extension(
         # fmt: off
         name         = 'rapidgzip',
-        sources      = ['rapidgzip.pyx'] + zlib_sources + isal_sources + ['external/rpmalloc/rpmalloc/rpmalloc.c'],
+        sources      = ['rapidgzip.pyx'] + zlib_sources + isal_sources + rpmalloc_sources,
         include_dirs = include_dirs,
         language     = 'c++',
         # fmt: on
@@ -106,7 +165,7 @@ class Build(build_ext):
         # it even that.
         oldCompile = self.compiler.compile
 
-        if not withIsal:
+        if withIsal == 'disable':
             nasmCompiler = None
         elif sys.platform == "win32":
             from nasm_extension.winnasmcompiler import WinNasmCompiler
@@ -174,12 +233,13 @@ class Build(build_ext):
                 '-O3',
                 '-DNDEBUG',
                 '-DWITH_PYTHON_SUPPORT',
-                '-DWITH_RPMALLOC',
                 '-D_LARGEFILE64_SOURCE=1',
                 '-D_FORTIFY_SOURCE=2',
                 '-D_GLIBCXX_ASSERTIONS',
             ]
-            if nasmCompiler:
+            if withRpmalloc != 'disable':
+                ext.extra_compile_args.append('-DWITH_RPMALLOC')
+            if withIsal != 'disable':
                 ext.extra_compile_args.append('-DWITH_ISAL')
 
             # https://github.com/cython/cython/issues/2670#issuecomment-432212671
@@ -204,19 +264,25 @@ class Build(build_ext):
                     '/O2',
                     '/DNDEBUG',
                     '/DWITH_PYTHON_SUPPORT',
-                    '/DWITH_RPMALLOC',
                     '/constexpr:steps99000100',
                 ]
-                if nasmCompiler:
+                if withRpmalloc != 'disable':
+                    ext.extra_compile_args.append('/DWITH_RPMALLOC')
+                if withIsal != 'disable':
                     ext.extra_compile_args.append('/DWITH_ISAL')
-                # This list is from rpmalloc/build/ninja/msvc.py
-                ext.libraries = ['kernel32', 'user32', 'shell32', 'advapi32']
+                if withRpmalloc != 'disable':
+                    # This list is from rpmalloc/build/ninja/msvc.py
+                    ext.libraries = ['kernel32', 'user32', 'shell32', 'advapi32']
+
             else:
                 # The default limit is ~33 M (1<<25) and 99 M seem to be enough to compile currently on GCC 11.
                 if supportsFlag(self.compiler, '-fconstexpr-ops-limit=99000100'):
                     ext.extra_compile_args += ['-fconstexpr-ops-limit=99000100']
                 elif supportsFlag(self.compiler, '-fconstexpr-steps=99000100'):
                     ext.extra_compile_args += ['-fconstexpr-steps=99000100']
+
+                if sys.platform == 'linux':
+                    ext.extra_compile_args += ['-D_GNU_SOURCE']
 
                 if sys.platform.startswith('darwin') and supportsFlag(self.compiler, '-mmacosx-version-min=10.14'):
                     ext.extra_compile_args += ['-mmacosx-version-min=10.14']

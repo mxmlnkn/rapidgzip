@@ -846,7 +846,7 @@ benchmarkFindBitString( const std::vector<char>& data )
         {
             bzip2::BitReader bitReader( std::make_unique<BufferViewFileReader>( buffer ) );
             for ( const auto offset : blockOffsets ) {
-                if ( offset < bitReader.size() ) {
+                if ( offset < bitReader.size().value() ) {
                     bitReader.seek( static_cast<long long int>( offset ) );
 
                     /* Because bitReader is limited to 32-bit. */

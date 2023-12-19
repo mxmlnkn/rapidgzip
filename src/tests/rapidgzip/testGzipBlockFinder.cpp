@@ -135,7 +135,7 @@ testUncompressedBlockFinder( std::string const&                             path
     /* Search in 1 B blocks. */
     foundRanges.clear();
     static constexpr auto BLOCK_SIZE = 8U;  /** in bits */
-    for ( size_t offset = 0; offset < bitReader.size(); offset += BLOCK_SIZE ) {
+    for ( size_t offset = 0; offset < bitReader.size().value(); offset += BLOCK_SIZE ) {
         bitReader.seek( static_cast<long long int>( offset ) );
         const auto foundRange = blockfinder::seekToNonFinalUncompressedDeflateBlock( bitReader, offset + BLOCK_SIZE );
         if ( foundRange.first != std::numeric_limits<size_t>::max() ) {

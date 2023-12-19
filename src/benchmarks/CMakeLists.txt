@@ -97,6 +97,11 @@ target_sources(benchmarkIORead PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkIORead
 target_link_libraries(benchmarkIORead PRIVATE librapidgzip)
 
 
+add_executable(benchmarkPipeRead)
+target_sources(benchmarkPipeRead PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkPipeRead.cpp)
+target_link_libraries(benchmarkPipeRead PRIVATE librapidgzip)
+
+
 add_executable(benchmarkIOWrite)
 target_sources(benchmarkIOWrite PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkIOWrite.cpp)
 target_link_libraries(benchmarkIOWrite PRIVATE librapidgzip)

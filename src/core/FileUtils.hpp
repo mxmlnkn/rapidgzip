@@ -36,7 +36,7 @@
     #include <sys/uio.h>
     #include <unistd.h>
 
-    #if not defined( HAVE_VMSPLICE ) and defined( __linux__ )
+    #if not defined( HAVE_VMSPLICE ) and defined( __linux__ ) and defined( F_GETPIPE_SZ )
         #define HAVE_VMSPLICE
     #endif
 
@@ -805,7 +805,27 @@ toSeekdir( int origin )
         return std::ios_base::cur;
     case SEEK_END:
         return std::ios_base::end;
-    default: break;
+    default:
+        break;
+    }
+
+    throw std::invalid_argument( "Unknown origin" );
+}
+
+
+[[nodiscard]] const char*
+originToString( int origin )
+{
+    switch ( origin )
+    {
+    case SEEK_SET:
+        return "SEEK_SET";
+    case SEEK_CUR:
+        return "SEEK_CUR";
+    case SEEK_END:
+        return "SEEK_END";
+    default:
+        break;
     }
 
     throw std::invalid_argument( "Unknown origin" );

@@ -100,14 +100,35 @@ absDiff( const T& a,
 }
 
 
-template<typename U>
+template<typename U,
+         std::enable_if_t<std::is_unsigned_v<U> >* = nullptr>
 [[nodiscard]] constexpr U
 saturatingAddition( const U a,
                     const U b )
 {
-    static_assert( std::is_unsigned_v<U>, "Only intended for unsigned addition!" );
     auto result = a + b;
     return result < a ? std::numeric_limits<U>::max() : result;
+}
+
+
+template<typename U,
+         std::enable_if_t<std::is_signed_v<U> >* = nullptr>
+[[nodiscard]] constexpr U
+saturatingAddition( const U a,
+                    const U b )
+{
+    const auto result = a + b;
+
+    /* Underflow or overflow should only be possible when both values have the same sign! */
+    if ( ( a > 0 ) && ( b > 0 ) ) {
+        return result < a ? std::numeric_limits<U>::max() : result;
+    }
+
+    if ( ( a < 0 ) && ( b < 0 ) ) {
+        return result > a ? std::numeric_limits<U>::lowest() : result;
+    }
+
+    return result;
 }
 
 
@@ -176,6 +197,30 @@ endsWith( const S& fullString,
 
     return std::equal( suffix.rbegin(), suffix.rend(), fullString.rbegin(),
                        [] ( auto a, auto b ) { return std::tolower( a ) == std::tolower( b ); } );
+}
+
+
+[[nodiscard]] std::vector<std::string_view>
+split( const std::string_view toSplit,
+       const char             separator )
+{
+    std::vector<std::string_view> result;
+    auto start = toSplit.begin();
+    for ( auto it = toSplit.begin(); it != toSplit.end(); ++it ) {
+        if ( *it == separator ) {
+            result.emplace_back( toSplit.data() + std::distance( toSplit.begin(), start ),
+                                 std::distance( start, it ) );
+            start = it;
+            ++start;
+        }
+    }
+
+    if ( start != toSplit.end() ) {
+        result.emplace_back( toSplit.data() + std::distance( toSplit.begin(), start ),
+                             std::distance( start, toSplit.end() ) );
+    }
+
+    return result;
 }
 
 

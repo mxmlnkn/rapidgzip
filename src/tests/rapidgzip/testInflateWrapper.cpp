@@ -255,7 +255,7 @@ testSmallReads( const std::filesystem::path& compressedFilePath,
 
     /* Read original file data */
     const auto originalFileReader = std::make_unique<StandardFileReader>( originalFilePath );
-    std::vector<uint8_t> originalData( originalFileReader->size() );
+    std::vector<uint8_t> originalData( originalFileReader->size().value() );
     originalFileReader->read( reinterpret_cast<char*>( originalData.data() ), originalData.size() );
 
     /* Decompress in steps of 1 B */
@@ -404,7 +404,7 @@ testSmallReadsUntilOffset( const std::filesystem::path& compressedFilePath,
 
     /* Read original file data */
     const auto originalFileReader = std::make_unique<StandardFileReader>( originalFilePath );
-    std::vector<uint8_t> originalData( originalFileReader->size() );
+    std::vector<uint8_t> originalData( originalFileReader->size().value() );
     originalFileReader->read( reinterpret_cast<char*>( originalData.data() ), originalData.size() );
 
     for ( size_t i = 0; i + 1 < blockOffsets.size(); ++i ) {

@@ -447,7 +447,7 @@ writeAll( const std::shared_ptr<ChunkData>& chunkData,
         return;
     }
 
-#ifdef HAVE_IOVEC
+#ifdef HAVE_VMSPLICE
     const auto buffersToWrite = toIoVec( *chunkData, offsetInBlock, dataToWriteSize );
     if ( !writeAllSplice( outputFileDescriptor, chunkData, buffersToWrite ) ) {
         writeAllToFdVector( outputFileDescriptor, buffersToWrite );

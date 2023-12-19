@@ -12,17 +12,43 @@ source:
   url: src.tar
 
 build:
+  entry_points:
+    - rapidgzip=rapidgzip:cli
+  script_env:
+    - RAPIDGZIP_BUILD_CXXOPTS=system
+    - RAPIDGZIP_BUILD_ISAL=enable
+    - RAPIDGZIP_BUILD_RPMALLOC=enable
+    - RAPIDGZIP_BUILD_ZLIB=enable
+  script: {{ PYTHON }} -m pip install . -vv
   number: 0
 
 requirements:
   build:
-    - setuptools
-    - cython
+    - {{ compiler('c') }}
     - {{ compiler('cxx') }}
+    - sysroot_linux-64 2.17  # [linux64]
     - nasm
+    - cxxopts>=3,<4
   host:
-    - python {{ python }}
-    - cython
+    - libcxx {{ cxx_compiler_version }}  # [osx]
+    - python
+    - setuptools >=46.4.0
+    - wheel
+    - cython >=0.29.24
+    - pip
+    - cxxopts>=3,<4
+  run:
+    - {{ pin_compatible("libcxx", max_pin=None) }}  # [osx]
+    - python
+
+test:
+  imports:
+    - rapidgzip
+  commands:
+    - pip check
+    - rapidgzip --help
+  requires:
+    - pip
 
 about:
   home: {{ data.get('url') }}

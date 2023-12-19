@@ -45,11 +45,13 @@ toString( const CompressionStrategy compressionStrategy )
 }
 
 
-[[nodiscard]] inline std::vector<std::byte>
-compressWithZlib( const std::vector<std::byte>& toCompress,
-                  const CompressionStrategy     compressionStrategy = CompressionStrategy::DEFAULT )
+template<typename ResultContainer = std::vector<uint8_t> >
+[[nodiscard]] ResultContainer
+compressWithZlib( const VectorView<uint8_t> toCompress,
+                  const CompressionStrategy compressionStrategy = CompressionStrategy::DEFAULT,
+                  const VectorView<uint8_t> dictionary = {} )
 {
-    std::vector<std::byte> output;
+    ResultContainer output;
     output.reserve( toCompress.size() );
 
     z_stream stream;
@@ -57,14 +59,19 @@ compressWithZlib( const std::vector<std::byte>& toCompress,
     stream.zfree = Z_NULL;
     stream.opaque = Z_NULL;
     stream.avail_in = toCompress.size();
-    stream.next_in = reinterpret_cast<Bytef*>( const_cast<std::byte*>( toCompress.data() ) );
+    stream.next_in = const_cast<Bytef*>( reinterpret_cast<const Bytef*>( toCompress.data() ) );
     stream.avail_out = 0;
     stream.next_out = nullptr;
 
     /* > Add 16 to windowBits to write a simple gzip header and trailer around the
      * > compressed data instead of a zlib wrapper. */
     deflateInit2( &stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED,
-                  MAX_WBITS | 16, /* memLevel */ 8, static_cast<int>( compressionStrategy ) );
+                  MAX_WBITS | /* gzip output */ 16, /* memLevel */ 8, static_cast<int>( compressionStrategy ) );
+
+    if ( !dictionary.empty() ) {
+        deflateSetDictionary( &stream, const_cast<Bytef*>( reinterpret_cast<const Bytef*>( dictionary.data() ) ),
+                              dictionary.size() );
+    }
 
     auto status = Z_OK;
     constexpr auto CHUNK_SIZE = 1_Mi;
@@ -104,7 +111,11 @@ public:
                         const size_t untilOffset = std::numeric_limits<size_t>::max() ) :
         m_bitReader( std::move( bitReader ) ),
         m_encodedStartOffset( m_bitReader.tell() ),
-        m_encodedUntilOffset( std::min( m_bitReader.size(), untilOffset ) )
+        m_encodedUntilOffset(
+            [untilOffset] ( const auto& size ) {
+                return size ? std::min( *size, untilOffset ) : untilOffset;
+            } ( m_bitReader.size() )
+        )
     {
         initStream();
         /* 2^15 = 32 KiB window buffer and minus signaling raw deflate stream to decode.
@@ -274,12 +285,36 @@ ZlibInflateWrapper::readStream( uint8_t* const output,
                     << "Decoding failed with error code " << errorCode << " "
                     << ( m_stream.msg == nullptr ? "" : m_stream.msg ) << "! "
                     << "Already decoded " << m_stream.total_out << " B. "
-                    << "Bit range to decode: [" << m_encodedStartOffset << ", " << m_encodedUntilOffset << "]. ";
+                    << "Read " << formatBits( oldUnusedBits - getUnusedBits() ) << " during the failing isal_inflate "
+                    << "from offset " << formatBits( m_bitReader.tell() - oldUnusedBits ) << ". "
+                    << "Bit range to decode: [" << m_encodedStartOffset << ", " << m_encodedUntilOffset << "]. "
+                    << "BitReader::size: " << m_bitReader.size().value_or( 0 ) << ".";
+
             if ( m_setWindowSize ) {
-                message << "Set window size: " << *m_setWindowSize << " B.";
+                message << " Set window size: " << *m_setWindowSize << " B.";
             } else {
-                message << "No window was set.";
+                message << " No window was set.";
             }
+
+        #ifndef NDEBUG
+            message << " First bytes: 0x\n";
+            const auto oldOffset = m_bitReader.tell();
+            m_bitReader.seek( m_bitReader.tell() - oldUnusedBits );
+            size_t nPrintedBytes{ 0 };
+            for ( size_t offset = m_bitReader.tell();
+                  ( !m_bitReader.size() || ( offset < *m_bitReader.size() ) ) && ( nPrintedBytes < 128 );
+                  offset += BYTE_SIZE, ++nPrintedBytes )
+            {
+                if ( ( offset / BYTE_SIZE ) % 16 == 0 ) {
+                    message << '\n';
+                } else if ( ( offset / BYTE_SIZE ) % 8 == 0 ) {
+                    message << ' ';
+                }
+                message << ' ' << std::setw( 2 ) << std::setfill( '0' ) << std::hex << m_bitReader.read<BYTE_SIZE>();
+            }
+            m_bitReader.seek( oldOffset );
+        #endif
+
             throw std::runtime_error( std::move( message ).str() );
         }
 
