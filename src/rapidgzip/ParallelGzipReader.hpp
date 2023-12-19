@@ -610,13 +610,11 @@ public:
         index.windowSizeInBytes = 32_Ki;
 
         /* Heuristically determine a checkpoint spacing from the existing checkpoints. */
-        std::vector<size_t> uncompressedSpacings;
+        size_t maximumDecompressedSpacing{ 0 };
         for ( auto it = offsets.begin(), nit = std::next( offsets.begin() ); nit != offsets.end(); ++it, ++nit ) {
-            uncompressedSpacings.push_back( nit->second - it->second );
+            maximumDecompressedSpacing = std::max( maximumDecompressedSpacing, nit->second - it->second );
         }
-        index.checkpointSpacing = ceilDiv(
-            *std::max_element( uncompressedSpacings.begin(), uncompressedSpacings.end() ),
-            32_Ki ) * 32_Ki;
+        index.checkpointSpacing = maximumDecompressedSpacing / 32_Ki * 32_Ki;
 
         for ( const auto& [compressedOffsetInBits, uncompressedOffsetInBytes] : offsets ) {
             Checkpoint checkpoint;
