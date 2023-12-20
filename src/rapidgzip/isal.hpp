@@ -138,7 +138,7 @@ private:
     /**
      * Only works on and modifies m_stream.avail_in and m_stream.next_in.
      */
-    std::optional<Footer>
+    Footer
     readGzipFooter();
 
     [[nodiscard]] bool
@@ -308,19 +308,16 @@ IsalInflateWrapper::readStream( uint8_t* const output,
 
             /* If we started with raw deflate, then we also have to skip over the gzip footer.
              * Assuming we are decoding gzip and not zlib or multiple raw deflate streams. */
-            std::optional<Footer> footer;
-            footer = readGzipFooter();  // This resets m_stream.total_out
-            if ( footer ) {
-                if ( ( m_stream.points_to_stop_at & ISAL_STOPPING_POINT_END_OF_STREAM ) != 0 ) {
-                    m_needToReadGzipHeader = true;
-                    m_stream.stopped_at = ISAL_STOPPING_POINT_END_OF_STREAM;
-                } else {
-                    const auto headerSuccess = readGzipHeader();
-                    if ( headerSuccess
-                         && ( ( m_stream.points_to_stop_at & ISAL_STOPPING_POINT_END_OF_STREAM_HEADER ) != 0 ) )
-                    {
-                        m_stream.stopped_at = ISAL_STOPPING_POINT_END_OF_STREAM_HEADER;
-                    }
+            const auto footer = readGzipFooter();  // This resets m_stream.total_out
+            if ( ( m_stream.points_to_stop_at & ISAL_STOPPING_POINT_END_OF_STREAM ) != 0 ) {
+                m_needToReadGzipHeader = true;
+                m_stream.stopped_at = ISAL_STOPPING_POINT_END_OF_STREAM;
+            } else {
+                const auto headerSuccess = readGzipHeader();
+                if ( headerSuccess
+                     && ( ( m_stream.points_to_stop_at & ISAL_STOPPING_POINT_END_OF_STREAM_HEADER ) != 0 ) )
+                {
+                    m_stream.stopped_at = ISAL_STOPPING_POINT_END_OF_STREAM_HEADER;
                 }
             }
 
@@ -339,7 +336,7 @@ IsalInflateWrapper::readStream( uint8_t* const output,
 }
 
 
-inline std::optional<IsalInflateWrapper::Footer>
+inline IsalInflateWrapper::Footer
 IsalInflateWrapper::readGzipFooter()
 {
     gzip::Footer footer{ 0, 0 };
@@ -371,7 +368,7 @@ IsalInflateWrapper::readGzipFooter()
             m_stream.avail_in = 0;
             refillBuffer();
             if ( m_stream.avail_in == 0 ) {
-                return std::nullopt;
+                throw BitReader::EndOfFileReached();
             }
         }
     }
