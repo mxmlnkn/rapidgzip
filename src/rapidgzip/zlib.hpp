@@ -176,6 +176,10 @@ private:
         return m_stream.avail_in * BYTE_SIZE + ( m_stream.data_type & 0b11'1111U );
     }
 
+    template<size_t SIZE>
+    std::array<std::byte, SIZE>
+    readBytes();
+
     /**
      * Only works on and modifies m_stream.avail_in and m_stream.next_in.
      */
@@ -351,24 +355,22 @@ ZlibInflateWrapper::readStream( uint8_t* const output,
 }
 
 
-inline ZlibInflateWrapper::Footer
-ZlibInflateWrapper::readGzipFooter()
+template<size_t SIZE>
+std::array<std::byte, SIZE>
+ZlibInflateWrapper::readBytes()
 {
-    gzip::Footer footer{ 0, 0 };
-
-    constexpr auto FOOTER_SIZE = 8U;
-    std::array<std::byte, FOOTER_SIZE> footerBuffer;
+    std::array<std::byte, SIZE> buffer;
     size_t footerSize{ 0 };
-    for ( auto stillToRemove = FOOTER_SIZE; stillToRemove > 0; ) {
+    for ( auto stillToRemove = buffer.size(); stillToRemove > 0; ) {
         if ( m_stream.avail_in >= stillToRemove ) {
-            std::memcpy( footerBuffer.data() + footerSize, m_stream.next_in, stillToRemove );
+            std::memcpy( buffer.data() + footerSize, m_stream.next_in, stillToRemove );
             footerSize += stillToRemove;
 
             m_stream.avail_in -= stillToRemove;
             m_stream.next_in += stillToRemove;
             stillToRemove = 0;
         } else {
-            std::memcpy( footerBuffer.data() + footerSize, m_stream.next_in, m_stream.avail_in );
+            std::memcpy( buffer.data() + footerSize, m_stream.next_in, m_stream.avail_in );
             footerSize += m_stream.avail_in;
 
             stillToRemove -= m_stream.avail_in;
@@ -379,6 +381,16 @@ ZlibInflateWrapper::readGzipFooter()
             }
         }
     }
+
+    return buffer;
+}
+
+
+inline ZlibInflateWrapper::Footer
+ZlibInflateWrapper::readGzipFooter()
+{
+    const auto footerBuffer = readBytes<8U>();
+    gzip::Footer footer{ 0, 0 };
 
     /* Get CRC32 and size machine-endian-agnostically. */
     for ( auto i = 0U; i < 4U; ++i ) {

@@ -135,6 +135,10 @@ private:
         m_stream.read_in_length += static_cast<int32_t>( nBitsToPrime );
     }
 
+    template<size_t SIZE>
+    std::array<std::byte, SIZE>
+    readBytes();
+
     /**
      * Only works on and modifies m_stream.avail_in and m_stream.next_in.
      */
@@ -336,34 +340,32 @@ IsalInflateWrapper::readStream( uint8_t* const output,
 }
 
 
-inline IsalInflateWrapper::Footer
-IsalInflateWrapper::readGzipFooter()
+template<size_t SIZE>
+std::array<std::byte, SIZE>
+IsalInflateWrapper::readBytes()
 {
-    gzip::Footer footer{ 0, 0 };
-
     const auto remainingBits = m_stream.read_in_length % BYTE_SIZE;
     m_stream.read_in >>= remainingBits;
     m_stream.read_in_length -= remainingBits;
 
-    constexpr auto FOOTER_SIZE = 8U;
-    std::array<std::byte, FOOTER_SIZE> footerBuffer{};
-    for ( auto stillToRemove = FOOTER_SIZE; stillToRemove > 0; ) {
-        const auto footerSize = FOOTER_SIZE - stillToRemove;
+    std::array<std::byte, SIZE> buffer{};
+    for ( auto stillToRemove = buffer.size(); stillToRemove > 0; ) {
+        const auto footerSize = buffer.size() - stillToRemove;
         if ( m_stream.read_in_length > 0 ) {
             /* This should be ensured by making read_in_length % BYTE_SIZE == 0 prior. */
             assert( m_stream.read_in_length >= BYTE_SIZE );
 
-            footerBuffer[footerSize] = static_cast<std::byte>( m_stream.read_in & 0xFFU );
+            buffer[footerSize] = static_cast<std::byte>( m_stream.read_in & 0xFFU );
             m_stream.read_in >>= BYTE_SIZE;
             m_stream.read_in_length -= BYTE_SIZE;
             --stillToRemove;
         } else if ( m_stream.avail_in >= stillToRemove ) {
-            std::memcpy( footerBuffer.data() + footerSize, m_stream.next_in, stillToRemove );
+            std::memcpy( buffer.data() + footerSize, m_stream.next_in, stillToRemove );
             m_stream.avail_in -= stillToRemove;
             m_stream.next_in += stillToRemove;
             stillToRemove = 0;
         } else {
-            std::memcpy( footerBuffer.data() + footerSize, m_stream.next_in, m_stream.avail_in );
+            std::memcpy( buffer.data() + footerSize, m_stream.next_in, m_stream.avail_in );
             stillToRemove -= m_stream.avail_in;
             m_stream.avail_in = 0;
             refillBuffer();
@@ -372,6 +374,16 @@ IsalInflateWrapper::readGzipFooter()
             }
         }
     }
+
+    return buffer;
+}
+
+
+inline IsalInflateWrapper::Footer
+IsalInflateWrapper::readGzipFooter()
+{
+    const auto footerBuffer = readBytes<8U>();
+    gzip::Footer footer{ 0, 0 };
 
     /* Get CRC32 and size machine-endian-agnostically. */
     for ( auto i = 0U; i < 4U; ++i ) {
