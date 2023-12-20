@@ -1,6 +1,16 @@
 # pgzf can be installed with sudo apt install wtdbg2
 # mzip (migz) can simply be downloaded as a binary from https://github.com/linkedin/migz/releases
 
+function rawDeflate()
+{
+    python3 -c '
+import sys, zlib
+o = zlib.compressobj( wbits = -15 )
+sys.stdout.buffer.write( o.compress( open( sys.argv[1], "rb" ).read() ) )
+sys.stdout.buffer.write( o.flush() )
+' "$1"
+}
+
 function allgzip()
 {
     local file=$1
@@ -11,6 +21,7 @@ function allgzip()
     test -f "${file}.bgz" || bgzip -c -- "$file" > "${file}.bgz"
     test -f "${file}.pgzf" || pgzf -o "${file}.pgzf" "$file"
     test -f "${file}.migz" || cat -- "$file" | mzip > "${file}.migz"
+    test -f "${file}.deflate" || rawDeflate "$file" > "${file}.deflate"
 }
 
 touch empty && allgzip empty
