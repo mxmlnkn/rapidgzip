@@ -48,6 +48,7 @@ public:
     };
 
 public:
+    explicit
     ScopedGIL( bool doLock )
     {
         m_referenceCounters.emplace_back( lock( doLock ) );
