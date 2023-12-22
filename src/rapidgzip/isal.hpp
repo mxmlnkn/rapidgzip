@@ -463,9 +463,17 @@ IsalInflateWrapper::readZlibFooter()
 inline bool
 IsalInflateWrapper::readHeader()
 {
-    /* Note that inflateInit and inflateReset set total_out to 0 among other things. */
+    /* Note that isal_inflate_init and isal_inflate_reset set total_out to 0.
+     * Unfortunately, isal_inflate_reset also resets read_in and read_in_length to 0 thereby effectively
+     * skipping bits! */
+    const auto oldConfiguration = m_stream;
     isal_inflate_reset( &m_stream );
     m_stream.crc_flag = ISAL_DEFLATE;  // This way no gzip header or footer is read
+    m_stream.points_to_stop_at = oldConfiguration.points_to_stop_at;
+    m_stream.read_in           = oldConfiguration.read_in & nLowestBitsSet<uint64_t>( oldConfiguration.read_in_length );
+    m_stream.read_in_length    = oldConfiguration.read_in_length;
+    m_stream.avail_in          = oldConfiguration.avail_in;
+    m_stream.next_in           = oldConfiguration.next_in;
 
     switch ( m_fileType )
     {
