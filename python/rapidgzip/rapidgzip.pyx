@@ -386,6 +386,7 @@ cdef extern from "rapidgzip/ParallelGzipReader.hpp" namespace "rapidgzip":
         void importIndex(PyObject*) except +
         void exportIndex(PyObject*) except +
         void joinThreads() except +
+        string fileTypeAsString() except +
 
     # To be used as template argument for ParallelGzipReader to avoid triggering the Cython
     # error message about template arguments being of an unknown type (because it is a value).
@@ -398,6 +399,9 @@ cdef extern from "rapidgzip/ParallelGzipReader.hpp" namespace "rapidgzip":
 
 ctypedef ParallelGzipReader[RapidgzipChunkData, TrueValue] ParallelGzipReaderVerbose
 ctypedef ParallelGzipReader[RapidgzipChunkData] ParallelGzipReaderNonVerbose
+
+cdef extern from "rapidgzip/format.hpp" namespace "rapidgzip":
+    string determineFileTypeAsString(PyObject*) except +
 
 
 cdef class _RapidgzipFile():
@@ -588,6 +592,12 @@ cdef class _RapidgzipFile():
         if self.gzipReaderVerbose:
             return self.gzipReaderVerbose.joinThreads()
 
+    def file_type(self):
+        if self.gzipReader:
+            return self.gzipReader.fileTypeAsString().decode()
+        if self.gzipReaderVerbose:
+            return self.gzipReaderVerbose.fileTypeAsString().decode()
+
 
 # Extra class because cdefs are not visible from outside but cdef class can't inherit from io.BufferedIOBase
 # ParallelGzipReader has its own internal buffer. Using io.BufferedReader is not necessary and might even
@@ -616,6 +626,8 @@ class RapidgzipFile(io.RawIOBase):
 
         if hasattr(self.gzipReader, 'join_threads'):
             self.join_threads = self.gzipReader.join_threads
+        if hasattr(self.gzipReader, 'file_type'):
+            self.file_type = self.gzipReader.file_type
 
         # IOBase provides sane default implementations for read, readline, readlines, readall, ...
 
@@ -649,6 +661,13 @@ def open(filename, parallelization = 0, verbose = False):
               with suitable read, seekable, seek, and tell methods.
     """
     return RapidgzipFile(filename, parallelization, verbose)
+
+
+def determineFileType(fileOrPath):
+    if isinstance(fileOrPath, int) or isinstance(fileOrPath, str):
+        with builtins.open(fileOrPath, "rb") as file:
+            return determineFileTypeAsString(<PyObject*>file).decode()
+    return determineFileTypeAsString(<PyObject*>fileOrPath).decode()
 
 
 def cli():

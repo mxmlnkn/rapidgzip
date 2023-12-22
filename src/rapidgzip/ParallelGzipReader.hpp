@@ -42,7 +42,6 @@ template<typename T_ChunkData = ChunkData,
          bool ENABLE_STATISTICS = false>
 class ParallelGzipReader final :
     public FileReader
-
 {
 public:
     using ChunkData = T_ChunkData;
@@ -900,6 +899,12 @@ public:
     setKeepIndex( bool keep )
     {
         m_keepIndex = keep;
+    }
+
+    [[nodiscard]] std::string
+    fileTypeAsString()
+    {
+        return toString( blockFinder().fileType() );
     }
 
 private:
