@@ -7,6 +7,7 @@ import concurrent.futures
 import gzip
 import hashlib
 import io
+import multiprocessing
 import os
 import pprint
 import shutil
@@ -307,10 +308,73 @@ import rapidgzip
 from rapidgzip import RapidgzipFile
 
 
+class FileWrapper:
+    def __init__(self, fd):
+        self.fd = fd
+
+    def seek(self, offset, whence=0) -> int:
+        return self.fd.seek(offset, whence)
+
+    def read(self, amt=-1) -> bytes:
+        return self.fd.read(amt)
+
+    def tell(self) -> int:
+        return self.fd.tell()
+
+    def seekable(self):
+        return self.fd.seekable()
+
+    def readable(self):
+        return self.fd.readable()
+
+    def writable(self):
+        return self.fd.writable()
+
+    def write(self, data):
+        raise NotImplemented()
+
+    def close(self):
+        self.fd.close()
+
+
+def triggerDeadlock(filePath):
+    print("Open test file...")
+    with open(filePath, 'rb') as fp:
+        wrapper = FileWrapper(fp)  # deadlock only seems to happen with a Python wrapper
+        with RapidgzipFile(wrapper, verbose=True, parallelization = 4) as fd:
+            for i in range(100):
+                print(f"{i}: seek to 0")
+                fd.seek(0)
+                print(f"{i}: seek to 1000")
+                fd.seek(1000)
+
+
+def testTriggerDeadlock(filePath):
+    for i in range(20):
+        triggerDeadlock(filePath)
+
+
+def testDeadlock(encoder):
+    print("Create test file...")
+    # We need at least something larger than the chunk size.
+    rawFile, compressedFile = createRandomCompressedFile(100 * 1024 * 1024, 6, 'pygzip')
+
+    task = multiprocessing.Process(target=testTriggerDeadlock, args = (compressedFile.name,))
+    task.start()
+    print("Started test process")
+    task.join(10)
+    if task.is_alive():
+        task.terminate()
+        task.join()
+        sys.exit(1)
+
+
 if __name__ == '__main__':
     print("indexed_bzip2 version:", indexed_bzip2.__version__)
     print("rapidgzip version:", rapidgzip.__version__)
     print("Cores:", os.cpu_count())
+
+    testDeadlock('pygzip')
 
     def test(openIndexedFileFromName, closeUnderlyingFile=None):
         testPythonInterface(
