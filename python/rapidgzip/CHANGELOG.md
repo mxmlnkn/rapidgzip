@@ -1,4 +1,11 @@
 
+# Version 0.11.1 built on 2023-12-22
+
+## Fixes
+
+ - Fix possible GIL deadlock when calling many `RapidgzipFile` methods in quick succession.
+
+
 # Version 0.11.0 built on 2023-12-19
 
 ## Added
