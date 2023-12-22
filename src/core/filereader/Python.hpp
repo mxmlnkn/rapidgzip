@@ -48,15 +48,17 @@ public:
     };
 
 public:
+    explicit
     ScopedGIL( bool doLock )
     {
         m_referenceCounters.emplace_back( lock( doLock ) );
     }
 
-    ~ScopedGIL()
+    ~ScopedGIL() noexcept
     {
         if ( m_referenceCounters.empty() ) {
-            throw std::logic_error( "It seems there were more unlocks than locks!" );
+            std::cerr << "Logic error: It seems there were more unlocks than locks!\n";
+            std::terminate();
         }
 
         lock( m_referenceCounters.back() );
@@ -73,7 +75,7 @@ private:
      * @return the old lock state.
      */
     bool
-    lock( bool doLock = true )
+    lock( bool doLock = true ) noexcept
     {
         /**
          * I would have liked a GILMutex class that can be declared as a static thread_local member but
@@ -98,9 +100,10 @@ private:
                 PyGILState_Release( lockState );
                 lockState = {};
             }
-            throw std::runtime_error( "Detected Python finalization from running rapidgzip thread. "
-                                      "To avoid this exception you should close all RapidgzipFile objects correctly, "
-                                      "or better, use the with-statement if possible to automatically close it." );
+            std::cerr << "Detected Python finalization from running rapidgzip thread."
+                         "To avoid this exception you should close all RapidgzipFile objects correctly,\n"
+                         "or better, use the with-statement if possible to automatically close it.\n";
+            std::terminate();
         }
 
         const auto wasLocked = isLocked;

@@ -307,7 +307,7 @@ public:
         const auto timePoint = system_clock::to_time_t( time );
         const auto subseconds = duration_cast<milliseconds>( time.time_since_epoch() ).count() % 1000;
         m_out << "[" << std::put_time( std::localtime( &timePoint ), "%H:%M:%S" ) << "." << subseconds << "]"
-              << "[" << std::this_thread::get_id() << "]";
+              << "[0x" << std::hex << std::this_thread::get_id() << std::dec << "]";
     }
 
     template<typename T>

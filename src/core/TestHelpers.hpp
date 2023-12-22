@@ -1,8 +1,10 @@
 #pragma once
 
 #include <iostream>
+#include <mutex>
 #include <optional>
 #include <stdexcept>
+#include <sstream>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -109,3 +111,139 @@ benchmarkFunction( SetupFunctor setup,
 
     return { *result, durations };
 }
+
+
+class ThreadSafeStreamBuffer:
+    public std::stringbuf
+{
+protected:
+    /* Put area */
+
+    std::streamsize
+    xsputn( char_type const* s,
+            std::streamsize  count ) override
+    {
+        const std::scoped_lock lock( m_mutex );
+        return std::stringbuf::xsputn( s, count );
+    }
+
+    int
+    overflow( int c ) override
+    {
+        const std::scoped_lock lock( m_mutex );
+        return std::stringbuf::overflow( c );
+    }
+
+    /* Get area */
+
+    std::streamsize
+    showmanyc() override
+    {
+        throw std::logic_error( "Not supported!" );
+    }
+
+    int_type
+    underflow() override
+    {
+        throw std::logic_error( "Not supported!" );
+    }
+
+    int_type
+    uflow() override
+    {
+        throw std::logic_error( "Not supported!" );
+    }
+
+    std::streamsize
+    xsgetn( char_type*      /* s */,
+            std::streamsize /* count */ ) override
+    {
+        throw std::logic_error( "Not supported!" );
+    }
+
+    /* Locales */
+
+    void
+    imbue( const std::locale& /* loc */ ) override
+    {
+        throw std::logic_error( "Not supported!" );
+    }
+
+    /* Positioning */
+
+    std::stringbuf*
+    setbuf( char_type*      /* s */,
+            std::streamsize /* n */ ) override
+    {
+        throw std::logic_error( "Not supported!" );
+    }
+
+    pos_type
+    seekoff( off_type                /* off */,
+             std::ios_base::seekdir  /* dir */,
+             std::ios_base::openmode /* which */ = std::ios_base::in | std::ios_base::out ) override
+    {
+        throw std::logic_error( "Not supported!" );
+    }
+
+    pos_type
+    seekpos( pos_type                /* pos */,
+             std::ios_base::openmode /* which */ = std::ios_base::in | std::ios_base::out ) override
+    {
+        throw std::logic_error( "Not supported!" );
+    }
+
+    int
+    sync() override
+    {
+        const std::scoped_lock lock( m_mutex );
+        return std::stringbuf::sync();
+    }
+
+    /* Putback */
+
+    int_type
+    pbackfail( int_type /* c */ ) override
+    {
+        throw std::logic_error( "Not supported!" );
+    }
+
+private:
+    std::recursive_mutex m_mutex;
+};
+
+
+class StreamInterceptor :
+    public ThreadSafeStreamBuffer
+{
+public:
+    explicit
+    StreamInterceptor( std::ostream& out ) :
+        m_out( out ),
+        m_rdbuf( m_out.rdbuf( this ) )
+    {}
+
+    ~StreamInterceptor()
+    {
+        close();
+    }
+
+    void
+    close()
+    {
+        if ( m_rdbuf.has_value() ) {
+            /* Expected to return this and therfore can be ignored. */
+            m_out.rdbuf( *m_rdbuf );
+            m_rdbuf.reset();
+        }
+    }
+
+    StreamInterceptor( const StreamInterceptor& ) = delete;
+    StreamInterceptor( StreamInterceptor&& ) = delete;
+    StreamInterceptor& operator=( const StreamInterceptor& ) = delete;
+    StreamInterceptor& operator=( StreamInterceptor&& ) = delete;
+
+private:
+    std::ostream& m_out;
+    std::optional<std::basic_streambuf<char>*> m_rdbuf;
+};

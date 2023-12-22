@@ -1,6 +1,5 @@
 #include <iostream>
 #include <filesystem>
-#include <memory>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -74,14 +73,10 @@ testCLI( const std::vector<std::string>& arguments,
         std::filesystem::remove( outputFile );
     }
 
-    const auto oldCerrBuffer = std::cerr.rdbuf();
-    const auto oldCoutBuffer = std::cout.rdbuf();
-
-    std::stringstream cerrIntercept;
-    std::stringstream coutIntercept;
-
-    std::cerr.rdbuf( cerrIntercept.rdbuf() );
-    std::cout.rdbuf( coutIntercept.rdbuf() );
+    std::string coutIntercept;
+    std::string cerrIntercept;
+    StreamInterceptor coutInterceptor{ std::cout };
+    StreamInterceptor cerrInterceptor{ std::cerr };
 
     std::optional<std::string> caughtException;
     int exitCode = 1;
@@ -89,10 +84,14 @@ testCLI( const std::vector<std::string>& arguments,
         exitCode = callRapidgzip( arguments );
     } catch ( const std::exception& exception ) {
         caughtException = exception.what();
+    } catch ( ... ) {
+        std::cerr << "Caught exception that is not derived from std::exception!\n";
     }
 
-    std::cerr.rdbuf( oldCerrBuffer );
-    std::cout.rdbuf( oldCoutBuffer );
+    coutIntercept = coutInterceptor.str();
+    cerrIntercept = cerrInterceptor.str();
+    coutInterceptor.close();
+    cerrInterceptor.close();
 
     if ( caughtException ) {
         REQUIRE( !caughtException.has_value() );
@@ -106,8 +105,8 @@ testCLI( const std::vector<std::string>& arguments,
             std::cerr << argument << " ";
         }
         std::cerr << "\n\n";
-        std::cerr << "=== stdout ===\n\n" << coutIntercept.str() << "\n\n";
-        std::cerr << "=== stderr ===\n\n" << cerrIntercept.str() << "\n\n";
+        std::cerr << "=== stdout ===\n\n" << coutIntercept << "\n\n";
+        std::cerr << "=== stderr ===\n\n" << cerrIntercept << "\n\n";
     }
 
     if ( expectOutputFile ) {
@@ -120,7 +119,7 @@ testCLI( const std::vector<std::string>& arguments,
     }
 
     if ( writeToStdout ) {
-        const auto fileContents = coutIntercept.str();
+        const auto fileContents = coutIntercept;
         REQUIRE_EQUAL( fileContents.size(), decompressed.size() );
         REQUIRE( ( std::equal( fileContents.begin(), fileContents.end(), decompressed.begin(), decompressed.end() ) ) );
     }
@@ -129,7 +128,7 @@ testCLI( const std::vector<std::string>& arguments,
     const auto doCountLines = contains( arguments, "--count-lines" );
 
     /* Store copy to variable because "split" only works with views. */
-    const auto output = ( writeToStdout ? cerrIntercept : coutIntercept ).str();
+    const auto output = writeToStdout ? cerrIntercept : coutIntercept;
     const auto lines = split( output, '\n' );
     if ( doCount ) {
         const auto searchString = ( doCountLines ? "Size: " : "" ) + std::to_string( decompressed.size() );
