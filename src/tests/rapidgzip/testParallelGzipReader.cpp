@@ -778,6 +778,29 @@ testMultiThreadedUsage()
 }
 
 
+void
+testIndexCreation( const std::filesystem::path&    encoded,
+                   const std::map<size_t, size_t>& expectedBlockOffsets )
+{
+    std::cerr << "Testing index for " << encoded.filename() << "\n";
+    ParallelGzipReader reader( std::make_unique<StandardFileReader>( encoded.string() ) );
+    if ( reader.blockOffsets() != expectedBlockOffsets ) {
+        std::cerr << "reader.blockOffsets: {";
+        for ( const auto& [encodedOffset, decodedOffset] : reader.blockOffsets() ) {
+            std::cerr << " {" << encodedOffset << "," << decodedOffset << "},";
+        }
+        std::cerr << "}\n";
+
+        std::cerr << "expectedBlockOffsets: {";
+        for ( const auto& [encodedOffset, decodedOffset] : expectedBlockOffsets ) {
+            std::cerr << " {" << encodedOffset << "," << decodedOffset << "},";
+        }
+        std::cerr << "}\n";
+    }
+    REQUIRE( reader.blockOffsets() == expectedBlockOffsets );
+}
+
+
 int
 main( int    argc,
       char** argv )
@@ -808,6 +831,8 @@ main( int    argc,
     testPerformance( tmpFolder );
 
     testParallelDecoderNano();
+
+    testIndexCreation( rootFolder / "1B.gz", { { 104, 0 }, { 192, 1 } } );
 
     using namespace std::string_literals;
 
