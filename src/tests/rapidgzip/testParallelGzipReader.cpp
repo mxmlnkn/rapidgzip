@@ -848,6 +848,66 @@ testMultiStreamDecompression( const std::filesystem::path& encoded,
 }
 
 
+void
+testChecksummedMultiStreamDecompression( const std::filesystem::path& encoded,
+                                         const std::filesystem::path& decoded )
+{
+    auto compressedData = readFile<std::vector<uint8_t> >( encoded );
+    auto decompressedData = readFile<std::vector<uint8_t> >( decoded );
+
+    const auto singleStreamSize = compressedData.size();
+    CRC32Calculator checksummer;
+    checksummer.update( decompressedData.data(), decompressedData.size() );
+
+    /* Duplicate gzip stream. We need something larger than the chunk size at least. */
+    const auto duplicationCount = ceilDiv( 32_Mi, compressedData.size() );
+    compressedData = duplicateContents( std::move( compressedData ), duplicationCount );
+    decompressedData = duplicateContents( std::move( decompressedData ), duplicationCount );
+
+    std::cerr << "Test " << duplicationCount << " duplicated streams of " << encoded.filename() << " for a total of "
+              << formatBytes( compressedData.size() ) << " decompressing to " << formatBytes( decompressedData.size() )
+              << "\n";
+
+    std::unordered_map<size_t, uint32_t> crc32s;
+    crc32s.reserve( duplicationCount );
+    for ( size_t i = 0; i < duplicationCount; ++i ) {
+        crc32s.emplace( i * singleStreamSize, checksummer.crc32() );
+    }
+
+    std::unique_ptr<GzipIndex> index;
+    /* Test without index. */
+    {
+        std::vector<uint8_t> decompressedResult( decompressedData.size() + 1, 3 );
+        ParallelGzipReader reader( std::make_unique<BufferViewFileReader>( compressedData ) );
+        reader.setCRC32Enabled( true );
+        reader.setDeflateStreamCRC32s( std::move( crc32s ) );
+
+        const auto readSize = reader.read( reinterpret_cast<char*>( decompressedResult.data() ),
+                                           decompressedResult.size() );
+        REQUIRE_EQUAL( readSize, decompressedData.size() );
+        decompressedResult.resize( decompressedData.size() );
+        REQUIRE( decompressedResult == decompressedData );
+
+        index = std::make_unique<GzipIndex>( reader.gzipIndex().clone() );
+    }
+
+    /* Test with index. */
+    {
+        std::vector<uint8_t> decompressedResult( decompressedData.size() + 1, 3 );
+        ParallelGzipReader reader( std::make_unique<BufferViewFileReader>( compressedData ) );
+        reader.setCRC32Enabled( true );
+        reader.setDeflateStreamCRC32s( std::move( crc32s ) );
+        reader.setBlockOffsets( *index );
+
+        const auto readSize = reader.read( reinterpret_cast<char*>( decompressedResult.data() ),
+                                           decompressedResult.size() );
+        REQUIRE_EQUAL( readSize, decompressedData.size() );
+        decompressedResult.resize( decompressedData.size() );
+        REQUIRE( decompressedResult == decompressedData );
+    }
+}
+
+
 int
 main( int    argc,
       char** argv )
@@ -890,6 +950,9 @@ main( int    argc,
     testIndexCreation( rootFolder / "1B.zlib", { { 2 * 8, 0 }, { 9 * 8, 1 } } );
 
     using namespace std::string_literals;
+
+    testChecksummedMultiStreamDecompression( rootFolder / "base64-32KiB.deflate",
+                                             rootFolder / "base64-32KiB" );
 
     for ( const auto& extension : { ".gz"s, ".bgz"s, ".igz"s, ".pigz"s, ".zlib"s, ".deflate"s } ) {
         testMultiStreamDecompression( rootFolder / ( "base64-32KiB" + extension ),

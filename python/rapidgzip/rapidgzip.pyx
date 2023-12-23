@@ -3,9 +3,11 @@ Cython wrapper for the GzipReader and ParallelGzipReader C++ classes.
 """
 
 from libc.stdlib cimport malloc, free
+from libc.stdint cimport uint32_t
 from libc.stdio cimport SEEK_SET
 from libcpp.string cimport string
 from libcpp.map cimport map
+from libcpp.unordered_map cimport unordered_map
 from libcpp.optional cimport optional
 from libcpp.vector cimport vector
 from libcpp cimport bool
@@ -388,6 +390,9 @@ cdef extern from "rapidgzip/ParallelGzipReader.hpp" namespace "rapidgzip":
         void joinThreads() except +
         string fileTypeAsString() except +
 
+        void setDeflateStreamCRC32s(unordered_map[size_t, uint32_t])
+        void addDeflateStreamCRC32(size_t, uint32_t)
+
     # To be used as template argument for ParallelGzipReader to avoid triggering the Cython
     # error message about template arguments being of an unknown type (because it is a value).
     # Must be inside an "extern" section or else Cython will try to generate a struct named
@@ -598,6 +603,18 @@ cdef class _RapidgzipFile():
         if self.gzipReaderVerbose:
             return self.gzipReaderVerbose.fileTypeAsString().decode()
 
+    def set_deflate_stream_crc32s(self, crc32s):
+        if self.gzipReader:
+            self.gzipReader.setDeflateStreamCRC32s(crc32s)
+        if self.gzipReaderVerbose:
+            self.gzipReaderVerbose.setDeflateStreamCRC32s(crc32s)
+
+    def add_deflate_stream_crc32(self, end_of_stream_offset_in_bytes, crc32):
+        if self.gzipReader:
+            self.gzipReader.addDeflateStreamCRC32(end_of_stream_offset_in_bytes, crc32)
+        if self.gzipReaderVerbose:
+            self.gzipReaderVerbose.addDeflateStreamCRC32(end_of_stream_offset_in_bytes, crc32)
+
 
 # Extra class because cdefs are not visible from outside but cdef class can't inherit from io.BufferedIOBase
 # ParallelGzipReader has its own internal buffer. Using io.BufferedReader is not necessary and might even
@@ -628,6 +645,9 @@ class RapidgzipFile(io.RawIOBase):
             self.join_threads = self.gzipReader.join_threads
         if hasattr(self.gzipReader, 'file_type'):
             self.file_type = self.gzipReader.file_type
+
+        self.set_deflate_stream_crc32s = self.gzipReader.set_deflate_stream_crc32s
+        self.add_deflate_stream_crc32 = self.gzipReader.add_deflate_stream_crc32
 
         # IOBase provides sane default implementations for read, readline, readlines, readall, ...
 
