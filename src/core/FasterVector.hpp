@@ -25,7 +25,7 @@ class RpmallocInit
 public:
     RpmallocInit()
     {
-        rpmalloc_initialize();
+        rpmalloc_initialize( nullptr );
     }
 
     ~RpmallocInit()
@@ -53,7 +53,7 @@ public:
 
     ~RpmallocThreadInit()
     {
-        rpmalloc_thread_finalize( /* release caches */ 1 );
+        rpmalloc_thread_finalize();
     }
 };
 

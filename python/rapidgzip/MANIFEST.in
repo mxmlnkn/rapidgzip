@@ -15,6 +15,7 @@ include src/tools/rapidgzip.cpp
 include src/external/cxxopts/LICENSE
 include src/external/cxxopts/include/cxxopts.hpp
 include src/external/rpmalloc/LICENSE
+include src/external/rpmalloc/rpmalloc/malloc.c
 include src/external/rpmalloc/rpmalloc/rpmalloc.c
 include src/external/rpmalloc/rpmalloc/rpmalloc.h
 include src/external/rpmalloc/rpmalloc/rpnew.h

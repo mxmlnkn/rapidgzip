@@ -288,11 +288,25 @@ class Build(build_ext):
                 '-std=c++17',
                 '/std:c++17',
             ]
-            if 'extra_postargs' in kwargs:
-                kwargs['extra_postargs'] = [x for x in kwargs['extra_postargs'] if x not in cppCompileArgs]
+            cppPostArgs = kwargs.get('extra_postargs', [])
+            postArgs = [x for x in cppPostArgs if x not in cppCompileArgs]
 
             if cSources:
-                objects.extend(oldCompile(cSources, *args, **kwargs))
+                for cSource in cSources:
+                    if 'extra_postargs' in kwargs:
+                        if any(name in cSource for name in rpmalloc_sources):
+                            kwargs['extra_postargs'] = postArgs + [
+                                argument.replace('c++17', 'c17') for argument in cppPostArgs if 'c++17' in argument
+                            ]
+                        else:
+                            kwargs['extra_postargs'] = postArgs
+                    objects.extend(oldCompile([cSource], *args, **kwargs))
+                    # We cannot have -std=c17 when compiling when compiling ISA-L!
+                    if 'extra_postargs' in kwargs:
+                        kwargs['extra_postargs'] = postArgs
+
+            if 'extra_postargs' in kwargs:
+                kwargs['extra_postargs'] = postArgs
 
             if nasmSources and nasmCompiler:
                 nasm_kwargs = copy.deepcopy(kwargs)
@@ -341,6 +355,8 @@ class Build(build_ext):
                 '-std=c++17',
                 '-O3',
                 '-DNDEBUG',
+                # https://github.com/mjansson/rpmalloc/issues/297#issuecomment-3171952804
+                '-DENABLE_OVERRIDE=0',
                 '-DWITH_PYTHON_SUPPORT',
                 '-D_LARGEFILE64_SOURCE=1',
                 '-D_GLIBCXX_ASSERTIONS',
@@ -379,8 +395,11 @@ class Build(build_ext):
             elif self.compiler.compiler_type == 'msvc':
                 ext.extra_compile_args = [
                     '/std:c++17',
+                    '/experimental:c11atomics',
                     '/O2',
                     '/DNDEBUG',
+                    # https://github.com/mjansson/rpmalloc/issues/297#issuecomment-3171952804
+                    '/DENABLE_OVERRIDE=0',
                     '/DWITH_PYTHON_SUPPORT',
                     '/constexpr:steps99000100',
                 ]

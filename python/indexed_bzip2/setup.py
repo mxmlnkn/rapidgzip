@@ -83,6 +83,7 @@ class Build(build_ext):
             elif self.compiler.compiler_type == 'msvc':
                 ext.extra_compile_args = [
                     '/std:c++17',
+                    '/experimental:c11atomics',
                     '/O2',
                     '/DNDEBUG',
                     '/DWITH_PYTHON_SUPPORT',
