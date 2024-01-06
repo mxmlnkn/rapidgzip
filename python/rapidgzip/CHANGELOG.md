@@ -1,4 +1,12 @@
 
+# Version 0.11.2 built on 2024-01-06
+
+## Fixes
+
+ - Fix segfault with rpmalloc when creating a ParallelGzipReader object on one thread and using it into
+   another thread created manually in Python.
+
+
 # Version 0.11.1 built on 2023-12-22
 
 ## Fixes
