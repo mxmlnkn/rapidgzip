@@ -3,27 +3,6 @@
 #include <thread>
 #include <utility>
 
-#ifdef WITH_RPMALLOC
-    #include <rpmalloc.h>
-#endif
-
-
-#ifdef WITH_RPMALLOC
-class RpmallocThreadInit
-{
-public:
-    RpmallocThreadInit()
-    {
-        rpmalloc_thread_initialize();
-    }
-
-    ~RpmallocThreadInit()
-    {
-        rpmalloc_thread_finalize( /* release caches */ true );
-    }
-};
-#endif
-
 
 /**
  * Similar to the planned C++20 std::jthread, this class joins in the destructor.
@@ -35,14 +14,7 @@ public:
     template<class Function, class... Args>
     explicit
     JoiningThread( Function&& function, Args&&... args ) :
-#ifdef WITH_RPMALLOC
-        m_thread( [=] () {
-                      static const thread_local RpmallocThreadInit rpmallocThreadInit{};
-                      function( std::forward<Args>( args )... );
-                  } )
-#else
         m_thread( std::forward<Function>( function ), std::forward<Args>( args )... )
-#endif
     {}
 
     JoiningThread( JoiningThread&& ) = default;

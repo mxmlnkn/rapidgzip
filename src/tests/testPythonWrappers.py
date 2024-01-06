@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 if __name__ == '__main__' and __package__ is None:
@@ -357,7 +358,7 @@ def testTriggerDeadlock(filePath):
 def testDeadlock(encoder):
     print("Create test file...")
     # We need at least something larger than the chunk size.
-    rawFile, compressedFile = createRandomCompressedFile(100 * 1024 * 1024, 6, 'pygzip')
+    rawFile, compressedFile = createRandomCompressedFile(100 * 1024 * 1024, 6, encoder)
 
     task = multiprocessing.Process(target=testTriggerDeadlock, args = (compressedFile.name,))
     task.start()
@@ -368,6 +369,17 @@ def testDeadlock(encoder):
         task.join()
         sys.exit(1)
 
+def readAndPrintFirstBytes(file):
+    print(file.read(8))
+
+
+def testRpmallocThreadSafety(encoder):
+    rawFile, compressedFile = createRandomCompressedFile(1024 * 1024, 6, encoder)
+    with rapidgzip.open(compressedFile.name) as gzipReader:
+        thread = threading.Thread(target=readAndPrintFirstBytes, args=[gzipReader])
+        thread.start()
+        thread.join()
+
 
 if __name__ == '__main__':
     print("indexed_bzip2 version:", indexed_bzip2.__version__)
@@ -375,6 +387,7 @@ if __name__ == '__main__':
     print("Cores:", os.cpu_count())
 
     testDeadlock('pygzip')
+    testRpmallocThreadSafety('pygzip')
 
     def test(openIndexedFileFromName, closeUnderlyingFile=None):
         testPythonInterface(
