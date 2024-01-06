@@ -745,6 +745,39 @@ testPrefetchingAfterSplit()
 }
 
 
+void
+testMultiThreadedUsage()
+{
+    static constexpr size_t DATA_SIZE = 64_Mi;
+
+    /* As there are 4 symbols, 2 bits per symbol should suffice and as the data is random, almost no backreferences
+     * should be viable. This leads to a compression ratio of ~4, which is large enough for splitting and benign
+     * enough to have multiple chunks with fairly little uncompressed data. */
+    const auto compressedRandomDNA = compressWithZlib( createRandomData( DATA_SIZE, DNA_SYMBOLS ),
+                                                       CompressionStrategy::HUFFMAN_ONLY );
+
+    auto reader = std::make_unique<rapidgzip::ParallelGzipReader<rapidgzip::ChunkData, /* ENABLE_STATISTICS */ true> >(
+        std::make_unique<BufferViewFileReader>( compressedRandomDNA ),
+        /* parallelization */ 6 );
+    reader->setCRC32Enabled( true );
+
+    std::vector<char> result;
+    std::thread thread( [&result, gzipReader = std::move( reader )] () {
+        std::vector<char> buffer( 1024ULL );
+        while ( true ) {
+            const auto nBytesRead = gzipReader->read( buffer.data(), buffer.size() );
+            if ( nBytesRead == 0 ) {
+                break;
+            }
+            result.insert( result.end(), buffer.begin(), buffer.begin() + nBytesRead );
+        }
+    } );
+
+    thread.join();
+    REQUIRE_EQUAL( result.size(), DATA_SIZE );
+}
+
+
 int
 main( int    argc,
       char** argv )
@@ -765,6 +798,7 @@ main( int    argc,
             findParentFolderContaining( binaryFolder, "src/tests/data/base64-256KiB.bgz" )
         ) / "src" / "tests" / "data";
 
+    testMultiThreadedUsage();
     testCRC32AndCleanUnmarkedData();
     testPrefetchingAfterSplit();
     testCachedChunkReuseAfterSplit();

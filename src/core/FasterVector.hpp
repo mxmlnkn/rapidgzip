@@ -30,6 +30,24 @@ public:
 inline static const RpmallocInit rpmallocInit{};
 
 
+class RpmallocThreadInit
+{
+public:
+    RpmallocThreadInit()
+    {
+        rpmalloc_thread_initialize();
+    }
+
+    ~RpmallocThreadInit()
+    {
+        rpmalloc_thread_finalize( /* release caches */ true );
+    }
+};
+
+
+static const thread_local RpmallocThreadInit rpmallocThreadInit{};
+
+
 template<typename ElementType>
 class RpmallocAllocator
 {
