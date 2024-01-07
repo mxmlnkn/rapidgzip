@@ -89,16 +89,16 @@ jobs:
       run: |
         PYTHON_VERSION=$( python3 --version | sed -nr 's|.* (3)[.]([0-9]+)[.].*|\1\2|p' )
         python -m pip install dist/*-cp${PYTHON_VERSION}-cp${PYTHON_VERSION}-manylinux*.whl
-        # Ensure that it is built with ISA-l
-        rapidgzip --oss-attributions | grep ISA-l
+        # Ensure that it is built with ISA-L
+        rapidgzip --oss-attributions | grep -i ISA-L
 
     - name: Test Wheel (Windows)
       if: matrix.os == 'windows-latest'
       shell: bash
       run: |
         python -m pip install dist/*-cp310-win_amd64.whl
-        # Ensure that it is built with ISA-l
-        rapidgzip --oss-attributions | grep ISA-l
+        # Ensure that it is built with ISA-L
+        rapidgzip --oss-attributions | grep -i ISA-L
 
     - uses: actions/upload-artifact@v3
       with:

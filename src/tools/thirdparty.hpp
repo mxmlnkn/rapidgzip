@@ -1,17 +1,17 @@
 #pragma once
 
+#include <string>
 #include <string_view>
 
 
-namespace licenses
+namespace thirdparty
 {
-static constexpr std::string_view CXXOPTS{
-    R"(
-# cxxopts
-
-https://github.com/jarro2783/cxxopts/
-
-Copyright (c) 2014 Jarryd Beck
+namespace cxxopts
+{
+static constexpr std::string_view name{ "cxxopts" };
+static constexpr std::string_view url{ "https://github.com/jarro2783/cxxopts/" };
+static constexpr std::string_view license{
+    R"(Copyright (c) 2014 Jarryd Beck
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -31,15 +31,15 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 )" };
+}  // namespace cxxopts
 
 
-static constexpr std::string_view ISAL{
-    R"(
-# ISA-l
-
-https://github.com/intel/isa-l
-
-Copyright(c) 2011-2017 Intel Corporation All rights reserved.
+namespace isal
+{
+static constexpr std::string_view name{ "ISA-L" };
+static constexpr std::string_view url{ "https://github.com/intel/isa-l" };
+static constexpr std::string_view license{
+    R"(Copyright(c) 2011-2017 Intel Corporation All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions
@@ -66,15 +66,15 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 )" };
+}  // namespace isal
 
 
-static constexpr std::string_view RPMALLOC{
-    R"(
-# rpmalloc
-
-https://github.com/mjansson/rpmalloc
-
-This is free and unencumbered software released into the public domain.
+namespace rpmalloc
+{
+static constexpr std::string_view name{ "rpmalloc" };
+static constexpr std::string_view url{ "https://github.com/mjansson/rpmalloc" };
+static constexpr std::string_view unlicense{
+    R"(This is free and unencumbered software released into the public domain.
 
 Anyone is free to copy, modify, publish, use, compile, sell, or
 distribute this software, either in source code form or as a compiled
@@ -98,13 +98,10 @@ ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 
 For more information, please refer to <http://unlicense.org>
+)" };
 
-
-You can also use this software under the MIT license if public domain
-is not recognized in your country
-
-
-The MIT License (MIT)
+static constexpr std::string_view mit{
+    R"(The MIT License (MIT)
 
 Copyright (c) 2017 Mattias Jansson
 
@@ -128,14 +125,21 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 )" };
 
+static const std::string fullLicense{
+    std::string( unlicense ) + R"(
+You can also use this software under the MIT license if public domain
+is not recognized in your country
+)" + std::string( mit )
+};
+}  // namespace rpmalloc
 
-static constexpr std::string_view ZLIB{
-    R"(
-# zlib
 
-https://github.com/madler/zlib/
-
-Copyright notice:
+namespace zlib
+{
+static constexpr std::string_view name{ "zlib" };
+static constexpr std::string_view url{ "https://github.com/madler/zlib/" };
+static constexpr std::string_view license{
+    R"(Copyright notice:
 
  (C) 1995-2022 Jean-loup Gailly and Mark Adler
 
@@ -158,4 +162,32 @@ Copyright notice:
   Jean-loup Gailly        Mark Adler
   jloup@gzip.org          madler@alumni.caltech.edu
 )" };
-}  // namespace licenses
+}  // namespace zlib
+}  // namespace thirdparty
+
+
+[[nodiscard]] std::string
+toYamlString( const std::string_view text )
+{
+    std::string result;
+    result += '"';
+    for ( const auto c : text ) {
+        switch ( c )
+        {
+        case '"':
+            result += R"(\")";
+            break;
+        case '\\':
+            result += R"(\\)";
+            break;
+        case '\n':
+            result += R"(\n)";
+            break;
+        default:
+            result += c;
+            break;
+        }
+    }
+    result += '"';
+    return result;
+}

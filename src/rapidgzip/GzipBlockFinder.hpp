@@ -43,11 +43,7 @@ public:
         m_fileSizeInBits( m_file->size()
                           ? std::make_optional( *m_file->size() * CHAR_BIT )
                           : std::nullopt ),
-        m_spacingInBits( spacing * CHAR_BIT ),
-        m_isBgzfFile( blockfinder::Bgzf::isBgzfFile( m_file ) ),
-        m_bgzfBlockFinder( m_isBgzfFile
-                           ? std::make_unique<blockfinder::Bgzf>( m_file->clone() )
-                           : std::unique_ptr<blockfinder::Bgzf>() )
+        m_spacingInBits( spacing * CHAR_BIT )
     {
         if ( m_spacingInBits < 32_Ki ) {
             /* Well, actually, it could make sense because this is about the spacing in the compressed data but
@@ -60,14 +56,40 @@ public:
         /* The first deflate block offset is easily found by reading over the gzip header.
          * The correctness and existence of this first block is a required initial condition for the algorithm. */
         BitReader bitReader{ m_file->clone() };
-        const auto [header, error] = gzip::readHeader( bitReader );
-        if ( error != Error::NONE ) {
+        const auto [gzipHeader, gzipError] = gzip::readHeader( bitReader );
+        const auto positionAfterGzipHeader = bitReader.tell();
+        if ( gzipError == Error::NONE ) {
+            m_fileType = blockfinder::Bgzf::isBgzfFile( m_file ) ? FileType::BGZF : FileType::GZIP;
+        } else {
+            /** Try reading zlib header */
+            bitReader.seek( 0 );
+            const auto [zlibHeader, zlibError] = zlib::readHeader( bitReader );
+            if ( zlibError == Error::NONE ) {
+                m_fileType = FileType::ZLIB;
+            } else {
+                /** Try reading deflate "header" */
+                bitReader.seek( 0 );
+                deflate::Block block;
+                if ( block.readHeader( bitReader ) == Error::NONE ) {
+                    m_fileType = FileType::DEFLATE;
+                }
+                bitReader.seek( 0 );
+            }
+        }
+
+        if ( m_fileType == FileType::NONE ) {
             std::stringstream message;
-            message << "Encountered error while reading gzip header: " << toString( error )
-                    << "\nBit reader position after trying to read gzip header: " << formatBits( bitReader.tell() );
+            message << "Encountered error while reading gzip header: " << toString( gzipError )
+                    << "\nBit reader position after trying to read gzip header: "
+                    << formatBits( positionAfterGzipHeader );
             throw std::invalid_argument( std::move( message ).str() );
         }
+
         m_blockOffsets.push_back( bitReader.tell() );
+
+        m_bgzfBlockFinder = m_fileType == FileType::BGZF
+                            ? std::make_unique<blockfinder::Bgzf>( m_file->clone() )
+                            : std::unique_ptr<blockfinder::Bgzf>();
     }
 
     /**
@@ -94,10 +116,10 @@ public:
         return m_finalized;
     }
 
-    [[nodiscard]] bool
-    isBgzfFile() const noexcept
+    [[nodiscard]] FileType
+    fileType() const noexcept
     {
-        return m_isBgzfFile;
+        return m_fileType;
     }
 
     /**
@@ -125,7 +147,7 @@ public:
     {
         const std::scoped_lock lock( m_mutex );
 
-        if ( m_isBgzfFile ) {
+        if ( m_fileType == FileType::BGZF ) {
             return getBgzfBlock( blockIndex );
         }
 
@@ -303,8 +325,8 @@ private:
     std::deque<size_t> m_blockOffsets;
 
     /** Only used for Bgzf files in which case it will gather offsets in chunks of this. */
-    const bool m_isBgzfFile;
-    const std::unique_ptr<blockfinder::Bgzf> m_bgzfBlockFinder;
+    FileType m_fileType{ FileType::NONE };
+    std::unique_ptr<blockfinder::Bgzf> m_bgzfBlockFinder;
     const size_t m_batchFetchCount = std::max<size_t>( 16, 3U * std::thread::hardware_concurrency() );
 };
 }  // namespace rapidgzip

@@ -395,58 +395,10 @@ DecodedData::applyWindow( WindowView const& window )
 }
 
 
-/**
- * @todo Shouldn't this be eqivalent to getWindowAt( previewWindow, size() )?
- *       Probably can be replaced to reduce code complexity. getWindowAt is more complex and generic and
- *       was introduced for block splitting while this method exists since the beginning.
- */
 [[nodiscard]] inline DecodedVector
 DecodedData::getLastWindow( WindowView const& previousWindow ) const
 {
-    DecodedVector window( MAX_WINDOW_SIZE, 0 );
-    size_t nBytesWritten{ 0 };
-
-    /* Fill the result from the back with data from our buffer. */
-    /** @todo use iterator. */
-    for ( auto chunk = data.rbegin(); ( chunk != data.rend() ) && ( nBytesWritten < window.size() ); ++chunk ) {
-        for ( size_t i = 0; ( i < chunk->size() ) && ( nBytesWritten < window.size() ); ++i, ++nBytesWritten )
-        {
-            const auto symbol = ( *chunk )[chunk->size() - 1 - i];
-            window[window.size() - 1 - nBytesWritten] = symbol;
-        }
-    }
-
-    /* Fill the result from the back with data from our unresolved buffers. */
-    const auto copyFromDataWithMarkers =
-        [this, &window, &nBytesWritten] ( const auto& mapMarker )
-        {
-            for ( auto chunk = dataWithMarkers.rbegin();
-                  ( chunk != dataWithMarkers.rend() ) && ( nBytesWritten < window.size() ); ++chunk )
-            {
-                for ( auto symbol = chunk->rbegin(); ( symbol != chunk->rend() ) && ( nBytesWritten < window.size() );
-                      ++symbol, ++nBytesWritten )
-                {
-                    window[window.size() - 1 - nBytesWritten] = mapMarker( *symbol );
-                }
-            }
-        };
-
-    if ( previousWindow.size() >= MAX_WINDOW_SIZE ) {
-        copyFromDataWithMarkers( MapMarkers</* full window */ true>( previousWindow ) );
-    } else {
-        copyFromDataWithMarkers( MapMarkers</* full window */ false>( previousWindow ) );
-    }
-
-    /* Fill the remaining part with the given window. This should only happen for very small DecodedData sizes. */
-    if ( nBytesWritten < MAX_WINDOW_SIZE ) {
-        const auto remainingBytes = MAX_WINDOW_SIZE - nBytesWritten;
-        std::copy( std::reverse_iterator( previousWindow.end() ),
-                   std::reverse_iterator( previousWindow.end() )
-                   + std::min( remainingBytes, previousWindow.size() ),
-                   window.rbegin() + nBytesWritten );
-    }
-
-    return window;
+    return getWindowAt( previousWindow, size() );
 }
 
 

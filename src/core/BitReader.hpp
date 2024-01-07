@@ -436,6 +436,12 @@ public:
         return peekUnsafe( bitsWanted );
     }
 
+    [[nodiscard]] std::pair<BitBuffer, size_t>
+    peekAvailable() const
+    {
+        return { peekUnsafe( bitBufferSize() ), bitBufferSize() };
+    }
+
     /**
      * @return current position / number of bits already read.
      */

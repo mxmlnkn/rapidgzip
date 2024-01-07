@@ -26,7 +26,7 @@
 #include <ParallelBitStringFinder.hpp>
 
 #include "CLIHelper.hpp"
-#include "licenses.hpp"
+#include "thirdparty.hpp"
 
 
 /* Check whether the found offsets actually point to BZ2 magic bytes. */
@@ -206,6 +206,7 @@ ibzip2CLI( int argc, char** argv )
         ( "v,verbose", "Be verbose. A second -v (or shorthand -vv) gives even more verbosity." )
         ( "V,version", "Display software version." )
         ( "oss-attributions", "Display open-source software licenses." )
+        ( "oss-attributions-yaml", "Display open-source software licenses in YAML format for use with Conda." )
         ( "l,list-compressed-offsets",
           "List only the bzip2 block offsets given in bits one per line to the specified output file. "
           "If no file is given, it will print to stdout or to stderr if the decoded data is already written to stdout. "
@@ -263,7 +264,26 @@ ibzip2CLI( int argc, char** argv )
     }
 
     if ( parsedArgs.count( "oss-attributions" ) > 0 ) {
-        std::cout << licenses::CXXOPTS;
+        std::cout
+            << "# " << thirdparty::cxxopts::name << "\n\n"
+            << thirdparty::cxxopts::url << "\n\n"
+            << thirdparty::cxxopts::license << "\n";
+        return 0;
+    }
+
+    if ( parsedArgs.count( "oss-attributions-yaml" ) > 0 ) {
+        std::cout
+            << "root_name: rapidgzip\n"
+            << "third_party_libraries:\n"
+            << "  - package_name: " << thirdparty::cxxopts::name << "\n"
+            << "    package_version: "
+            << static_cast<uint32_t>( cxxopts::version.major ) << "."
+            << static_cast<uint32_t>( cxxopts::version.minor ) << "."
+            << static_cast<uint32_t>( cxxopts::version.patch ) << "\n"
+            << "    license: Unlicense\n"
+            << "    licenses:\n"
+            << "      - license: Unlicense\n"
+            << "        text: " << toYamlString( thirdparty::cxxopts::license ) << "\n";
         return 0;
     }
 

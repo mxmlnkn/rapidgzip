@@ -309,8 +309,10 @@ testParallelDecodingWithIndex( const TemporaryDirectory& tmpFolder )
 
 
 const std::vector<std::tuple<std::string, std::string, std::string, std::string > > TEST_ENCODERS = {
+    /* [name, getVersion, command, extension] */
     { "gzip", "gzip --version", "gzip -k --force", "gzip" },
     { "pigz", "pigz --version", "pigz -k --force", "pigz" },
+    { "pigz zlib", "pigz --version", "pigz -k --force --zlib", "zlib" },
     { "igzip", "igzip --version", "igzip -k --force", "igzip" },
     { "bgzip", "bgzip --version", "bgzip --force", "bgzip" },
     { "Python3 gzip", "python3 --version", "python3 -m gzip", "python3-gzip" },
@@ -346,11 +348,15 @@ encodeTestFile( const std::string&           filePath,
         throw std::runtime_error( "Failed to encode the temporary file with: " + fullCommand );
     }
 
-    if ( !std::filesystem::exists( filePath + ".gz" ) ) {
-        throw std::runtime_error( "Encoded file was not found!" );
+    if ( std::filesystem::exists( filePath + ".gz" ) ) {
+        return filePath + ".gz";
     }
 
-    return filePath + ".gz";
+    if ( ( command.find( " --zlib" ) != std::string::npos ) && std::filesystem::exists( filePath + ".zz" ) ) {
+        return filePath + ".zz";
+    }
+
+    throw std::runtime_error( "Encoded file was not found!" );
 }
 
 
@@ -778,6 +784,130 @@ testMultiThreadedUsage()
 }
 
 
+void
+testIndexCreation( const std::filesystem::path&    encoded,
+                   const std::map<size_t, size_t>& expectedBlockOffsets )
+{
+    std::cerr << "Testing index for " << encoded.filename() << "\n";
+    ParallelGzipReader reader( std::make_unique<StandardFileReader>( encoded.string() ) );
+    if ( reader.blockOffsets() != expectedBlockOffsets ) {
+        std::cerr << "reader.blockOffsets: {";
+        for ( const auto& [encodedOffset, decodedOffset] : reader.blockOffsets() ) {
+            std::cerr << " {" << encodedOffset << "," << decodedOffset << "},";
+        }
+        std::cerr << "}\n";
+
+        std::cerr << "expectedBlockOffsets: {";
+        for ( const auto& [encodedOffset, decodedOffset] : expectedBlockOffsets ) {
+            std::cerr << " {" << encodedOffset << "," << decodedOffset << "},";
+        }
+        std::cerr << "}\n";
+    }
+    REQUIRE( reader.blockOffsets() == expectedBlockOffsets );
+}
+
+
+template<typename Container>
+[[nodiscard]] Container
+duplicateContents( Container&& data,
+                   size_t      count )
+{
+    const auto oldSize = data.size();
+    data.resize( count * oldSize );
+    for ( size_t i = 1; i < count; ++i ) {
+        std::copy( data.begin(), data.begin() + oldSize,
+                   data.begin() + i * oldSize );
+    }
+    return std::move( data );
+}
+
+
+void
+testMultiStreamDecompression( const std::filesystem::path& encoded,
+                              const std::filesystem::path& decoded )
+{
+    auto compressedData = readFile<std::vector<uint8_t> >( encoded );
+    auto decompressedData = readFile<std::vector<uint8_t> >( decoded );
+
+    /* Duplicate gzip stream. We need something larger than the chunk size at least. */
+    const auto duplicationCount = ceilDiv( 32_Mi, compressedData.size() );
+    compressedData = duplicateContents( std::move( compressedData ), duplicationCount );
+    decompressedData = duplicateContents( std::move( decompressedData ), duplicationCount );
+
+    std::cerr << "Test " << duplicationCount << " duplicated streams of " << encoded.filename() << " for a total of "
+              << formatBytes( compressedData.size() ) << " decompressing to " << formatBytes( decompressedData.size() )
+              << "\n";
+
+    std::vector<uint8_t> decompressedResult( decompressedData.size() + 1, 3 );
+    ParallelGzipReader reader( std::make_unique<BufferViewFileReader>( compressedData ) );
+    const auto readSize = reader.read( reinterpret_cast<char*>( decompressedResult.data() ),
+                                       decompressedResult.size() );
+    REQUIRE_EQUAL( readSize, decompressedData.size() );
+    decompressedResult.resize( decompressedData.size() );
+    REQUIRE( decompressedResult == decompressedData );
+}
+
+
+void
+testChecksummedMultiStreamDecompression( const std::filesystem::path& encoded,
+                                         const std::filesystem::path& decoded )
+{
+    auto compressedData = readFile<std::vector<uint8_t> >( encoded );
+    auto decompressedData = readFile<std::vector<uint8_t> >( decoded );
+
+    const auto singleStreamSize = compressedData.size();
+    CRC32Calculator checksummer;
+    checksummer.update( decompressedData.data(), decompressedData.size() );
+
+    /* Duplicate gzip stream. We need something larger than the chunk size at least. */
+    const auto duplicationCount = ceilDiv( 32_Mi, compressedData.size() );
+    compressedData = duplicateContents( std::move( compressedData ), duplicationCount );
+    decompressedData = duplicateContents( std::move( decompressedData ), duplicationCount );
+
+    std::cerr << "Test " << duplicationCount << " duplicated streams of " << encoded.filename() << " for a total of "
+              << formatBytes( compressedData.size() ) << " decompressing to " << formatBytes( decompressedData.size() )
+              << "\n";
+
+    std::unordered_map<size_t, uint32_t> crc32s;
+    crc32s.reserve( duplicationCount );
+    for ( size_t i = 0; i < duplicationCount; ++i ) {
+        crc32s.emplace( i * singleStreamSize, checksummer.crc32() );
+    }
+
+    std::unique_ptr<GzipIndex> index;
+    /* Test without index. */
+    {
+        std::vector<uint8_t> decompressedResult( decompressedData.size() + 1, 3 );
+        ParallelGzipReader reader( std::make_unique<BufferViewFileReader>( compressedData ) );
+        reader.setCRC32Enabled( true );
+        reader.setDeflateStreamCRC32s( std::move( crc32s ) );
+
+        const auto readSize = reader.read( reinterpret_cast<char*>( decompressedResult.data() ),
+                                           decompressedResult.size() );
+        REQUIRE_EQUAL( readSize, decompressedData.size() );
+        decompressedResult.resize( decompressedData.size() );
+        REQUIRE( decompressedResult == decompressedData );
+
+        index = std::make_unique<GzipIndex>( reader.gzipIndex().clone() );
+    }
+
+    /* Test with index. */
+    {
+        std::vector<uint8_t> decompressedResult( decompressedData.size() + 1, 3 );
+        ParallelGzipReader reader( std::make_unique<BufferViewFileReader>( compressedData ) );
+        reader.setCRC32Enabled( true );
+        reader.setDeflateStreamCRC32s( std::move( crc32s ) );
+        reader.setBlockOffsets( *index );
+
+        const auto readSize = reader.read( reinterpret_cast<char*>( decompressedResult.data() ),
+                                           decompressedResult.size() );
+        REQUIRE_EQUAL( readSize, decompressedData.size() );
+        decompressedResult.resize( decompressedData.size() );
+        REQUIRE( decompressedResult == decompressedData );
+    }
+}
+
+
 int
 main( int    argc,
       char** argv )
@@ -809,9 +939,27 @@ main( int    argc,
 
     testParallelDecoderNano();
 
+    /* The second and last encoded offset should always be at the end of the file, i.e., equal the file size in bits. */
+    testIndexCreation( rootFolder / "1B.bgz", { { 18 * 8, 0 }, { 60 * 8, 1 } } );
+    testIndexCreation( rootFolder / "1B.deflate", { { 0, 0 }, { 3 * 8, 1 } } );
+    testIndexCreation( rootFolder / "1B.gz", { { 13 * 8, 0 }, { 24 * 8, 1 } } );
+    testIndexCreation( rootFolder / "1B.igz", { { 13 * 8, 0 }, { 24 * 8, 1 } } );
+    testIndexCreation( rootFolder / "1B.migz", { { 20 * 8, 0 }, { 31 * 8, 1 } } );
+    testIndexCreation( rootFolder / "1B.pgzf", { { 32 * 8, 0 }, { 85 * 8, 1 } } );
+    testIndexCreation( rootFolder / "1B.pigz", { { 13 * 8, 0 }, { 24 * 8, 1 } } );
+    testIndexCreation( rootFolder / "1B.zlib", { { 2 * 8, 0 }, { 9 * 8, 1 } } );
+
     using namespace std::string_literals;
 
-    for ( const auto& extension : { ".gz"s, ".bgz"s, ".igz"s, ".pigz"s } ) {
+    testChecksummedMultiStreamDecompression( rootFolder / "base64-32KiB.deflate",
+                                             rootFolder / "base64-32KiB" );
+
+    for ( const auto& extension : { ".gz"s, ".bgz"s, ".igz"s, ".pigz"s, ".zlib"s, ".deflate"s } ) {
+        testMultiStreamDecompression( rootFolder / ( "base64-32KiB" + extension ),
+                                      rootFolder / "base64-32KiB" );
+    }
+
+    for ( const auto& extension : { ".gz"s, ".bgz"s, ".igz"s, ".pigz"s, ".zlib"s, ".deflate"s } ) {
         testParallelDecoder( rootFolder / ( "empty" + extension ) );
         testParallelDecoder( rootFolder / ( "1B" + extension ) );
         testParallelDecoder( rootFolder / ( "256B-extended-ASCII-table-in-utf8-dynamic-Huffman" + extension ) );

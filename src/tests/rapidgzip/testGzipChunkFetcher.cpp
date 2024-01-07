@@ -211,6 +211,7 @@ testIsalBug()
         /* window */ window,
         /* decodedSize */ 4171816,
         cancel,
+        FileType::GZIP,
         /* crc32Enabled */ false,
         /* maxDecompressedChunkSize */ 4_Mi,
         /* isBgzfFile */ true );
@@ -230,6 +231,12 @@ testWikidataException( const std::filesystem::path& rootFolder )
     const auto exactUntilOffset = 2097164ULL;
     const auto decodedSize = 4'140'634ULL;
     std::vector<uint8_t> initialWindow( 32_Ki, 0 );
+
+    ChunkData result;
+    result.setCRC32Enabled( true );
+    result.fileType = FileType::GZIP;
+    result.encodedOffsetInBits = startOffset;
+
     /* This did throw because it checks whether the exactUntilOffset has been reached. However, when a decoded size
      * is specified, it is used as a stop criterium. This means that for ISA-L the very last symbol, the end-of-block
      * symbol, might not be read from the input stream and, therefore, the exactUntilOffset was not reached.
@@ -237,7 +244,7 @@ testWikidataException( const std::filesystem::path& rootFolder )
      * is also given the exactUntilOffset and does not move more bits than that to the ISA-L input buffers. */
     const auto chunk =
         rapidgzip::GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlockWithInflateWrapper<InflateWrapper>(
-            bitReader, startOffset, exactUntilOffset, initialWindow, decodedSize, false );
+            bitReader, exactUntilOffset, initialWindow, decodedSize, std::move( result ) );
 
     REQUIRE_EQUAL( chunk.encodedSizeInBits, exactUntilOffset );
     REQUIRE_EQUAL( chunk.decodedSizeInBytes, decodedSize );
@@ -319,12 +326,17 @@ initBitReaderAtDeflateStream( UniqueFileReader&& fileReader )
 decodeWithDecodeBlockWithRapidgzip( UniqueFileReader&& fileReader )
 {
     auto bitReader = initBitReaderAtDeflateStream( std::move( fileReader ) );
+
+    ChunkData result;
+    result.setCRC32Enabled( true );
+    result.fileType = FileType::GZIP;
+
     return GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlockWithRapidgzip(
         &bitReader,
         /* untilOffset */ std::numeric_limits<size_t>::max(),
         /* window */ std::nullopt,
-        /* crc32Enabled */ true,
-        /* maxDecompressedChunkSize */ std::numeric_limits<size_t>::max() );
+        /* maxDecompressedChunkSize */ std::numeric_limits<size_t>::max(),
+        std::move( result ) );
 }
 
 
@@ -349,13 +361,18 @@ decodeWithDecodeBlockWithInflateWrapper( UniqueFileReader&& fileReader )
 {
     auto bitReader = initBitReaderAtDeflateStream( std::move( fileReader ) );
     using ChunkFetcher = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>;
+
+    ChunkData result;
+    result.setCRC32Enabled( true );
+    result.encodedOffsetInBits = bitReader.tell();
+    result.fileType = FileType::GZIP;
+
     return ChunkFetcher::decodeBlockWithInflateWrapper<InflateWrapper>(
         bitReader,
-        bitReader.tell(),
         /* exactUntilOffset */ bitReader.size().value(),
         /* window */ {},
         /* decodedSize */ std::nullopt,
-        /* crc32Enabled */ true );
+        std::move( result ) );
 }
 
 

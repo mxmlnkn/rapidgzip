@@ -3,9 +3,11 @@ Cython wrapper for the GzipReader and ParallelGzipReader C++ classes.
 """
 
 from libc.stdlib cimport malloc, free
+from libc.stdint cimport uint32_t
 from libc.stdio cimport SEEK_SET
 from libcpp.string cimport string
 from libcpp.map cimport map
+from libcpp.unordered_map cimport unordered_map
 from libcpp.optional cimport optional
 from libcpp.vector cimport vector
 from libcpp cimport bool
@@ -386,6 +388,10 @@ cdef extern from "rapidgzip/ParallelGzipReader.hpp" namespace "rapidgzip":
         void importIndex(PyObject*) except +
         void exportIndex(PyObject*) except +
         void joinThreads() except +
+        string fileTypeAsString() except +
+
+        void setDeflateStreamCRC32s(unordered_map[size_t, uint32_t])
+        void addDeflateStreamCRC32(size_t, uint32_t)
 
     # To be used as template argument for ParallelGzipReader to avoid triggering the Cython
     # error message about template arguments being of an unknown type (because it is a value).
@@ -398,6 +404,12 @@ cdef extern from "rapidgzip/ParallelGzipReader.hpp" namespace "rapidgzip":
 
 ctypedef ParallelGzipReader[RapidgzipChunkData, TrueValue] ParallelGzipReaderVerbose
 ctypedef ParallelGzipReader[RapidgzipChunkData] ParallelGzipReaderNonVerbose
+
+cdef extern from "rapidgzip/format.hpp" namespace "rapidgzip":
+    string determineFileTypeAsString(PyObject*) except +
+
+cdef extern from "rapidgzip/rapidgzip.hpp" namespace "rapidgzip":
+    string VERSION_STRING
 
 
 cdef class _RapidgzipFile():
@@ -588,6 +600,24 @@ cdef class _RapidgzipFile():
         if self.gzipReaderVerbose:
             return self.gzipReaderVerbose.joinThreads()
 
+    def file_type(self):
+        if self.gzipReader:
+            return self.gzipReader.fileTypeAsString().decode()
+        if self.gzipReaderVerbose:
+            return self.gzipReaderVerbose.fileTypeAsString().decode()
+
+    def set_deflate_stream_crc32s(self, crc32s):
+        if self.gzipReader:
+            self.gzipReader.setDeflateStreamCRC32s(crc32s)
+        if self.gzipReaderVerbose:
+            self.gzipReaderVerbose.setDeflateStreamCRC32s(crc32s)
+
+    def add_deflate_stream_crc32(self, end_of_stream_offset_in_bytes, crc32):
+        if self.gzipReader:
+            self.gzipReader.addDeflateStreamCRC32(end_of_stream_offset_in_bytes, crc32)
+        if self.gzipReaderVerbose:
+            self.gzipReaderVerbose.addDeflateStreamCRC32(end_of_stream_offset_in_bytes, crc32)
+
 
 # Extra class because cdefs are not visible from outside but cdef class can't inherit from io.BufferedIOBase
 # ParallelGzipReader has its own internal buffer. Using io.BufferedReader is not necessary and might even
@@ -616,6 +646,11 @@ class RapidgzipFile(io.RawIOBase):
 
         if hasattr(self.gzipReader, 'join_threads'):
             self.join_threads = self.gzipReader.join_threads
+        if hasattr(self.gzipReader, 'file_type'):
+            self.file_type = self.gzipReader.file_type
+
+        self.set_deflate_stream_crc32s = self.gzipReader.set_deflate_stream_crc32s
+        self.add_deflate_stream_crc32 = self.gzipReader.add_deflate_stream_crc32
 
         # IOBase provides sane default implementations for read, readline, readlines, readall, ...
 
@@ -649,6 +684,13 @@ def open(filename, parallelization = 0, verbose = False):
               with suitable read, seekable, seek, and tell methods.
     """
     return RapidgzipFile(filename, parallelization, verbose)
+
+
+def determineFileType(fileOrPath):
+    if isinstance(fileOrPath, int) or isinstance(fileOrPath, str):
+        with builtins.open(fileOrPath, "rb") as file:
+            return determineFileTypeAsString(<PyObject*>file).decode()
+    return determineFileTypeAsString(<PyObject*>fileOrPath).decode()
 
 
 def cli():
@@ -687,4 +729,4 @@ def ibzip2_cli():
             PyBuffer_Release(&buffer)
 
 
-__version__ = '0.11.2'
+__version__ = VERSION_STRING.decode()

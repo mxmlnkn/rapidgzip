@@ -42,7 +42,6 @@ template<typename T_ChunkData = ChunkData,
          bool ENABLE_STATISTICS = false>
 class ParallelGzipReader final :
     public FileReader
-
 {
 public:
     using ChunkData = T_ChunkData;
@@ -902,6 +901,25 @@ public:
         m_keepIndex = keep;
     }
 
+    [[nodiscard]] std::string
+    fileTypeAsString()
+    {
+        return toString( blockFinder().fileType() );
+    }
+
+    void
+    setDeflateStreamCRC32s( std::unordered_map<size_t, uint32_t> crc32s )
+    {
+        m_deflateStreamCRC32s = std::move( crc32s );
+    }
+
+    void
+    addDeflateStreamCRC32( size_t   endOfStreamOffsetInBytes,
+                           uint32_t crc32 )
+    {
+        m_deflateStreamCRC32s.insert_or_assign( endOfStreamOffsetInBytes, crc32 );
+    }
+
 private:
     BlockFinder&
     blockFinder()
@@ -1010,7 +1028,13 @@ private:
         /* Process CRC32 of chunk. */
         m_crc32.append( chunkData->crc32s.front() );
         for ( size_t i = 0; i < chunkData->footers.size(); ++i ) {
-            if ( m_crc32.verify( chunkData->footers[i].gzipFooter.crc32 ) ) {
+            const auto& footer = chunkData->footers[i];
+            const auto footerByteOffset = ceilDiv( footer.blockBoundary.encodedOffset, CHAR_BIT );
+            if ( const auto externalCRC32 = m_deflateStreamCRC32s.find( footerByteOffset );
+                 externalCRC32 != m_deflateStreamCRC32s.end() )
+            {
+                m_crc32.verify( m_crc32.crc32() );
+            } else if ( hasCRC32( chunkData->fileType ) && m_crc32.verify( footer.gzipFooter.crc32 ) ) {
                 m_verifiedCRC32Count++;
             }
             m_crc32 = chunkData->crc32s.at( i + 1 );
@@ -1053,5 +1077,6 @@ private:
 
     CRC32Calculator m_crc32;
     uint64_t m_nextCRC32ChunkOffset{ 0 };
+    std::unordered_map<size_t, uint32_t> m_deflateStreamCRC32s;
 };
 }  // namespace rapidgzip
