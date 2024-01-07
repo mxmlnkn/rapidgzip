@@ -1,4 +1,19 @@
 
+# Version 0.12.0 built on 2024-01-07
+
+## Added
+
+ - Add support for zlib and raw deflate files.
+ - Add `--oss-attributions-yaml` command line option to generate a Conda-compatible `THIRDPARTY.yml`.
+
+## API
+
+ - Add `rapidgzip::VERSION` and other preprocessor version macros.
+ - Add `setDeflateStreamCRC32s` and `addDeflateStreamCRC32` for providing CRC32s for raw deflate streams.
+ - Add `RapidgzipFile.file_type` getter and `determineFileType` to get the determined file type.
+   Currently, it is one of the values `GZIP`, `BGZF`, `ZLIB`, `DEFLATE`, `None`.
+
+
 # Version 0.11.2 built on 2024-01-06
 
 ## Fixes
