@@ -21,7 +21,7 @@
 #include <Statistics.hpp>
 
 #include "CLIHelper.hpp"
-#include "licenses.hpp"
+#include "thirdparty.hpp"
 
 
 struct Arguments
@@ -206,7 +206,8 @@ rapidgzipCLI( int                  argc,
         ( "q,quiet"  , "Suppress noncritical error messages." )
         ( "v,verbose", "Print debug output and profiling statistics." )
         ( "V,version", "Display software version." )
-        ( "oss-attributions", "Display open-source software licenses." );
+        ( "oss-attributions", "Display open-source software licenses." )
+        ( "oss-attributions-yaml", "Display open-source software licenses in YAML format for use with Conda." );
 
     /* These options are offered because just piping to other tools can already bottleneck everything! */
     options.add_options( "Actions" )
@@ -250,21 +251,72 @@ rapidgzipCLI( int                  argc,
     }
 
     if ( parsedArgs.count( "version" ) > 0 ) {
-        std::cout << "rapidgzip, CLI to the parallelized, indexed, and seekable gzip decoding library rapidgzip "
-                  << "version " << rapidgzip::VERSION[0] << "." << rapidgzip::VERSION[1] << "."
-                   << rapidgzip::VERSION[2] << "\n";
+        std::cout
+            << "rapidgzip, CLI to the parallelized, indexed, and seekable gzip decoding library rapidgzip version "
+            << static_cast<uint32_t>( rapidgzip::VERSION[0] ) << "."
+            << static_cast<uint32_t>( rapidgzip::VERSION[1] ) << "."
+            << static_cast<uint32_t>( rapidgzip::VERSION[2] ) << "\n";
         return 0;
     }
 
     if ( parsedArgs.count( "oss-attributions" ) > 0 ) {
-        std::cout << licenses::CXXOPTS << "\n"
+        std::cout
+            << "# " << thirdparty::cxxopts::name << "\n\n"
+            << thirdparty::cxxopts::url << "\n\n"
+            << thirdparty::cxxopts::license << "\n\n"
         #ifdef WITH_ISAL
-                  << licenses::ISAL << "\n"
+            << "# " << thirdparty::isal::name << "\n\n"
+            << thirdparty::isal::url << "\n\n"
+            << thirdparty::isal::license << "\n\n"
         #endif
         #ifdef WITH_RPMALLOC
-                  << licenses::RPMALLOC << "\n"
+            << "# " << thirdparty::rpmalloc::name << "\n\n"
+            << thirdparty::rpmalloc::url << "\n\n"
+            << thirdparty::rpmalloc::fullLicense << "\n\n"
         #endif
-                  << licenses::ZLIB;
+            << "# " << thirdparty::zlib::name << "\n\n"
+            << thirdparty::zlib::url << "\n\n"
+            << thirdparty::zlib::license;
+        return 0;
+    }
+
+    if ( parsedArgs.count( "oss-attributions-yaml" ) > 0 ) {
+        std::cout
+            << "root_name: rapidgzip\n"
+            << "third_party_libraries:\n"
+            << "  - package_name: " << thirdparty::cxxopts::name << "\n"
+            << "    package_version: "
+            << static_cast<uint32_t>( cxxopts::version.major ) << "."
+            << static_cast<uint32_t>( cxxopts::version.minor ) << "."
+            << static_cast<uint32_t>( cxxopts::version.patch ) << "\n"
+            << "    license: Unlicense\n"
+            << "    licenses:\n"
+            << "      - license: Unlicense\n"
+            << "        text: " << toYamlString( thirdparty::cxxopts::license ) << "\n"
+        #ifdef WITH_ISAL
+            << "  - package_name: " << thirdparty::isal::name << "\n"
+            << "    package_version: 2.30.0\n"
+            << "    license: BSD-3\n"
+            << "    licenses:\n"
+            << "      - license: BSD-3\n"
+            << "        text: " << toYamlString( thirdparty::isal::license ) << "\n"
+        #endif
+        #ifdef WITH_RPMALLOC
+            << "  - package_name: " << thirdparty::rpmalloc::name << "\n"
+            << "    package_version: 1.4.4\n"
+            << "    license: Unlicense/MIT\n"
+            << "    licenses:\n"
+            << "      - license: Unlicense\n"
+            << "        text: " << toYamlString( thirdparty::rpmalloc::unlicense ) << "\n"
+            << "      - license: MIT\n"
+            << "        text: " << toYamlString( thirdparty::rpmalloc::mit ) << "\n"
+        #endif
+            << "  - package_name: " << thirdparty::zlib::name << "\n"
+            << "    package_version: " << ZLIB_VER_MAJOR << "." << ZLIB_VER_MINOR << "." << ZLIB_VER_REVISION << "\n"
+            << "    license: Zlib\n"
+            << "    licenses:\n"
+            << "      - license: Zlib\n"
+            << "        text: " << toYamlString( thirdparty::zlib::license ) << "\n";
         return 0;
     }
 

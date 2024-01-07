@@ -110,7 +110,7 @@ jobs:
         cmake --build . -- check
 
   Check-Without-Isal:
-    name: Check without Sanitizer and without ISA-l
+    name: Check without Sanitizer and without ISA-L
     # And especially without -DSHORT_TESTS, which makes it non redundant to the sanitizer checks!
     runs-on: ubuntu-22.04
     steps:
