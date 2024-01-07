@@ -408,6 +408,9 @@ ctypedef ParallelGzipReader[RapidgzipChunkData] ParallelGzipReaderNonVerbose
 cdef extern from "rapidgzip/format.hpp" namespace "rapidgzip":
     string determineFileTypeAsString(PyObject*) except +
 
+cdef extern from "rapidgzip/rapidgzip.hpp" namespace "rapidgzip":
+    string VERSION_STRING
+
 
 cdef class _RapidgzipFile():
     cdef ParallelGzipReaderNonVerbose* gzipReader
@@ -726,4 +729,4 @@ def ibzip2_cli():
             PyBuffer_Release(&buffer)
 
 
-__version__ = '0.11.2'
+__version__ = VERSION_STRING.decode()
