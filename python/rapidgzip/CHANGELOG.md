@@ -1,4 +1,12 @@
 
+# Version 0.12.1 built on 2024-01-08
+
+## Fixes
+
+ - Fix segmentation fault from rpmalloc because `rpmalloc_thread_initialize` was not called because
+   the `static thread_local` global variable was not initialized at all because it was never used.
+
+
 # Version 0.12.0 built on 2024-01-07
 
 ## Added
