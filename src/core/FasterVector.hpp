@@ -45,7 +45,12 @@ public:
 };
 
 
-static const thread_local RpmallocThreadInit rpmallocThreadInit{};
+void*
+rpmalloc_ensuring_initialization( size_t nBytes )
+{
+    static const thread_local RpmallocThreadInit rpmallocThreadInit{};
+    return rpmalloc( nBytes );
+}
 
 
 template<typename ElementType>
@@ -65,7 +70,7 @@ public:
         }
 
         auto const nBytesToAllocate = nElementsToAllocate * sizeof( ElementType );
-        return reinterpret_cast<ElementType*>( rpmalloc( nBytesToAllocate ) );
+        return reinterpret_cast<ElementType*>( rpmalloc_ensuring_initialization( nBytesToAllocate ) );
     }
 
     constexpr void

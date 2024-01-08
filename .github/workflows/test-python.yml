@@ -81,6 +81,13 @@ jobs:
         rapidgzip --help
         rapidgzip --version
 
+    - name: Test Simple Usage rapidgzip
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        head -c 1024 /dev/urandom | base64 | gzip > base64-1KiB.gz
+        cat base64-1KiB.gz | rapidgzip -d -c
+        rapidgzip -d -c base64-1KiB.gz
+
     - name: Test Simple Startup ibzip2
       run: |
         ibzip2 --help
