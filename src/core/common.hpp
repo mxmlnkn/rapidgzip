@@ -106,8 +106,7 @@ template<typename U,
 saturatingAddition( const U a,
                     const U b )
 {
-    auto result = a + b;
-    return result < a ? std::numeric_limits<U>::max() : result;
+    return a > std::numeric_limits<U>::max() - b ? std::numeric_limits<U>::max() : a + b;
 }
 
 
@@ -117,18 +116,16 @@ template<typename U,
 saturatingAddition( const U a,
                     const U b )
 {
-    const auto result = a + b;
-
     /* Underflow or overflow should only be possible when both values have the same sign! */
     if ( ( a > 0 ) && ( b > 0 ) ) {
-        return result < a ? std::numeric_limits<U>::max() : result;
+        return a > std::numeric_limits<U>::max() - b ? std::numeric_limits<U>::max() : a + b;
     }
 
     if ( ( a < 0 ) && ( b < 0 ) ) {
-        return result > a ? std::numeric_limits<U>::lowest() : result;
+        return a < std::numeric_limits<U>::lowest() - b ? std::numeric_limits<U>::lowest() : a + b;
     }
 
-    return result;
+    return a + b;
 }
 
 
