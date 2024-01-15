@@ -24,6 +24,11 @@
 #include "thirdparty.hpp"
 
 
+class BrokenPipeException :
+    public std::exception
+{};
+
+
 struct Arguments
 {
     unsigned int decoderParallelism{ 0 };
@@ -90,9 +95,16 @@ printIndexAnalytics( const Reader& reader )
 }
 
 
+enum class DecompressErrorCode
+{
+    SUCCESS = 0,
+    BROKEN_PIPE = 1,
+};
+
+
 template<typename Reader,
          typename WriteFunctor>
-size_t
+[[nodiscard]] std::pair<DecompressErrorCode, size_t>
 decompressParallel( const Arguments&    args,
                     const Reader&       reader,
                     const WriteFunctor& writeFunctor )
@@ -109,7 +121,13 @@ decompressParallel( const Arguments&    args,
         }
     }
 
-    const auto totalBytesRead = reader->read( writeFunctor );
+    auto errorCode = DecompressErrorCode::SUCCESS;
+    size_t totalBytesRead{ 0 };
+    try {
+        totalBytesRead = reader->read( writeFunctor );
+    } catch ( const BrokenPipeException& ) {
+        return { DecompressErrorCode::BROKEN_PIPE, 0 };
+    }
 
     if ( !args.indexSavePath.empty() ) {
         const auto file = throwingOpen( args.indexSavePath, "wb" );
@@ -128,7 +146,7 @@ decompressParallel( const Arguments&    args,
         printIndexAnalytics( reader );
     }
 
-    return totalBytesRead;
+    return { DecompressErrorCode::SUCCESS, totalBytesRead };
 }
 
 
@@ -137,7 +155,7 @@ decompressParallel( const Arguments&    args,
  */
 template<typename ChunkData,
          typename WriteFunctor = std::function<void ( const std::shared_ptr<ChunkData>&, size_t, size_t )> >
-size_t
+[[nodiscard]] std::pair<DecompressErrorCode, size_t>
 decompressParallel( const Arguments&    args,
                     UniqueFileReader    inputFile,
                     const WriteFunctor& writeFunctor )
@@ -434,7 +452,17 @@ rapidgzipCLI( int                  argc,
               size_t const                               offsetInBlock,
               size_t const                               dataToWriteSize )
             {
-                writeAll( chunkData, outputFileDescriptor, offsetInBlock, dataToWriteSize );
+                const auto errorCode = writeAll( chunkData, outputFileDescriptor, offsetInBlock, dataToWriteSize );
+                if ( errorCode == EPIPE ) {
+                    throw BrokenPipeException();
+                }
+                if ( errorCode != 0 ) {
+                    std::stringstream message;
+                    message << "Failed to write all bytes because of: " << strerror( errorCode )
+                            << " (" << errorCode << ")";
+                    throw std::runtime_error( std::move( message.str() ) );
+                }
+
                 if ( countLines ) {
                     using rapidgzip::deflate::DecodedData;
                     for ( auto it = DecodedData::Iterator( *chunkData, offsetInBlock, dataToWriteSize );
@@ -448,6 +476,7 @@ rapidgzipCLI( int                  argc,
 
         args.chunkSize = parsedArgs["chunk-size"].as<unsigned int>() * 1_Ki;
 
+        auto errorCode = DecompressErrorCode::SUCCESS;
         size_t totalBytesRead{ 0 };
         if ( ( outputFileDescriptor == -1 ) && args.indexSavePath.empty() && countBytes && !countLines
              && !args.crc32Enabled )
@@ -455,7 +484,7 @@ rapidgzipCLI( int                  argc,
             /* Need to do nothing with the chunks because decompressParallel returns the decompressed size.
              * Note that we use rapidgzip::ChunkDataCounter to speed up decompression. Therefore an index
              * will not be created and there also will be no checksum verification! */
-            totalBytesRead = decompressParallel<rapidgzip::ChunkDataCounter>(
+            std::tie( errorCode, totalBytesRead ) = decompressParallel<rapidgzip::ChunkDataCounter>(
                 args, std::move( inputFile ), /* do nothing */ {} );
         } else {
             std::function<void( const std::shared_ptr<rapidgzip::ChunkData>, size_t, size_t )> writeFunctor;
@@ -463,7 +492,8 @@ rapidgzipCLI( int                  argc,
             if ( ( outputFileDescriptor != -1 ) || countLines ) {
                 writeFunctor = writeAndCount;
             }
-            totalBytesRead = decompressParallel<rapidgzip::ChunkData>( args, std::move( inputFile ), writeFunctor );
+            std::tie( errorCode, totalBytesRead ) = decompressParallel<rapidgzip::ChunkData>(
+                args, std::move( inputFile ), writeFunctor );
         }
 
         const auto writeToStdErr = outputFile && outputFile->writingToStdout();
@@ -486,7 +516,14 @@ rapidgzipCLI( int                  argc,
             out << "Lines: " << newlineCount << "\n";
         }
 
-        return 0;
+        switch ( errorCode )
+        {
+        case DecompressErrorCode::BROKEN_PIPE:
+            return 128 + /* SIGPIPE */ 13;
+        case DecompressErrorCode::SUCCESS:
+            return 0;
+        }
+        return 2;
     }
 
     std::cerr << "No suitable arguments were given. Please refer to the help!\n\n";

@@ -36,6 +36,46 @@ enum class FileInitialization
 };
 
 
+void
+pwriteAllToFdVector( const int                   outputFileDescriptor,
+                     const std::vector<::iovec>& dataToWrite,
+                     size_t                      fileOffset )
+{
+    for ( size_t i = 0; i < dataToWrite.size(); ) {
+        const auto segmentCount = std::min( static_cast<size_t>( IOV_MAX ), dataToWrite.size() - i );
+        auto nBytesWritten = ::pwritev( outputFileDescriptor, &dataToWrite[i], segmentCount, fileOffset );
+
+        if ( nBytesWritten < 0 ) {
+            std::stringstream message;
+            message << "Failed to write all bytes because of: " << strerror( errno ) << " (" << errno << ")";
+            throw std::runtime_error( std::move( message.str() ) );
+        }
+
+        fileOffset += nBytesWritten;
+
+        /* Skip over buffers that were written fully. */
+        for ( ; ( i < dataToWrite.size() ) && ( dataToWrite[i].iov_len <= static_cast<size_t>( nBytesWritten ) );
+              ++i ) {
+            nBytesWritten -= dataToWrite[i].iov_len;
+        }
+
+        /* Write out last partially written buffer if necessary so that we can resume full vectorized writing
+         * from the next iovec buffer. */
+        if ( ( i < dataToWrite.size() ) && ( nBytesWritten > 0 ) ) {
+            const auto& iovBuffer = dataToWrite[i];
+
+            assert( iovBuffer.iov_len < static_cast<size_t>( nBytesWritten ) );
+            const auto remainingSize = iovBuffer.iov_len - nBytesWritten;
+            const auto remainingData = reinterpret_cast<char*>( iovBuffer.iov_base ) + nBytesWritten;
+            pwriteAllToFd( outputFileDescriptor, remainingData, remainingSize, fileOffset );
+            fileOffset += remainingSize;
+
+            ++i;
+        }
+    }
+}
+
+
 [[nodiscard]] const char*
 toStringFile( const FileInitialization fileInitialization )
 {

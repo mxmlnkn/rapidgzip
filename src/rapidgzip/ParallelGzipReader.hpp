@@ -385,7 +385,13 @@ public:
                     return;
                 }
 
-                writeAll( chunkData, outputFileDescriptor, offsetInBlock, dataToWriteSize );
+                const auto errorCode = writeAll( chunkData, outputFileDescriptor, offsetInBlock, dataToWriteSize );
+                if ( errorCode != 0 ) {
+                    std::stringstream message;
+                    message << "Failed to write all bytes because of: " << strerror( errorCode )
+                            << " (" << errorCode << ")";
+                    throw std::runtime_error( std::move( message.str() ) );
+                }
 
                 if ( outputBuffer != nullptr ) {
                     using rapidgzip::deflate::DecodedData;

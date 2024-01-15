@@ -456,6 +456,7 @@ ChunkData::split( [[maybe_unused]] const size_t spacing ) const
 static_assert( !std::is_polymorphic_v<ChunkData>, "Simply making it polymorphic halves performance!" );
 
 
+#if defined( HAVE_VMSPLICE )
 /**
  * Tries to use writeAllSpliceUnsafe and, if successful, also extends lifetime by adding the block data
  * shared_ptr into a list.
@@ -470,27 +471,10 @@ static_assert( !std::is_polymorphic_v<ChunkData>, "Simply making it polymorphic 
  *    - This would only be triggerable by using the API. The current CLI and not even the Python
  *      interface would trigger this because either they don't splice to a pipe or only read
  *      sequentially.
- * @note It *does* account for pages to be spliced into yet another pipe buffer. This is exactly what the
- *       SPLICE_F_GIFT flag is for. Without that being set, pages will not be spliced but copied into further
- *       pipe buffers. So, without this flag, there is no danger of extending the lifetime of those pages
- *       arbitarily.
+ * @note It *does* account for pages to be spliced into yet another pipe buffer by waiting for buffer size
+ *       amount of data being written before freeing, and likely reusing, the memory.
  */
-[[nodiscard]] inline bool
-writeAllSplice( const int                         outputFileDescriptor,
-                const void* const                 dataToWrite,
-                size_t const                      dataToWriteSize,
-                const std::shared_ptr<ChunkData>& chunkData )
-{
-#if defined( HAVE_VMSPLICE )
-    return SpliceVault::getInstance( outputFileDescriptor ).first->splice( dataToWrite, dataToWriteSize, chunkData );
-#else
-    return false;
-#endif
-}
-
-
-#if defined( HAVE_VMSPLICE )
-[[nodiscard]] inline bool
+[[nodiscard]] inline int
 writeAllSplice( [[maybe_unused]] const int                         outputFileDescriptor,
                 [[maybe_unused]] const std::shared_ptr<ChunkData>& chunkData,
                 [[maybe_unused]] const std::vector<::iovec>&       buffersToWrite )
@@ -500,20 +484,21 @@ writeAllSplice( [[maybe_unused]] const int                         outputFileDes
 #endif  // HAVE_VMSPLICE
 
 
-inline void
+[[nodiscard]] inline int
 writeAll( const std::shared_ptr<ChunkData>& chunkData,
           const int                         outputFileDescriptor,
           const size_t                      offsetInBlock,
           const size_t                      dataToWriteSize )
 {
     if ( ( outputFileDescriptor < 0 ) || ( dataToWriteSize == 0 ) ) {
-        return;
+        return 0;
     }
 
 #ifdef HAVE_VMSPLICE
     const auto buffersToWrite = toIoVec( *chunkData, offsetInBlock, dataToWriteSize );
-    if ( !writeAllSplice( outputFileDescriptor, chunkData, buffersToWrite ) ) {
-        writeAllToFdVector( outputFileDescriptor, buffersToWrite );
+    const auto errorCode = writeAllSplice( outputFileDescriptor, chunkData, buffersToWrite );
+    if ( errorCode != 0 ) {
+        return writeAllToFdVector( outputFileDescriptor, buffersToWrite );
     }
 #else
     using rapidgzip::deflate::DecodedData;
@@ -523,14 +508,14 @@ writeAll( const std::shared_ptr<ChunkData>& chunkData,
           static_cast<bool>( it ); ++it )
     {
         const auto& [buffer, size] = *it;
-        if ( splicable ) {
-            splicable = writeAllSplice( outputFileDescriptor, buffer, size, chunkData );
-        }
-        if ( !splicable ) {
-            writeAllToFd( outputFileDescriptor, buffer, size );
+        const auto errorCode = writeAllToFd( outputFileDescriptor, buffer, size );
+        if ( errorCode != 0 ) {
+            return errorCode;
         }
     }
 #endif
+
+    return 0;
 }
 
 
