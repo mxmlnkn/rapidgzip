@@ -121,7 +121,6 @@ decompressParallel( const Arguments&    args,
         }
     }
 
-    auto errorCode = DecompressErrorCode::SUCCESS;
     size_t totalBytesRead{ 0 };
     try {
         totalBytesRead = reader->read( writeFunctor );
