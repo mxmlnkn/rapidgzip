@@ -1192,7 +1192,9 @@ public:
          * something very similar because GzipReader only works with fully decodable streams but we
          * might want to return buffer with placeholders in case we don't know the initial window, yet! */
         size_t nextBlockOffset{ 0 };
+    #ifdef WITH_ISAL
         size_t cleanDataCount{ 0 };
+    #endif
         while ( true )
         {
             if ( isAtStreamEnd ) {
@@ -1301,7 +1303,9 @@ public:
                     throw std::domain_error( std::move( message ).str() );
                 }
 
+            #ifdef WITH_ISAL
                 cleanDataCount += bufferViews.dataSize();
+            #endif
 
                 const auto tAppendStart = now();
                 result.append( bufferViews );
