@@ -106,7 +106,7 @@ testAutomaticMarkerResolution( const std::filesystem::path& filePath,
 
 std::ostream&
 operator<<( std::ostream&                                    out,
-            const std::vector<rapidgzip::ChunkData::Subblock>& chunks )
+            const std::vector<rapidgzip::ChunkData::Subchunk>& chunks )
 {
     out << "{";
     for ( const auto chunk : chunks ) {
@@ -127,7 +127,7 @@ testBlockSplit()
     chunk.maxEncodedOffsetInBits = 0;
     chunk.encodedSizeInBits = 0;
 
-    using Subblock = rapidgzip::ChunkData::Subblock;
+    using Subchunk = rapidgzip::ChunkData::Subchunk;
     using BlockBoundary = rapidgzip::ChunkData::BlockBoundary;
     chunk.finalize( 0 );
     REQUIRE( chunk.split( 1 ).empty() );
@@ -141,7 +141,7 @@ testBlockSplit()
         chunk2.append( toAppend );
 
         chunk2.finalize( 8 );
-        const std::vector<Subblock> expected = { Subblock{ 0, 8, 1 } };
+        const std::vector<Subchunk> expected = { Subchunk{ 0, 8, 1 } };
         REQUIRE( chunk2.split( 1 ) == expected );
         REQUIRE( chunk2.split( 2 ) == expected );
         REQUIRE( chunk2.split( 10 ) == expected );
@@ -156,7 +156,7 @@ testBlockSplit()
 
         chunk.blockBoundaries = { BlockBoundary{ 128, 1024 } };
         chunk.finalize( 128 );
-        std::vector<Subblock> expected = { Subblock{ 0, 128, 1024 } };
+        std::vector<Subchunk> expected = { Subchunk{ 0, 128, 1024 } };
         REQUIRE( chunk.split( 1 ) == expected );
         REQUIRE( chunk.split( 1024 ) == expected );
         REQUIRE( chunk.split( 10000 ) == expected );
@@ -166,7 +166,7 @@ testBlockSplit()
         REQUIRE( chunk.split( 1024 ) == expected );
         REQUIRE( chunk.split( 10000 ) == expected );
 
-        expected = { Subblock{ 0, 30, 300 }, Subblock{ 30, 128 - 30, 1024 - 300 } };
+        expected = { Subchunk{ 0, 30, 300 }, Subchunk{ 30, 128 - 30, 1024 - 300 } };
         REQUIRE( chunk.split( 400 ) == expected );
         REQUIRE( chunk.split( 512 ) == expected );
         REQUIRE( chunk.split( 600 ) == expected );

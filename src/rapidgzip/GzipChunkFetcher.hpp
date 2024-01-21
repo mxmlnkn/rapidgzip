@@ -163,7 +163,7 @@ public:
                      * decodedOffsetInBytes from this query. Normally, this should always return a valid optional! */
                     auto unsplitBlockInfo = m_blockMap->getEncodedOffset( ( *chunkData )->encodedOffsetInBits );
                     if ( unsplitBlockInfo
-                         /* Test whether we got the unsplit block or the first split subblock from the cache. */
+                         /* Test whether we got the unsplit block or the first split subchunk from the cache. */
                          && ( blockOffset >= ( *chunkData )->encodedOffsetInBits )
                          && ( blockOffset < ( *chunkData )->encodedOffsetInBits + ( *chunkData )->encodedSizeInBits ) )
                     {
@@ -235,14 +235,14 @@ public:
 
             m_preemptiveStopCount += chunkData->stoppedPreemptively ? 1 : 0;
 
-            const auto subblocks = chunkData->split( m_blockFinder->spacingInBits() / 8U );
-            for ( const auto boundary : subblocks ) {
+            const auto subchunks = chunkData->split( m_blockFinder->spacingInBits() / 8U );
+            for ( const auto boundary : subchunks ) {
                 m_blockMap->push( boundary.encodedOffset, boundary.encodedSize, boundary.decodedSize );
                 m_blockFinder->insert( boundary.encodedOffset + boundary.encodedSize );
             }
 
-            if ( subblocks.size() > 1 ) {
-                BaseType::m_fetchingStrategy.splitIndex( m_nextUnprocessedBlockIndex, subblocks.size() );
+            if ( subchunks.size() > 1 ) {
+                BaseType::m_fetchingStrategy.splitIndex( m_nextUnprocessedBlockIndex, subchunks.size() );
 
                 /* Get actual key in cache, which might be the partition offset! */
                 const auto chunkOffset = chunkData->encodedOffsetInBits;
@@ -250,14 +250,14 @@ public:
                 const auto lookupKey = !BaseType::test( chunkOffset ) && BaseType::test( partitionOffset )
                                        ? partitionOffset
                                        : chunkOffset;
-                for ( const auto boundary : subblocks ) {
+                for ( const auto boundary : subchunks ) {
                     /* This condition could be removed but makes the map slightly smaller. */
                     if ( boundary.encodedOffset != chunkOffset ) {
                         m_unsplitBlocks.emplace( boundary.encodedOffset, lookupKey );
                     }
                 }
             }
-            m_nextUnprocessedBlockIndex += subblocks.size();
+            m_nextUnprocessedBlockIndex += subchunks.size();
 
             if constexpr ( ENABLE_STATISTICS ) {
                 std::scoped_lock lock( m_statisticsMutex );
@@ -313,9 +313,9 @@ public:
             }
 
             size_t decodedOffsetInBlock{ 0 };
-            for ( const auto& subblock : subblocks ) {
-                decodedOffsetInBlock += subblock.decodedSize;
-                const auto windowOffset = subblock.encodedOffset + subblock.encodedSize;
+            for ( const auto& subchunk : subchunks ) {
+                decodedOffsetInBlock += subchunk.decodedSize;
+                const auto windowOffset = subchunk.encodedOffset + subchunk.encodedSize;
                 /* Avoid recalculating what we already emplaced in waitForReplacedMarkers when calling getLastWindow. */
                 if ( !m_windowMap->get( windowOffset ) ) {
                     m_windowMap->emplace( windowOffset, chunkData->getWindowAt( lastWindow, decodedOffsetInBlock ) );

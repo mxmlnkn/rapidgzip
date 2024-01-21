@@ -83,14 +83,14 @@ struct ChunkData :
         zlib::Footer zlibFooter;
     };
 
-    struct Subblock
+    struct Subchunk
     {
         size_t encodedOffset{ 0 };
         size_t encodedSize{ 0 };
         size_t decodedSize{ 0 };
 
         [[nodiscard]] bool
-        operator==( const Subblock& other ) const
+        operator==( const Subchunk& other ) const
         {
             return ( encodedOffset == other.encodedOffset )
                    && ( encodedSize == other.encodedSize )
@@ -154,7 +154,7 @@ public:
     void
     setEncodedOffset( size_t offset );
 
-    [[nodiscard]] std::vector<Subblock>
+    [[nodiscard]] std::vector<Subchunk>
     split( [[maybe_unused]] const size_t spacing ) const;
 
     /**
@@ -335,7 +335,7 @@ ChunkData::setEncodedOffset( size_t offset )
 }
 
 
-[[nodiscard]] inline std::vector<ChunkData::Subblock>
+[[nodiscard]] inline std::vector<ChunkData::Subchunk>
 ChunkData::split( [[maybe_unused]] const size_t spacing ) const
 {
     if ( encodedOffsetInBits != maxEncodedOffsetInBits ) {
@@ -353,27 +353,27 @@ ChunkData::split( [[maybe_unused]] const size_t spacing ) const
 
     const auto nBlocks = static_cast<size_t>( std::round( static_cast<double>( decompressedSize )
                                                           / static_cast<double>( spacing ) ) );
-    Subblock wholeChunkAsSubblock;
-    wholeChunkAsSubblock.encodedOffset = encodedOffsetInBits;
-    wholeChunkAsSubblock.encodedSize = encodedSizeInBits;
-    wholeChunkAsSubblock.decodedSize = decompressedSize;
+    Subchunk wholeChunkAsSubchunk;
+    wholeChunkAsSubchunk.encodedOffset = encodedOffsetInBits;
+    wholeChunkAsSubchunk.encodedSize = encodedSizeInBits;
+    wholeChunkAsSubchunk.decodedSize = decompressedSize;
     /* blockBoundaries does not contain the first block begin but all thereafter including the boundary after
      * the last block, i.e., the begin of the next deflate block not belonging to this ChunkData. */
     if ( ( nBlocks <= 1 ) || blockBoundaries.empty() ) {
-        return { wholeChunkAsSubblock };
+        return { wholeChunkAsSubchunk };
     }
 
-    /* The idea for partitioning is: Divide the size evenly and into subblocks and then choose the block boundary
+    /* The idea for partitioning is: Divide the size evenly and into subchunks and then choose the block boundary
      * that is closest to that value. */
     const auto perfectSpacing = static_cast<double>( decompressedSize ) / static_cast<double>( nBlocks );
 
-    std::vector<Subblock> subblocks;
-    subblocks.reserve( nBlocks + 1 );
+    std::vector<Subchunk> result;
+    result.reserve( nBlocks + 1 );
 
     BlockBoundary lastBoundary{ encodedOffsetInBits, 0 };
     /* The first and last boundaries are static, so we only need to find nBlocks - 1 further boundaries. */
-    for ( size_t iSubblock = 1; iSubblock < nBlocks; ++iSubblock ) {
-        const auto perfectDecompressedOffset = static_cast<size_t>( iSubblock * perfectSpacing );
+    for ( size_t iSubchunk = 1; iSubchunk < nBlocks; ++iSubchunk ) {
+        const auto perfectDecompressedOffset = static_cast<size_t>( iSubchunk * perfectSpacing );
 
         const auto isCloser =
             [perfectDecompressedOffset] ( const auto& b1, const auto& b2 )
@@ -391,7 +391,7 @@ ChunkData::split( [[maybe_unused]] const size_t spacing ) const
             ++closest;
         }
 
-        /* For very small spacings, the same boundary might be found twice. Avoid empty subblocks because of that. */
+        /* For very small spacings, the same boundary might be found twice. Avoid empty subchunks because of that. */
         if ( closest->decodedOffset <= lastBoundary.decodedOffset ) {
             continue;
         }
@@ -400,50 +400,50 @@ ChunkData::split( [[maybe_unused]] const size_t spacing ) const
             throw std::logic_error( "If the decoded offset is strictly larger than so must be the encoded one!" );
         }
 
-        Subblock subblock;
-        subblock.encodedOffset = lastBoundary.encodedOffset;
-        subblock.encodedSize = closest->encodedOffset - lastBoundary.encodedOffset;
-        subblock.decodedSize = closest->decodedOffset - lastBoundary.decodedOffset;
-        subblocks.emplace_back( subblock );
+        Subchunk subchunk;
+        subchunk.encodedOffset = lastBoundary.encodedOffset;
+        subchunk.encodedSize = closest->encodedOffset - lastBoundary.encodedOffset;
+        subchunk.decodedSize = closest->decodedOffset - lastBoundary.decodedOffset;
+        result.emplace_back( subchunk );
         lastBoundary = *closest;
     }
 
     if ( lastBoundary.decodedOffset > decompressedSize ) {
         throw std::logic_error( "There should be no boundary outside of the chunk range!" );
     }
-    if ( ( lastBoundary.decodedOffset < decompressedSize ) || subblocks.empty() ) {
-        /* Create the last subblock from lastBoundary and the chunk end. */
-        Subblock subblock;
-        subblock.encodedOffset = lastBoundary.encodedOffset,
-        subblock.encodedSize = encodedOffsetInBits + encodedSizeInBits - lastBoundary.encodedOffset,
-        subblock.decodedSize = decompressedSize - lastBoundary.decodedOffset,
-        subblocks.emplace_back( subblock );
+    if ( ( lastBoundary.decodedOffset < decompressedSize ) || result.empty() ) {
+        /* Create the last subchunk from lastBoundary and the chunk end. */
+        Subchunk subchunk;
+        subchunk.encodedOffset = lastBoundary.encodedOffset,
+        subchunk.encodedSize = encodedOffsetInBits + encodedSizeInBits - lastBoundary.encodedOffset,
+        subchunk.decodedSize = decompressedSize - lastBoundary.decodedOffset,
+        result.emplace_back( subchunk );
     } else if ( lastBoundary.decodedOffset == decompressedSize ) {
-        /* Enlarge the last subblock encoded size to also encompass the empty blocks before the chunk end.
+        /* Enlarge the last subchunk encoded size to also encompass the empty blocks before the chunk end.
          * Assuming that blockBoundaries contain the boundary at the chunk end and knowing that the loop
          * above always searches for the last boundary with the same decodedOffset, this branch shouldn't happen. */
-        subblocks.back().encodedSize = encodedOffsetInBits + encodedSizeInBits - subblocks.back().encodedOffset;
+        result.back().encodedSize = encodedOffsetInBits + encodedSizeInBits - result.back().encodedOffset;
     }
 
-    const auto subblockEncodedSizeSum =
-        std::accumulate( subblocks.begin(), subblocks.end(), size_t( 0 ),
+    const auto subchunkEncodedSizeSum =
+        std::accumulate( result.begin(), result.end(), size_t( 0 ),
                          [] ( size_t sum, const auto& block ) { return sum + block.encodedSize; } );
-    const auto subblockDecodedSizeSum =
-        std::accumulate( subblocks.begin(), subblocks.end(), size_t( 0 ),
+    const auto subchunkDecodedSizeSum =
+        std::accumulate( result.begin(), result.end(), size_t( 0 ),
                          [] ( size_t sum, const auto& block ) { return sum + block.decodedSize; } );
-    if ( ( subblockEncodedSizeSum != encodedSizeInBits ) || ( subblockDecodedSizeSum != decodedSizeInBytes ) ) {
+    if ( ( subchunkEncodedSizeSum != encodedSizeInBits ) || ( subchunkDecodedSizeSum != decodedSizeInBytes ) ) {
         std::stringstream message;
         message << "[Warning] Block splitting was unsuccessful. This might result in higher memory usage but is "
                 << "otherwise harmless. Please report this performance bug with a reproducing example.\n"
-                << "  subblockEncodedSizeSum: " << subblockEncodedSizeSum << "\n"
+                << "  subchunkEncodedSizeSum: " << subchunkEncodedSizeSum << "\n"
                 << "  encodedSizeInBits     : " << encodedSizeInBits      << "\n"
-                << "  subblockDecodedSizeSum: " << subblockDecodedSizeSum << "\n"
+                << "  subchunkDecodedSizeSum: " << subchunkDecodedSizeSum << "\n"
                 << "  decodedSizeInBytes    : " << decodedSizeInBytes     << "\n";
         std::cerr << std::move( message ).str();
-        return { wholeChunkAsSubblock };  // fallback without any splitting done at all
+        return { wholeChunkAsSubchunk };  // fallback without any splitting done at all
     }
 
-    return subblocks;
+    return result;
 }
 
 
@@ -563,7 +563,7 @@ struct ChunkDataCounter final :
      *       exception without this override. And it also does not happen with zeros-32GiB.gz, it happens
      *       only with wikidata.json.gz.
      */
-    [[nodiscard]] std::vector<Subblock>
+    [[nodiscard]] std::vector<Subchunk>
     split( [[maybe_unused]] const size_t spacing ) const
     {
         return ChunkData::split( std::numeric_limits<size_t>::max() );
