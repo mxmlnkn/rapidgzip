@@ -63,7 +63,7 @@ testAutomaticMarkerResolution( const std::filesystem::path& filePath,
             bitReader,
             blockOffset,
             /* untilOffset */ std::numeric_limits<size_t>::max(),
-            /* window */ std::nullopt,
+            /* window */ {},
             /* decodedSize */ std::nullopt,
             cancel );
 
@@ -208,7 +208,7 @@ testIsalBug()
         bitReader,
         blockOffset,
         untilOffset,
-        /* window */ window,
+        /* window */ std::make_shared<WindowMap::Window>( window ),
         /* decodedSize */ 4171816,
         cancel,
         FileType::GZIP,
@@ -349,7 +349,7 @@ decodeWithDecodeBlock( UniqueFileReader&& fileReader )
         bitReader,
         bitReader.tell(),
         /* untilOffset */ std::numeric_limits<size_t>::max(),
-        /* window */ std::nullopt,
+        /* window */ {},
         /* decodedSize */ std::nullopt,
         cancel );
 }

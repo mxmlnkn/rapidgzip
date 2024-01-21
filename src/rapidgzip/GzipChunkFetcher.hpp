@@ -66,6 +66,7 @@ public:
     using ChunkData = T_ChunkData;
     using BaseType = BlockFetcher<GzipBlockFinder, ChunkData, FetchingStrategy, ENABLE_STATISTICS>;
     using BitReader = rapidgzip::BitReader;
+    using SharedWindow = WindowMap::SharedWindow;
     using WindowView = VectorView<uint8_t>;
     using BlockFinder = typename BaseType::BlockFinder;
 
@@ -194,7 +195,7 @@ public:
                         << formatBits( chunkData->encodedOffsetInBits ) << ", "
                         << formatBits( chunkData->encodedOffsetInBits + chunkData->encodedSizeInBits ) << "].\n"
                         << "    Window size for the chunk offset: "
-                        << ( lastWindow.has_value() ? std::to_string( lastWindow->size() ) : "no window" ) << ".";
+                        << ( lastWindow ? std::to_string( lastWindow->size() ) : "no window" ) << ".";
                 throw std::logic_error( std::move( message ).str() );
             }
             return std::make_pair( blockInfo.decodedOffsetInBytes, std::move( chunkData ) );
@@ -296,18 +297,19 @@ public:
             /* Because this is a new block, it might contain markers that we have to replace with the window
              * of the last block. The very first block should not contain any markers, ensuring that we
              * can successively propagate the window through all blocks. */
-            auto lastWindow = m_windowMap->get( chunkData->encodedOffsetInBits );
-            if ( !lastWindow ) {
+            auto sharedLastWindow = m_windowMap->get( chunkData->encodedOffsetInBits );
+            if ( !sharedLastWindow ) {
                 std::stringstream message;
                 message << "The window of the last block at " << formatBits( chunkData->encodedOffsetInBits )
                         << " should exist at this point!";
                 throw std::logic_error( std::move( message ).str() );
             }
+            const auto& lastWindow = *sharedLastWindow;
 
             if constexpr ( REPLACE_MARKERS_IN_PARALLEL ) {
-                waitForReplacedMarkers( chunkData, *lastWindow );
+                waitForReplacedMarkers( chunkData, lastWindow );
             } else {
-                replaceMarkers( chunkData, *lastWindow );
+                replaceMarkers( chunkData, lastWindow );
             }
 
             size_t decodedOffsetInBlock{ 0 };
@@ -316,7 +318,7 @@ public:
                 const auto windowOffset = subblock.encodedOffset + subblock.encodedSize;
                 /* Avoid recalculating what we already emplaced in waitForReplacedMarkers when calling getLastWindow. */
                 if ( !m_windowMap->get( windowOffset ) ) {
-                    m_windowMap->emplace( windowOffset, chunkData->getWindowAt( *lastWindow, decodedOffsetInBlock ) );
+                    m_windowMap->emplace( windowOffset, chunkData->getWindowAt( lastWindow, decodedOffsetInBlock ) );
                 }
             }
         }
@@ -417,20 +419,21 @@ private:
             }
 
             /* Check for previous window. */
-            const auto previousWindow = m_windowMap->get( chunkData->encodedOffsetInBits );
-            if ( !previousWindow ) {
+            const auto sharedPreviousWindow = m_windowMap->get( chunkData->encodedOffsetInBits );
+            if ( !sharedPreviousWindow ) {
                 continue;
             }
+            const auto& previousWindow = *sharedPreviousWindow;
 
             const auto windowOffset = chunkData->encodedOffsetInBits + chunkData->encodedSizeInBits;
             if ( !m_windowMap->get( windowOffset ) ) {
-                m_windowMap->emplace( windowOffset, chunkData->getLastWindow( *previousWindow ) );
+                m_windowMap->emplace( windowOffset, chunkData->getLastWindow( previousWindow ) );
             }
 
             m_markersBeingReplaced.emplace(
                 chunkData->encodedOffsetInBits,
                 this->submitTaskWithHighPriority(
-                    [this, chunkData, previousWindow] () { replaceMarkers( chunkData, *previousWindow ); }
+                    [this, chunkData, sharedPreviousWindow] () { replaceMarkers( chunkData, *sharedPreviousWindow ); }
                 )
             );
         }
@@ -615,7 +618,7 @@ private:
                              *       indexes were created by us and follow that scheme.
                              */
                             ( m_isBgzfFile && !m_blockFinder->finalized()
-                              ? std::make_optional( WindowView{} )
+                              ? std::make_shared<WindowMap::Window>()
                               : m_windowMap->get( blockOffset ) ),
                             /* decodedSize */ blockInfo ? blockInfo->decodedSizeInBytes : std::optional<size_t>{},
                             m_cancelThreads,
@@ -637,7 +640,7 @@ public:
     decodeBlock( BitReader                const& originalBitReader,
                  size_t                    const blockOffset,
                  size_t                    const untilOffset,
-                 std::optional<WindowView> const initialWindow,
+                 SharedWindow              const initialWindow,
                  std::optional<size_t>     const decodedSize,
                  std::atomic<bool>        const& cancelThreads,
                  FileType                  const fileType = FileType::GZIP,
@@ -653,6 +656,7 @@ public:
 
         if ( initialWindow && untilOffsetIsExact ) {
             const auto fileSize = originalBitReader.size();
+            const auto& window = *initialWindow;
 
             ChunkData result;
             result.setCRC32Enabled( crc32Enabled );
@@ -661,7 +665,7 @@ public:
             result = decodeBlockWithInflateWrapper<InflateWrapper>(
                 originalBitReader,
                 fileSize ? std::min( untilOffset, *fileSize ) : untilOffset,
-                *initialWindow,
+                window,
                 decodedSize,
                 std::move( result ) );
 
@@ -675,9 +679,7 @@ public:
                         << "  Decoded size          : " << result.decodedSizeInBytes << " B\n"
                         << "  Expected decoded size : " << *decodedSize << " B\n"
                         << "  Until offset is exact : " << untilOffsetIsExact << "\n"
-                        << "  Initial Window        : " << ( initialWindow
-                                                             ? std::to_string( initialWindow->size() )
-                                                             : std::string( "None" ) ) << "\n";
+                        << "  Initial Window        : " << std::to_string( window.size() ) << "\n";
                 throw std::runtime_error( std::move( message ).str() );
             }
 
@@ -687,11 +689,12 @@ public:
         BitReader bitReader( originalBitReader );
         if ( initialWindow ) {
             bitReader.seek( blockOffset );
+            const auto& window = *initialWindow;
 
             ChunkData result;
             result.setCRC32Enabled( crc32Enabled );
             result.fileType = fileType;
-            return decodeBlockWithRapidgzip( &bitReader, untilOffset, initialWindow, maxDecompressedChunkSize,
+            return decodeBlockWithRapidgzip( &bitReader, untilOffset, window, maxDecompressedChunkSize,
                                              std::move( result ) );
         }
 

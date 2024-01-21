@@ -483,10 +483,10 @@ writeGzipIndex( const GzipIndex&                                              in
 
     if ( !std::all_of( checkpoints.begin(), checkpoints.end(), [&index, windowSizeInBytes] ( const auto& checkpoint ) {
                            const auto window = index.windows->get( checkpoint.compressedOffsetInBits );
-                           return window.has_value() && ( window->empty() || ( window->size() >= windowSizeInBytes ) );
+                           return window && ( window->empty() || ( window->size() >= windowSizeInBytes ) );
                        } ) )
     {
-        throw std::invalid_argument( "All window sizes must be at least 32 KiB!" );
+        throw std::invalid_argument( "All window sizes must be at least 32 KiB or empty!" );
     }
 
     checkedWrite( "GZIDX", 5 );

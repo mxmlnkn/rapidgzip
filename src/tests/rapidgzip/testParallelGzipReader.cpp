@@ -271,8 +271,8 @@ testParallelDecodingWithIndex( const TemporaryDirectory& tmpFolder )
 
             const auto reconstructedWindow = reconstructedIndex.windows->get( reconstructed.compressedOffsetInBits );
             const auto realWindow = realIndex.windows->get( real.compressedOffsetInBits );
-            REQUIRE( reconstructedWindow.has_value() );
-            REQUIRE( realWindow.has_value() );
+            REQUIRE( static_cast<bool>( reconstructedWindow ) );
+            REQUIRE( static_cast<bool>( realWindow ) );
         }
     }
     REQUIRE( *reconstructedIndex.windows == *realIndex.windows );

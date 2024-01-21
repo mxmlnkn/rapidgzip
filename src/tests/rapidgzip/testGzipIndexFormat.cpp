@@ -53,6 +53,40 @@ testIndexReadWrite( const std::filesystem::path& compressedPath,
             writeGzipIndex( index, checkedWrite );
         }
         const auto rereadIndex = readGzipIndex( std::make_unique<StandardFileReader>( gzipIndexPath ) );
+
+        REQUIRE_EQUAL( rereadIndex.compressedSizeInBytes, index.compressedSizeInBytes );
+        REQUIRE_EQUAL( rereadIndex.uncompressedSizeInBytes, index.uncompressedSizeInBytes );
+        REQUIRE_EQUAL( rereadIndex.checkpointSpacing, index.checkpointSpacing );
+        REQUIRE_EQUAL( rereadIndex.windowSizeInBytes, index.windowSizeInBytes );
+
+        REQUIRE( rereadIndex.checkpoints == index.checkpoints );
+
+        REQUIRE_EQUAL( static_cast<bool>( rereadIndex.windows ), static_cast<bool>( index.windows ) );
+        if ( rereadIndex.windows && index.windows ) {
+            REQUIRE_EQUAL( rereadIndex.windows->size(), index.windows->size() );
+            const auto& [_, windows] = index.windows->data();
+            for ( const auto& [offset, window] : *windows ) {
+                const auto rereadWindow = rereadIndex.windows->get( offset );
+                if ( !rereadWindow ) {
+                    std::cerr << "Failed to find offset " << offset << " in reread index!\n";
+                    continue;
+                }
+
+                if ( static_cast<bool>( window ) != static_cast<bool>( rereadWindow ) ) {
+                    std::stringstream message;
+                    message << std::boolalpha << "Shared window has value: " << static_cast<bool>( window )
+                            << " while reread shared window has value: " << static_cast<bool>( rereadWindow );
+                    std::cerr << std::move( message ).str() << "\n";
+                    continue;
+                }
+
+                if ( *window != *rereadWindow ) {
+                    std::cerr << "Window contents for offset " << offset << " differ!\n";
+                    continue;
+                }
+            }
+        }
+
         REQUIRE( rereadIndex == index );
     }
     catch ( const std::exception& exception )

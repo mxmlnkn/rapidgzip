@@ -723,20 +723,7 @@ public:
     setBlockOffsets( const GzipIndex& index )
     {
         const auto result = index.windows->data();
-        setBlockOffsets( index, [&windows = result.second] ( size_t offset ) -> Window {
-            return windows->at( offset );
-        } );
-    }
-
-    void
-    setBlockOffsets( GzipIndex&& index )
-    {
-        const auto result = index.windows->data();
-        setBlockOffsets( std::move( index ), [&windows = result.second] ( size_t offset ) -> Window {
-            Window window;
-            std::swap( windows->at( offset ), window );
-            return window;
-        } );
+        setBlockOffsets( index, [&windows = result.second] ( size_t offset ) { return windows->at( offset ); } );
     }
 
     /**
@@ -745,8 +732,8 @@ public:
      *                  This makes it possible to destructively return the Window to avoid a copy!
      */
     void
-    setBlockOffsets( const GzipIndex&                       index,
-                     const std::function<Window( size_t )>& getWindow )
+    setBlockOffsets( const GzipIndex&                                        index,
+                     const std::function<WindowMap::SharedWindow( size_t )>& getWindow )
     {
         if ( index.checkpoints.empty() || !index.windows || !getWindow ) {
             return;
@@ -795,7 +782,8 @@ public:
              * For some reason, indexed_gzip also stores windows for the very last checkpoint at the end of the file,
              * which is useless because there is nothing thereafter. But, don't filter it here so that exportIndex
              * mirrors importIndex better. */
-            m_windowMap->emplace( checkpoint.compressedOffsetInBits, getWindow( checkpoint.compressedOffsetInBits ) );
+            m_windowMap->emplaceShared( checkpoint.compressedOffsetInBits,
+                                        getWindow( checkpoint.compressedOffsetInBits ) );
         }
 
         /* Input file-end offset if not included in checkpoints. */
