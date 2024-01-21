@@ -73,6 +73,8 @@ printIndexAnalytics( const Reader& reader )
         return;
     }
 
+    /* Analyze the offsets. */
+
     Statistics<double> encodedOffsetSpacings;
     Statistics<double> decodedOffsetSpacings;
     for ( auto it = offsets.begin(), nit = std::next( offsets.begin() ); nit != offsets.end(); ++it, ++nit ) {
@@ -92,6 +94,23 @@ printIndexAnalytics( const Reader& reader )
         << "    Decoded offset spacings: ( min: " << decodedOffsetSpacings.min << ", "
         << decodedOffsetSpacings.formatAverageWithUncertainty()
         << ", max: " << decodedOffsetSpacings.max << " ) MB\n";
+
+    /* Analyze the windows. */
+    const auto gzipIndex = reader->gzipIndex();
+    if ( gzipIndex.windows ) {
+        const auto [lock, windows] = gzipIndex.windows->data();
+        const auto compressedWindowSize =
+            std::accumulate( windows->begin(), windows->end(), size_t( 0 ), [] ( size_t sum, const auto& kv ) {
+                return sum + ( kv.second ? kv.second->compressedSize() : 0 );
+            } );
+        const auto decompressedWindowSize =
+            std::accumulate( windows->begin(), windows->end(), size_t( 0 ), [] ( size_t sum, const auto& kv ) {
+                return sum + ( kv.second ? kv.second->decompressedSize() : 0 );
+            } );
+        std::cerr << "    Windows Count: " << windows->size() << "\n"
+                  << "    Total Compressed Window Size: " << formatBytes( compressedWindowSize ) << "\n"
+                  << "    Total Decompressed Window Size: " << formatBytes( decompressedWindowSize ) << "\n";
+    }
 }
 
 
