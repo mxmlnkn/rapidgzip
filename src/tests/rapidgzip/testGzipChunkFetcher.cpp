@@ -115,7 +115,7 @@ operator<<( std::ostream&                                    out,
             const std::vector<rapidgzip::ChunkData::Subchunk>& chunks )
 {
     out << "{";
-    for ( const auto chunk : chunks ) {
+    for ( const auto& chunk : chunks ) {
         out << " (" << chunk.encodedOffset << ", " << chunk.encodedSize << ", " << chunk.decodedSize << ")";
     }
     out << " }";
