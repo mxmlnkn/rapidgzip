@@ -209,103 +209,103 @@ private:
     getIndexedChunk( const size_t               offset,
                      const BlockMap::BlockInfo& blockInfo )
     {
-            const auto blockOffset = blockInfo.encodedOffsetInBits;
-            /* Try to look up the offset based on the offset of the unsplit block.
-             * Do not use BaseType::get because it has too many side effects. Even if we know that the cache
-             * contains the chunk, the access might break the perfect sequential fetching pattern because
-             * the chunk was split into multiple indexes in the fetching strategy while we might now access
-             * an earlier index, e.g., chunk 1 split into 1,2,3, then access offset belonging to split chunk 2. */
-            if ( const auto unsplitBlock = m_unsplitBlocks.find( blockOffset );
-                 ( unsplitBlock != m_unsplitBlocks.end() ) && ( unsplitBlock->second != blockOffset ) )
-            {
-                if ( const auto chunkData = BaseType::cache().get( unsplitBlock->second ); chunkData ) {
-                    /* This will get the first split subchunk but this is fine because we only need the
-                     * decodedOffsetInBytes from this query. Normally, this should always return a valid optional! */
-                    auto unsplitBlockInfo = m_blockMap->getEncodedOffset( ( *chunkData )->encodedOffsetInBits );
-                    if ( unsplitBlockInfo
-                         /* Test whether we got the unsplit block or the first split subchunk from the cache. */
-                         && ( blockOffset >= ( *chunkData )->encodedOffsetInBits )
-                         && ( blockOffset < ( *chunkData )->encodedOffsetInBits + ( *chunkData )->encodedSizeInBits ) )
-                    {
-                        if ( ( *chunkData )->containsMarkers() ) {
-                            std::stringstream message;
-                            message << "[GzipChunkFetcher] Did not expect to get results with markers! "
-                                    << "Requested offset: " << formatBits( offset ) << " found to belong to chunk at: "
-                                    << formatBits( blockOffset ) << ", found matching unsplit block with range ["
-                                    << formatBits( ( *chunkData )->encodedOffsetInBits ) << ", "
-                                    << formatBits( ( *chunkData )->encodedOffsetInBits
-                                                   + ( *chunkData )->encodedSizeInBits ) << "] in the list of "
-                                    << m_unsplitBlocks.size() << " unsplit blocks.";
-                            throw std::logic_error( std::move( message ).str() );
-                        }
-                        return std::make_pair( unsplitBlockInfo->decodedOffsetInBytes, *chunkData );
+        const auto blockOffset = blockInfo.encodedOffsetInBits;
+        /* Try to look up the offset based on the offset of the unsplit block.
+         * Do not use BaseType::get because it has too many side effects. Even if we know that the cache
+         * contains the chunk, the access might break the perfect sequential fetching pattern because
+         * the chunk was split into multiple indexes in the fetching strategy while we might now access
+         * an earlier index, e.g., chunk 1 split into 1,2,3, then access offset belonging to split chunk 2. */
+        if ( const auto unsplitBlock = m_unsplitBlocks.find( blockOffset );
+             ( unsplitBlock != m_unsplitBlocks.end() ) && ( unsplitBlock->second != blockOffset ) )
+        {
+            if ( const auto chunkData = BaseType::cache().get( unsplitBlock->second ); chunkData ) {
+                /* This will get the first split subchunk but this is fine because we only need the
+                 * decodedOffsetInBytes from this query. Normally, this should always return a valid optional! */
+                auto unsplitBlockInfo = m_blockMap->getEncodedOffset( ( *chunkData )->encodedOffsetInBits );
+                if ( unsplitBlockInfo
+                     /* Test whether we got the unsplit block or the first split subchunk from the cache. */
+                     && ( blockOffset >= ( *chunkData )->encodedOffsetInBits )
+                     && ( blockOffset < ( *chunkData )->encodedOffsetInBits + ( *chunkData )->encodedSizeInBits ) )
+                {
+                    if ( ( *chunkData )->containsMarkers() ) {
+                        std::stringstream message;
+                        message << "[GzipChunkFetcher] Did not expect to get results with markers! "
+                                << "Requested offset: " << formatBits( offset ) << " found to belong to chunk at: "
+                                << formatBits( blockOffset ) << ", found matching unsplit block with range ["
+                                << formatBits( ( *chunkData )->encodedOffsetInBits ) << ", "
+                                << formatBits( ( *chunkData )->encodedOffsetInBits
+                                               + ( *chunkData )->encodedSizeInBits ) << "] in the list of "
+                                << m_unsplitBlocks.size() << " unsplit blocks.";
+                        throw std::logic_error( std::move( message ).str() );
                     }
+                    return std::make_pair( unsplitBlockInfo->decodedOffsetInBytes, *chunkData );
                 }
             }
+        }
 
-            /* Get block normally */
-            auto chunkData = getBlock( blockInfo.encodedOffsetInBits, blockInfo.blockIndex );
-            if ( chunkData && chunkData->containsMarkers() ) {
-                auto lastWindow = m_windowMap->get( chunkData->encodedOffsetInBits );
-                std::stringstream message;
-                message << "[GzipChunkFetcher] Did not expect to get results with markers because the offset already "
-                        << "exists in the block map!\n"
-                        << "    Requested decompressed offset: " << formatBytes( offset ) << " found to belong to chunk at: "
-                        << formatBits( blockOffset ) << " with range ["
-                        << formatBits( chunkData->encodedOffsetInBits ) << ", "
-                        << formatBits( chunkData->encodedOffsetInBits + chunkData->encodedSizeInBits ) << "].\n"
-                        << "    Window size for the chunk offset: "
-                        << ( lastWindow ? std::to_string( lastWindow->size() ) : "no window" ) << ".";
-                throw std::logic_error( std::move( message ).str() );
-            }
+        /* Get block normally */
+        auto chunkData = getBlock( blockInfo.encodedOffsetInBits, blockInfo.blockIndex );
+        if ( chunkData && chunkData->containsMarkers() ) {
+            auto lastWindow = m_windowMap->get( chunkData->encodedOffsetInBits );
+            std::stringstream message;
+            message << "[GzipChunkFetcher] Did not expect to get results with markers because the offset already "
+                    << "exists in the block map!\n"
+                    << "    Requested decompressed offset: " << formatBytes( offset ) << " found to belong to chunk at: "
+                    << formatBits( blockOffset ) << " with range ["
+                    << formatBits( chunkData->encodedOffsetInBits ) << ", "
+                    << formatBits( chunkData->encodedOffsetInBits + chunkData->encodedSizeInBits ) << "].\n"
+                    << "    Window size for the chunk offset: "
+                    << ( lastWindow ? std::to_string( lastWindow->size() ) : "no window" ) << ".";
+            throw std::logic_error( std::move( message ).str() );
+        }
 
-            return std::make_pair( blockInfo.decodedOffsetInBytes, std::move( chunkData ) );
+        return std::make_pair( blockInfo.decodedOffsetInBytes, std::move( chunkData ) );
     }
 
     [[nodiscard]] std::shared_ptr<ChunkData>
     processNextChunk()
     {
-            if ( m_blockMap->finalized() ) {
-                return {};
-            }
+        if ( m_blockMap->finalized() ) {
+            return {};
+        }
 
-            const auto nextBlockOffset = m_blockFinder->get( m_nextUnprocessedBlockIndex );
+        const auto nextBlockOffset = m_blockFinder->get( m_nextUnprocessedBlockIndex );
 
-            if ( const auto inputFileSize = m_bitReader.size();
-                 !nextBlockOffset ||
-                 ( inputFileSize && ( *inputFileSize > 0 ) && ( *nextBlockOffset >= *inputFileSize ) ) )
-            {
-                m_blockMap->finalize();
-                m_blockFinder->finalize();
-                return {};
-            }
+        if ( const auto inputFileSize = m_bitReader.size();
+             !nextBlockOffset ||
+             ( inputFileSize && ( *inputFileSize > 0 ) && ( *nextBlockOffset >= *inputFileSize ) ) )
+        {
+            m_blockMap->finalize();
+            m_blockFinder->finalize();
+            return {};
+        }
 
-            auto chunkData = getBlock( *nextBlockOffset, m_nextUnprocessedBlockIndex );
+        auto chunkData = getBlock( *nextBlockOffset, m_nextUnprocessedBlockIndex );
 
-            /* Should only happen when encountering EOF during decodeBlock call. */
-            if ( chunkData->encodedSizeInBits == 0 ) {
-                m_blockMap->finalize();
-                m_blockFinder->finalize();
-                return {};
-            }
+        /* Should only happen when encountering EOF during decodeBlock call. */
+        if ( chunkData->encodedSizeInBits == 0 ) {
+            m_blockMap->finalize();
+            m_blockFinder->finalize();
+            return {};
+        }
 
-            /* Because this is a new block, it might contain markers that we have to replace with the window
-             * of the last block. The very first block should not contain any markers, ensuring that we
-             * can successively propagate the window through all blocks. */
-            auto sharedLastWindow = m_windowMap->get( chunkData->encodedOffsetInBits );
-            if ( !sharedLastWindow ) {
-                std::stringstream message;
-                message << "The window of the last block at " << formatBits( chunkData->encodedOffsetInBits )
-                        << " should exist at this point!";
-                throw std::logic_error( std::move( message ).str() );
-            }
-            const auto& lastWindow = *sharedLastWindow;
+        /* Because this is a new block, it might contain markers that we have to replace with the window
+         * of the last block. The very first block should not contain any markers, ensuring that we
+         * can successively propagate the window through all blocks. */
+        auto sharedLastWindow = m_windowMap->get( chunkData->encodedOffsetInBits );
+        if ( !sharedLastWindow ) {
+            std::stringstream message;
+            message << "The window of the last block at " << formatBits( chunkData->encodedOffsetInBits )
+                    << " should exist at this point!";
+            throw std::logic_error( std::move( message ).str() );
+        }
+        const auto& lastWindow = *sharedLastWindow;
 
-            postProcessChunk( chunkData, lastWindow );
-            const auto subchunks = chunkData->split( m_blockFinder->spacingInBits() / 8U );
-            appendSubchunksToIndexes( chunkData, subchunks, lastWindow );
+        postProcessChunk( chunkData, lastWindow );
+        const auto subchunks = chunkData->split( m_blockFinder->spacingInBits() / 8U );
+        appendSubchunksToIndexes( chunkData, subchunks, lastWindow );
 
-            m_statistics.merge( *chunkData );
+        m_statistics.merge( *chunkData );
 
         return chunkData;
     }
@@ -315,78 +315,78 @@ private:
                               const std::vector<typename ChunkData::Subchunk>& subchunks,
                               const FasterVector<uint8_t>&                     lastWindow )
     {
+        for ( const auto boundary : subchunks ) {
+            m_blockMap->push( boundary.encodedOffset, boundary.encodedSize, boundary.decodedSize );
+            m_blockFinder->insert( boundary.encodedOffset + boundary.encodedSize );
+        }
+
+        if ( subchunks.size() > 1 ) {
+            BaseType::m_fetchingStrategy.splitIndex( m_nextUnprocessedBlockIndex, subchunks.size() );
+
+            /* Get actual key in cache, which might be the partition offset! */
+            const auto chunkOffset = chunkData->encodedOffsetInBits;
+            const auto partitionOffset = m_blockFinder->partitionOffsetContainingOffset( chunkOffset );
+            const auto lookupKey = !BaseType::test( chunkOffset ) && BaseType::test( partitionOffset )
+                                   ? partitionOffset
+                                   : chunkOffset;
             for ( const auto boundary : subchunks ) {
-                m_blockMap->push( boundary.encodedOffset, boundary.encodedSize, boundary.decodedSize );
-                m_blockFinder->insert( boundary.encodedOffset + boundary.encodedSize );
-            }
-
-            if ( subchunks.size() > 1 ) {
-                BaseType::m_fetchingStrategy.splitIndex( m_nextUnprocessedBlockIndex, subchunks.size() );
-
-                /* Get actual key in cache, which might be the partition offset! */
-                const auto chunkOffset = chunkData->encodedOffsetInBits;
-                const auto partitionOffset = m_blockFinder->partitionOffsetContainingOffset( chunkOffset );
-                const auto lookupKey = !BaseType::test( chunkOffset ) && BaseType::test( partitionOffset )
-                                       ? partitionOffset
-                                       : chunkOffset;
-                for ( const auto boundary : subchunks ) {
-                    /* This condition could be removed but makes the map slightly smaller. */
-                    if ( boundary.encodedOffset != chunkOffset ) {
-                        m_unsplitBlocks.emplace( boundary.encodedOffset, lookupKey );
-                    }
+                /* This condition could be removed but makes the map slightly smaller. */
+                if ( boundary.encodedOffset != chunkOffset ) {
+                    m_unsplitBlocks.emplace( boundary.encodedOffset, lookupKey );
                 }
             }
+        }
 
-            /* This should also work for multi-stream gzip files because encodedSizeInBits is such that it
-             * points across the gzip footer and next header to the next deflate block. */
-            const auto blockOffsetAfterNext = chunkData->encodedOffsetInBits + chunkData->encodedSizeInBits;
+        /* This should also work for multi-stream gzip files because encodedSizeInBits is such that it
+         * points across the gzip footer and next header to the next deflate block. */
+        const auto blockOffsetAfterNext = chunkData->encodedOffsetInBits + chunkData->encodedSizeInBits;
 
-            if ( const auto inputFileSize = m_bitReader.size();
-                 inputFileSize && ( *inputFileSize > 0 ) && ( blockOffsetAfterNext >= *inputFileSize ) )
-            {
-                m_blockMap->finalize();
-                m_blockFinder->finalize();
+        if ( const auto inputFileSize = m_bitReader.size();
+             inputFileSize && ( *inputFileSize > 0 ) && ( blockOffsetAfterNext >= *inputFileSize ) )
+        {
+            m_blockMap->finalize();
+            m_blockFinder->finalize();
+        }
+
+        m_nextUnprocessedBlockIndex += subchunks.size();
+        if ( const auto insertedNextBlockOffset = m_blockFinder->get( m_nextUnprocessedBlockIndex );
+             !m_blockFinder->finalized()
+             && ( !insertedNextBlockOffset.has_value() || ( *insertedNextBlockOffset != blockOffsetAfterNext ) ) )
+        {
+            /* We could also keep track of the next block offset instead of the block index but then we would
+             * have to do a bisection for each block to find the block index from the offset. */
+            std::stringstream message;
+            message << "Next block offset index is out of sync! Requested offset to index "
+                    << m_nextUnprocessedBlockIndex;
+            if ( insertedNextBlockOffset.has_value() ) {
+                message << " and got " << *insertedNextBlockOffset;
+            } else {
+                message << " and did not get a value";
             }
+            message << " but expected " << blockOffsetAfterNext;
+            throw std::logic_error( std::move( message ).str() );
+        }
 
-            m_nextUnprocessedBlockIndex += subchunks.size();
-            if ( const auto insertedNextBlockOffset = m_blockFinder->get( m_nextUnprocessedBlockIndex );
-                 !m_blockFinder->finalized()
-                 && ( !insertedNextBlockOffset.has_value() || ( *insertedNextBlockOffset != blockOffsetAfterNext ) ) )
-            {
-                /* We could also keep track of the next block offset instead of the block index but then we would
-                 * have to do a bisection for each block to find the block index from the offset. */
-                std::stringstream message;
-                message << "Next block offset index is out of sync! Requested offset to index "
-                        << m_nextUnprocessedBlockIndex;
-                if ( insertedNextBlockOffset.has_value() ) {
-                    message << " and got " << *insertedNextBlockOffset;
-                } else {
-                    message << " and did not get a value";
-                }
-                message << " but expected " << blockOffsetAfterNext;
-                throw std::logic_error( std::move( message ).str() );
+        size_t decodedOffsetInBlock{ 0 };
+        for ( const auto& subchunk : subchunks ) {
+            decodedOffsetInBlock += subchunk.decodedSize;
+            const auto windowOffset = subchunk.encodedOffset + subchunk.encodedSize;
+            /* Avoid recalculating what we already emplaced in waitForReplacedMarkers when calling getLastWindow. */
+            if ( !m_windowMap->get( windowOffset ) ) {
+                m_windowMap->emplace( windowOffset, chunkData->getWindowAt( lastWindow, decodedOffsetInBlock ) );
             }
-
-            size_t decodedOffsetInBlock{ 0 };
-            for ( const auto& subchunk : subchunks ) {
-                decodedOffsetInBlock += subchunk.decodedSize;
-                const auto windowOffset = subchunk.encodedOffset + subchunk.encodedSize;
-                /* Avoid recalculating what we already emplaced in waitForReplacedMarkers when calling getLastWindow. */
-                if ( !m_windowMap->get( windowOffset ) ) {
-                    m_windowMap->emplace( windowOffset, chunkData->getWindowAt( lastWindow, decodedOffsetInBlock ) );
-                }
-            }
+        }
     }
 
     void
     postProcessChunk( const std::shared_ptr<ChunkData>& chunkData,
                       const FasterVector<uint8_t>&      lastWindow )
     {
-            if constexpr ( REPLACE_MARKERS_IN_PARALLEL ) {
-                waitForReplacedMarkers( chunkData, lastWindow );
-            } else {
-                replaceMarkers( chunkData, lastWindow );
-            }
+        if constexpr ( REPLACE_MARKERS_IN_PARALLEL ) {
+            waitForReplacedMarkers( chunkData, lastWindow );
+        } else {
+            replaceMarkers( chunkData, lastWindow );
+        }
     }
 
     void
