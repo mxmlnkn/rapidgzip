@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -73,6 +74,21 @@ public:
     static constexpr bool REPLACE_MARKERS_IN_PARALLEL = true;
     static constexpr bool ENABLE_REAL_MARKER_COUNT = false;  // Adds 25% overhead for FASTQ files (worst case)
 
+    struct Statistics
+    {
+        std::atomic<size_t> falsePositiveCount{ 0 };
+        double applyWindowTime{ 0 };
+        double blockFinderTime{ 0 };
+        double decodeTime{ 0 };
+        double decodeTimeInflateWrapper{ 0 };
+        double decodeTimeIsal{ 0 };
+        double appendTime{ 0 };
+        std::atomic<uint64_t> markerCount{ 0 };
+        std::atomic<uint64_t> realMarkerCount{ 0 };
+        std::atomic<uint64_t> preemptiveStopCount{ 0 };
+        mutable std::mutex mutex;
+    };
+
 public:
     GzipChunkFetcher( BitReader                    bitReader,
                       std::shared_ptr<BlockFinder> blockFinder,
@@ -116,23 +132,24 @@ public:
         if ( BaseType::m_showProfileOnDestruction ) {
             std::stringstream out;
             out << "[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:\n";
-            out << "    Number of false positives                : " << m_falsePositiveCount << "\n";
-            out << "    Time spent in block finder               : " << m_blockFinderTime << " s\n";
-            out << "    Time spent decoding with custom inflate  : " << m_decodeTime << " s\n";
-            out << "    Time spent decoding with inflate wrapper : " << m_decodeTimeInflateWrapper << " s\n";
-            out << "    Time spent decoding with ISA-L           : " << m_decodeTimeIsal << " s\n";
-            out << "    Time spent allocating and copying        : " << m_appendTime << " s\n";
-            out << "    Time spent applying the last window      : " << m_applyWindowTime << " s\n";
-            out << "    Replaced marker buffers                  : " << formatBytes( m_markerCount ) << "\n";
+            out << "    Number of false positives                : " << m_statistics.falsePositiveCount << "\n";
+            out << "    Time spent in block finder               : " << m_statistics.blockFinderTime << " s\n";
+            out << "    Time spent decoding with custom inflate  : " << m_statistics.decodeTime << " s\n";
+            out << "    Time spent decoding with inflate wrapper : " << m_statistics.decodeTimeInflateWrapper << " s\n";
+            out << "    Time spent decoding with ISA-L           : " << m_statistics.decodeTimeIsal << " s\n";
+            out << "    Time spent allocating and copying        : " << m_statistics.appendTime << " s\n";
+            out << "    Time spent applying the last window      : " << m_statistics.applyWindowTime << " s\n";
+            out << "    Replaced marker buffers                  : " << formatBytes( m_statistics.markerCount ) << "\n";
             if constexpr ( ENABLE_REAL_MARKER_COUNT ) {
-                out << "    Actual marker count                      : " << formatBytes( m_realMarkerCount );
-                if ( m_markerCount > 0 ) {
-                    out << " (" << static_cast<double>( m_realMarkerCount ) / static_cast<double>( m_markerCount ) * 100
+                out << "    Actual marker count                      : " << formatBytes( m_statistics.realMarkerCount );
+                if ( m_statistics.markerCount > 0 ) {
+                    out << " (" << static_cast<double>( m_statistics.realMarkerCount )
+                                                        / static_cast<double>( m_statistics.markerCount ) * 100
                         << " %)";
                 }
                 out << "\n";
             }
-            out << "    Chunks exceeding max. compression ratio  : " << m_preemptiveStopCount << "\n";
+            out << "    Chunks exceeding max. compression ratio  : " << m_statistics.preemptiveStopCount << "\n";
             std::cerr << std::move( out ).str();
         }
     }
@@ -233,7 +250,7 @@ public:
              * points across the gzip footer and next header to the next deflate block. */
             const auto blockOffsetAfterNext = chunkData->encodedOffsetInBits + chunkData->encodedSizeInBits;
 
-            m_preemptiveStopCount += chunkData->stoppedPreemptively ? 1 : 0;
+            m_statistics.preemptiveStopCount += chunkData->stoppedPreemptively ? 1 : 0;
 
             const auto subchunks = chunkData->split( m_blockFinder->spacingInBits() / 8U );
             for ( const auto boundary : subchunks ) {
@@ -260,13 +277,13 @@ public:
             m_nextUnprocessedBlockIndex += subchunks.size();
 
             if constexpr ( ENABLE_STATISTICS ) {
-                std::scoped_lock lock( m_statisticsMutex );
-                m_falsePositiveCount += chunkData->falsePositiveCount;
-                m_blockFinderTime += chunkData->blockFinderDuration;
-                m_decodeTime += chunkData->decodeDuration;
-                m_decodeTimeInflateWrapper += chunkData->decodeDurationInflateWrapper;
-                m_decodeTimeIsal += chunkData->decodeDurationIsal;
-                m_appendTime += chunkData->appendDuration;
+                std::scoped_lock lock( m_statistics.mutex );
+                m_statistics.falsePositiveCount += chunkData->falsePositiveCount;
+                m_statistics.blockFinderTime += chunkData->blockFinderDuration;
+                m_statistics.decodeTime += chunkData->decodeDuration;
+                m_statistics.decodeTimeInflateWrapper += chunkData->decodeDurationInflateWrapper;
+                m_statistics.decodeTimeIsal += chunkData->decodeDurationIsal;
+                m_statistics.appendTime += chunkData->appendDuration;
             }
 
             if ( const auto inputFileSize = m_bitReader.size();
@@ -479,16 +496,16 @@ private:
          *    which seems insufficient as it might lead to lots of slow execution branching in the applyWindow method.
          */
         if constexpr ( ENABLE_STATISTICS && ENABLE_REAL_MARKER_COUNT ) {
-            m_realMarkerCount += chunkData->countMarkerSymbols();
+            m_statistics.realMarkerCount += chunkData->countMarkerSymbols();
         }
         [[maybe_unused]] const auto tApplyStart = now();
         chunkData->applyWindow( previousWindow );
         if constexpr ( ENABLE_STATISTICS ) {
-            std::scoped_lock lock( m_statisticsMutex );
+            std::scoped_lock lock( m_statistics.mutex );
             if ( markerCount > 0 ) {
-                m_applyWindowTime += duration( tApplyStart );
+                m_statistics.applyWindowTime += duration( tApplyStart );
             }
-            m_markerCount += markerCount;
+            m_statistics.markerCount += markerCount;
         }
     }
 
@@ -532,7 +549,7 @@ private:
          *       position. */
         if constexpr ( ENABLE_STATISTICS ) {
             if ( chunkData && !chunkData->matchesEncodedOffset( blockOffset ) && ( partitionOffset != blockOffset )
-                 && ( m_preemptiveStopCount == 0 ) )
+                 && ( m_statistics.preemptiveStopCount == 0 ) )
             {
                 std::cerr << "[Info] Detected a performance problem. Decoding might take longer than necessary. "
                           << "Please consider opening a performance bug report with "
@@ -1385,18 +1402,7 @@ public:
     }
 
 private:
-    /* Members for benchmark statistics */
-    size_t m_falsePositiveCount{ 0 };
-    double m_applyWindowTime{ 0 };
-    double m_blockFinderTime{ 0 };
-    double m_decodeTime{ 0 };
-    double m_decodeTimeInflateWrapper{ 0 };
-    double m_decodeTimeIsal{ 0 };
-    double m_appendTime{ 0 };
-    uint64_t m_markerCount{ 0 };
-    uint64_t m_realMarkerCount{ 0 };
-    uint64_t m_preemptiveStopCount{ 0 };
-    mutable std::mutex m_statisticsMutex;
+    mutable Statistics m_statistics;
 
     std::atomic<bool> m_cancelThreads{ false };
     std::atomic<bool> m_crc32Enabled{ true };
