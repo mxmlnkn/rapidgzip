@@ -35,8 +35,7 @@
  */
 template<typename T_BlockFinder,
          typename T_BlockData,
-         typename FetchingStrategy,
-         bool     ENABLE_STATISTICS = false>
+         typename FetchingStrategy>
 class BlockFetcher
 {
 public:
@@ -187,7 +186,7 @@ protected:
             throw std::invalid_argument( "BlockFinder must be valid!" );
         }
 
-        if constexpr ( ENABLE_STATISTICS ) {
+        if ( m_statisticsEnabled ) {
             m_statistics.parallelization = m_parallelization;
         }
     }
@@ -204,8 +203,20 @@ public:
         }
     }
 
+    void
+    setStatisticsEnabled( bool enabled )
+    {
+        m_statisticsEnabled = enabled;
+    }
+
+    [[nodiscard]] bool
+    statisticsEnabled() const
+    {
+        return m_statisticsEnabled;
+    }
+
     /**
-     * @note Only will work if ENABLE_STATISTICS is true.
+     * @note Only will work if m_statisticsEnabled is true.
      */
     void
     setShowProfileOnDestruction( bool showProfileOnDestruction )
@@ -257,7 +268,7 @@ public:
         const auto validDataBlockIndex = dataBlockIndex ? *dataBlockIndex : m_blockFinder->find( blockOffset );
         const auto nextBlockOffset = m_blockFinder->get( validDataBlockIndex + 1 );
 
-        if constexpr ( ENABLE_STATISTICS ) {
+        if ( m_statisticsEnabled ) {
             m_statistics.recordBlockIndexGet( validDataBlockIndex );
         }
 
@@ -280,7 +291,7 @@ public:
         /* Return result */
         if ( cachedResult.has_value() ) {
             assert( !queuedResult.valid() );
-            if constexpr ( ENABLE_STATISTICS ) {
+            if ( m_statisticsEnabled ) {
                 const std::scoped_lock lock( m_analyticsMutex );
                 m_statistics.getTotalTime += duration( tGetStart );
             }
@@ -298,7 +309,7 @@ public:
 
         insertIntoCache( blockOffset, result );
 
-        if constexpr ( ENABLE_STATISTICS ) {
+        if ( m_statisticsEnabled ) {
             const std::scoped_lock lock( m_analyticsMutex );
             m_statistics.futureWaitTotalTime += futureGetDuration;
             m_statistics.getTotalTime += duration( tGetStart );
@@ -393,7 +404,7 @@ private:
             m_prefetching.erase( match );
             assert( resultFuture.valid() );
 
-            if constexpr ( ENABLE_STATISTICS ) {
+            if ( m_statisticsEnabled ) {
                 ++m_statistics.prefetchDirectHits;
             }
         }
@@ -502,7 +513,7 @@ private:
                     && !nextPrefetchBlockOffset && ( nextPrefetchGetReturnCode != GetReturnCode::FAILURE )
                     && !stopPrefetching() );
 
-            if constexpr ( ENABLE_STATISTICS ) {
+            if ( m_statisticsEnabled ) {
                 if ( !prefetchBlockOffset.has_value() ) {
                     m_statistics.waitOnBlockFinderCount++;
                 }
@@ -553,7 +564,7 @@ private:
     submitOnDemandTask( const size_t                blockOffset,
                         const std::optional<size_t> nextBlockOffset )
     {
-        if constexpr ( ENABLE_STATISTICS ) {
+        if ( m_statisticsEnabled ) {
             ++m_statistics.onDemandFetchCount;
         }
         auto resultFuture = m_threadPool.submit(
@@ -614,7 +625,7 @@ private:
     {
         [[maybe_unused]] const auto tDecodeStart = now();
         auto blockData = decodeBlock( blockOffset, nextBlockOffset );
-        if constexpr ( ENABLE_STATISTICS ) {
+        if ( m_statisticsEnabled ) {
             const auto tDecodeEnd = now();
 
             const std::scoped_lock lock( m_analyticsMutex );
@@ -634,6 +645,7 @@ private:
 
 private:
     mutable Statistics m_statistics;
+    std::atomic<bool> m_statisticsEnabled;
     mutable std::mutex m_analyticsMutex;
 
 protected:

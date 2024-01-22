@@ -57,15 +57,14 @@ public:
 
 
 template<typename T_FetchingStrategy,
-         typename T_ChunkData = ChunkData,
-         bool     ENABLE_STATISTICS = false>
+         typename T_ChunkData = ChunkData>
 class GzipChunkFetcher :
-    public BlockFetcher<GzipBlockFinder, T_ChunkData, T_FetchingStrategy, ENABLE_STATISTICS>
+    public BlockFetcher<GzipBlockFinder, T_ChunkData, T_FetchingStrategy>
 {
 public:
     using FetchingStrategy = T_FetchingStrategy;
     using ChunkData = T_ChunkData;
-    using BaseType = BlockFetcher<GzipBlockFinder, ChunkData, FetchingStrategy, ENABLE_STATISTICS>;
+    using BaseType = BlockFetcher<GzipBlockFinder, ChunkData, FetchingStrategy>;
     using BitReader = rapidgzip::BitReader;
     using SharedWindow = WindowMap::SharedWindow;
     using WindowView = VectorView<uint8_t>;
@@ -276,7 +275,7 @@ public:
             }
             m_nextUnprocessedBlockIndex += subchunks.size();
 
-            if constexpr ( ENABLE_STATISTICS ) {
+            if ( BaseType::statisticsEnabled() ) {
                 std::scoped_lock lock( m_statistics.mutex );
                 m_statistics.falsePositiveCount += chunkData->falsePositiveCount;
                 m_statistics.blockFinderTime += chunkData->blockFinderDuration;
@@ -495,12 +494,14 @@ private:
          *    This would be possible by using 4-bit values for <n> but then the maximum runlength would be 3-bit -> 7,
          *    which seems insufficient as it might lead to lots of slow execution branching in the applyWindow method.
          */
-        if constexpr ( ENABLE_STATISTICS && ENABLE_REAL_MARKER_COUNT ) {
-            m_statistics.realMarkerCount += chunkData->countMarkerSymbols();
+        if constexpr ( ENABLE_REAL_MARKER_COUNT ) {
+            if ( BaseType::statisticsEnabled() ) {
+                m_statistics.realMarkerCount += chunkData->countMarkerSymbols();
+            }
         }
         [[maybe_unused]] const auto tApplyStart = now();
         chunkData->applyWindow( previousWindow );
-        if constexpr ( ENABLE_STATISTICS ) {
+        if ( BaseType::statisticsEnabled() ) {
             std::scoped_lock lock( m_statistics.mutex );
             if ( markerCount > 0 ) {
                 m_statistics.applyWindowTime += duration( tApplyStart );
@@ -547,7 +548,7 @@ private:
          *       waiting or if we don't wait, it might result in the same chunk being decompressed twice, once
          *       as a prefetch starting from a guessed position and once as an on-demand fetch given the exact
          *       position. */
-        if constexpr ( ENABLE_STATISTICS ) {
+        if ( BaseType::statisticsEnabled() ) {
             if ( chunkData && !chunkData->matchesEncodedOffset( blockOffset ) && ( partitionOffset != blockOffset )
                  && ( m_statistics.preemptiveStopCount == 0 ) )
             {

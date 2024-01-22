@@ -102,13 +102,17 @@ enum class DecompressErrorCode
 };
 
 
-template<typename Reader,
-         typename WriteFunctor>
+template<typename ChunkData,
+         typename WriteFunctor = std::function<void ( const std::shared_ptr<ChunkData>&, size_t, size_t )> >
 [[nodiscard]] std::pair<DecompressErrorCode, size_t>
 decompressParallel( const Arguments&    args,
-                    const Reader&       reader,
+                    UniqueFileReader    inputFile,
                     const WriteFunctor& writeFunctor )
 {
+    using Reader = rapidgzip::ParallelGzipReader<ChunkData>;
+    auto reader = std::make_unique<Reader>( std::move( inputFile ), args.decoderParallelism, args.chunkSize );
+
+    reader->setStatisticsEnabled( args.verbose );
     reader->setShowProfileOnDestruction( args.verbose );
     reader->setCRC32Enabled( args.crc32Enabled );
     reader->setKeepIndex( !args.indexSavePath.empty() || !args.indexLoadPath.empty() );
@@ -146,28 +150,6 @@ decompressParallel( const Arguments&    args,
     }
 
     return { DecompressErrorCode::SUCCESS, totalBytesRead };
-}
-
-
-/**
- * Dispatch to the appropriate ParallelGzipReader template arguments based on @p verbose.
- */
-template<typename ChunkData,
-         typename WriteFunctor = std::function<void ( const std::shared_ptr<ChunkData>&, size_t, size_t )> >
-[[nodiscard]] std::pair<DecompressErrorCode, size_t>
-decompressParallel( const Arguments&    args,
-                    UniqueFileReader    inputFile,
-                    const WriteFunctor& writeFunctor )
-{
-    if ( args.verbose ) {
-        using Reader = rapidgzip::ParallelGzipReader<ChunkData, /* enable statistics */ true>;
-        auto reader = std::make_unique<Reader>( std::move( inputFile ), args.decoderParallelism, args.chunkSize );
-        return decompressParallel( args, std::move( reader ), writeFunctor );
-    } else {
-        using Reader = rapidgzip::ParallelGzipReader<ChunkData, /* enable statistics */ false>;
-        auto reader = std::make_unique<Reader>( std::move( inputFile ), args.decoderParallelism, args.chunkSize );
-        return decompressParallel( args, std::move( reader ), writeFunctor );
-    }
 }
 
 
