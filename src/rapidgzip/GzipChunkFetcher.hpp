@@ -90,11 +90,7 @@ public:
 
     public:
         mutable std::mutex mutex;
-
-        double applyWindowDuration{ 0 };
-        std::atomic<uint64_t> markerCount{ 0 };
-        std::atomic<uint64_t> realMarkerCount{ 0 };
-        std::atomic<uint64_t> preemptiveStopCount{ 0 };
+        uint64_t preemptiveStopCount{ 0 };
     };
 
 public:
@@ -283,8 +279,6 @@ public:
             }
             m_nextUnprocessedBlockIndex += subchunks.size();
 
-            m_statistics.merge( *chunkData );
-
             if ( const auto inputFileSize = m_bitReader.size();
                  inputFileSize && ( *inputFileSize > 0 ) && ( blockOffsetAfterNext >= *inputFileSize ) )
             {
@@ -337,6 +331,8 @@ public:
                     m_windowMap->emplace( windowOffset, chunkData->getWindowAt( lastWindow, decodedOffsetInBlock ) );
                 }
             }
+
+            m_statistics.merge( *chunkData );
         }
 
         return std::make_pair( blockInfo.decodedOffsetInBytes, chunkData );
@@ -496,17 +492,17 @@ private:
          */
         if constexpr ( ENABLE_REAL_MARKER_COUNT ) {
             if ( BaseType::statisticsEnabled() ) {
-                m_statistics.realMarkerCount += chunkData->countMarkerSymbols();
+                chunkData->statistics.realMarkerCount += chunkData->countMarkerSymbols();
             }
         }
         [[maybe_unused]] const auto tApplyStart = now();
         chunkData->applyWindow( previousWindow );
         if ( BaseType::statisticsEnabled() ) {
-            std::scoped_lock lock( m_statistics.mutex );
+            const std::scoped_lock lock( m_statistics.mutex );
             if ( markerCount > 0 ) {
-                m_statistics.applyWindowDuration += duration( tApplyStart );
+                chunkData->statistics.applyWindowDuration += duration( tApplyStart );
             }
-            m_statistics.markerCount += markerCount;
+            chunkData->statistics.markerCount += markerCount;
         }
     }
 

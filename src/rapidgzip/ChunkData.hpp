@@ -104,12 +104,15 @@ struct ChunkData :
         void
         merge( const Statistics& other )
         {
-            falsePositiveCount += other.falsePositiveCount;
-            blockFinderDuration += other.blockFinderDuration;
-            decodeDuration += other.decodeDuration;
+            falsePositiveCount           += other.falsePositiveCount;
+            blockFinderDuration          += other.blockFinderDuration;
+            decodeDuration               += other.decodeDuration;
             decodeDurationInflateWrapper += other.decodeDurationInflateWrapper;
-            decodeDurationIsal += other.decodeDurationIsal;
-            appendDuration += other.appendDuration;
+            decodeDurationIsal           += other.decodeDurationIsal;
+            appendDuration               += other.appendDuration;
+            applyWindowDuration          += other.applyWindowDuration;
+            markerCount                  += other.markerCount;
+            realMarkerCount              += other.realMarkerCount;
         }
 
     public:
@@ -119,6 +122,9 @@ struct ChunkData :
         double decodeDurationInflateWrapper{ 0 };
         double decodeDurationIsal{ 0 };
         double appendDuration{ 0 };
+        double applyWindowDuration{ 0 };
+        uint64_t markerCount{ 0 };
+        uint64_t realMarkerCount{ 0 };
     };
 
 public:
