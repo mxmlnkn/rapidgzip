@@ -938,8 +938,9 @@ public:
         constexpr size_t ALLOCATION_CHUNK_SIZE = 128_Ki;
         size_t alreadyDecoded{ 0 };
         while( true ) {
-            deflate::DecodedVector subchunk( decodedSize
-                                             ? std::min( ALLOCATION_CHUNK_SIZE, *decodedSize - alreadyDecoded )
+            const auto suggestedDecodeSize = decodedSize.value_or( ALLOCATION_CHUNK_SIZE );
+            deflate::DecodedVector subchunk( suggestedDecodeSize > alreadyDecoded
+                                             ? std::min( ALLOCATION_CHUNK_SIZE, suggestedDecodeSize - alreadyDecoded )
                                              : ALLOCATION_CHUNK_SIZE );
             std::optional<typename InflateWrapper::Footer> footer;
 
