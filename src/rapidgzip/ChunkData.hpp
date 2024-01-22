@@ -98,6 +98,29 @@ struct ChunkData :
         }
     };
 
+    class Statistics
+    {
+    public:
+        void
+        merge( const Statistics& other )
+        {
+            falsePositiveCount += other.falsePositiveCount;
+            blockFinderDuration += other.blockFinderDuration;
+            decodeDuration += other.decodeDuration;
+            decodeDurationInflateWrapper += other.decodeDurationInflateWrapper;
+            decodeDurationIsal += other.decodeDurationIsal;
+            appendDuration += other.appendDuration;
+        }
+
+    public:
+        size_t falsePositiveCount{ 0 };
+        double blockFinderDuration{ 0 };
+        double decodeDuration{ 0 };
+        double decodeDurationInflateWrapper{ 0 };
+        double decodeDurationIsal{ 0 };
+        double appendDuration{ 0 };
+    };
+
 public:
     void
     append( deflate::DecodedVector&& toAppend )
@@ -283,13 +306,7 @@ public:
     /* There will be ( footers.size() + 1 ) CRC32 calculators. */
     std::vector<CRC32Calculator> crc32s{ std::vector<CRC32Calculator>( 1 ) };
 
-    /* Benchmark results */
-    size_t falsePositiveCount{ 0 };
-    double blockFinderDuration{ 0 };
-    double decodeDuration{ 0 };
-    double decodeDurationInflateWrapper{ 0 };
-    double decodeDurationIsal{ 0 };
-    double appendDuration{ 0 };
+    Statistics statistics{};
 
     bool stoppedPreemptively{ false };
 };

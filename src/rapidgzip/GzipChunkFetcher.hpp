@@ -73,19 +73,28 @@ public:
     static constexpr bool REPLACE_MARKERS_IN_PARALLEL = true;
     static constexpr bool ENABLE_REAL_MARKER_COUNT = false;  // Adds 25% overhead for FASTQ files (worst case)
 
-    struct Statistics
+    struct Statistics :
+        public ChunkData::Statistics
     {
-        std::atomic<size_t> falsePositiveCount{ 0 };
-        double applyWindowTime{ 0 };
-        double blockFinderTime{ 0 };
-        double decodeTime{ 0 };
-        double decodeTimeInflateWrapper{ 0 };
-        double decodeTimeIsal{ 0 };
-        double appendTime{ 0 };
+    public:
+        using BaseType = typename ChunkData::Statistics;
+
+    public:
+        void
+        merge( const ChunkData& chunkData )
+        {
+            const std::scoped_lock lock( mutex );
+            BaseType::merge( chunkData.statistics );
+            preemptiveStopCount += chunkData.stoppedPreemptively ? 1 : 0;
+        }
+
+    public:
+        mutable std::mutex mutex;
+
+        double applyWindowDuration{ 0 };
         std::atomic<uint64_t> markerCount{ 0 };
         std::atomic<uint64_t> realMarkerCount{ 0 };
         std::atomic<uint64_t> preemptiveStopCount{ 0 };
-        mutable std::mutex mutex;
     };
 
 public:
@@ -132,12 +141,13 @@ public:
             std::stringstream out;
             out << "[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:\n";
             out << "    Number of false positives                : " << m_statistics.falsePositiveCount << "\n";
-            out << "    Time spent in block finder               : " << m_statistics.blockFinderTime << " s\n";
-            out << "    Time spent decoding with custom inflate  : " << m_statistics.decodeTime << " s\n";
-            out << "    Time spent decoding with inflate wrapper : " << m_statistics.decodeTimeInflateWrapper << " s\n";
-            out << "    Time spent decoding with ISA-L           : " << m_statistics.decodeTimeIsal << " s\n";
-            out << "    Time spent allocating and copying        : " << m_statistics.appendTime << " s\n";
-            out << "    Time spent applying the last window      : " << m_statistics.applyWindowTime << " s\n";
+            out << "    Time spent in block finder               : " << m_statistics.blockFinderDuration << " s\n";
+            out << "    Time spent decoding with custom inflate  : " << m_statistics.decodeDuration << " s\n";
+            out << "    Time spent decoding with inflate wrapper : " << m_statistics.decodeDurationInflateWrapper
+                << " s\n";
+            out << "    Time spent decoding with ISA-L           : " << m_statistics.decodeDurationIsal << " s\n";
+            out << "    Time spent allocating and copying        : " << m_statistics.appendDuration << " s\n";
+            out << "    Time spent applying the last window      : " << m_statistics.applyWindowDuration << " s\n";
             out << "    Replaced marker buffers                  : " << formatBytes( m_statistics.markerCount ) << "\n";
             if constexpr ( ENABLE_REAL_MARKER_COUNT ) {
                 out << "    Actual marker count                      : " << formatBytes( m_statistics.realMarkerCount );
@@ -249,8 +259,6 @@ public:
              * points across the gzip footer and next header to the next deflate block. */
             const auto blockOffsetAfterNext = chunkData->encodedOffsetInBits + chunkData->encodedSizeInBits;
 
-            m_statistics.preemptiveStopCount += chunkData->stoppedPreemptively ? 1 : 0;
-
             const auto subchunks = chunkData->split( m_blockFinder->spacingInBits() / 8U );
             for ( const auto boundary : subchunks ) {
                 m_blockMap->push( boundary.encodedOffset, boundary.encodedSize, boundary.decodedSize );
@@ -275,15 +283,7 @@ public:
             }
             m_nextUnprocessedBlockIndex += subchunks.size();
 
-            if ( BaseType::statisticsEnabled() ) {
-                std::scoped_lock lock( m_statistics.mutex );
-                m_statistics.falsePositiveCount += chunkData->falsePositiveCount;
-                m_statistics.blockFinderTime += chunkData->blockFinderDuration;
-                m_statistics.decodeTime += chunkData->decodeDuration;
-                m_statistics.decodeTimeInflateWrapper += chunkData->decodeDurationInflateWrapper;
-                m_statistics.decodeTimeIsal += chunkData->decodeDurationIsal;
-                m_statistics.appendTime += chunkData->appendDuration;
-            }
+            m_statistics.merge( *chunkData );
 
             if ( const auto inputFileSize = m_bitReader.size();
                  inputFileSize && ( *inputFileSize > 0 ) && ( blockOffsetAfterNext >= *inputFileSize ) )
@@ -504,7 +504,7 @@ private:
         if ( BaseType::statisticsEnabled() ) {
             std::scoped_lock lock( m_statistics.mutex );
             if ( markerCount > 0 ) {
-                m_statistics.applyWindowTime += duration( tApplyStart );
+                m_statistics.applyWindowDuration += duration( tApplyStart );
             }
             m_statistics.markerCount += markerCount;
         }
@@ -838,9 +838,9 @@ public:
                 /* Try decoding and measure the time. */
                 const auto tBlockFinderStop = now();
                 if ( auto result = tryToDecode( offsetToTest ); result ) {
-                    result->blockFinderDuration = duration( tBlockFinderStart, tBlockFinderStop );
-                    result->decodeDuration = duration( tBlockFinderStop );
-                    result->falsePositiveCount = falsePositiveCount;
+                    result->statistics.blockFinderDuration = duration( tBlockFinderStart, tBlockFinderStop );
+                    result->statistics.decodeDuration = duration( tBlockFinderStop );
+                    result->statistics.falsePositiveCount = falsePositiveCount;
                     return *std::move( result );
                 }
 
@@ -1002,7 +1002,7 @@ public:
         }
 
         result.finalize( exactUntilOffset );
-        result.decodeDurationInflateWrapper = duration( tStart );
+        result.statistics.decodeDurationInflateWrapper = duration( tStart );
         return std::move( result );
     }
 
@@ -1157,7 +1157,7 @@ public:
         }
 
         result.finalize( nextBlockOffset );
-        result.decodeDurationIsal = duration( tStart );
+        result.statistics.decodeDurationIsal = duration( tStart );
         /**
          * Without the std::move, performance is halved! It seems like copy elision on return does not work
          * with function arguments! @see https://en.cppreference.com/w/cpp/language/copy_elision
@@ -1324,7 +1324,7 @@ public:
 
                 const auto tAppendStart = now();
                 result.append( bufferViews );
-                result.appendDuration += duration( tAppendStart );
+                result.statistics.appendDuration += duration( tAppendStart );
                 blockBytesRead += bufferViews.size();
 
                 /* Non-compressed deflate blocks are limited to 64 KiB and the largest Dynamic Huffman Coding
