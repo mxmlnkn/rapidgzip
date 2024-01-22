@@ -613,35 +613,32 @@ private:
         /* The decoded size of the block is only for optimization purposes. Therefore, we do not have to take care
          * of the correct ordering between BlockMap accesses and modifications (the BlockMap is still thread-safe). */
         const auto blockInfo = m_blockMap->getEncodedOffset( blockOffset );
+
         ChunkData configuredChunkData;
         configuredChunkData.setCRC32Enabled( m_crc32Enabled );
         configuredChunkData.fileType = m_blockFinder->fileType();
-        return decodeBlock( m_bitReader, blockOffset,
-                            /* untilOffset */
-                            ( blockInfo
-                              ? blockInfo->encodedOffsetInBits + blockInfo->encodedSizeInBits
-                              : nextBlockOffset ),
-                            /**
-                             * If we are a BGZF file and we have not imported an index, then we can assume the
-                             * window to be empty because we should only get offsets at gzip stream starts.
-                             * @note This is brittle in case of supporting partial imports of indexes, which would
-                             *       not finalize the block finder. Instead it might be better to create the index,
-                             *       including windows and decompressed sizes, by the BGZF "block finder" itself.
-                             *       It has all data necessary for it including the decompressed size in the gzip
-                             *       stream footer!
-                             * @note BGZF index offsets should only begin at gzip stream offsets because those
-                             *       do not require any window! However, even if this is implemented we cannot
-                             *       remove the check against imported indexes because we cannot be sure that the
-                             *       indexes were created by us and follow that scheme.
-                             */
-                            ( m_isBgzfFile && !m_blockFinder->finalized()
-                              ? std::make_shared<WindowMap::Window>()
-                              : m_windowMap->get( blockOffset ) ),
-                            /* decodedSize */ blockInfo ? blockInfo->decodedSizeInBytes : std::optional<size_t>{},
-                            m_cancelThreads,
-                            configuredChunkData,
-                            m_maxDecompressedChunkSize,
-                            /* untilOffsetIsExact */ m_isBgzfFile || blockInfo );
+
+        /* If we are a BGZF file and we have not imported an index, then we can assume the
+         * window to be empty because we should only get offsets at gzip stream starts.
+         * If we have imported an index, then the block finder will be finalized, and it might be
+         * possible that offsets were chosen in the middle of gzip streams, which would require windows. */
+        auto sharedWindow = m_windowMap->get( blockOffset );
+        if ( !sharedWindow && m_isBgzfFile && !m_blockFinder->finalized() ) {
+            sharedWindow = std::make_shared<WindowMap::Window>();
+        }
+
+        return decodeBlock(
+            m_bitReader, blockOffset,
+            /* untilOffset */
+            ( blockInfo
+              ? blockInfo->encodedOffsetInBits + blockInfo->encodedSizeInBits
+              : nextBlockOffset ),
+            std::move( sharedWindow ),
+            /* decodedSize */ blockInfo ? blockInfo->decodedSizeInBytes : std::optional<size_t>{},
+            m_cancelThreads,
+            configuredChunkData,
+            m_maxDecompressedChunkSize,
+            /* untilOffsetIsExact */ m_isBgzfFile || blockInfo );
     }
 
 public:
