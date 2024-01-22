@@ -599,6 +599,9 @@ private:
         /* The decoded size of the block is only for optimization purposes. Therefore, we do not have to take care
          * of the correct ordering between BlockMap accesses and modifications (the BlockMap is still thread-safe). */
         const auto blockInfo = m_blockMap->getEncodedOffset( blockOffset );
+        ChunkData configuredChunkData;
+        configuredChunkData.setCRC32Enabled( m_crc32Enabled );
+        configuredChunkData.fileType = m_blockFinder->fileType();
         return decodeBlock( m_bitReader, blockOffset,
                             /* untilOffset */
                             ( blockInfo
@@ -622,8 +625,7 @@ private:
                               : m_windowMap->get( blockOffset ) ),
                             /* decodedSize */ blockInfo ? blockInfo->decodedSizeInBytes : std::optional<size_t>{},
                             m_cancelThreads,
-                            m_blockFinder->fileType(),
-                            m_crc32Enabled,
+                            configuredChunkData,
                             m_maxDecompressedChunkSize,
                             /* untilOffsetIsExact */ m_isBgzfFile || blockInfo );
     }
@@ -643,24 +645,21 @@ public:
                  SharedWindow              const initialWindow,
                  std::optional<size_t>     const decodedSize,
                  std::atomic<bool>        const& cancelThreads,
-                 FileType                  const fileType = FileType::GZIP,
-                 bool                      const crc32Enabled = false,
+                 ChunkData                const& configuredChunkData,
                  size_t                    const maxDecompressedChunkSize = std::numeric_limits<size_t>::max(),
                  bool                      const untilOffsetIsExact = false )
     {
+        if ( initialWindow && untilOffsetIsExact ) {
         #ifdef WITH_ISAL
             using InflateWrapper = IsalInflateWrapper;
         #else
             using InflateWrapper = ZlibInflateWrapper;
         #endif
 
-        if ( initialWindow && untilOffsetIsExact ) {
             const auto fileSize = originalBitReader.size();
             const auto& window = *initialWindow;
 
-            ChunkData result;
-            result.setCRC32Enabled( crc32Enabled );
-            result.fileType = fileType;
+            auto result = configuredChunkData;
             result.encodedOffsetInBits = blockOffset;
             result = decodeBlockWithInflateWrapper<InflateWrapper>(
                 originalBitReader,
@@ -690,12 +689,8 @@ public:
         if ( initialWindow ) {
             bitReader.seek( blockOffset );
             const auto& window = *initialWindow;
-
-            ChunkData result;
-            result.setCRC32Enabled( crc32Enabled );
-            result.fileType = fileType;
             return decodeBlockWithRapidgzip( &bitReader, untilOffset, window, maxDecompressedChunkSize,
-                                             std::move( result ) );
+                                             ChunkData( configuredChunkData ) );
         }
 
         const auto tryToDecode =
@@ -705,12 +700,9 @@ public:
                     /* For decoding, it does not matter whether we seek to offset.first or offset.second but it did
                      * matter a lot for interpreting and correcting the encodedSizeInBits in GzipBlockFetcer::get! */
                     bitReader.seek( offset.second );
-
-                    ChunkData result;
-                    result.setCRC32Enabled( crc32Enabled );
-                    result.fileType = fileType;
-                    result = decodeBlockWithRapidgzip( &bitReader, untilOffset, /* initialWindow */ std::nullopt,
-                                                       maxDecompressedChunkSize, std::move( result ) );
+                    auto result = decodeBlockWithRapidgzip(
+                        &bitReader, untilOffset, /* initialWindow */ std::nullopt,
+                        maxDecompressedChunkSize, ChunkData( configuredChunkData ) );
                     result.encodedOffsetInBits = offset.first;
                     result.maxEncodedOffsetInBits = offset.second;
                     result.encodedSizeInBits = result.encodedEndOffsetInBits - result.encodedOffsetInBits;

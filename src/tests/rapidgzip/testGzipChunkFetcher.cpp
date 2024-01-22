@@ -59,13 +59,19 @@ testAutomaticMarkerResolution( const std::filesystem::path& filePath,
     const auto blockOffset = getBlockOffset( filePath, blockIndex );
     try {
         std::atomic<bool> cancel{ false };
+
+        ChunkData configuredChunkData;
+        configuredChunkData.setCRC32Enabled( false );
+        configuredChunkData.fileType = FileType::GZIP;
+
         const auto result = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlock(
             bitReader,
             blockOffset,
             /* untilOffset */ std::numeric_limits<size_t>::max(),
             /* window */ {},
             /* decodedSize */ std::nullopt,
-            cancel );
+            cancel,
+            configuredChunkData );
 
         const auto& dataWithMarkers = result.getDataWithMarkers();
         std::vector<size_t> markerBlockSizesFound( dataWithMarkers.size() );
@@ -200,6 +206,10 @@ testIsalBug()
 
     using ChunkFetcher = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>;
 
+    ChunkData configuredChunkData;
+    configuredChunkData.setCRC32Enabled( false );
+    configuredChunkData.fileType = FileType::GZIP;
+
     std::atomic<bool> cancel{ false };
     std::vector<uint8_t> window( 32_Ki, 0 );
     const auto blockOffset = 4727960325ULL;
@@ -211,8 +221,7 @@ testIsalBug()
         /* window */ std::make_shared<WindowMap::Window>( window ),
         /* decodedSize */ 4171816,
         cancel,
-        FileType::GZIP,
-        /* crc32Enabled */ false,
+        configuredChunkData,
         /* maxDecompressedChunkSize */ 4_Mi,
         /* isBgzfFile */ true );
 }
@@ -345,13 +354,19 @@ decodeWithDecodeBlock( UniqueFileReader&& fileReader )
 {
     auto bitReader = initBitReaderAtDeflateStream( std::move( fileReader ) );
     std::atomic<bool> cancel{ false };
+
+    ChunkData configuredChunkData;
+    configuredChunkData.setCRC32Enabled( false );
+    configuredChunkData.fileType = FileType::GZIP;
+
     return GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlock(
         bitReader,
         bitReader.tell(),
         /* untilOffset */ std::numeric_limits<size_t>::max(),
         /* window */ {},
         /* decodedSize */ std::nullopt,
-        cancel );
+        cancel,
+        configuredChunkData );
 }
 
 
