@@ -302,8 +302,7 @@ private:
         const auto& lastWindow = *sharedLastWindow;
 
         postProcessChunk( chunkData, lastWindow );
-        const auto subchunks = chunkData->split( m_blockFinder->spacingInBits() / 8U );
-        appendSubchunksToIndexes( chunkData, subchunks, lastWindow );
+        appendSubchunksToIndexes( chunkData, chunkData->subchunks, lastWindow );
 
         m_statistics.merge( *chunkData );
 
@@ -396,7 +395,7 @@ private:
         using namespace std::chrono_literals;
 
         auto markerReplaceFuture = m_markersBeingReplaced.find( chunkData->encodedOffsetInBits );
-        if ( ( markerReplaceFuture == m_markersBeingReplaced.end() ) && !chunkData->containsMarkers() ) {
+        if ( ( markerReplaceFuture == m_markersBeingReplaced.end() ) && chunkData->hasBeenPostProcessed() ) {
             return;
         }
 
@@ -458,7 +457,7 @@ private:
 
             /* Ignore ready blocks. Do this check after the enqueued check above to avoid race conditions when
              * checking for markers while replacing markers in another thread. */
-            if ( !chunkData->containsMarkers() ) {
+            if ( chunkData->hasBeenPostProcessed() ) {
                 continue;
             }
 
@@ -649,6 +648,7 @@ private:
         ChunkData configuredChunkData;
         configuredChunkData.setCRC32Enabled( m_crc32Enabled );
         configuredChunkData.fileType = m_blockFinder->fileType();
+        configuredChunkData.splitChunkSize = m_blockFinder->spacingInBits() / 8U;
 
         /* If we are a BGZF file and we have not imported an index, then we can assume the
          * window to be empty because we should only get offsets at gzip stream starts.

@@ -183,9 +183,6 @@ public:
     void
     setEncodedOffset( size_t offset );
 
-    [[nodiscard]] std::vector<Subchunk>
-    split( [[maybe_unused]] const size_t spacing ) const;
-
     /**
      * @note Probably should not be called internally because it is allowed to be shadowed by a child class method.
      */
@@ -211,6 +208,8 @@ public:
         encodedEndOffsetInBits = newEncodedEndOffsetInBits;
         encodedSizeInBits = newEncodedEndOffsetInBits - encodedOffsetInBits;
         decodedSizeInBytes = BaseType::size();
+
+        subchunks = split( splitChunkSize );
     }
 
     /**
@@ -289,6 +288,16 @@ public:
         }
     }
 
+    [[nodiscard]] bool
+    hasBeenPostProcessed() const
+    {
+        return !subchunks.empty() && !containsMarkers();
+    }
+
+protected:
+    [[nodiscard]] std::vector<Subchunk>
+    split( [[maybe_unused]] const size_t spacing ) const;
+
 public:
     /** This should be used to decide what kind of footer to expect and what to do after the footer. */
     FileType fileType{ FileType::NONE };
@@ -311,6 +320,9 @@ public:
     std::vector<Footer> footers;
     /* There will be ( footers.size() + 1 ) CRC32 calculators. */
     std::vector<CRC32Calculator> crc32s{ std::vector<CRC32Calculator>( 1 ) };
+
+    size_t splitChunkSize{ std::numeric_limits<size_t>::max() };
+    std::vector<Subchunk> subchunks;
 
     Statistics statistics{};
 
@@ -362,14 +374,21 @@ ChunkData::setEncodedOffset( size_t offset )
     encodedSizeInBits = encodedEndOffsetInBits - offset;
     encodedOffsetInBits = offset;
     maxEncodedOffsetInBits = offset;
+
+    if ( !subchunks.empty() ) {
+        const auto nextSubchunk = std::next( subchunks.begin() );
+        const auto nextOffset = nextSubchunk == subchunks.end() ? encodedEndOffsetInBits : nextSubchunk->encodedOffset;
+        subchunks.front().encodedOffset = offset;
+        subchunks.front().encodedSize = nextOffset - offset;
+    }
 }
 
 
 [[nodiscard]] inline std::vector<ChunkData::Subchunk>
 ChunkData::split( [[maybe_unused]] const size_t spacing ) const
 {
-    if ( encodedOffsetInBits != maxEncodedOffsetInBits ) {
-        throw std::invalid_argument( "ChunkData::split may only be called after setEncodedOffset!" );
+    if ( encodedEndOffsetInBits == std::numeric_limits<size_t>::max() ) {
+        throw std::invalid_argument( "Finalize must be called before splitting the chunk!" );
     }
 
     if ( spacing == 0 ) {
@@ -444,14 +463,21 @@ ChunkData::split( [[maybe_unused]] const size_t spacing ) const
         /* Create the last subchunk from lastBoundary and the chunk end. */
         Subchunk subchunk;
         subchunk.encodedOffset = lastBoundary.encodedOffset,
-        subchunk.encodedSize = encodedOffsetInBits + encodedSizeInBits - lastBoundary.encodedOffset,
+        subchunk.encodedSize = encodedEndOffsetInBits - lastBoundary.encodedOffset,
         subchunk.decodedSize = decodedSizeInBytes - lastBoundary.decodedOffset,
         result.emplace_back( subchunk );
     } else if ( lastBoundary.decodedOffset == decodedSizeInBytes ) {
         /* Enlarge the last subchunk encoded size to also encompass the empty blocks before the chunk end.
          * Assuming that blockBoundaries contain the boundary at the chunk end and knowing that the loop
          * above always searches for the last boundary with the same decodedOffset, this branch shouldn't happen. */
-        result.back().encodedSize = encodedOffsetInBits + encodedSizeInBits - result.back().encodedOffset;
+        result.back().encodedSize = encodedEndOffsetInBits - result.back().encodedOffset;
+    }
+
+    if ( encodedEndOffsetInBits - encodedOffsetInBits != encodedSizeInBits ) {
+        std::stringstream message;
+        message << "The offset: " << encodedOffsetInBits << ", size: " << encodedSizeInBits << ", and end offset: "
+                << encodedEndOffsetInBits << " are inconsistent!";
+        throw std::logic_error( std::move( message ).str() );
     }
 
     const auto subchunkEncodedSizeSum =
@@ -573,6 +599,8 @@ struct ChunkDataCounter final :
         encodedSizeInBits = encodedEndOffsetInBits - encodedOffsetInBits;
         /* Do not overwrite decodedSizeInBytes like is done in the base class
          * because DecodedData::size() would return 0! Instead, it is updated inside append. */
+
+        subchunks = split( splitChunkSize );
     }
 
     /**

@@ -128,6 +128,15 @@ testBlockSplit()
 {
     using DecodedDataView = rapidgzip::deflate::DecodedDataView;
 
+    const auto split =
+        [] ( ChunkData    chunk,
+             const size_t splitChunkSize )
+        {
+            chunk.splitChunkSize = splitChunkSize;
+            chunk.finalize( chunk.encodedEndOffsetInBits );
+            return chunk.subchunks;
+        };
+
     ChunkData chunk;
     chunk.encodedOffsetInBits = 0;
     chunk.maxEncodedOffsetInBits = 0;
@@ -136,7 +145,7 @@ testBlockSplit()
     using Subchunk = rapidgzip::ChunkData::Subchunk;
     using BlockBoundary = rapidgzip::ChunkData::BlockBoundary;
     chunk.finalize( 0 );
-    REQUIRE( chunk.split( 1 ).empty() );
+    REQUIRE( split( chunk, 1 ).empty() );
 
     /* Test split of data length == 1 and no block boundary. */
     {
@@ -148,9 +157,9 @@ testBlockSplit()
 
         chunk2.finalize( 8 );
         const std::vector<Subchunk> expected = { Subchunk{ 0, 8, 1 } };
-        REQUIRE( chunk2.split( 1 ) == expected );
-        REQUIRE( chunk2.split( 2 ) == expected );
-        REQUIRE( chunk2.split( 10 ) == expected );
+        REQUIRE( split( chunk2, 1 ) == expected );
+        REQUIRE( split( chunk2, 2 ) == expected );
+        REQUIRE( split( chunk2, 10 ) == expected );
     }
 
     /* Test split of data length == 1024 and 1 block boundary. */
@@ -163,20 +172,20 @@ testBlockSplit()
         chunk.blockBoundaries = { BlockBoundary{ 128, 1024 } };
         chunk.finalize( 128 );
         std::vector<Subchunk> expected = { Subchunk{ 0, 128, 1024 } };
-        REQUIRE( chunk.split( 1 ) == expected );
-        REQUIRE( chunk.split( 1024 ) == expected );
-        REQUIRE( chunk.split( 10000 ) == expected );
+        REQUIRE( split( chunk, 1 ) == expected );
+        REQUIRE( split( chunk, 1024 ) == expected );
+        REQUIRE( split( chunk, 10000 ) == expected );
 
         /* Test split of data length == 1024 and 2 block boundaries. */
         chunk.blockBoundaries = { BlockBoundary{ 30, 300 }, BlockBoundary{ 128, 1024 } };
-        REQUIRE( chunk.split( 1024 ) == expected );
-        REQUIRE( chunk.split( 10000 ) == expected );
+        REQUIRE( split( chunk, 1024 ) == expected );
+        REQUIRE( split( chunk, 10000 ) == expected );
 
         expected = { Subchunk{ 0, 30, 300 }, Subchunk{ 30, 128 - 30, 1024 - 300 } };
-        REQUIRE( chunk.split( 400 ) == expected );
-        REQUIRE( chunk.split( 512 ) == expected );
-        REQUIRE( chunk.split( 600 ) == expected );
-        REQUIRE( chunk.split( 1 ) == expected );
+        REQUIRE( split( chunk, 400 ) == expected );
+        REQUIRE( split( chunk, 512 ) == expected );
+        REQUIRE( split( chunk, 600 ) == expected );
+        REQUIRE( split( chunk, 1 ) == expected );
     }
 }
 
