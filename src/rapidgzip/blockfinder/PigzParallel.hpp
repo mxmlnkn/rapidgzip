@@ -69,7 +69,6 @@ namespace rapidgzip::blockfinder
  *         direct prefetch queue hits : 255
  *         hit rate                   : 0.998582
  *         time spent in:
- *             bzip2::readBlockData          : 0 s
  *             time spent in decodeBlock     : 9.71707 s
  *             time spent waiting on futures : 0.678193 s
  *         prefetch fail because of BlockFinder : 300

@@ -103,15 +103,7 @@ private:
             return result;
         }
 
-
-        const auto t0 = std::chrono::high_resolution_clock::now();
         block.readBlockData();
-        const auto t1 = std::chrono::high_resolution_clock::now();
-        const auto dt = std::chrono::duration<double>( t1 - t0 ).count();
-        {
-            std::scoped_lock lock( this->m_analyticsMutex );
-            this->m_readBlockDataTotalTime += dt;
-        }
 
         size_t decodedDataSize = 0;
         do

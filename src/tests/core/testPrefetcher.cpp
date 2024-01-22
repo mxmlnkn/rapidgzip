@@ -62,7 +62,6 @@ using namespace FetchingStrategy;
  *    Fetched On-demand              : 637
  * Prefetch Stall by BlockFinder     : 0
  * Time spent in:
- *     bzip2::readBlockData          : 0 s
  *     decodeBlock                   : 79.727 s
  *     std::future::get              : 79.7533 s
  *     get                           : 80.0425 s

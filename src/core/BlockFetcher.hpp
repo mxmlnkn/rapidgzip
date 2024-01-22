@@ -112,7 +112,6 @@ public:
                 << "\n       Fetched On-demand             : " << onDemandFetchCount
                 << "\n   Prefetch Stall by BlockFinder     : " << waitOnBlockFinderCount
                 << "\n   Time spent in:"
-                << "\n       bzip2::readBlockData          : " << readBlockDataTotalTime << " s"
                 << "\n       decodeBlock                   : " << decodeBlockTotalTime   << " s"
                 << "\n       std::future::get              : " << futureWaitTotalTime    << " s"
                 << "\n       get                           : " << getTotalTime           << " s"
@@ -171,7 +170,6 @@ public:
         double decodeBlockTotalTime{ 0 };
         double futureWaitTotalTime{ 0 };
         double getTotalTime{ 0 };
-        double readBlockDataTotalTime{ 0 };
     };
 
 protected:
@@ -283,7 +281,7 @@ public:
         if ( cachedResult.has_value() ) {
             assert( !queuedResult.valid() );
             if constexpr ( ENABLE_STATISTICS ) {
-                std::scoped_lock lock( m_analyticsMutex );
+                const std::scoped_lock lock( m_analyticsMutex );
                 m_statistics.getTotalTime += duration( tGetStart );
             }
             return *std::move( cachedResult );
@@ -301,7 +299,7 @@ public:
         insertIntoCache( blockOffset, result );
 
         if constexpr ( ENABLE_STATISTICS ) {
-            std::scoped_lock lock( m_analyticsMutex );
+            const std::scoped_lock lock( m_analyticsMutex );
             m_statistics.futureWaitTotalTime += futureGetDuration;
             m_statistics.getTotalTime += duration( tGetStart );
         }
@@ -325,7 +323,6 @@ public:
         }
         result.cache = m_cache.statistics();
         result.prefetchCache = m_prefetchCache.statistics();
-        result.readBlockDataTotalTime = m_readBlockDataTotalTime;
         return result;
     }
 
@@ -620,29 +617,26 @@ private:
         if constexpr ( ENABLE_STATISTICS ) {
             const auto tDecodeEnd = now();
 
-            std::scoped_lock lock( this->m_analyticsMutex );
+            const std::scoped_lock lock( m_analyticsMutex );
 
-            const auto& minStartTime = this->m_statistics.decodeBlockStartTime;
-            this->m_statistics.decodeBlockStartTime.emplace(
+            const auto& minStartTime = m_statistics.decodeBlockStartTime;
+            m_statistics.decodeBlockStartTime.emplace(
                 minStartTime ? std::min( *minStartTime, tDecodeStart ) : tDecodeStart );
 
-            const auto& maxEndTime = this->m_statistics.decodeBlockEndTime;
-            this->m_statistics.decodeBlockEndTime.emplace(
+            const auto& maxEndTime = m_statistics.decodeBlockEndTime;
+            m_statistics.decodeBlockEndTime.emplace(
                 maxEndTime ? std::max( *maxEndTime, tDecodeEnd ) : tDecodeEnd );
 
-            this->m_statistics.decodeBlockTotalTime += duration( tDecodeStart, tDecodeEnd );
+            m_statistics.decodeBlockTotalTime += duration( tDecodeStart, tDecodeEnd );
         }
         return blockData;
     }
 
 private:
-    /* Analytics */
     mutable Statistics m_statistics;
-
-protected:
-    mutable double m_readBlockDataTotalTime{ 0 };
     mutable std::mutex m_analyticsMutex;
 
+protected:
     const size_t m_parallelization;
 
     FetchingStrategy m_fetchingStrategy;
