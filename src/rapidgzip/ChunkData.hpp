@@ -346,17 +346,16 @@ ChunkData::split( [[maybe_unused]] const size_t spacing ) const
         throw std::invalid_argument( "Spacing must be a positive number of bytes." );
     }
 
-    const auto decompressedSize = decodedSizeInBytes;
-    if ( ( encodedSizeInBits == 0 ) && ( decompressedSize == 0 ) ) {
+    if ( ( encodedSizeInBits == 0 ) && ( decodedSizeInBytes == 0 ) ) {
         return {};
     }
 
-    const auto nBlocks = static_cast<size_t>( std::round( static_cast<double>( decompressedSize )
+    const auto nBlocks = static_cast<size_t>( std::round( static_cast<double>( decodedSizeInBytes )
                                                           / static_cast<double>( spacing ) ) );
     Subchunk wholeChunkAsSubchunk;
     wholeChunkAsSubchunk.encodedOffset = encodedOffsetInBits;
     wholeChunkAsSubchunk.encodedSize = encodedSizeInBits;
-    wholeChunkAsSubchunk.decodedSize = decompressedSize;
+    wholeChunkAsSubchunk.decodedSize = decodedSizeInBytes;
     /* blockBoundaries does not contain the first block begin but all thereafter including the boundary after
      * the last block, i.e., the begin of the next deflate block not belonging to this ChunkData. */
     if ( ( nBlocks <= 1 ) || blockBoundaries.empty() ) {
@@ -365,7 +364,7 @@ ChunkData::split( [[maybe_unused]] const size_t spacing ) const
 
     /* The idea for partitioning is: Divide the size evenly and into subchunks and then choose the block boundary
      * that is closest to that value. */
-    const auto perfectSpacing = static_cast<double>( decompressedSize ) / static_cast<double>( nBlocks );
+    const auto perfectSpacing = static_cast<double>( decodedSizeInBytes ) / static_cast<double>( nBlocks );
 
     std::vector<Subchunk> result;
     result.reserve( nBlocks + 1 );
@@ -408,17 +407,17 @@ ChunkData::split( [[maybe_unused]] const size_t spacing ) const
         lastBoundary = *closest;
     }
 
-    if ( lastBoundary.decodedOffset > decompressedSize ) {
+    if ( lastBoundary.decodedOffset > decodedSizeInBytes ) {
         throw std::logic_error( "There should be no boundary outside of the chunk range!" );
     }
-    if ( ( lastBoundary.decodedOffset < decompressedSize ) || result.empty() ) {
+    if ( ( lastBoundary.decodedOffset < decodedSizeInBytes ) || result.empty() ) {
         /* Create the last subchunk from lastBoundary and the chunk end. */
         Subchunk subchunk;
         subchunk.encodedOffset = lastBoundary.encodedOffset,
         subchunk.encodedSize = encodedOffsetInBits + encodedSizeInBits - lastBoundary.encodedOffset,
-        subchunk.decodedSize = decompressedSize - lastBoundary.decodedOffset,
+        subchunk.decodedSize = decodedSizeInBytes - lastBoundary.decodedOffset,
         result.emplace_back( subchunk );
-    } else if ( lastBoundary.decodedOffset == decompressedSize ) {
+    } else if ( lastBoundary.decodedOffset == decodedSizeInBytes ) {
         /* Enlarge the last subchunk encoded size to also encompass the empty blocks before the chunk end.
          * Assuming that blockBoundaries contain the boundary at the chunk end and knowing that the loop
          * above always searches for the last boundary with the same decodedOffset, this branch shouldn't happen. */
