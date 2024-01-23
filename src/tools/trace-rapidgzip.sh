@@ -61,7 +61,7 @@ EOF
 
 function buildWithScoreP()
 {
-    scorep --instrument-filter=custom.scorep.filter --io=posix \
+    scorep --instrument-filter="$PWD/custom.scorep.filter" --io=posix \
         g++ \
             -I../src/rapidgzip \
             -I../src/rapidgzip/huffman \
@@ -76,7 +76,7 @@ function buildWithScoreP()
             -fconstexpr-ops-limit=99000100 \
             -o rapidgzip.cpp.scorep.o \
             -c ../src/tools/rapidgzip.cpp
-    scorep --thread=pthread \
+    scorep --io=posix --thread=pthread \
         g++ -march=native -O3 -DNDEBUG \
         rapidgzip.cpp.scorep.o \
         -o src/tools/rapidgzip \
