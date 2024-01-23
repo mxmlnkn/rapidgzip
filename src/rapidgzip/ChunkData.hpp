@@ -161,7 +161,7 @@ public:
      * @note Probably should not be called internally because it is allowed to be shadowed by a child class method.
      */
     void
-    finalize( size_t blockEndOffsetInBits )
+    finalize( size_t newEncodedEndOffsetInBits )
     {
         const auto oldMarkerSize = BaseType::dataWithMarkersSize();
         cleanUnmarkedData();
@@ -179,7 +179,8 @@ public:
             crc32s.front().prepend( crc32 );
         }
 
-        encodedSizeInBits = blockEndOffsetInBits - encodedOffsetInBits;
+        encodedEndOffsetInBits = newEncodedEndOffsetInBits;
+        encodedSizeInBits = newEncodedEndOffsetInBits - encodedOffsetInBits;
         decodedSizeInBytes = BaseType::size();
     }
 
@@ -271,6 +272,9 @@ public:
     /* Initialized with size() after thread has finished writing into ChunkData. Redundant but avoids a lock
      * because the marker replacement will momentarily lead to different results returned by size! */
     size_t decodedSizeInBytes{ 0 };
+    /* This is currently only set in @ref finalize and used in @ref setEncodedOffset to initialize
+     * @ref encodedSizeInBits. */
+    size_t encodedEndOffsetInBits{ std::numeric_limits<size_t>::max() };
 
     /* Decoded offsets are relative to the decoded offset of this ChunkData because that might not be known
      * during first-pass decompression. */
@@ -322,14 +326,17 @@ ChunkData::setEncodedOffset( size_t offset )
         throw std::invalid_argument( "The real offset to correct to should lie inside the offset range!" );
     }
 
-    if ( maxEncodedOffsetInBits == std::numeric_limits<size_t>::max() ) {
-        maxEncodedOffsetInBits = encodedOffsetInBits;
+    if ( encodedEndOffsetInBits == std::numeric_limits<size_t>::max() ) {
+        throw std::invalid_argument( "Finalize must be called before setEncodedOffset!" );
     }
 
-    /* Correct the encoded size "assuming" (it must be ensured!) that it was calculated from
-     * maxEncodedOffsetInBits. */
-    encodedSizeInBits += maxEncodedOffsetInBits - offset;
+    if ( encodedEndOffsetInBits < offset ) {
+        std::stringstream message;
+        message << "The chunk start " << offset << " must not be after the chunk end " << encodedEndOffsetInBits << "!";
+        throw std::invalid_argument( std::move( message ).str() );
+    }
 
+    encodedSizeInBits = encodedEndOffsetInBits - offset;
     encodedOffsetInBits = offset;
     maxEncodedOffsetInBits = offset;
 }
@@ -537,9 +544,10 @@ struct ChunkDataCounter final :
     }
 
     void
-    finalize( size_t blockEndOffsetInBits )
+    finalize( size_t newEncodedEndOffsetInBits )
     {
-        encodedSizeInBits = blockEndOffsetInBits - encodedOffsetInBits;
+        encodedEndOffsetInBits = newEncodedEndOffsetInBits;
+        encodedSizeInBits = encodedEndOffsetInBits - encodedOffsetInBits;
         /* Do not overwrite decodedSizeInBytes like is done in the base class
          * because DecodedData::size() would return 0! Instead, it is updated inside append. */
     }

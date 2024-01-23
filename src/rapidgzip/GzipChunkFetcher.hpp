@@ -702,7 +702,7 @@ public:
             [&] ( const std::pair<size_t, size_t>& offset ) -> std::optional<ChunkData>
             {
                 try {
-                    /* For decoding, it does not matter whether we seek to offset.first or offset.second but it DOES
+                    /* For decoding, it does not matter whether we seek to offset.first or offset.second but it did
                      * matter a lot for interpreting and correcting the encodedSizeInBits in GzipBlockFetcer::get! */
                     bitReader.seek( offset.second );
 
@@ -713,6 +713,7 @@ public:
                                                        maxDecompressedChunkSize, std::move( result ) );
                     result.encodedOffsetInBits = offset.first;
                     result.maxEncodedOffsetInBits = offset.second;
+                    result.encodedSizeInBits = result.encodedEndOffsetInBits - result.encodedOffsetInBits;
                     /** @todo Avoid out of memory issues for very large compression ratios by using a simple runtime
                      *        length encoding or by only undoing the Huffman coding in parallel and the LZ77 serially,
                      *        or by stopping decoding at a threshold and fall back to serial decoding in that case? */
