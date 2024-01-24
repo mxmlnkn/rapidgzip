@@ -144,6 +144,7 @@ public:
             out << "    Time spent decoding with ISA-L           : " << m_statistics.decodeDurationIsal << " s\n";
             out << "    Time spent allocating and copying        : " << m_statistics.appendDuration << " s\n";
             out << "    Time spent applying the last window      : " << m_statistics.applyWindowDuration << " s\n";
+            out << "    Time spent computing the checksum        : " << m_statistics.computeChecksumDuration << " s\n";
             out << "    Replaced marker buffers                  : " << formatBytes( m_statistics.markerCount ) << "\n";
             if constexpr ( ENABLE_REAL_MARKER_COUNT ) {
                 out << "    Actual marker count                      : " << formatBytes( m_statistics.realMarkerCount );
@@ -489,7 +490,6 @@ private:
     replaceMarkers( const std::shared_ptr<ChunkData>& chunkData,
                     const WindowView                  previousWindow )
     {
-        [[maybe_unused]] const auto markerCount = chunkData->dataWithMarkersSize();
         /* This is expensive! It adds 20-30% overhead for the FASTQ file! Therefore disable it.
          * The result for this statistics for:
          *     SRR22403185_2.fastq.gz:
@@ -526,15 +526,7 @@ private:
                 chunkData->statistics.realMarkerCount += chunkData->countMarkerSymbols();
             }
         }
-        [[maybe_unused]] const auto tApplyStart = now();
         chunkData->applyWindow( previousWindow );
-        if ( BaseType::statisticsEnabled() ) {
-            const std::scoped_lock lock( m_statistics.mutex );
-            if ( markerCount > 0 ) {
-                chunkData->statistics.applyWindowDuration += duration( tApplyStart );
-            }
-            chunkData->statistics.markerCount += markerCount;
-        }
     }
 
     /**
@@ -1347,9 +1339,7 @@ public:
                 cleanDataCount += bufferViews.dataSize();
             #endif
 
-                const auto tAppendStart = now();
                 result.append( bufferViews );
-                result.statistics.appendDuration += duration( tAppendStart );
                 blockBytesRead += bufferViews.size();
 
                 /* Non-compressed deflate blocks are limited to 64 KiB and the largest Dynamic Huffman Coding

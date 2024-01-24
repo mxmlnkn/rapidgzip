@@ -111,6 +111,7 @@ struct ChunkData :
             decodeDurationIsal           += other.decodeDurationIsal;
             appendDuration               += other.appendDuration;
             applyWindowDuration          += other.applyWindowDuration;
+            computeChecksumDuration      += other.computeChecksumDuration;
             markerCount                  += other.markerCount;
             realMarkerCount              += other.realMarkerCount;
         }
@@ -123,6 +124,7 @@ struct ChunkData :
         double decodeDurationIsal{ 0 };
         double appendDuration{ 0 };
         double applyWindowDuration{ 0 };
+        double computeChecksumDuration{ 0 };
         uint64_t markerCount{ 0 };
         uint64_t realMarkerCount{ 0 };
     };
@@ -131,26 +133,53 @@ public:
     void
     append( deflate::DecodedVector&& toAppend )
     {
-        crc32s.back().update( toAppend.data(), toAppend.size() );
+        auto t0 = now();
+
+        if ( crc32s.back().enabled() ) {
+            crc32s.back().update( toAppend.data(), toAppend.size() );
+
+            const auto t1 = now();
+            statistics.computeChecksumDuration += duration( t0, t1 );
+            t0 = t1;
+        }
 
         BaseType::append( std::move( toAppend ) );
+        statistics.appendDuration += duration( t0 );
     }
 
     void
     append( deflate::DecodedDataView const& toAppend )
     {
+        auto t0 = now();
+
         /* Ignore data with markers. Those will be CRC32 computed inside @ref applyWindow. */
-        for ( const auto& buffer : toAppend.data ) {
-            crc32s.back().update( buffer.data(), buffer.size() );
+        if ( crc32s.back().enabled() ) {
+            for ( const auto& buffer : toAppend.data ) {
+                crc32s.back().update( buffer.data(), buffer.size() );
+            }
+
+            const auto t1 = now();
+            statistics.computeChecksumDuration += duration( t0, t1 );
+            t0 = t1;
         }
 
         BaseType::append( toAppend );
+        statistics.appendDuration += duration( t0 );
     }
 
     void
     applyWindow( WindowView const& window )
     {
+        const auto markerCount = dataWithMarkersSize();
+        const auto tApplyStart = now();
+
         BaseType::applyWindow( window );
+
+        const auto tApplyEnd = now();
+        if ( markerCount > 0 ) {
+            statistics.markerCount += markerCount;
+            statistics.applyWindowDuration += duration( tApplyStart, tApplyEnd );
+        }
 
         const auto alreadyProcessedSize = std::accumulate(
             crc32s.begin(), crc32s.end(), size_t( 0 ),
@@ -168,6 +197,8 @@ public:
                 crc32.update( buffer, size );
             }
             crc32s.front().prepend( crc32 );
+
+            statistics.computeChecksumDuration += duration( tApplyEnd );
         }
     }
 
@@ -193,6 +224,8 @@ public:
         cleanUnmarkedData();
         const auto toProcessSize = oldMarkerSize - BaseType::dataWithMarkersSize();
         if ( toProcessSize > 0 ) {
+            const auto tComputeHashStart = now();
+
             CRC32Calculator crc32;
             /* Iterate over contiguous chunks of memory. */
             for ( auto it = DecodedData::Iterator( *this, 0, toProcessSize ); static_cast<bool>( it ); ++it ) {
@@ -203,6 +236,8 @@ public:
              * a new gzip stream begins, which should be known to not contain any unresolvable backreferences.
              * That's why we can simply merge the CRC32 for the cleaned data with the first CRC32. */
             crc32s.front().prepend( crc32 );
+
+            statistics.computeChecksumDuration += duration( tComputeHashStart );
         }
 
         encodedEndOffsetInBits = newEncodedEndOffsetInBits;
