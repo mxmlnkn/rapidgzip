@@ -387,7 +387,7 @@ public:
     [[nodiscard]] std::pair<std::unique_ptr<FileLock>, FileReader*>
     underlyingFile()
     {
-        return { getLock(), m_sharedFile.get() };
+        return { getUniqueLock(), m_sharedFile.get() };
     }
 
     void
@@ -403,8 +403,21 @@ public:
     }
 
 private:
-    [[nodiscard]] std::unique_ptr<FileLock>
+    /**
+     * This should be used for internal locks to avoid the allocations by std::unique_ptr for each access
+     * to @ref size() for example.
+     */
+    [[nodiscard]] FileLock
     getLock() const
+    {
+        if ( m_statistics && m_statistics->enabled ) {
+            ++m_statistics->locks;
+        }
+        return FileLock( *m_mutex );
+    }
+
+    [[nodiscard]] std::unique_ptr<FileLock>
+    getUniqueLock() const
     {
         if ( m_statistics && m_statistics->enabled ) {
             ++m_statistics->locks;
