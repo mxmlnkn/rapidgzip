@@ -217,10 +217,6 @@ public:
     }
 #endif
 
-public:
-    size_t encodedOffsetInBits{ std::numeric_limits<size_t>::max() };
-    size_t encodedSizeInBits{ 0 };
-
 private:
     /**
      * Use vectors of vectors to avoid reallocations. The order of this data is:

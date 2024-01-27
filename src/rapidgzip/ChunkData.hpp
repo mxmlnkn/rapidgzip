@@ -40,6 +40,14 @@ struct ChunkData :
 {
     using BaseType = deflate::DecodedData;
 
+    struct Configuration
+    {
+        size_t encodedOffsetInBits{ std::numeric_limits<size_t>::max() };
+        size_t splitChunkSize{ std::numeric_limits<size_t>::max() };
+        FileType fileType{ FileType::NONE };
+        bool crc32Enabled{ true };
+    };
+
     struct BlockBoundary
     {
         size_t encodedOffset;
@@ -132,6 +140,21 @@ struct ChunkData :
     };
 
 public:
+    explicit
+    ChunkData( const Configuration& configuration ) :
+        encodedOffsetInBits( configuration.encodedOffsetInBits ),
+        fileType( configuration.fileType ),
+        splitChunkSize( configuration.splitChunkSize )
+    {
+        setCRC32Enabled( configuration.crc32Enabled );
+    }
+
+    ChunkData() = default;
+    ChunkData( ChunkData&& ) = default;
+    ChunkData( const ChunkData& ) = delete;
+    ChunkData& operator=( ChunkData&& ) = default;
+    ChunkData& operator=( const ChunkData& ) = delete;
+
     void
     append( deflate::DecodedVector&& toAppend )
     {
@@ -387,6 +410,9 @@ protected:
     split( [[maybe_unused]] const size_t spacing ) const;
 
 public:
+    size_t encodedOffsetInBits{ std::numeric_limits<size_t>::max() };
+    size_t encodedSizeInBits{ 0 };
+
     /** This should be used to decide what kind of footer to expect and what to do after the footer. */
     FileType fileType{ FileType::NONE };
 
@@ -668,6 +694,17 @@ writeAll( const std::shared_ptr<ChunkData>& chunkData,
 struct ChunkDataCounter final :
     public ChunkData
 {
+    explicit
+    ChunkDataCounter( const Configuration& configuration ) :
+        ChunkData( configuration )
+    {}
+
+    ChunkDataCounter() = default;
+    ChunkDataCounter( ChunkDataCounter&& ) = default;
+    ChunkDataCounter( const ChunkDataCounter& ) = delete;
+    ChunkDataCounter& operator=( ChunkDataCounter&& ) = default;
+    ChunkDataCounter& operator=( const ChunkDataCounter& ) = delete;
+
     void
     append( deflate::DecodedVector&& toAppend )
     {

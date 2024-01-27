@@ -60,9 +60,9 @@ testAutomaticMarkerResolution( const std::filesystem::path& filePath,
     try {
         std::atomic<bool> cancel{ false };
 
-        ChunkData configuredChunkData;
-        configuredChunkData.setCRC32Enabled( false );
-        configuredChunkData.fileType = FileType::GZIP;
+        ChunkData::Configuration chunkDataConfiguration;
+        chunkDataConfiguration.crc32Enabled = false;
+        chunkDataConfiguration.fileType = FileType::GZIP;
 
         const auto result = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlock(
             bitReader,
@@ -71,7 +71,7 @@ testAutomaticMarkerResolution( const std::filesystem::path& filePath,
             /* window */ {},
             /* decodedSize */ std::nullopt,
             cancel,
-            configuredChunkData );
+            chunkDataConfiguration );
 
         const auto& dataWithMarkers = result.getDataWithMarkers();
         std::vector<size_t> markerBlockSizesFound( dataWithMarkers.size() );
@@ -127,11 +127,14 @@ void
 testBlockSplit()
 {
     using DecodedDataView = rapidgzip::deflate::DecodedDataView;
+    using Subchunk = rapidgzip::ChunkData::Subchunk;
+    using BlockBoundary = rapidgzip::ChunkData::BlockBoundary;
 
     const auto split =
-        [] ( ChunkData    chunk,
+        [] ( ChunkData&   chunk,
              const size_t splitChunkSize )
         {
+            chunk.subchunks.clear();
             chunk.splitChunkSize = splitChunkSize;
             chunk.finalize( chunk.encodedEndOffsetInBits );
             return chunk.subchunks;
@@ -142,14 +145,16 @@ testBlockSplit()
     chunk.maxEncodedOffsetInBits = 0;
     chunk.encodedSizeInBits = 0;
 
-    using Subchunk = rapidgzip::ChunkData::Subchunk;
-    using BlockBoundary = rapidgzip::ChunkData::BlockBoundary;
     chunk.finalize( 0 );
     REQUIRE( split( chunk, 1 ).empty() );
 
     /* Test split of data length == 1 and no block boundary. */
     {
-        auto chunk2 = chunk;
+        ChunkData chunk2;
+        chunk2.encodedOffsetInBits = 0;
+        chunk2.maxEncodedOffsetInBits = 0;
+        chunk2.encodedSizeInBits = 0;
+
         std::vector<uint8_t> data( 1, 0 );
         DecodedDataView toAppend;
         toAppend.data[0] = VectorView<uint8_t>( data.data(), data.size() );
@@ -215,9 +220,9 @@ testIsalBug()
 
     using ChunkFetcher = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>;
 
-    ChunkData configuredChunkData;
-    configuredChunkData.setCRC32Enabled( false );
-    configuredChunkData.fileType = FileType::GZIP;
+    ChunkData::Configuration chunkDataConfiguration;
+    chunkDataConfiguration.crc32Enabled = false;
+    chunkDataConfiguration.fileType = FileType::GZIP;
 
     std::atomic<bool> cancel{ false };
     std::vector<uint8_t> window( 32_Ki, 0 );
@@ -230,7 +235,7 @@ testIsalBug()
         /* window */ std::make_shared<WindowMap::Window>( window ),
         /* decodedSize */ 4171816,
         cancel,
-        configuredChunkData,
+        chunkDataConfiguration,
         /* maxDecompressedChunkSize */ 4_Mi,
         /* isBgzfFile */ true );
 }
@@ -250,10 +255,10 @@ testWikidataException( const std::filesystem::path& rootFolder )
     const auto decodedSize = 4'140'634ULL;
     std::vector<uint8_t> initialWindow( 32_Ki, 0 );
 
-    ChunkData result;
-    result.setCRC32Enabled( true );
-    result.fileType = FileType::GZIP;
-    result.encodedOffsetInBits = startOffset;
+    ChunkData::Configuration chunkDataConfiguration;
+    chunkDataConfiguration.crc32Enabled = true;
+    chunkDataConfiguration.fileType = FileType::GZIP;
+    chunkDataConfiguration.encodedOffsetInBits = startOffset;
 
     /* This did throw because it checks whether the exactUntilOffset has been reached. However, when a decoded size
      * is specified, it is used as a stop criterium. This means that for ISA-L the very last symbol, the end-of-block
@@ -262,7 +267,7 @@ testWikidataException( const std::filesystem::path& rootFolder )
      * is also given the exactUntilOffset and does not move more bits than that to the ISA-L input buffers. */
     const auto chunk =
         rapidgzip::GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlockWithInflateWrapper<InflateWrapper>(
-            bitReader, exactUntilOffset, initialWindow, decodedSize, std::move( result ) );
+            bitReader, exactUntilOffset, initialWindow, decodedSize, chunkDataConfiguration );
 
     REQUIRE_EQUAL( chunk.encodedSizeInBits, exactUntilOffset );
     REQUIRE_EQUAL( chunk.decodedSizeInBytes, decodedSize );
@@ -345,16 +350,16 @@ decodeWithDecodeBlockWithRapidgzip( UniqueFileReader&& fileReader )
 {
     auto bitReader = initBitReaderAtDeflateStream( std::move( fileReader ) );
 
-    ChunkData result;
-    result.setCRC32Enabled( true );
-    result.fileType = FileType::GZIP;
+    ChunkData::Configuration chunkDataConfiguration;
+    chunkDataConfiguration.crc32Enabled = true;
+    chunkDataConfiguration.fileType = FileType::GZIP;
 
     return GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlockWithRapidgzip(
         &bitReader,
         /* untilOffset */ std::numeric_limits<size_t>::max(),
         /* window */ std::nullopt,
         /* maxDecompressedChunkSize */ std::numeric_limits<size_t>::max(),
-        std::move( result ) );
+        chunkDataConfiguration );
 }
 
 
@@ -364,9 +369,9 @@ decodeWithDecodeBlock( UniqueFileReader&& fileReader )
     auto bitReader = initBitReaderAtDeflateStream( std::move( fileReader ) );
     std::atomic<bool> cancel{ false };
 
-    ChunkData configuredChunkData;
-    configuredChunkData.setCRC32Enabled( false );
-    configuredChunkData.fileType = FileType::GZIP;
+    ChunkData::Configuration chunkDataConfiguration;
+    chunkDataConfiguration.crc32Enabled = false;
+    chunkDataConfiguration.fileType = FileType::GZIP;
 
     return GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlock(
         bitReader,
@@ -375,7 +380,7 @@ decodeWithDecodeBlock( UniqueFileReader&& fileReader )
         /* window */ {},
         /* decodedSize */ std::nullopt,
         cancel,
-        configuredChunkData );
+        chunkDataConfiguration );
 }
 
 
@@ -386,17 +391,17 @@ decodeWithDecodeBlockWithInflateWrapper( UniqueFileReader&& fileReader )
     auto bitReader = initBitReaderAtDeflateStream( std::move( fileReader ) );
     using ChunkFetcher = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>;
 
-    ChunkData result;
-    result.setCRC32Enabled( true );
-    result.encodedOffsetInBits = bitReader.tell();
-    result.fileType = FileType::GZIP;
+    ChunkData::Configuration chunkDataConfiguration;
+    chunkDataConfiguration.crc32Enabled = true;
+    chunkDataConfiguration.encodedOffsetInBits = bitReader.tell();
+    chunkDataConfiguration.fileType = FileType::GZIP;
 
     return ChunkFetcher::decodeBlockWithInflateWrapper<InflateWrapper>(
         bitReader,
         /* exactUntilOffset */ bitReader.size().value(),
         /* window */ {},
         /* decodedSize */ std::nullopt,
-        std::move( result ) );
+        chunkDataConfiguration );
 }
 
 

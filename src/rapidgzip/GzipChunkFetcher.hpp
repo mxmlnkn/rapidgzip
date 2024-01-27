@@ -64,6 +64,7 @@ class GzipChunkFetcher :
 public:
     using FetchingStrategy = T_FetchingStrategy;
     using ChunkData = T_ChunkData;
+    using ChunkConfiguration = typename ChunkData::Configuration;
     using BaseType = BlockFetcher<GzipBlockFinder, ChunkData, FetchingStrategy>;
     using BitReader = rapidgzip::BitReader;
     using SharedWindow = WindowMap::SharedWindow;
@@ -654,10 +655,10 @@ private:
          * of the correct ordering between BlockMap accesses and modifications (the BlockMap is still thread-safe). */
         const auto blockInfo = m_blockMap->getEncodedOffset( blockOffset );
 
-        ChunkData configuredChunkData;
-        configuredChunkData.setCRC32Enabled( m_crc32Enabled );
-        configuredChunkData.fileType = m_blockFinder->fileType();
-        configuredChunkData.splitChunkSize = m_blockFinder->spacingInBits() / 8U;
+        ChunkConfiguration chunkDataConfiguration;
+        chunkDataConfiguration.crc32Enabled = m_crc32Enabled;
+        chunkDataConfiguration.fileType = m_blockFinder->fileType();
+        chunkDataConfiguration.splitChunkSize = m_blockFinder->spacingInBits() / 8U;
 
         /* If we are a BGZF file and we have not imported an index, then we can assume the
          * window to be empty because we should only get offsets at gzip stream starts.
@@ -677,7 +678,7 @@ private:
             std::move( sharedWindow ),
             /* decodedSize */ blockInfo ? blockInfo->decodedSizeInBytes : std::optional<size_t>{},
             m_cancelThreads,
-            configuredChunkData,
+            chunkDataConfiguration,
             m_maxDecompressedChunkSize,
             /* untilOffsetIsExact */ m_isBgzfFile || blockInfo );
     }
@@ -697,7 +698,7 @@ public:
                  SharedWindow              const initialWindow,
                  std::optional<size_t>     const decodedSize,
                  std::atomic<bool>        const& cancelThreads,
-                 ChunkData                const& configuredChunkData,
+                 ChunkConfiguration       const& chunkDataConfiguration,
                  size_t                    const maxDecompressedChunkSize = std::numeric_limits<size_t>::max(),
                  bool                      const untilOffsetIsExact = false )
     {
@@ -711,14 +712,14 @@ public:
             const auto fileSize = originalBitReader.size();
             const auto& window = *initialWindow;
 
-            auto result = configuredChunkData;
-            result.encodedOffsetInBits = blockOffset;
-            result = decodeBlockWithInflateWrapper<InflateWrapper>(
+            auto configuration = chunkDataConfiguration;
+            configuration.encodedOffsetInBits = blockOffset;
+            auto result = decodeBlockWithInflateWrapper<InflateWrapper>(
                 originalBitReader,
                 fileSize ? std::min( untilOffset, *fileSize ) : untilOffset,
                 window,
                 decodedSize,
-                std::move( result ) );
+                configuration );
 
             if ( decodedSize && ( result.decodedSizeInBytes != *decodedSize ) ) {
                 std::stringstream message;
@@ -742,7 +743,7 @@ public:
             bitReader.seek( blockOffset );
             const auto& window = *initialWindow;
             return decodeBlockWithRapidgzip( &bitReader, untilOffset, window, maxDecompressedChunkSize,
-                                             ChunkData( configuredChunkData ) );
+                                              chunkDataConfiguration );
         }
 
         const auto tryToDecode =
@@ -754,7 +755,7 @@ public:
                     bitReader.seek( offset.second );
                     auto result = decodeBlockWithRapidgzip(
                         &bitReader, untilOffset, /* initialWindow */ std::nullopt,
-                        maxDecompressedChunkSize, ChunkData( configuredChunkData ) );
+                        maxDecompressedChunkSize, chunkDataConfiguration );
                     result.encodedOffsetInBits = offset.first;
                     result.maxEncodedOffsetInBits = offset.second;
                     result.encodedSizeInBits = result.encodedEndOffsetInBits - result.encodedOffsetInBits;
@@ -900,9 +901,11 @@ public:
                                    size_t                const exactUntilOffset,
                                    WindowView            const initialWindow,
                                    std::optional<size_t> const decodedSize,
-                                   ChunkData&&                 result )
+                                   ChunkConfiguration   const& chunkDataConfiguration )
     {
         const auto tStart = now();
+
+        ChunkData result{ chunkDataConfiguration };
 
         BitReader bitReader( originalBitReader );
         bitReader.seek( result.encodedOffsetInBits );
@@ -1037,7 +1040,7 @@ public:
 
         result.finalize( exactUntilOffset );
         result.statistics.decodeDurationInflateWrapper = duration( tStart );
-        return std::move( result );
+        return result;
     }
 
 
@@ -1209,12 +1212,13 @@ public:
                               size_t                    const untilOffset,
                               std::optional<WindowView> const initialWindow,
                               size_t                    const maxDecompressedChunkSize,
-                              ChunkData&&                     result )
+                              ChunkConfiguration       const& chunkDataConfiguration )
     {
         if ( bitReader == nullptr ) {
             throw std::invalid_argument( "BitReader must be non-null!" );
         }
 
+        ChunkData result{ chunkDataConfiguration };
         result.encodedOffsetInBits = bitReader->tell();
 
     #ifdef WITH_ISAL
@@ -1431,7 +1435,7 @@ public:
         }
 
         result.finalize( nextBlockOffset );
-        return std::move( result );
+        return result;
     }
 
 private:
