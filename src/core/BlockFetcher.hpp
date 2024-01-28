@@ -185,10 +185,7 @@ protected:
         if ( !m_blockFinder ) {
             throw std::invalid_argument( "BlockFinder must be valid!" );
         }
-
-        if ( m_statisticsEnabled ) {
-            m_statistics.parallelization = m_parallelization;
-        }
+        m_statistics.parallelization = m_parallelization;
     }
 
 public:
