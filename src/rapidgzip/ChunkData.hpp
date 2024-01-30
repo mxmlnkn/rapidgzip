@@ -113,6 +113,7 @@ struct ChunkData :
             applyWindowDuration          += other.applyWindowDuration;
             computeChecksumDuration      += other.computeChecksumDuration;
             markerCount                  += other.markerCount;
+            nonMarkerCount               += other.nonMarkerCount;
             realMarkerCount              += other.realMarkerCount;
         }
 
@@ -126,6 +127,7 @@ struct ChunkData :
         double applyWindowDuration{ 0 };
         double computeChecksumDuration{ 0 };
         uint64_t markerCount{ 0 };
+        uint64_t nonMarkerCount{ 0 };
         uint64_t realMarkerCount{ 0 };
     };
 
@@ -172,6 +174,55 @@ public:
     {
         const auto markerCount = dataWithMarkersSize();
         const auto tApplyStart = now();
+
+        /* This is expensive! It adds 20-30% overhead for the FASTQ file! Therefore disable it.
+         * The result for this statistics for:
+         *     SRR22403185_2.fastq.gz
+         *         Total decompressed bytes                 : 361'815'302
+         *         Non-marker symbols                       :  16'270'407 (4.49688 %)
+         *         Replaced marker symbol buffers           : 345'544'895 (95.5031 %)
+         *         Actual marker symbol count in buffers    :  48'956'747 (14.168 %)
+         *     silesia.tar.gz
+         *         Total decompressed bytes                 : 211'957'760
+         *         Non-marker symbols                       : 137'967'986 (65.0922 %)
+         *         Replaced marker symbol buffers           :  73'989'774 (34.9078 %)
+         *         Actual marker symbol count in buffers    :  22'555'742 (30.4849 %)
+         *     4GiB-base64.gz
+         *         Total decompressed bytes                 : 4'294'967'296
+         *         Non-marker symbols                       : 4'272'350'980 (99.4734 %)
+         *         Replaced marker symbol buffers           :    22'616'316 (0.526577 %)
+         *         Actual marker symbol count in buffers    :       162'330 (0.717756 %)
+         *     CTU-13-Dataset.tar.gz
+         *         Total decompressed bytes                 : 79'747'543'040
+         *         Non-marker symbols                       : 55'838'926'274 (70.0196 %)
+         *         Replaced marker symbol buffers           : 23'908'616'766 (29.9804 %)
+         *         Actual marker symbol count in buffers    :  2'868'357'239 (11.9972 %)
+         *     wikidata-20220103-all.json.gz
+         *         Total decompressed bytes                 : 1'428'353'996'731
+         *         Non-marker symbols                       :    23'033'941'599 (1.61262 %)
+         *         Replaced marker symbol buffers           : 1'405'320'055'132 (98.3874 %)
+         *         Actual marker symbol count in buffers    :   863'915'563'663 (61.4746 %)
+         *
+         * -> An alternative format that uses a mix of 8-bit and 16-bit and maybe a separate 1-bit buffer
+         *    to store which byte is which, would reduce memory usage, and therefore also allocation
+         *    overhead by 80%! Or maybe run-time encode it a la: <n 8-bit values> <8-bit value> ... <m 16-bit values>
+         *    This would hopefully speed up window applying because hopefully long runs of 8-bit values could
+         *    simply be memcopied and even runs of 16-bit values could be processed in a loop.
+         *    This kind of compression would also add overhead though and it proabably would be too difficult
+         *    to do inside deflate::Block, so it should probably be applied in post in
+         *    ChunkData::append( DecodedDataViews ). This might be something that could be optimzied with SIMD,
+         *    the same applies to the equally necessary new ChunkData::applyWindow method.
+         *    -> The count could be 7-bit so that the 8-th bit can be used to store the 8/16-bit value flag.
+         *       In the worst case: interleaved 8-bit and 16-bit values, this would add an overhead of 25%:
+         *       <n><8><n><16hi><16lo> <n><8>...
+         *    Ideally a format that has no overhead even in the worst-case would be nice.
+         *    This would be possible by using 4-bit values for <n> but then the maximum runlength would be 3-bit -> 7,
+         *    which seems insufficient as it might lead to lots of slow execution branching in the applyWindow method.
+         */
+        static constexpr bool ENABLE_REAL_MARKER_COUNT = false;
+        if constexpr ( ENABLE_REAL_MARKER_COUNT ) {
+            statistics.realMarkerCount += countMarkerSymbols();
+        }
 
         BaseType::applyWindow( window );
 
@@ -239,6 +290,8 @@ public:
 
             statistics.computeChecksumDuration += duration( tComputeHashStart );
         }
+
+        statistics.nonMarkerCount += dataSize();
 
         encodedEndOffsetInBits = newEncodedEndOffsetInBits;
         encodedSizeInBits = newEncodedEndOffsetInBits - encodedOffsetInBits;

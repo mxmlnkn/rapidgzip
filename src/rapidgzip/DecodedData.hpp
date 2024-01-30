@@ -297,10 +297,8 @@ DecodedData::countMarkerSymbols() const
 {
     size_t result{ 0 };
     for ( auto& chunk : dataWithMarkers ) {
-        result += std::accumulate( chunk.begin(), chunk.end(), size_t( 0 ),
-                                   [] ( const size_t sum, const uint16_t symbol ) {
-            return sum + ( ( symbol & 0xFF00U ) == 0 ? 0 : 1 );
-        } );
+        result += std::count_if( chunk.begin(), chunk.end(),
+                                 [] ( const uint16_t symbol ) { return ( symbol & 0xFF00U ) != 0; } );
     }
     return result;
 }

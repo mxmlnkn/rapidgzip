@@ -82,42 +82,42 @@ public:
             const auto poolEfficiency = optimalDecodeDuration / decodeDuration;
 
             std::stringstream out;
-            out << "\n   Parallelization                   : " << parallelization
-                << "\n   Cache"
-                << "\n       Hits                          : " << cache.hits
-                << "\n       Misses                        : " << cache.misses
-                << "\n       Unused Entries                : " << cache.unusedEntries
-                << "\n       Maximum Fill Size             : " << cache.maxSize
-                << "\n       Capacity                      : " << cache.capacity
-                << "\n   Prefetch Cache"
-                << "\n       Hits                          : " << prefetchCache.hits
-                << "\n       Misses                        : " << prefetchCache.misses
-                << "\n       Unused Entries                : " << prefetchCache.unusedEntries
-                << "\n       Prefetch Queue Hit            : " << prefetchDirectHits
-                << "\n       Maximum Fill Size             : " << prefetchCache.maxSize
-                << "\n       Capacity                      : " << prefetchCache.capacity
-                << "\n   Cache Hit Rate                    : " << cacheHitRate() * 100 << " %"
-                << "\n   Useless Prefetches                : " << uselessPrefetches() * 100 << " %"
-                << "\n   Access Patterns"
-                << "\n       Total Accesses                : " << gets
-                << "\n       Duplicate Block Accesses      : " << repeatedBlockAccesses
-                << "\n       Sequential Block Accesses     : " << sequentialBlockAccesses
-                << "\n       Block Seeks Back              : " << backwardBlockAccesses
-                << "\n       Block Seeks Forward           : " << forwardBlockAccesses
-                << "\n   Blocks"
-                << "\n       Total Existing                : " << existingBlocks.str()
-                << "\n       Total Fetched                 : " << prefetchCount + onDemandFetchCount
-                << "\n       Prefetched                    : " << prefetchCount
-                << "\n       Fetched On-demand             : " << onDemandFetchCount
-                << "\n   Prefetch Stall by BlockFinder     : " << waitOnBlockFinderCount
-                << "\n   Time spent in:"
-                << "\n       decodeBlock                   : " << decodeBlockTotalTime   << " s"
-                << "\n       std::future::get              : " << futureWaitTotalTime    << " s"
-                << "\n       get                           : " << getTotalTime           << " s"
-                << "\n   Thread Pool Utilization:"
-                << "\n       Total Real Decode Duration    : " << decodeDuration << " s"
-                << "\n       Theoretical Optimal Duration  : " << optimalDecodeDuration << " s"
-                << "\n       Pool Efficiency (Fill Factor) : " << poolEfficiency * 100 << " %";
+            out << "\n    Parallelization                   : " << parallelization
+                << "\n    Cache"
+                << "\n        Hits                          : " << cache.hits
+                << "\n        Misses                        : " << cache.misses
+                << "\n        Unused Entries                : " << cache.unusedEntries
+                << "\n        Maximum Fill Size             : " << cache.maxSize
+                << "\n        Capacity                      : " << cache.capacity
+                << "\n    Prefetch Cache"
+                << "\n        Hits                          : " << prefetchCache.hits
+                << "\n        Misses                        : " << prefetchCache.misses
+                << "\n        Unused Entries                : " << prefetchCache.unusedEntries
+                << "\n        Prefetch Queue Hit            : " << prefetchDirectHits
+                << "\n        Maximum Fill Size             : " << prefetchCache.maxSize
+                << "\n        Capacity                      : " << prefetchCache.capacity
+                << "\n    Cache Hit Rate                    : " << cacheHitRate() * 100 << " %"
+                << "\n    Useless Prefetches                : " << uselessPrefetches() * 100 << " %"
+                << "\n    Access Patterns"
+                << "\n        Total Accesses                : " << gets
+                << "\n        Duplicate Block Accesses      : " << repeatedBlockAccesses
+                << "\n        Sequential Block Accesses     : " << sequentialBlockAccesses
+                << "\n        Block Seeks Back              : " << backwardBlockAccesses
+                << "\n        Block Seeks Forward           : " << forwardBlockAccesses
+                << "\n    Blocks"
+                << "\n        Total Existing                : " << existingBlocks.str()
+                << "\n        Total Fetched                 : " << prefetchCount + onDemandFetchCount
+                << "\n        Prefetched                    : " << prefetchCount
+                << "\n        Fetched On-demand             : " << onDemandFetchCount
+                << "\n    Prefetch Stall by BlockFinder     : " << waitOnBlockFinderCount
+                << "\n    Time spent in:"
+                << "\n        decodeBlock                   : " << decodeBlockTotalTime   << " s"
+                << "\n        std::future::get              : " << futureWaitTotalTime    << " s"
+                << "\n        get                           : " << getTotalTime           << " s"
+                << "\n    Thread Pool Utilization:"
+                << "\n        Total Real Decode Duration    : " << decodeDuration << " s"
+                << "\n        Theoretical Optimal Duration  : " << optimalDecodeDuration << " s"
+                << "\n        Pool Efficiency (Fill Factor) : " << poolEfficiency * 100 << " %";
             return out.str();
         }
 

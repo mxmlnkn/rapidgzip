@@ -71,7 +71,6 @@ public:
     using BlockFinder = typename BaseType::BlockFinder;
 
     static constexpr bool REPLACE_MARKERS_IN_PARALLEL = true;
-    static constexpr bool ENABLE_REAL_MARKER_COUNT = false;  // Adds 25% overhead for FASTQ files (worst case)
 
     struct Statistics :
         public ChunkData::Statistics
@@ -134,6 +133,27 @@ public:
         this->stopThreadPool();
 
         if ( BaseType::m_showProfileOnDestruction ) {
+            const auto formatCount =
+                [] ( const uint64_t count )
+                {
+                    auto result = std::to_string( count );
+                    std::string delimited;
+                    static constexpr size_t DIGIT_GROUP_SIZE = 3;
+                    delimited.reserve( result.size()
+                                       + ( result.empty() ? 0 : ( result.size() - 1 ) / DIGIT_GROUP_SIZE ) );
+                    for ( size_t i = 0; i < result.size(); ++i ) {
+                        const auto distanceFromBack = result.size() - i;
+                        if ( ( i > 0 ) && ( distanceFromBack % 3 == 0 ) ) {
+                            delimited.push_back( '\'' );
+                        }
+                        delimited.push_back( result[i] );
+                    }
+                    return delimited;
+                };
+
+
+            const auto totalDecompressedCount = m_statistics.nonMarkerCount + m_statistics.markerCount;
+
             std::stringstream out;
             out << "[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:\n";
             out << "    Number of false positives                : " << m_statistics.falsePositiveCount << "\n";
@@ -145,17 +165,50 @@ public:
             out << "    Time spent allocating and copying        : " << m_statistics.appendDuration << " s\n";
             out << "    Time spent applying the last window      : " << m_statistics.applyWindowDuration << " s\n";
             out << "    Time spent computing the checksum        : " << m_statistics.computeChecksumDuration << " s\n";
-            out << "    Replaced marker buffers                  : " << formatBytes( m_statistics.markerCount ) << "\n";
-            if constexpr ( ENABLE_REAL_MARKER_COUNT ) {
-                out << "    Actual marker count                      : " << formatBytes( m_statistics.realMarkerCount );
+            out << "    Total decompressed bytes                 : " << formatCount( totalDecompressedCount ) << "\n";
+            out << "    Non-marker symbols                       : " << formatCount( m_statistics.nonMarkerCount );
+            if ( totalDecompressedCount > 0 ) {
+                out << " (" << static_cast<double>( m_statistics.nonMarkerCount )
+                               / static_cast<double>( totalDecompressedCount ) * 100
+                    << " %)";
+            }
+            out << "\n";
+            out << "    Replaced marker symbol buffers           : " << formatCount( m_statistics.markerCount );
+            if ( totalDecompressedCount > 0 ) {
+                out << " (" << static_cast<double>( m_statistics.markerCount )
+                               / static_cast<double>( totalDecompressedCount ) * 100
+                    << " %)";
+            }
+            out << "\n";
+            /* realMarkerCount can be zero if computation is disabled because it is too expensive. */
+            if ( m_statistics.realMarkerCount > 0 ) {
+                out << "    Actual marker symbol count in buffers    : " << formatCount( m_statistics.realMarkerCount );
                 if ( m_statistics.markerCount > 0 ) {
                     out << " (" << static_cast<double>( m_statistics.realMarkerCount )
-                                                        / static_cast<double>( m_statistics.markerCount ) * 100
+                                   / static_cast<double>( m_statistics.markerCount ) * 100
                         << " %)";
                 }
                 out << "\n";
             }
             out << "    Chunks exceeding max. compression ratio  : " << m_statistics.preemptiveStopCount << "\n";
+
+            const auto& fetcherStatistics = BaseType::statistics();
+            const auto decodeDuration =
+                fetcherStatistics.decodeBlockStartTime && fetcherStatistics.decodeBlockEndTime
+                ? duration( *fetcherStatistics.decodeBlockStartTime, *fetcherStatistics.decodeBlockEndTime )
+                : 0.0;
+            const auto optimalDecodeDuration = ( fetcherStatistics.decodeBlockTotalTime
+                                                 + m_statistics.applyWindowDuration
+                                                 + m_statistics.computeChecksumDuration )
+                                               / fetcherStatistics.parallelization;
+            /* The pool efficiency only makes sense when the thread pool is smaller or equal the CPU cores. */
+            const auto poolEfficiency = optimalDecodeDuration / decodeDuration;
+
+            out << "    Thread Pool Utilization:\n";
+            out << "        Total Real Decode Duration    : " << decodeDuration << " s\n";
+            out << "        Theoretical Optimal Duration  : " << optimalDecodeDuration << " s\n";
+            out << "        Pool Efficiency (Fill Factor) : " << poolEfficiency * 100 << " %\n";
+
             std::cerr << std::move( out ).str();
         }
     }
@@ -490,42 +543,6 @@ private:
     replaceMarkers( const std::shared_ptr<ChunkData>& chunkData,
                     const WindowView                  previousWindow )
     {
-        /* This is expensive! It adds 20-30% overhead for the FASTQ file! Therefore disable it.
-         * The result for this statistics for:
-         *     SRR22403185_2.fastq.gz:
-         *         Replaced marker buffers : 329 MiB 550 KiB 191 B
-         *         Actual marker count     : 46 MiB 705 KiB 331 B (14.168 %)
-         *     silesia.tar.gz
-         *         Replaced marker buffers : 70 MiB 575 KiB 654 B
-         *         Actual marker count     : 21 MiB 523 KiB 94 B (30.4849 %)
-         *     4GiB-base64.gz
-         *         Replaced marker buffers : 21 MiB 582 KiB 252 B
-         *         Actual marker count     : 158 KiB 538 B (0.717756 %)
-         *     CTU-13-Dataset.tar.gz
-         *         Replaced marker buffers : 22 GiB 273 MiB 34 KiB 574 B
-         *         Actual marker count     : 2 GiB 687 MiB 490 KiB 119 B (11.9972 %)
-         *
-         * -> An alternative format that uses a mix of 8-bit and 16-bit and maybe a separate 1-bit buffer
-         *    to store which byte is which, would reduce memory usage, and therefore also allocation
-         *    overhead by 80%! Or maybe run-time encode it a la: <n 8-bit values> <8-bit value> ... <m 16-bit values>
-         *    This would hopefully speed up window applying because hopefully long runs of 8-bit values could
-         *    simply be memcopied and even runs of 16-bit values could be processed in a loop.
-         *    This kind of compression would also add overhead though and it proabably would be too difficult
-         *    to do inside deflate::Block, so it should probably be applied in post in
-         *    ChunkData::append( DecodedDataViews ). This might be something that could be optimzied with SIMD,
-         *    the same applies to the equally necessary new ChunkData::applyWindow method.
-         *    -> The count could be 7-bit so that the 8-th bit can be used to store the 8/16-bit value flag.
-         *       In the worst case: interleaved 8-bit and 16-bit values, this would add an overhead of 25%:
-         *       <n><8><n><16hi><16lo> <n><8>...
-         *    Ideally a format that has no overhead even in the worst-case would be nice.
-         *    This would be possible by using 4-bit values for <n> but then the maximum runlength would be 3-bit -> 7,
-         *    which seems insufficient as it might lead to lots of slow execution branching in the applyWindow method.
-         */
-        if constexpr ( ENABLE_REAL_MARKER_COUNT ) {
-            if ( BaseType::statisticsEnabled() ) {
-                chunkData->statistics.realMarkerCount += chunkData->countMarkerSymbols();
-            }
-        }
         chunkData->applyWindow( previousWindow );
     }
 
