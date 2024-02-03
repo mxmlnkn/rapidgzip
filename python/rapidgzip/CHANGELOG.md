@@ -1,4 +1,40 @@
 
+# Version 0.13.0 built on 2024-02-04
+
+## Added
+
+ - Use ISA-L CRC32 computation, which uses PCLMULQDQ if available
+ - Improve profiling output on `--verbose`.
+ - Add support for bzip2 decompression via the `ParallelGzipReader` architecture.
+   This is one small step to a unified parallelized and seekable decoder for multiple formats.
+ - Expose chunk size and I/O read method to Python interface.
+
+## Performance
+
+ - Compress windows for chunks with large compression ratios in memory to reduce the memory footprint.
+   This reduces the memory usage for working with `wikidata-20220103-all.json.gz`
+   from 20 GB down to 12 GB and can have even larger effects for larger files.
+   The compression ratio threshold and the compression being done in parallel keeps the overhead
+   for this memory optimization to a minimum.
+ - Avoid temporary allocations for internal `SharedFileReader::getLock` calls.
+ - Automatically adjust chunk size for "small" files and large parallelizations.
+ - Use faster short-/long-LUT Huffman decoder if compiled without ISA-L.
+
+## API
+
+ - Change template parameter `ENABLE_STATISTICS` into a member.
+ - Move `ChunkData` statistics into a subclass.
+
+## Fixes
+
+ - Return only an appropriate exit code instead of showing a Python stacktrace in case of a broken pipe signal.
+ - Avoid segfault when exporting the index for an empty, invalid gzip file.
+ - Use `isatty` instead of poll with 100ms timeout to determine whether rapidgzip is piped to.
+ - Fix build error on macOS when no wheel are available.
+ - Many smaller adjustmenst to the profiling output with `--verbose`.
+ - Do not terminate with an error when trying to unlock the GIL during Python finalization
+
+
 # Version 0.12.1 built on 2024-01-08
 
 ## Fixes
@@ -88,7 +124,7 @@
  - Fix possible GIL deadlock when calling many `RapidgzipFile` methods in quick succession.
  - Fix many issues with the GIL acquirement code logic.
  - Avoid segfault when exporting the index for an empty, invalid gzip file.
- - Use `isattay` instead of poll with 100ms timeout to determine whether rapidgzip is piped to.
+ - Use `isatty` instead of poll with 100ms timeout to determine whether rapidgzip is piped to.
  - Fix build error on macOS when no wheel are available.
 
 
