@@ -126,6 +126,7 @@ struct ChunkData :
             appendDuration               += other.appendDuration;
             applyWindowDuration          += other.applyWindowDuration;
             computeChecksumDuration      += other.computeChecksumDuration;
+            compressWindowDuration       += other.compressWindowDuration;
             markerCount                  += other.markerCount;
             nonMarkerCount               += other.nonMarkerCount;
             realMarkerCount              += other.realMarkerCount;
@@ -140,6 +141,7 @@ struct ChunkData :
         double appendDuration{ 0 };
         double applyWindowDuration{ 0 };
         double computeChecksumDuration{ 0 };
+        double compressWindowDuration{ 0 };
         uint64_t markerCount{ 0 };
         uint64_t nonMarkerCount{ 0 };
         uint64_t realMarkerCount{ 0 };

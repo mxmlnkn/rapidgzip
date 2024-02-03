@@ -169,6 +169,7 @@ public:
             out << "    Time spent allocating and copying        : " << m_statistics.appendDuration << " s\n";
             out << "    Time spent applying the last window      : " << m_statistics.applyWindowDuration << " s\n";
             out << "    Time spent computing the checksum        : " << m_statistics.computeChecksumDuration << " s\n";
+            out << "    Time spent compressing seek points       : " << m_statistics.compressWindowDuration << " s\n";
             out << "    Time spent queuing post-processing       : " << m_statistics.queuePostProcessingDuration
                 << " s\n";
             out << "    Total decompressed bytes                 : " << formatCount( totalDecompressedCount ) << "\n";
@@ -571,12 +572,14 @@ private:
     {
         chunkData->applyWindow( previousWindow );
 
+        const auto t0 = now();
         size_t decodedOffsetInBlock{ 0 };
         for ( auto& subchunk : chunkData->subchunks ) {
             decodedOffsetInBlock += subchunk.decodedSize;
             subchunk.window = std::make_shared<WindowMap::Window>(
                 chunkData->getWindowAt( previousWindow, decodedOffsetInBlock ), windowCompressionType );
         }
+        chunkData->statistics.compressWindowDuration += duration( t0 );
     }
 
     /**
