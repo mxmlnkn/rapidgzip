@@ -11,7 +11,7 @@ jobs:
     name: Code Coverage
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
 
@@ -68,7 +68,7 @@ jobs:
     name: Clang-Tidy
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
 
@@ -93,7 +93,7 @@ jobs:
     # And especially without -DSHORT_TESTS, which makes it non redundant to the sanitizer checks!
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
 
@@ -114,7 +114,7 @@ jobs:
     # And especially without -DSHORT_TESTS, which makes it non redundant to the sanitizer checks!
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
 
@@ -134,7 +134,7 @@ jobs:
     name: ASan
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
 
@@ -158,7 +158,7 @@ jobs:
     name: UBSan
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
 
@@ -182,7 +182,7 @@ jobs:
     name: Safe-Stack
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
 
@@ -206,7 +206,7 @@ jobs:
     name: TSan
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
 
@@ -249,7 +249,7 @@ jobs:
     name: Check with Infer
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
 
@@ -271,7 +271,7 @@ jobs:
     name: Ibzip2 Tests
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
 
