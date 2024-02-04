@@ -1,0 +1,1800 @@
+file path for input: test-files/silesia/20xsilesia.tar.gz
+file path for output: <none>
+[ParallelGzipReader::exportIndex] Took 0.00112329 s
+[Seekpoints Index]
+    Encoded offset spacings: ( min: 0.296193, 1.4 +- 0.7, max: 4.22683 ) MB
+    Decoded offset spacings: ( min: 3.13096, 4.3 +- 0.5, max: 6.26272 ) MB
+[ParallelGzipReader] Time spent:
+    Writing to output         : 0 s
+    Computing CRC32           : 3.145e-05 s
+    Number of verified CRC32s : 0
+[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:
+    Number of false positives                : 11
+    Time spent in block finder               : 0.244589 s
+    Time spent decoding with custom inflate  : 15.7018 s
+    Time spent decoding with inflate wrapper : 0 s
+    Time spent decoding with ISA-L           : 6.0725 s
+    Time spent allocating and copying        : 1.57095 s
+    Time spent applying the last window      : 1.87631 s
+    Replaced marker buffers                  : 1 GiB 497 MiB 311 KiB 503 B
+    Chunks exceeding max. compression ratio  : 0
+[03:05:24.920][0x7f1abc4a1780] [BlockFetcher::~BlockFetcher]
+   Parallelization                   : 24
+   Cache
+       Hits                          : 0
+       Misses                        : 311
+       Unused Entries                : 326
+       Maximum Fill Size             : 1
+       Capacity                      : 24
+   Prefetch Cache
+       Hits                          : 310
+       Misses                        : 1
+       Unused Entries                : 0
+       Prefetch Queue Hit            : 15
+       Maximum Fill Size             : 35
+       Capacity                      : 48
+   Cache Hit Rate                    : 99.6933 %
+   Useless Prefetches                : 0 %
+   Access Patterns
+       Total Accesses                : 326
+       Duplicate Block Accesses      : 1
+       Sequential Block Accesses     : 21
+       Block Seeks Back              : 0
+       Block Seeks Forward           : 304
+   Blocks
+       Total Existing                : 990
+       Total Fetched                 : 326
+       Prefetched                    : 325
+       Fetched On-demand             : 1
+   Prefetch Stall by BlockFinder     : 0
+   Time spent in:
+       bzip2::readBlockData          : 0 s
+       decodeBlock                   : 16.1256 s
+       std::future::get              : 0.165926 s
+       get                           : 0.187724 s
+   Thread Pool Utilization:
+       Total Real Decode Duration    : 0.836762 s
+       Theoretical Optimal Duration  : 0.671899 s
+       Pool Efficiency (Fill Factor) : 80.2975 %
+[03:05:24.920][0x7f1abc4a1780] [SharedFileReader::~SharedFileReader]
+    seeks back    : ( 0 <= 34000000 +- 28000000 <= 172000000  ) B ( 5791 calls )
+    seeks forward : ( 0 <= 35000000 +- 28000000 <= 172000000  ) B ( 5688 calls )
+    reads         : ( 0 <= 128000 +- 19000 <= 131000  ) B ( 11481 calls )
+    locks         : 12895
+    read in total 1470893611 B out of 1364776140 B, i.e., read the file 1.07775 times
+    time spent seeking and reading: 0.595572 s
+
+Decompressed in total 4239155200 B in 0.864757 s -> 4902.14 MB/s
+	Command being timed: "src/tools/rapidgzip -v -P 24 --no-verify --export-index /dev/null test-files/silesia/20xsilesia.tar.gz"
+	User time (seconds): 15.69
+	System time (seconds): 1.61
+	Percent of CPU this job got: 1755%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.98
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 920424
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 3
+	Minor (reclaiming a frame) page faults: 299156
+	Voluntary context switches: 6547
+	Involuntary context switches: 5212
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+file path for input: test-files/silesia/20xsilesia.tar.gz
+file path for output: <none>
+[ParallelGzipReader::exportIndex] Took 0.00114416 s
+[Seekpoints Index]
+    Encoded offset spacings: ( min: 0.296193, 1.4 +- 0.7, max: 4.22683 ) MB
+    Decoded offset spacings: ( min: 3.13096, 4.3 +- 0.5, max: 6.26272 ) MB
+[ParallelGzipReader] Time spent:
+    Writing to output         : 0 s
+    Computing CRC32           : 2.386e-05 s
+    Number of verified CRC32s : 0
+[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:
+    Number of false positives                : 11
+    Time spent in block finder               : 0.241717 s
+    Time spent decoding with custom inflate  : 14.8313 s
+    Time spent decoding with inflate wrapper : 0 s
+    Time spent decoding with ISA-L           : 5.68408 s
+    Time spent allocating and copying        : 1.10285 s
+    Time spent applying the last window      : 1.75744 s
+    Replaced marker buffers                  : 1 GiB 497 MiB 311 KiB 503 B
+    Chunks exceeding max. compression ratio  : 0
+[03:05:25.871][0x7f66d6bdf780] [BlockFetcher::~BlockFetcher]
+   Parallelization                   : 24
+   Cache
+       Hits                          : 0
+       Misses                        : 310
+       Unused Entries                : 326
+       Maximum Fill Size             : 1
+       Capacity                      : 24
+   Prefetch Cache
+       Hits                          : 309
+       Misses                        : 1
+       Unused Entries                : 0
+       Prefetch Queue Hit            : 16
+       Maximum Fill Size             : 32
+       Capacity                      : 48
+   Cache Hit Rate                    : 99.6933 %
+   Useless Prefetches                : 0 %
+   Access Patterns
+       Total Accesses                : 326
+       Duplicate Block Accesses      : 1
+       Sequential Block Accesses     : 21
+       Block Seeks Back              : 0
+       Block Seeks Forward           : 304
+   Blocks
+       Total Existing                : 990
+       Total Fetched                 : 326
+       Prefetched                    : 325
+       Fetched On-demand             : 1
+   Prefetch Stall by BlockFinder     : 0
+   Time spent in:
+       bzip2::readBlockData          : 0 s
+       decodeBlock                   : 15.2316 s
+       std::future::get              : 0.118141 s
+       get                           : 0.135886 s
+   Thread Pool Utilization:
+       Total Real Decode Duration    : 0.800643 s
+       Theoretical Optimal Duration  : 0.634652 s
+       Pool Efficiency (Fill Factor) : 79.2678 %
+[03:05:25.871][0x7f66d6bdf780] [SharedFileReader::~SharedFileReader]
+    seeks back    : ( 0 <= 34000000 +- 27000000 <= 176000000  ) B ( 5750 calls )
+    seeks forward : ( 0 <= 34000000 +- 27000000 <= 189000000  ) B ( 5729 calls )
+    reads         : ( 0 <= 128000 +- 19000 <= 131000  ) B ( 11481 calls )
+    locks         : 12895
+    read in total 1470893611 B out of 1364776140 B, i.e., read the file 1.07775 times
+    time spent seeking and reading: 0.538213 s
+
+Decompressed in total 4239155200 B in 0.828884 s -> 5114.29 MB/s
+	Command being timed: "src/tools/rapidgzip -v -P 24 --no-verify --export-index /dev/null test-files/silesia/20xsilesia.tar.gz"
+	User time (seconds): 15.45
+	System time (seconds): 1.67
+	Percent of CPU this job got: 1807%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.94
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 907748
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 2
+	Minor (reclaiming a frame) page faults: 296569
+	Voluntary context switches: 3862
+	Involuntary context switches: 2499
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+file path for input: test-files/silesia/20xsilesia.tar.gz
+file path for output: <none>
+[ParallelGzipReader::exportIndex] Took 0.00113348 s
+[Seekpoints Index]
+    Encoded offset spacings: ( min: 0.296193, 1.4 +- 0.7, max: 4.22683 ) MB
+    Decoded offset spacings: ( min: 3.13096, 4.3 +- 0.5, max: 6.26272 ) MB
+[ParallelGzipReader] Time spent:
+    Writing to output         : 0 s
+    Computing CRC32           : 2.428e-05 s
+    Number of verified CRC32s : 0
+[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:
+    Number of false positives                : 11
+    Time spent in block finder               : 0.239341 s
+    Time spent decoding with custom inflate  : 14.9439 s
+    Time spent decoding with inflate wrapper : 0 s
+    Time spent decoding with ISA-L           : 5.70332 s
+    Time spent allocating and copying        : 1.10566 s
+    Time spent applying the last window      : 1.87548 s
+    Replaced marker buffers                  : 1 GiB 497 MiB 311 KiB 503 B
+    Chunks exceeding max. compression ratio  : 0
+[03:05:26.841][0x7f26775d0780] [BlockFetcher::~BlockFetcher]
+   Parallelization                   : 24
+   Cache
+       Hits                          : 0
+       Misses                        : 304
+       Unused Entries                : 326
+       Maximum Fill Size             : 1
+       Capacity                      : 24
+   Prefetch Cache
+       Hits                          : 303
+       Misses                        : 1
+       Unused Entries                : 0
+       Prefetch Queue Hit            : 22
+       Maximum Fill Size             : 37
+       Capacity                      : 48
+   Cache Hit Rate                    : 99.6933 %
+   Useless Prefetches                : 0 %
+   Access Patterns
+       Total Accesses                : 326
+       Duplicate Block Accesses      : 1
+       Sequential Block Accesses     : 21
+       Block Seeks Back              : 0
+       Block Seeks Forward           : 304
+   Blocks
+       Total Existing                : 990
+       Total Fetched                 : 326
+       Prefetched                    : 325
+       Fetched On-demand             : 1
+   Prefetch Stall by BlockFinder     : 0
+   Time spent in:
+       bzip2::readBlockData          : 0 s
+       decodeBlock                   : 15.3378 s
+       std::future::get              : 0.145106 s
+       get                           : 0.161772 s
+   Thread Pool Utilization:
+       Total Real Decode Duration    : 0.816979 s
+       Theoretical Optimal Duration  : 0.639077 s
+       Pool Efficiency (Fill Factor) : 78.2244 %
+[03:05:26.841][0x7f26775d0780] [SharedFileReader::~SharedFileReader]
+    seeks back    : ( 0 <= 35000000 +- 29000000 <= 176000000  ) B ( 5753 calls )
+    seeks forward : ( 0 <= 35000000 +- 29000000 <= 165000000  ) B ( 5726 calls )
+    reads         : ( 0 <= 128000 +- 19000 <= 131000  ) B ( 11481 calls )
+    locks         : 12895
+    read in total 1470893611 B out of 1364776140 B, i.e., read the file 1.07775 times
+    time spent seeking and reading: 0.538525 s
+
+Decompressed in total 4239155200 B in 0.847702 s -> 5000.76 MB/s
+	Command being timed: "src/tools/rapidgzip -v -P 24 --no-verify --export-index /dev/null test-files/silesia/20xsilesia.tar.gz"
+	User time (seconds): 15.75
+	System time (seconds): 1.46
+	Percent of CPU this job got: 1782%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.96
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 937752
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 273397
+	Voluntary context switches: 3685
+	Involuntary context switches: 5591
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+file path for input: test-files/silesia/20xsilesia.tar.gz
+file path for output: <none>
+[ParallelGzipReader::exportIndex] Took 0.00184506 s
+[Seekpoints Index]
+    Encoded offset spacings: ( min: 0.296193, 1.4 +- 0.7, max: 4.22683 ) MB
+    Decoded offset spacings: ( min: 3.13096, 4.3 +- 0.5, max: 6.26272 ) MB
+[ParallelGzipReader] Time spent:
+    Writing to output         : 0 s
+    Computing CRC32           : 2.441e-05 s
+    Number of verified CRC32s : 0
+[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:
+    Number of false positives                : 11
+    Time spent in block finder               : 0.240271 s
+    Time spent decoding with custom inflate  : 15.0065 s
+    Time spent decoding with inflate wrapper : 0 s
+    Time spent decoding with ISA-L           : 5.72725 s
+    Time spent allocating and copying        : 1.10174 s
+    Time spent applying the last window      : 1.7462 s
+    Replaced marker buffers                  : 1 GiB 497 MiB 311 KiB 503 B
+    Chunks exceeding max. compression ratio  : 0
+[03:05:27.800][0x7f0e93735780] [BlockFetcher::~BlockFetcher]
+   Parallelization                   : 24
+   Cache
+       Hits                          : 0
+       Misses                        : 309
+       Unused Entries                : 326
+       Maximum Fill Size             : 1
+       Capacity                      : 24
+   Prefetch Cache
+       Hits                          : 308
+       Misses                        : 1
+       Unused Entries                : 0
+       Prefetch Queue Hit            : 17
+       Maximum Fill Size             : 32
+       Capacity                      : 48
+   Cache Hit Rate                    : 99.6933 %
+   Useless Prefetches                : 0 %
+   Access Patterns
+       Total Accesses                : 326
+       Duplicate Block Accesses      : 1
+       Sequential Block Accesses     : 21
+       Block Seeks Back              : 0
+       Block Seeks Forward           : 304
+   Blocks
+       Total Existing                : 990
+       Total Fetched                 : 326
+       Prefetched                    : 325
+       Fetched On-demand             : 1
+   Prefetch Stall by BlockFinder     : 0
+   Time spent in:
+       bzip2::readBlockData          : 0 s
+       decodeBlock                   : 15.4164 s
+       std::future::get              : 0.143737 s
+       get                           : 0.160424 s
+   Thread Pool Utilization:
+       Total Real Decode Duration    : 0.804995 s
+       Theoretical Optimal Duration  : 0.642349 s
+       Pool Efficiency (Fill Factor) : 79.7954 %
+[03:05:27.801][0x7f0e93735780] [SharedFileReader::~SharedFileReader]
+    seeks back    : ( 0 <= 34000000 +- 28000000 <= 176000000  ) B ( 5694 calls )
+    seeks forward : ( 0 <= 34000000 +- 28000000 <= 185000000  ) B ( 5785 calls )
+    reads         : ( 0 <= 128000 +- 19000 <= 131000  ) B ( 11481 calls )
+    locks         : 12895
+    read in total 1470893611 B out of 1364776140 B, i.e., read the file 1.07775 times
+    time spent seeking and reading: 0.538947 s
+
+Decompressed in total 4239155200 B in 0.83721 s -> 5063.43 MB/s
+	Command being timed: "src/tools/rapidgzip -v -P 24 --no-verify --export-index /dev/null test-files/silesia/20xsilesia.tar.gz"
+	User time (seconds): 15.76
+	System time (seconds): 1.52
+	Percent of CPU this job got: 1806%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.95
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 924880
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 1
+	Minor (reclaiming a frame) page faults: 294482
+	Voluntary context switches: 3553
+	Involuntary context switches: 2617
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+file path for input: test-files/silesia/20xsilesia.tar.gz
+file path for output: <none>
+[ParallelGzipReader::exportIndex] Took 0.00168765 s
+[Seekpoints Index]
+    Encoded offset spacings: ( min: 0.296193, 1.4 +- 0.7, max: 4.22683 ) MB
+    Decoded offset spacings: ( min: 3.13096, 4.3 +- 0.5, max: 6.26272 ) MB
+[ParallelGzipReader] Time spent:
+    Writing to output         : 0 s
+    Computing CRC32           : 2.265e-05 s
+    Number of verified CRC32s : 0
+[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:
+    Number of false positives                : 11
+    Time spent in block finder               : 0.240237 s
+    Time spent decoding with custom inflate  : 15.0787 s
+    Time spent decoding with inflate wrapper : 0 s
+    Time spent decoding with ISA-L           : 5.6946 s
+    Time spent allocating and copying        : 1.15725 s
+    Time spent applying the last window      : 1.85289 s
+    Replaced marker buffers                  : 1 GiB 497 MiB 311 KiB 503 B
+    Chunks exceeding max. compression ratio  : 0
+[03:05:28.782][0x7f379f464780] [BlockFetcher::~BlockFetcher]
+   Parallelization                   : 24
+   Cache
+       Hits                          : 0
+       Misses                        : 310
+       Unused Entries                : 326
+       Maximum Fill Size             : 1
+       Capacity                      : 24
+   Prefetch Cache
+       Hits                          : 309
+       Misses                        : 1
+       Unused Entries                : 0
+       Prefetch Queue Hit            : 16
+       Maximum Fill Size             : 36
+       Capacity                      : 48
+   Cache Hit Rate                    : 99.6933 %
+   Useless Prefetches                : 0 %
+   Access Patterns
+       Total Accesses                : 326
+       Duplicate Block Accesses      : 1
+       Sequential Block Accesses     : 21
+       Block Seeks Back              : 0
+       Block Seeks Forward           : 304
+   Blocks
+       Total Existing                : 990
+       Total Fetched                 : 326
+       Prefetched                    : 325
+       Fetched On-demand             : 1
+   Prefetch Stall by BlockFinder     : 0
+   Time spent in:
+       bzip2::readBlockData          : 0 s
+       decodeBlock                   : 15.4873 s
+       std::future::get              : 0.147207 s
+       get                           : 0.164473 s
+   Thread Pool Utilization:
+       Total Real Decode Duration    : 0.819267 s
+       Theoretical Optimal Duration  : 0.645303 s
+       Pool Efficiency (Fill Factor) : 78.7659 %
+[03:05:28.782][0x7f379f464780] [SharedFileReader::~SharedFileReader]
+    seeks back    : ( 0 <= 34000000 +- 28000000 <= 177000000  ) B ( 5773 calls )
+    seeks forward : ( 0 <= 35000000 +- 28000000 <= 172000000  ) B ( 5706 calls )
+    reads         : ( 0 <= 128000 +- 19000 <= 131000  ) B ( 11481 calls )
+    locks         : 12895
+    read in total 1470893611 B out of 1364776140 B, i.e., read the file 1.07775 times
+    time spent seeking and reading: 0.545177 s
+
+Decompressed in total 4239155200 B in 0.859403 s -> 4932.68 MB/s
+	Command being timed: "src/tools/rapidgzip -v -P 24 --no-verify --export-index /dev/null test-files/silesia/20xsilesia.tar.gz"
+	User time (seconds): 16.40
+	System time (seconds): 1.34
+	Percent of CPU this job got: 1815%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.97
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 901376
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 302931
+	Voluntary context switches: 3802
+	Involuntary context switches: 2564
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+file path for input: 4GiB-base64.gz
+file path for output: <none>
+[ParallelGzipReader::exportIndex] Took 0.000981972 s
+[Seekpoints Index]
+    Encoded offset spacings: ( min: 0.718411, 4.19 +- 0.12, max: 4.19921 ) MB
+    Decoded offset spacings: ( min: 0.945321, 5.51 +- 0.16, max: 5.52566 ) MB
+[ParallelGzipReader] Time spent:
+    Writing to output         : 0 s
+    Computing CRC32           : 5.815e-05 s
+    Number of verified CRC32s : 0
+[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:
+    Number of false positives                : 18
+    Time spent in block finder               : 0.399555 s
+    Time spent decoding with custom inflate  : 14.1372 s
+    Time spent decoding with inflate wrapper : 0 s
+    Time spent decoding with ISA-L           : 13.4301 s
+    Time spent allocating and copying        : 0.0220646 s
+    Time spent applying the last window      : 0.0302485 s
+    Replaced marker buffers                  : 21 MiB 582 KiB 252 B
+    Chunks exceeding max. compression ratio  : 0
+[03:05:31.67][0x7ffac9761780] [BlockFetcher::~BlockFetcher]
+   Parallelization                   : 24
+   Cache
+       Hits                          : 0
+       Misses                        : 337
+       Unused Entries                : 779
+       Maximum Fill Size             : 1
+       Capacity                      : 24
+   Prefetch Cache
+       Hits                          : 336
+       Misses                        : 1
+       Unused Entries                : 0
+       Prefetch Queue Hit            : 442
+       Maximum Fill Size             : 24
+       Capacity                      : 48
+   Cache Hit Rate                    : 99.8716 %
+   Useless Prefetches                : 0 %
+   Access Patterns
+       Total Accesses                : 779
+       Duplicate Block Accesses      : 1
+       Sequential Block Accesses     : 778
+       Block Seeks Back              : 0
+       Block Seeks Forward           : 0
+   Blocks
+       Total Existing                : 779
+       Total Fetched                 : 779
+       Prefetched                    : 778
+       Fetched On-demand             : 1
+   Prefetch Stall by BlockFinder     : 0
+   Time spent in:
+       bzip2::readBlockData          : 0 s
+       decodeBlock                   : 14.7308 s
+       std::future::get              : 0.53181 s
+       get                           : 0.554477 s
+   Thread Pool Utilization:
+       Total Real Decode Duration    : 0.638036 s
+       Theoretical Optimal Duration  : 0.613784 s
+       Pool Efficiency (Fill Factor) : 96.199 %
+[03:05:31.67][0x7ffac9761780] [SharedFileReader::~SharedFileReader]
+    seeks back    : ( 0 <= 33000000 +- 22000000 <= 164000000  ) B ( 13390 calls )
+    seeks forward : ( 0 <= 32000000 +- 23000000 <= 168000000  ) B ( 13535 calls )
+    reads         : ( 0 <= 128000 +- 20000 <= 131000  ) B ( 26927 calls )
+    locks         : 29837
+    read in total 3441150822 B out of 3263906203 B, i.e., read the file 1.0543 times
+    time spent seeking and reading: 0.920203 s
+
+Decompressed in total 4294967296 B in 0.643674 s -> 6672.58 MB/s
+	Command being timed: "src/tools/rapidgzip -v -P 24 --no-verify --export-index /dev/null 4GiB-base64.gz"
+	User time (seconds): 13.40
+	System time (seconds): 1.15
+	Percent of CPU this job got: 1916%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.76
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 312880
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 2
+	Minor (reclaiming a frame) page faults: 78218
+	Voluntary context switches: 4065
+	Involuntary context switches: 9458
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+file path for input: 4GiB-base64.gz
+file path for output: <none>
+[ParallelGzipReader::exportIndex] Took 0.000880793 s
+[Seekpoints Index]
+    Encoded offset spacings: ( min: 0.718411, 4.19 +- 0.12, max: 4.19921 ) MB
+    Decoded offset spacings: ( min: 0.945321, 5.51 +- 0.16, max: 5.52566 ) MB
+[ParallelGzipReader] Time spent:
+    Writing to output         : 0 s
+    Computing CRC32           : 5.819e-05 s
+    Number of verified CRC32s : 0
+[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:
+    Number of false positives                : 18
+    Time spent in block finder               : 0.389529 s
+    Time spent decoding with custom inflate  : 13.9273 s
+    Time spent decoding with inflate wrapper : 0 s
+    Time spent decoding with ISA-L           : 13.2342 s
+    Time spent allocating and copying        : 0.0277644 s
+    Time spent applying the last window      : 0.0281203 s
+    Replaced marker buffers                  : 21 MiB 582 KiB 252 B
+    Chunks exceeding max. compression ratio  : 0
+[03:05:31.810][0x7f22fc184780] [BlockFetcher::~BlockFetcher]
+   Parallelization                   : 24
+   Cache
+       Hits                          : 0
+       Misses                        : 192
+       Unused Entries                : 779
+       Maximum Fill Size             : 1
+       Capacity                      : 24
+   Prefetch Cache
+       Hits                          : 191
+       Misses                        : 1
+       Unused Entries                : 0
+       Prefetch Queue Hit            : 587
+       Maximum Fill Size             : 14
+       Capacity                      : 48
+   Cache Hit Rate                    : 99.8716 %
+   Useless Prefetches                : 0 %
+   Access Patterns
+       Total Accesses                : 779
+       Duplicate Block Accesses      : 1
+       Sequential Block Accesses     : 778
+       Block Seeks Back              : 0
+       Block Seeks Forward           : 0
+   Blocks
+       Total Existing                : 779
+       Total Fetched                 : 779
+       Prefetched                    : 778
+       Fetched On-demand             : 1
+   Prefetch Stall by BlockFinder     : 0
+   Time spent in:
+       bzip2::readBlockData          : 0 s
+       decodeBlock                   : 14.4806 s
+       std::future::get              : 0.522206 s
+       get                           : 0.540251 s
+   Thread Pool Utilization:
+       Total Real Decode Duration    : 0.62037 s
+       Theoretical Optimal Duration  : 0.603358 s
+       Pool Efficiency (Fill Factor) : 97.2577 %
+[03:05:31.810][0x7f22fc184780] [SharedFileReader::~SharedFileReader]
+    seeks back    : ( 0 <= 33000000 +- 22000000 <= 126000000  ) B ( 13358 calls )
+    seeks forward : ( 0 <= 33000000 +- 23000000 <= 138000000  ) B ( 13567 calls )
+    reads         : ( 0 <= 128000 +- 20000 <= 131000  ) B ( 26927 calls )
+    locks         : 29837
+    read in total 3441150822 B out of 3263906203 B, i.e., read the file 1.0543 times
+    time spent seeking and reading: 0.867644 s
+
+Decompressed in total 4294967296 B in 0.624636 s -> 6875.95 MB/s
+	Command being timed: "src/tools/rapidgzip -v -P 24 --no-verify --export-index /dev/null 4GiB-base64.gz"
+	User time (seconds): 13.44
+	System time (seconds): 1.03
+	Percent of CPU this job got: 1957%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.74
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 256840
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 65383
+	Voluntary context switches: 3838
+	Involuntary context switches: 3593
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+file path for input: 4GiB-base64.gz
+file path for output: <none>
+[ParallelGzipReader::exportIndex] Took 0.000868352 s
+[Seekpoints Index]
+    Encoded offset spacings: ( min: 0.718411, 4.19 +- 0.12, max: 4.19921 ) MB
+    Decoded offset spacings: ( min: 0.945321, 5.51 +- 0.16, max: 5.52566 ) MB
+[ParallelGzipReader] Time spent:
+    Writing to output         : 0 s
+    Computing CRC32           : 5.808e-05 s
+    Number of verified CRC32s : 0
+[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:
+    Number of false positives                : 18
+    Time spent in block finder               : 0.391671 s
+    Time spent decoding with custom inflate  : 13.958 s
+    Time spent decoding with inflate wrapper : 0 s
+    Time spent decoding with ISA-L           : 13.233 s
+    Time spent allocating and copying        : 0.0504046 s
+    Time spent applying the last window      : 0.0304987 s
+    Replaced marker buffers                  : 21 MiB 582 KiB 252 B
+    Chunks exceeding max. compression ratio  : 0
+[03:05:32.556][0x7f1309ad0780] [BlockFetcher::~BlockFetcher]
+   Parallelization                   : 24
+   Cache
+       Hits                          : 0
+       Misses                        : 200
+       Unused Entries                : 779
+       Maximum Fill Size             : 1
+       Capacity                      : 24
+   Prefetch Cache
+       Hits                          : 199
+       Misses                        : 1
+       Unused Entries                : 0
+       Prefetch Queue Hit            : 579
+       Maximum Fill Size             : 21
+       Capacity                      : 48
+   Cache Hit Rate                    : 99.8716 %
+   Useless Prefetches                : 0 %
+   Access Patterns
+       Total Accesses                : 779
+       Duplicate Block Accesses      : 1
+       Sequential Block Accesses     : 778
+       Block Seeks Back              : 0
+       Block Seeks Forward           : 0
+   Blocks
+       Total Existing                : 779
+       Total Fetched                 : 779
+       Prefetched                    : 778
+       Fetched On-demand             : 1
+   Prefetch Stall by BlockFinder     : 0
+   Time spent in:
+       bzip2::readBlockData          : 0 s
+       decodeBlock                   : 14.513 s
+       std::future::get              : 0.512141 s
+       get                           : 0.533838 s
+   Thread Pool Utilization:
+       Total Real Decode Duration    : 0.621733 s
+       Theoretical Optimal Duration  : 0.604706 s
+       Pool Efficiency (Fill Factor) : 97.2614 %
+[03:05:32.556][0x7f1309ad0780] [SharedFileReader::~SharedFileReader]
+    seeks back    : ( 0 <= 33000000 +- 22000000 <= 151000000  ) B ( 13320 calls )
+    seeks forward : ( 0 <= 32000000 +- 22000000 <= 138000000  ) B ( 13605 calls )
+    reads         : ( 0 <= 128000 +- 20000 <= 131000  ) B ( 26927 calls )
+    locks         : 29837
+    read in total 3441150822 B out of 3263906203 B, i.e., read the file 1.0543 times
+    time spent seeking and reading: 0.83972 s
+
+Decompressed in total 4294967296 B in 0.626235 s -> 6858.4 MB/s
+	Command being timed: "src/tools/rapidgzip -v -P 24 --no-verify --export-index /dev/null 4GiB-base64.gz"
+	User time (seconds): 13.38
+	System time (seconds): 1.11
+	Percent of CPU this job got: 1950%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.74
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 269384
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 67034
+	Voluntary context switches: 4048
+	Involuntary context switches: 3067
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+file path for input: 4GiB-base64.gz
+file path for output: <none>
+[ParallelGzipReader::exportIndex] Took 0.000884973 s
+[Seekpoints Index]
+    Encoded offset spacings: ( min: 0.718411, 4.19 +- 0.12, max: 4.19921 ) MB
+    Decoded offset spacings: ( min: 0.945321, 5.51 +- 0.16, max: 5.52566 ) MB
+[ParallelGzipReader] Time spent:
+    Writing to output         : 0 s
+    Computing CRC32           : 5.667e-05 s
+    Number of verified CRC32s : 0
+[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:
+    Number of false positives                : 18
+    Time spent in block finder               : 0.39728 s
+    Time spent decoding with custom inflate  : 14.0016 s
+    Time spent decoding with inflate wrapper : 0 s
+    Time spent decoding with ISA-L           : 13.2567 s
+    Time spent allocating and copying        : 0.0389647 s
+    Time spent applying the last window      : 0.0274016 s
+    Replaced marker buffers                  : 21 MiB 582 KiB 252 B
+    Chunks exceeding max. compression ratio  : 0
+[03:05:33.312][0x7f4176e9b780] [BlockFetcher::~BlockFetcher]
+   Parallelization                   : 24
+   Cache
+       Hits                          : 0
+       Misses                        : 349
+       Unused Entries                : 779
+       Maximum Fill Size             : 1
+       Capacity                      : 24
+   Prefetch Cache
+       Hits                          : 348
+       Misses                        : 1
+       Unused Entries                : 0
+       Prefetch Queue Hit            : 430
+       Maximum Fill Size             : 20
+       Capacity                      : 48
+   Cache Hit Rate                    : 99.8716 %
+   Useless Prefetches                : 0 %
+   Access Patterns
+       Total Accesses                : 779
+       Duplicate Block Accesses      : 1
+       Sequential Block Accesses     : 778
+       Block Seeks Back              : 0
+       Block Seeks Forward           : 0
+   Blocks
+       Total Existing                : 779
+       Total Fetched                 : 779
+       Prefetched                    : 778
+       Fetched On-demand             : 1
+   Prefetch Stall by BlockFinder     : 0
+   Time spent in:
+       bzip2::readBlockData          : 0 s
+       decodeBlock                   : 14.5744 s
+       std::future::get              : 0.509092 s
+       get                           : 0.537473 s
+   Thread Pool Utilization:
+       Total Real Decode Duration    : 0.632165 s
+       Theoretical Optimal Duration  : 0.607268 s
+       Pool Efficiency (Fill Factor) : 96.0615 %
+[03:05:33.312][0x7f4176e9b780] [SharedFileReader::~SharedFileReader]
+    seeks back    : ( 0 <= 33000000 +- 23000000 <= 160000000  ) B ( 13370 calls )
+    seeks forward : ( 0 <= 32000000 +- 23000000 <= 156000000  ) B ( 13555 calls )
+    reads         : ( 0 <= 128000 +- 20000 <= 131000  ) B ( 26927 calls )
+    locks         : 29837
+    read in total 3441150822 B out of 3263906203 B, i.e., read the file 1.0543 times
+    time spent seeking and reading: 0.852972 s
+
+Decompressed in total 4294967296 B in 0.643618 s -> 6673.17 MB/s
+	Command being timed: "src/tools/rapidgzip -v -P 24 --no-verify --export-index /dev/null 4GiB-base64.gz"
+	User time (seconds): 12.84
+	System time (seconds): 1.19
+	Percent of CPU this job got: 1850%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.75
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 289352
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 1
+	Minor (reclaiming a frame) page faults: 71841
+	Voluntary context switches: 5220
+	Involuntary context switches: 5649
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+file path for input: 4GiB-base64.gz
+file path for output: <none>
+[ParallelGzipReader::exportIndex] Took 0.000876343 s
+[Seekpoints Index]
+    Encoded offset spacings: ( min: 0.718411, 4.19 +- 0.12, max: 4.19921 ) MB
+    Decoded offset spacings: ( min: 0.945321, 5.51 +- 0.16, max: 5.52566 ) MB
+[ParallelGzipReader] Time spent:
+    Writing to output         : 0 s
+    Computing CRC32           : 5.55e-05 s
+    Number of verified CRC32s : 0
+[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:
+    Number of false positives                : 18
+    Time spent in block finder               : 0.386182 s
+    Time spent decoding with custom inflate  : 13.8842 s
+    Time spent decoding with inflate wrapper : 0 s
+    Time spent decoding with ISA-L           : 13.148 s
+    Time spent allocating and copying        : 0.0536878 s
+    Time spent applying the last window      : 0.0273455 s
+    Replaced marker buffers                  : 21 MiB 582 KiB 252 B
+    Chunks exceeding max. compression ratio  : 0
+[03:05:34.60][0x7f26163ce780] [BlockFetcher::~BlockFetcher]
+   Parallelization                   : 24
+   Cache
+       Hits                          : 0
+       Misses                        : 216
+       Unused Entries                : 779
+       Maximum Fill Size             : 1
+       Capacity                      : 24
+   Prefetch Cache
+       Hits                          : 215
+       Misses                        : 1
+       Unused Entries                : 0
+       Prefetch Queue Hit            : 563
+       Maximum Fill Size             : 26
+       Capacity                      : 48
+   Cache Hit Rate                    : 99.8716 %
+   Useless Prefetches                : 0 %
+   Access Patterns
+       Total Accesses                : 779
+       Duplicate Block Accesses      : 1
+       Sequential Block Accesses     : 778
+       Block Seeks Back              : 0
+       Block Seeks Forward           : 0
+   Blocks
+       Total Existing                : 779
+       Total Fetched                 : 779
+       Prefetched                    : 778
+       Fetched On-demand             : 1
+   Prefetch Stall by BlockFinder     : 0
+   Time spent in:
+       bzip2::readBlockData          : 0 s
+       decodeBlock                   : 14.447 s
+       std::future::get              : 0.520212 s
+       get                           : 0.538259 s
+   Thread Pool Utilization:
+       Total Real Decode Duration    : 0.617934 s
+       Theoretical Optimal Duration  : 0.601958 s
+       Pool Efficiency (Fill Factor) : 97.4146 %
+[03:05:34.60][0x7f26163ce780] [SharedFileReader::~SharedFileReader]
+    seeks back    : ( 0 <= 33000000 +- 23000000 <= 164000000  ) B ( 13299 calls )
+    seeks forward : ( 0 <= 32000000 +- 23000000 <= 189000000  ) B ( 13626 calls )
+    reads         : ( 0 <= 128000 +- 20000 <= 131000  ) B ( 26927 calls )
+    locks         : 29837
+    read in total 3441150822 B out of 3263906203 B, i.e., read the file 1.0543 times
+    time spent seeking and reading: 0.839489 s
+
+Decompressed in total 4294967296 B in 0.622911 s -> 6894.99 MB/s
+	Command being timed: "src/tools/rapidgzip -v -P 24 --no-verify --export-index /dev/null 4GiB-base64.gz"
+	User time (seconds): 13.27
+	System time (seconds): 1.09
+	Percent of CPU this job got: 1947%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.73
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 299132
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 75715
+	Voluntary context switches: 4407
+	Involuntary context switches: 3316
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+file path for input: test-files/fastq/10xSRR22403185_2.fastq.gz
+file path for output: <none>
+[ParallelGzipReader::exportIndex] Took 0.0011419 s
+[Seekpoints Index]
+    Encoded offset spacings: ( min: 0.922926, 1.10 +- 0.14, max: 1.74756 ) MB
+    Decoded offset spacings: ( min: 3.6203, 4.10 +- 0.15, max: 4.90757 ) MB
+[ParallelGzipReader] Time spent:
+    Writing to output         : 0 s
+    Computing CRC32           : 5.858e-05 s
+    Number of verified CRC32s : 0
+[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:
+    Number of false positives                : 1
+    Time spent in block finder               : 0.100297 s
+    Time spent decoding with custom inflate  : 21.2282 s
+    Time spent decoding with inflate wrapper : 0 s
+    Time spent decoding with ISA-L           : 0.0690125 s
+    Time spent allocating and copying        : 3.2711 s
+    Time spent applying the last window      : 4.74754 s
+    Replaced marker buffers                  : 3 GiB 363 MiB 80 KiB 805 B
+    Chunks exceeding max. compression ratio  : 0
+[03:05:36.925][0x7fa182364780] [BlockFetcher::~BlockFetcher]
+   Parallelization                   : 24
+   Cache
+       Hits                          : 0
+       Misses                        : 223
+       Unused Entries                : 232
+       Maximum Fill Size             : 1
+       Capacity                      : 24
+   Prefetch Cache
+       Hits                          : 222
+       Misses                        : 1
+       Unused Entries                : 0
+       Prefetch Queue Hit            : 9
+       Maximum Fill Size             : 21
+       Capacity                      : 48
+   Cache Hit Rate                    : 99.569 %
+   Useless Prefetches                : 0 %
+   Access Patterns
+       Total Accesses                : 232
+       Duplicate Block Accesses      : 1
+       Sequential Block Accesses     : 0
+       Block Seeks Back              : 0
+       Block Seeks Forward           : 231
+   Blocks
+       Total Existing                : 883
+       Total Fetched                 : 232
+       Prefetched                    : 231
+       Fetched On-demand             : 1
+   Prefetch Stall by BlockFinder     : 0
+   Time spent in:
+       bzip2::readBlockData          : 0 s
+       decodeBlock                   : 21.4872 s
+       std::future::get              : 0.17716 s
+       get                           : 0.195057 s
+   Thread Pool Utilization:
+       Total Real Decode Duration    : 1.12794 s
+       Theoretical Optimal Duration  : 0.895299 s
+       Pool Efficiency (Fill Factor) : 79.3744 %
+[03:05:36.925][0x7fa182364780] [SharedFileReader::~SharedFileReader]
+    seeks back    : ( 0 <= 29000000 +- 20000000 <= 134000000  ) B ( 3856 calls )
+    seeks forward : ( 0 <= 29000000 +- 20000000 <= 126000000  ) B ( 3850 calls )
+    reads         : ( 0 <= 131000 +- 2100 <= 131100  ) B ( 7708 calls )
+    locks         : 8264
+    read in total 1010009134 B out of 970458140 B, i.e., read the file 1.04075 times
+    time spent seeking and reading: 0.409787 s
+
+Decompressed in total 3618153020 B in 1.17099 s -> 3089.82 MB/s
+	Command being timed: "src/tools/rapidgzip -v -P 24 --no-verify --export-index /dev/null test-files/fastq/10xSRR22403185_2.fastq.gz"
+	User time (seconds): 23.91
+	System time (seconds): 2.13
+	Percent of CPU this job got: 2019%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:01.29
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 1143184
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 473657
+	Voluntary context switches: 5830
+	Involuntary context switches: 10944
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+file path for input: test-files/fastq/10xSRR22403185_2.fastq.gz
+file path for output: <none>
+[ParallelGzipReader::exportIndex] Took 0.00164939 s
+[Seekpoints Index]
+    Encoded offset spacings: ( min: 0.922926, 1.10 +- 0.14, max: 1.74756 ) MB
+    Decoded offset spacings: ( min: 3.6203, 4.10 +- 0.15, max: 4.90757 ) MB
+[ParallelGzipReader] Time spent:
+    Writing to output         : 0 s
+    Computing CRC32           : 0.000110273 s
+    Number of verified CRC32s : 0
+[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:
+    Number of false positives                : 1
+    Time spent in block finder               : 0.0927992 s
+    Time spent decoding with custom inflate  : 20.7076 s
+    Time spent decoding with inflate wrapper : 0 s
+    Time spent decoding with ISA-L           : 0.0600532 s
+    Time spent allocating and copying        : 2.9081 s
+    Time spent applying the last window      : 4.33198 s
+    Replaced marker buffers                  : 3 GiB 363 MiB 80 KiB 805 B
+    Chunks exceeding max. compression ratio  : 0
+[03:05:38.170][0x7f236ba28780] [BlockFetcher::~BlockFetcher]
+   Parallelization                   : 24
+   Cache
+       Hits                          : 0
+       Misses                        : 226
+       Unused Entries                : 232
+       Maximum Fill Size             : 1
+       Capacity                      : 24
+   Prefetch Cache
+       Hits                          : 225
+       Misses                        : 1
+       Unused Entries                : 0
+       Prefetch Queue Hit            : 6
+       Maximum Fill Size             : 20
+       Capacity                      : 48
+   Cache Hit Rate                    : 99.569 %
+   Useless Prefetches                : 0 %
+   Access Patterns
+       Total Accesses                : 232
+       Duplicate Block Accesses      : 1
+       Sequential Block Accesses     : 0
+       Block Seeks Back              : 0
+       Block Seeks Forward           : 231
+   Blocks
+       Total Existing                : 883
+       Total Fetched                 : 232
+       Prefetched                    : 231
+       Fetched On-demand             : 1
+   Prefetch Stall by BlockFinder     : 0
+   Time spent in:
+       bzip2::readBlockData          : 0 s
+       decodeBlock                   : 20.9534 s
+       std::future::get              : 0.126824 s
+       get                           : 0.139385 s
+   Thread Pool Utilization:
+       Total Real Decode Duration    : 1.08612 s
+       Theoretical Optimal Duration  : 0.873057 s
+       Pool Efficiency (Fill Factor) : 80.3828 %
+[03:05:38.170][0x7f236ba28780] [SharedFileReader::~SharedFileReader]
+    seeks back    : ( 0 <= 28000000 +- 20000000 <= 113000000  ) B ( 3852 calls )
+    seeks forward : ( 0 <= 29000000 +- 20000000 <= 117000000  ) B ( 3854 calls )
+    reads         : ( 0 <= 131000 +- 2100 <= 131100  ) B ( 7708 calls )
+    locks         : 8264
+    read in total 1010009134 B out of 970458140 B, i.e., read the file 1.04075 times
+    time spent seeking and reading: 0.416678 s
+
+Decompressed in total 3618153020 B in 1.12486 s -> 3216.55 MB/s
+	Command being timed: "src/tools/rapidgzip -v -P 24 --no-verify --export-index /dev/null test-files/fastq/10xSRR22403185_2.fastq.gz"
+	User time (seconds): 23.83
+	System time (seconds): 1.52
+	Percent of CPU this job got: 2038%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:01.24
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 1037968
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 362514
+	Voluntary context switches: 4490
+	Involuntary context switches: 3771
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+file path for input: test-files/fastq/10xSRR22403185_2.fastq.gz
+file path for output: <none>
+[ParallelGzipReader::exportIndex] Took 0.00111925 s
+[Seekpoints Index]
+    Encoded offset spacings: ( min: 0.922926, 1.10 +- 0.14, max: 1.74756 ) MB
+    Decoded offset spacings: ( min: 3.6203, 4.10 +- 0.15, max: 4.90757 ) MB
+[ParallelGzipReader] Time spent:
+    Writing to output         : 0 s
+    Computing CRC32           : 6.623e-05 s
+    Number of verified CRC32s : 0
+[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:
+    Number of false positives                : 1
+    Time spent in block finder               : 0.0948724 s
+    Time spent decoding with custom inflate  : 21.1415 s
+    Time spent decoding with inflate wrapper : 0 s
+    Time spent decoding with ISA-L           : 0.0661551 s
+    Time spent allocating and copying        : 3.28795 s
+    Time spent applying the last window      : 4.54208 s
+    Replaced marker buffers                  : 3 GiB 363 MiB 80 KiB 805 B
+    Chunks exceeding max. compression ratio  : 0
+[03:05:39.454][0x7f33d9b9d780] [BlockFetcher::~BlockFetcher]
+   Parallelization                   : 24
+   Cache
+       Hits                          : 0
+       Misses                        : 224
+       Unused Entries                : 232
+       Maximum Fill Size             : 1
+       Capacity                      : 24
+   Prefetch Cache
+       Hits                          : 223
+       Misses                        : 1
+       Unused Entries                : 0
+       Prefetch Queue Hit            : 8
+       Maximum Fill Size             : 19
+       Capacity                      : 48
+   Cache Hit Rate                    : 99.569 %
+   Useless Prefetches                : 0 %
+   Access Patterns
+       Total Accesses                : 232
+       Duplicate Block Accesses      : 1
+       Sequential Block Accesses     : 0
+       Block Seeks Back              : 0
+       Block Seeks Forward           : 231
+   Blocks
+       Total Existing                : 883
+       Total Fetched                 : 232
+       Prefetched                    : 231
+       Fetched On-demand             : 1
+   Prefetch Stall by BlockFinder     : 0
+   Time spent in:
+       bzip2::readBlockData          : 0 s
+       decodeBlock                   : 21.3738 s
+       std::future::get              : 0.136233 s
+       get                           : 0.151692 s
+   Thread Pool Utilization:
+       Total Real Decode Duration    : 1.12948 s
+       Theoretical Optimal Duration  : 0.890575 s
+       Pool Efficiency (Fill Factor) : 78.848 %
+[03:05:39.454][0x7f33d9b9d780] [SharedFileReader::~SharedFileReader]
+    seeks back    : ( 0 <= 29000000 +- 20000000 <= 126000000  ) B ( 3854 calls )
+    seeks forward : ( 0 <= 29000000 +- 21000000 <= 126000000  ) B ( 3852 calls )
+    reads         : ( 0 <= 131000 +- 2100 <= 131100  ) B ( 7708 calls )
+    locks         : 8264
+    read in total 1010009134 B out of 970458140 B, i.e., read the file 1.04075 times
+    time spent seeking and reading: 0.403336 s
+
+Decompressed in total 3618153020 B in 1.16225 s -> 3113.07 MB/s
+	Command being timed: "src/tools/rapidgzip -v -P 24 --no-verify --export-index /dev/null test-files/fastq/10xSRR22403185_2.fastq.gz"
+	User time (seconds): 23.71
+	System time (seconds): 1.89
+	Percent of CPU this job got: 2002%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:01.27
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 981024
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 1
+	Minor (reclaiming a frame) page faults: 452106
+	Voluntary context switches: 6514
+	Involuntary context switches: 9949
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+file path for input: test-files/fastq/10xSRR22403185_2.fastq.gz
+file path for output: <none>
+[ParallelGzipReader::exportIndex] Took 0.00105317 s
+[Seekpoints Index]
+    Encoded offset spacings: ( min: 0.922926, 1.10 +- 0.14, max: 1.74756 ) MB
+    Decoded offset spacings: ( min: 3.6203, 4.10 +- 0.15, max: 4.90757 ) MB
+[ParallelGzipReader] Time spent:
+    Writing to output         : 0 s
+    Computing CRC32           : 4.8781e-05 s
+    Number of verified CRC32s : 0
+[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:
+    Number of false positives                : 1
+    Time spent in block finder               : 0.0982241 s
+    Time spent decoding with custom inflate  : 21.864 s
+    Time spent decoding with inflate wrapper : 0 s
+    Time spent decoding with ISA-L           : 0.0457827 s
+    Time spent allocating and copying        : 3.64242 s
+    Time spent applying the last window      : 5.1744 s
+    Replaced marker buffers                  : 3 GiB 363 MiB 80 KiB 805 B
+    Chunks exceeding max. compression ratio  : 0
+[03:05:40.810][0x7f9be2688780] [BlockFetcher::~BlockFetcher]
+   Parallelization                   : 24
+   Cache
+       Hits                          : 0
+       Misses                        : 221
+       Unused Entries                : 232
+       Maximum Fill Size             : 1
+       Capacity                      : 24
+   Prefetch Cache
+       Hits                          : 220
+       Misses                        : 1
+       Unused Entries                : 0
+       Prefetch Queue Hit            : 11
+       Maximum Fill Size             : 27
+       Capacity                      : 48
+   Cache Hit Rate                    : 99.569 %
+   Useless Prefetches                : 0 %
+   Access Patterns
+       Total Accesses                : 232
+       Duplicate Block Accesses      : 1
+       Sequential Block Accesses     : 0
+       Block Seeks Back              : 0
+       Block Seeks Forward           : 231
+   Blocks
+       Total Existing                : 883
+       Total Fetched                 : 232
+       Prefetched                    : 231
+       Fetched On-demand             : 1
+   Prefetch Stall by BlockFinder     : 0
+   Time spent in:
+       bzip2::readBlockData          : 0 s
+       decodeBlock                   : 22.0918 s
+       std::future::get              : 0.237845 s
+       get                           : 0.258711 s
+   Thread Pool Utilization:
+       Total Real Decode Duration    : 1.1773 s
+       Theoretical Optimal Duration  : 0.920492 s
+       Pool Efficiency (Fill Factor) : 78.187 %
+[03:05:40.811][0x7f9be2688780] [SharedFileReader::~SharedFileReader]
+    seeks back    : ( 0 <= 31000000 +- 22000000 <= 135000000  ) B ( 3807 calls )
+    seeks forward : ( 0 <= 30000000 +- 22000000 <= 139000000  ) B ( 3899 calls )
+    reads         : ( 0 <= 131000 +- 2100 <= 131100  ) B ( 7708 calls )
+    locks         : 8264
+    read in total 1010009134 B out of 970458140 B, i.e., read the file 1.04075 times
+    time spent seeking and reading: 0.409769 s
+
+Decompressed in total 3618153020 B in 1.23571 s -> 2928 MB/s
+	Command being timed: "src/tools/rapidgzip -v -P 24 --no-verify --export-index /dev/null test-files/fastq/10xSRR22403185_2.fastq.gz"
+	User time (seconds): 24.76
+	System time (seconds): 2.60
+	Percent of CPU this job got: 2019%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:01.35
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 1227024
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 664752
+	Voluntary context switches: 7056
+	Involuntary context switches: 7355
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+file path for input: test-files/fastq/10xSRR22403185_2.fastq.gz
+file path for output: <none>
+[ParallelGzipReader::exportIndex] Took 0.00102316 s
+[Seekpoints Index]
+    Encoded offset spacings: ( min: 0.922926, 1.10 +- 0.14, max: 1.74756 ) MB
+    Decoded offset spacings: ( min: 3.6203, 4.10 +- 0.15, max: 4.90757 ) MB
+[ParallelGzipReader] Time spent:
+    Writing to output         : 0 s
+    Computing CRC32           : 5.879e-05 s
+    Number of verified CRC32s : 0
+[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:
+    Number of false positives                : 1
+    Time spent in block finder               : 0.0933006 s
+    Time spent decoding with custom inflate  : 21.1029 s
+    Time spent decoding with inflate wrapper : 0 s
+    Time spent decoding with ISA-L           : 0.0597305 s
+    Time spent allocating and copying        : 3.26079 s
+    Time spent applying the last window      : 4.65924 s
+    Replaced marker buffers                  : 3 GiB 363 MiB 80 KiB 805 B
+    Chunks exceeding max. compression ratio  : 0
+[03:05:42.95][0x7f94feaa1780] [BlockFetcher::~BlockFetcher]
+   Parallelization                   : 24
+   Cache
+       Hits                          : 0
+       Misses                        : 225
+       Unused Entries                : 232
+       Maximum Fill Size             : 1
+       Capacity                      : 24
+   Prefetch Cache
+       Hits                          : 224
+       Misses                        : 1
+       Unused Entries                : 0
+       Prefetch Queue Hit            : 7
+       Maximum Fill Size             : 21
+       Capacity                      : 48
+   Cache Hit Rate                    : 99.569 %
+   Useless Prefetches                : 0 %
+   Access Patterns
+       Total Accesses                : 232
+       Duplicate Block Accesses      : 1
+       Sequential Block Accesses     : 0
+       Block Seeks Back              : 0
+       Block Seeks Forward           : 231
+   Blocks
+       Total Existing                : 883
+       Total Fetched                 : 232
+       Prefetched                    : 231
+       Fetched On-demand             : 1
+   Prefetch Stall by BlockFinder     : 0
+   Time spent in:
+       bzip2::readBlockData          : 0 s
+       decodeBlock                   : 21.335 s
+       std::future::get              : 0.166428 s
+       get                           : 0.184247 s
+   Thread Pool Utilization:
+       Total Real Decode Duration    : 1.128 s
+       Theoretical Optimal Duration  : 0.888958 s
+       Pool Efficiency (Fill Factor) : 78.8085 %
+[03:05:42.95][0x7f94feaa1780] [SharedFileReader::~SharedFileReader]
+    seeks back    : ( 0 <= 30000000 +- 21000000 <= 147000000  ) B ( 3840 calls )
+    seeks forward : ( 0 <= 30000000 +- 21000000 <= 139000000  ) B ( 3866 calls )
+    reads         : ( 0 <= 131000 +- 2100 <= 131100  ) B ( 7708 calls )
+    locks         : 8264
+    read in total 1010009134 B out of 970458140 B, i.e., read the file 1.04075 times
+    time spent seeking and reading: 0.403603 s
+
+Decompressed in total 3618153020 B in 1.16259 s -> 3112.14 MB/s
+	Command being timed: "src/tools/rapidgzip -v -P 24 --no-verify --export-index /dev/null test-files/fastq/10xSRR22403185_2.fastq.gz"
+	User time (seconds): 24.04
+	System time (seconds): 2.03
+	Percent of CPU this job got: 2037%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:01.28
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 1174396
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 513937
+	Voluntary context switches: 5650
+	Involuntary context switches: 3918
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+file path for input: wikidata-20220103-all.json.gz
+file path for output: <none>
+[ParallelGzipReader::exportIndex] Took 0.455286 s
+[Seekpoints Index]
+    Encoded offset spacings: ( min: 0.00419, 0.32 +- 0.10, max: 0.760902 ) MB
+    Decoded offset spacings: ( min: 0.079484, 4.20 +- 0.14, max: 6.44035 ) MB
+[ParallelGzipReader] Time spent:
+    Writing to output         : 0 s
+    Computing CRC32           : 0.0142566 s
+    Number of verified CRC32s : 0
+[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:
+    Number of false positives                : 142
+    Time spent in block finder               : 13.042 s
+    Time spent decoding with custom inflate  : 7235.62 s
+    Time spent decoding with inflate wrapper : 0 s
+    Time spent decoding with ISA-L           : 41.9819 s
+    Time spent allocating and copying        : 3043.82 s
+    Time spent applying the last window      : 3088.22 s
+    Replaced marker buffers                  : 1 TiB 284 GiB 825 MiB 658 KiB 348 B
+    Chunks exceeding max. compression ratio  : 647
+[03:13:32.11][0x7fd9152e2780] [BlockFetcher::~BlockFetcher]
+   Parallelization                   : 24
+   Cache
+       Hits                          : 640
+       Misses                        : 26309
+       Unused Entries                : 25998
+       Maximum Fill Size             : 1
+       Capacity                      : 24
+   Prefetch Cache
+       Hits                          : 25668
+       Misses                        : 641
+       Unused Entries                : 0
+       Prefetch Queue Hit            : 329
+       Maximum Fill Size             : 48
+       Capacity                      : 48
+   Cache Hit Rate                    : 97.6501 %
+   Useless Prefetches                : 0 %
+   Access Patterns
+       Total Accesses                : 27278
+       Duplicate Block Accesses      : 641
+       Sequential Block Accesses     : 378
+       Block Seeks Back              : 0
+       Block Seeks Forward           : 26259
+   Blocks
+       Total Existing                : 340424
+       Total Fetched                 : 26638
+       Prefetched                    : 25997
+       Fetched On-demand             : 641
+   Prefetch Stall by BlockFinder     : 0
+   Time spent in:
+       bzip2::readBlockData          : 0 s
+       decodeBlock                   : 7289.24 s
+       std::future::get              : 18.9757 s
+       get                           : 33.1057 s
+   Thread Pool Utilization:
+       Total Real Decode Duration    : 469.112 s
+       Theoretical Optimal Duration  : 303.718 s
+       Pool Efficiency (Fill Factor) : 64.7432 %
+[03:13:32.989][0x7fd9152e2780] [SharedFileReader::~SharedFileReader]
+    seeks back    : ( 0 <= 28000000 +- 22000000 <= 203000000  ) B ( 424958 calls )
+    seeks forward : ( 0 <= 27000000 +- 23000000 <= 203000000  ) B ( 434293 calls )
+    reads         : ( 0 <= 131000 +- 4000 <= 131000  ) B ( 859273 calls )
+    locks         : 913899
+    read in total 112544198844 B out of 109042925619 B, i.e., read the file 1.03211 times
+    time spent seeking and reading: 566.387 s
+
+Decompressed in total 1428353996731 B in 470.765 s -> 3034.11 MB/s
+	Command being timed: "src/tools/rapidgzip -v -P 24 --no-verify --export-index /dev/null wikidata-20220103-all.json.gz"
+	User time (seconds): 9086.73
+	System time (seconds): 612.52
+	Percent of CPU this job got: 2057%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 7:51.40
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 21270252
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 2
+	Minor (reclaiming a frame) page faults: 37822763
+	Voluntary context switches: 847719
+	Involuntary context switches: 3403263
+	Swaps: 0
+	File system inputs: 196874224
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+file path for input: wikidata-20220103-all.json.gz
+file path for output: <none>
+[ParallelGzipReader::exportIndex] Took 0.425916 s
+[Seekpoints Index]
+    Encoded offset spacings: ( min: 0.00419, 0.32 +- 0.10, max: 0.760902 ) MB
+    Decoded offset spacings: ( min: 0.079484, 4.20 +- 0.14, max: 6.44035 ) MB
+[ParallelGzipReader] Time spent:
+    Writing to output         : 0 s
+    Computing CRC32           : 0.0150193 s
+    Number of verified CRC32s : 0
+[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:
+    Number of false positives                : 142
+    Time spent in block finder               : 10.7452 s
+    Time spent decoding with custom inflate  : 5842.27 s
+    Time spent decoding with inflate wrapper : 0 s
+    Time spent decoding with ISA-L           : 34.5137 s
+    Time spent allocating and copying        : 2330.83 s
+    Time spent applying the last window      : 2488.12 s
+    Replaced marker buffers                  : 1 TiB 284 GiB 825 MiB 658 KiB 348 B
+    Chunks exceeding max. compression ratio  : 647
+[03:19:58.875][0x7fb4c1460780] [BlockFetcher::~BlockFetcher]
+   Parallelization                   : 24
+   Cache
+       Hits                          : 640
+       Misses                        : 26329
+       Unused Entries                : 25998
+       Maximum Fill Size             : 1
+       Capacity                      : 24
+   Prefetch Cache
+       Hits                          : 25688
+       Misses                        : 641
+       Unused Entries                : 0
+       Prefetch Queue Hit            : 309
+       Maximum Fill Size             : 48
+       Capacity                      : 48
+   Cache Hit Rate                    : 97.6501 %
+   Useless Prefetches                : 0 %
+   Access Patterns
+       Total Accesses                : 27278
+       Duplicate Block Accesses      : 641
+       Sequential Block Accesses     : 378
+       Block Seeks Back              : 0
+       Block Seeks Forward           : 26259
+   Blocks
+       Total Existing                : 340424
+       Total Fetched                 : 26638
+       Prefetched                    : 25997
+       Fetched On-demand             : 641
+   Prefetch Stall by BlockFinder     : 0
+   Time spent in:
+       bzip2::readBlockData          : 0 s
+       decodeBlock                   : 5895.64 s
+       std::future::get              : 19.284 s
+       get                           : 31.9947 s
+   Thread Pool Utilization:
+       Total Real Decode Duration    : 384.589 s
+       Theoretical Optimal Duration  : 245.652 s
+       Pool Efficiency (Fill Factor) : 63.8739 %
+[03:19:59.972][0x7fb4c1460780] [SharedFileReader::~SharedFileReader]
+    seeks back    : ( 0 <= 27000000 +- 22000000 <= 203000000  ) B ( 424546 calls )
+    seeks forward : ( 0 <= 27000000 +- 22000000 <= 203000000  ) B ( 434706 calls )
+    reads         : ( 0 <= 131000 +- 4000 <= 131000  ) B ( 859273 calls )
+    locks         : 913899
+    read in total 112544198844 B out of 109042925619 B, i.e., read the file 1.03211 times
+    time spent seeking and reading: 585.729 s
+
+Decompressed in total 1428353996731 B in 386.331 s -> 3697.23 MB/s
+	Command being timed: "src/tools/rapidgzip -v -P 24 --no-verify --export-index /dev/null wikidata-20220103-all.json.gz"
+	User time (seconds): 7257.09
+	System time (seconds): 503.17
+	Percent of CPU this job got: 2004%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 6:27.14
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 21556652
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 1
+	Minor (reclaiming a frame) page faults: 37901586
+	Voluntary context switches: 908299
+	Involuntary context switches: 2831655
+	Swaps: 0
+	File system inputs: 198607952
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+file path for input: wikidata-20220103-all.json.gz
+file path for output: <none>
+[ParallelGzipReader::exportIndex] Took 0.456763 s
+[Seekpoints Index]
+    Encoded offset spacings: ( min: 0.00419, 0.32 +- 0.10, max: 0.760902 ) MB
+    Decoded offset spacings: ( min: 0.079484, 4.20 +- 0.14, max: 6.44035 ) MB
+[ParallelGzipReader] Time spent:
+    Writing to output         : 0 s
+    Computing CRC32           : 0.0139504 s
+    Number of verified CRC32s : 0
+[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:
+    Number of false positives                : 142
+    Time spent in block finder               : 12.038 s
+    Time spent decoding with custom inflate  : 6667.63 s
+    Time spent decoding with inflate wrapper : 0 s
+    Time spent decoding with ISA-L           : 40.2784 s
+    Time spent allocating and copying        : 2753.95 s
+    Time spent applying the last window      : 2830.92 s
+    Replaced marker buffers                  : 1 TiB 284 GiB 825 MiB 658 KiB 348 B
+    Chunks exceeding max. compression ratio  : 647
+[03:27:15.580][0x7f37b10cb780] [BlockFetcher::~BlockFetcher]
+   Parallelization                   : 24
+   Cache
+       Hits                          : 640
+       Misses                        : 26307
+       Unused Entries                : 25998
+       Maximum Fill Size             : 1
+       Capacity                      : 24
+   Prefetch Cache
+       Hits                          : 25666
+       Misses                        : 641
+       Unused Entries                : 0
+       Prefetch Queue Hit            : 331
+       Maximum Fill Size             : 48
+       Capacity                      : 48
+   Cache Hit Rate                    : 97.6501 %
+   Useless Prefetches                : 0 %
+   Access Patterns
+       Total Accesses                : 27278
+       Duplicate Block Accesses      : 641
+       Sequential Block Accesses     : 378
+       Block Seeks Back              : 0
+       Block Seeks Forward           : 26259
+   Blocks
+       Total Existing                : 340424
+       Total Fetched                 : 26638
+       Prefetched                    : 25997
+       Fetched On-demand             : 641
+   Prefetch Stall by BlockFinder     : 0
+   Time spent in:
+       bzip2::readBlockData          : 0 s
+       decodeBlock                   : 6722.32 s
+       std::future::get              : 19.979 s
+       get                           : 33.6569 s
+   Thread Pool Utilization:
+       Total Real Decode Duration    : 434.126 s
+       Theoretical Optimal Duration  : 280.097 s
+       Pool Efficiency (Fill Factor) : 64.5197 %
+[03:27:16.556][0x7f37b10cb780] [SharedFileReader::~SharedFileReader]
+    seeks back    : ( 0 <= 28000000 +- 22000000 <= 203000000  ) B ( 424855 calls )
+    seeks forward : ( 0 <= 27000000 +- 23000000 <= 203000000  ) B ( 434393 calls )
+    reads         : ( 0 <= 131000 +- 4000 <= 131000  ) B ( 859273 calls )
+    locks         : 913899
+    read in total 112544198844 B out of 109042925619 B, i.e., read the file 1.03211 times
+    time spent seeking and reading: 548.32 s
+
+Decompressed in total 1428353996731 B in 435.764 s -> 3277.82 MB/s
+	Command being timed: "src/tools/rapidgzip -v -P 24 --no-verify --export-index /dev/null wikidata-20220103-all.json.gz"
+	User time (seconds): 8352.06
+	System time (seconds): 561.70
+	Percent of CPU this job got: 2042%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 7:16.42
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 21326676
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 1
+	Minor (reclaiming a frame) page faults: 37869232
+	Voluntary context switches: 846492
+	Involuntary context switches: 3245537
+	Swaps: 0
+	File system inputs: 197310176
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+file path for input: wikidata-20220103-all.json.gz
+file path for output: <none>
+[ParallelGzipReader::exportIndex] Took 0.431739 s
+[Seekpoints Index]
+    Encoded offset spacings: ( min: 0.00419, 0.32 +- 0.10, max: 0.760902 ) MB
+    Decoded offset spacings: ( min: 0.079484, 4.20 +- 0.14, max: 6.44035 ) MB
+[ParallelGzipReader] Time spent:
+    Writing to output         : 0 s
+    Computing CRC32           : 0.0151162 s
+    Number of verified CRC32s : 0
+[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:
+    Number of false positives                : 142
+    Time spent in block finder               : 10.6216 s
+    Time spent decoding with custom inflate  : 5793.58 s
+    Time spent decoding with inflate wrapper : 0 s
+    Time spent decoding with ISA-L           : 35.7894 s
+    Time spent allocating and copying        : 2327.44 s
+    Time spent applying the last window      : 2475.72 s
+    Replaced marker buffers                  : 1 TiB 284 GiB 825 MiB 658 KiB 348 B
+    Chunks exceeding max. compression ratio  : 647
+[03:33:40.10][0x7f188f3aa780] [BlockFetcher::~BlockFetcher]
+   Parallelization                   : 24
+   Cache
+       Hits                          : 640
+       Misses                        : 26308
+       Unused Entries                : 25998
+       Maximum Fill Size             : 1
+       Capacity                      : 24
+   Prefetch Cache
+       Hits                          : 25667
+       Misses                        : 641
+       Unused Entries                : 0
+       Prefetch Queue Hit            : 330
+       Maximum Fill Size             : 48
+       Capacity                      : 48
+   Cache Hit Rate                    : 97.6501 %
+   Useless Prefetches                : 0 %
+   Access Patterns
+       Total Accesses                : 27278
+       Duplicate Block Accesses      : 641
+       Sequential Block Accesses     : 378
+       Block Seeks Back              : 0
+       Block Seeks Forward           : 26259
+   Blocks
+       Total Existing                : 340424
+       Total Fetched                 : 26638
+       Prefetched                    : 25997
+       Fetched On-demand             : 641
+   Prefetch Stall by BlockFinder     : 0
+   Time spent in:
+       bzip2::readBlockData          : 0 s
+       decodeBlock                   : 5848.42 s
+       std::future::get              : 18.7497 s
+       get                           : 31.4713 s
+   Thread Pool Utilization:
+       Total Real Decode Duration    : 382.155 s
+       Theoretical Optimal Duration  : 243.684 s
+       Pool Efficiency (Fill Factor) : 63.7657 %
+[03:33:41.135][0x7f188f3aa780] [SharedFileReader::~SharedFileReader]
+    seeks back    : ( 0 <= 27000000 +- 22000000 <= 203000000  ) B ( 424924 calls )
+    seeks forward : ( 0 <= 27000000 +- 22000000 <= 203000000  ) B ( 434318 calls )
+    reads         : ( 0 <= 131000 +- 4000 <= 131000  ) B ( 859273 calls )
+    locks         : 913899
+    read in total 112544198844 B out of 109042925619 B, i.e., read the file 1.03211 times
+    time spent seeking and reading: 538.167 s
+
+Decompressed in total 1428353996731 B in 383.912 s -> 3720.52 MB/s
+	Command being timed: "src/tools/rapidgzip -v -P 24 --no-verify --export-index /dev/null wikidata-20220103-all.json.gz"
+	User time (seconds): 7243.88
+	System time (seconds): 498.17
+	Percent of CPU this job got: 2012%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 6:24.72
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 21451812
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 1
+	Minor (reclaiming a frame) page faults: 37745495
+	Voluntary context switches: 840185
+	Involuntary context switches: 2876317
+	Swaps: 0
+	File system inputs: 198630408
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+file path for input: wikidata-20220103-all.json.gz
+file path for output: <none>
+[ParallelGzipReader::exportIndex] Took 0.471779 s
+[Seekpoints Index]
+    Encoded offset spacings: ( min: 0.00419, 0.32 +- 0.10, max: 0.760902 ) MB
+    Decoded offset spacings: ( min: 0.079484, 4.20 +- 0.14, max: 6.44035 ) MB
+[ParallelGzipReader] Time spent:
+    Writing to output         : 0 s
+    Computing CRC32           : 0.0158109 s
+    Number of verified CRC32s : 0
+[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:
+    Number of false positives                : 142
+    Time spent in block finder               : 11.9583 s
+    Time spent decoding with custom inflate  : 6567.61 s
+    Time spent decoding with inflate wrapper : 0 s
+    Time spent decoding with ISA-L           : 39.0524 s
+    Time spent allocating and copying        : 2685.4 s
+    Time spent applying the last window      : 2782.13 s
+    Replaced marker buffers                  : 1 TiB 284 GiB 825 MiB 658 KiB 348 B
+    Chunks exceeding max. compression ratio  : 647
+[03:40:50.807][0x7f5924073780] [BlockFetcher::~BlockFetcher]
+   Parallelization                   : 24
+   Cache
+       Hits                          : 640
+       Misses                        : 26320
+       Unused Entries                : 25998
+       Maximum Fill Size             : 1
+       Capacity                      : 24
+   Prefetch Cache
+       Hits                          : 25679
+       Misses                        : 641
+       Unused Entries                : 0
+       Prefetch Queue Hit            : 318
+       Maximum Fill Size             : 48
+       Capacity                      : 48
+   Cache Hit Rate                    : 97.6501 %
+   Useless Prefetches                : 0 %
+   Access Patterns
+       Total Accesses                : 27278
+       Duplicate Block Accesses      : 641
+       Sequential Block Accesses     : 378
+       Block Seeks Back              : 0
+       Block Seeks Forward           : 26259
+   Blocks
+       Total Existing                : 340424
+       Total Fetched                 : 26638
+       Prefetched                    : 25997
+       Fetched On-demand             : 641
+   Prefetch Stall by BlockFinder     : 0
+   Time spent in:
+       bzip2::readBlockData          : 0 s
+       decodeBlock                   : 6626.98 s
+       std::future::get              : 19.69 s
+       get                           : 32.9967 s
+   Thread Pool Utilization:
+       Total Real Decode Duration    : 428.136 s
+       Theoretical Optimal Duration  : 276.124 s
+       Pool Efficiency (Fill Factor) : 64.4945 %
+[03:40:51.929][0x7f5924073780] [SharedFileReader::~SharedFileReader]
+    seeks back    : ( 0 <= 28000000 +- 22000000 <= 203000000  ) B ( 425088 calls )
+    seeks forward : ( 0 <= 27000000 +- 23000000 <= 203000000  ) B ( 434166 calls )
+    reads         : ( 0 <= 131000 +- 4000 <= 131000  ) B ( 859273 calls )
+    locks         : 913899
+    read in total 112544198844 B out of 109042925619 B, i.e., read the file 1.03211 times
+    time spent seeking and reading: 587 s
+
+Decompressed in total 1428353996731 B in 429.979 s -> 3321.92 MB/s
+	Command being timed: "src/tools/rapidgzip -v -P 24 --no-verify --export-index /dev/null wikidata-20220103-all.json.gz"
+	User time (seconds): 8195.13
+	System time (seconds): 552.12
+	Percent of CPU this job got: 2030%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 7:10.82
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 21179580
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 1
+	Minor (reclaiming a frame) page faults: 38017867
+	Voluntary context switches: 897447
+	Involuntary context switches: 3082384
+	Swaps: 0
+	File system inputs: 199546736
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
