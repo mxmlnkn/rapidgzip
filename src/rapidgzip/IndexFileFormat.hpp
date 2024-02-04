@@ -462,8 +462,7 @@ readGzipIndex( UniqueFileReader         indexFile,
         }
 
         /* Only bother with overhead-introducing compression for large chunk compression ratios. */
-        index.windows->emplace( offset, std::move( window ),
-                                compressionRatio > 2 ? CompressionType::GZIP : CompressionType::NONE );
+        index.windows->emplace( offset, std::move( window ), CompressionType::NONE );
     }
 
     return index;
