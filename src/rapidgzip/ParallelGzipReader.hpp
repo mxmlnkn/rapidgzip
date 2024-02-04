@@ -809,7 +809,8 @@ public:
     importIndex( UniqueFileReader indexFile )
     {
         const auto t0 = now();
-        setBlockOffsets( readGzipIndex( std::move( indexFile ), m_sharedFileReader->clone() ) );
+        setBlockOffsets( readGzipIndex( std::move( indexFile ), m_sharedFileReader->clone(),
+                                        m_fetcherParallelization ) );
         if ( m_showProfileOnDestruction ) {
             std::cerr << "[ParallelGzipReader::importIndex] Took " << duration( t0 ) << " s\n";
         }

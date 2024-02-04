@@ -21,6 +21,7 @@
 #include <VectorView.hpp>
 #include <zlib.hpp>
 
+#include "ThreadPool.hpp"
 #include "WindowMap.hpp"
 
 
@@ -342,7 +343,8 @@ namespace indexed_gzip
 [[nodiscard]] inline GzipIndex
 readGzipIndex( UniqueFileReader         indexFile,
                UniqueFileReader         archiveFile = {},
-               const std::vector<char>& alreadyReadBytes = {} )
+               const std::vector<char>& alreadyReadBytes = {},
+               size_t                   parallelization = 1 )
 {
     if ( !indexFile ) {
         throw std::invalid_argument( "Index file reader must be valid!" );
@@ -453,6 +455,39 @@ readGzipIndex( UniqueFileReader         indexFile,
         windowInfos.emplace_back( checkpoint.compressedOffsetInBits, windowSize, compressionRatio );
     }
 
+    const auto backgroundThreadCount = parallelization == 1 ? 0 : parallelization;
+    ThreadPool threadPool{ backgroundThreadCount };
+    std::deque<std::future<std::pair<size_t, std::shared_ptr<WindowMap::Window> > > > futures;
+
+    /* Waits for at least one future and inserts it into the window map. */
+    const auto processFuture =
+        [&] ()
+        {
+            using namespace std::chrono_literals;
+
+            if ( futures.empty() ) {
+                return;
+            }
+
+            const auto oldSize = futures.size();
+            for ( auto it = futures.begin(); it != futures.end(); ) {
+                auto& future = *it;
+                if ( !future.valid() || ( future.wait_for( 0s ) == std::future_status::ready ) ) {
+                    auto result = future.get();
+                    index.windows->emplaceShared( result.first, std::move( result.second ) );
+                    it = futures.erase( it );
+                } else {
+                    ++it;
+                }
+            }
+
+            if ( futures.size() >= oldSize ) {
+                auto result = futures.front().get();
+                index.windows->emplaceShared( result.first, std::move( result.second ) );
+                futures.pop_front();
+            }
+        };
+
     index.windows = std::make_shared<WindowMap>();
     for ( auto& [offset, windowSize, compressionRatio] : windowInfos ) {
         FasterVector<uint8_t> window;
@@ -462,7 +497,21 @@ readGzipIndex( UniqueFileReader         indexFile,
         }
 
         /* Only bother with overhead-introducing compression for large chunk compression ratios. */
-        index.windows->emplace( offset, std::move( window ), CompressionType::NONE );
+        if ( compressionRatio > 2  ) {
+            futures.emplace_back( threadPool.submit( [toCompress = std::move( window ), offset = offset] () {
+                return std::make_pair(
+                    offset, std::make_shared<WindowMap::Window>( std::move( toCompress ), CompressionType::GZIP ) );
+            } ) );
+            if ( futures.size() >= 2 * backgroundThreadCount ) {
+                processFuture();
+            }
+        } else {
+            index.windows->emplace( offset, std::move( window ), CompressionType::NONE );
+        }
+    }
+
+    while ( !futures.empty() ) {
+        processFuture();
     }
 
     return index;
@@ -472,13 +521,15 @@ readGzipIndex( UniqueFileReader         indexFile,
 
 [[nodiscard]] inline GzipIndex
 readGzipIndex( UniqueFileReader indexFile,
-               UniqueFileReader archiveFile = {} )
+               UniqueFileReader archiveFile = {},
+               size_t           parallelization = 1 )
 {
     std::vector<char> formatId( 5, 0 );
     checkedRead( indexFile.get(), formatId.data(), formatId.size() );
 
     if ( formatId == std::vector<char>( { 'G', 'Z', 'I', 'D', 'X' } ) ) {
-        return indexed_gzip::readGzipIndex( std::move( indexFile ), std::move( archiveFile ), formatId );
+        return indexed_gzip::readGzipIndex( std::move( indexFile ), std::move( archiveFile ), formatId,
+                                            parallelization );
     }
     /* Bgzip indexes have no magic bytes and simply start with the number of chunks. */
     return bgzip::readGzipIndex( std::move( indexFile ), std::move( archiveFile ), formatId );
