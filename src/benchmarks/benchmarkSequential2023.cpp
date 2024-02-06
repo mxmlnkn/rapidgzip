@@ -980,7 +980,7 @@ benchmarkWrite( const std::string&       filePath,
             std::stringstream message;
             message << "Failed to write all bytes because of: " << strerror( errorCode )
                     << " (" << errorCode << ")";
-            throw std::runtime_error( std::move( message.str() ) );
+            throw std::runtime_error( std::move( message ).str() );
         }
         sum += sizeToWrite;
     }

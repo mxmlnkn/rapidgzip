@@ -395,7 +395,7 @@ writeAllSpliceUnsafe( [[maybe_unused]] const int                   outputFileDes
 
             std::stringstream message;
             message << "Failed to write all bytes because of: " << strerror( errno ) << " (" << errno << ")";
-            throw std::runtime_error( std::move( message.str() ) );
+            throw std::runtime_error( std::move( message ).str() );
         }
 
         /* Skip over buffers that were written fully. */

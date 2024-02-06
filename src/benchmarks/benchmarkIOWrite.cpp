@@ -48,7 +48,7 @@ pwriteAllToFdVector( const int                   outputFileDescriptor,
         if ( nBytesWritten < 0 ) {
             std::stringstream message;
             message << "Failed to write all bytes because of: " << strerror( errno ) << " (" << errno << ")";
-            throw std::runtime_error( std::move( message.str() ) );
+            throw std::runtime_error( std::move( message ).str() );
         }
 
         fileOffset += nBytesWritten;
