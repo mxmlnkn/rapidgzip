@@ -9,6 +9,7 @@
 
 #include <definitions.hpp>
 #include <Error.hpp>
+#include <VectorView.hpp>
 
 
 namespace rapidgzip

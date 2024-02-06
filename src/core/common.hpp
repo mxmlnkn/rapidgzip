@@ -27,9 +27,6 @@
     #include <Python.h>
 #endif
 
-#include "FileUtils.hpp"
-#include "VectorView.hpp"
-
 
 /* Platform dependent stuff */
 

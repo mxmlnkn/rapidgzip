@@ -14,6 +14,7 @@
 #include <common.hpp>
 #include <Prefetcher.hpp>
 #include <TestHelpers.hpp>
+#include <VectorView.hpp>
 
 
 using namespace FetchingStrategy;
