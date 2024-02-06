@@ -111,15 +111,15 @@ public:
         m_compressionType( compressionType ),
         m_data( compressionType == CompressionType::NONE
                 ? std::make_shared<Container>( std::move( toCompress ) )
-                : std::make_shared<Container>( compress( toCompress, compressionType ) ) ),
+                : std::make_shared<Container>( compress<Container>( toCompress, compressionType ) ) ),
         m_decompressedSize( toCompress.size() )
     {}
 
-    [[deprecated]] explicit
+    explicit
     CompressedVector( const VectorView<typename Container::value_type> toCompress,
                       const CompressionType                            compressionType ) :
         m_compressionType( compressionType ),
-        m_data( std::make_shared<Container>( compress( toCompress, compressionType ) ) ),
+        m_data( std::make_shared<Container>( compress<Container>( toCompress, compressionType ) ) ),
         m_decompressedSize( toCompress.size() )
     {}
 
