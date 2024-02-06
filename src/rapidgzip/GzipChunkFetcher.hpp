@@ -72,6 +72,7 @@ public:
     using WindowView = VectorView<uint8_t>;
     using BlockFinder = typename BaseType::BlockFinder;
     using PostProcessingFutures = std::map</* block offset */ size_t, std::future<void> >;
+    using UniqueSharedFileReader = std::unique_ptr<SharedFileReader>;
 
     static constexpr bool REPLACE_MARKERS_IN_PARALLEL = true;
 
@@ -97,18 +98,21 @@ public:
     };
 
 public:
-    GzipChunkFetcher( BitReader                    bitReader,
+    GzipChunkFetcher( UniqueSharedFileReader       sharedFileReader,
                       std::shared_ptr<BlockFinder> blockFinder,
                       std::shared_ptr<BlockMap>    blockMap,
                       std::shared_ptr<WindowMap>   windowMap,
                       size_t                       parallelization ) :
         BaseType( blockFinder, parallelization ),
-        m_bitReader( bitReader ),
+        m_sharedFileReader( std::move( sharedFileReader ) ),
         m_blockFinder( std::move( blockFinder ) ),
         m_blockMap( std::move( blockMap ) ),
         m_windowMap( std::move( windowMap ) ),
         m_isBgzfFile( m_blockFinder->fileType() == FileType::BGZF )
     {
+        if ( !m_sharedFileReader ) {
+            throw std::invalid_argument( "Shared file reader must be valid!" );
+        }
         if ( !m_blockMap ) {
             throw std::invalid_argument( "Block map must be valid!" );
         }
@@ -332,9 +336,9 @@ private:
 
         const auto nextBlockOffset = m_blockFinder->get( m_nextUnprocessedBlockIndex );
 
-        if ( const auto inputFileSize = m_bitReader.size();
+        if ( const auto inputFileSize = m_sharedFileReader->size();
              !nextBlockOffset ||
-             ( inputFileSize && ( *inputFileSize > 0 ) && ( *nextBlockOffset >= *inputFileSize ) ) )
+             ( inputFileSize && ( *inputFileSize > 0 ) && ( *nextBlockOffset >= *inputFileSize * BYTE_SIZE ) ) )
         {
             m_blockMap->finalize();
             m_blockFinder->finalize();
@@ -407,8 +411,8 @@ private:
          * points across the gzip footer and next header to the next deflate block. */
         const auto blockOffsetAfterNext = chunkData->encodedOffsetInBits + chunkData->encodedSizeInBits;
 
-        if ( const auto inputFileSize = m_bitReader.size();
-             inputFileSize && ( *inputFileSize > 0 ) && ( blockOffsetAfterNext >= *inputFileSize ) )
+        if ( const auto inputFileSize = m_sharedFileReader->size();
+             inputFileSize && ( *inputFileSize > 0 ) && ( blockOffsetAfterNext >= *inputFileSize * BYTE_SIZE ) )
         {
             m_blockMap->finalize();
             m_blockFinder->finalize();
@@ -703,7 +707,8 @@ private:
         }
 
         return decodeBlock(
-            m_bitReader, blockOffset,
+            m_sharedFileReader->clone(),
+            blockOffset,
             /* untilOffset */
             ( blockInfo
               ? blockInfo->encodedOffsetInBits + blockInfo->encodedSizeInBits
@@ -725,7 +730,7 @@ public:
      *                      start.
      */
     [[nodiscard]] static ChunkData
-    decodeBlock( BitReader                const& originalBitReader,
+    decodeBlock( UniqueFileReader             && sharedFileReader,
                  size_t                    const blockOffset,
                  size_t                    const untilOffset,
                  SharedWindow              const initialWindow,
@@ -742,14 +747,14 @@ public:
             using InflateWrapper = ZlibInflateWrapper;
         #endif
 
-            const auto fileSize = originalBitReader.size();
+            const auto fileSize = sharedFileReader->size();
             const auto window = initialWindow->decompress();
 
             auto configuration = chunkDataConfiguration;
             configuration.encodedOffsetInBits = blockOffset;
             auto result = decodeBlockWithInflateWrapper<InflateWrapper>(
-                originalBitReader,
-                fileSize ? std::min( untilOffset, *fileSize ) : untilOffset,
+                std::move( sharedFileReader ),
+                fileSize ? std::min( untilOffset, *fileSize * BYTE_SIZE ) : untilOffset,
                 *window,
                 decodedSize,
                 configuration );
@@ -771,7 +776,7 @@ public:
             return result;
         }
 
-        BitReader bitReader( originalBitReader );
+        BitReader bitReader( std::move( sharedFileReader ) );
         if ( initialWindow ) {
             bitReader.seek( blockOffset );
             const auto window = initialWindow->decompress();
@@ -930,7 +935,7 @@ public:
      */
     template<typename InflateWrapper>
     [[nodiscard]] static ChunkData
-    decodeBlockWithInflateWrapper( const BitReader&            originalBitReader,
+    decodeBlockWithInflateWrapper( UniqueFileReader         && sharedFileReader,
                                    size_t                const exactUntilOffset,
                                    WindowView            const initialWindow,
                                    std::optional<size_t> const decodedSize,
@@ -940,7 +945,7 @@ public:
 
         ChunkData result{ chunkDataConfiguration };
 
-        BitReader bitReader( originalBitReader );
+        BitReader bitReader( std::move( sharedFileReader ) );
         bitReader.seek( result.encodedOffsetInBits );
         InflateWrapper inflateWrapper( std::move( bitReader ), exactUntilOffset );
         inflateWrapper.setWindow( initialWindow );
@@ -1476,7 +1481,7 @@ private:
     std::atomic<bool> m_crc32Enabled{ true };
 
     /* Variables required by decodeBlock and which therefore should be either const or locked. */
-    const BitReader m_bitReader;
+    const UniqueSharedFileReader m_sharedFileReader;
     std::shared_ptr<BlockFinder> const m_blockFinder;
     std::shared_ptr<BlockMap> const m_blockMap;
     std::shared_ptr<WindowMap> const m_windowMap;

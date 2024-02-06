@@ -211,7 +211,7 @@ public:
         )
     {
         m_sharedFileReader->setStatisticsEnabled( m_statisticsEnabled );
-        if ( !m_bitReader.seekable() ) {
+        if ( !m_sharedFileReader->seekable() ) {
             /* The ensureSharedFileReader helper should wrap non-seekable file readers inside SinglePassFileReader. */
             throw std::logic_error( "BitReader should always be seekable even if the underlying file is not!" );
         }
@@ -299,13 +299,16 @@ public:
     [[nodiscard]] int
     fileno() const override
     {
-        return m_bitReader.fileno();
+        if ( UNLIKELY( !m_sharedFileReader ) ) [[unlikely]] {
+            throw std::invalid_argument( "The file is not open!" );
+        }
+        return m_sharedFileReader->fileno();
     }
 
     [[nodiscard]] bool
     seekable() const override
     {
-        if ( !m_bitReader.seekable() || !m_sharedFileReader ) {
+        if ( !m_sharedFileReader ||  !m_sharedFileReader->seekable() ) {
             return false;
         }
 
@@ -319,14 +322,13 @@ public:
     {
         m_chunkFetcher.reset();
         m_blockFinder.reset();
-        m_bitReader.close();
         m_sharedFileReader.reset();
     }
 
     [[nodiscard]] bool
     closed() const override
     {
-        return m_bitReader.closed();
+        return !m_sharedFileReader || m_sharedFileReader->closed();
     }
 
     [[nodiscard]] bool
@@ -367,7 +369,9 @@ public:
     void
     clearerr() override
     {
-        m_bitReader.clearerr();
+        if ( m_sharedFileReader ) {
+            m_sharedFileReader->clearerr();
+        }
         m_atEndOfFile = false;
         throw std::invalid_argument( "Not fully tested!" );
     }
@@ -954,7 +958,8 @@ private:
         /* As a side effect, blockFinder() creates m_blockFinder if not already initialized! */
         blockFinder();
 
-        m_chunkFetcher = std::make_unique<ChunkFetcher>( m_bitReader, m_blockFinder, m_blockMap, m_windowMap,
+        m_chunkFetcher = std::make_unique<ChunkFetcher>( ensureSharedFileReader( m_sharedFileReader->clone() ),
+                                                         m_blockFinder, m_blockMap, m_windowMap,
                                                          m_fetcherParallelization );
 
         if ( !m_chunkFetcher ) {
@@ -1047,7 +1052,6 @@ private:
     uint64_t m_maxDecompressedChunkSize{ std::numeric_limits<size_t>::max() };
 
     std::unique_ptr<SharedFileReader> m_sharedFileReader;
-    BitReader m_bitReader{ UniqueFileReader( m_sharedFileReader->clone() ) };
 
     size_t m_currentPosition = 0;  /**< the current position as can only be modified with read or seek calls. */
     bool m_atEndOfFile = false;

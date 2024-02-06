@@ -53,9 +53,9 @@ testAutomaticMarkerResolution( const std::filesystem::path& filePath,
     std::cerr << "Test Automatic Marker Resolution with: " << filePath.filename()
               << " starting from block " << blockIndex << "\n";
 
-    rapidgzip::BitReader bitReader(
+    auto sharedFileReader =
         std::make_unique<SharedFileReader>(
-            std::make_unique<StandardFileReader>( filePath ) ) );
+            std::make_unique<StandardFileReader>( filePath ) );
     const auto blockOffset = getBlockOffset( filePath, blockIndex );
     try {
         std::atomic<bool> cancel{ false };
@@ -65,7 +65,7 @@ testAutomaticMarkerResolution( const std::filesystem::path& filePath,
         chunkDataConfiguration.fileType = FileType::GZIP;
 
         const auto result = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlock(
-            bitReader,
+            sharedFileReader->clone(),
             blockOffset,
             /* untilOffset */ std::numeric_limits<size_t>::max(),
             /* window */ {},
@@ -214,9 +214,9 @@ testIsalBug()
      * a2a926d84b8edc8baf88e50e7f690ca0  -
      */
     const std::string filePath{ "test-files/silesia/20xsilesia.tar.bgz" };
-    const rapidgzip::BitReader bitReader(
+    auto sharedFileReader =
         std::make_unique<SharedFileReader>(
-            std::make_unique<StandardFileReader>( filePath ) ) );
+            std::make_unique<StandardFileReader>( filePath ) );
 
     using ChunkFetcher = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>;
 
@@ -229,7 +229,7 @@ testIsalBug()
     const auto blockOffset = 4727960325ULL;
     const auto untilOffset = 4731261455ULL;
     const auto result = ChunkFetcher::decodeBlock(
-        bitReader,
+        std::move( sharedFileReader ),
         blockOffset,
         untilOffset,
         /* window */ std::make_shared<WindowMap::Window>( window, CompressionType::GZIP ),
@@ -245,10 +245,10 @@ template<typename InflateWrapper>
 void
 testWikidataException( const std::filesystem::path& rootFolder )
 {
-    rapidgzip::BitReader bitReader(
+    auto sharedFileReader =
         std::make_unique<SharedFileReader>(
             std::make_unique<StandardFileReader>(
-                rootFolder / "wikidata-20220103-all.json.gz-379508635534b--379510732698b.deflate" ) ) );
+                rootFolder / "wikidata-20220103-all.json.gz-379508635534b--379510732698b.deflate" ) );
 
     const auto startOffset = 0ULL;
     const auto exactUntilOffset = 2097164ULL;
@@ -267,7 +267,7 @@ testWikidataException( const std::filesystem::path& rootFolder )
      * is also given the exactUntilOffset and does not move more bits than that to the ISA-L input buffers. */
     const auto chunk =
         rapidgzip::GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlockWithInflateWrapper<InflateWrapper>(
-            bitReader, exactUntilOffset, initialWindow, decodedSize, chunkDataConfiguration );
+            std::move( sharedFileReader ), exactUntilOffset, initialWindow, decodedSize, chunkDataConfiguration );
 
     REQUIRE_EQUAL( chunk.encodedSizeInBits, exactUntilOffset );
     REQUIRE_EQUAL( chunk.decodedSizeInBytes, decodedSize );
@@ -345,6 +345,16 @@ initBitReaderAtDeflateStream( UniqueFileReader&& fileReader )
 }
 
 
+[[nodiscard]] std::pair<size_t, std::unique_ptr<SharedFileReader> >
+getDeflateStreamOffsetAndSharedFileReader( UniqueFileReader&& fileReader )
+{
+    auto sharedFileReader = ensureSharedFileReader( std::move( fileReader ) );
+    rapidgzip::BitReader bitReader( sharedFileReader->clone() );
+    rapidgzip::gzip::readHeader( bitReader );
+    return { bitReader.tell(), std::move( sharedFileReader ) };
+}
+
+
 [[nodiscard]] ChunkData
 decodeWithDecodeBlockWithRapidgzip( UniqueFileReader&& fileReader )
 {
@@ -366,7 +376,7 @@ decodeWithDecodeBlockWithRapidgzip( UniqueFileReader&& fileReader )
 [[nodiscard]] ChunkData
 decodeWithDecodeBlock( UniqueFileReader&& fileReader )
 {
-    auto bitReader = initBitReaderAtDeflateStream( std::move( fileReader ) );
+    auto [streamOffset, sharedFileReader] = getDeflateStreamOffsetAndSharedFileReader( std::move( fileReader ) );
     std::atomic<bool> cancel{ false };
 
     ChunkData::Configuration chunkDataConfiguration;
@@ -374,8 +384,8 @@ decodeWithDecodeBlock( UniqueFileReader&& fileReader )
     chunkDataConfiguration.fileType = FileType::GZIP;
 
     return GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlock(
-        bitReader,
-        bitReader.tell(),
+        std::move( sharedFileReader ),
+        streamOffset,
         /* untilOffset */ std::numeric_limits<size_t>::max(),
         /* window */ {},
         /* decodedSize */ std::nullopt,
@@ -388,17 +398,18 @@ template<typename InflateWrapper>
 [[nodiscard]] ChunkData
 decodeWithDecodeBlockWithInflateWrapper( UniqueFileReader&& fileReader )
 {
-    auto bitReader = initBitReaderAtDeflateStream( std::move( fileReader ) );
+    auto [streamOffset, sharedFileReader] = getDeflateStreamOffsetAndSharedFileReader( std::move( fileReader ) );
     using ChunkFetcher = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>;
 
     ChunkData::Configuration chunkDataConfiguration;
     chunkDataConfiguration.crc32Enabled = true;
-    chunkDataConfiguration.encodedOffsetInBits = bitReader.tell();
+    chunkDataConfiguration.encodedOffsetInBits = streamOffset;
     chunkDataConfiguration.fileType = FileType::GZIP;
 
+    const auto exactUntilOffset = sharedFileReader->size().value() * BYTE_SIZE;
     return ChunkFetcher::decodeBlockWithInflateWrapper<InflateWrapper>(
-        bitReader,
-        /* exactUntilOffset */ bitReader.size().value(),
+        std::move( sharedFileReader ),
+        exactUntilOffset,
         /* window */ {},
         /* decodedSize */ std::nullopt,
         chunkDataConfiguration );
