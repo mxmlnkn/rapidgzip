@@ -490,23 +490,26 @@ readGzipIndex( UniqueFileReader         indexFile,
 
     index.windows = std::make_shared<WindowMap>();
     for ( auto& [offset, windowSize, compressionRatio] : windowInfos ) {
-        FasterVector<uint8_t> window;
+        /* Package the non-copyable FasterVector into a copyable smart pointer because the lambda given into the
+         * ThreadPool gets inserted into a std::function living inside std::packaged_task, and std::function
+         * requires every capture to be copyable. While it may compile with Clang and GCC, it does not with MSVC. */
+        auto window = std::make_shared<FasterVector<uint8_t> >();
         if ( windowSize > 0 ) {
-            window.resize( windowSize );
-            checkedRead( indexFile.get(), window.data(), window.size() );
+            window->resize( windowSize );
+            checkedRead( indexFile.get(), window->data(), window->size() );
         }
 
         /* Only bother with overhead-introducing compression for large chunk compression ratios. */
         if ( compressionRatio > 2  ) {
-            futures.emplace_back( threadPool.submit( [toCompress = std::move( window ), offset = offset] () {
+            futures.emplace_back( threadPool.submit( [toCompress = std::move( window ), offset = offset] () mutable {
                 return std::make_pair(
-                    offset, std::make_shared<WindowMap::Window>( std::move( toCompress ), CompressionType::GZIP ) );
+                    offset, std::make_shared<WindowMap::Window>( std::move( *toCompress ), CompressionType::GZIP ) );
             } ) );
             if ( futures.size() >= 2 * backgroundThreadCount ) {
                 processFuture();
             }
         } else {
-            index.windows->emplace( offset, std::move( window ), CompressionType::NONE );
+            index.windows->emplace( offset, std::move( *window ), CompressionType::NONE );
         }
     }
 
