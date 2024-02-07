@@ -268,11 +268,11 @@ public:
         }
 
         std::stringstream result;
-        const auto maxBin = std::max_element( m_bins.begin(), m_bins.end() );
 
         std::vector<std::string> binLabels{ m_bins.size() };
-        binLabels.back() = formatLabel( m_statistics.max );
         binLabels.front() = formatLabel( m_statistics.min );
+        binLabels.back() = formatLabel( m_statistics.max );
+        const auto maxBin = std::max_element( m_bins.begin(), m_bins.end() );
         for ( size_t i = 1; i < m_bins.size() - 1; ++i ) {
             if ( i == static_cast<size_t>( std::distance( m_bins.begin(), maxBin ) ) ) {
                 binLabels[i] = formatLabel( binCenter( i ) );

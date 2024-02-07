@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <iomanip>
 #include <iostream>
@@ -243,7 +244,10 @@ analyze( UniqueFileReader inputFile,
     std::map<std::vector<uint8_t>, size_t> distanceCodings;
     std::map<std::vector<uint8_t>, size_t> literalCodings;
 
-    Histogram<uint16_t> globalUsedWindowSymbolsHistogram( /* min */ 0, /* max */ 32_Ki, /* bins */ 32, "Bytes" );
+    std::array<uint64_t, MAX_WINDOW_SIZE + 1> globalUsedWindowSymbols{};
+    std::array<uint64_t, MAX_RUN_LENGTH + 1> globalbackReferenceLengths{};
+    Histogram<uint16_t> globalUsedWindowSymbolsHistogram( /* min */ 0, MAX_WINDOW_SIZE, /* bins */ 32, "Bytes" );
+    Histogram<uint16_t> globalBackReferenceLengthHistogram( /* min */ 3, MAX_RUN_LENGTH, /* bins */ 32, "Bytes" );
     std::vector<size_t> farthestBackreferences;
 
     CRC32Calculator crc32Calculator;
@@ -504,6 +508,11 @@ analyze( UniqueFileReader inputFile,
         std::cout << "    Number of back-references        : " << backreferences.size() << "\n";
         std::cout << "    Number of merged back-references : " << mergedBackreferences.size() << "\n";
 
+        for ( const auto& [distance, length] : backreferences ) {
+            globalBackReferenceLengthHistogram.merge( length );
+            ++globalbackReferenceLengths.at( length );
+        }
+
         if ( uncompressedBlockSize >= 32_Ki ) {
             std::vector<bool> usedWindowSymbols( 32_Ki, false );
             for ( const auto& [distance, length] : backreferences ) {
@@ -520,6 +529,7 @@ analyze( UniqueFileReader inputFile,
             for ( size_t i = 0; i < usedWindowSymbols.size(); ++i ) {
                 if ( usedWindowSymbols[i] ) {
                     globalUsedWindowSymbolsHistogram.merge( i );
+                    ++globalUsedWindowSymbols.at( i );
                 }
             }
         }
@@ -634,9 +644,26 @@ analyze( UniqueFileReader inputFile,
         << "\n"
         << Histogram<size_t>{ farthestBackreferences, 8, "Bytes" }.plot()
         << "\n"
+        << "\n== Histogram of Backreference Lengths ==\n"
+        << "\n"
+        << globalBackReferenceLengthHistogram.plot()
+        << "\n"
+        << "Counts for each length in the range [3,258]:\n";
+    for ( const auto count : globalbackReferenceLengths ) {
+        std::cout << " " << count;
+    }
+    std::cout
+        << "\n"
         << "\n== Histogram for Window Symbol Usage ==\n"
         << "\n"
         << globalUsedWindowSymbolsHistogram.plot()
+        << "\n"
+    /*    << "Counts for used symbols for each window offset in the range [0,32*1024]:\n";
+    for ( const auto count : globalUsedWindowSymbols ) {
+        std::cout << " " << count;
+    }
+    std::cout */
+        << "\n"
         << "\n"
         << "== Encoded Block Size Distribution ==\n"
         << "\n"
