@@ -243,6 +243,7 @@ analyze( UniqueFileReader inputFile,
     std::map<std::vector<uint8_t>, size_t> distanceCodings;
     std::map<std::vector<uint8_t>, size_t> literalCodings;
 
+    Histogram<uint16_t> globalUsedWindowSymbolsHistogram( /* min */ 0, /* max */ 32_Ki, /* bins */ 32, "Bytes" );
     std::vector<size_t> farthestBackreferences;
 
     CRC32Calculator crc32Calculator;
@@ -515,6 +516,12 @@ analyze( UniqueFileReader inputFile,
             const auto usedWindowSymbolCount = std::count( usedWindowSymbols.begin(), usedWindowSymbols.end(), true );
             std::cout << "    Used window symbols              : " << usedWindowSymbolCount << " ("
                       << static_cast<double>( usedWindowSymbolCount ) / static_cast<double>( 32_Ki ) * 100.0 << " %)\n";
+
+            for ( size_t i = 0; i < usedWindowSymbols.size(); ++i ) {
+                if ( usedWindowSymbols[i] ) {
+                    globalUsedWindowSymbolsHistogram.merge( i );
+                }
+            }
         }
         std::cout << "\n";
 
@@ -626,6 +633,10 @@ analyze( UniqueFileReader inputFile,
         << "\n== Farthest Backreferences Distribution ==\n"
         << "\n"
         << Histogram<size_t>{ farthestBackreferences, 8, "Bytes" }.plot()
+        << "\n"
+        << "\n== Histogram for Window Symbol Usage ==\n"
+        << "\n"
+        << globalUsedWindowSymbolsHistogram.plot()
         << "\n"
         << "== Encoded Block Size Distribution ==\n"
         << "\n"
