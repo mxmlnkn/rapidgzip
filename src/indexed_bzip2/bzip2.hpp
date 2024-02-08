@@ -675,6 +675,10 @@ inline size_t
 Block::BurrowsWheelerTransformData::decodeBlock( const size_t nMaxBytesToDecode,
                                                  char*        outputBuffer )
 {
+    if ( writeCount == 0 ) {
+        return 0;
+    }
+
     assert( outputBuffer != nullptr );
     size_t nBytesDecoded = 0;
 
