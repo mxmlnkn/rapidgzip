@@ -1406,7 +1406,7 @@ public:
                  * However, igzip -0 can compress the whole file in a single deflate block.
                  * Decompressing such a file is not supported (yet). It would require some heavy
                  * refactoring of the ChunkData class to support resuming the decompression so that
-                 * we can simply break and return here insteda of throwing an exception. This would basically
+                 * we can simply break and return here instead of throwing an exception. This would basically
                  * require putting a whole GzipReader in the ChunkData so that even random access is supported
                  * in an emulated manner. */
                 if ( blockBytesRead > 256_Mi ) {

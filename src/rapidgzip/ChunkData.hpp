@@ -85,7 +85,7 @@ struct ChunkData :
          *    might not work perfectly and might already have read some of the next block.
          * Currently, the unit tests, test that all possibilities to derive the footer offsets: GzipReader, decodeBlock,
          * decodeBlockWithInflateWrapper with ISA-L or zlib, return the same value.
-         * That value is currently the footer end because it seemed easier to implement. This might be subjecft to
+         * That value is currently the footer end because it seemed easier to implement. This might be subject to
          * change until it is actually used for something (e.g. smarter block splitting).
          * The most complicated to implement but least ambiguous solution would be to add all three boundaries to
          * this struct.
@@ -354,7 +354,7 @@ public:
     }
 
     /**
-     * Appends gzip footer information at the given offset.
+     * Appends generic footer information at the given offset.
      */
     void
     appendFooter( ChunkData::Footer&& footer )
