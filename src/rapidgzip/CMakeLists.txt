@@ -26,7 +26,7 @@ target_sources(librapidgzip INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/zlib.hpp
     ${CMAKE_CURRENT_LIST_DIR}/WindowMap.hpp
 )
-target_link_libraries(librapidgzip INTERFACE libhuffmangzip core zlibstatic isal_inflate)
+target_link_libraries(librapidgzip INTERFACE libhuffmangzip core zlibstatic isal_inflate indexed_bzip2)
 target_compile_features(librapidgzip INTERFACE cxx_std_17)
 if(WITH_ISAL)
     target_compile_definitions(librapidgzip INTERFACE WITH_ISAL)

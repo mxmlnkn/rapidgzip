@@ -11,6 +11,7 @@
 #include <vector>
 
 #include <BlockFinderInterface.hpp>
+#include <bzip2.hpp>
 #include <common.hpp>
 
 #include "blockfinder/Bgzf.hpp"
@@ -53,6 +54,8 @@ public:
             throw std::invalid_argument( "A spacing smaller than the window size makes no sense!" );
         }
 
+        std::optional<size_t> firstOffset;
+
         /* The first deflate block offset is easily found by reading over the gzip header.
          * The correctness and existence of this first block is a required initial condition for the algorithm. */
         BitReader bitReader{ m_file->clone() };
@@ -60,24 +63,47 @@ public:
         const auto positionAfterGzipHeader = bitReader.tell();
         if ( gzipError == Error::NONE ) {
             m_fileType = blockfinder::Bgzf::isBgzfFile( m_file ) ? FileType::BGZF : FileType::GZIP;
-        } else {
+            if ( m_fileType == FileType::BGZF ) {
+                m_bgzfBlockFinder = std::make_unique<blockfinder::Bgzf>( m_file->clone() );
+            }
+            firstOffset = bitReader.tell();
+        }
+
+        if ( m_fileType == FileType::NONE ) {
             /** Try reading zlib header */
             bitReader.seek( 0 );
             const auto [zlibHeader, zlibError] = zlib::readHeader( bitReader );
             if ( zlibError == Error::NONE ) {
                 m_fileType = FileType::ZLIB;
-            } else {
-                /** Try reading deflate "header" */
-                bitReader.seek( 0 );
-                deflate::Block block;
-                if ( block.readHeader( bitReader ) == Error::NONE ) {
-                    m_fileType = FileType::DEFLATE;
-                }
-                bitReader.seek( 0 );
+                firstOffset = bitReader.tell();
             }
         }
 
         if ( m_fileType == FileType::NONE ) {
+            /** Try reading bzip2 header */
+            bzip2::BitReader bzip2BitReader{ m_file->clone() };
+            try {
+                bzip2::readBzip2Header( bzip2BitReader );
+                m_fileType = FileType::BZIP2;
+                firstOffset = bzip2BitReader.tell();
+            } catch ( const std::domain_error& ) {
+                /* Ignore header errors here. */
+            }
+        }
+
+        /* Try deflate last because it has the least redundancy. In the worst case, for fixed Huffman blocks,
+         * it checks only 1 bit! */
+        if ( m_fileType == FileType::NONE ) {
+            /** Try reading deflate "header" */
+            bitReader.seek( 0 );
+            deflate::Block block;
+            if ( block.readHeader( bitReader ) == Error::NONE ) {
+                m_fileType = FileType::DEFLATE;
+                firstOffset = 0;
+            }
+        }
+
+        if ( ( m_fileType == FileType::NONE ) || !firstOffset ) {
             std::stringstream message;
             message << "Encountered error while reading gzip header: " << toString( gzipError )
                     << "\nBit reader position after trying to read gzip header: "
@@ -85,11 +111,7 @@ public:
             throw std::invalid_argument( std::move( message ).str() );
         }
 
-        m_blockOffsets.push_back( bitReader.tell() );
-
-        m_bgzfBlockFinder = m_fileType == FileType::BGZF
-                            ? std::make_unique<blockfinder::Bgzf>( m_file->clone() )
-                            : std::unique_ptr<blockfinder::Bgzf>();
+        m_blockOffsets.push_back( *firstOffset );
     }
 
     /**

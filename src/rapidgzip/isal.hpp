@@ -173,6 +173,8 @@ private:
             return readGzipFooter();
         case FileType::ZLIB:
             return readZlibFooter();
+        case FileType::BZIP2:
+            break;
         }
         throw std::logic_error( "[IsalInflateWrapper::readFooter] Invalid file type!" );
     }
@@ -478,6 +480,7 @@ IsalInflateWrapper::readHeader()
     switch ( m_fileType )
     {
     case FileType::NONE:
+    case FileType::BZIP2:
         break;
 
     case FileType::DEFLATE:

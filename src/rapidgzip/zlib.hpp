@@ -208,6 +208,8 @@ private:
             return readGzipFooter();
         case FileType::ZLIB:
             return readZlibFooter();
+        case FileType::BZIP2:
+            break;
         }
         throw std::logic_error( "[ZlibInflateWrapper::readFooter] Invalid file type!" );
     }
@@ -473,7 +475,8 @@ getZlibWindowBits( FileType fileType,
     switch ( fileType )
     {
     case FileType::NONE:
-        throw std::logic_error( "[getZlibWindowBits] Invalid file type!" );
+    case FileType::BZIP2:
+        break;
     case FileType::BGZF:
     case FileType::GZIP:
         return 16 + windowSize;
@@ -500,6 +503,7 @@ ZlibInflateWrapper::readHeader()
     switch ( m_fileType )
     {
     case FileType::NONE:
+    case FileType::BZIP2:
         throw std::logic_error( "[ZlibInflateWrapper::readHeader] Invalid file type!" );
     case FileType::DEFLATE:
         break;

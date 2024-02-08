@@ -28,8 +28,8 @@
  * @verbatim
  * Symbol               Expression
  * ------------------------------------------
- * BZipFile          := BZipStream (one or more)
- * └──BZipStream     := StreamHeader StreamBlock* StreamFooter
+ * BZipFile             := BZipStream (one or more)
+ * └──BZipStream        := StreamHeader StreamBlock* StreamFooter
  *    ├──StreamHeader   := HeaderMagic Version Level                          -> readBzip2Header
  *    ├──StreamBlock    := BlockHeader BlockTrees BlockData(Huffman encoded)
  *    │ ├──BlockHeader  := BlockMagic BlockCRC Randomized OrigPtr             -> readBlockHeader
@@ -252,6 +252,10 @@ public:
      * This undoes three types of compression: huffman coding, run length encoding,
      * and move to front encoding.  We have to undo all those to know when we've
      * read enough input.
+     *
+     * It is not automatically called by the constructor and must be called manually for non-EOS blocks.
+     * The interface is like this because ParallelBZ2Reader slows down when calling it automatically
+     * because it would not be called on the worker threads but on the main thread!
      */
     void
     readBlockData();
