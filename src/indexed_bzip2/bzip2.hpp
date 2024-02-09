@@ -23,12 +23,14 @@
 
 namespace bzip2
 {
-static constexpr int CRC32_LOOKUP_TABLE_SIZE = 256;
+using CRC32LookupTable = std::array<uint32_t, 256>;
 
-inline std::array<uint32_t, CRC32_LOOKUP_TABLE_SIZE>
-createCRC32LookupTable( bool littleEndian = false )
+
+[[nodiscard]] constexpr CRC32LookupTable
+createCRC32LookupTable() noexcept
 {
-    std::array<uint32_t, CRC32_LOOKUP_TABLE_SIZE> table;
+    const auto littleEndian{ false };
+    CRC32LookupTable table{};
     for ( uint32_t i = 0; i < table.size(); ++i ) {
         uint32_t c = littleEndian ? i : i << 24U;
         for ( int j = 0; j < 8; ++j ) {
@@ -44,8 +46,19 @@ createCRC32LookupTable( bool littleEndian = false )
 }
 
 
+static constexpr int CRC32_LOOKUP_TABLE_SIZE = 256;
+
 /* a small lookup table: raw data -> CRC32 value to speed up CRC calculation */
-static const std::array<uint32_t, CRC32_LOOKUP_TABLE_SIZE> CRC32_TABLE = createCRC32LookupTable();
+alignas( 64 ) constexpr static CRC32LookupTable CRC32_TABLE = createCRC32LookupTable();
+
+
+[[nodiscard]] constexpr uint32_t
+updateCRC32( uint32_t crc,
+             uint8_t  data ) noexcept
+{
+    //return ( crc >> 8U ) ^ CRC32_TABLE[( crc ^ data ) & 0xFFU];
+    return ( crc << 8U ) ^ CRC32_TABLE[( ( crc >> 24U ) ^ data ) & 0xFFU];
+}
 
 
 /* Constants for huffman coding */
@@ -694,7 +707,7 @@ Block::BurrowsWheelerTransformData::decodeBlock( const size_t nMaxBytesToDecode,
         /* Whenever we see 3 consecutive copies of the same byte, the 4th is a repeat count */
         if ( writeRun < 3 ) {
             outputBuffer[nBytesDecoded++] = writeCurrent;
-            dataCRC = ( dataCRC << 8U ) ^ CRC32_TABLE[( dataCRC >> 24U ) ^ writeCurrent];
+            dataCRC = updateCRC32( dataCRC, writeCurrent );
             if ( writeCurrent != previous ) {
                 writeRun = 0;
             } else {
@@ -704,7 +717,7 @@ Block::BurrowsWheelerTransformData::decodeBlock( const size_t nMaxBytesToDecode,
             int copies = writeCurrent;
             while ( copies-- ) {
                 outputBuffer[nBytesDecoded++] = previous;
-                dataCRC = ( dataCRC << 8U ) ^ CRC32_TABLE[( dataCRC >> 24U ) ^ previous];
+                dataCRC = updateCRC32( dataCRC, previous );
             }
             writeCurrent = -1;
             writeRun = 0;
