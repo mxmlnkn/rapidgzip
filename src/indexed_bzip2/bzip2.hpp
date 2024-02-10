@@ -251,7 +251,7 @@ public:
      * bit runs.  (MTF = Move To Front.  Every time a symbol occurs it's moved
      * to the front of the table, so it has a shorter encoding next time.)
      */
-    uint16_t selectors_used;
+    uint16_t selectorsCount;
 
     std::array<char, 32768> selectors;        // nSelectors=15 bits
     std::array<GroupData, MAX_GROUPS> groups; // huffman coding tables
@@ -389,22 +389,43 @@ Block::readBlockHeader()
     // Read in the group selector array, which is stored as MTF encoded
     // bit runs.  (MTF = Move To Front.  Every time a symbol occurs it's moved
     // to the front of the table, so it has a shorter encoding next time.)
-    if ( !( selectors_used = getBits<15>() ) ) {
+    selectorsCount = getBits<15>();
+    if ( selectorsCount == 0 ) {
         std::stringstream msg;
-        msg << "[BZip2 block header] selectors_used " << selectors_used << " is invalid";
+        msg << "[BZip2 block header] The number of selectors " << selectorsCount << " is invalid";
         throw std::logic_error( std::move( msg ).str() );
     }
-    for ( int i = 0; i < groupCount; i++ ) {
-        mtfSymbol[i] = i;
-    }
-    for ( int i = 0; i < selectors_used; i++ ) {
-        int j = 0;
-        for ( ; getBits<1>(); j++ ) {
-            if ( j >= groupCount ) {
-                std::stringstream msg;
-                msg << "[BZip2 block header] Could not find zero termination after " << groupCount << " bits";
-                throw std::domain_error( std::move( msg ).str() );
+
+    /* The "selectors", referring to the Huffman trees to decode a group of 50 symbols, can only range from 0-5,
+     * because MAX_GROUPS = 6, and are encoded as zero-terminated 1-bits, where the number of 1-bits represents
+     * the Huffman tree ID. */
+    static constexpr std::array<uint8_t, ( 1U << MAX_GROUPS )> BITS_TO_SELECTOR = [] () {
+        std::array<uint8_t, ( 1U << MAX_GROUPS )> result{};
+        uint8_t lowestBitsSet{ 0 };
+        for ( uint8_t selector = 0; selector < MAX_GROUPS; ++selector ) {
+            const auto paddingBitsCount = MAX_GROUPS - selector;
+            const auto maxPaddingBits = static_cast<uint8_t>( 1U << paddingBitsCount );
+            const auto highestBitsSet = static_cast<uint8_t>( lowestBitsSet << ( MAX_GROUPS - selector ) );
+            for ( uint8_t paddingBits = 0; paddingBits < maxPaddingBits; ++paddingBits ) {
+                result[highestBitsSet | paddingBits] = selector;
             }
+
+            lowestBitsSet <<= 1U;
+            lowestBitsSet |= 1U;
+        }
+        /* A full line of 1-bits is not allowed because it would indicate a selector index larger than MAX_GROUPS. */
+        result.back() = MAX_GROUPS;
+        return result;
+    } ();
+
+    std::iota( mtfSymbol.begin(), mtfSymbol.begin() + groupCount, 0 );
+    for ( size_t i = 0; i < selectorsCount; i++ ) {
+        const auto j = BITS_TO_SELECTOR.at( m_bitReader->peek<MAX_GROUPS>() );
+        m_bitReader->seekAfterPeek( j + 1 );
+        if ( j >= groupCount ) {
+            std::stringstream msg;
+            msg << "[BZip2 block header] Could not find zero termination after " << groupCount << " bits";
+            throw std::domain_error( std::move( msg ).str() );
         }
 
         // Decode MTF to get the next selector, and move it to the front.
@@ -529,9 +550,9 @@ Block::readBlockData()
         if ( !( symCount-- ) ) {
             // Determine which huffman coding group to use.
             symCount = GROUP_SIZE - 1;
-            if ( selector >= selectors_used ) {
+            if ( selector >= selectorsCount ) {
                 std::stringstream msg;
-                msg << "[BZip2 block data] selector " << selector << " out of maximum range " << selectors_used;
+                msg << "[BZip2 block data] selector " << selector << " out of maximum range " << selectorsCount;
                 throw std::domain_error( std::move( msg ).str() );
             }
             hufGroup = &groups[selectors[selector++]];
