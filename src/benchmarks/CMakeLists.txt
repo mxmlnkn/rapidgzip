@@ -3,7 +3,7 @@ add_custom_target(run-benchmarks)
 
 add_executable(benchmarkHuffmanCoding)
 target_sources(benchmarkHuffmanCoding PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkHuffmanCoding.cpp)
-target_link_libraries(benchmarkHuffmanCoding PRIVATE libhuffman core)
+target_link_libraries(benchmarkHuffmanCoding PRIVATE libhuffman libhuffmangzip core)
 add_custom_target(run-benchmarkHuffmanCoding
     COMMAND ./benchmarkHuffmanCoding 2>&1 | tee benchmarkHuffmanCoding.log
     VERBATIM

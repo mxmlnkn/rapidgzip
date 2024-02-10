@@ -12,7 +12,6 @@ target_sources(librapidgzip INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/DecodedDataView.hpp
     ${CMAKE_CURRENT_LIST_DIR}/definitions.hpp
     ${CMAKE_CURRENT_LIST_DIR}/deflate.hpp
-    ${CMAKE_CURRENT_LIST_DIR}/Error.hpp
     ${CMAKE_CURRENT_LIST_DIR}/gzip.hpp
     ${CMAKE_CURRENT_LIST_DIR}/GzipAnalyzer.hpp
     ${CMAKE_CURRENT_LIST_DIR}/GzipBlockFinder.hpp
@@ -27,7 +26,7 @@ target_sources(librapidgzip INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/zlib.hpp
     ${CMAKE_CURRENT_LIST_DIR}/WindowMap.hpp
 )
-target_link_libraries(librapidgzip INTERFACE libhuffman core zlibstatic isal_inflate)
+target_link_libraries(librapidgzip INTERFACE libhuffmangzip core zlibstatic isal_inflate)
 target_compile_features(librapidgzip INTERFACE cxx_std_17)
 if(WITH_ISAL)
     target_compile_definitions(librapidgzip INTERFACE WITH_ISAL)

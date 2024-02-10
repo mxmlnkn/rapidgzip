@@ -152,6 +152,7 @@ isal_sources = ['external/isa-l/' + source for source in isal_sources] if withIs
 include_dirs = [
     '.',
     'core',
+    'huffman',
     'rapidgzip',
     'rapidgzip/huffman',
     'indexed_bzip2',

@@ -7,7 +7,6 @@
 #include <stdexcept>
 #include <type_traits>
 
-#include <definitions.hpp>
 #include <Error.hpp>
 #include <VectorView.hpp>
 

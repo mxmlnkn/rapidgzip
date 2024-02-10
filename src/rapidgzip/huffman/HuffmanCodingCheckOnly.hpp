@@ -3,7 +3,8 @@
 #include <optional>
 #include <stdexcept>
 
-#include "HuffmanCodingBase.hpp"
+#include <definitions.hpp>
+#include <huffman/HuffmanCodingBase.hpp>
 
 
 namespace rapidgzip

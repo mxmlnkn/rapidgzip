@@ -5,6 +5,7 @@ include rapidgzip.svg
 include CHANGELOG.md
 include rapidgzip.pyx
 recursive-include core *.hpp
+recursive-include huffman *.hpp
 recursive-include indexed_bzip2 *.hpp
 recursive-include rapidgzip *.hpp
 recursive-include tools *.hpp
