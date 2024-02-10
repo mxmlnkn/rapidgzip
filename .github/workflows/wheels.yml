@@ -30,6 +30,9 @@ jobs:
           manylinux-image: manylinux_2_28
           archs: auto64
 
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "10.14"
+
     steps:
     - uses: actions/checkout@v4
       with:

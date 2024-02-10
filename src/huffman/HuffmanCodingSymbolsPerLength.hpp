@@ -26,12 +26,13 @@ namespace rapidgzip
 template<typename HuffmanCode,
          uint8_t  MAX_CODE_LENGTH,
          typename Symbol,
-         size_t   MAX_SYMBOL_COUNT>
+         size_t   MAX_SYMBOL_COUNT,
+         bool     CHECK_OPTIMALITY = true>
 class HuffmanCodingSymbolsPerLength :
-    public HuffmanCodingBase<HuffmanCode, MAX_CODE_LENGTH, Symbol, MAX_SYMBOL_COUNT>
+    public HuffmanCodingBase<HuffmanCode, MAX_CODE_LENGTH, Symbol, MAX_SYMBOL_COUNT, CHECK_OPTIMALITY>
 {
 public:
-    using BaseType = HuffmanCodingBase<HuffmanCode, MAX_CODE_LENGTH, Symbol, MAX_SYMBOL_COUNT>;
+    using BaseType = HuffmanCodingBase<HuffmanCode, MAX_CODE_LENGTH, Symbol, MAX_SYMBOL_COUNT, CHECK_OPTIMALITY>;
     using BitCount = typename BaseType::BitCount;
     using CodeLengthFrequencies = typename BaseType::CodeLengthFrequencies;
 

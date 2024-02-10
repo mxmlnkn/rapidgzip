@@ -15,6 +15,9 @@ jobs:
         # nothing changed. Maybe an issue with a new conda version. 3ca62ea did build just fine.
         #os: [macos-latest, ubuntu-latest, windows-latest]
 
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "10.14"
+
     steps:
     - uses: actions/checkout@v4
       with:

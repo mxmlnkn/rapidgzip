@@ -19,6 +19,7 @@
 #include <vector>
 
 #include <BitReader.hpp>
+#include <huffman/HuffmanCodingShortBitsCached.hpp>
 #include <VectorView.hpp>
 
 
@@ -141,92 +142,6 @@ readBzip2Header( BitReader& bitReader )
 }
 
 
-// This is what we know about each huffman coding group
-struct GroupData
-{
-public:
-    using Symbol = uint16_t;
-
-public:
-    /**
-     * Calculate symbolsPerLength[], base[], and limit[] tables from length[].
-     *
-     * To use these, keep reading bits until value <= limit[bitcount] or
-     * you've read over 20 bits (error).  Then the decoded symbol
-     * equals symbolsPerLength[hufcode_value - base[hufcode_bitcount]].
-     */
-    constexpr void
-    initializeFromLengths( const VectorView<uint8_t>& lengths )
-    {
-        minLen = *std::min_element( lengths.begin(), lengths.end() );
-        maxLen = *std::max_element( lengths.begin(), lengths.end() );
-
-        int pp = 0;
-        for ( uint16_t length = minLen; length <= maxLen; ++length ) {
-            for ( Symbol hh = 0; hh < lengths.size(); ++hh ) {
-                if ( lengths[hh] == length ) {
-                    symbolsPerLength[pp++] = hh;
-                }
-            }
-        }
-
-        std::array<unsigned int, MAX_HUFCODE_BITS + 1> bitLengthFrequencies{};
-        for ( const auto length : lengths ) {
-            bitLengthFrequencies[length]++;
-        }
-
-        // Note that minLen can't be smaller than 1, so we adjust the base
-        // and limit array pointers so we're not always wasting the first
-        // entry.  We do this again when using them (during symbol decoding).
-        auto* const baseTmp = base.data() - 1;
-        auto* const limitTmp = limit.data() - 1;
-
-        /* Calculate limit[] (the largest symbol-coding value at each bit
-         * length, which is (previous limit<<1)+symbols at this level), and
-         * base[] (number of symbols to ignore at each bit length, which is
-         * limit minus the cumulative count of symbols coded for already). */
-        unsigned int hh{ 0 };
-        pp = 0;
-        for ( size_t i = minLen; i < maxLen; i++ ) {
-            pp += bitLengthFrequencies[i];
-            limitTmp[i] = pp - 1;
-            pp <<= 1;
-            hh += bitLengthFrequencies[i];
-            baseTmp[i + 1] = pp - hh;
-        }
-        limitTmp[maxLen] = pp + bitLengthFrequencies[maxLen] - 1;
-        limitTmp[maxLen + 1] = std::numeric_limits<int>::max();
-        baseTmp[minLen] = 0;
-    }
-
-public:
-    /**
-     * Indicates the largest numerical value a symbol with a given
-     * number of bits can have.  It lets us know when to stop reading.
-     */
-    std::array<int, MAX_HUFCODE_BITS + 1> limit{};
-    /**
-     * This is the amount to subtract from the value of a huffman symbol
-     * of a given length when using @ref symbolsPerLength.
-     */
-    std::array<int, MAX_HUFCODE_BITS> base{};
-    /**
-     * Contains the alphabet, first sorted by code length, then by given alphabet order. E.g., it could look like this:
-     * @verbatim
-     * +-------+-----+---+
-     * | B D E | A F | C |
-     * +-------+-----+---+
-     *   CL=3   CL=4  CL=5
-     * @endverbatim
-     * The starting index for a given code length (CL) can be queried with m_offsets.
-     * Requires 16-bit because there are 258 symbols.
-     */
-    std::array<Symbol, MAX_SYMBOLS> symbolsPerLength{};
-    uint8_t minLen;
-    uint8_t maxLen;
-};
-
-
 struct Block
 {
 public:
@@ -282,6 +197,33 @@ public:
 
         Durations durations;
     };
+
+    //using HuffmanCoding = rapidgzip::HuffmanCodingLinearSearch<uint32_t, uint16_t>;
+    //using HuffmanCoding = rapidgzip::HuffmanCodingSymbolsPerLength<uint32_t, MAX_HUFCODE_BITS, uint16_t, MAX_SYMBOLS,
+    //                                                               /* CHECK_OPTIMALITY */ false>;
+    /**
+     * Some quick benchmarks with m ibzip2 && time src/tools/ibzip2 -v -P 1 -d -o /dev/null -f silesia.tar.bz2:
+     *  4-bit: 4.421 4.421 4.482 4.591 4.634
+     *  6-bit: 4.462 4.506 4.277 4.279 4.485
+     *  8-bit: 4.198 4.188 4.176 4.188 4.297
+     * 10-bit: 4.203 4.046 4.174 4.164 4.198
+     * 11-bit: 4.117 4.249 4.137 4.076 4.073
+     * 12-bit: 3.970 4.101 4.177 4.047 4.030 <-
+     * 13-bit: 4.199 4.188 4.144 4.102 4.162
+     * 14-bit: 4.134 4.217 4.240 4.108 4.244
+     * 16-bit: 4.438 4.415 4.306 4.476 4.577
+     * 18-bit: 4.542 4.624 4.562 4.581 4.862
+     * Tested on AMD Ryzen 3900X.
+     */
+    using HuffmanCoding = rapidgzip::HuffmanCodingShortBitsCached<
+        uint32_t, MAX_HUFCODE_BITS, uint16_t, MAX_SYMBOLS, /* LUT size */ 12,
+        /* REVERSE_BITS */ false,  /* CHECK_OPTIMALITY */ false
+    >;
+    /* Won't work. It will cause a stack overflow because it contains a std::array of size 2^MAX_HUFCODE_BITS = 1 MiB.
+     * And the currently committed version also will not work because it reverses the bits as necessary for gzip.
+     * I think this step must be skipped for the bzip2 BitReader. */
+    //using HuffmanCoding =
+    //    rapidgzip::HuffmanCodingReversedBitsCached<uint32_t, MAX_HUFCODE_BITS, uint16_t, MAX_SYMBOLS>;
 
 public:
     Block() = default;
@@ -452,7 +394,7 @@ public:
     uint16_t selectorsCount{ 0 };
 
     std::array<char, 32768> selectors;        // nSelectors=15 bits
-    std::array<GroupData, MAX_GROUPS> groups; // huffman coding tables
+    std::array<HuffmanCoding, MAX_GROUPS> huffmanCodings;
     int groupCount = 0;
 
     /* Second pass decompression data (burrows-wheeler transform) */
@@ -685,7 +627,10 @@ Block::readTrees()
             lengths[symbol] = static_cast<uint8_t>( hh );
         }
 
-        groups[j].initializeFromLengths( VectorView<uint8_t>( lengths.data(), symCount ) );
+        const auto error = huffmanCodings[j].initializeFromLengths( VectorView<uint8_t>( lengths.data(), symCount ) );
+        if ( error != rapidgzip::Error::NONE ) {
+            throw std::domain_error( toString( error ) );
+        }
     }
 }
 
@@ -696,8 +641,6 @@ Block::readTrees()
 inline void
 Block::readBlockData()
 {
-    const GroupData* hufGroup = nullptr;
-
     // We've finished reading and digesting the block.  Now read this
     // block's huffman coded symbols from the file and undo the huffman coding
     // and run length encoding, saving the result into dbuf[dbufCount++] = uc
@@ -711,9 +654,8 @@ Block::readBlockData()
     // Loop through compressed symbols.  This is the first "tight inner loop"
     // that needs to be micro-optimized for speed.  (This one fills out dbuf[]
     // linearly, staying in cache more, so isn't as limited by DRAM access.)
-    const int* base = nullptr;
-    const int* limit = nullptr;
     uint32_t dbufCount = 0;
+    const auto* huffmanCoding = &huffmanCodings.front();
     for ( int hh = 0, runPos = 0, symCount = 0, selector = 0; ; ) {
         // Have we reached the end of this huffman group?
         if ( !( symCount-- ) ) {
@@ -724,35 +666,11 @@ Block::readBlockData()
                 msg << "[BZip2 block data] selector " << selector << " out of maximum range " << selectorsCount;
                 throw std::domain_error( std::move( msg ).str() );
             }
-            hufGroup = &groups[selectors[selector++]];
-            base  = hufGroup->base.data() - 1;
-            limit = hufGroup->limit.data() - 1;
+            huffmanCoding = &huffmanCodings[selectors[selector]];
+            selector++;
         }
 
-        // Read next huffman-coded symbol (into jj).
-        int ii = hufGroup->minLen;
-        int jj = getBits( ii );
-        while ( ( ii <= hufGroup->maxLen ) && ( jj > limit[ii] ) ) {
-            ii++;
-            jj = ( jj << 1U ) | getBits<1>();
-        }
-
-        if ( ii > hufGroup->maxLen ) {
-            std::stringstream msg;
-            msg << "[BZip2 block data] " << ii << " bigger than max length " << hufGroup->maxLen;
-            throw std::domain_error( std::move( msg ).str() );
-        }
-
-        // Huffman decode jj into nextSym (with bounds checking)
-        jj -= base[ii];
-
-        if ( (unsigned int)jj >= MAX_SYMBOLS ) {
-            std::stringstream msg;
-            msg << "[BZip2 block data] " << jj << " larger than max symbols " << MAX_SYMBOLS;
-            throw std::domain_error( std::move( msg ).str() );
-        }
-
-        const auto nextSym = hufGroup->symbolsPerLength[jj];
+        const auto nextSym = huffmanCoding->decode( *m_bitReader ).value();
 
         // If this is a repeated run, loop collecting data
         if ( (unsigned int)nextSym <= SYMBOL_RUNB ) {
@@ -769,7 +687,7 @@ Block::readBlockData()
              * the basic or 0/1 method (except all bits 0, which would use no
              * symbols, but a run of length 0 doesn't mean anything in this
              * context). Thus space is saved. */
-            hh += ( runPos << nextSym );  // +runPos if RUNA; +2*runPos if RUNB
+            hh += runPos << nextSym;  // +runPos if RUNA; +2*runPos if RUNB
             runPos <<= 1;
             continue;
         }
@@ -810,7 +728,7 @@ Block::readBlockData()
             msg << "[BZip2 block data] dbufCount " << dbufCount << " > " << bwdata.dbuf.size() << " dbufSize";
             throw std::domain_error( std::move( msg ).str() );
         }
-        ii = nextSym - 1;
+        int ii = nextSym - 1;
         auto uc = mtfSymbol[ii];
         std::memmove( mtfSymbol.data() + 1, mtfSymbol.data(), ii );
         mtfSymbol[0] = uc;
