@@ -91,4 +91,13 @@ public:
      */
     virtual size_t
     tellCompressed() const = 0;
+
+    void
+    setShowProfileOnDestruction( bool showProfileOnDestruction )
+    {
+        m_showProfileOnDestruction = showProfileOnDestruction;
+    }
+
+protected:
+    bool m_showProfileOnDestruction{ false };
 };

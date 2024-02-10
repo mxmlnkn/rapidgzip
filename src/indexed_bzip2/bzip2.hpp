@@ -230,6 +230,60 @@ public:
 struct Block
 {
 public:
+    /**
+     * m ibzip2 && src/tools/ibzip2 -P 1 -f -L offsets -i scorep-pragzip-bgzf-16MiB.tar.bz2
+     * @verbatim
+     * [BZ2Reader] Time spent:
+     * decodeBlock                   : 2.99293s
+     * readBlockHeader               : 17.9826s
+     *     readSymbolMaps            : 0.000444198s
+     *     readSelectors             : 0.0294166s
+     *     readTrees                 : 0.0168973s
+     *     createHuffmanTable        : 16.8445s
+     *     burrowsWheelerPreparation : 1.08934s
+     * @endverbatim
+     */
+    struct Statistics
+    {
+    public:
+        void
+        merge( const Statistics& other )
+        {
+            durations.merge( other.durations );
+        }
+
+    public:
+        struct Durations
+        {
+        public:
+            void
+            merge( const Durations& other )
+            {
+                readBlockHeader           += other.readBlockHeader;
+                decodeBlock               += other.decodeBlock;
+                readSymbolMaps            += other.readSymbolMaps;
+                readSelectors             += other.readSelectors;
+                readTrees                 += other.readTrees;
+                createHuffmanTable        += other.createHuffmanTable;
+                burrowsWheelerPreparation += other.burrowsWheelerPreparation;
+            }
+
+        public:
+            double readBlockHeader{ 0 };
+            double decodeBlock{ 0 };
+
+            /* Parts of readBlockHeader. */
+            double readSymbolMaps{ 0 };
+            double readSelectors{ 0 };
+            double readTrees{ 0 };
+            double createHuffmanTable{ 0 };
+            double burrowsWheelerPreparation{ 0 };
+        };
+
+        Durations durations;
+    };
+
+public:
     Block() = default;
 
     /** Better don't allow copies because the bitreader would be shared, which might be problematic */
@@ -289,7 +343,10 @@ public:
     read( const size_t nMaxBytesToDecode,
           char*        outputBuffer )
     {
-        return bwdata.decodeBlock( nMaxBytesToDecode, outputBuffer );
+        const auto t0 = now();
+        const auto result = bwdata.decodeBlock( nMaxBytesToDecode, outputBuffer );
+        statistics.durations.decodeBlock += duration( t0 );
+        return result;
     }
 
 private:
@@ -312,9 +369,16 @@ private:
     void
     readBlockTrees()
     {
+        const auto tReadSymbolMaps = now();
         readSymbolMaps();
+        const auto tReadSelectors = now();
         readSelectors();
+        const auto tReadTrees = now();
         readTrees();
+
+        statistics.durations.readSymbolMaps += duration( tReadSymbolMaps, tReadSelectors );
+        statistics.durations.readSelectors += duration( tReadSelectors, tReadTrees );
+        statistics.durations.readTrees += duration( tReadTrees );
     }
 
     void
@@ -397,6 +461,8 @@ public:
     size_t encodedOffsetInBits = 0;
     size_t encodedSizeInBits = 0;
 
+    Statistics statistics;
+
 private:
     BitReader* m_bitReader = nullptr;
     bool m_atEndOfStream = false;
@@ -422,6 +488,8 @@ private:
 inline void
 Block::readBlockHeader()
 {
+    const auto tReadBlockHeader = now();
+
     encodedOffsetInBits = bitReader().tell();
     encodedSizeInBits = 0;
 
@@ -460,6 +528,7 @@ Block::readBlockHeader()
     }
 
     readBlockTrees();
+    statistics.durations.readBlockHeader += duration( tReadBlockHeader );
 }
 
 
@@ -636,6 +705,9 @@ Block::readBlockData()
     bwdata.byteCount.fill( 0 );
     std::iota( mtfSymbol.begin(), mtfSymbol.end(), 0 );
 
+    const auto t0 = now();
+    /** @note The loops inside this for-loop are all too short to be profiled.
+     *        The overhead becomes disastrously large! It takes 190s to decode instead of 20s. */
     // Loop through compressed symbols.  This is the first "tight inner loop"
     // that needs to be micro-optimized for speed.  (This one fills out dbuf[]
     // linearly, staying in cache more, so isn't as limited by DRAM access.)
@@ -757,7 +829,11 @@ Block::readBlockData()
         throw std::domain_error( std::move( msg ).str() );
     }
 
+    statistics.durations.createHuffmanTable += duration( t0 );
+
+    const auto tPrepareStart = now();
     bwdata.prepare();
+    statistics.durations.burrowsWheelerPreparation += duration( tPrepareStart );
 
     encodedSizeInBits = bitReader().tell() - encodedOffsetInBits;
 }

@@ -372,6 +372,7 @@ ibzip2CLI( int argc, char** argv )
         } else {
             reader = std::make_unique<ParallelBZ2Reader>( std::move( fileReader ), decoderParallelism );
         }
+        reader->setShowProfileOnDestruction( verbose );
 
         size_t nBytesWrittenTotal = 0;
         if ( bufferSize > 0 ) {
