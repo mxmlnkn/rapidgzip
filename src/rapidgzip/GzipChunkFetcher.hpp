@@ -76,6 +76,53 @@ public:
 
     static constexpr bool REPLACE_MARKERS_IN_PARALLEL = true;
 
+    /**
+     * Rpmalloc does worse than standard malloc (Clang 13) for the case when using 128 cores, chunk size 4 MiB
+     * with imported index of Silesia (compression ratio ~3.1), i.e., the decompressed chunk sizes are ~12 MiB
+     * and probably deviate wildly in size (4-100 MiB maybe?). I guess that this leads to overallocation and
+     * memory slab reuse issues in rpmalloc.
+     * Allocating memory chunks in much more deterministic sizes seems to alleviate this problem immensely!
+     *
+     * Problematic commit:
+     *     dd678c7 2022-11-06 mxmlnkn [performance] Use rpmalloc to increase multi-threaded malloc performance
+     *
+     * Approximate benchmark results for:
+     *     rapidgzip -P $( nproc ) -o /dev/null -f --export-index index silesia-256x.tar.pigz
+     *     taskset --cpu-list 0-127 rapidgzip -P 128 -d -o /dev/null --import-index index silesia-256x.tar.pigz
+     *
+     * Commit:
+     *     rapidgzip-v0.5.0   16 GB/s
+     *     dd678c7~1        16 GB/s
+     *     dd678c7           8 GB/s
+     *
+     * dd678c7 with ALLOCATION_CHUNK_SIZE:
+     *     64  KiB       19.4 19.7       GB/s
+     *     256 KiB       20.8 20.7       GB/s
+     *     1   MiB       21.2 20.7 20.8  GB/s
+     *     4   MiB       8.4 8.5 8.3     GB/s
+     *
+     * It seems to be pretty stable across magnitudes as long as the number of allocations doesn't get too
+     * large and as long as the allocation chunk size is much smaller than the decompressed data chunk size.
+     * 1 MiB seems like the natural choice because the optimum (compressed) chunk size is around 4 MiB
+     * and it would also be exactly one hugepage if support for that would ever be added.
+     * Beware that each chunk is only as large as one gzip stream. And bgzip creates gzip streams that are only
+     * ~64 KiB each! Therefore, when decoding bgzip while importing the index, we need to account for this here
+     * and avoid frequent overallocations and resizes, which slow down the program immensely!
+     *
+     * Test with:
+     *     m rapidgzip && src/tools/rapidgzip -o /dev/null -d \
+     *       --import-index silesia-32x.tar.bgzip.gzi silesia-32x.tar.bgzip
+     *
+     * ALLOCATION_CHUNK_SIZE  Bandwidth
+     *        32  KiB         2.4 GB/s
+     *        64  KiB         2.5 GB/s
+     *        128 KiB         2.5 GB/s
+     *        256 KiB         2.4 GB/s
+     *        512 KiB         1.5 GB/s
+     *        1   MiB         370 MB/s
+     */
+    static constexpr size_t ALLOCATION_CHUNK_SIZE = 128_Ki;
+
     struct Statistics :
         public ChunkData::Statistics
     {
@@ -976,52 +1023,6 @@ public:
                 }
             };
 
-        /**
-         * Rpmalloc does worse than standard malloc (Clang 13) for the case when using 128 cores, chunk size 4 MiB
-         * with imported index of Silesia (compression ratio ~3.1), i.e., the decompressed chunk sizes are ~12 MiB
-         * and probably deviate wildly in size (4-100 MiB maybe?). I guess that this leads to overallocation and
-         * memory slab reuse issues in rpmalloc.
-         * Allocating memory chunks in much more deterministic sizes seems to alleviate this problem immensely!
-         *
-         * Problematic commit:
-         *     dd678c7 2022-11-06 mxmlnkn [performance] Use rpmalloc to increase multi-threaded malloc performance
-         *
-         * Approximate benchmark results for:
-         *     rapidgzip -P $( nproc ) -o /dev/null -f --export-index index silesia-256x.tar.pigz
-         *     taskset --cpu-list 0-127 rapidgzip -P 128 -d -o /dev/null --import-index index silesia-256x.tar.pigz
-         *
-         * Commit:
-         *     rapidgzip-v0.5.0   16 GB/s
-         *     dd678c7~1        16 GB/s
-         *     dd678c7           8 GB/s
-         *
-         * dd678c7 with ALLOCATION_CHUNK_SIZE:
-         *     64  KiB       19.4 19.7       GB/s
-         *     256 KiB       20.8 20.7       GB/s
-         *     1   MiB       21.2 20.7 20.8  GB/s
-         *     4   MiB       8.4 8.5 8.3     GB/s
-         *
-         * It seems to be pretty stable across magnitudes as long as the number of allocations doesn't get too
-         * large and as long as the allocation chunk size is much smaller than the decompressed data chunk size.
-         * 1 MiB seems like the natural choice because the optimum (compressed) chunk size is around 4 MiB
-         * and it would also be exactly one hugepage if support for that would ever be added.
-         * Beware that each chunk is only as large as one gzip stream. And bgzip creates gzip streams that are only
-         * ~64 KiB each! Therefore, when decoding bgzip while importing the index, we need to account for this here
-         * and avoid frequent overallocations and resizes, which slow down the program immensely!
-         *
-         * Test with:
-         *     m rapidgzip && src/tools/rapidgzip -o /dev/null -d \
-         *       --import-index silesia-32x.tar.bgzip.gzi silesia-32x.tar.bgzip
-         *
-         * ALLOCATION_CHUNK_SIZE  Bandwidth
-         *        32  KiB         2.4 GB/s
-         *        64  KiB         2.5 GB/s
-         *        128 KiB         2.5 GB/s
-         *        256 KiB         2.4 GB/s
-         *        512 KiB         1.5 GB/s
-         *        1   MiB         370 MB/s
-         */
-        constexpr size_t ALLOCATION_CHUNK_SIZE = 128_Ki;
         size_t alreadyDecoded{ 0 };
         while( true ) {
             const auto suggestedDecodeSize = decodedSize.value_or( ALLOCATION_CHUNK_SIZE );
@@ -1142,7 +1143,6 @@ public:
                 }
             };
 
-        constexpr size_t ALLOCATION_CHUNK_SIZE = 128_Ki;
         while( !stoppingPointReached ) {
             deflate::DecodedVector subchunk( ALLOCATION_CHUNK_SIZE );
             std::optional<IsalInflateWrapper::Footer> footer;
