@@ -54,14 +54,15 @@ Results for an AMD Ryzen 3900X 12-core (24 virtual cores) processor and with `bz
 
 | Module                                  | Runtime / s | Bandwidth / (MB/s) | Speedup |
 |-----------------------------------------|-------------|--------------------|---------|
-| bz2                                     | 392         |  5.1               | 1       |
-| indexed_bzip2 with parallelization = 0  |  62         | 32.3               | 6.3     |
-| indexed_bzip2 with parallelization = 1  | 559         |  3.6               | 0.7     |
-| indexed_bzip2 with parallelization = 2  | 321         |  6.2               | 1.2     |
-| indexed_bzip2 with parallelization = 6  | 116         | 17.2               | 3.4     |
-| indexed_bzip2 with parallelization = 12 |  72         | 27.8               | 5.4     |
-| indexed_bzip2 with parallelization = 24 |  64         | 31.5               | 6.2     |
-| indexed_bzip2 with parallelization = 32 |  66         | 30.1               | 5.9     |
+| bz2                                     | 386         |  5.2               | 1       |
+| indexed_bzip2 with parallelization = 0  |  60         | 33.2               | 6.4     |
+| indexed_bzip2 with parallelization = 1  | 472         |  4.2               | 0.8     |
+| indexed_bzip2 with parallelization = 2  | 265         |  7.6               | 1.5     |
+| indexed_bzip2 with parallelization = 6  |  99         | 20.2               | 3.9     |
+| indexed_bzip2 with parallelization = 12 |  64         | 31.4               | 6.1     |
+| indexed_bzip2 with parallelization = 24 |  63         | 31.8               | 6.1     |
+| indexed_bzip2 with parallelization = 32 |  63         | 31.7               | 6.1     |
+
 
 The speedup of `indexed_bzip2` over the `bz2` module with `parallelization = 0` is **6**.
 When using only one core, `indexed_bzip2` is unfortunately slower by (559-392)/392 = 42%.

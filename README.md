@@ -75,11 +75,11 @@ The parallel decompression capabilities are similar to [lbzip2](https://lbzip2.o
 
 | Module                                  | Runtime / s | Bandwidth / (MB/s) | Speedup |
 |-----------------------------------------|-------------|--------------------|---------|
-| bz2                                     | 392         |  5.1               | 1       |
-| indexed_bzip2 with parallelization = 1  | 559         |  3.6               | 0.7     |
-| indexed_bzip2 with parallelization = 2  | 321         |  6.2               | 1.2     |
-| indexed_bzip2 with parallelization = 12 |  72         | 27.8               | 5.4     |
-| indexed_bzip2 with parallelization = 24 |  64         | 31.5               | 6.2     |
+| bz2                                     | 386         |  5.2               | 1       |
+| indexed_bzip2 with parallelization = 1  | 472         |  4.2               | 0.8     |
+| indexed_bzip2 with parallelization = 2  | 265         |  7.6               | 1.5     |
+| indexed_bzip2 with parallelization = 12 |  64         | 31.4               | 6.1     |
+| indexed_bzip2 with parallelization = 24 |  63         | 31.8               | 6.1     |
 
 [See here for the extended Readme.](python/indexed_bzip2)
 
