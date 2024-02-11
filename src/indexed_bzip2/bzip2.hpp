@@ -19,6 +19,7 @@
 #include <vector>
 
 #include <BitReader.hpp>
+#include <VectorView.hpp>
 
 
 /**
@@ -143,9 +144,84 @@ readBzip2Header( BitReader& bitReader )
 // This is what we know about each huffman coding group
 struct GroupData
 {
-    std::array<int, MAX_HUFCODE_BITS + 1> limit;
-    std::array<int, MAX_HUFCODE_BITS> base;
-    std::array<uint16_t, MAX_SYMBOLS> permute;
+public:
+    using Symbol = uint16_t;
+
+public:
+    /**
+     * Calculate symbolsPerLength[], base[], and limit[] tables from length[].
+     *
+     * To use these, keep reading bits until value <= limit[bitcount] or
+     * you've read over 20 bits (error).  Then the decoded symbol
+     * equals symbolsPerLength[hufcode_value - base[hufcode_bitcount]].
+     */
+    constexpr void
+    initializeFromLengths( const VectorView<uint8_t>& lengths )
+    {
+        minLen = *std::min_element( lengths.begin(), lengths.end() );
+        maxLen = *std::max_element( lengths.begin(), lengths.end() );
+
+        int pp = 0;
+        for ( uint16_t length = minLen; length <= maxLen; ++length ) {
+            for ( Symbol hh = 0; hh < lengths.size(); ++hh ) {
+                if ( lengths[hh] == length ) {
+                    symbolsPerLength[pp++] = hh;
+                }
+            }
+        }
+
+        std::array<unsigned int, MAX_HUFCODE_BITS + 1> bitLengthFrequencies{};
+        for ( const auto length : lengths ) {
+            bitLengthFrequencies[length]++;
+        }
+
+        // Note that minLen can't be smaller than 1, so we adjust the base
+        // and limit array pointers so we're not always wasting the first
+        // entry.  We do this again when using them (during symbol decoding).
+        auto* const baseTmp = base.data() - 1;
+        auto* const limitTmp = limit.data() - 1;
+
+        /* Calculate limit[] (the largest symbol-coding value at each bit
+         * length, which is (previous limit<<1)+symbols at this level), and
+         * base[] (number of symbols to ignore at each bit length, which is
+         * limit minus the cumulative count of symbols coded for already). */
+        unsigned int hh{ 0 };
+        pp = 0;
+        for ( size_t i = minLen; i < maxLen; i++ ) {
+            pp += bitLengthFrequencies[i];
+            limitTmp[i] = pp - 1;
+            pp <<= 1;
+            hh += bitLengthFrequencies[i];
+            baseTmp[i + 1] = pp - hh;
+        }
+        limitTmp[maxLen] = pp + bitLengthFrequencies[maxLen] - 1;
+        limitTmp[maxLen + 1] = std::numeric_limits<int>::max();
+        baseTmp[minLen] = 0;
+    }
+
+public:
+    /**
+     * Indicates the largest numerical value a symbol with a given
+     * number of bits can have.  It lets us know when to stop reading.
+     */
+    std::array<int, MAX_HUFCODE_BITS + 1> limit{};
+    /**
+     * This is the amount to subtract from the value of a huffman symbol
+     * of a given length when using @ref symbolsPerLength.
+     */
+    std::array<int, MAX_HUFCODE_BITS> base{};
+    /**
+     * Contains the alphabet, first sorted by code length, then by given alphabet order. E.g., it could look like this:
+     * @verbatim
+     * +-------+-----+---+
+     * | B D E | A F | C |
+     * +-------+-----+---+
+     *   CL=3   CL=4  CL=5
+     * @endverbatim
+     * The starting index for a given code length (CL) can be queried with m_offsets.
+     * Requires 16-bit because there are 258 symbols.
+     */
+    std::array<Symbol, MAX_SYMBOLS> symbolsPerLength{};
     uint8_t minLen;
     uint8_t maxLen;
 };
@@ -540,62 +616,7 @@ Block::readTrees()
             lengths[symbol] = static_cast<uint8_t>( hh );
         }
 
-        /* Calculate permute[], base[], and limit[] tables from length[].
-         *
-         * permute[] is the lookup table for converting huffman coded symbols
-         * into decoded symbols.  It contains symbol values sorted by length.
-         *
-         * base[] is the amount to subtract from the value of a huffman symbol
-         * of a given length when using permute[].
-         *
-         * limit[] indicates the largest numerical value a symbol with a given
-         * number of bits can have.  It lets us know when to stop reading.
-         *
-         * To use these, keep reading bits until value <= limit[bitcount] or
-         * you've read over 20 bits (error).  Then the decoded symbol
-         * equals permute[hufcode_value - base[hufcode_bitcount]].
-         */
-        const auto hufGroup = &groups[j];
-        hufGroup->minLen = *std::min_element( lengths.begin(), lengths.begin() + symCount );
-        hufGroup->maxLen = *std::max_element( lengths.begin(), lengths.begin() + symCount );
-
-        // Note that minLen can't be smaller than 1, so we adjust the base
-        // and limit array pointers so we're not always wasting the first
-        // entry.  We do this again when using them (during symbol decoding).
-        const auto base = hufGroup->base.data() - 1;
-        const auto limit = hufGroup->limit.data() - 1;
-
-        // zero temp[] and limit[], and calculate permute[]
-        int pp = 0;
-        std::array<unsigned int, MAX_HUFCODE_BITS + 1> temp;
-        for ( int i = hufGroup->minLen; i <= hufGroup->maxLen; i++ ) {
-            temp[i] = limit[i] = 0;
-            for ( hh = 0; hh < symCount; hh++ ) {
-                if ( lengths[hh] == i ) {
-                    hufGroup->permute[pp++] = hh;
-                }
-            }
-        }
-
-        // Count symbols coded for at each bit length
-        for ( unsigned int i = 0; i < symCount; i++ ) {
-            temp[lengths[i]]++;
-        }
-
-        /* Calculate limit[] (the largest symbol-coding value at each bit
-         * length, which is (previous limit<<1)+symbols at this level), and
-         * base[] (number of symbols to ignore at each bit length, which is
-         * limit minus the cumulative count of symbols coded for already). */
-        pp = hh = 0;
-        for ( int i = hufGroup->minLen; i < hufGroup->maxLen; i++ ) {
-            pp += temp[i];
-            limit[i] = pp - 1;
-            pp <<= 1;
-            base[i + 1] = pp - ( hh += temp[i] );
-        }
-        limit[hufGroup->maxLen] = pp + temp[hufGroup->maxLen] - 1;
-        limit[hufGroup->maxLen + 1] = std::numeric_limits<int>::max();
-        base[hufGroup->minLen] = 0;
+        groups[j].initializeFromLengths( VectorView<uint8_t>( lengths.data(), symCount ) );
     }
 }
 
@@ -659,7 +680,7 @@ Block::readBlockData()
             throw std::domain_error( std::move( msg ).str() );
         }
 
-        const auto nextSym = hufGroup->permute[jj];
+        const auto nextSym = hufGroup->symbolsPerLength[jj];
 
         // If this is a repeated run, loop collecting data
         if ( (unsigned int)nextSym <= SYMBOL_RUNB ) {
