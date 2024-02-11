@@ -740,11 +740,7 @@ Block::readBlockData()
         }
         ii = nextSym - 1;
         auto uc = mtfSymbol[ii];
-        // On my laptop, unrolling this memmove() into a loop shaves 3.5% off
-        // the total running time.
-        while ( ii-- ) {
-            mtfSymbol[ii + 1] = mtfSymbol[ii];
-        }
+        std::memmove( mtfSymbol.data() + 1, mtfSymbol.data(), ii );
         mtfSymbol[0] = uc;
         uc = symbolToByte[uc];
 
