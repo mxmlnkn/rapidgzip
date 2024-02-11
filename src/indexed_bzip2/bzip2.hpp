@@ -21,6 +21,34 @@
 #include <BitReader.hpp>
 
 
+/**
+ * @see https://github.com/dsnet/compress/blob/master/doc/bzip2-format.pdf
+ * @verbatim
+ * Symbol               Expression
+ * ------------------------------------------
+ * BZipFile          := BZipStream (one or more)
+ * └──BZipStream     := StreamHeader StreamBlock* StreamFooter
+ *    ├──StreamHeader   := HeaderMagic Version Level                          -> readBzip2Header
+ *    ├──StreamBlock    := BlockHeader BlockTrees BlockData(Huffman encoded)
+ *    │ ├──BlockHeader  := BlockMagic BlockCRC Randomized OrigPtr             -> readBlockHeader
+ *    │ ├──BlockTrees   := SymMap NumTrees NumSels Selectors Trees            -> readTrees
+ *    | |  ├──SymMap    := MapL1 MapL2{1,16}
+ *    │ |  ├──Selectors := Selector{NumSels}
+ *    │ |  └──Trees     := (BitLen Delta{NumSyms}){NumTrees}
+ *    | └──BlockData    := Huffman-Encoded data
+ *    └──StreamFooter   := FooterMagic StreamCRC Padding                      -> Block::eos
+ * @endverbatim
+
+ * 1. Run-length encoding (RLE) of initial data
+ * 2. Burrows–Wheeler transform (BWT), or block sorting
+ * 3. Move-to-front (MTF) transform
+ * 4. Run-length encoding (RLE) of MTF result
+ * 5. Huffman coding
+ * 6. Selection between multiple Huffman tables
+ * 7. Unary base-1 encoding of Huffman table selection
+ * 8. Delta encoding (Δ) of Huffman-code bit lengths
+ * 9. Sparse bit array showing which symbols are used
+ */
 namespace bzip2
 {
 using CRC32LookupTable = std::array<uint32_t, 256>;
@@ -29,7 +57,7 @@ using CRC32LookupTable = std::array<uint32_t, 256>;
 [[nodiscard]] constexpr CRC32LookupTable
 createCRC32LookupTable() noexcept
 {
-    const auto littleEndian{ false };
+    constexpr auto littleEndian{ false };
     CRC32LookupTable table{};
     for ( uint32_t i = 0; i < table.size(); ++i ) {
         uint32_t c = littleEndian ? i : i << 24U;
@@ -205,6 +233,23 @@ private:
     void
     readBlockHeader();
 
+    void
+    readBlockTrees()
+    {
+        readSymbolMaps();
+        readSelectors();
+        readTrees();
+    }
+
+    void
+    readSymbolMaps();
+
+    void
+    readSelectors();
+
+    void
+    readTrees();
+
 public:
     struct BurrowsWheelerTransformData
     {
@@ -255,7 +300,7 @@ public:
      */
     std::array<uint8_t, 256> symbolToByte;
     std::array<uint8_t, 256> mtfSymbol;
-    unsigned int symbolCount;
+    unsigned int symbolCount{ 0 };
     /**
      * Every GROUP_SIZE many symbols we switch huffman coding tables.
      * Each group has a selector, which is an index into the huffman coding table arrays.
@@ -264,7 +309,7 @@ public:
      * bit runs.  (MTF = Move To Front.  Every time a symbol occurs it's moved
      * to the front of the table, so it has a shorter encoding next time.)
      */
-    uint16_t selectorsCount;
+    uint16_t selectorsCount{ 0 };
 
     std::array<char, 32768> selectors;        // nSelectors=15 bits
     std::array<GroupData, MAX_GROUPS> groups; // huffman coding tables
@@ -338,6 +383,13 @@ Block::readBlockHeader()
         throw std::logic_error( std::move( msg ).str() );
     }
 
+    readBlockTrees();
+}
+
+
+inline void
+Block::readSymbolMaps()
+{
     /**
      * The Mapping table itself is compressed in two parts:
      * huffmanUsedMap: each bit indicates whether the corresponding range [0...15], [16...31] is present.
@@ -386,7 +438,12 @@ Block::readBlockHeader()
             }
         }
     }
+}
 
+
+inline void
+Block::readSelectors()
+{
     // How many different huffman coding groups does this block use?
     groupCount = getBits<3>();
     if ( ( groupCount < 2 ) || ( groupCount > MAX_GROUPS ) ) {
@@ -446,7 +503,16 @@ Block::readBlockHeader()
         memmove( mtfSymbol.data() + 1, mtfSymbol.data(), j );
         mtfSymbol[0] = selectors[i] = uc;
     }
+}
 
+
+/**
+ * bzip2 blocks are many times larger than usual gzip blocks. That's why multiple Huffman tree per block are
+ * supported and necessary. Similary to deflate, the trees are stores as code lengths per symbol.
+ */
+inline void
+Block::readTrees()
+{
     // Read the huffman coding tables for each group, which code for symTotal
     // literal symbols, plus two run symbols (RUNA, RUNB)
     const auto symCount = symbolCount + 2;
@@ -540,6 +606,9 @@ Block::readBlockHeader()
 }
 
 
+/**
+ * This undoes the Huffman coding.
+ */
 inline void
 Block::readBlockData()
 {
