@@ -419,21 +419,15 @@ Block::readSymbolMaps()
      *       E   H   L  O
      * @endverbatim
      */
-    // mapping table: if some byte values are never used (encoding things
-    // like ascii text), the compression code removes the gaps to have fewer
-    // symbols to deal with, and writes a sparse bitfield indicating which
-    // values were present.  We make a translation table to convert the symbols
-    // back to the corresponding bytes.
-    {
-        const uint16_t huffmanUsedMap = getBits<16>();
-        symbolCount = 0;
-        for ( int i = 0; i < 16; i++ ) {
-            if ( huffmanUsedMap & ( 1 << ( 15 - i ) ) ) {
-                const auto bitmap = getBits<16>();
-                for ( int j = 0; j < 16; j++ ) {
-                    if ( bitmap & ( 1 << ( 15 - j ) ) ) {
-                        symbolToByte[symbolCount++] = ( 16 * i ) + j;
-                    }
+    const uint16_t huffmanUsedMap = getBits<16>();
+    /* Can at most grow up to 256 symbols, i.e., MAX_SYMBOLS - 2 (RUNA, RUNB). */
+    symbolCount = 0;
+    for ( int i = 0; i < 16; i++ ) {
+        if ( huffmanUsedMap & ( 1 << ( 15 - i ) ) ) {
+            const auto bitmap = getBits<16>();
+            for ( int j = 0; j < 16; j++ ) {
+                if ( bitmap & ( 1 << ( 15 - j ) ) ) {
+                    symbolToByte[symbolCount++] = ( 16 * i ) + j;
                 }
             }
         }
@@ -518,14 +512,14 @@ Block::readTrees()
     const auto symCount = symbolCount + 2;
     for ( int j = 0; j < groupCount; j++ ) {
         // Read lengths
-        std::array<uint8_t, MAX_SYMBOLS> length;
+        std::array<uint8_t, MAX_SYMBOLS> lengths;
         unsigned int hh = getBits<5>();
-        for ( unsigned int i = 0; i < symCount; i++ ) {
+        for ( unsigned int symbol = 0; symbol < symCount; symbol++ ) {
             while ( true ) {
                 // !hh || hh > MAX_HUFCODE_BITS in one test.
                 if ( MAX_HUFCODE_BITS - 1 < hh - 1 ) {
                     std::stringstream msg;
-                    msg << "[BZip2 block header]  start_huffman_length " << hh
+                    msg << "[BZip2 block header] start_huffman_length " << hh
                         << " is larger than " << MAX_HUFCODE_BITS << " or zero\n";
                     throw std::logic_error( std::move( msg ).str() );
                 }
@@ -540,10 +534,10 @@ Block::readTrees()
             }
             if ( hh > std::numeric_limits<uint8_t>::max() ) {
                 std::stringstream msg;
-                msg << "[BZip2 block header] The read length is unexpectedly large: " << hh;
+                msg << "[BZip2 block header] The read code length is unexpectedly large: " << hh;
                 throw std::logic_error( std::move( msg ).str() );
             }
-            length[i] = static_cast<uint8_t>( hh );
+            lengths[symbol] = static_cast<uint8_t>( hh );
         }
 
         /* Calculate permute[], base[], and limit[] tables from length[].
@@ -562,8 +556,8 @@ Block::readTrees()
          * equals permute[hufcode_value - base[hufcode_bitcount]].
          */
         const auto hufGroup = &groups[j];
-        hufGroup->minLen = *std::min_element( length.begin(), length.begin() + symCount );
-        hufGroup->maxLen = *std::max_element( length.begin(), length.begin() + symCount );
+        hufGroup->minLen = *std::min_element( lengths.begin(), lengths.begin() + symCount );
+        hufGroup->maxLen = *std::max_element( lengths.begin(), lengths.begin() + symCount );
 
         // Note that minLen can't be smaller than 1, so we adjust the base
         // and limit array pointers so we're not always wasting the first
@@ -577,7 +571,7 @@ Block::readTrees()
         for ( int i = hufGroup->minLen; i <= hufGroup->maxLen; i++ ) {
             temp[i] = limit[i] = 0;
             for ( hh = 0; hh < symCount; hh++ ) {
-                if ( length[hh] == i ) {
+                if ( lengths[hh] == i ) {
                     hufGroup->permute[pp++] = hh;
                 }
             }
@@ -585,7 +579,7 @@ Block::readTrees()
 
         // Count symbols coded for at each bit length
         for ( unsigned int i = 0; i < symCount; i++ ) {
-            temp[length[i]]++;
+            temp[lengths[i]]++;
         }
 
         /* Calculate limit[] (the largest symbol-coding value at each bit
@@ -627,7 +621,7 @@ Block::readBlockData()
     const int* base = nullptr;
     const int* limit = nullptr;
     uint32_t dbufCount = 0;
-    for ( int ii, jj, hh = 0, runPos = 0, symCount = 0, selector = 0; ; ) {
+    for ( int hh = 0, runPos = 0, symCount = 0, selector = 0; ; ) {
         // Have we reached the end of this huffman group?
         if ( !( symCount-- ) ) {
             // Determine which huffman coding group to use.
@@ -643,8 +637,8 @@ Block::readBlockData()
         }
 
         // Read next huffman-coded symbol (into jj).
-        ii = hufGroup->minLen;
-        jj = getBits( ii );
+        int ii = hufGroup->minLen;
+        int jj = getBits( ii );
         while ( ( ii <= hufGroup->maxLen ) && ( jj > limit[ii] ) ) {
             ii++;
             jj = ( jj << 1U ) | getBits<1>();
@@ -755,11 +749,14 @@ Block::readBlockData()
 inline void
 Block::BurrowsWheelerTransformData::prepare()
 {
-    // Turn byteCount into cumulative occurrence counts of 0 to n-1.
-    for ( size_t i = 0, j = 0; i < byteCount.size(); ++i ) {
-        const auto kk = j + byteCount[i];
-        byteCount[i] = j;
-        j = kk;
+    /**
+     * Turn byteCount into cumulative occurrence counts of 0 to n-1.
+     * @note This loop is fast because byteCount.size() is 256.
+     */
+    for ( size_t i = 0, cumulativeCount = 0; i < byteCount.size(); ++i ) {
+        const auto newCumulativeCount = cumulativeCount + byteCount[i];
+        byteCount[i] = cumulativeCount;
+        cumulativeCount = newCumulativeCount;
     }
 
     // Use occurrence counts to quickly figure out what order dbuf would be in
@@ -791,11 +788,10 @@ inline size_t
 Block::BurrowsWheelerTransformData::decodeBlock( const size_t nMaxBytesToDecode,
                                                  char*        outputBuffer )
 {
-    if ( writeCount == 0 ) {
+    if ( ( writeCount == 0 ) || ( outputBuffer == nullptr ) ) {
         return 0;
     }
 
-    assert( outputBuffer != nullptr );
     size_t nBytesDecoded = 0;
 
     while ( ( writeCount > 0 ) && ( nBytesDecoded < nMaxBytesToDecode ) ) {
