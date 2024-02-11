@@ -464,7 +464,7 @@ BZ2Reader::decodeStream( WriteFunctor const& writeFunctor,
          * There can be at maximum 255 copies! */
         assert( m_decodedBuffer.size() >= 255 );
         const auto nBytesToDecode = std::min( m_decodedBuffer.size() - 255, nMaxBytesToDecode - nBytesDecoded );
-        m_decodedBufferPos = m_lastHeader.bwdata.decodeBlock( nBytesToDecode, m_decodedBuffer.data() );
+        m_decodedBufferPos = m_lastHeader.read( nBytesToDecode, m_decodedBuffer.data() );
 
         if ( ( m_lastHeader.bwdata.writeCount == 0 ) && !m_blockToDataOffsetsComplete ) {
             m_calculatedStreamCRC = ( ( m_calculatedStreamCRC << 1U ) | ( m_calculatedStreamCRC >> 31U ) )

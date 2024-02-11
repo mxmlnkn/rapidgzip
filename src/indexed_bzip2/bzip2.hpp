@@ -177,6 +177,17 @@ public:
         throw std::invalid_argument( "Block has not been initialized yet!" );
     }
 
+    /**
+     * Currently, the logic is limited and might write up to nMaxBytesToDecode + 255 characters
+     * to the output buffer! Currently, the caller has to ensure that the output buffer is large enough.
+     */
+    [[nodiscard]] size_t
+    read( const size_t nMaxBytesToDecode,
+          char*        outputBuffer )
+    {
+        return bwdata.decodeBlock( nMaxBytesToDecode, outputBuffer );
+    }
+
 private:
     template<uint8_t nBits>
     [[nodiscard]] uint32_t
@@ -197,7 +208,9 @@ private:
 public:
     struct BurrowsWheelerTransformData
     {
-    public:
+        friend Block;
+
+    private:
         void
         prepare();
 

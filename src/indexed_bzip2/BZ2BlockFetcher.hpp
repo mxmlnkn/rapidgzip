@@ -119,7 +119,7 @@ private:
                 result.data.resize( result.data.size() * 2 );
             }
 
-            decodedDataSize += block.bwdata.decodeBlock(
+            decodedDataSize += block.read(
                 result.data.size() - 255U - decodedDataSize,
                 reinterpret_cast<char*>( result.data.data() ) + decodedDataSize
             );
