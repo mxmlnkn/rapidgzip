@@ -71,7 +71,7 @@ public:
      *     for chunkSize in 128 $(( 1*1024 )) $(( 2*1024 )) $(( 4*1024 )) $(( 8*1024 )) $(( 16*1024 )) $(( 32*1024 )); do
      *         echo "Chunk Size: $chunkSize KiB"
      *         for i in $( seq 5 ); do
-     *             src/tools/rapidgzip --chunk-size $chunkSize -P 0 -d -c "$1" 2>rapidgzip.log | wc -c
+     *             src/tools/rapidgzip --chunk-size $chunkSize -v -P 0 -d -c "$1" 2>rapidgzip.log | wc -c
      *             grep "Decompressed in total" rapidgzip.log
      *         done
      *     done
@@ -83,13 +83,13 @@ public:
      *
      * spacing | bandwidth / (MB/s) | file read multiplier
      * --------+--------------------+----------------------
-     * 128 KiB | ~1200              | 2.08337
-     *   1 MiB | ~2500              | 1.13272
-     *   2 MiB | ~2700              | 1.06601
-     *   4 MiB | ~2800              | 1.03457
-     *   8 MiB | ~2750              | 1.0169
-     *  16 MiB | ~2600              | 1.00799
-     *  32 MiB | ~2300              | 1.00429
+     * 128 KiB | ~1250              | 2.08337
+     *   1 MiB | ~3500              | 1.13272
+     *   2 MiB | ~3800              | 1.06601
+     *   4 MiB | ~4000              | 1.03457
+     *   8 MiB | ~4200              | 1.0169
+     *  16 MiB | ~4400              | 1.00799
+     *  32 MiB | ~4100              | 1.00429
      * @endverbatim
      *
      * For higher chunk sizes, the bandwidths become very unstable,
@@ -106,22 +106,23 @@ public:
      *
      * spacing | bandwidth / (MB/s)
      * --------+--------------------
-     * 128 KiB | ~1150
-     *   1 MiB | ~1950
-     *   2 MiB | ~2150
-     *   4 MiB | ~2300
-     *   8 MiB | ~2400
-     *  16 MiB | ~2400
-     *  32 MiB | ~2300
+     * 128 KiB | ~1450
+     *   1 MiB | ~2500
+     *   2 MiB | ~2800
+     *   4 MiB | ~3400
+     *   8 MiB | ~3800
+     *  16 MiB | ~4100
+     *  32 MiB | ~4100
      * @endverbatim
      *
-     * Beware, on 2xAMD EPYC CPU 7702, when decoding with more than 64 cores, the optimal is
+     * Beware, on 2xAMD EPYC CPU 7702, when decoding with more than 64 cores, the optimum is
      * at 2 MiB instead of 4-8 MiB! Maybe these are NUMA domain + caching issues combined?
      *
      * AMD Ryzen 3900X Caches:
      *  - L1: 64 kiB (50:50 instruction:cache) per core -> 768 kiB
      *  - L2: 512 kiB per core -> 6 MiB
      *  - L3: 64 MiB shared (~5.3 MiB per core)
+     *  - RAM: 2x16GiB DIMM DDR4 3600 MHz (0.3 ns), 2x32GiB DIMM DDR4 3600 MHz (0.3 ns)
      *
      * AMD EPYC CPU 7702:
      *  - L1: 64 kiB (50:50 instruction:cache) per core -> 4 MiB
@@ -134,24 +135,23 @@ public:
      * Non-compressible data is a special case because it only needs to do a memcpy.
      *
      * @verbatim
-     * head -c $(( 4 * 1024 * 1024 * 1024 )) /dev/urandom > 4GiB-random
-     * gzip 4GiB-random.gz
+     * head -c $(( 4 * 1024 * 1024 * 1024 )) /dev/urandom | gzip > 4GiB-random.gz
      * m rapidgzip
      * benchmarkWc 4GiB-random.gz
      *
      * spacing | bandwidth / (MB/s) | file read multiplier
      * --------+--------------------+----------------------
-     * 128 KiB | ~1450              | 2.00049
-     *   1 MiB | ~2650              | 1.12502
-     *   2 MiB | ~2900              | 1.06253
-     *   4 MiB | ~2900              | 1.03129
-     *   8 MiB | ~3400              | 1.01567
-     *  16 MiB | ~3300              | 1.00786
-     *  32 MiB | ~2900              | 1.00396
+     * 128 KiB | ~1300              | 2.00049
+     *   1 MiB | ~3400              | 1.12502
+     *   2 MiB | ~3900              | 1.06253
+     *   4 MiB | ~4000              | 1.03129
+     *   8 MiB | ~4100              | 1.01567
+     *  16 MiB | ~4200              | 1.00786
+     *  32 MiB | ~4200              | 1.00396
      * @endverbatim
      *
      * Another set of benchmarks that exclude the bottleneck for writing the results to a pipe by
-     * using the rapidgzip option --count-lines. Note that in contrast to pugz, it the decompressed
+     * using the rapidgzip option --count-lines. Note that in contrast to pugz, the decompressed
      * blocks are still processed in sequential order. Processing them out of order by providing
      * a map-reduce like interface might accomplish even more speedups.
      *
@@ -160,20 +160,20 @@ public:
      * for chunkSize in 128 $(( 1*1024 )) $(( 2*1024 )) $(( 4*1024 )) $(( 8*1024 )) $(( 16*1024 )) $(( 32*1024 )); do
      *     echo "Chunk Size: $chunkSize KiB"
      *     for i in $( seq 5 ); do
-     *         src/tools/rapidgzip --chunk-size $chunkSize -P 0 --count-lines 4GiB-base64.gz 2>rapidgzip.log
+     *         src/tools/rapidgzip -v --chunk-size $chunkSize -P 0 --count-lines 4GiB-base64.gz 2>rapidgzip.log
      *         grep "Decompressed in total" rapidgzip.log
      *     done
      * done
      *
      * spacing | bandwidth / (MB/s)
      * --------+--------------------
-     * 128 KiB | ~1550
-     *   1 MiB | ~3200
-     *   2 MiB | ~3400
-     *   4 MiB | ~3600
-     *   8 MiB | ~3800
-     *  16 MiB | ~3800
-     *  32 MiB | ~3600
+     * 128 KiB | ~1500
+     *   1 MiB | ~4600
+     *   2 MiB | ~5000
+     *   4 MiB | ~5400
+     *   8 MiB | ~5400
+     *  16 MiB | ~5100
+     *  32 MiB | ~4900
      * @endverbatim
      *
      * The factor 2 amount of read data can be explained with the BitReader always buffering 128 KiB!
@@ -193,6 +193,50 @@ public:
      *       less than 30 GB of RAM!
      *       Rebenchmark of course whether it makes sense or not anymore. E.g., speeding up the block
      *       finder might enable smaller chunk sizes.
+     *
+     * @verbatim
+     * for (( i=0; i<10; ++i )); do cat 'silesia.tar'; done | lbzip2 > 10xsilesia.tar.bz2
+     * stat --format=%s -L 10xsilesia.tar.bz2
+     *     546 315 457
+     * benchmarkWc 10xsilesia.tar.bz2
+     *
+     * spacing | bandwidth / (MB/s)
+     * --------+--------------------
+     * 128 KiB | ~370
+     *   1 MiB | ~410
+     *   2 MiB | ~510
+     *   4 MiB | ~600 <-
+     *   8 MiB | ~560
+     *  16 MiB | ~540
+     *  32 MiB | ~550
+     * @endverbatim
+     *
+     * @verbatim
+     * benchmarkWc silesia.tar.bz2
+     * stat --format=%s -L silesia.tar.bz2
+     *     54 591 465 = 52.06 MiB
+     *
+     * spacing | bandwidth / (MB/s)
+     * --------+--------------------
+     * 128 KiB | ~340
+     *   1 MiB | ~400 <-
+     *   2 MiB | ~260
+     *   4 MiB | ~240
+     *   8 MiB | ~190
+     *  16 MiB | ~120
+     *  32 MiB |  ~80
+     * @endverbatim
+     *
+     * There simply is not enough work to distribute. That's why it is slow for larger chunk sizes.
+     * For smaller chunk sizes it becomes slow because some chunks won't find anything to decode but they
+     * still count towards the maximum cached chunk size.
+     * @todo They shouldn't count towards that limit because they don't consume much memory anyway.
+     *       Maybe test those somehow and move them into a different lookup cache, or simply don't count them.
+     *       The latter might be expensive if they become too many and if it isn't a simply bool check.
+     *       Unfortunately, it isn't even easily possible to check for exception. We would have to call future::get()
+     *       in a try-catch-block and repackage the result thereafter or change the ChunkFetcher interface to not
+     *       return blocks. Lots of work. Or simply don't use chunk sizes smaller than 1 MiB because compressed bzip2
+     *       should become much larger than 900kB.
      */
     explicit
     ParallelGzipReader( UniqueFileReader fileReader,
