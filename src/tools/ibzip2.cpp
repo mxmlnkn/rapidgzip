@@ -481,13 +481,18 @@ ibzip2CLI( int argc, char** argv )
 int
 main( int argc, char** argv )
 {
-    try
-    {
+    try {
         return ibzip2CLI( argc, argv );
-    }
-    catch ( const std::exception& exception )
-    {
-        std::cerr << "Caught exception:\n" << exception.what() << "\n";
+    } catch ( const bzip2::BitReader::EndOfFileReached& exception ) {
+        std::cerr << "Unexpected end of file. Truncated or invalid bzip2?\n";
+        return 1;
+    } catch ( const std::exception& exception ) {
+        const std::string_view message{ exception.what() };
+        if ( message.empty() ) {
+            std::cerr << "Caught exception with typeid: " << typeid( exception ).name() << "\n";
+        } else {
+            std::cerr << "Caught exception: " << message << "\n";
+        }
         return 1;
     }
 
