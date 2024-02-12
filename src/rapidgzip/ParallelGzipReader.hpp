@@ -220,11 +220,11 @@ public:
      * --------+--------------------
      * 128 KiB | ~340
      *   1 MiB | ~400 <-
-     *   2 MiB | ~260
-     *   4 MiB | ~240
-     *   8 MiB | ~190
-     *  16 MiB | ~120
-     *  32 MiB |  ~80
+     *   2 MiB | ~400
+     *   4 MiB | ~400
+     *   8 MiB | ~400
+     *  16 MiB | ~400
+     *  32 MiB | ~400
      * @endverbatim
      *
      * There simply is not enough work to distribute. That's why it is slow for larger chunk sizes.
@@ -254,6 +254,20 @@ public:
             }
         )
     {
+        const auto fileSize = m_sharedFileReader->size();
+        if ( fileSize && ( m_chunkSizeInBytes * 2U * parallelization > *fileSize ) ) {
+            /* Use roughly as many chunks as there is parallelization.
+             * Multiply a factor of two, to give the thread pool more time to be filled out.
+             * Bound the minimum chunk size because of the block finder overhead for gzip,
+             * because <900kB chunks might not have any real work to do, and to avoid many threads
+             * being started for very small files.
+             * This formula is mostly optimized for silesia.tar.bz2.
+             * Speed isn't that important for small gzip files because it decompresses many times faster.
+             * In the first place, this implementation is intended towards very large files not small files. */
+            m_chunkSizeInBytes =
+                std::max( 512_Ki, ceilDiv( ceilDiv( *fileSize, 3U * parallelization ), 512_Ki ) * 512_Ki );
+        }
+
         m_sharedFileReader->setStatisticsEnabled( m_statisticsEnabled );
         if ( !m_sharedFileReader->seekable() ) {
             /* The ensureSharedFileReader helper should wrap non-seekable file readers inside SinglePassFileReader. */
@@ -1092,7 +1106,7 @@ private:
     }
 
 private:
-    const uint64_t m_chunkSizeInBytes{ 4_Mi };
+    uint64_t m_chunkSizeInBytes{ 4_Mi };
     uint64_t m_maxDecompressedChunkSize{ std::numeric_limits<size_t>::max() };
 
     std::unique_ptr<SharedFileReader> m_sharedFileReader;
