@@ -318,6 +318,20 @@ enum class CompressionLevel
 };
 
 
+const char*
+toString( CompressionLevel compressionLevel )
+{
+    switch ( compressionLevel )
+    {
+    case CompressionLevel::FASTEST: return "Fastest";
+    case CompressionLevel::FAST:    return "Fast";
+    case CompressionLevel::DEFAULT: return "Default";
+    case CompressionLevel::SLOWEST: return "Slowest";
+    }
+    return "";
+}
+
+
 struct Header
 {
     uint16_t windowSize{ 0 };
