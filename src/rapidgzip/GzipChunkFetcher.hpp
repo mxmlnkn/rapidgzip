@@ -317,6 +317,12 @@ public:
         return m_maxDecompressedChunkSize;
     }
 
+    void
+    setWindowCompressionType( std::optional<CompressionType> windowCompressionType )
+    {
+        m_windowCompressionType = windowCompressionType;
+    }
+
 private:
     [[nodiscard]] std::pair</* decoded offset */ size_t, std::shared_ptr<ChunkData> >
     getIndexedChunk( const size_t               offset,
@@ -744,6 +750,7 @@ private:
         chunkDataConfiguration.crc32Enabled = m_crc32Enabled;
         chunkDataConfiguration.fileType = m_blockFinder->fileType();
         chunkDataConfiguration.splitChunkSize = m_blockFinder->spacingInBits() / 8U;
+        chunkDataConfiguration.windowCompressionType = m_windowCompressionType;
 
         /* If we are a BGZF file and we have not imported an index, then we can assume the
          * window to be empty because we should only get offsets at gzip stream starts.
@@ -1714,5 +1721,6 @@ private:
     std::unordered_map</* block offset */ size_t, /* block offset of unsplit "parent" chunk */ size_t> m_unsplitBlocks;
 
     PostProcessingFutures m_markersBeingReplaced;
+    std::optional<CompressionType> m_windowCompressionType;
 };
 }  // namespace rapidgzip

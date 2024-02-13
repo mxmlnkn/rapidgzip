@@ -961,6 +961,10 @@ public:
     setKeepIndex( bool keep )
     {
         m_keepIndex = keep;
+        if ( m_chunkFetcher ) {
+            m_chunkFetcher->setWindowCompressionType(
+                m_keepIndex ? std::nullopt : std::make_optional( CompressionType::NONE ) );
+        }
     }
 
     [[nodiscard]] std::string
@@ -1028,6 +1032,8 @@ private:
         m_chunkFetcher->setMaxDecompressedChunkSize( m_maxDecompressedChunkSize );
         m_chunkFetcher->setShowProfileOnDestruction( m_showProfileOnDestruction );
         m_chunkFetcher->setStatisticsEnabled( m_statisticsEnabled );
+        m_chunkFetcher->setWindowCompressionType(
+            m_keepIndex ? std::nullopt : std::make_optional( CompressionType::NONE ) );
 
         return *m_chunkFetcher;
     }

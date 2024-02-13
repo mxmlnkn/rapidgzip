@@ -50,6 +50,7 @@ struct ChunkData :
         size_t splitChunkSize{ std::numeric_limits<size_t>::max() };
         FileType fileType{ FileType::NONE };
         bool crc32Enabled{ true };
+        std::optional<CompressionType> windowCompressionType;
     };
 
     struct BlockBoundary
@@ -152,7 +153,8 @@ public:
     ChunkData( const Configuration& configuration ) :
         encodedOffsetInBits( configuration.encodedOffsetInBits ),
         fileType( configuration.fileType ),
-        splitChunkSize( configuration.splitChunkSize )
+        splitChunkSize( configuration.splitChunkSize ),
+        m_windowCompressionType( configuration.windowCompressionType )
     {
         setCRC32Enabled( configuration.crc32Enabled );
     }
@@ -166,6 +168,9 @@ public:
     [[nodiscard]] CompressionType
     windowCompressionType() const
     {
+        if ( m_windowCompressionType ) {
+            return *m_windowCompressionType;
+        }
         /* Only bother with overhead-introducing compression for large chunk compression ratios. */
         return decodedSizeInBytes * 8 > 2 * encodedSizeInBits ? CompressionType::GZIP : CompressionType::NONE;
     }
@@ -456,6 +461,9 @@ public:
     Statistics statistics{};
 
     bool stoppedPreemptively{ false };
+
+private:
+    std::optional<CompressionType> m_windowCompressionType;
 };
 
 
