@@ -58,10 +58,7 @@
 [[nodiscard]] inline bool
 stdinHasInput()
 {
-    const auto handle = GetStdHandle( STD_INPUT_HANDLE );
-    DWORD bytesAvailable{ 0 };
-    const auto success = PeekNamedPipe( handle, nullptr, 0, nullptr, &bytesAvailable, nullptr );
-    return ( success == 0 ) && ( bytesAvailable > 0 );
+    return _isatty( _fileno( stdin ) ) == 0;
 }
 
 
@@ -80,10 +77,7 @@ stdoutIsDevNull()
 [[nodiscard]] inline bool
 stdinHasInput()
 {
-    pollfd fds{};
-    fds.fd = STDIN_FILENO;
-    fds.events = POLLIN;
-    return poll( &fds, 1, /* timeout in ms */ 100 ) == 1;
+    return isatty( STDIN_FILENO ) == 0;
 }
 
 
