@@ -34,7 +34,8 @@
     //#include <huffman/HuffmanCodingDistanceISAL.hpp>
     #include <huffman/HuffmanCodingISAL.hpp>
 #else
-    #include <huffman/HuffmanCodingDoubleLiteralCached.hpp>
+    //#include <huffman/HuffmanCodingDoubleLiteralCached.hpp>
+    #include <huffman/HuffmanCodingShortBitsCached.hpp>
 #endif
 
 #include "DecodedDataView.hpp"
@@ -49,11 +50,64 @@ namespace rapidgzip
 {
 namespace deflate
 {
+/**
+ * m rapidgzip && src/tools/rapidgzip -v -d -o /dev/null test-files/silesia/20xsilesia.tar.gz
+ * Decompressed in total 4239155200 B in:
+ *     HuffmanCodingISAL with WITH_ISAL=ON:
+ *         4164.73 4136.88 4098.61 4070.31 MB/s
+ *     HuffmanCodingDoubleLiteralCached:
+ *         3050.58 3080.91 3047.50 3042.54 MB/s
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=8:
+ *         3214.71 3286.01 3223.5 3221.18 MB/s
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=10:
+ *         3623.99 3581.81 3484.40 3661.62 MB/s
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=12:
+ *         3473.5 3504.8 3521.71 3478.2 MB/s
+ *
+ * m rapidgzip && src/tools/rapidgzip -v -d -o /dev/null test-files/fastq/10xSRR22403185_2.fastq.gz
+ * Decompressed in total 3618153020 B in
+ *     HuffmanCodingISAL with WITH_ISAL=ON:
+ *         2378.18 2371.08 2358.82 2375.23 MB/s
+ *     HuffmanCodingDoubleLiteralCached:
+ *         2177.91 2255.19 2234.24 2271.3 MB/s
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=8:
+ *         2335.77 2359.33 2290.61 2259.16 MB/s
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=10:
+ *         2319.18 2337.99 2298.88 2334.54 MB/s
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=12:
+ *         2310.05 2282.74 2255.54 2338.72 MB/s
+ *
+ * m rapidgzip && src/tools/rapidgzip -v -d -o /dev/null 4GiB-base64.gz
+ * Decompressed in total 4294967296 B in:
+ *     HuffmanCodingISAL with WITH_ISAL=ON:
+ *         6210.43 6532.71 6630.21 6545.23 MB/s
+ *     HuffmanCodingDoubleLiteralCached:
+ *         3481.87 3481.07 3347.76 3525.88 MB/s
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=8:
+ *         3628.23 3726.66 3710.35 3659.11 MB/s
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=10:
+ *         3722.02 3738.92 3646.24 3624.71 MB/s
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=12:
+ *         3650.94 3651.1 3570.73 3654.64 MB/s
+ *
+ * -> Even though HuffmanCodingShortBitsCached is fairly simple and does not even cache longer codes and
+ *    instead falls back to >bit-wise< code reading, it still outperforms the previous contender:
+ *    HuffmanCodingDoubleLiteralCached. All of the test cases are faster with HuffmanCodingShortBitsCached!
+ *    The highest improvements are achieved for silesia.tar.gz.
+ *    We are still far away from HuffmanCodingISAL for base64.gz.
+ *    For FASTQ, we are actually even with HuffmanCodingISAL!
+ *    This shows how much the Huffman table creation bottle-necked the decoding.
+ *    @todo Future improvements on this should also cache some of the length and distance codes
+ *          following non-literal symbols and/or double-cache symbols.
+ */
 #ifdef WITH_ISAL
 using LiteralOrLengthHuffmanCoding = HuffmanCodingISAL;
 #else
-using LiteralOrLengthHuffmanCoding =
-    HuffmanCodingDoubleLiteralCached<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_LITERAL_HUFFMAN_CODE_COUNT>;
+//using LiteralOrLengthHuffmanCoding =
+//    HuffmanCodingDoubleLiteralCached<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_LITERAL_HUFFMAN_CODE_COUNT>;
+using LiteralOrLengthHuffmanCoding = HuffmanCodingShortBitsCached<
+    uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_LITERAL_HUFFMAN_CODE_COUNT,
+    /* LUT_BITS_COUNT */ 10, /* REVERSE_BITS */ true, /* CHECK_OPTIMALITY */ true>;
 #endif
 
 /**
