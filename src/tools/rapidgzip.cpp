@@ -547,6 +547,11 @@ main( int argc, char** argv )
         std::cerr << "Unexpected end of file. Truncated or invalid gzip?\n";
         return 1;
     }
+    catch ( const bzip2::BitReader::EndOfFileReached& exception )
+    {
+        std::cerr << "Unexpected end of file. Truncated or invalid bzip2?\n";
+        return 1;
+    }
     catch ( const std::exception& exception )
     {
         const std::string_view message{ exception.what() };

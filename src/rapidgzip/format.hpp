@@ -42,8 +42,8 @@ determineFileTypeAndOffset( const UniqueFileReader& fileReader )
     try {
         bzip2::readBzip2Header( bzip2BitReader );
         return std::make_pair( FileType::BZIP2, bzip2BitReader.tell() );
-    } catch ( const std::domain_error& ) {
-        /* Ignore header errors here. */
+    } catch ( const std::exception& ) {
+        /* Ignore header errors and EOF here. */
     }
 
     /* Try deflate last because it has the least redundancy. In the worst case, for fixed Huffman blocks,
