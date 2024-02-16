@@ -59,6 +59,9 @@ public:
         auto codeValues = this->m_minimumCodeValuesPerLevel;
         for ( size_t symbol = 0; symbol < codeLengths.size(); ++symbol ) {
             const auto length = codeLengths[symbol];
+            /* Note that the preemptive continue for large lengths is not a bug even if we do not increment
+             * codeValues because all symbols of the same length will either be filtered or not, so that
+             * the missing increment does not matter because that code is either always used or never. */
             if ( ( length == 0 ) || ( length > m_lutBitsCount ) ) {
                 continue;
             }
@@ -153,7 +156,16 @@ private:
         Symbol symbol{ 0 };
     };
     static_assert( sizeof( CacheEntry ) == 2 * sizeof( Symbol ), "CacheEntry is larger than assumed!" );
+
+    /**
+     * sizeof(CacheEntry) = 4 B for Symbol=uint16_t.
+     * Total m_codeCache sizes for varying LUT_BITS_COUNT:
+     *  - 10 bits -> 4 KiB
+     *  - 11 bits -> 8 KiB
+     *  - 12 bits -> 16 KiB
+     */
     alignas( 64 ) std::array<CacheEntry, ( 1UL << LUT_BITS_COUNT )> m_codeCache{};
+
     uint8_t m_lutBitsCount{ LUT_BITS_COUNT };
     uint8_t m_bitsToReadAtOnce{ LUT_BITS_COUNT };
     bool m_needsToBeZeroed{ false };
