@@ -40,6 +40,13 @@ public:
         uint16_t distance{ 0 };
     };
 
+    struct InternalCacheEntry
+    {
+        uint8_t length{ 0 };  // ceil(log2 MAX_CODE_LENGTH(20)) = 5 bits would suffice
+        Symbol symbol{ 0 };
+    };
+    static_assert( sizeof( InternalCacheEntry ) == 2 * sizeof( Symbol ), "CacheEntry is larger than assumed!" );
+
 public:
     [[nodiscard]] constexpr Error
     initializeFromLengths( const VectorView<BitCount>& codeLengths )
@@ -68,18 +75,11 @@ public:
                 continue;
             }
 
-            const auto fillerBitCount = m_lutBitsCount - length;
-            const auto k = length - this->m_minCodeLength;
-            const auto code = codeValues[k]++;
-            const auto reversedCode = reverseBits( code, length );
-            const auto maximumPaddedCode = static_cast<HuffmanCode>(
-                reversedCode | ( nLowestBitsSet<HuffmanCode>( fillerBitCount ) << length ) );
-            assert( maximumPaddedCode < m_codeCache.size() );
-            const auto increment = static_cast<HuffmanCode>( HuffmanCode( 1 ) << length );
-            for ( auto paddedCode = reversedCode; paddedCode <= maximumPaddedCode; paddedCode += increment ) {
-                m_codeCache[paddedCode].length = length;
-                m_codeCache[paddedCode].symbol = static_cast<Symbol>( symbol );
-            }
+            const auto reversedCode = reverseBits( codeValues[length - this->m_minCodeLength]++, length );
+            InternalCacheEntry cacheEntry{};
+            cacheEntry.length = length;
+            cacheEntry.symbol = static_cast<Symbol>( symbol );
+            insertIntoCache( reversedCode, cacheEntry );
         }
 
         m_needsToBeZeroed = true;
@@ -173,14 +173,26 @@ private:
         return cacheEntry;
     }
 
-private:
-    struct InternalCacheEntry
+    forceinline void
+    insertIntoCache( HuffmanCode        reversedCode,
+                     InternalCacheEntry cacheEntry )
     {
-        uint8_t length{ 0 };  // ceil(log2 MAX_CODE_LENGTH(20)) = 5 bits would suffice
-        Symbol symbol{ 0 };
-    };
-    static_assert( sizeof( InternalCacheEntry ) == 2 * sizeof( Symbol ), "CacheEntry is larger than assumed!" );
+        const auto length = cacheEntry.length;
+        if ( length > m_lutBitsCount ) {
+            return;
+        }
+        const auto fillerBitCount = m_lutBitsCount - length;
 
+        const auto maximumPaddedCode = static_cast<HuffmanCode>(
+            reversedCode | ( nLowestBitsSet<HuffmanCode>( fillerBitCount ) << length ) );
+        assert( maximumPaddedCode < m_codeCache.size() );
+        const auto increment = static_cast<HuffmanCode>( HuffmanCode( 1 ) << length );
+        for ( auto paddedCode = reversedCode; paddedCode <= maximumPaddedCode; paddedCode += increment ) {
+            m_codeCache[paddedCode] = cacheEntry;
+        }
+    }
+
+private:
     /**
      * sizeof(CacheEntry) = 4 B for Symbol=uint16_t.
      * Total m_codeCache sizes for varying LUT_BITS_COUNT:
