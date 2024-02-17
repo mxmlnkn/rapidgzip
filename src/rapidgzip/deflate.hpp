@@ -30,9 +30,13 @@
 #include <huffman/HuffmanCodingReversedBitsCached.hpp>
 //#include <huffman/HuffmanCodingReversedCodesPerLength.hpp>
 
+#define WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER
+
 #ifdef WITH_ISAL
     //#include <huffman/HuffmanCodingDistanceISAL.hpp>
     #include <huffman/HuffmanCodingISAL.hpp>
+#elif defined( WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER )
+    #include <huffman/HuffmanCodingShortBitsCachedDeflate.hpp>
 #else
     //#include <huffman/HuffmanCodingDoubleLiteralCached.hpp>
     #include <huffman/HuffmanCodingShortBitsCached.hpp>
@@ -52,16 +56,19 @@ namespace deflate
 {
 /**
  * @verbatim
- * function benchmarkRapidgzip()
+ * function benchmarkRapidgzipParallel()
  * {
  *     m rapidgzip &>/dev/null && for (( i=0; i<10; ++i)); do
  *         src/tools/rapidgzip -v -d -o /dev/null "$1" 2>&1 | sed -nr 's|.*Decompressed in total.* -> ([0-9.]+) .*|\1|p'
  *     done
  * }
- * for file in test-files/silesia/20xsilesia.tar.gz test-files/fastq/10xSRR22403185_2.fastq.gz 4GiB-base64.gz; do
- *     echo "$file"
- *     uncertainValue $( benchmarkRapidgzip "$file" )
- * done
+ * function benchmarkRapidgzipParallel()
+ * {
+ *     for file in test-files/silesia/20xsilesia.tar.gz test-files/fastq/10xSRR22403185_2.fastq.gz 4GiB-base64.gz; do
+ *         echo "$file"
+ *         uncertainValue $( benchmarkRapidgzipParallel "$file" )
+ *     done
+ * }
  *
  * Decompressed in total 4239155200 B from 20xsilesia.tar.gz in MB/s:
  *     HuffmanCodingISAL with WITH_ISAL=ON                 : 4810 | 5024 +- 10 | 5127
@@ -114,17 +121,20 @@ namespace deflate
  * Redo non-parallelized to reduce contributions of memory bandwidth and CPU utilization etc.
  *
  * @verbatim
- * function benchmarkRapidgzip()
+ * function benchmarkRapidgzipSequential()
  * {
  *     m rapidgzip &>/dev/null && for (( i=0; i<10; ++i)); do
  *         src/tools/rapidgzip -P 1 -v -d -o /dev/null "$1" 2>&1 |
  *             sed -nr 's|.*Decompressed in total.* -> ([0-9.]+) .*|\1|p'
  *     done
  * }
- * for file in test-files/silesia/silesia.tar.gz test-files/fastq/SRR22403185_2.fastq.gz base64-512MiB.gz; do
- *     echo "$file"
- *     uncertainValue $( benchmarkRapidgzip "$file" )
- * done
+ * function benchmarkRapidgzipSequential()
+ * {
+ *     for file in test-files/silesia/silesia.tar.gz test-files/fastq/SRR22403185_2.fastq.gz base64-512MiB.gz; do
+ *         echo "$file"
+ *         uncertainValue $( benchmarkRapidgzipSequential "$file" )
+ *     done
+ * }
  *
  * Decompressed in total  B from silesia.tar.gz in MB/s:
  *     HuffmanCodingISAL with WITH_ISAL=ON                 : 703.8 | 720.5 +- 1.8 | 770.6
@@ -133,6 +143,7 @@ namespace deflate
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=10 : 322.3 | 330.4 +- 0.4 | 335.9
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=11 : 320.1 | 327.6 +- 0.5 | 338.9
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=12 : 323.5 | 327.7 +- 0.3 | 332.5
+ *     HuffmanCodingShortBitsCachedDeflate with 11 Bits    : 325.5 | 333.0 +- 0.5 | 345.6
  *
  * Decompressed in total  B from 10xSRR22403185_2.fastq.gz in MB/s:
  *     HuffmanCodingISAL with WITH_ISAL=ON                 : 857.8 | 879.1 +- 1.2 | 896.5
@@ -141,6 +152,7 @@ namespace deflate
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=10 : 358.3 | 366.5 +- 0.4 | 371.2
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=11 : 356.4 | 366.8 +- 0.4 | 371.4
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=12 : 360.9 | 365.8 +- 0.3 | 371.2
+ *     HuffmanCodingShortBitsCachedDeflate with 11 Bits    : 354.6 | 364.5 +- 0.6 | 377.1
  *
  * Decompressed in total  B from 4GiB-base64.gz in MB/s:
  *     HuffmanCodingISAL with WITH_ISAL=ON                 : 527.2 | 538.8 +- 0.7 | 545.6
@@ -149,6 +161,7 @@ namespace deflate
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=10 : 210.4 | 234.6 +- 1.7 | 264.9
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=11 : 213.9 | 238.3 +- 2.0 | 262.6
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=12 : 209.2 | 221.2 +- 1.1 | 240.0
+ *     HuffmanCodingShortBitsCachedDeflate with 11 Bits    : 211.9 | 242.7 +- 1.2 | 261.6
  * @endverbatim
  *
  * It really is insane how much these benchmarks differ from the multi-threaded ones.
@@ -159,6 +172,8 @@ namespace deflate
  */
 #ifdef WITH_ISAL
 using LiteralOrLengthHuffmanCoding = HuffmanCodingISAL;
+#elif defined( WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER )
+using LiteralOrLengthHuffmanCoding = HuffmanCodingShortBitsCachedDeflate</* LUT_BITS_COUNT */ 11>;
 #else
 //using LiteralOrLengthHuffmanCoding =
 //    HuffmanCodingDoubleLiteralCached<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_LITERAL_HUFFMAN_CODE_COUNT>;
