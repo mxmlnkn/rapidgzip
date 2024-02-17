@@ -41,8 +41,10 @@ public:
     };
 
 public:
+    template<typename DistanceHuffmanCoding>
     [[nodiscard]] constexpr Error
-    initializeFromLengths( const VectorView<BitCount>& codeLengths )
+    initializeFromLengths( const VectorView<BitCount>&  codeLengths,
+                           const DistanceHuffmanCoding& distanceHC )
     {
         if ( const auto errorCode = BaseType::initializeFromLengths( codeLengths );
              errorCode != Error::NONE )
@@ -78,6 +80,9 @@ public:
             } else if ( UNLIKELY( symbol == END_OF_BLOCK_SYMBOL /* 256 */ ) ) [[unlikely]] {
                 cacheEntry.distance = 0xFFFFU;
                 insertIntoCache( reversedCode, cacheEntry );
+            } else if ( symbol <= 264U ) {
+                cacheEntry.symbolOrLength = static_cast<uint8_t>( symbol - 257U );
+                insertIntoCacheWithDistance( reversedCode, cacheEntry, distanceHC );
             }
         }
 
@@ -186,9 +191,48 @@ private:
         }
     }
 
+    template<typename DistanceHuffmanCoding>
+    forceinline void
+    insertIntoCacheWithDistance( HuffmanCode                  reversedCode,
+                                 const CacheEntry&            cacheEntry,
+                                 const DistanceHuffmanCoding& distanceHC )
+    {
+        const auto length = cacheEntry.bitsToSkip;
+        if ( length > m_lutBitsCount ) {
+            return;
+        }
+        const auto fillerBitCount = m_lutBitsCount - length;
+
+        const auto maximumPaddedCode = static_cast<HuffmanCode>(
+            reversedCode | ( nLowestBitsSet<HuffmanCode>( fillerBitCount ) << length ) );
+        assert( maximumPaddedCode < m_codeCache.size() );
+        const auto increment = static_cast<HuffmanCode>( HuffmanCode( 1 ) << length );
+        for ( auto paddedCode = reversedCode; paddedCode <= maximumPaddedCode; paddedCode += increment ) {
+            const auto freeBits = ( paddedCode >> length ) & nLowestBitsSet<HuffmanCode>( distanceHC.maxCodeLength() );
+            const auto& [distanceCodeLength, symbol] = distanceHC.codeCache()[freeBits];
+            if ( ( distanceCodeLength == 0 ) || ( distanceCodeLength > fillerBitCount ) || ( symbol > 29U ) ) {
+                continue;
+            }
+
+            if ( symbol <= 3U ) {
+                m_codeCache[paddedCode] = cacheEntry;
+                m_codeCache[paddedCode].bitsToSkip = length + distanceCodeLength;
+                m_codeCache[paddedCode].distance = symbol + 1U;
+            } else {
+                const auto extraBitCount = ( symbol - 2U ) / 2U;
+                if ( static_cast<uint16_t>( distanceCodeLength + extraBitCount ) <= fillerBitCount ) {
+                    const auto extraBits = ( paddedCode >> ( length + distanceCodeLength ) )
+                                           & nLowestBitsSet<HuffmanCode>( extraBitCount );
+                    m_codeCache[paddedCode] = cacheEntry;
+                    m_codeCache[paddedCode].bitsToSkip = length + distanceCodeLength + extraBitCount;
+                    m_codeCache[paddedCode].distance = distanceLUT[symbol] + extraBits;
+                }
+            }
+        }
+    }
+
 private:
     alignas( 64 ) std::array<CacheEntry, ( 1UL << LUT_BITS_COUNT )> m_codeCache{};
-
     uint8_t m_lutBitsCount{ LUT_BITS_COUNT };
     uint8_t m_bitsToReadAtOnce{ LUT_BITS_COUNT };
     bool m_needsToBeZeroed{ false };

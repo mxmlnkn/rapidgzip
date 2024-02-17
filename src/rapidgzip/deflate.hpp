@@ -1023,7 +1023,12 @@ Block<ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& bitReader )
     }
 
     /* Create literal HC */
+#ifdef WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER
+    error = m_literalHC.initializeFromLengths( VectorView<uint8_t>( m_literalCL.data(), literalCodeCount ),
+                                               m_distanceHC );
+#else
     error = m_literalHC.initializeFromLengths( VectorView<uint8_t>( m_literalCL.data(), literalCodeCount ) );
+#endif
     if ( error != Error::NONE ) {
         if constexpr ( ENABLE_STATISTICS ) {
             this->failedLiteralInit++;

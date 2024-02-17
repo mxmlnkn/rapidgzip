@@ -186,6 +186,24 @@ public:
         return Error::NONE;
     }
 
+    [[nodiscard]] constexpr BitCount
+    minCodeLength() const noexcept
+    {
+        return m_minCodeLength;
+    }
+
+    [[nodiscard]] constexpr BitCount
+    maxCodeLength() const noexcept
+    {
+        return m_maxCodeLength;
+    }
+
+    [[nodiscard]] constexpr auto const&
+    minimumCodeValuesPerLevel() const noexcept
+    {
+        return m_minimumCodeValuesPerLevel;
+    }
+
 protected:
     BitCount m_minCodeLength{ std::numeric_limits<BitCount>::max() };
     BitCount m_maxCodeLength{ std::numeric_limits<BitCount>::min() };

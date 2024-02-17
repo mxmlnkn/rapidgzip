@@ -124,6 +124,12 @@ public:
         }
     }
 
+    [[nodiscard]] constexpr auto const&
+    codeCache() const noexcept
+    {
+        return m_codeCache;
+    }
+
 private:
     alignas( 8 ) std::array<std::pair</* length */ uint8_t, Symbol>, ( 1UL << MAX_CODE_LENGTH )> m_codeCache{};
     bool m_needsToBeZeroed{ false };
