@@ -40,13 +40,6 @@ public:
         uint16_t distance{ 0 };
     };
 
-    struct InternalCacheEntry
-    {
-        uint8_t length{ 0 };  // ceil(log2 MAX_CODE_LENGTH(20)) = 5 bits would suffice
-        Symbol symbol{ 0 };
-    };
-    static_assert( sizeof( InternalCacheEntry ) == 2 * sizeof( Symbol ), "CacheEntry is larger than assumed!" );
-
 public:
     [[nodiscard]] constexpr Error
     initializeFromLengths( const VectorView<BitCount>& codeLengths )
@@ -64,7 +57,7 @@ public:
         if ( m_needsToBeZeroed ) {
             // Works constexpr
             for ( size_t symbol = 0; symbol < m_codeCache.size(); ++symbol ) {
-                m_codeCache[symbol].length = 0;
+                m_codeCache[symbol].bitsToSkip = 0;
             }
         }
 
@@ -76,10 +69,16 @@ public:
             }
 
             const auto reversedCode = reverseBits( codeValues[length - this->m_minCodeLength]++, length );
-            InternalCacheEntry cacheEntry{};
-            cacheEntry.length = length;
-            cacheEntry.symbol = static_cast<Symbol>( symbol );
-            insertIntoCache( reversedCode, cacheEntry );
+            CacheEntry cacheEntry{};
+            cacheEntry.bitsToSkip = length;
+            if ( symbol <= 255 ) {
+                cacheEntry.symbolOrLength = static_cast<uint8_t>( symbol );
+                cacheEntry.distance = 0;
+                insertIntoCache( reversedCode, cacheEntry );
+            } else if ( UNLIKELY( symbol == END_OF_BLOCK_SYMBOL /* 256 */ ) ) [[unlikely]] {
+                cacheEntry.distance = 0xFFFFU;
+                insertIntoCache( reversedCode, cacheEntry );
+            }
         }
 
         m_needsToBeZeroed = true;
@@ -95,11 +94,11 @@ public:
     {
         try {
             const auto cacheEntry = m_codeCache[bitReader.peek( m_lutBitsCount )];
-            if ( cacheEntry.length == 0 ) {
+            if ( cacheEntry.bitsToSkip == 0 ) {
                 return decodeLong( bitReader, distanceHC );
             }
-            bitReader.seekAfterPeek( cacheEntry.length );
-            return interpretSymbol( bitReader, distanceHC, cacheEntry.symbol );
+            bitReader.seekAfterPeek( cacheEntry.bitsToSkip );
+            return cacheEntry;
         } catch ( const typename BitReader::EndOfFileReached& ) {
             /* Should only happen at the end of the file and probably not even there
              * because the bzip2 footer (EOS block) should be longer than the peek length. */
@@ -116,20 +115,15 @@ private:
     {
         HuffmanCode code = 0;
 
-        /** Read the first n bytes. Note that we can't call the bitReader with argument > 1 because the bit order
-         * would be inversed. @todo Reverse the Huffman codes and prepend bits instead of appending, so that this
-         * first step can be conflated and still have the correct order for comparison! */
-        for ( BitCount i = 0; i < m_bitsToReadAtOnce; ++i ) {
+        for ( BitCount i = 0; i < this->m_minCodeLength; ++i ) {
             code = ( code << 1U ) | ( bitReader.template read<1>() );
         }
 
-        for ( BitCount k = m_bitsToReadAtOnce - this->m_minCodeLength;
-              k <= this->m_maxCodeLength - this->m_minCodeLength; ++k )
-        {
+        for ( BitCount k = 0; k <= this->m_maxCodeLength - this->m_minCodeLength; ++k ) {
             const auto minCode = this->m_minimumCodeValuesPerLevel[k];
             if ( minCode <= code ) {
-                const auto subIndex = this->m_offsets[k] + static_cast<size_t>( code - minCode );
-                if ( subIndex < this->m_offsets[k + 1] ) {
+                const auto subIndex = m_offsets[k] + static_cast<size_t>( code - minCode );
+                if ( subIndex < m_offsets[k + 1] ) {
                     return interpretSymbol( bitReader, distanceHC, this->m_symbolsPerLength[subIndex] );
                 }
             }
@@ -174,10 +168,10 @@ private:
     }
 
     forceinline void
-    insertIntoCache( HuffmanCode        reversedCode,
-                     InternalCacheEntry cacheEntry )
+    insertIntoCache( HuffmanCode reversedCode,
+                     CacheEntry  cacheEntry )
     {
-        const auto length = cacheEntry.length;
+        const auto length = cacheEntry.bitsToSkip;
         if ( length > m_lutBitsCount ) {
             return;
         }
@@ -193,14 +187,7 @@ private:
     }
 
 private:
-    /**
-     * sizeof(CacheEntry) = 4 B for Symbol=uint16_t.
-     * Total m_codeCache sizes for varying LUT_BITS_COUNT:
-     *  - 10 bits -> 4 KiB
-     *  - 11 bits -> 8 KiB
-     *  - 12 bits -> 16 KiB
-     */
-    alignas( 64 ) std::array<InternalCacheEntry, ( 1UL << LUT_BITS_COUNT )> m_codeCache{};
+    alignas( 64 ) std::array<CacheEntry, ( 1UL << LUT_BITS_COUNT )> m_codeCache{};
 
     uint8_t m_lutBitsCount{ LUT_BITS_COUNT };
     uint8_t m_bitsToReadAtOnce{ LUT_BITS_COUNT };
