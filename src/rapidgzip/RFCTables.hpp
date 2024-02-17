@@ -3,6 +3,8 @@
 #include <array>
 #include <cstdint>
 
+#include "definitions.hpp"
+
 
 namespace rapidgzip::deflate
 {
@@ -90,4 +92,65 @@ createLengthLUT() noexcept
 
 alignas( 8 ) static constexpr LengthLUT
 lengthLUT = createLengthLUT();
+
+
+[[nodiscard]] inline uint16_t
+getLength( uint16_t   code,
+           BitReader& bitReader )
+{
+    if ( code <= 264 ) {
+        return code - 257U + 3U;
+    } else if ( code < 285 ) {
+        code -= 261;
+        const auto extraBits = code / 4;
+        return calculateLength( code ) + bitReader.read( extraBits );
+    } else if ( code == 285 ) {
+        return 258;
+    }
+
+    throw std::invalid_argument( "Invalid Code!" );
+}
+
+
+[[nodiscard]] inline uint8_t
+getLengthMinus3( uint16_t   code,
+                 BitReader& bitReader )
+{
+    /* The largest length is 258 and the smallest is 3, so length-3 fits into uint8_t. */
+    return static_cast<uint8_t>( getLength( code, bitReader ) - 3U );
+}
+
+
+template<typename DistanceHuffmanCoding>
+inline std::pair<uint16_t, Error>
+getDistance( CompressionType              compressionType,
+             const DistanceHuffmanCoding& distanceHC,
+             BitReader&                   bitReader )
+{
+    uint16_t distance = 0;
+    if ( compressionType == CompressionType::FIXED_HUFFMAN ) {
+        distance = reverseBits( static_cast<uint8_t>( bitReader.read<5>() ) ) >> 3U;
+        if ( UNLIKELY( distance >= MAX_DISTANCE_SYMBOL_COUNT ) ) [[unlikely]] {
+            return { 0, Error::EXCEEDED_DISTANCE_RANGE };
+        }
+    } else {
+        const auto decodedDistance = distanceHC.decode( bitReader );
+        if ( UNLIKELY( !decodedDistance ) ) [[unlikely]] {
+            return { 0, Error::INVALID_HUFFMAN_CODE };
+        }
+        distance = static_cast<uint16_t>( *decodedDistance );
+    }
+
+    if ( distance <= 3U ) {
+        distance += 1U;
+    } else if ( distance <= 29U ) {
+        const auto extraBitsCount = ( distance - 2U ) / 2U;
+        const auto extraBits = bitReader.read( extraBitsCount );
+        distance = distanceLUT[distance] + extraBits;
+    } else {
+        throw std::logic_error( "Invalid distance codes encountered!" );
+    }
+
+    return { distance, Error::NONE };
+}
 }  // namespace rapidgzip::deflate

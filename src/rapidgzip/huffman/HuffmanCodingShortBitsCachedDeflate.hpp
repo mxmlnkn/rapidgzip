@@ -11,6 +11,7 @@
 #include <huffman/HuffmanCodingSymbolsPerLength.hpp>
 
 #include "definitions.hpp"
+#include "RFCTables.hpp"
 
 
 namespace rapidgzip::deflate
@@ -31,6 +32,13 @@ public:
                                                    /* CHECK_OPTIMALITY */ true>;
     using BitCount = typename BaseType::BitCount;
     using CodeLengthFrequencies = typename BaseType::CodeLengthFrequencies;
+
+    struct CacheEntry
+    {
+        uint8_t bitsToSkip{ 0 };
+        uint8_t symbolOrLength{ 0 };
+        uint16_t distance{ 0 };
+    };
 
 public:
     [[nodiscard]] constexpr Error
@@ -79,28 +87,32 @@ public:
         return Error::NONE;
     }
 
-    template<typename BitReader>
-    [[nodiscard]] forceinline std::optional<Symbol>
-    decode( BitReader& bitReader ) const
+    template<typename BitReader,
+             typename DistanceHuffmanCoding>
+    [[nodiscard]] forceinline CacheEntry
+    decode( BitReader&                   bitReader,
+            const DistanceHuffmanCoding& distanceHC ) const
     {
         try {
-            const auto [length, symbol] = m_codeCache[bitReader.peek( m_lutBitsCount )];
-            if ( length == 0 ) {
-                return decodeLong( bitReader );
+            const auto cacheEntry = m_codeCache[bitReader.peek( m_lutBitsCount )];
+            if ( cacheEntry.length == 0 ) {
+                return decodeLong( bitReader, distanceHC );
             }
-            bitReader.seekAfterPeek( length );
-            return symbol;
+            bitReader.seekAfterPeek( cacheEntry.length );
+            return interpretSymbol( bitReader, distanceHC, cacheEntry.symbol );
         } catch ( const typename BitReader::EndOfFileReached& ) {
             /* Should only happen at the end of the file and probably not even there
              * because the bzip2 footer (EOS block) should be longer than the peek length. */
-            return BaseType::decode( bitReader );
+            return interpretSymbol( bitReader, distanceHC, BaseType::decode( bitReader ).value() );
         }
     }
 
 private:
-    template<typename BitReader>
-    [[nodiscard]] forceinline constexpr std::optional<Symbol>
-    decodeLong( BitReader& bitReader ) const
+    template<typename BitReader,
+             typename DistanceHuffmanCoding>
+    [[nodiscard]] forceinline constexpr CacheEntry
+    decodeLong( BitReader&                   bitReader,
+                const DistanceHuffmanCoding& distanceHC ) const
     {
         HuffmanCode code = 0;
 
@@ -118,7 +130,7 @@ private:
             if ( minCode <= code ) {
                 const auto subIndex = this->m_offsets[k] + static_cast<size_t>( code - minCode );
                 if ( subIndex < this->m_offsets[k + 1] ) {
-                    return this->m_symbolsPerLength[subIndex];
+                    return interpretSymbol( bitReader, distanceHC, this->m_symbolsPerLength[subIndex] );
                 }
             }
 
@@ -126,16 +138,48 @@ private:
             code |= bitReader.template read<1>();
         }
 
-        return std::nullopt;
+        throw Error::INVALID_HUFFMAN_CODE;
+    }
+
+    template<typename BitReader,
+             typename DistanceHuffmanCoding>
+    [[nodiscard]] forceinline constexpr CacheEntry
+    interpretSymbol( BitReader&                   bitReader,
+                     const DistanceHuffmanCoding& distanceHC,
+                     Symbol                       symbol ) const
+    {
+        CacheEntry cacheEntry{};
+
+        if ( symbol <= 255 ) {
+            cacheEntry.symbolOrLength = static_cast<uint8_t>( symbol );
+            return cacheEntry;
+        }
+
+        if ( UNLIKELY( symbol == END_OF_BLOCK_SYMBOL /* 256 */ ) ) [[unlikely]] {
+            cacheEntry.distance = 0xFFFFU;
+            return cacheEntry;
+        }
+
+        if ( UNLIKELY( symbol > 285 ) ) [[unlikely]] {
+            throw Error::INVALID_HUFFMAN_CODE;
+        }
+
+        cacheEntry.symbolOrLength = getLengthMinus3( symbol, bitReader );
+        const auto [distance, error] = getDistance( CompressionType::DYNAMIC_HUFFMAN, distanceHC, bitReader );
+        if ( error != Error::NONE ) {
+            throw error;
+        }
+        cacheEntry.distance = distance;
+        return cacheEntry;
     }
 
 private:
-    struct CacheEntry
+    struct InternalCacheEntry
     {
         uint8_t length{ 0 };  // ceil(log2 MAX_CODE_LENGTH(20)) = 5 bits would suffice
         Symbol symbol{ 0 };
     };
-    static_assert( sizeof( CacheEntry ) == 2 * sizeof( Symbol ), "CacheEntry is larger than assumed!" );
+    static_assert( sizeof( InternalCacheEntry ) == 2 * sizeof( Symbol ), "CacheEntry is larger than assumed!" );
 
     /**
      * sizeof(CacheEntry) = 4 B for Symbol=uint16_t.
@@ -144,7 +188,7 @@ private:
      *  - 11 bits -> 8 KiB
      *  - 12 bits -> 16 KiB
      */
-    alignas( 64 ) std::array<CacheEntry, ( 1UL << LUT_BITS_COUNT )> m_codeCache{};
+    alignas( 64 ) std::array<InternalCacheEntry, ( 1UL << LUT_BITS_COUNT )> m_codeCache{};
 
     uint8_t m_lutBitsCount{ LUT_BITS_COUNT };
     uint8_t m_bitsToReadAtOnce{ LUT_BITS_COUNT };

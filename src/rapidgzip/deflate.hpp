@@ -62,7 +62,7 @@ namespace deflate
  *         src/tools/rapidgzip -v -d -o /dev/null "$1" 2>&1 | sed -nr 's|.*Decompressed in total.* -> ([0-9.]+) .*|\1|p'
  *     done
  * }
- * function benchmarkRapidgzipParallel()
+ * function benchmarkRapidgzipParallelFiles()
  * {
  *     for file in test-files/silesia/20xsilesia.tar.gz test-files/fastq/10xSRR22403185_2.fastq.gz 4GiB-base64.gz; do
  *         echo "$file"
@@ -128,7 +128,7 @@ namespace deflate
  *             sed -nr 's|.*Decompressed in total.* -> ([0-9.]+) .*|\1|p'
  *     done
  * }
- * function benchmarkRapidgzipSequential()
+ * function benchmarkRapidgzipSequentialFiles()
  * {
  *     for file in test-files/silesia/silesia.tar.gz test-files/fastq/SRR22403185_2.fastq.gz base64-512MiB.gz; do
  *         echo "$file"
@@ -143,7 +143,7 @@ namespace deflate
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=10 : 322.3 | 330.4 +- 0.4 | 335.9
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=11 : 320.1 | 327.6 +- 0.5 | 338.9
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=12 : 323.5 | 327.7 +- 0.3 | 332.5
- *     HuffmanCodingShortBitsCachedDeflate with 11 Bits    : 325.5 | 333.0 +- 0.5 | 345.6
+ *     HuffmanCodingShortBitsCachedDeflate with 10 Bits    : 326.6 | 339.3 +- 0.9 | 354.1
  *
  * Decompressed in total  B from 10xSRR22403185_2.fastq.gz in MB/s:
  *     HuffmanCodingISAL with WITH_ISAL=ON                 : 857.8 | 879.1 +- 1.2 | 896.5
@@ -152,7 +152,7 @@ namespace deflate
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=10 : 358.3 | 366.5 +- 0.4 | 371.2
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=11 : 356.4 | 366.8 +- 0.4 | 371.4
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=12 : 360.9 | 365.8 +- 0.3 | 371.2
- *     HuffmanCodingShortBitsCachedDeflate with 11 Bits    : 354.6 | 364.5 +- 0.6 | 377.1
+ *     HuffmanCodingShortBitsCachedDeflate with 10 Bits    : 367.1 | 373.7 +- 0.5 | 380.7
  *
  * Decompressed in total  B from 4GiB-base64.gz in MB/s:
  *     HuffmanCodingISAL with WITH_ISAL=ON                 : 527.2 | 538.8 +- 0.7 | 545.6
@@ -161,7 +161,7 @@ namespace deflate
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=10 : 210.4 | 234.6 +- 1.7 | 264.9
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=11 : 213.9 | 238.3 +- 2.0 | 262.6
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=12 : 209.2 | 221.2 +- 1.1 | 240.0
- *     HuffmanCodingShortBitsCachedDeflate with 11 Bits    : 211.9 | 242.7 +- 1.2 | 261.6
+ *     HuffmanCodingShortBitsCachedDeflate with 10 Bits    : 203.8 | 223.0 +- 1.0 | 235.6
  * @endverbatim
  *
  * It really is insane how much these benchmarks differ from the multi-threaded ones.
@@ -696,11 +696,17 @@ private:
                                 size_t                    nMaxToDecode,
                                 Window&                   window,
                                 const HuffmanCodingISAL& coding );
-#endif
 
-    [[nodiscard]] static uint16_t
-    getLength( uint16_t   code,
-               BitReader& bitReader );
+#elif defined( WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER )
+
+    template<typename Window>
+    [[nodiscard]] std::pair<size_t, Error>
+    readInternalCompressedSpecialized( BitReader&                          bitReader,
+                                       size_t                              nMaxToDecode,
+                                       Window&                             window,
+                                       const LiteralOrLengthHuffmanCoding& coding );
+
+#endif
 
     [[nodiscard]] std::pair<uint16_t, Error>
     getDistance( BitReader& bitReader ) const;
@@ -1035,25 +1041,6 @@ Block<ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& bitReader )
 
 
 template<bool ENABLE_STATISTICS>
-uint16_t
-Block<ENABLE_STATISTICS>::getLength( uint16_t   code,
-                                     BitReader& bitReader )
-{
-    if ( code <= 264 ) {
-        return code - 257U + 3U;
-    } else if ( code < 285 ) {
-        code -= 261;
-        const auto extraBits = code / 4;
-        return calculateLength( code ) + bitReader.read( extraBits );
-    } else if ( code == 285 ) {
-        return 258;
-    }
-
-    throw std::invalid_argument( "Invalid Code!" );
-}
-
-
-template<bool ENABLE_STATISTICS>
 std::pair<uint16_t, Error>
 Block<ENABLE_STATISTICS>::getDistance( BitReader& bitReader ) const
 {
@@ -1346,6 +1333,8 @@ Block<ENABLE_STATISTICS>::readInternal( BitReader& bitReader,
     } else {
         return readInternalCompressed( bitReader, nMaxToDecode, window, m_literalHC );
     }
+#elif defined( WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER )
+    return readInternalCompressedSpecialized( bitReader, nMaxToDecode, window, m_literalHC );
 #else
     return readInternalCompressed( bitReader, nMaxToDecode, window, m_literalHC );
 #endif
@@ -1546,6 +1535,76 @@ Block<ENABLE_STATISTICS>::readInternalCompressedIsal
                 resolveBackreference( window, distance, length, nBytesRead );
                 nBytesRead += length;
             }
+        }
+    }
+
+    m_decodedBytes += nBytesRead;
+    return { nBytesRead, Error::NONE };
+}
+
+#elif defined( WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER )
+
+template<bool ENABLE_STATISTICS>
+template<typename Window>
+std::pair<size_t, Error>
+Block<ENABLE_STATISTICS>::readInternalCompressedSpecialized
+(
+    BitReader&                          bitReader,
+    size_t                              nMaxToDecode,
+    Window&                             window,
+    const LiteralOrLengthHuffmanCoding& coding )
+{
+    if ( !coding.isValid() ) {
+        throw std::invalid_argument( "No Huffman coding loaded! Call readHeader first!" );
+    }
+
+    constexpr bool containsMarkerBytes = std::is_same_v<std::decay_t<decltype( *window.data() ) >, uint16_t>;
+
+    nMaxToDecode = std::min( nMaxToDecode, window.size() - MAX_RUN_LENGTH );
+
+    size_t nBytesRead{ 0 };
+    LiteralOrLengthHuffmanCoding::CacheEntry cacheEntry;
+    for ( nBytesRead = 0; nBytesRead < nMaxToDecode; )
+    {
+        try {
+            cacheEntry = coding.decode( bitReader, m_distanceHC );
+        } catch ( const Error& errorCode ) {
+            return { nBytesRead, errorCode };
+        }
+
+        switch ( cacheEntry.distance )
+        {
+        case 0xFFFFU:
+            m_atEndOfBlock = true;
+            m_decodedBytes += nBytesRead;
+            return { nBytesRead, Error::NONE };
+
+        case 0U:
+            if constexpr ( ENABLE_STATISTICS ) {
+                symbolTypes.literal++;
+            }
+            appendToWindow( window, cacheEntry.symbolOrLength );
+            ++nBytesRead;
+            break;
+
+        default:
+        {
+            const auto length = cacheEntry.symbolOrLength + 3U;
+            if constexpr ( ENABLE_STATISTICS ) {
+                symbolTypes.backreference++;
+                symbolTypes.copies += length;
+            }
+
+            if constexpr ( !containsMarkerBytes ) {
+                if ( cacheEntry.distance > m_decodedBytes + nBytesRead ) {
+                    return { nBytesRead, Error::EXCEEDED_WINDOW_RANGE };
+                }
+            }
+
+            resolveBackreference( window, cacheEntry.distance, length, nBytesRead );
+            nBytesRead += length;
+            break;
+        }
         }
     }
 
