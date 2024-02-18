@@ -37,11 +37,20 @@ public:
 
     struct CacheEntry
     {
-        uint8_t bitsToSkip{ 0 };  // ceil(log2 MAX_CODE_LENGTH(20)) = 5 bits would suffice
-        Symbol symbol{ 0 };
+        bool needToReadDistanceBits : 1;
+        uint8_t bitsToSkip : 6;  // ceil(log2 2*MAX_CODE_LENGTH(20)) = 6 bits would suffice
+        uint8_t symbolCount : 2;
+        /**
+         * Contains one 8-9-bit symbol in the lower bits and one 8-9 bit symbol in the higher bits only if
+         * the first symbol is an 8-bit literal.
+         */
+        uint32_t symbols : 18;
     };
+    static_assert( sizeof( CacheEntry ) == 4 );
 
     using Symbols = std::pair</* packed symbols */ uint32_t, /* symbol count */ uint32_t>;
+
+    static constexpr size_t DISTANCE_OFFSET = 254U;
 
 public:
     [[nodiscard]] constexpr Error
@@ -103,7 +112,15 @@ public:
 
             CacheEntry cacheEntry{};
             cacheEntry.bitsToSkip = huffmanEntry.length;
-            cacheEntry.symbol = huffmanEntry.symbol;
+            cacheEntry.symbols = huffmanEntry.symbol;
+            cacheEntry.symbolCount = 1;
+            cacheEntry.needToReadDistanceBits = huffmanEntry.symbol > END_OF_BLOCK_SYMBOL;
+
+            if ( cacheEntry.needToReadDistanceBits ) {
+                insertLengthSymbolIntoCache( huffmanEntry.reversedCode, cacheEntry );
+                continue;
+            }
+
             insertIntoCache( huffmanEntry.reversedCode, cacheEntry );
         }
 
@@ -117,12 +134,17 @@ public:
     decode( BitReader& bitReader ) const
     {
         try {
-            const auto [bitsToSkip, symbol] = m_codeCache[bitReader.peek( m_lutBitsCount )];
-            if ( bitsToSkip == 0 ) {
+            const auto& cacheEntry = m_codeCache[bitReader.peek( m_lutBitsCount )];
+            if ( cacheEntry.bitsToSkip == 0 ) {
                 return decodeLong( bitReader );
             }
-            bitReader.seekAfterPeek( bitsToSkip );
-            return { readLength( symbol, bitReader ), 1 };
+            bitReader.seekAfterPeek( cacheEntry.bitsToSkip );
+            return {
+                cacheEntry.needToReadDistanceBits
+                ? readLength( cacheEntry.symbols, bitReader )
+                : cacheEntry.symbols,
+                cacheEntry.symbolCount
+            };
         } catch ( const typename BitReader::EndOfFileReached& ) {
             /* Should only happen at the end of the file and probably not even there
              * because the bzip2 footer (EOS block) should be longer than the peek length. */
@@ -172,7 +194,7 @@ private:
             return symbol;
         }
         /* Basically the same as ( 1 << 8U ) | getLengthMinus3 */
-        return getLength( symbol, bitReader ) + 254U;
+        return getLength( symbol, bitReader ) + DISTANCE_OFFSET;
     }
 
     forceinline void
@@ -191,6 +213,50 @@ private:
         const auto increment = static_cast<HuffmanCode>( HuffmanCode( 1 ) << length );
         for ( auto paddedCode = reversedCode; paddedCode <= maximumPaddedCode; paddedCode += increment ) {
             m_codeCache[paddedCode] = cacheEntry;
+        }
+    }
+
+    forceinline void
+    insertLengthSymbolIntoCache( const HuffmanCode reversedCode,
+                                 const CacheEntry& inputCacheEntry )
+    {
+        if ( !inputCacheEntry.needToReadDistanceBits ) {
+            insertIntoCache( reversedCode, inputCacheEntry );
+            return;
+        }
+
+        const auto previousBitCount = ( inputCacheEntry.symbolCount - 1U ) * BYTE_SIZE;
+        const auto symbol = static_cast<uint32_t>( inputCacheEntry.symbols ) >> previousBitCount;
+        const auto codeLength = inputCacheEntry.bitsToSkip;
+        const auto previousSymbols = symbol & nLowestBitsSet<uint32_t>( previousBitCount );
+        const auto prependLength = [=] ( uint32_t length ) { return previousSymbols | ( length << previousBitCount ); };
+
+        auto cacheEntry = inputCacheEntry;
+        if ( symbol <= 264U ) {
+            cacheEntry.symbols = prependLength( symbol - 257U + 3U + DISTANCE_OFFSET );
+            cacheEntry.needToReadDistanceBits = false;
+            insertIntoCache( reversedCode, cacheEntry );
+        } else if ( symbol < 285U ) {
+            const auto lengthCode = static_cast<uint8_t>( symbol - 261U );
+            const auto extraBitCount = lengthCode / 4;  /* <= 5 */
+            if ( codeLength + extraBitCount <= m_lutBitsCount ) {
+                cacheEntry.needToReadDistanceBits = false;
+                cacheEntry.bitsToSkip = codeLength + extraBitCount;
+                for ( uint8_t extraBits = 0; extraBits < ( 1U << extraBitCount ); ++extraBits ) {
+                    cacheEntry.symbols = prependLength( calculateLength( lengthCode ) + extraBits + DISTANCE_OFFSET );
+                    insertIntoCache( reversedCode | ( extraBits << codeLength ),
+                                     cacheEntry );
+                }
+            } else {
+                cacheEntry.symbols = prependLength( symbol - 254U + DISTANCE_OFFSET );
+                insertIntoCache( reversedCode, cacheEntry );
+            }
+        } else if ( symbol == 285U ) {
+            cacheEntry.needToReadDistanceBits = false;
+            cacheEntry.symbols = prependLength( 258U + DISTANCE_OFFSET );
+            insertIntoCache( reversedCode, cacheEntry );
+        } else {
+            throw std::logic_error( "Symbol count or symbols bit field is inconsistent!" );
         }
     }
 

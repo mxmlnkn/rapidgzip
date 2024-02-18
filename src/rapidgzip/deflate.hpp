@@ -147,7 +147,7 @@ namespace deflate
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=11 : 320.1 | 327.6 +- 0.5 | 338.9
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=12 : 323.5 | 327.7 +- 0.3 | 332.5
  *     HuffmanCodingShortBitsCachedDeflate with 11 Bits    : 307.4 | 312.8 +- 0.4 | 317.7
- *     HuffmanCodingShortBitsMultiCached with 11 Bits      : 320.8 | 330.6 +- 0.6 | 340.5
+ *     HuffmanCodingShortBitsMultiCached with 11 Bits      : 329.3 | 337.3 +- 0.8 | 356.5
  *
  * Decompressed in total  B from 10xSRR22403185_2.fastq.gz in MB/s:
  *     HuffmanCodingISAL with WITH_ISAL=ON                 : 857.8 | 879.1 +- 1.2 | 896.5
@@ -157,7 +157,7 @@ namespace deflate
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=11 : 356.4 | 366.8 +- 0.4 | 371.4
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=12 : 360.9 | 365.8 +- 0.3 | 371.2
  *     HuffmanCodingShortBitsCachedDeflate with 11 Bits    : 335.6 | 349.7 +- 0.6 | 357.8
- *     HuffmanCodingShortBitsMultiCached with 11 Bits      : 351.7 | 363.7 +- 0.7 | 379.6
+ *     HuffmanCodingShortBitsMultiCached with 11 Bits      : 363.9 | 376.3 +- 0.9 | 393.2
  *
  * Decompressed in total  B from 4GiB-base64.gz in MB/s:
  *     HuffmanCodingISAL with WITH_ISAL=ON                 : 527.2 | 538.8 +- 0.7 | 545.6
@@ -167,7 +167,7 @@ namespace deflate
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=11 : 213.9 | 238.3 +- 2.0 | 262.6
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=12 : 209.2 | 221.2 +- 1.1 | 240.0
  *     HuffmanCodingShortBitsCachedDeflate with 11 Bits    : 201.1 | 243.3 +- 2.0 | 260.5
- *     HuffmanCodingShortBitsMultiCached with 11 Bits      : 213.7 | 228.2 +- 1.3 | 250.7
+ *     HuffmanCodingShortBitsMultiCached with 11 Bits      : 214.9 | 229.6 +- 1.0 | 242.1
  * @endverbatim
  *
  * It really is insane how much these benchmarks differ from the multi-threaded ones.
