@@ -31,12 +31,15 @@
 //#include <huffman/HuffmanCodingReversedCodesPerLength.hpp>
 
 //#define WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER
+#define WITH_MULTI_CACHED_HUFFMAN_DECODER
 
 #ifdef WITH_ISAL
     //#include <huffman/HuffmanCodingDistanceISAL.hpp>
     #include <huffman/HuffmanCodingISAL.hpp>
 #elif defined( WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER )
     #include <huffman/HuffmanCodingShortBitsCachedDeflate.hpp>
+#elif defined( WITH_MULTI_CACHED_HUFFMAN_DECODER )
+    #include <huffman/HuffmanCodingShortBitsMultiCached.hpp>
 #else
     //#include <huffman/HuffmanCodingDoubleLiteralCached.hpp>
     #include <huffman/HuffmanCodingShortBitsCached.hpp>
@@ -143,7 +146,8 @@ namespace deflate
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=10 : 322.3 | 330.4 +- 0.4 | 335.9
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=11 : 320.1 | 327.6 +- 0.5 | 338.9
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=12 : 323.5 | 327.7 +- 0.3 | 332.5
- *     HuffmanCodingShortBitsCachedDeflate with 10 Bits    : 307.4 | 312.8 +- 0.4 | 317.7
+ *     HuffmanCodingShortBitsCachedDeflate with 11 Bits    : 307.4 | 312.8 +- 0.4 | 317.7
+ *     HuffmanCodingShortBitsMultiCached with 11 Bits      : 320.8 | 330.6 +- 0.6 | 340.5
  *
  * Decompressed in total  B from 10xSRR22403185_2.fastq.gz in MB/s:
  *     HuffmanCodingISAL with WITH_ISAL=ON                 : 857.8 | 879.1 +- 1.2 | 896.5
@@ -152,7 +156,8 @@ namespace deflate
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=10 : 358.3 | 366.5 +- 0.4 | 371.2
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=11 : 356.4 | 366.8 +- 0.4 | 371.4
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=12 : 360.9 | 365.8 +- 0.3 | 371.2
- *     HuffmanCodingShortBitsCachedDeflate with 10 Bits    : 335.6 | 349.7 +- 0.6 | 357.8
+ *     HuffmanCodingShortBitsCachedDeflate with 11 Bits    : 335.6 | 349.7 +- 0.6 | 357.8
+ *     HuffmanCodingShortBitsMultiCached with 11 Bits      : 351.7 | 363.7 +- 0.7 | 379.6
  *
  * Decompressed in total  B from 4GiB-base64.gz in MB/s:
  *     HuffmanCodingISAL with WITH_ISAL=ON                 : 527.2 | 538.8 +- 0.7 | 545.6
@@ -161,7 +166,8 @@ namespace deflate
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=10 : 210.4 | 234.6 +- 1.7 | 264.9
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=11 : 213.9 | 238.3 +- 2.0 | 262.6
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=12 : 209.2 | 221.2 +- 1.1 | 240.0
- *     HuffmanCodingShortBitsCachedDeflate with 10 Bits    : 201.1 | 243.3 +- 2.0 | 260.5
+ *     HuffmanCodingShortBitsCachedDeflate with 11 Bits    : 201.1 | 243.3 +- 2.0 | 260.5
+ *     HuffmanCodingShortBitsMultiCached with 11 Bits      : 213.7 | 228.2 +- 1.3 | 250.7
  * @endverbatim
  *
  * It really is insane how much these benchmarks differ from the multi-threaded ones.
@@ -174,6 +180,8 @@ namespace deflate
 using LiteralOrLengthHuffmanCoding = HuffmanCodingISAL;
 #elif defined( WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER )
 using LiteralOrLengthHuffmanCoding = HuffmanCodingShortBitsCachedDeflate</* LUT_BITS_COUNT */ 11>;
+#elif defined( WITH_MULTI_CACHED_HUFFMAN_DECODER )
+using LiteralOrLengthHuffmanCoding = HuffmanCodingShortBitsMultiCached</* LUT_BITS_COUNT */ 11>;
 #else
 //using LiteralOrLengthHuffmanCoding =
 //    HuffmanCodingDoubleLiteralCached<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_LITERAL_HUFFMAN_CODE_COUNT>;
@@ -689,13 +697,13 @@ private:
                             Window&              window,
                             const HuffmanCoding& coding );
 
-#ifdef WITH_ISAL
+#if defined( WITH_ISAL ) || defined( WITH_MULTI_CACHED_HUFFMAN_DECODER )
     template<typename Window>
     [[nodiscard]] std::pair<size_t, Error>
-    readInternalCompressedIsal( BitReader&                bitReader,
-                                size_t                    nMaxToDecode,
-                                Window&                   window,
-                                const HuffmanCodingISAL& coding );
+    readInternalCompressedMultiCached( BitReader&                          bitReader,
+                                       size_t                              nMaxToDecode,
+                                       Window&                             window,
+                                       const LiteralOrLengthHuffmanCoding& coding );
 
 #elif defined( WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER )
 
@@ -1334,10 +1342,12 @@ Block<ENABLE_STATISTICS>::readInternal( BitReader& bitReader,
 
 #ifdef WITH_ISAL
     if constexpr ( std::is_same_v<LiteralOrLengthHuffmanCoding, HuffmanCodingISAL> ) {
-        return readInternalCompressedIsal( bitReader, nMaxToDecode, window, m_literalHC );
+        return readInternalCompressedMultiCached( bitReader, nMaxToDecode, window, m_literalHC );
     } else {
         return readInternalCompressed( bitReader, nMaxToDecode, window, m_literalHC );
     }
+#elif defined( WITH_MULTI_CACHED_HUFFMAN_DECODER )
+    return readInternalCompressedMultiCached( bitReader, nMaxToDecode, window, m_literalHC );
 #elif defined( WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER )
     return readInternalCompressedSpecialized( bitReader, nMaxToDecode, window, m_literalHC );
 #else
@@ -1464,16 +1474,16 @@ Block<ENABLE_STATISTICS>::readInternalCompressed( BitReader&           bitReader
 }
 
 
-#ifdef WITH_ISAL
+#if defined( WITH_ISAL ) || defined( WITH_MULTI_CACHED_HUFFMAN_DECODER )
 template<bool ENABLE_STATISTICS>
 template<typename Window>
 std::pair<size_t, Error>
-Block<ENABLE_STATISTICS>::readInternalCompressedIsal
+Block<ENABLE_STATISTICS>::readInternalCompressedMultiCached
 (
-    BitReader&               bitReader,
-    size_t                   nMaxToDecode,
-    Window&                  window,
-    const HuffmanCodingISAL& coding )
+    BitReader&                          bitReader,
+    size_t                              nMaxToDecode,
+    Window&                             window,
+    const LiteralOrLengthHuffmanCoding& coding )
 {
     if ( !coding.isValid() ) {
         throw std::invalid_argument( "No Huffman coding loaded! Call readHeader first!" );
