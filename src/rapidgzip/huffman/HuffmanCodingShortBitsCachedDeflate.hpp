@@ -52,7 +52,7 @@ public:
             return errorCode;
         }
 
-        m_lutBitsCount = std::min( LUT_BITS_COUNT, this->m_maxCodeLength );
+        m_lutBitsCount = LUT_BITS_COUNT;
         m_bitsToReadAtOnce = std::max( LUT_BITS_COUNT, this->m_minCodeLength );
 
         /* Initialize the cache. */
