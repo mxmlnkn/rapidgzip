@@ -30,7 +30,7 @@
 #include <huffman/HuffmanCodingReversedBitsCached.hpp>
 //#include <huffman/HuffmanCodingReversedCodesPerLength.hpp>
 
-#define WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER
+//#define WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER
 
 #ifdef WITH_ISAL
     //#include <huffman/HuffmanCodingDistanceISAL.hpp>
