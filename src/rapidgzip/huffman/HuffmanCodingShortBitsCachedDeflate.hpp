@@ -83,6 +83,25 @@ public:
             } else if ( symbol <= 264U ) {
                 cacheEntry.symbolOrLength = static_cast<uint8_t>( symbol - 257U );
                 insertIntoCacheWithDistance( reversedCode, cacheEntry, distanceHC );
+            } else if ( symbol < 285U ) {
+                const auto lengthCode = static_cast<uint8_t>( symbol - 261U );
+                const auto extraBitCount = lengthCode / 4;  /* <= 5 */
+                /* Loop over all possible extra bits or skip filling if it does not fit into cache.
+                 * We need left-over bits for the extra bits and at least one extra bit for the distance code,
+                 * likely even more but that will be tested inside @ref insertIntoCacheWithDistance. */
+                if ( length + extraBitCount + 1 <= m_lutBitsCount ) {
+                    cacheEntry.bitsToSkip += extraBitCount;
+                    for ( uint8_t extraBits = 0; extraBits < ( 1U << extraBitCount ); ++extraBits ) {
+                        cacheEntry.symbolOrLength = static_cast<uint8_t>(
+                            calculateLength( lengthCode ) + extraBits - 3U );
+                        insertIntoCacheWithDistance( reversedCode | ( extraBits << length ), cacheEntry, distanceHC );
+                    }
+                }
+            } else if ( symbol == 285U ) {
+                cacheEntry.symbolOrLength = 258U - 3U;
+                insertIntoCacheWithDistance( reversedCode, cacheEntry, distanceHC );
+            } else {
+                assert( symbol < 286U /* MAX_LITERAL_HUFFMAN_CODE_COUNT */ );
             }
         }
 
