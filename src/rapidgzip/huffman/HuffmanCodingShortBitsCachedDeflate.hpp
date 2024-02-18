@@ -82,7 +82,8 @@ public:
                 insertIntoCache( reversedCode, cacheEntry );
             } else if ( symbol <= 264U ) {
                 cacheEntry.symbolOrLength = static_cast<uint8_t>( symbol - 257U );
-                insertIntoCacheWithDistance( reversedCode, cacheEntry, distanceHC );
+                insertIntoCacheWithDistance( reversedCode, cacheEntry, distanceHC,
+                                             static_cast<uint8_t>( symbol - 257U ), cacheEntry.bitsToSkip );
             } else if ( symbol < 285U ) {
                 const auto lengthCode = static_cast<uint8_t>( symbol - 261U );
                 const auto extraBitCount = lengthCode / 4;  /* <= 5 */
@@ -94,12 +95,19 @@ public:
                     for ( uint8_t extraBits = 0; extraBits < ( 1U << extraBitCount ); ++extraBits ) {
                         cacheEntry.symbolOrLength = static_cast<uint8_t>(
                             calculateLength( lengthCode ) + extraBits - 3U );
-                        insertIntoCacheWithDistance( reversedCode | ( extraBits << length ), cacheEntry, distanceHC );
+                        insertIntoCacheWithDistance( reversedCode | ( extraBits << length ), cacheEntry, distanceHC,
+                                                     static_cast<uint8_t>( symbol - 257U ),
+                                                     cacheEntry.bitsToSkip - extraBitCount );
                     }
+                } else {
+                    cacheEntry.symbolOrLength = static_cast<uint8_t>( symbol - 257U );
+                    cacheEntry.distance = 0xFFFEU;
+                    insertIntoCache( reversedCode, cacheEntry );
                 }
             } else if ( symbol == 285U ) {
                 cacheEntry.symbolOrLength = 258U - 3U;
-                insertIntoCacheWithDistance( reversedCode, cacheEntry, distanceHC );
+                insertIntoCacheWithDistance( reversedCode, cacheEntry, distanceHC,
+                                             static_cast<uint8_t>( symbol - 257U ), cacheEntry.bitsToSkip );
             } else {
                 assert( symbol < 286U /* MAX_LITERAL_HUFFMAN_CODE_COUNT */ );
             }
@@ -122,6 +130,9 @@ public:
                 return decodeLong( bitReader, distanceHC );
             }
             bitReader.seekAfterPeek( cacheEntry.bitsToSkip );
+            if ( cacheEntry.distance == 0xFFFEU ) {
+                return interpretSymbol( bitReader, distanceHC, cacheEntry.symbolOrLength + 257U );
+            }
             return cacheEntry;
         } catch ( const typename BitReader::EndOfFileReached& ) {
             /* Should only happen at the end of the file and probably not even there
@@ -214,7 +225,9 @@ private:
     forceinline void
     insertIntoCacheWithDistance( HuffmanCode                  reversedCode,
                                  const CacheEntry&            cacheEntry,
-                                 const DistanceHuffmanCoding& distanceHC )
+                                 const DistanceHuffmanCoding& distanceHC,
+                                 const uint8_t                lengthSymbol,
+                                 const uint8_t                bitsToSkipWithoutDistance )
     {
         const auto length = cacheEntry.bitsToSkip;
         if ( length > m_lutBitsCount ) {
@@ -230,6 +243,10 @@ private:
             const auto freeBits = ( paddedCode >> length ) & nLowestBitsSet<HuffmanCode>( distanceHC.maxCodeLength() );
             const auto& [distanceCodeLength, symbol] = distanceHC.codeCache()[freeBits];
             if ( ( distanceCodeLength == 0 ) || ( distanceCodeLength > fillerBitCount ) || ( symbol > 29U ) ) {
+                m_codeCache[paddedCode] = cacheEntry;
+                m_codeCache[paddedCode].bitsToSkip = bitsToSkipWithoutDistance;
+                m_codeCache[paddedCode].symbolOrLength = lengthSymbol;
+                m_codeCache[paddedCode].distance = 0xFFFEU;
                 continue;
             }
 
@@ -245,6 +262,11 @@ private:
                     m_codeCache[paddedCode] = cacheEntry;
                     m_codeCache[paddedCode].bitsToSkip = length + distanceCodeLength + extraBitCount;
                     m_codeCache[paddedCode].distance = distanceLUT[symbol] + extraBits;
+                } else {
+                    m_codeCache[paddedCode] = cacheEntry;
+                    m_codeCache[paddedCode].bitsToSkip = bitsToSkipWithoutDistance;
+                    m_codeCache[paddedCode].symbolOrLength = lengthSymbol;
+                    m_codeCache[paddedCode].distance = 0xFFFEU;
                 }
             }
         }
