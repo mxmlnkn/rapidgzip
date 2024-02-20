@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import platform
+import sys
 import tempfile
 from distutils.errors import CompileError
 
@@ -96,6 +97,10 @@ class Build(build_ext):
                 # AppleClang seems to not like this flag:
                 if supportsFlag(self.compiler, '-fcf-protection=full'):
                     ext.extra_compile_args += ['-fcf-protection=full']
+
+                if sys.platform.startswith('darwin') and supportsFlag(self.compiler, '-mmacosx-version-min=10.14'):
+                    ext.extra_compile_args += ['-mmacosx-version-min=10.14']
+                    ext.extra_link_args += ['-mmacosx-version-min=10.14']
 
         super(Build, self).build_extensions()
 
