@@ -100,7 +100,7 @@ private:
                 PyGILState_Release( lockState );
                 lockState = {};
             }
-            std::cerr << "Detected Python finalization from running rapidgzip thread."
+            std::cerr << "Detected Python finalization from running rapidgzip thread.\n"
                          "To avoid this exception you should close all RapidgzipFile objects correctly,\n"
                          "or better, use the with-statement if possible to automatically close it.\n";
             std::terminate();
