@@ -186,7 +186,11 @@ template<typename Value,
 [[nodiscard]] PyObject*
 toPyObject( Value value )
 {
-    return PyLong_FromLongLong( value );
+    auto* const result = PyLong_FromLongLong( value );
+    if ( result == nullptr ) {
+        throw std::runtime_error( "PyLong_FromLongLong returned null for: " + std::to_string( value ) + "!" );
+    }
+    return result;
 }
 
 
@@ -195,13 +199,20 @@ template<typename Value,
 [[nodiscard]] PyObject*
 toPyObject( Value value )
 {
-    return PyLong_FromUnsignedLongLong( value );
+    auto* const result = PyLong_FromUnsignedLongLong( value );
+    if ( result == nullptr ) {
+        throw std::runtime_error( "PyLong_FromUnsignedLongLong returned null for: " + std::to_string( value ) + "!" );
+    }
+    return result;
 }
 
 
 [[nodiscard]] PyObject*
 toPyObject( PyObject* value )
 {
+    if ( value == nullptr ) {
+        throw std::runtime_error( "Got null PyObject as argument to toPyObject!" );
+    }
     return value;
 }
 
@@ -253,6 +264,10 @@ callPyObject( PyObject* pythonObject,
               Args...   args )
 {
     constexpr auto nArgs = sizeof...( Args );
+
+    if ( pythonObject == nullptr ) {
+        throw std::invalid_argument( "[callPyObject] Got null PyObject!" );
+    }
 
     const ScopedGILLock gilLock;
 
