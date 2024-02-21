@@ -77,6 +77,11 @@ private:
     bool
     lock( bool doLock = true ) noexcept
     {
+        if ( ( doLock == false ) && pythonIsFinalizing() ) {
+            /* No need to unlock the GIL if it doesn't exist anymore. */
+            return false;
+        }
+
         /**
          * I would have liked a GILMutex class that can be declared as a static thread_local member but
          * on Windows, these members are initialized too soon, i.e., at static initialization time instead of
