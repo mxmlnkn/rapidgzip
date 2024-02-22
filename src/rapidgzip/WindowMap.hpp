@@ -59,8 +59,27 @@ public:
             m_windows.emplace_hint( m_windows.end(), encodedBlockOffset, std::move( sharedWindow ) );
         } else {
             const auto match = m_windows.find( encodedBlockOffset );
-            if ( match != m_windows.end() ) {
-                throw std::invalid_argument( "Window offset to insert already exists and may not be changed!" );
+            /* We need to test at least for empty windows being reinserted because it happens in the common
+             * use case of opening a RapidgzipFile object, which inserts the very first block, and then
+             * loading an index! Further windows might also be inserted if the file is opened in a buffered
+             * manner, which could insert windows up to the buffer size without having read anything yet. */
+            if ( ( match != m_windows.end() ) && match->second ) {
+                const auto decompressedEqual =
+                    [] ( const auto& window1, const auto& window2 )
+                    {
+                        return ( static_cast<bool>( window1 ) == static_cast<bool>( window2 ) )
+                               && ( !window1 || !window2 || ( *window1 == *window2 ) );
+                    };
+                const auto equal =
+                    ( sharedWindow->empty() && match->second->empty() )
+                    || ( !sharedWindow->empty() && !match->second->empty()
+                         && ( ( *sharedWindow == *match->second )
+                              || decompressedEqual( sharedWindow->decompress(), match->second->decompress() ) ) );
+                if ( !equal ) {
+                    throw std::invalid_argument( "Window offset to insert (" + std::to_string( encodedBlockOffset )
+                                                 + ") already exists and may not be changed! Window count: "
+                                                 + std::to_string( m_windows.size() ) );
+                }
             }
             m_windows.emplace( encodedBlockOffset, std::move( sharedWindow ) );
         }
