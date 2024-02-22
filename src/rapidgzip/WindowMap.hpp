@@ -58,30 +58,17 @@ public:
              * should be inserted in order of the offset! */
             m_windows.emplace_hint( m_windows.end(), encodedBlockOffset, std::move( sharedWindow ) );
         } else {
-            const auto match = m_windows.find( encodedBlockOffset );
-            /* We need to test at least for empty windows being reinserted because it happens in the common
-             * use case of opening a RapidgzipFile object, which inserts the very first block, and then
-             * loading an index! Further windows might also be inserted if the file is opened in a buffered
-             * manner, which could insert windows up to the buffer size without having read anything yet. */
-            if ( ( match != m_windows.end() ) && match->second ) {
-                const auto decompressedEqual =
-                    [] ( const auto& window1, const auto& window2 )
-                    {
-                        return ( static_cast<bool>( window1 ) == static_cast<bool>( window2 ) )
-                               && ( !window1 || !window2 || ( *window1 == *window2 ) );
-                    };
-                const auto equal =
-                    ( sharedWindow->empty() && match->second->empty() )
-                    || ( !sharedWindow->empty() && !match->second->empty()
-                         && ( ( *sharedWindow == *match->second )
-                              || decompressedEqual( sharedWindow->decompress(), match->second->decompress() ) ) );
-                if ( !equal ) {
-                    throw std::invalid_argument( "Window offset to insert (" + std::to_string( encodedBlockOffset )
-                                                 + ") already exists and may not be changed! Window count: "
-                                                 + std::to_string( m_windows.size() ) );
-                }
-            }
-            m_windows.emplace( encodedBlockOffset, std::move( sharedWindow ) );
+            /* Simply overwrite windows if they do exist already.
+             * We would have to test at least for empty windows being reinserted because it happens in the common
+             * use case of opening a RapidgzipFile object, which inserts the very first block, and then loading an
+             * index!
+             * Further windows might also be inserted if the file is opened in a buffered manner, which could
+             * insert windows up to the buffer size without having read anything yet.
+             * Comparing the decompressed contents might also fail in the future when support for sparse windows
+             * is added.
+             * I am not even sure anymore why I did want to test for changes. I guess it was a consistency check,
+             * but it becomes too complex and error-prone now. */
+            m_windows.insert_or_assign( m_windows.end(), encodedBlockOffset, std::move( sharedWindow ) );
         }
     }
 
