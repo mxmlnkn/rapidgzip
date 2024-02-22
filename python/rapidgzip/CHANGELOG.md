@@ -79,6 +79,19 @@
  - Change `size_t FileReader::size()` to `std::optional<size_t> FileReader::size()`
 
 
+# Version 0.10.5 built on 2024-02-22
+
+## Fixes
+
+ - Fix segfault with rpmalloc when creating a ParallelGzipReader object on one thread and using it into
+   another thread created manually in Python.
+ - Fix possible GIL deadlock when calling many `RapidgzipFile` methods in quick succession.
+ - Fix many issues with the GIL acquirement code logic.
+ - Avoid segfault when exporting the index for an empty, invalid gzip file.
+ - Use `isattay` instead of poll with 100ms timeout to determine whether rapidgzip is piped to.
+ - Fix build error on macOS when no wheel are available.
+
+
 # Version 0.10.4 built on 2023-11-25
 
 ## Fixes
@@ -131,7 +144,7 @@
 ## Fixes
 
  - Make `export_index` work with non-seekable output Python file objects.
- - Add -mmacosx-version-min=10.14 on macOS to avoid build problems.
+ - Add the `-mmacosx-version-min=10.14` compiler option on macOS to avoid build problems.
  - Avoid possible race condition when checking for markers in chunk data.
 
 
@@ -206,7 +219,6 @@
 ## Performance
 
  - Avoid overallocations when decompressing BGZF files with an imported index: 3.5 GB/s -> 5.8 GB/s.
-
 
 # Version 0.7.0 built on 2023-06-04
 
