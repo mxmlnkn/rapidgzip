@@ -794,7 +794,6 @@ public:
         /* If true, then read the gzip header. We cannot simply check the gzipHeader optional because we might
          * start reading in the middle of a gzip stream and will not meet the gzip header for a while or never. */
         bool isAtStreamEnd = false;
-        size_t streamBytesRead = 0;
         size_t totalBytesRead = 0;
 
         /* Loop over possibly gzip streams and deflate blocks. We cannot use GzipReader even though it does
@@ -855,7 +854,6 @@ public:
                 result.appendFooter( std::move( footer ) );
 
                 isAtStreamEnd = true;
-                streamBytesRead = 0;
 
                 if ( bitReader->eof() ) {
                     nextBlockOffset = bitReader->tell();
@@ -890,7 +888,6 @@ public:
                 result.append( std::move( subchunk ) );
 
                 blockBytesRead += nBytesRead;
-                streamBytesRead += nBytesRead;
                 totalBytesRead += nBytesRead;
 
                 if ( nBytesRead == 0 ) {
