@@ -16,8 +16,9 @@ Both are built upon the same basic architecture to enable block-parallel decodin
 
 <div align="center">
 
-# rapidgzip (alternative name: rapidgzip)
+# rapidgzip
 
+[![Changelog](https://img.shields.io/badge/Changelog-Markdown-blue)](https://github.com/mxmlnkn/indexed_bzip2/blob/master/python/rapidgzip/CHANGELOG.md)
 [![PyPI version](https://badge.fury.io/py/rapidgzip.svg)](https://badge.fury.io/py/rapidgzip)
 [![Python Version](https://img.shields.io/pypi/pyversions/rapidgzip)](https://pypi.org/project/rapidgzip/)
 [![PyPI Platforms](https://img.shields.io/badge/pypi-linux%20%7C%20macOS%20%7C%20Windows-brightgreen)](https://pypi.org/project/rapidgzip/)
@@ -57,6 +58,7 @@ The author's version can be found [here](results/paper/Knespel, Brunst - 2023 - 
 
 # indexed_bzip2
 
+[![Changelog](https://img.shields.io/badge/Changelog-Markdown-blue)](https://github.com/mxmlnkn/indexed_bzip2/blob/master/python/indexed_bzip2/CHANGELOG.md)
 [![PyPI version](https://badge.fury.io/py/indexed-bzip2.svg)](https://badge.fury.io/py/indexed-bzip2)
 [![Python Version](https://img.shields.io/pypi/pyversions/indexed_bzip2)](https://pypi.org/project/indexed-bzip2/)
 [![PyPI Platforms](https://img.shields.io/badge/pypi-linux%20%7C%20macOS%20%7C%20Windows-brightgreen)](https://pypi.org/project/indexed-bzip2/)

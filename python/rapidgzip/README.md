@@ -9,6 +9,7 @@
 [![PyPI Platforms](https://img.shields.io/badge/pypi-linux%20%7C%20macOS%20%7C%20Windows-brightgreen)](https://pypi.org/project/rapidgzip/)
 [![Downloads](https://static.pepy.tech/badge/rapidgzip/month)](https://pepy.tech/project/rapidgzip)
 <br>
+[![Changelog](https://img.shields.io/badge/Changelog-Markdown-blue)](https://github.com/mxmlnkn/indexed_bzip2/blob/master/python/rapidgzip/CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](http://opensource.org/licenses/MIT)
 [![C++ Code Checks](https://github.com/mxmlnkn/indexed_bzip2/actions/workflows/test-cpp.yml/badge.svg)](https://github.com/mxmlnkn/indexed_bzip2/actions/workflows/test-cpp.yml)
 [![codecov](https://codecov.io/gh/mxmlnkn/indexed_bzip2/branch/master/graph/badge.svg?token=94ZD4UTZQW)](https://codecov.io/gh/mxmlnkn/rapidgzip)
