@@ -35,6 +35,35 @@
 
 namespace rapidgzip
 {
+#ifdef WITH_PYTHON_SUPPORT
+enum class IOReadMethod : uint8_t
+{
+    SEQUENTIAL = 0,
+    PREAD = 1,
+    LOCKED_READ_AND_SEEK = 2,
+};
+
+[[nodiscard]] static UniqueFileReader
+wrapFileReader( UniqueFileReader&& fileReader,
+                IOReadMethod       ioReadMethod )
+{
+    switch ( ioReadMethod )
+    {
+    case IOReadMethod::SEQUENTIAL:
+        return std::make_unique<SinglePassFileReader>( std::move( fileReader ) );
+    case IOReadMethod::PREAD:
+    case IOReadMethod::LOCKED_READ_AND_SEEK:
+    {
+        auto sharedFile = ensureSharedFileReader( std::move( fileReader ) );
+        sharedFile->setUsePread( ioReadMethod == IOReadMethod::PREAD );
+        return sharedFile;
+    }
+    }
+    return std::move( fileReader );
+}
+#endif  // WITH_PYTHON_SUPPORT
+
+
 /**
  * @note Calls to this class are not thread-safe! Even though they use threads to evaluate them in parallel.
  */
@@ -290,21 +319,30 @@ public:
      * For C++, the FileReader constructor would have been sufficient. */
 
     explicit
-    ParallelGzipReader( int    fileDescriptor,
-                        size_t parallelization = 0 ) :
-        ParallelGzipReader( std::make_unique<StandardFileReader>( fileDescriptor ), parallelization )
+    ParallelGzipReader( int          fileDescriptor,
+                        size_t       parallelization,
+                        uint64_t     chunkSizeInBytes,
+                        IOReadMethod ioReadMethod ) :
+        ParallelGzipReader( wrapFileReader( std::make_unique<StandardFileReader>( fileDescriptor ), ioReadMethod ),
+                            parallelization, chunkSizeInBytes )
     {}
 
     explicit
     ParallelGzipReader( const std::string& filePath,
-                        size_t             parallelization = 0 ) :
-        ParallelGzipReader( std::make_unique<StandardFileReader>( filePath ), parallelization )
+                        size_t             parallelization,
+                        uint64_t           chunkSizeInBytes,
+                        IOReadMethod       ioReadMethod ) :
+        ParallelGzipReader( wrapFileReader( std::make_unique<StandardFileReader>( filePath ), ioReadMethod ),
+                            parallelization, chunkSizeInBytes )
     {}
 
     explicit
-    ParallelGzipReader( PyObject* pythonObject,
-                        size_t    parallelization = 0 ) :
-        ParallelGzipReader( std::make_unique<PythonFileReader>( pythonObject ), parallelization )
+    ParallelGzipReader( PyObject*        pythonObject,
+                        size_t           parallelization,
+                        uint64_t         chunkSizeInBytes,
+                        IOReadMethod     ioReadMethod ) :
+        ParallelGzipReader( wrapFileReader( std::make_unique<PythonFileReader>( pythonObject ), ioReadMethod ),
+                            parallelization, chunkSizeInBytes )
     {}
 #endif
 

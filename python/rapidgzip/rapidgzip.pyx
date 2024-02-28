@@ -3,7 +3,7 @@ Cython wrapper for the GzipReader and ParallelGzipReader C++ classes.
 """
 
 from libc.stdlib cimport malloc, free
-from libc.stdint cimport uint32_t
+from libc.stdint cimport uint8_t, uint32_t, uint64_t
 from libc.stdio cimport SEEK_SET
 from libcpp.string cimport string
 from libcpp.map cimport map
@@ -15,6 +15,7 @@ from cpython.buffer cimport PyObject_GetBuffer, PyBuffer_Release, PyBUF_ANY_CONT
 from cpython.ref cimport PyObject
 
 import builtins
+import enum
 import io
 import os
 import sys
@@ -364,12 +365,17 @@ cdef extern from "tools/rapidgzip.cpp":
     int rapidgzipCLI(int, char**) except +
 
 cdef extern from "rapidgzip/ParallelGzipReader.hpp" namespace "rapidgzip":
+    cpdef enum class IOReadMethod(uint8_t):
+        SEQUENTIAL,
+        PREAD,
+        LOCKED_READ_AND_SEEK,
+
     cppclass ChunkData
 
     cppclass ParallelGzipReader[ChunkData]:
-        ParallelGzipReader(string, size_t) except +
-        ParallelGzipReader(int, size_t) except +
-        ParallelGzipReader(PyObject*, size_t) except +
+        ParallelGzipReader(string, size_t, uint64_t, IOReadMethod) except +
+        ParallelGzipReader(int, size_t, uint64_t, IOReadMethod) except +
+        ParallelGzipReader(PyObject*, size_t, uint64_t, IOReadMethod) except +
 
         bool eof() except +
         int fileno() except +
@@ -413,7 +419,14 @@ cdef extern from "rapidgzip/rapidgzip.hpp" namespace "rapidgzip":
 cdef class _RapidgzipFile():
     cdef ParallelGzipReader[RapidgzipChunkData]* gzipReader
 
-    def __cinit__(self, file, parallelization, verbose = False):
+    def __cinit__(
+        self,
+        file,
+        parallelization,
+        chunk_size = 4 * 1024 * 1024,
+        io_read_method = IOReadMethod.PREAD,
+        verbose = False,
+    ):
         """
         file : can be a file path, a file descriptor, or a file object
                with suitable read, seekable, seek, tell methods.
@@ -426,14 +439,22 @@ cdef class _RapidgzipFile():
             raise TypeError(f"Parallelization argument must be an integer not '{parallelization}'!")
 
         if isinstance(file, int):
-            self.gzipReader = new ParallelGzipReader[RapidgzipChunkData](<int>file, <int>parallelization)
+            self.gzipReader = new ParallelGzipReader[RapidgzipChunkData](
+                <int>file, <size_t>parallelization, <uint64_t>( chunk_size), <IOReadMethod>io_read_method
+            )
         elif _hasValidFileno(file):
-            self.gzipReader = new ParallelGzipReader[RapidgzipChunkData](<int>file.fileno(), <int>parallelization)
+            self.gzipReader = new ParallelGzipReader[RapidgzipChunkData](
+                <int>file.fileno(), <size_t>parallelization, <uint64_t>( chunk_size), <IOReadMethod>io_read_method
+            )
         elif _isFileObject(file):
-            self.gzipReader = new ParallelGzipReader[RapidgzipChunkData](<PyObject*>file, <int>parallelization)
+            self.gzipReader = new ParallelGzipReader[RapidgzipChunkData](
+                <PyObject*>file, <size_t>parallelization, <uint64_t>( chunk_size), <IOReadMethod>io_read_method
+            )
         elif isinstance(file, basestring) and hasattr(file, 'encode'):
             # Note that BytesIO also is an instance of basestring but fortunately has no encode method!
-            self.gzipReader = new ParallelGzipReader[RapidgzipChunkData](<string>file.encode(), <int>parallelization)
+            self.gzipReader = new ParallelGzipReader[RapidgzipChunkData](
+                <string>file.encode(), <size_t>parallelization, <uint64_t>( chunk_size), <IOReadMethod>io_read_method
+            )
 
         self.gzipReader.setStatisticsEnabled(verbose);
 
@@ -560,8 +581,21 @@ cdef class _RapidgzipFile():
 # Using io.BufferedReader degraded performance by almost 2x for the test case of calculating the CRC32 four times
 # using four parallel find | xarg crc32 instances for a file containing 10k files with each 1 MiB of base64 data.
 class RapidgzipFile(io.RawIOBase):
-    def __init__(self, filename, parallelization = 0, verbose = False):
-        self.gzipReader = _RapidgzipFile(filename, parallelization, verbose)
+    def __init__(
+        self,
+        filename,
+        parallelization = 0,
+        chunk_size = 4 * 1024 * 1024,
+        io_read_method = IOReadMethod.PREAD,
+        verbose = False,
+    ):
+        self.gzipReader = _RapidgzipFile(
+            filename,
+            parallelization=parallelization,
+            chunk_size=chunk_size,
+            io_read_method=io_read_method,
+            verbose=verbose,
+        )
         self.name = filename if isinstance(filename, str) else ""
         self.mode = 'rb'
 
