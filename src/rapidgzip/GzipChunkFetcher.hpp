@@ -520,7 +520,7 @@ private:
         if constexpr ( REPLACE_MARKERS_IN_PARALLEL ) {
             waitForReplacedMarkers( chunkData, lastWindow );
         } else {
-            replaceMarkers( chunkData, *lastWindow, chunkData->windowCompressionType() );
+            chunkData->applyWindow( *lastWindow, chunkData->windowCompressionType() );
         }
     }
 
@@ -616,28 +616,8 @@ private:
             chunkData->encodedOffsetInBits,
             this->submitTaskWithHighPriority(
                 [chunkData, window = std::move( previousWindow )] () {
-                    replaceMarkers( chunkData, *window, chunkData->windowCompressionType() );
+                    chunkData->applyWindow( *window, chunkData->windowCompressionType() );
                 } ) ).first;
-    }
-
-    /**
-     * Must be thread-safe because it is submitted to the thread pool.
-     */
-    static void
-    replaceMarkers( const std::shared_ptr<ChunkData>& chunkData,
-                    const WindowView                  previousWindow,
-                    const CompressionType             windowCompressionType )
-    {
-        chunkData->applyWindow( previousWindow );
-
-        const auto t0 = now();
-        size_t decodedOffsetInBlock{ 0 };
-        for ( auto& subchunk : chunkData->subchunks ) {
-            decodedOffsetInBlock += subchunk.decodedSize;
-            subchunk.window = std::make_shared<WindowMap::Window>(
-                chunkData->getWindowAt( previousWindow, decodedOffsetInBlock ), windowCompressionType );
-        }
-        chunkData->statistics.compressWindowDuration += duration( t0 );
     }
 
     /**

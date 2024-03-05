@@ -42,7 +42,8 @@ struct ChunkData :
 {
     using BaseType = deflate::DecodedData;
 
-    using SharedWindow = std::shared_ptr<CompressedVector<FasterVector<uint8_t> > >;
+    using Window = CompressedVector<FasterVector<uint8_t> >;
+    using SharedWindow = std::shared_ptr<Window>;
 
     struct Configuration
     {
@@ -213,7 +214,8 @@ public:
     }
 
     void
-    applyWindow( WindowView const& window )
+    applyWindow( WindowView const&     window,
+                 CompressionType const windowCompressionType )
     {
         const auto markerCount = dataWithMarkersSize();
         const auto tApplyStart = now();
@@ -294,6 +296,16 @@ public:
 
             statistics.computeChecksumDuration += duration( tApplyEnd );
         }
+
+        /* Replace markers in subchunk windows and compress the resulting fully-resolved window. */
+        const auto tWindowCompressionStart = now();
+        size_t decodedOffsetInBlock{ 0 };
+        for ( auto& subchunk : subchunks ) {
+            decodedOffsetInBlock += subchunk.decodedSize;
+            subchunk.window = std::make_shared<Window>(
+                getWindowAt( window, decodedOffsetInBlock ), windowCompressionType );
+        }
+        statistics.compressWindowDuration += duration( tWindowCompressionStart );
     }
 
     [[nodiscard]] bool
@@ -425,6 +437,19 @@ public:
         return !subchunks.empty() && subchunks.front().window && !containsMarkers();
     }
 
+    /**
+     * Implement a kind of virtual method by using a std::function member because making ChunkData polymorphic
+     * had catastrophic impact on the performance for unknown reason.
+     */
+    [[nodiscard]] deflate::DecodedVector
+    getWindowAt( WindowView const& previousWindow,
+                 size_t            skipBytes ) const
+    {
+        return m_getWindowAt
+                ? m_getWindowAt( *this, previousWindow, skipBytes )
+                : DecodedData::getWindowAt( previousWindow, skipBytes );
+    }
+
 protected:
     [[nodiscard]] std::vector<Subchunk>
     split( [[maybe_unused]] const size_t spacing ) const;
@@ -461,6 +486,13 @@ public:
     Statistics statistics{};
 
     bool stoppedPreemptively{ false };
+
+protected:
+    /**
+     * Takes ChunkData& as first argumenst instead of capturing this in order to avoid having to implement
+     * custom move and copy constructors.
+     */
+    std::function<deflate::DecodedVector( const ChunkData&, WindowView const&, size_t )> m_getWindowAt;
 
 private:
     std::optional<CompressionType> m_windowCompressionType;
@@ -719,9 +751,24 @@ struct ChunkDataCounter final :
     explicit
     ChunkDataCounter( const Configuration& configuration ) :
         ChunkData( configuration )
-    {}
+    {
+        /**
+         * The internal index will only contain the offsets and empty windows.
+         * The index should not be exported when this is used.
+         * Return a dummy window so that decoding can be resumed after stopping.
+         */
+        m_getWindowAt = [] ( const ChunkData&, WindowView const&, size_t ) {
+            return deflate::DecodedVector( deflate::MAX_WINDOW_SIZE, 0 );
+        };
+    }
 
-    ChunkDataCounter() = default;
+    ChunkDataCounter()
+    {
+        m_getWindowAt = [] ( const ChunkData&, WindowView const&, size_t ) {
+            return deflate::DecodedVector( deflate::MAX_WINDOW_SIZE, 0 );
+        };
+    }
+
     ChunkDataCounter( ChunkDataCounter&& ) = default;
     ChunkDataCounter( const ChunkDataCounter& ) = delete;
     ChunkDataCounter& operator=( ChunkDataCounter&& ) = default;
@@ -748,18 +795,6 @@ struct ChunkDataCounter final :
          * because DecodedData::size() would return 0! Instead, it is updated inside append. */
 
         subchunks = split( splitChunkSize );
-    }
-
-    /**
-     * The internal index will only contain the offsets and empty windows.
-     * The index should not be exported when this is used.
-     * Return a dummy window so that decoding can be resumed after stopping.
-     */
-    [[nodiscard]] deflate::DecodedVector
-    getWindowAt( WindowView const& /* previousWindow */,
-                 size_t            /* skipBytes */ ) const
-    {
-        return deflate::DecodedVector( deflate::MAX_WINDOW_SIZE, 0 );
     }
 
     /**
