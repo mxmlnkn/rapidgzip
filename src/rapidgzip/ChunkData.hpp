@@ -300,7 +300,7 @@ public:
         /* Replace markers in subchunk windows and compress the resulting fully-resolved window. */
         const auto tWindowCompressionStart = now();
         size_t decodedOffsetInBlock{ 0 };
-        for ( auto& subchunk : subchunks ) {
+        for ( auto& subchunk : m_subchunks ) {
             decodedOffsetInBlock += subchunk.decodedSize;
             subchunk.window = std::make_shared<Window>(
                 getWindowAt( window, decodedOffsetInBlock ), windowCompressionType );
@@ -352,7 +352,7 @@ public:
         encodedSizeInBits = newEncodedEndOffsetInBits - encodedOffsetInBits;
         decodedSizeInBytes = BaseType::size();
 
-        subchunks = split( splitChunkSize );
+        m_subchunks = split( splitChunkSize );
     }
 
     /**
@@ -434,7 +434,13 @@ public:
     [[nodiscard]] bool
     hasBeenPostProcessed() const
     {
-        return !subchunks.empty() && subchunks.front().window && !containsMarkers();
+        return !m_subchunks.empty() && m_subchunks.front().window && !containsMarkers();
+    }
+
+    [[nodiscard]] const std::vector<Subchunk>&
+    subchunks() const noexcept
+    {
+        return m_subchunks;
     }
 
     /**
@@ -481,7 +487,6 @@ public:
     std::vector<CRC32Calculator> crc32s{ std::vector<CRC32Calculator>( 1 ) };
 
     size_t splitChunkSize{ std::numeric_limits<size_t>::max() };
-    std::vector<Subchunk> subchunks;
 
     Statistics statistics{};
 
@@ -493,6 +498,7 @@ protected:
      * custom move and copy constructors.
      */
     std::function<deflate::DecodedVector( const ChunkData&, WindowView const&, size_t )> m_getWindowAt;
+    std::vector<Subchunk> m_subchunks;
 
 private:
     std::optional<CompressionType> m_windowCompressionType;
@@ -544,11 +550,11 @@ ChunkData::setEncodedOffset( size_t offset )
     encodedOffsetInBits = offset;
     maxEncodedOffsetInBits = offset;
 
-    if ( !subchunks.empty() ) {
-        const auto nextSubchunk = std::next( subchunks.begin() );
-        const auto nextOffset = nextSubchunk == subchunks.end() ? encodedEndOffsetInBits : nextSubchunk->encodedOffset;
-        subchunks.front().encodedOffset = offset;
-        subchunks.front().encodedSize = nextOffset - offset;
+    if ( !m_subchunks.empty() ) {
+        const auto nextSubchunk = std::next( m_subchunks.begin() );
+        const auto nextOffset = nextSubchunk == m_subchunks.end() ? encodedEndOffsetInBits : nextSubchunk->encodedOffset;
+        m_subchunks.front().encodedOffset = offset;
+        m_subchunks.front().encodedSize = nextOffset - offset;
     }
 }
 
@@ -794,7 +800,7 @@ struct ChunkDataCounter final :
         /* Do not overwrite decodedSizeInBytes like is done in the base class
          * because DecodedData::size() would return 0! Instead, it is updated inside append. */
 
-        subchunks = split( splitChunkSize );
+        m_subchunks = split( splitChunkSize );
     }
 
     /**

@@ -427,7 +427,7 @@ private:
             return {};
         }
 
-        appendSubchunksToIndexes( chunkData, chunkData->subchunks, *lastWindow );
+        appendSubchunksToIndexes( chunkData, chunkData->subchunks(), *lastWindow );
 
         m_statistics.merge( *chunkData );
 

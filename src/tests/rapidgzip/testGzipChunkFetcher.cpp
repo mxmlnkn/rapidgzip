@@ -123,30 +123,56 @@ operator<<( std::ostream&                                    out,
 }
 
 
-void
-testBlockSplit()
+using DecodedDataView = rapidgzip::deflate::DecodedDataView;
+using Subchunk = rapidgzip::ChunkData::Subchunk;
+using BlockBoundary = rapidgzip::ChunkData::BlockBoundary;
+
+
+[[nodiscard]] std::vector<Subchunk>
+splitChunk( const size_t                      dataSize,
+            const std::vector<BlockBoundary>& blockBoundaries,
+            const size_t                      encodedEndOffsetInBits,
+            const size_t                      splitChunkSize )
 {
-    using DecodedDataView = rapidgzip::deflate::DecodedDataView;
-    using Subchunk = rapidgzip::ChunkData::Subchunk;
-    using BlockBoundary = rapidgzip::ChunkData::BlockBoundary;
-
-    const auto split =
-        [] ( ChunkData&   chunk,
-             const size_t splitChunkSize )
-        {
-            chunk.subchunks.clear();
-            chunk.splitChunkSize = splitChunkSize;
-            chunk.finalize( chunk.encodedEndOffsetInBits );
-            return chunk.subchunks;
-        };
-
     ChunkData chunk;
     chunk.encodedOffsetInBits = 0;
     chunk.maxEncodedOffsetInBits = 0;
     chunk.encodedSizeInBits = 0;
 
-    chunk.finalize( 0 );
-    REQUIRE( split( chunk, 1 ).empty() );
+    std::vector<uint8_t> data( dataSize, 0 );
+    DecodedDataView toAppend;
+    toAppend.data[0] = VectorView<uint8_t>( data.data(), data.size() );
+    chunk.append( toAppend );
+
+    chunk.blockBoundaries = blockBoundaries;
+    chunk.splitChunkSize = splitChunkSize;
+    chunk.finalize( encodedEndOffsetInBits );
+    return chunk.subchunks();
+}
+
+
+void
+testBlockSplit()
+{
+    const auto split =
+        [] ( ChunkData&   chunk,
+             const size_t splitChunkSize )
+        {
+            chunk.splitChunkSize = splitChunkSize;
+            chunk.finalize( chunk.encodedEndOffsetInBits );
+            return chunk.subchunks();
+        };
+
+    /* Test split of empty chunk. */
+    {
+        ChunkData chunk;
+        chunk.encodedOffsetInBits = 0;
+        chunk.maxEncodedOffsetInBits = 0;
+        chunk.encodedSizeInBits = 0;
+
+        chunk.finalize( 0 );
+        REQUIRE( split( chunk, 1 ).empty() );
+    }
 
     /* Test split of data length == 1 and no block boundary. */
     {
@@ -169,28 +195,33 @@ testBlockSplit()
 
     /* Test split of data length == 1024 and 1 block boundary. */
     {
-        std::vector<uint8_t> data( 1024, 0 );
-        DecodedDataView toAppend;
-        toAppend.data[0] = VectorView<uint8_t>( data.data(), data.size() );
-        chunk.append( toAppend );
+        const size_t encodedEndOffsetInBits = 128;
+        const std::vector<BlockBoundary> blockBoundaries = { BlockBoundary{ encodedEndOffsetInBits, 1024 } };
+        const std::vector<Subchunk> expected = { Subchunk{ 0, encodedEndOffsetInBits, 1024 } };
+        REQUIRE( splitChunk( 1024, blockBoundaries, encodedEndOffsetInBits, 1 ) == expected );
+        REQUIRE( splitChunk( 1024, blockBoundaries, encodedEndOffsetInBits, 1024 ) == expected );
+        REQUIRE( splitChunk( 1024, blockBoundaries, encodedEndOffsetInBits, 10000 ) == expected );
+    }
 
-        chunk.blockBoundaries = { BlockBoundary{ 128, 1024 } };
-        chunk.finalize( 128 );
-        std::vector<Subchunk> expected = { Subchunk{ 0, 128, 1024 } };
-        REQUIRE( split( chunk, 1 ) == expected );
-        REQUIRE( split( chunk, 1024 ) == expected );
-        REQUIRE( split( chunk, 10000 ) == expected );
+    /* Test split of data length == 1024 and 2 block boundaries. */
+    {
+        const size_t encodedEndOffsetInBits = 128;
+        const std::vector<BlockBoundary> blockBoundaries = {
+            BlockBoundary{ 30, 300 }, BlockBoundary{ encodedEndOffsetInBits, 1024 }
+        };
+        {
+            const std::vector<Subchunk> expected = { Subchunk{ 0, encodedEndOffsetInBits, 1024 } };
+            REQUIRE( splitChunk( 1024, blockBoundaries, encodedEndOffsetInBits, 1024 ) == expected );
+            REQUIRE( splitChunk( 1024, blockBoundaries, encodedEndOffsetInBits, 10000 ) == expected );
+        }
 
-        /* Test split of data length == 1024 and 2 block boundaries. */
-        chunk.blockBoundaries = { BlockBoundary{ 30, 300 }, BlockBoundary{ 128, 1024 } };
-        REQUIRE( split( chunk, 1024 ) == expected );
-        REQUIRE( split( chunk, 10000 ) == expected );
-
-        expected = { Subchunk{ 0, 30, 300 }, Subchunk{ 30, 128 - 30, 1024 - 300 } };
-        REQUIRE( split( chunk, 400 ) == expected );
-        REQUIRE( split( chunk, 512 ) == expected );
-        REQUIRE( split( chunk, 600 ) == expected );
-        REQUIRE( split( chunk, 1 ) == expected );
+        const std::vector<Subchunk> expected = {
+            Subchunk{ 0, 30, 300 }, Subchunk{ 30, encodedEndOffsetInBits - 30, 1024 - 300 }
+        };
+        REQUIRE( splitChunk( 1024, blockBoundaries, encodedEndOffsetInBits, 400 ) == expected );
+        REQUIRE( splitChunk( 1024, blockBoundaries, encodedEndOffsetInBits, 512 ) == expected );
+        REQUIRE( splitChunk( 1024, blockBoundaries, encodedEndOffsetInBits, 600 ) == expected );
+        REQUIRE( splitChunk( 1024, blockBoundaries, encodedEndOffsetInBits, 1 ) == expected );
     }
 }
 
