@@ -88,7 +88,10 @@ public:
     ~SharedFileReader()
     {
         if ( m_statistics && m_statistics->showProfileOnDestruction && ( m_statistics.use_count() == 1 ) ) {
-            const auto nTimesRead = m_fileSizeBytes ? m_statistics->read.sum / *m_fileSizeBytes : 0;
+            const auto nTimesRead = m_fileSizeBytes
+                                    ? static_cast<double>( m_statistics->read.sum )
+                                      / static_cast<double>( *m_fileSizeBytes )
+                                    : 0;
 
             std::cerr << ( ThreadSafeOutput()
                 << "[SharedFileReader::~SharedFileReader]\n"
@@ -384,7 +387,7 @@ public:
     [[nodiscard]] std::pair<std::unique_ptr<FileLock>, FileReader*>
     underlyingFile()
     {
-        return { getLock(), m_sharedFile.get() };
+        return { getUniqueLock(), m_sharedFile.get() };
     }
 
     void
@@ -400,8 +403,21 @@ public:
     }
 
 private:
-    [[nodiscard]] std::unique_ptr<FileLock>
+    /**
+     * This should be used for internal locks to avoid the allocations by std::unique_ptr for each access
+     * to @ref size() for example.
+     */
+    [[nodiscard]] FileLock
     getLock() const
+    {
+        if ( m_statistics && m_statistics->enabled ) {
+            ++m_statistics->locks;
+        }
+        return FileLock( *m_mutex );
+    }
+
+    [[nodiscard]] std::unique_ptr<FileLock>
+    getUniqueLock() const
     {
         if ( m_statistics && m_statistics->enabled ) {
             ++m_statistics->locks;

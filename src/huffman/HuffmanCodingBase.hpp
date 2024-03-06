@@ -7,8 +7,8 @@
 #include <stdexcept>
 #include <type_traits>
 
-#include <definitions.hpp>
 #include <Error.hpp>
+#include <VectorView.hpp>
 
 
 namespace rapidgzip
@@ -16,7 +16,8 @@ namespace rapidgzip
 template<typename T_HuffmanCode,
          uint8_t  T_MAX_CODE_LENGTH,
          typename T_Symbol,
-         size_t   T_MAX_SYMBOL_COUNT>
+         size_t   T_MAX_SYMBOL_COUNT,
+         bool     CHECK_OPTIMALITY = true>
 class HuffmanCodingBase
 {
 public:
@@ -100,9 +101,11 @@ protected:
             unusedSymbolCount *= 2;  /* Because we go down one more level for all unused tree nodes! */
         }
 
-        if ( ( ( nonZeroCount == 1 ) && ( unusedSymbolCount != ( 1U << m_maxCodeLength ) ) ) ||
-             ( ( nonZeroCount >  1 ) && ( unusedSymbolCount != 0 ) ) ) {
-            return Error::BLOATING_HUFFMAN_CODING;
+        if constexpr ( CHECK_OPTIMALITY ) {
+            if ( ( ( nonZeroCount == 1 ) && ( unusedSymbolCount != ( 1U << m_maxCodeLength ) ) ) ||
+                 ( ( nonZeroCount >  1 ) && ( unusedSymbolCount != 0 ) ) ) {
+                return Error::BLOATING_HUFFMAN_CODING;
+            }
         }
 
         return Error::NONE;
@@ -181,6 +184,24 @@ public:
         initializeMinimumCodeValues( bitLengthFrequencies );  // resets bitLengthFrequencies[0] to 0!
 
         return Error::NONE;
+    }
+
+    [[nodiscard]] constexpr BitCount
+    minCodeLength() const noexcept
+    {
+        return m_minCodeLength;
+    }
+
+    [[nodiscard]] constexpr BitCount
+    maxCodeLength() const noexcept
+    {
+        return m_maxCodeLength;
+    }
+
+    [[nodiscard]] constexpr auto const&
+    minimumCodeValuesPerLevel() const noexcept
+    {
+        return m_minimumCodeValuesPerLevel;
     }
 
 protected:

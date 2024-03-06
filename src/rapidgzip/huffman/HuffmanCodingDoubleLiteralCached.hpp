@@ -8,7 +8,8 @@
 #include <stdexcept>
 #include <utility>
 
-#include "HuffmanCodingReversedCodesPerLength.hpp"
+#include <definitions.hpp>
+#include <huffman/HuffmanCodingReversedCodesPerLength.hpp>
 
 
 namespace rapidgzip

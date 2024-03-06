@@ -3,7 +3,7 @@ add_custom_target(run-benchmarks)
 
 add_executable(benchmarkHuffmanCoding)
 target_sources(benchmarkHuffmanCoding PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkHuffmanCoding.cpp)
-target_link_libraries(benchmarkHuffmanCoding PRIVATE libhuffman core)
+target_link_libraries(benchmarkHuffmanCoding PRIVATE libhuffman libhuffmangzip core)
 add_custom_target(run-benchmarkHuffmanCoding
     COMMAND ./benchmarkHuffmanCoding 2>&1 | tee benchmarkHuffmanCoding.log
     VERBATIM
@@ -120,4 +120,4 @@ target_link_libraries(benchmarkSequential2023 PRIVATE librapidgzip)
 
 add_executable(benchmarkCRC32)
 target_sources(benchmarkCRC32 PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkCRC32.cpp)
-target_link_libraries(benchmarkCRC32 PRIVATE librapidgzip)
+target_link_libraries(benchmarkCRC32 PRIVATE librapidgzip isal_inflate)

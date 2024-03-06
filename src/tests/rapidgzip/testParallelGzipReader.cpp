@@ -271,8 +271,8 @@ testParallelDecodingWithIndex( const TemporaryDirectory& tmpFolder )
 
             const auto reconstructedWindow = reconstructedIndex.windows->get( reconstructed.compressedOffsetInBits );
             const auto realWindow = realIndex.windows->get( real.compressedOffsetInBits );
-            REQUIRE( reconstructedWindow.has_value() );
-            REQUIRE( realWindow.has_value() );
+            REQUIRE( static_cast<bool>( reconstructedWindow ) );
+            REQUIRE( static_cast<bool>( realWindow ) );
         }
     }
     REQUIRE( *reconstructedIndex.windows == *realIndex.windows );
@@ -492,9 +492,10 @@ testPerformance( const std::string& encodedFilePath,
                  const size_t       bufferSize,
                  const size_t       parallelization )
 {
-    rapidgzip::ParallelGzipReader<rapidgzip::ChunkData, /* ENABLE_STATISTICS */ true> reader(
+    rapidgzip::ParallelGzipReader<rapidgzip::ChunkData> reader(
         std::make_unique<StandardFileReader>( encodedFilePath ),
         parallelization );
+    reader.setStatisticsEnabled( true );
     reader.setCRC32Enabled( true );
 
     std::vector<char> result( bufferSize );
@@ -562,8 +563,9 @@ void
 testParallelCRC32( const std::vector<std::byte>& uncompressed,
                    const std::vector<std::byte>& compressed )
 {
-    rapidgzip::ParallelGzipReader<rapidgzip::ChunkData, /* ENABLE_STATISTICS */ true> reader(
+    rapidgzip::ParallelGzipReader<rapidgzip::ChunkData> reader(
         std::make_unique<BufferViewFileReader>( compressed ), /* parallelization */ 2, /* chunk size */ 1_Mi );
+    reader.setStatisticsEnabled( true );
     reader.setCRC32Enabled( true );
 
     /* Read everything. The data should contain sufficient chunks such that the first one have been evicted. */
@@ -575,8 +577,9 @@ testParallelCRC32( const std::vector<std::byte>& uncompressed,
 
     /* Test with export and load without CRC32 */
 
-    rapidgzip::ParallelGzipReader<rapidgzip::ChunkData, /* ENABLE_STATISTICS */ true> reader2(
+    rapidgzip::ParallelGzipReader<rapidgzip::ChunkData> reader2(
         std::make_unique<BufferViewFileReader>( compressed ), /* parallelization */ 2, /* chunk size */ 1_Mi );
+    reader2.setStatisticsEnabled( true );
     reader2.setCRC32Enabled( false );
     reader2.setBlockOffsets( reader.gzipIndex() );
 
@@ -588,8 +591,9 @@ testParallelCRC32( const std::vector<std::byte>& uncompressed,
 
     /* Test with export and load with CRC32 */
 
-    rapidgzip::ParallelGzipReader<rapidgzip::ChunkData, /* ENABLE_STATISTICS */ true> reader3(
+    rapidgzip::ParallelGzipReader<rapidgzip::ChunkData> reader3(
         std::make_unique<BufferViewFileReader>( compressed ), /* parallelization */ 2, /* chunk size */ 1_Mi );
+    reader3.setStatisticsEnabled( true );
     reader3.setCRC32Enabled( true );
     reader3.setBlockOffsets( reader.gzipIndex() );
 
@@ -688,8 +692,9 @@ testCachedChunkReuseAfterSplit()
     /* This compresses with a compression ratio of ~1028! I.e. even for 1 GiB, there will be only one chunk
      * even with a comparatively small chunk size of 1 MiB. */
     const auto compressedZeros = compressWithZlib( std::vector<std::byte>( 128_Mi, std::byte( 0 ) ) );
-    rapidgzip::ParallelGzipReader<rapidgzip::ChunkData, /* ENABLE_STATISTICS */ true> reader(
+    rapidgzip::ParallelGzipReader<rapidgzip::ChunkData> reader(
         std::make_unique<BufferViewFileReader>( compressedZeros ), /* parallelization */ 8, /* chunk size */ 1_Mi );
+    reader.setStatisticsEnabled( true );
     reader.setCRC32Enabled( true );
     reader.setMaxDecompressedChunkSize( 128_Mi );
 
@@ -722,8 +727,9 @@ testPrefetchingAfterSplit()
     const auto compressedRandomDNA = compressWithZlib( createRandomData( DATA_SIZE, DNA_SYMBOLS ),
                                                        CompressionStrategy::HUFFMAN_ONLY );
 
-    rapidgzip::ParallelGzipReader<rapidgzip::ChunkData, /* ENABLE_STATISTICS */ true> reader(
+    rapidgzip::ParallelGzipReader<rapidgzip::ChunkData> reader(
         std::make_unique<BufferViewFileReader>( compressedRandomDNA ), /* parallelization */ 2, CHUNK_SIZE );
+    reader.setStatisticsEnabled( true );
     reader.setCRC32Enabled( true );
 
     /* Read everything. The data should contain sufficient chunks such that the first ones have been evicted. */
@@ -740,8 +746,9 @@ testPrefetchingAfterSplit()
 
     /* Test with export and load */
 
-    rapidgzip::ParallelGzipReader<rapidgzip::ChunkData, /* ENABLE_STATISTICS */ true> reader2(
+    rapidgzip::ParallelGzipReader<rapidgzip::ChunkData> reader2(
         std::make_unique<BufferViewFileReader>( compressedRandomDNA ), /* parallelization */ 2, /* chunk size */ 1_Mi );
+    reader2.setStatisticsEnabled( true );
     reader2.setCRC32Enabled( true );
     reader2.setBlockOffsets( reader.gzipIndex() );
     std::cerr << "File was split into " << reader.blockOffsets().size() - 1 << " chunks\n";  // 70, subject to change
@@ -762,9 +769,10 @@ testMultiThreadedUsage()
     const auto compressedRandomDNA = compressWithZlib( createRandomData( DATA_SIZE, DNA_SYMBOLS ),
                                                        CompressionStrategy::HUFFMAN_ONLY );
 
-    auto reader = std::make_unique<rapidgzip::ParallelGzipReader<rapidgzip::ChunkData, /* ENABLE_STATISTICS */ true> >(
+    auto reader = std::make_unique<rapidgzip::ParallelGzipReader<rapidgzip::ChunkData> >(
         std::make_unique<BufferViewFileReader>( compressedRandomDNA ),
         /* parallelization */ 6 );
+    reader->setStatisticsEnabled( true );
     reader->setCRC32Enabled( true );
 
     std::vector<char> result;

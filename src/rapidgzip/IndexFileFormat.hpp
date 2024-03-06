@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <vector>
 
 #include <blockfinder/Bgzf.hpp>
@@ -20,6 +21,7 @@
 #include <VectorView.hpp>
 #include <zlib.hpp>
 
+#include "ThreadPool.hpp"
 #include "WindowMap.hpp"
 
 
@@ -319,7 +321,7 @@ readGzipIndex( UniqueFileReader         indexFile,
         }
 
         /* Emplace an empty window to show that the block does not need data. */
-        index.windows->emplace( checkpoint.compressedOffsetInBits, {} );
+        index.windows->emplace( checkpoint.compressedOffsetInBits, {}, CompressionType::NONE );
     }
 
     try {
@@ -341,7 +343,8 @@ namespace indexed_gzip
 [[nodiscard]] inline GzipIndex
 readGzipIndex( UniqueFileReader         indexFile,
                UniqueFileReader         archiveFile = {},
-               const std::vector<char>& alreadyReadBytes = {} )
+               const std::vector<char>& alreadyReadBytes = {},
+               size_t                   parallelization = 1 )
 {
     if ( !indexFile ) {
         throw std::invalid_argument( "Index file reader must be valid!" );
@@ -400,7 +403,8 @@ readGzipIndex( UniqueFileReader         indexFile,
     }
     const auto checkpointCount = readValue<uint32_t>( indexFile.get() );
 
-    std::vector<std::pair</* encoded offset */ size_t, /* window size */ size_t> > windowInfos;
+    std::vector<std::tuple</* encoded offset */ size_t, /* window size */ size_t,
+                           /* compression ratio */ double> > windowInfos;
 
     index.checkpoints.resize( checkpointCount );
     for ( uint32_t i = 0; i < checkpointCount; ++i ) {
@@ -439,17 +443,78 @@ readGzipIndex( UniqueFileReader         indexFile,
                 windowSize = index.windowSizeInBytes;
             }
         }
-        windowInfos.emplace_back( checkpoint.compressedOffsetInBits, windowSize );
+
+        auto compressionRatio = 1.0;
+        if ( i >= 1 ) {
+            const auto& previousCheckpoint = index.checkpoints[i - 1];
+            compressionRatio = static_cast<double>( checkpoint.uncompressedOffsetInBytes
+                                                    - previousCheckpoint.uncompressedOffsetInBytes ) * 8
+                               / static_cast<double>( checkpoint.compressedOffsetInBits
+                                                      - previousCheckpoint.compressedOffsetInBits );
+        }
+        windowInfos.emplace_back( checkpoint.compressedOffsetInBits, windowSize, compressionRatio );
     }
 
+    const auto backgroundThreadCount = parallelization == 1 ? 0 : parallelization;
+    ThreadPool threadPool{ backgroundThreadCount };
+    std::deque<std::future<std::pair<size_t, std::shared_ptr<WindowMap::Window> > > > futures;
+
+    /* Waits for at least one future and inserts it into the window map. */
+    const auto processFuture =
+        [&] ()
+        {
+            using namespace std::chrono_literals;
+
+            if ( futures.empty() ) {
+                return;
+            }
+
+            const auto oldSize = futures.size();
+            for ( auto it = futures.begin(); it != futures.end(); ) {
+                auto& future = *it;
+                if ( !future.valid() || ( future.wait_for( 0s ) == std::future_status::ready ) ) {
+                    auto result = future.get();
+                    index.windows->emplaceShared( result.first, std::move( result.second ) );
+                    it = futures.erase( it );
+                } else {
+                    ++it;
+                }
+            }
+
+            if ( futures.size() >= oldSize ) {
+                auto result = futures.front().get();
+                index.windows->emplaceShared( result.first, std::move( result.second ) );
+                futures.pop_front();
+            }
+        };
+
     index.windows = std::make_shared<WindowMap>();
-    for ( auto& [offset, windowSize] : windowInfos ) {
-        FasterVector<uint8_t> window;
+    for ( auto& [offset, windowSize, compressionRatio] : windowInfos ) {
+        /* Package the non-copyable FasterVector into a copyable smart pointer because the lambda given into the
+         * ThreadPool gets inserted into a std::function living inside std::packaged_task, and std::function
+         * requires every capture to be copyable. While it may compile with Clang and GCC, it does not with MSVC. */
+        auto window = std::make_shared<FasterVector<uint8_t> >();
         if ( windowSize > 0 ) {
-            window.resize( windowSize );
-            checkedRead( indexFile.get(), window.data(), window.size() );
+            window->resize( windowSize );
+            checkedRead( indexFile.get(), window->data(), window->size() );
         }
-        index.windows->emplace( offset, std::move( window ) );
+
+        /* Only bother with overhead-introducing compression for large chunk compression ratios. */
+        if ( compressionRatio > 2  ) {
+            futures.emplace_back( threadPool.submit( [toCompress = std::move( window ), offset = offset] () mutable {
+                return std::make_pair(
+                    offset, std::make_shared<WindowMap::Window>( std::move( *toCompress ), CompressionType::GZIP ) );
+            } ) );
+            if ( futures.size() >= 2 * backgroundThreadCount ) {
+                processFuture();
+            }
+        } else {
+            index.windows->emplace( offset, std::move( *window ), CompressionType::NONE );
+        }
+    }
+
+    while ( !futures.empty() ) {
+        processFuture();
     }
 
     return index;
@@ -459,13 +524,15 @@ readGzipIndex( UniqueFileReader         indexFile,
 
 [[nodiscard]] inline GzipIndex
 readGzipIndex( UniqueFileReader indexFile,
-               UniqueFileReader archiveFile = {} )
+               UniqueFileReader archiveFile = {},
+               size_t           parallelization = 1 )
 {
     std::vector<char> formatId( 5, 0 );
     checkedRead( indexFile.get(), formatId.data(), formatId.size() );
 
     if ( formatId == std::vector<char>( { 'G', 'Z', 'I', 'D', 'X' } ) ) {
-        return indexed_gzip::readGzipIndex( std::move( indexFile ), std::move( archiveFile ), formatId );
+        return indexed_gzip::readGzipIndex( std::move( indexFile ), std::move( archiveFile ), formatId,
+                                            parallelization );
     }
     /* Bgzip indexes have no magic bytes and simply start with the number of chunks. */
     return bgzip::readGzipIndex( std::move( indexFile ), std::move( archiveFile ), formatId );
@@ -483,10 +550,10 @@ writeGzipIndex( const GzipIndex&                                              in
 
     if ( !std::all_of( checkpoints.begin(), checkpoints.end(), [&index, windowSizeInBytes] ( const auto& checkpoint ) {
                            const auto window = index.windows->get( checkpoint.compressedOffsetInBits );
-                           return window.has_value() && ( window->empty() || ( window->size() >= windowSizeInBytes ) );
+                           return window && ( window->empty() || ( window->decompressedSize() >= windowSizeInBytes ) );
                        } ) )
     {
-        throw std::invalid_argument( "All window sizes must be at least 32 KiB!" );
+        throw std::invalid_argument( "All window sizes must be at least 32 KiB or empty!" );
     }
 
     checkedWrite( "GZIDX", 5 );
@@ -527,7 +594,12 @@ writeGzipIndex( const GzipIndex&                                              in
             continue;
         }
 
-        const auto window = *result;
+        const auto windowPointer = result->decompress();
+        if ( !windowPointer ) {
+            continue;
+        }
+
+        const auto& window = *windowPointer;
         if ( window.empty() ) {
             continue;
         }

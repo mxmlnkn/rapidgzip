@@ -286,16 +286,3 @@ requiredBits( const uint64_t stateCount )
     }
     return result;
 }
-
-
-static_assert( requiredBits( 0 ) == 0 );
-static_assert( requiredBits( 1 ) == 1 );
-static_assert( requiredBits( 2 ) == 1 );
-static_assert( requiredBits( 3 ) == 2 );
-static_assert( requiredBits( 4 ) == 2 );
-static_assert( requiredBits( 5 ) == 3 );
-static_assert( requiredBits( 6 ) == 3 );
-static_assert( requiredBits( 7 ) == 3 );
-static_assert( requiredBits( 8 ) == 3 );
-static_assert( requiredBits( 64 ) == 6 );
-static_assert( requiredBits( 256 ) == 8 );

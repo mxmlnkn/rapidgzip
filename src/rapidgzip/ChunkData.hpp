@@ -8,8 +8,10 @@
 #include <type_traits>
 #include <vector>
 
+#include <CompressedVector.hpp>
 #include <crc32.hpp>
 #include <DecodedData.hpp>
+#include <FasterVector.hpp>
 #include <gzip.hpp>
 
 
@@ -39,6 +41,17 @@ struct ChunkData :
     public deflate::DecodedData
 {
     using BaseType = deflate::DecodedData;
+
+    using SharedWindow = std::shared_ptr<CompressedVector<FasterVector<uint8_t> > >;
+
+    struct Configuration
+    {
+        size_t encodedOffsetInBits{ std::numeric_limits<size_t>::max() };
+        size_t splitChunkSize{ std::numeric_limits<size_t>::max() };
+        FileType fileType{ FileType::NONE };
+        bool crc32Enabled{ true };
+        std::optional<CompressionType> windowCompressionType;
+    };
 
     struct BlockBoundary
     {
@@ -73,7 +86,7 @@ struct ChunkData :
          *    might not work perfectly and might already have read some of the next block.
          * Currently, the unit tests, test that all possibilities to derive the footer offsets: GzipReader, decodeBlock,
          * decodeBlockWithInflateWrapper with ISA-L or zlib, return the same value.
-         * That value is currently the footer end because it seemed easier to implement. This might be subjecft to
+         * That value is currently the footer end because it seemed easier to implement. This might be subject to
          * change until it is actually used for something (e.g. smarter block splitting).
          * The most complicated to implement but least ambiguous solution would be to add all three boundaries to
          * this struct.
@@ -83,45 +96,184 @@ struct ChunkData :
         zlib::Footer zlibFooter;
     };
 
-    struct Subblock
+    struct Subchunk
     {
         size_t encodedOffset{ 0 };
         size_t encodedSize{ 0 };
         size_t decodedSize{ 0 };
+        SharedWindow window{};
 
         [[nodiscard]] bool
-        operator==( const Subblock& other ) const
+        operator==( const Subchunk& other ) const
         {
             return ( encodedOffset == other.encodedOffset )
                    && ( encodedSize == other.encodedSize )
-                   && ( decodedSize == other.decodedSize );
+                   && ( decodedSize == other.decodedSize )
+                   && ( window == other.window );
         }
     };
 
+    class Statistics
+    {
+    public:
+        void
+        merge( const Statistics& other )
+        {
+            falsePositiveCount           += other.falsePositiveCount;
+            blockFinderDuration          += other.blockFinderDuration;
+            decodeDuration               += other.decodeDuration;
+            decodeDurationInflateWrapper += other.decodeDurationInflateWrapper;
+            decodeDurationIsal           += other.decodeDurationIsal;
+            appendDuration               += other.appendDuration;
+            applyWindowDuration          += other.applyWindowDuration;
+            computeChecksumDuration      += other.computeChecksumDuration;
+            compressWindowDuration       += other.compressWindowDuration;
+            markerCount                  += other.markerCount;
+            nonMarkerCount               += other.nonMarkerCount;
+            realMarkerCount              += other.realMarkerCount;
+        }
+
+    public:
+        size_t falsePositiveCount{ 0 };
+        double blockFinderDuration{ 0 };
+        double decodeDuration{ 0 };
+        double decodeDurationInflateWrapper{ 0 };
+        double decodeDurationIsal{ 0 };
+        double appendDuration{ 0 };
+        double applyWindowDuration{ 0 };
+        double computeChecksumDuration{ 0 };
+        double compressWindowDuration{ 0 };
+        uint64_t markerCount{ 0 };
+        uint64_t nonMarkerCount{ 0 };
+        uint64_t realMarkerCount{ 0 };
+    };
+
 public:
+    explicit
+    ChunkData( const Configuration& configuration ) :
+        encodedOffsetInBits( configuration.encodedOffsetInBits ),
+        fileType( configuration.fileType ),
+        splitChunkSize( configuration.splitChunkSize ),
+        m_windowCompressionType( configuration.windowCompressionType )
+    {
+        setCRC32Enabled( configuration.crc32Enabled );
+    }
+
+    ChunkData() = default;
+    ChunkData( ChunkData&& ) = default;
+    ChunkData( const ChunkData& ) = delete;
+    ChunkData& operator=( ChunkData&& ) = default;
+    ChunkData& operator=( const ChunkData& ) = delete;
+
+    [[nodiscard]] CompressionType
+    windowCompressionType() const
+    {
+        if ( m_windowCompressionType ) {
+            return *m_windowCompressionType;
+        }
+        /* Only bother with overhead-introducing compression for large chunk compression ratios. */
+        return decodedSizeInBytes * 8 > 2 * encodedSizeInBits ? CompressionType::GZIP : CompressionType::NONE;
+    }
+
     void
     append( deflate::DecodedVector&& toAppend )
     {
-        crc32s.back().update( toAppend.data(), toAppend.size() );
+        auto t0 = now();
+
+        if ( crc32s.back().enabled() ) {
+            crc32s.back().update( toAppend.data(), toAppend.size() );
+
+            const auto t1 = now();
+            statistics.computeChecksumDuration += duration( t0, t1 );
+            t0 = t1;
+        }
 
         BaseType::append( std::move( toAppend ) );
+        statistics.appendDuration += duration( t0 );
     }
 
     void
     append( deflate::DecodedDataView const& toAppend )
     {
+        auto t0 = now();
+
         /* Ignore data with markers. Those will be CRC32 computed inside @ref applyWindow. */
-        for ( const auto& buffer : toAppend.data ) {
-            crc32s.back().update( buffer.data(), buffer.size() );
+        if ( crc32s.back().enabled() ) {
+            for ( const auto& buffer : toAppend.data ) {
+                crc32s.back().update( buffer.data(), buffer.size() );
+            }
+
+            const auto t1 = now();
+            statistics.computeChecksumDuration += duration( t0, t1 );
+            t0 = t1;
         }
 
         BaseType::append( toAppend );
+        statistics.appendDuration += duration( t0 );
     }
 
     void
     applyWindow( WindowView const& window )
     {
+        const auto markerCount = dataWithMarkersSize();
+        const auto tApplyStart = now();
+
+        /* This is expensive! It adds 20-30% overhead for the FASTQ file! Therefore disable it.
+         * The result for this statistics for:
+         *     SRR22403185_2.fastq.gz
+         *         Total decompressed bytes                 : 361'815'302
+         *         Non-marker symbols                       :  16'270'407 (4.49688 %)
+         *         Replaced marker symbol buffers           : 345'544'895 (95.5031 %)
+         *         Actual marker symbol count in buffers    :  48'956'747 (14.168 %)
+         *     silesia.tar.gz
+         *         Total decompressed bytes                 : 211'957'760
+         *         Non-marker symbols                       : 137'967'986 (65.0922 %)
+         *         Replaced marker symbol buffers           :  73'989'774 (34.9078 %)
+         *         Actual marker symbol count in buffers    :  22'555'742 (30.4849 %)
+         *     4GiB-base64.gz
+         *         Total decompressed bytes                 : 4'294'967'296
+         *         Non-marker symbols                       : 4'272'350'980 (99.4734 %)
+         *         Replaced marker symbol buffers           :    22'616'316 (0.526577 %)
+         *         Actual marker symbol count in buffers    :       162'330 (0.717756 %)
+         *     CTU-13-Dataset.tar.gz
+         *         Total decompressed bytes                 : 79'747'543'040
+         *         Non-marker symbols                       : 55'838'926'274 (70.0196 %)
+         *         Replaced marker symbol buffers           : 23'908'616'766 (29.9804 %)
+         *         Actual marker symbol count in buffers    :  2'868'357'239 (11.9972 %)
+         *     wikidata-20220103-all.json.gz
+         *         Total decompressed bytes                 : 1'428'353'996'731
+         *         Non-marker symbols                       :    23'033'941'599 (1.61262 %)
+         *         Replaced marker symbol buffers           : 1'405'320'055'132 (98.3874 %)
+         *         Actual marker symbol count in buffers    :   863'915'563'663 (61.4746 %)
+         *
+         * -> An alternative format that uses a mix of 8-bit and 16-bit and maybe a separate 1-bit buffer
+         *    to store which byte is which, would reduce memory usage, and therefore also allocation
+         *    overhead by 80%! Or maybe run-time encode it a la: <n 8-bit values> <8-bit value> ... <m 16-bit values>
+         *    This would hopefully speed up window applying because hopefully long runs of 8-bit values could
+         *    simply be memcopied and even runs of 16-bit values could be processed in a loop.
+         *    This kind of compression would also add overhead though and it proabably would be too difficult
+         *    to do inside deflate::Block, so it should probably be applied in post in
+         *    ChunkData::append( DecodedDataViews ). This might be something that could be optimzied with SIMD,
+         *    the same applies to the equally necessary new ChunkData::applyWindow method.
+         *    -> The count could be 7-bit so that the 8-th bit can be used to store the 8/16-bit value flag.
+         *       In the worst case: interleaved 8-bit and 16-bit values, this would add an overhead of 25%:
+         *       <n><8><n><16hi><16lo> <n><8>...
+         *    Ideally a format that has no overhead even in the worst-case would be nice.
+         *    This would be possible by using 4-bit values for <n> but then the maximum runlength would be 3-bit -> 7,
+         *    which seems insufficient as it might lead to lots of slow execution branching in the applyWindow method.
+         */
+        static constexpr bool ENABLE_REAL_MARKER_COUNT = false;
+        if constexpr ( ENABLE_REAL_MARKER_COUNT ) {
+            statistics.realMarkerCount += countMarkerSymbols();
+        }
+
         BaseType::applyWindow( window );
+
+        const auto tApplyEnd = now();
+        if ( markerCount > 0 ) {
+            statistics.markerCount += markerCount;
+            statistics.applyWindowDuration += duration( tApplyStart, tApplyEnd );
+        }
 
         const auto alreadyProcessedSize = std::accumulate(
             crc32s.begin(), crc32s.end(), size_t( 0 ),
@@ -139,6 +291,8 @@ public:
                 crc32.update( buffer, size );
             }
             crc32s.front().prepend( crc32 );
+
+            statistics.computeChecksumDuration += duration( tApplyEnd );
         }
     }
 
@@ -154,19 +308,18 @@ public:
     void
     setEncodedOffset( size_t offset );
 
-    [[nodiscard]] std::vector<Subblock>
-    split( [[maybe_unused]] const size_t spacing ) const;
-
     /**
      * @note Probably should not be called internally because it is allowed to be shadowed by a child class method.
      */
     void
-    finalize( size_t blockEndOffsetInBits )
+    finalize( size_t newEncodedEndOffsetInBits )
     {
         const auto oldMarkerSize = BaseType::dataWithMarkersSize();
         cleanUnmarkedData();
         const auto toProcessSize = oldMarkerSize - BaseType::dataWithMarkersSize();
         if ( toProcessSize > 0 ) {
+            const auto tComputeHashStart = now();
+
             CRC32Calculator crc32;
             /* Iterate over contiguous chunks of memory. */
             for ( auto it = DecodedData::Iterator( *this, 0, toProcessSize ); static_cast<bool>( it ); ++it ) {
@@ -177,10 +330,17 @@ public:
              * a new gzip stream begins, which should be known to not contain any unresolvable backreferences.
              * That's why we can simply merge the CRC32 for the cleaned data with the first CRC32. */
             crc32s.front().prepend( crc32 );
+
+            statistics.computeChecksumDuration += duration( tComputeHashStart );
         }
 
-        encodedSizeInBits = blockEndOffsetInBits - encodedOffsetInBits;
+        statistics.nonMarkerCount += dataSize();
+
+        encodedEndOffsetInBits = newEncodedEndOffsetInBits;
+        encodedSizeInBits = newEncodedEndOffsetInBits - encodedOffsetInBits;
         decodedSizeInBytes = BaseType::size();
+
+        subchunks = split( splitChunkSize );
     }
 
     /**
@@ -199,7 +359,7 @@ public:
     }
 
     /**
-     * Appends gzip footer information at the given offset.
+     * Appends generic footer information at the given offset.
      */
     void
     appendFooter( ChunkData::Footer&& footer )
@@ -259,7 +419,20 @@ public:
         }
     }
 
+    [[nodiscard]] bool
+    hasBeenPostProcessed() const
+    {
+        return !subchunks.empty() && subchunks.front().window && !containsMarkers();
+    }
+
+protected:
+    [[nodiscard]] std::vector<Subchunk>
+    split( [[maybe_unused]] const size_t spacing ) const;
+
 public:
+    size_t encodedOffsetInBits{ std::numeric_limits<size_t>::max() };
+    size_t encodedSizeInBits{ 0 };
+
     /** This should be used to decide what kind of footer to expect and what to do after the footer. */
     FileType fileType{ FileType::NONE };
 
@@ -271,6 +444,9 @@ public:
     /* Initialized with size() after thread has finished writing into ChunkData. Redundant but avoids a lock
      * because the marker replacement will momentarily lead to different results returned by size! */
     size_t decodedSizeInBytes{ 0 };
+    /* This is currently only set in @ref finalize and used in @ref setEncodedOffset to initialize
+     * @ref encodedSizeInBits. */
+    size_t encodedEndOffsetInBits{ std::numeric_limits<size_t>::max() };
 
     /* Decoded offsets are relative to the decoded offset of this ChunkData because that might not be known
      * during first-pass decompression. */
@@ -279,15 +455,15 @@ public:
     /* There will be ( footers.size() + 1 ) CRC32 calculators. */
     std::vector<CRC32Calculator> crc32s{ std::vector<CRC32Calculator>( 1 ) };
 
-    /* Benchmark results */
-    size_t falsePositiveCount{ 0 };
-    double blockFinderDuration{ 0 };
-    double decodeDuration{ 0 };
-    double decodeDurationInflateWrapper{ 0 };
-    double decodeDurationIsal{ 0 };
-    double appendDuration{ 0 };
+    size_t splitChunkSize{ std::numeric_limits<size_t>::max() };
+    std::vector<Subchunk> subchunks;
+
+    Statistics statistics{};
 
     bool stoppedPreemptively{ false };
+
+private:
+    std::optional<CompressionType> m_windowCompressionType;
 };
 
 
@@ -322,58 +498,67 @@ ChunkData::setEncodedOffset( size_t offset )
         throw std::invalid_argument( "The real offset to correct to should lie inside the offset range!" );
     }
 
-    if ( maxEncodedOffsetInBits == std::numeric_limits<size_t>::max() ) {
-        maxEncodedOffsetInBits = encodedOffsetInBits;
+    if ( encodedEndOffsetInBits == std::numeric_limits<size_t>::max() ) {
+        throw std::invalid_argument( "Finalize must be called before setEncodedOffset!" );
     }
 
-    /* Correct the encoded size "assuming" (it must be ensured!) that it was calculated from
-     * maxEncodedOffsetInBits. */
-    encodedSizeInBits += maxEncodedOffsetInBits - offset;
+    if ( encodedEndOffsetInBits < offset ) {
+        std::stringstream message;
+        message << "The chunk start " << offset << " must not be after the chunk end " << encodedEndOffsetInBits << "!";
+        throw std::invalid_argument( std::move( message ).str() );
+    }
 
+    encodedSizeInBits = encodedEndOffsetInBits - offset;
     encodedOffsetInBits = offset;
     maxEncodedOffsetInBits = offset;
+
+    if ( !subchunks.empty() ) {
+        const auto nextSubchunk = std::next( subchunks.begin() );
+        const auto nextOffset = nextSubchunk == subchunks.end() ? encodedEndOffsetInBits : nextSubchunk->encodedOffset;
+        subchunks.front().encodedOffset = offset;
+        subchunks.front().encodedSize = nextOffset - offset;
+    }
 }
 
 
-[[nodiscard]] inline std::vector<ChunkData::Subblock>
+[[nodiscard]] inline std::vector<ChunkData::Subchunk>
 ChunkData::split( [[maybe_unused]] const size_t spacing ) const
 {
-    if ( encodedOffsetInBits != maxEncodedOffsetInBits ) {
-        throw std::invalid_argument( "ChunkData::split may only be called after setEncodedOffset!" );
+    if ( encodedEndOffsetInBits == std::numeric_limits<size_t>::max() ) {
+        throw std::invalid_argument( "Finalize must be called before splitting the chunk!" );
     }
 
     if ( spacing == 0 ) {
         throw std::invalid_argument( "Spacing must be a positive number of bytes." );
     }
 
-    const auto decompressedSize = decodedSizeInBytes;
-    if ( ( encodedSizeInBits == 0 ) && ( decompressedSize == 0 ) ) {
+    if ( ( encodedSizeInBits == 0 ) && ( decodedSizeInBytes == 0 ) ) {
         return {};
     }
 
-    const auto nBlocks = static_cast<size_t>( std::round( static_cast<double>( decompressedSize )
+    const auto nBlocks = static_cast<size_t>( std::round( static_cast<double>( decodedSizeInBytes )
                                                           / static_cast<double>( spacing ) ) );
-    Subblock wholeChunkAsSubblock;
-    wholeChunkAsSubblock.encodedOffset = encodedOffsetInBits;
-    wholeChunkAsSubblock.encodedSize = encodedSizeInBits;
-    wholeChunkAsSubblock.decodedSize = decompressedSize;
+    Subchunk wholeChunkAsSubchunk;
+    wholeChunkAsSubchunk.encodedOffset = encodedOffsetInBits;
+    wholeChunkAsSubchunk.encodedSize = encodedSizeInBits;
+    wholeChunkAsSubchunk.decodedSize = decodedSizeInBytes;
     /* blockBoundaries does not contain the first block begin but all thereafter including the boundary after
      * the last block, i.e., the begin of the next deflate block not belonging to this ChunkData. */
     if ( ( nBlocks <= 1 ) || blockBoundaries.empty() ) {
-        return { wholeChunkAsSubblock };
+        return { wholeChunkAsSubchunk };
     }
 
-    /* The idea for partitioning is: Divide the size evenly and into subblocks and then choose the block boundary
+    /* The idea for partitioning is: Divide the size evenly and into subchunks and then choose the block boundary
      * that is closest to that value. */
-    const auto perfectSpacing = static_cast<double>( decompressedSize ) / static_cast<double>( nBlocks );
+    const auto perfectSpacing = static_cast<double>( decodedSizeInBytes ) / static_cast<double>( nBlocks );
 
-    std::vector<Subblock> subblocks;
-    subblocks.reserve( nBlocks + 1 );
+    std::vector<Subchunk> result;
+    result.reserve( nBlocks + 1 );
 
     BlockBoundary lastBoundary{ encodedOffsetInBits, 0 };
     /* The first and last boundaries are static, so we only need to find nBlocks - 1 further boundaries. */
-    for ( size_t iSubblock = 1; iSubblock < nBlocks; ++iSubblock ) {
-        const auto perfectDecompressedOffset = static_cast<size_t>( iSubblock * perfectSpacing );
+    for ( size_t iSubchunk = 1; iSubchunk < nBlocks; ++iSubchunk ) {
+        const auto perfectDecompressedOffset = static_cast<size_t>( iSubchunk * perfectSpacing );
 
         const auto isCloser =
             [perfectDecompressedOffset] ( const auto& b1, const auto& b2 )
@@ -391,7 +576,7 @@ ChunkData::split( [[maybe_unused]] const size_t spacing ) const
             ++closest;
         }
 
-        /* For very small spacings, the same boundary might be found twice. Avoid empty subblocks because of that. */
+        /* For very small spacings, the same boundary might be found twice. Avoid empty subchunks because of that. */
         if ( closest->decodedOffset <= lastBoundary.decodedOffset ) {
             continue;
         }
@@ -400,50 +585,57 @@ ChunkData::split( [[maybe_unused]] const size_t spacing ) const
             throw std::logic_error( "If the decoded offset is strictly larger than so must be the encoded one!" );
         }
 
-        Subblock subblock;
-        subblock.encodedOffset = lastBoundary.encodedOffset;
-        subblock.encodedSize = closest->encodedOffset - lastBoundary.encodedOffset;
-        subblock.decodedSize = closest->decodedOffset - lastBoundary.decodedOffset;
-        subblocks.emplace_back( subblock );
+        Subchunk subchunk;
+        subchunk.encodedOffset = lastBoundary.encodedOffset;
+        subchunk.encodedSize = closest->encodedOffset - lastBoundary.encodedOffset;
+        subchunk.decodedSize = closest->decodedOffset - lastBoundary.decodedOffset;
+        result.emplace_back( subchunk );
         lastBoundary = *closest;
     }
 
-    if ( lastBoundary.decodedOffset > decompressedSize ) {
+    if ( lastBoundary.decodedOffset > decodedSizeInBytes ) {
         throw std::logic_error( "There should be no boundary outside of the chunk range!" );
     }
-    if ( ( lastBoundary.decodedOffset < decompressedSize ) || subblocks.empty() ) {
-        /* Create the last subblock from lastBoundary and the chunk end. */
-        Subblock subblock;
-        subblock.encodedOffset = lastBoundary.encodedOffset,
-        subblock.encodedSize = encodedOffsetInBits + encodedSizeInBits - lastBoundary.encodedOffset,
-        subblock.decodedSize = decompressedSize - lastBoundary.decodedOffset,
-        subblocks.emplace_back( subblock );
-    } else if ( lastBoundary.decodedOffset == decompressedSize ) {
-        /* Enlarge the last subblock encoded size to also encompass the empty blocks before the chunk end.
+    if ( ( lastBoundary.decodedOffset < decodedSizeInBytes ) || result.empty() ) {
+        /* Create the last subchunk from lastBoundary and the chunk end. */
+        Subchunk subchunk;
+        subchunk.encodedOffset = lastBoundary.encodedOffset,
+        subchunk.encodedSize = encodedEndOffsetInBits - lastBoundary.encodedOffset,
+        subchunk.decodedSize = decodedSizeInBytes - lastBoundary.decodedOffset,
+        result.emplace_back( subchunk );
+    } else if ( lastBoundary.decodedOffset == decodedSizeInBytes ) {
+        /* Enlarge the last subchunk encoded size to also encompass the empty blocks before the chunk end.
          * Assuming that blockBoundaries contain the boundary at the chunk end and knowing that the loop
          * above always searches for the last boundary with the same decodedOffset, this branch shouldn't happen. */
-        subblocks.back().encodedSize = encodedOffsetInBits + encodedSizeInBits - subblocks.back().encodedOffset;
+        result.back().encodedSize = encodedEndOffsetInBits - result.back().encodedOffset;
     }
 
-    const auto subblockEncodedSizeSum =
-        std::accumulate( subblocks.begin(), subblocks.end(), size_t( 0 ),
+    if ( encodedEndOffsetInBits - encodedOffsetInBits != encodedSizeInBits ) {
+        std::stringstream message;
+        message << "The offset: " << encodedOffsetInBits << ", size: " << encodedSizeInBits << ", and end offset: "
+                << encodedEndOffsetInBits << " are inconsistent!";
+        throw std::logic_error( std::move( message ).str() );
+    }
+
+    const auto subchunkEncodedSizeSum =
+        std::accumulate( result.begin(), result.end(), size_t( 0 ),
                          [] ( size_t sum, const auto& block ) { return sum + block.encodedSize; } );
-    const auto subblockDecodedSizeSum =
-        std::accumulate( subblocks.begin(), subblocks.end(), size_t( 0 ),
+    const auto subchunkDecodedSizeSum =
+        std::accumulate( result.begin(), result.end(), size_t( 0 ),
                          [] ( size_t sum, const auto& block ) { return sum + block.decodedSize; } );
-    if ( ( subblockEncodedSizeSum != encodedSizeInBits ) || ( subblockDecodedSizeSum != decodedSizeInBytes ) ) {
+    if ( ( subchunkEncodedSizeSum != encodedSizeInBits ) || ( subchunkDecodedSizeSum != decodedSizeInBytes ) ) {
         std::stringstream message;
         message << "[Warning] Block splitting was unsuccessful. This might result in higher memory usage but is "
                 << "otherwise harmless. Please report this performance bug with a reproducing example.\n"
-                << "  subblockEncodedSizeSum: " << subblockEncodedSizeSum << "\n"
+                << "  subchunkEncodedSizeSum: " << subchunkEncodedSizeSum << "\n"
                 << "  encodedSizeInBits     : " << encodedSizeInBits      << "\n"
-                << "  subblockDecodedSizeSum: " << subblockDecodedSizeSum << "\n"
+                << "  subchunkDecodedSizeSum: " << subchunkDecodedSizeSum << "\n"
                 << "  decodedSizeInBytes    : " << decodedSizeInBytes     << "\n";
         std::cerr << std::move( message ).str();
-        return { wholeChunkAsSubblock };  // fallback without any splitting done at all
+        return { wholeChunkAsSubchunk };  // fallback without any splitting done at all
     }
 
-    return subblocks;
+    return result;
 }
 
 
@@ -456,6 +648,7 @@ ChunkData::split( [[maybe_unused]] const size_t spacing ) const
 static_assert( !std::is_polymorphic_v<ChunkData>, "Simply making it polymorphic halves performance!" );
 
 
+#if defined( HAVE_VMSPLICE )
 /**
  * Tries to use writeAllSpliceUnsafe and, if successful, also extends lifetime by adding the block data
  * shared_ptr into a list.
@@ -470,27 +663,10 @@ static_assert( !std::is_polymorphic_v<ChunkData>, "Simply making it polymorphic 
  *    - This would only be triggerable by using the API. The current CLI and not even the Python
  *      interface would trigger this because either they don't splice to a pipe or only read
  *      sequentially.
- * @note It *does* account for pages to be spliced into yet another pipe buffer. This is exactly what the
- *       SPLICE_F_GIFT flag is for. Without that being set, pages will not be spliced but copied into further
- *       pipe buffers. So, without this flag, there is no danger of extending the lifetime of those pages
- *       arbitarily.
+ * @note It *does* account for pages to be spliced into yet another pipe buffer by waiting for buffer size
+ *       amount of data being written before freeing, and likely reusing, the memory.
  */
-[[nodiscard]] inline bool
-writeAllSplice( const int                         outputFileDescriptor,
-                const void* const                 dataToWrite,
-                size_t const                      dataToWriteSize,
-                const std::shared_ptr<ChunkData>& chunkData )
-{
-#if defined( HAVE_VMSPLICE )
-    return SpliceVault::getInstance( outputFileDescriptor ).first->splice( dataToWrite, dataToWriteSize, chunkData );
-#else
-    return false;
-#endif
-}
-
-
-#if defined( HAVE_VMSPLICE )
-[[nodiscard]] inline bool
+[[nodiscard]] inline int
 writeAllSplice( [[maybe_unused]] const int                         outputFileDescriptor,
                 [[maybe_unused]] const std::shared_ptr<ChunkData>& chunkData,
                 [[maybe_unused]] const std::vector<::iovec>&       buffersToWrite )
@@ -500,20 +676,21 @@ writeAllSplice( [[maybe_unused]] const int                         outputFileDes
 #endif  // HAVE_VMSPLICE
 
 
-inline void
+[[nodiscard]] inline int
 writeAll( const std::shared_ptr<ChunkData>& chunkData,
           const int                         outputFileDescriptor,
           const size_t                      offsetInBlock,
           const size_t                      dataToWriteSize )
 {
     if ( ( outputFileDescriptor < 0 ) || ( dataToWriteSize == 0 ) ) {
-        return;
+        return 0;
     }
 
 #ifdef HAVE_VMSPLICE
     const auto buffersToWrite = toIoVec( *chunkData, offsetInBlock, dataToWriteSize );
-    if ( !writeAllSplice( outputFileDescriptor, chunkData, buffersToWrite ) ) {
-        writeAllToFdVector( outputFileDescriptor, buffersToWrite );
+    const auto errorCode = writeAllSplice( outputFileDescriptor, chunkData, buffersToWrite );
+    if ( errorCode != 0 ) {
+        return writeAllToFdVector( outputFileDescriptor, buffersToWrite );
     }
 #else
     using rapidgzip::deflate::DecodedData;
@@ -523,14 +700,14 @@ writeAll( const std::shared_ptr<ChunkData>& chunkData,
           static_cast<bool>( it ); ++it )
     {
         const auto& [buffer, size] = *it;
-        if ( splicable ) {
-            splicable = writeAllSplice( outputFileDescriptor, buffer, size, chunkData );
-        }
-        if ( !splicable ) {
-            writeAllToFd( outputFileDescriptor, buffer, size );
+        const auto errorCode = writeAllToFd( outputFileDescriptor, buffer, size );
+        if ( errorCode != 0 ) {
+            return errorCode;
         }
     }
 #endif
+
+    return 0;
 }
 
 
@@ -540,6 +717,17 @@ writeAll( const std::shared_ptr<ChunkData>& chunkData,
 struct ChunkDataCounter final :
     public ChunkData
 {
+    explicit
+    ChunkDataCounter( const Configuration& configuration ) :
+        ChunkData( configuration )
+    {}
+
+    ChunkDataCounter() = default;
+    ChunkDataCounter( ChunkDataCounter&& ) = default;
+    ChunkDataCounter( const ChunkDataCounter& ) = delete;
+    ChunkDataCounter& operator=( ChunkDataCounter&& ) = default;
+    ChunkDataCounter& operator=( const ChunkDataCounter& ) = delete;
+
     void
     append( deflate::DecodedVector&& toAppend )
     {
@@ -553,11 +741,14 @@ struct ChunkDataCounter final :
     }
 
     void
-    finalize( size_t blockEndOffsetInBits )
+    finalize( size_t newEncodedEndOffsetInBits )
     {
-        encodedSizeInBits = blockEndOffsetInBits - encodedOffsetInBits;
+        encodedEndOffsetInBits = newEncodedEndOffsetInBits;
+        encodedSizeInBits = encodedEndOffsetInBits - encodedOffsetInBits;
         /* Do not overwrite decodedSizeInBytes like is done in the base class
          * because DecodedData::size() would return 0! Instead, it is updated inside append. */
+
+        subchunks = split( splitChunkSize );
     }
 
     /**
@@ -574,11 +765,8 @@ struct ChunkDataCounter final :
 
     /**
      * No splitting necessary for memory reduction because we don't hold the results anyway.
-     * @todo I'm not sure why the block splitting triggers the "Next block offset index is out of sync"
-     *       exception without this override. And it also does not happen with zeros-32GiB.gz, it happens
-     *       only with wikidata.json.gz.
      */
-    [[nodiscard]] std::vector<Subblock>
+    [[nodiscard]] std::vector<Subchunk>
     split( [[maybe_unused]] const size_t spacing ) const
     {
         return ChunkData::split( std::numeric_limits<size_t>::max() );

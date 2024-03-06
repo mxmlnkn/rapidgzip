@@ -32,7 +32,7 @@ def loadData(filePath):
                 continue
 
             times = np.array([float(t) for t in tokens[1:]])
-            if np.max(times) < 0.1:
+            if np.max(times) < 0.2:
                 commits.append(tokens[0][0:9])
                 minTimes.append(float('nan'))
                 avgTimes.append(float('nan'))
@@ -79,20 +79,40 @@ ax.set_xlim([0, len(commits) + 2])
 #    git log --oneline "$tag" | grep '[[]\(feature\|refactor\|fix\|performance\)[]]' | sed 's| .*||' | head -1
 # done
 lastFunctionCommitPerVersion = [
-    ("1e41c7e3", '-', 0.700, "v0.8.1"),
-    ("7ba84035", '-', 0.675, "v0.8.0"),
-    ("820ef836", '-', 0.650, "v0.7.1"),
-    ("1f4eac8e", '-', 0.625, "v0.7.0"),
-    ("1f4eac8e", '-', 0.600, "v0.6.0"),
-    ("3a67d3e9", '-', 0.850, "v0.5.0"),
-    ("8a9877eb", '-', 0.850, "v0.4.0"),
-    ("3d385061", '-', 0.850, "v0.3.0"),
-    ("1001e4b0", '-', 0.850, "v0.2.2"),
-    ("7df4c5e0", '-', 0.850, "v0.2.1"),
-    ("0a6febe5", '-', 0.850, "v0.2.0"),
+    ("fd119582", '-', 0.675, "v0.12.1"),
+    ("93716212", '-', 0.700, "v0.12.0"),
+    ("c15259f9", '-', 0.725, "v0.11.2"),
+    ("4b4b54bd", '-', 0.750, "v0.11.1"),
+    ("3cf30452", '-', 0.775, "v0.11.0"),
+    ("f2d990d8", '-', 0.800, "v0.10.4"),
+    ("32d67e24", '-', 0.700, "v0.10.3"),
+    ("5142d1bc", '-', 0.725, "v0.10.2"),
+    ("0a5ec66c", '-', 0.750, "v0.10.1"),
+    ("344ea804", '-', 0.775, "v0.10.0"),
+    ("0a23be7c", '-', 0.800, "v0.9.0"),
+
+    ("1e41c7e3", '-', 0.800, "v0.8.1"),
+    ("7ba84035", '-', 0.775, "v0.8.0"),
+    ("820ef836", '-', 0.750, "v0.7.1"),
+    ("1f4eac8e", '-', 0.725, "v0.7.0"),
+    ("1f4eac8e", '-', 0.700, "v0.6.0"),
+    ("3a67d3e9", '-', 0.800, "v0.5.0"),
+    ("8a9877eb", '-', 0.800, "v0.4.0"),
+    ("3d385061", '-', 0.800, "v0.3.0"),
+    ("1001e4b0", '-', 0.800, "v0.2.2"),
+    ("7df4c5e0", '-', 0.800, "v0.2.1"),
+    ("0a6febe5", '-', 0.800, "v0.2.0"),
 
     # left-aligned labels
-    ("60a40070", ':', 0.175, "Fix order of inserted fetch\nindexes during splitIndex call"),
+    ("7d62d3f8", ':', 0.400, "Use HuffmanCodingShortBitsCached"),
+    ("974f0c3d", ':', 0.425, "Use isattay instead of poll with 100ms timeout"),
+    ("9edb3b97", ':', 0.450, "Compress windows in-memory"),
+    ("4567fe16", ':', 0.475, "Enable checksum verification by default"),
+    ("2933f8e5", ':', 0.500, "Increase timeout for stdin test"),
+    ("f89d42f3", ':', 0.550, "Avoid memory allocations in DecodedData::\n"
+                             "applyWindow by reinterpreting the existing buffers"),
+
+    ("60a40070", ':', 0.150, "Fix order of inserted fetch\nindexes during splitIndex call"),
     ("1e74b6b9", ':', 0.225, "Deflate: use std::memcpy when\npossible to resolve backreference"),
     # [ ] Performance degradation already fixed with 60a40070.
     #     However on Taurus, this actually improved performance from 1.6 to 1.5 but significantly

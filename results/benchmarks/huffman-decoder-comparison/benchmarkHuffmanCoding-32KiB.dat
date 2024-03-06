@@ -1,0 +1,185 @@
+Implementation;Code Length Distribution;Minimum Length;Maximum Length;Runtime Average;Runtime StdDev;Construction Time Average;Construction Time StdDev;Decode Time Average;Decode Time StdDev
+Linear Search;Equal-Sized Code Lengths;1;1;0.0013586;6.85463e-06;1.923e-07;3.51291e-08;0.00135841;6.84753e-06
+Reversed Codes Per Length;Equal-Sized Code Lengths;1;1;0.00143166;1.48561e-05;5.42e-08;1.04621e-08;0.0014316;1.48556e-05
+Symbols Per Length;Equal-Sized Code Lengths;1;1;0.000480642;1.05264e-05;5.06e-08;2.25102e-08;0.000480591;1.05271e-05
+Reversed Bits Cached;Equal-Sized Code Lengths;1;1;0.000588318;5.14752e-06;6.21e-08;3.03945e-08;0.000588256;5.14036e-06
+Reversed Bits Cached Compressed;Equal-Sized Code Lengths;1;1;0.000731555;5.41763e-06;5.91e-08;2.04047e-08;0.000731495;5.41441e-06
+Reversed Bits Cached Separate Lengths;Equal-Sized Code Lengths;1;1;0.000856686;8.93304e-06;7.2e-08;3.45826e-08;0.000856614;8.92934e-06
+Reversed Bits Short Cached;Equal-Sized Code Lengths;1;1;0.000601399;6.01727e-06;9.93e-08;6.07571e-08;0.000601299;6.01423e-06
+Double Literal Cached;Equal-Sized Code Lengths;1;1;0.000438309;5.68467e-06;1.1763e-06;1.24573e-07;0.000437133;5.69157e-06
+Linear Search;Equal-Sized Code Lengths;2;2;0.00108375;1.38904e-05;2.5661e-07;1.04763e-07;0.00108349;1.38797e-05
+Reversed Codes Per Length;Equal-Sized Code Lengths;2;2;0.00108865;1.72415e-05;7.68e-08;3.6842e-08;0.00108858;1.72391e-05
+Symbols Per Length;Equal-Sized Code Lengths;2;2;0.000350613;7.31737e-06;5.13e-08;1.76186e-08;0.000350561;7.31799e-06
+Reversed Bits Cached;Equal-Sized Code Lengths;2;2;0.000276735;3.43421e-06;6.76e-08;3.0916e-08;0.000276668;3.43072e-06
+Reversed Bits Cached Compressed;Equal-Sized Code Lengths;2;2;0.000351223;3.8712e-06;7.72e-08;5.28975e-08;0.000351146;3.87177e-06
+Reversed Bits Cached Separate Lengths;Equal-Sized Code Lengths;2;2;0.000393145;4.26351e-06;6.841e-08;4.18473e-08;0.000393076;4.25483e-06
+Reversed Bits Short Cached;Equal-Sized Code Lengths;2;2;0.000247112;2.51921e-06;8.74e-08;4.43954e-08;0.000247025;2.5121e-06
+Double Literal Cached;Equal-Sized Code Lengths;2;2;0.000236139;3.4326e-06;1.1983e-06;8.97252e-08;0.000234941;3.40556e-06
+Linear Search;Equal-Sized Code Lengths;3;3;0.000916954;5.82231e-06;2.602e-07;1.06335e-07;0.000916694;5.79745e-06
+Reversed Codes Per Length;Equal-Sized Code Lengths;3;3;0.000961997;1.83442e-05;9.75e-08;3.35862e-08;0.000961899;1.83371e-05
+Symbols Per Length;Equal-Sized Code Lengths;3;3;0.00026851;7.13693e-06;7.56e-08;2.70548e-08;0.000268434;7.13614e-06
+Reversed Bits Cached;Equal-Sized Code Lengths;3;3;0.000200961;2.64979e-06;9.19e-08;2.50129e-08;0.000200869;2.64801e-06
+Reversed Bits Cached Compressed;Equal-Sized Code Lengths;3;3;0.000248741;3.92011e-06;9.53e-08;3.64998e-08;0.000248645;3.91776e-06
+Reversed Bits Cached Separate Lengths;Equal-Sized Code Lengths;3;3;0.000281109;3.0206e-06;9.75e-08;3.93476e-08;0.000281012;3.00805e-06
+Reversed Bits Short Cached;Equal-Sized Code Lengths;3;3;0.000180829;1.68958e-06;1.038e-07;3.52131e-08;0.000180726;1.68597e-06
+Double Literal Cached;Equal-Sized Code Lengths;3;3;0.000162049;2.26741e-06;1.32401e-06;3.3694e-08;0.000160725;2.26158e-06
+Linear Search;Equal-Sized Code Lengths;4;4;0.000851744;1.08322e-05;3.106e-07;9.41825e-08;0.000851433;1.08133e-05
+Reversed Codes Per Length;Equal-Sized Code Lengths;4;4;0.000963749;2.36038e-05;1.5e-07;3.44363e-08;0.000963599;2.35898e-05
+Symbols Per Length;Equal-Sized Code Lengths;4;4;0.000249777;3.96832e-06;1.195e-07;1.28216e-08;0.000249658;3.96638e-06
+Reversed Bits Cached;Equal-Sized Code Lengths;4;4;0.00012416;3.56056e-06;1.583e-07;2.62103e-08;0.000124002;3.56051e-06
+Reversed Bits Cached Compressed;Equal-Sized Code Lengths;4;4;0.000158088;2.04778e-06;1.5661e-07;2.50841e-08;0.000157932;2.04254e-06
+Reversed Bits Cached Separate Lengths;Equal-Sized Code Lengths;4;4;0.000162968;2.31771e-06;1.64e-07;1.70561e-08;0.000162804;2.31735e-06
+Reversed Bits Short Cached;Equal-Sized Code Lengths;4;4;0.000112058;2.37251e-06;1.658e-07;3.51096e-08;0.000111892;2.36829e-06
+Double Literal Cached;Equal-Sized Code Lengths;4;4;0.000136392;2.09827e-06;1.8375e-06;5.88677e-08;0.000134554;2.08034e-06
+Linear Search;Equal-Sized Code Lengths;5;5;0.000865936;1.05278e-05;3.98e-07;7.53711e-08;0.000865538;1.05323e-05
+Reversed Codes Per Length;Equal-Sized Code Lengths;5;5;0.00124127;7.50247e-06;2.331e-07;2.70687e-08;0.00124104;7.50352e-06
+Symbols Per Length;Equal-Sized Code Lengths;5;5;0.000250642;3.36583e-06;2.061e-07;1.20517e-08;0.000250435;3.36905e-06
+Reversed Bits Cached;Equal-Sized Code Lengths;5;5;0.000117241;2.86343e-06;2.79e-07;1.73787e-08;0.000116962;2.85822e-06
+Reversed Bits Cached Compressed;Equal-Sized Code Lengths;5;5;0.000143136;2.04604e-06;2.745e-07;1.79997e-08;0.000142862;2.04252e-06
+Reversed Bits Cached Separate Lengths;Equal-Sized Code Lengths;5;5;0.00015711;2.58311e-06;2.753e-07;2.0023e-08;0.000156835;2.58398e-06
+Reversed Bits Short Cached;Equal-Sized Code Lengths;5;5;0.000105246;1.79562e-06;2.71e-07;2.96614e-08;0.000104975;1.79184e-06
+Double Literal Cached;Equal-Sized Code Lengths;5;5;0.000107112;1.87269e-06;4.08901e-06;3.72873e-07;0.000103023;1.72934e-06
+Linear Search;Equal-Sized Code Lengths;6;6;0.00103311;2.36915e-05;5.844e-07;7.66379e-08;0.00103253;2.36887e-05
+Reversed Codes Per Length;Equal-Sized Code Lengths;6;6;0.00170082;3.04112e-05;4.0191e-07;3.31352e-08;0.00170042;3.04096e-05
+Symbols Per Length;Equal-Sized Code Lengths;6;6;0.000236888;5.69761e-06;3.715e-07;5.92461e-09;0.000236517;5.69844e-06
+Reversed Bits Cached;Equal-Sized Code Lengths;6;6;9.67438e-05;2.01102e-06;5.213e-07;1.76186e-08;9.62225e-05;2.00797e-06
+Reversed Bits Cached Compressed;Equal-Sized Code Lengths;6;6;0.000118394;1.33042e-06;5.255e-07;2.21736e-08;0.000117869;1.32505e-06
+Reversed Bits Cached Separate Lengths;Equal-Sized Code Lengths;6;6;0.000126764;1.39982e-06;5.28e-07;1.03475e-08;0.000126236;1.39963e-06
+Reversed Bits Short Cached;Equal-Sized Code Lengths;6;6;8.68989e-05;1.10355e-06;5.086e-07;2.38268e-08;8.63903e-05;1.0954e-06
+Double Literal Cached;Equal-Sized Code Lengths;6;6;0.000110945;2.47556e-06;1.17396e-05;2.04111e-07;9.92051e-05;2.4468e-06
+Linear Search;Equal-Sized Code Lengths;7;7;0.00138203;2.8621e-05;9.129e-07;6.5154e-08;0.00138111;2.86274e-05
+Reversed Codes Per Length;Equal-Sized Code Lengths;7;7;0.00263105;4.99937e-05;7.862e-07;4.41023e-08;0.00263026;4.99869e-05
+Symbols Per Length;Equal-Sized Code Lengths;7;7;0.000235261;5.61036e-06;7.241e-07;2.76009e-08;0.000234537;5.6052e-06
+Reversed Bits Cached;Equal-Sized Code Lengths;7;7;0.000112818;1.96517e-06;1.0192e-06;4.01935e-08;0.000111799;1.95845e-06
+Reversed Bits Cached Compressed;Equal-Sized Code Lengths;7;7;0.000130462;1.5299e-06;1.0157e-06;3.23571e-08;0.000129446;1.52248e-06
+Reversed Bits Cached Separate Lengths;Equal-Sized Code Lengths;7;7;0.000153761;2.38985e-06;1.011e-06;2.64193e-08;0.00015275;2.38589e-06
+Reversed Bits Short Cached;Equal-Sized Code Lengths;7;7;0.000102477;1.19345e-06;1.0321e-06;4.01317e-07;0.000101445;1.08185e-06
+Double Literal Cached;Equal-Sized Code Lengths;7;7;0.000185661;7.37112e-06;7.27685e-05;7.13324e-06;0.000112893;1.93459e-06
+Linear Search;Equal-Sized Code Lengths;8;8;0.00197028;1.26321e-05;1.7167e-06;1.05391e-07;0.00196856;1.26464e-05
+Reversed Codes Per Length;Equal-Sized Code Lengths;8;8;0.00429702;1.51295e-05;1.4988e-06;3.74781e-08;0.00429553;1.51229e-05
+Symbols Per Length;Equal-Sized Code Lengths;8;8;0.000229145;5.18086e-06;1.40351e-06;1.47945e-08;0.000227741;5.18099e-06
+Reversed Bits Cached;Equal-Sized Code Lengths;8;8;6.16748e-05;1.90402e-06;2.02601e-06;6.30822e-07;5.96488e-05;1.6643e-06
+Reversed Bits Cached Compressed;Equal-Sized Code Lengths;8;8;7.22837e-05;1.31886e-06;1.98131e-06;2.34821e-08;7.03024e-05;1.31756e-06
+Reversed Bits Cached Separate Lengths;Equal-Sized Code Lengths;8;8;8.34518e-05;6.4214e-06;2.043e-06;1.34829e-07;8.14088e-05;6.35496e-06
+Reversed Bits Short Cached;Equal-Sized Code Lengths;8;8;5.81807e-05;1.06558e-06;1.9599e-06;5.3191e-08;5.62208e-05;1.04106e-06
+Double Literal Cached;Equal-Sized Code Lengths;8;8;0.000213598;4.09151e-06;3.32034e-05;1.45578e-06;0.000180395;3.79073e-06
+Linear Search;Equal-Sized Code Lengths;9;9;0.00313069;1.02264e-05;3.10302e-06;1.267e-07;0.00312759;1.01979e-05
+Reversed Codes Per Length;Equal-Sized Code Lengths;9;9;0.00745588;4.57242e-05;2.94571e-06;8.72035e-08;0.00745293;4.57134e-05
+Symbols Per Length;Equal-Sized Code Lengths;9;9;0.000229419;4.19019e-06;2.78422e-06;3.62624e-08;0.000226635;4.18066e-06
+Reversed Bits Cached;Equal-Sized Code Lengths;9;9;8.3918e-05;1.24674e-06;3.9301e-06;9.5468e-08;7.99879e-05;1.22229e-06
+Reversed Bits Cached Compressed;Equal-Sized Code Lengths;9;9;9.76056e-05;1.21856e-06;3.97971e-06;1.15895e-07;9.36259e-05;1.21617e-06
+Reversed Bits Cached Separate Lengths;Equal-Sized Code Lengths;9;9;0.00010871;2.00549e-06;3.9671e-06;1.2049e-07;0.000104743;1.95784e-06
+Reversed Bits Short Cached;Equal-Sized Code Lengths;9;9;7.93606e-05;3.41866e-06;3.9558e-06;2.14877e-07;7.54048e-05;3.31946e-06
+Double Literal Cached;Equal-Sized Code Lengths;9;9;0.000221814;2.69416e-05;5.63001e-05;2.73647e-05;0.000165514;5.60831e-06
+Linear Search;All Code Lengths Appearing;1;2;0.00160523;1.83964e-05;2.132e-07;5.68869e-08;0.00160502;1.83787e-05
+Reversed Codes Per Length;All Code Lengths Appearing;1;2;0.00134395;1.18971e-05;6.02e-08;1.44236e-08;0.00134389;1.18941e-05
+Symbols Per Length;All Code Lengths Appearing;1;2;0.00109317;1.20376e-05;5.13e-08;1.3e-08;0.00109311;1.20424e-05
+Reversed Bits Cached;All Code Lengths Appearing;1;2;0.000483597;4.16953e-06;5.36e-08;2.5644e-08;0.000483544;4.16039e-06
+Reversed Bits Cached Compressed;All Code Lengths Appearing;1;2;0.00056559;5.7991e-06;5.45e-08;2.30667e-08;0.000565536;5.79834e-06
+Reversed Bits Cached Separate Lengths;All Code Lengths Appearing;1;2;0.000678517;3.19597e-06;5.81e-08;2.77687e-08;0.000678459;3.19028e-06
+Reversed Bits Short Cached;All Code Lengths Appearing;1;2;0.000436598;2.68166e-06;7.45e-08;2.39264e-08;0.000436524;2.67694e-06
+Double Literal Cached;All Code Lengths Appearing;1;2;0.000604323;3.31064e-06;1.1528e-06;4.25709e-08;0.000603171;3.31145e-06
+Linear Search;All Code Lengths Appearing;1;3;0.00173113;2.65756e-05;2.109e-07;5.79985e-08;0.00173092;2.65662e-05
+Reversed Codes Per Length;All Code Lengths Appearing;1;3;0.00130324;8.9162e-06;5.34e-08;1.65279e-08;0.00130319;8.91314e-06
+Symbols Per Length;All Code Lengths Appearing;1;3;0.00123195;9.04247e-06;5.26e-08;2.11115e-08;0.0012319;9.04401e-06
+Reversed Bits Cached;All Code Lengths Appearing;1;3;0.000424724;2.46304e-06;6.63e-08;1.94186e-08;0.000424658;2.4576e-06
+Reversed Bits Cached Compressed;All Code Lengths Appearing;1;3;0.000495079;4.21989e-06;5.93e-08;2.41734e-08;0.00049502;4.21027e-06
+Reversed Bits Cached Separate Lengths;All Code Lengths Appearing;1;3;0.000590273;2.43391e-06;6.21e-08;2.55562e-08;0.000590211;2.4296e-06
+Reversed Bits Short Cached;All Code Lengths Appearing;1;3;0.000375906;3.34838e-06;9.57e-08;5.02972e-08;0.00037581;3.3361e-06
+Double Literal Cached;All Code Lengths Appearing;1;3;0.000676751;4.17507e-06;1.15921e-06;4.94922e-08;0.000675592;4.16268e-06
+Linear Search;All Code Lengths Appearing;1;4;0.00182902;1.29319e-05;2.141e-07;4.78865e-08;0.0018288;1.2945e-05
+Reversed Codes Per Length;All Code Lengths Appearing;1;4;0.00129473;7.1568e-06;5.61e-08;1.76895e-08;0.00129467;7.15747e-06
+Symbols Per Length;All Code Lengths Appearing;1;4;0.00126531;7.01395e-06;6.28e-08;1.45004e-08;0.00126525;7.01298e-06
+Reversed Bits Cached;All Code Lengths Appearing;1;4;0.000401568;4.65991e-06;8.48e-08;3.11879e-08;0.000401483;4.64562e-06
+Reversed Bits Cached Compressed;All Code Lengths Appearing;1;4;0.000470221;6.17043e-06;8.02e-08;3.45236e-08;0.000470141;6.15675e-06
+Reversed Bits Cached Separate Lengths;All Code Lengths Appearing;1;4;0.000556426;2.63204e-06;7.56e-08;3.84109e-08;0.00055635;2.62371e-06
+Reversed Bits Short Cached;All Code Lengths Appearing;1;4;0.000359379;4.04668e-06;1.129e-07;5.39602e-08;0.000359266;4.02881e-06
+Double Literal Cached;All Code Lengths Appearing;1;4;0.000548276;5.40225e-06;1.2225e-06;5.45019e-08;0.000547054;5.3912e-06
+Linear Search;All Code Lengths Appearing;1;5;0.00190215;1.66706e-05;2.122e-07;3.10614e-08;0.00190194;1.66637e-05
+Reversed Codes Per Length;All Code Lengths Appearing;1;5;0.0012867;6.92287e-06;6.9e-08;2.34198e-08;0.00128663;6.91981e-06
+Symbols Per Length;All Code Lengths Appearing;1;5;0.00129182;5.90081e-06;6.39e-08;2.34368e-08;0.00129175;5.89549e-06
+Reversed Bits Cached;All Code Lengths Appearing;1;5;0.000401295;2.49788e-06;9.58e-08;3.35201e-08;0.000401199;2.49403e-06
+Reversed Bits Cached Compressed;All Code Lengths Appearing;1;5;0.000466506;4.57363e-06;9.09e-08;2.6096e-08;0.000466415;4.56452e-06
+Reversed Bits Cached Separate Lengths;All Code Lengths Appearing;1;5;0.000550099;3.72471e-06;8.89e-08;2.3694e-08;0.00055001;3.72035e-06
+Reversed Bits Short Cached;All Code Lengths Appearing;1;5;0.000355843;3.53531e-06;1.17e-07;3.00673e-08;0.000355726;3.53289e-06
+Double Literal Cached;All Code Lengths Appearing;1;5;0.000424027;3.4638e-06;1.27132e-06;5.0343e-08;0.000422756;3.45194e-06
+Linear Search;All Code Lengths Appearing;1;6;0.00195557;2.38816e-05;2.335e-07;4.51792e-08;0.00195534;2.38688e-05
+Reversed Codes Per Length;All Code Lengths Appearing;1;6;0.00128053;6.64535e-06;7.17e-08;1.76987e-08;0.00128046;6.64191e-06
+Symbols Per Length;All Code Lengths Appearing;1;6;0.00129775;8.6979e-06;7.13e-08;1.16909e-08;0.00129768;8.6985e-06
+Reversed Bits Cached;All Code Lengths Appearing;1;6;0.000401248;2.91788e-06;1.135e-07;2.17597e-08;0.000401135;2.91438e-06
+Reversed Bits Cached Compressed;All Code Lengths Appearing;1;6;0.000470085;6.3719e-06;1.16e-07;2.63236e-08;0.000469969;6.36921e-06
+Reversed Bits Cached Separate Lengths;All Code Lengths Appearing;1;6;0.000548405;3.74576e-06;1.161e-07;3.55305e-08;0.000548289;3.7374e-06
+Reversed Bits Short Cached;All Code Lengths Appearing;1;6;0.000356838;3.19173e-06;1.396e-07;2.85303e-08;0.000356698;3.19418e-06
+Double Literal Cached;All Code Lengths Appearing;1;6;0.000357675;2.88425e-06;1.35441e-06;3.59371e-08;0.000356321;2.87199e-06
+Linear Search;All Code Lengths Appearing;1;7;0.00204243;1.06806e-05;2.228e-07;5.14061e-08;0.00204221;1.06746e-05
+Reversed Codes Per Length;All Code Lengths Appearing;1;7;0.00127581;7.22114e-06;9.22e-08;9.70057e-09;0.00127572;7.22123e-06
+Symbols Per Length;All Code Lengths Appearing;1;7;0.00130834;1.0117e-05;8.99e-08;1.43896e-08;0.00130825;1.01136e-05
+Reversed Bits Cached;All Code Lengths Appearing;1;7;0.000428852;8.85391e-05;1.773e-07;1.09792e-07;0.000428675;8.84656e-05
+Reversed Bits Cached Compressed;All Code Lengths Appearing;1;7;0.000465461;3.43768e-05;1.604e-07;5.39158e-08;0.0004653;3.43276e-05
+Reversed Bits Cached Separate Lengths;All Code Lengths Appearing;1;7;0.000539618;4.66681e-06;1.39e-07;6.92747e-08;0.000539479;4.66022e-06
+Reversed Bits Short Cached;All Code Lengths Appearing;1;7;0.000357907;2.51151e-05;2.169e-07;1.06398e-07;0.00035769;2.50355e-05
+Double Literal Cached;All Code Lengths Appearing;1;7;0.000315528;5.57009e-06;1.50341e-06;7.87169e-08;0.000314024;5.55918e-06
+Linear Search;All Code Lengths Appearing;1;8;0.00199541;0.00012511;2.376e-07;7.09406e-08;0.00199517;0.000125057
+Reversed Codes Per Length;All Code Lengths Appearing;1;8;0.00126469;0.000100868;1.1651e-07;2.92435e-08;0.00126457;0.000100848
+Symbols Per Length;All Code Lengths Appearing;1;8;0.00128406;7.4701e-05;9.51e-08;1.99238e-08;0.00128396;7.46928e-05
+Reversed Bits Cached;All Code Lengths Appearing;1;8;0.0003911;1.74639e-05;2.7811e-07;1.15724e-07;0.000390822;1.73621e-05
+Reversed Bits Cached Compressed;All Code Lengths Appearing;1;8;0.000443742;7.04427e-06;2.406e-07;4.28014e-08;0.000443502;7.03024e-06
+Reversed Bits Cached Separate Lengths;All Code Lengths Appearing;1;8;0.000521255;3.26523e-06;1.975e-07;3.56859e-08;0.000521058;3.25163e-06
+Reversed Bits Short Cached;All Code Lengths Appearing;1;8;0.000339897;2.93885e-06;2.509e-07;4.88058e-08;0.000339646;2.94111e-06
+Double Literal Cached;All Code Lengths Appearing;1;8;0.000288182;1.85793e-06;1.5172e-06;6.63489e-08;0.000286664;1.82407e-06
+Linear Search;All Code Lengths Appearing;1;9;0.00206006;5.61792e-05;2.522e-07;8.32009e-08;0.00205981;5.6149e-05
+Reversed Codes Per Length;All Code Lengths Appearing;1;9;0.00123277;7.33626e-06;1.021e-07;1.8872e-08;0.00123266;7.33205e-06
+Symbols Per Length;All Code Lengths Appearing;1;9;0.0012649;4.1445e-06;1.062e-07;1.52276e-08;0.00126479;4.14724e-06
+Reversed Bits Cached;All Code Lengths Appearing;1;9;0.000389812;3.12189e-06;3.577e-07;3.78689e-08;0.000389454;3.11904e-06
+Reversed Bits Cached Compressed;All Code Lengths Appearing;1;9;0.000457779;6.48413e-06;3.81e-07;6.75921e-08;0.000457398;6.46752e-06
+Reversed Bits Cached Separate Lengths;All Code Lengths Appearing;1;9;0.000530924;1.69454e-05;2.868e-07;3.63451e-08;0.000530637;1.69436e-05
+Reversed Bits Short Cached;All Code Lengths Appearing;1;9;0.000348353;3.49481e-06;3.792e-07;3.15806e-08;0.000347974;3.49736e-06
+Double Literal Cached;All Code Lengths Appearing;1;9;0.000277371;2.60583e-06;1.6914e-06;6.48545e-08;0.00027568;2.58379e-06
+Linear Search;All Code Lengths Appearing;1;10;0.00201469;2.41996e-05;2.352e-07;4.47999e-08;0.00201445;2.42067e-05
+Reversed Codes Per Length;All Code Lengths Appearing;1;10;0.00123299;6.89461e-06;1.145e-07;1.7545e-08;0.00123287;6.89426e-06
+Symbols Per Length;All Code Lengths Appearing;1;10;0.00127496;3.65786e-06;1.083e-07;1.53777e-08;0.00127485;3.6611e-06
+Reversed Bits Cached;All Code Lengths Appearing;1;10;0.000396025;4.78216e-06;6.012e-07;2.45064e-08;0.000395423;4.78116e-06
+Reversed Bits Cached Compressed;All Code Lengths Appearing;1;10;0.000467701;6.03135e-06;6.294e-07;6.54868e-08;0.000467072;6.02333e-06
+Reversed Bits Cached Separate Lengths;All Code Lengths Appearing;1;10;0.000538678;3.08304e-06;4.101e-07;3.19563e-08;0.000538268;3.08042e-06
+Reversed Bits Short Cached;All Code Lengths Appearing;1;10;0.00035893;2.53919e-06;6.337e-07;3.92777e-08;0.000358296;2.53859e-06
+Double Literal Cached;All Code Lengths Appearing;1;10;0.000280887;4.10928e-06;2.00691e-06;8.26644e-08;0.00027888;4.08526e-06
+Linear Search;All Code Lengths Appearing;1;11;0.00200957;4.0897e-05;2.392e-07;4.02186e-08;0.00200933;4.08961e-05
+Reversed Codes Per Length;All Code Lengths Appearing;1;11;0.00122768;7.87365e-06;1.256e-07;1.75419e-08;0.00122756;7.87321e-06
+Symbols Per Length;All Code Lengths Appearing;1;11;0.0012755;4.39527e-06;1.096e-07;1.51037e-08;0.00127539;4.39491e-06
+Reversed Bits Cached;All Code Lengths Appearing;1;11;0.000405858;2.93554e-06;1.0984e-06;3.87095e-08;0.00040476;2.93579e-06
+Reversed Bits Cached Compressed;All Code Lengths Appearing;1;11;0.000467136;4.58011e-06;1.114e-06;6.16605e-08;0.000466022;4.55535e-06
+Reversed Bits Cached Separate Lengths;All Code Lengths Appearing;1;11;0.00054613;4.06539e-06;6.939e-07;5.52843e-08;0.000545436;4.04942e-06
+Reversed Bits Short Cached;All Code Lengths Appearing;1;11;0.000357347;2.93955e-06;6.298e-07;3.58442e-08;0.000356717;2.93531e-06
+Double Literal Cached;All Code Lengths Appearing;1;11;0.000283755;2.38486e-06;2.50601e-06;1.0316e-07;0.000281249;2.3623e-06
+Linear Search;All Code Lengths Appearing;1;12;0.00203279;3.87047e-05;2.3781e-07;2.72069e-08;0.00203255;3.86932e-05
+Reversed Codes Per Length;All Code Lengths Appearing;1;12;0.00123745;2.56671e-05;1.348e-07;1.76085e-08;0.00123732;2.56529e-05
+Symbols Per Length;All Code Lengths Appearing;1;12;0.00126552;4.04399e-06;1.054e-07;1.71988e-08;0.00126542;4.04284e-06
+Reversed Bits Cached;All Code Lengths Appearing;1;12;0.000405658;4.7351e-06;2.0616e-06;2.54939e-08;0.000403596;4.72625e-06
+Reversed Bits Cached Compressed;All Code Lengths Appearing;1;12;0.000470558;5.65323e-06;2.07542e-06;2.98894e-08;0.000468482;5.64507e-06
+Reversed Bits Cached Separate Lengths;All Code Lengths Appearing;1;12;0.000545797;3.75551e-06;1.2082e-06;4.22207e-08;0.000544589;3.74647e-06
+Reversed Bits Short Cached;All Code Lengths Appearing;1;12;0.000359923;4.00731e-06;6.415e-07;2.81186e-08;0.000359281;4.00755e-06
+Double Literal Cached;All Code Lengths Appearing;1;12;0.000290401;2.35355e-06;3.5812e-06;5.72656e-08;0.00028682;2.3391e-06
+Linear Search;All Code Lengths Appearing;1;13;0.00205272;3.42242e-05;2.582e-07;2.81905e-08;0.00205246;3.42214e-05
+Reversed Codes Per Length;All Code Lengths Appearing;1;13;0.00123076;7.71077e-06;1.581e-07;1.75634e-08;0.0012306;7.71131e-06
+Symbols Per Length;All Code Lengths Appearing;1;13;0.00127327;7.14628e-06;1.235e-07;1.35866e-08;0.00127314;7.14633e-06
+Reversed Bits Cached;All Code Lengths Appearing;1;13;0.000420349;6.25822e-06;4.06523e-06;4.19966e-08;0.000416284;6.25703e-06
+Reversed Bits Cached Compressed;All Code Lengths Appearing;1;13;0.000481424;6.76331e-06;4.17521e-06;9.87788e-07;0.000477249;6.65572e-06
+Reversed Bits Cached Separate Lengths;All Code Lengths Appearing;1;13;0.000554055;3.46234e-06;2.237e-06;3.40871e-07;0.000551818;3.44332e-06
+Reversed Bits Short Cached;All Code Lengths Appearing;1;13;0.000364544;3.49693e-06;6.59e-07;4.29117e-08;0.000363885;3.48095e-06
+Double Literal Cached;All Code Lengths Appearing;1;13;0.000305497;3.45305e-06;5.62942e-06;7.03748e-08;0.000299868;3.44053e-06
+Linear Search;All Code Lengths Appearing;1;14;0.00219848;1.59048e-05;2.649e-07;2.62273e-08;0.00219821;1.59035e-05
+Reversed Codes Per Length;All Code Lengths Appearing;1;14;0.00122851;7.15865e-06;1.454e-07;2.32865e-08;0.00122836;7.16265e-06
+Symbols Per Length;All Code Lengths Appearing;1;14;0.0012673;5.33293e-06;1.433e-07;1.76987e-08;0.00126716;5.33318e-06
+Reversed Bits Cached;All Code Lengths Appearing;1;14;0.000540192;4.08554e-06;8.46985e-06;2.57835e-07;0.000531722;4.0721e-06
+Reversed Bits Cached Compressed;All Code Lengths Appearing;1;14;0.000497561;6.76287e-06;7.86162e-06;1.58746e-07;0.0004897;6.75632e-06
+Reversed Bits Cached Separate Lengths;All Code Lengths Appearing;1;14;0.000570501;4.49271e-06;4.15632e-06;1.40054e-07;0.000566345;4.44688e-06
+Reversed Bits Short Cached;All Code Lengths Appearing;1;14;0.000371012;2.47014e-06;6.675e-07;5.8073e-08;0.000370345;2.4833e-06
+Double Literal Cached;All Code Lengths Appearing;1;14;0.000360242;2.7695e-06;1.04399e-05;3.83567e-07;0.000349802;2.73203e-06
+Linear Search;All Code Lengths Appearing;1;15;0.002201;2.6343e-05;2.815e-07;5.90732e-08;0.00220072;2.63356e-05
+Reversed Codes Per Length;All Code Lengths Appearing;1;15;0.00123312;8.10463e-06;1.815e-07;2.79384e-08;0.00123294;8.10794e-06
+Symbols Per Length;All Code Lengths Appearing;1;15;0.00127587;5.62763e-06;1.405e-07;1.3133e-08;0.00127573;5.62841e-06
+Reversed Bits Cached;All Code Lengths Appearing;1;15;0.000612694;6.70298e-06;1.67263e-05;1.60257e-07;0.000595968;6.70496e-06
+Reversed Bits Cached Compressed;All Code Lengths Appearing;1;15;0.000619188;9.49518e-06;1.5575e-05;3.96538e-07;0.000603613;9.30494e-06
+Reversed Bits Cached Separate Lengths;All Code Lengths Appearing;1;15;0.000684812;4.87831e-06;8.58382e-06;6.38672e-08;0.000676229;4.86139e-06
+Reversed Bits Short Cached;All Code Lengths Appearing;1;15;0.000369233;4.79284e-06;6.818e-07;6.21725e-08;0.000368551;4.79472e-06
+Double Literal Cached;All Code Lengths Appearing;1;15;0.000406804;4.30454e-06;2.15426e-05;1.15873e-06;0.000385261;4.18859e-06

@@ -20,11 +20,11 @@ jobs:
       MACOSX_DEPLOYMENT_TARGET: "10.14"
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
 
-    - uses: conda-incubator/setup-miniconda@v2
+    - uses: conda-incubator/setup-miniconda@v3
       with:
         auto-update-conda: true
 
@@ -44,15 +44,17 @@ jobs:
       # Bash shells do not use ~/.profile or ~/.bashrc so these shells need to be explicitely declared as shell:
       # bash -l {0} on steps that need to be properly activated
       shell: bash -l {0}
-      env:
-        ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+      # Should only upload on tags anyway!?
+      #env:
+      #  ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+      working-directory: python/rapidgzip/conda
       run: |
         conda install conda conda-build anaconda-client conda-verify packaging
-        conda config --set anaconda_upload no
         conda config --add channels conda-forge
         conda config --set report_errors false
-        cd python/rapidgzip/conda
+        conda config --set anaconda_upload no
         python3 -m pip install --user build
         python3 -m build -o . --sdist ..
         mv rapidgzip-*.tar* src.tar
-        conda build --token "$ANACONDA_TOKEN" .
+        #conda build .
+        #conda build --token "$ANACONDA_TOKEN" .

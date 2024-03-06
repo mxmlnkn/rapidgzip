@@ -77,6 +77,11 @@ private:
     bool
     lock( bool doLock = true ) noexcept
     {
+        if ( ( doLock == false ) && pythonIsFinalizing() ) {
+            /* No need to unlock the GIL if it doesn't exist anymore. */
+            return false;
+        }
+
         /**
          * I would have liked a GILMutex class that can be declared as a static thread_local member but
          * on Windows, these members are initialized too soon, i.e., at static initialization time instead of
@@ -100,7 +105,7 @@ private:
                 PyGILState_Release( lockState );
                 lockState = {};
             }
-            std::cerr << "Detected Python finalization from running rapidgzip thread."
+            std::cerr << "Detected Python finalization from running rapidgzip thread.\n"
                          "To avoid this exception you should close all RapidgzipFile objects correctly,\n"
                          "or better, use the with-statement if possible to automatically close it.\n";
             std::terminate();
@@ -181,7 +186,11 @@ template<typename Value,
 [[nodiscard]] PyObject*
 toPyObject( Value value )
 {
-    return PyLong_FromLongLong( value );
+    auto* const result = PyLong_FromLongLong( value );
+    if ( result == nullptr ) {
+        throw std::runtime_error( "PyLong_FromLongLong returned null for: " + std::to_string( value ) + "!" );
+    }
+    return result;
 }
 
 
@@ -190,13 +199,20 @@ template<typename Value,
 [[nodiscard]] PyObject*
 toPyObject( Value value )
 {
-    return PyLong_FromUnsignedLongLong( value );
+    auto* const result = PyLong_FromUnsignedLongLong( value );
+    if ( result == nullptr ) {
+        throw std::runtime_error( "PyLong_FromUnsignedLongLong returned null for: " + std::to_string( value ) + "!" );
+    }
+    return result;
 }
 
 
 [[nodiscard]] PyObject*
 toPyObject( PyObject* value )
 {
+    if ( value == nullptr ) {
+        throw std::runtime_error( "Got null PyObject as argument to toPyObject!" );
+    }
     return value;
 }
 
@@ -248,6 +264,10 @@ callPyObject( PyObject* pythonObject,
               Args...   args )
 {
     constexpr auto nArgs = sizeof...( Args );
+
+    if ( pythonObject == nullptr ) {
+        throw std::invalid_argument( "[callPyObject] Got null PyObject!" );
+    }
 
     const ScopedGILLock gilLock;
 

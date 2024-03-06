@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <iomanip>
 #include <iostream>
@@ -25,6 +26,7 @@
 #include "crc32.hpp"
 #include "deflate.hpp"
 #include "Error.hpp"
+#include "format.hpp"
 
 
 namespace rapidgzip::deflate
@@ -212,9 +214,14 @@ analyze( UniqueFileReader inputFile,
     using namespace rapidgzip;
     using Block = rapidgzip::deflate::Block</* Statistics */ true>;
 
-    rapidgzip::BitReader bitReader{ std::move( inputFile ) };
+    const auto detectedFormat = determineFileTypeAndOffset( inputFile );
+    if ( !detectedFormat ) {
+        throw std::invalid_argument( "Failed to detect a valid file format." );
+    }
 
+    const auto fileType = detectedFormat->first;
     std::optional<gzip::Header> gzipHeader;
+    std::optional<zlib::Header> zlibHeader;
     Block block;
     block.setTrackBackreferences( true );
 
@@ -243,71 +250,126 @@ analyze( UniqueFileReader inputFile,
     std::map<std::vector<uint8_t>, size_t> distanceCodings;
     std::map<std::vector<uint8_t>, size_t> literalCodings;
 
+    std::array<uint64_t, MAX_WINDOW_SIZE + 1> globalUsedWindowSymbols{};
+    std::array<uint64_t, MAX_RUN_LENGTH + 1> globalbackReferenceLengths{};
+    Histogram<uint16_t> globalUsedWindowSymbolsHistogram( /* min */ 0, MAX_WINDOW_SIZE, /* bins */ 32, "Bytes" );
+    Histogram<uint16_t> globalBackReferenceLengthHistogram( /* min */ 3, MAX_RUN_LENGTH, /* bins */ 32, "Bytes" );
     std::vector<size_t> farthestBackreferences;
 
     CRC32Calculator crc32Calculator;
 
+    rapidgzip::BitReader bitReader{ std::move( inputFile ) };
+
     while ( true ) {
+        if ( bitReader.eof() ) {
+            std::cout << "Bit reader EOF reached at " << formatBits( bitReader.tell() ) << "\n";
+            break;
+        }
+
         #ifdef WITH_PYTHON_SUPPORT
         checkPythonSignalHandlers();
         #endif
 
-        if ( !gzipHeader ) {
-            headerOffset = bitReader.tell();
+        switch ( fileType )
+        {
+        case FileType::NONE:
+            throw std::invalid_argument( "Failed to detect a valid file format." );
 
-            const auto [header, error] = gzip::readHeader( bitReader );
-            if ( error != Error::NONE ) {
-                std::cerr << "Encountered error: " << toString( error )
-                          << " while trying to read gzip header!\n";
-                return error;
-            }
+        case FileType::BZIP2:
+            throw std::invalid_argument( "Detected bzip2 format, for which analyzing is not yet supported." );
 
-            crc32Calculator.reset();
-            gzipHeader = header;
-            block.setInitialWindow();
+        case FileType::BGZF:
+        case FileType::GZIP:
+            if ( !gzipHeader ) {
+                headerOffset = bitReader.tell();
 
-            /* Analysis Information */
-
-            streamCount += 1;
-            streamBlockCount = 0;
-            streamBytesRead = 0;
-
-            std::cout << "Gzip header:\n";
-            std::cout << "    Gzip Stream Count   : " << streamCount << "\n";
-            std::cout << "    Compressed Offset   : " << formatBits( headerOffset ) << "\n";
-            std::cout << "    Uncompressed Offset : " << totalBytesRead << " B\n";
-            if ( header.fileName ) {
-                std::cout << "    File Name           : " << *header.fileName << "\n";
-            }
-            std::cout << "    Modification Time   : " << header.modificationTime << "\n";
-            std::cout << "    OS                  : " << gzip::getOperatingSystemName( header.operatingSystem ) << "\n";
-            std::cout << "    Flags               : " << gzip::getExtraFlagsDescription( header.extraFlags ) << "\n";
-            if ( header.comment ) {
-                std::cout << "    Comment             : " << *header.comment << "\n";
-            }
-            if ( header.extra ) {
-                std::stringstream extraString;
-                extraString << header.extra->size() << " B: ";
-                for ( const auto value : *header.extra ) {
-                    if ( static_cast<bool>( std::isprint( value ) ) ) {
-                        extraString << value;
-                    } else {
-                        std::stringstream hexCode;
-                        hexCode << std::hex << std::setw( 2 ) << std::setfill( '0' ) << static_cast<int>( value );
-                        extraString << '\\' << 'x' << hexCode.str();
-                    }
+                const auto [header, error] = gzip::readHeader( bitReader );
+                if ( error != Error::NONE ) {
+                    std::cerr << "Encountered error: " << toString( error ) << " while trying to read gzip header!\n";
+                    return error;
                 }
-                std::cout << "    Extra               : " << extraString.str() << "\n";
-                analyzeExtraString( { reinterpret_cast<const char*>( header.extra->data() ),
-                                      header.extra->size() },
-                                    "        " );
+
+                crc32Calculator.reset();
+                gzipHeader = header;
+                block.setInitialWindow();
+
+                /* Analysis Information */
+
+                streamCount += 1;
+                streamBlockCount = 0;
+                streamBytesRead = 0;
+
+                std::cout << "Gzip header:\n";
+                std::cout << "    Gzip Stream Count   : " << streamCount << "\n";
+                std::cout << "    Compressed Offset   : " << formatBits( headerOffset ) << "\n";
+                std::cout << "    Uncompressed Offset : " << totalBytesRead << " B\n";
+                if ( header.fileName ) {
+                    std::cout << "    File Name           : " << *header.fileName << "\n";
+                }
+                std::cout << "    Modification Time   : " << header.modificationTime << "\n";
+                std::cout << "    OS                  : " << gzip::getOperatingSystemName( header.operatingSystem ) << "\n";
+                std::cout << "    Flags               : " << gzip::getExtraFlagsDescription( header.extraFlags ) << "\n";
+                if ( header.comment ) {
+                    std::cout << "    Comment             : " << *header.comment << "\n";
+                }
+                if ( header.extra ) {
+                    std::stringstream extraString;
+                    extraString << header.extra->size() << " B: ";
+                    for ( const auto value : *header.extra ) {
+                        if ( static_cast<bool>( std::isprint( value ) ) ) {
+                            extraString << value;
+                        } else {
+                            std::stringstream hexCode;
+                            hexCode << std::hex << std::setw( 2 ) << std::setfill( '0' ) << static_cast<int>( value );
+                            extraString << '\\' << 'x' << hexCode.str();
+                        }
+                    }
+                    std::cout << "    Extra               : " << extraString.str() << "\n";
+                    analyzeExtraString( { reinterpret_cast<const char*>( header.extra->data() ),
+                                          header.extra->size() },
+                                        "        " );
+                }
+                if ( header.crc16 ) {
+                    std::stringstream crc16String;
+                    crc16String << std::hex << std::setw( 16 ) << std::setfill( '0' ) << *header.crc16;
+                    std::cout << "    CRC16               : 0x" << crc16String.str() << "\n";
+                }
+                std::cout << "\n";
             }
-            if ( header.crc16 ) {
-                std::stringstream crc16String;
-                crc16String << std::hex << std::setw( 16 ) << std::setfill( '0' ) << *header.crc16;
-                std::cout << "    CRC16               : 0x" << crc16String.str() << "\n";
+            break;
+
+        case FileType::ZLIB:
+            if ( !zlibHeader ) {
+                headerOffset = bitReader.tell();
+
+                const auto [header, error] = zlib::readHeader( bitReader );
+                if ( error != Error::NONE ) {
+                    std::cerr << "Encountered error: " << toString( error ) << " while trying to read zlib header!\n";
+                    return error;
+                }
+
+                zlibHeader = header;
+                block.setInitialWindow();
+
+                /* Analysis Information */
+
+                streamCount += 1;
+                streamBlockCount = 0;
+                streamBytesRead = 0;
+
+                std::cout << "Zlib header:\n";
+                std::cout << "    Gzip Stream Count   : " << streamCount << "\n";
+                std::cout << "    Compressed Offset   : " << formatBits( headerOffset ) << "\n";
+                std::cout << "    Uncompressed Offset : " << totalBytesRead << " B\n";
+                std::cout << "    Window Size         : " << header.windowSize << "\n";
+                std::cout << "    Compression Level   : " << toString( header.compressionLevel ) << "\n";
+                std::cout << "    Dictionary ID       : " << header.dictionaryID << "\n";
+                std::cout << "\n";
             }
-            std::cout << "\n";
+            break;
+
+        case FileType::DEFLATE:
+            break;
         }
 
         const auto blockOffset = bitReader.tell();
@@ -456,7 +518,7 @@ analyze( UniqueFileReader inputFile,
                 << "        Distance : " << printCodeLengthStatistics( distanceCL, block.codeCounts.distance ) << "\n"
                 << "        Literals : " << printCodeLengthStatistics( literalCL, block.codeCounts.literal ) << "\n";
         }
-        if ( block.compressionType() != deflate::CompressionType::UNCOMPRESSED ) {
+        if ( ( uncompressedBlockSize > 0 ) && block.compressionType() != deflate::CompressionType::UNCOMPRESSED ) {
             std::cout
                 << "    Symbol Types:\n"
                 << "        Literal         : " << formatSymbolType( block.symbolTypes.literal ) << "\n"
@@ -485,9 +547,9 @@ analyze( UniqueFileReader inputFile,
                 mergedBackreferences[currentRef] = mergedBackreferences[otherRef];
             }
         }
-        mergedBackreferences.resize( currentRef + 1 );
+        mergedBackreferences.resize( std::min( backreferences.size(), currentRef + 1 ) );
 
-        if ( verbose ) {
+        if ( verbose && ( uncompressedBlockSize > 0 ) ) {
             std::cout << "    Back-references to the preceding window:";
             for ( const auto& [distance, length] : backreferences ) {
                 std::cout << " " << length << "@" << distance;
@@ -503,6 +565,11 @@ analyze( UniqueFileReader inputFile,
         std::cout << "    Number of back-references        : " << backreferences.size() << "\n";
         std::cout << "    Number of merged back-references : " << mergedBackreferences.size() << "\n";
 
+        for ( const auto& [distance, length] : backreferences ) {
+            globalBackReferenceLengthHistogram.merge( length );
+            ++globalbackReferenceLengths.at( length );
+        }
+
         if ( uncompressedBlockSize >= 32_Ki ) {
             std::vector<bool> usedWindowSymbols( 32_Ki, false );
             for ( const auto& [distance, length] : backreferences ) {
@@ -515,12 +582,33 @@ analyze( UniqueFileReader inputFile,
             const auto usedWindowSymbolCount = std::count( usedWindowSymbols.begin(), usedWindowSymbols.end(), true );
             std::cout << "    Used window symbols              : " << usedWindowSymbolCount << " ("
                       << static_cast<double>( usedWindowSymbolCount ) / static_cast<double>( 32_Ki ) * 100.0 << " %)\n";
+
+            for ( size_t i = 0; i < usedWindowSymbols.size(); ++i ) {
+                if ( usedWindowSymbols[i] ) {
+                    globalUsedWindowSymbolsHistogram.merge( i );
+                    ++globalUsedWindowSymbols.at( i );
+                }
+            }
         }
         std::cout << "\n";
 
         farthestBackreferences.emplace_back( farthestBackreference );
 
-        if ( block.isLastBlock() ) {
+        if ( !block.isLastBlock() ) {
+            continue;
+        }
+
+        switch ( fileType )
+        {
+        case FileType::NONE:
+            throw std::invalid_argument( "Failed to detect a valid file format." );
+
+        case FileType::BZIP2:
+            throw std::invalid_argument( "Detected bzip2 format, for which analyzing is not yet supported." );
+
+        case FileType::BGZF:
+        case FileType::GZIP:
+        {
             const auto footer = gzip::readFooter( bitReader );
 
             std::stringstream crcAsString;
@@ -549,10 +637,31 @@ analyze( UniqueFileReader inputFile,
 
             encodedStreamSizes.emplace_back( bitReader.tell() - headerOffset );
             decodedStreamSizes.emplace_back( streamBytesRead );
+
+            break;
         }
 
-        if ( bitReader.eof() ) {
-            std::cout << "Bit reader EOF reached at " << formatBits( bitReader.tell() ) << "\n";
+        case FileType::ZLIB:
+        {
+            const auto footer = zlib::readFooter( bitReader );
+
+            std::stringstream checksumAsString;
+            checksumAsString << "0x" << std::hex << std::setw( 8 ) << std::setfill( '0' ) << footer.adler32;
+            std::cout << "Zlib footer:\n";
+            std::cout << "    Adler32 : " << std::move( checksumAsString ).str() << "\n";
+
+            zlibHeader = {};
+
+            encodedStreamSizes.emplace_back( bitReader.tell() - headerOffset );
+            decodedStreamSizes.emplace_back( streamBytesRead );
+
+            break;
+        }
+
+        case FileType::DEFLATE:
+            if ( const auto offset = bitReader.tell(); offset % BYTE_SIZE != 0 ) {
+                bitReader.read( BYTE_SIZE - offset % BYTE_SIZE );
+            }
             break;
         }
     }
@@ -603,43 +712,97 @@ analyze( UniqueFileReader inputFile,
         << "    Create distance HC : " << printHeaderDuration( block.durations.createDistanceHC ) << "\n"
         << "    Create literal HC  : " << printHeaderDuration( block.durations.createLiteralHC  ) << "\n"
         << "\n"
-        << "\n"
-        << "== Alphabet Statistics ==\n"
-        << "\n"
-        << "Precode  : " << printAlphabetStatistics( precodeCodings ) << "\n"
-        << "Distance : " << printAlphabetStatistics( distanceCodings ) << "\n"
-        << "Literals : " << printAlphabetStatistics( literalCodings ) << "\n"
-        << "\n"
-        << "== Precode Code Length Count Distribution ==\n"
-        << "\n"
-        << Histogram<size_t>{ precodeCodeLengths, /* bin count */ 8 }.plot()
-        << "\n"
-        << "== Distance Code Length Count Distribution ==\n"
-        << "\n"
-        << Histogram<size_t>{ distanceCodeLengths, /* bin count */ 8 }.plot()
-        << "\n"
-        << "== Literal Code Length Count Distribution ==\n"
-        << "\n"
-        << Histogram<size_t>{ literalCodeLengths, /* bin count */ 8 }.plot()
-        << "\n"
-        << "\n"
-        << "\n== Farthest Backreferences Distribution ==\n"
-        << "\n"
-        << Histogram<size_t>{ farthestBackreferences, 8, "Bytes" }.plot()
-        << "\n"
-        << "== Encoded Block Size Distribution ==\n"
-        << "\n"
-        << Histogram<size_t>{ encodedBlockSizes, 8, "bits" }.plot()
-        << "\n"
-        << "\n"
-        << "== Decoded Block Size Distribution ==\n"
-        << "\n"
-        << Histogram<size_t>{ decodedBlockSizes, 8, "Bytes" }.plot()
-        << "\n"
-        << "\n== Compression Ratio Distribution ==\n"
-        << "\n"
-        << Histogram<double>{ compressionRatios, 8, "Bytes" }.plot()
         << "\n";
+
+    if ( ( precodeCodings.size() > 1 ) || ( distanceCodings.size() > 1 ) || ( literalCodings.size() > 1 ) ) {
+        std::cout
+            << "== Alphabet Statistics ==\n"
+            << "\n"
+            << "Precode  : " << printAlphabetStatistics( precodeCodings ) << "\n"
+            << "Distance : " << printAlphabetStatistics( distanceCodings ) << "\n"
+            << "Literals : " << printAlphabetStatistics( literalCodings ) << "\n"
+            << "\n";
+    }
+
+    if ( precodeCodeLengths.size() > 1 ) {
+        std::cout
+            << "== Precode Code Length Count Distribution ==\n"
+            << "\n"
+            << Histogram<size_t>{ precodeCodeLengths, /* bin count */ 8 }.plot()
+            << "\n";
+    }
+
+    if ( distanceCodeLengths.size() > 1 ) {
+        std::cout
+            << "== Distance Code Length Count Distribution ==\n"
+            << "\n"
+            << Histogram<size_t>{ distanceCodeLengths, /* bin count */ 8 }.plot()
+            << "\n";
+    }
+
+    if ( literalCodeLengths.size() > 1 ) {
+        std::cout
+            << "== Literal Code Length Count Distribution ==\n"
+            << "\n"
+            << Histogram<size_t>{ literalCodeLengths, /* bin count */ 8 }.plot()
+            << "\n"
+            << "\n";
+    }
+
+    if ( farthestBackreferences.size() > 1 ) {
+        std::cout
+            << "\n== Farthest Backreferences Distribution ==\n"
+            << "\n"
+            << Histogram<size_t>{ farthestBackreferences, 8, "Bytes" }.plot()
+            << "\n";
+    }
+
+    if ( globalBackReferenceLengthHistogram.statistics().count > 3 /* 2 are always inserted for min, max! */ ) {
+        std::cout
+            << "\n== Histogram of Backreference Lengths ==\n"
+            << "\n"
+            << globalBackReferenceLengthHistogram.plot()
+            << "\n";
+    }
+
+    std::cout << "Counts for each length in the range [3,258]:\n";
+    for ( const auto count : globalbackReferenceLengths ) {
+        std::cout << " " << count;
+    }
+    std::cout << "\n";
+
+    if ( globalUsedWindowSymbolsHistogram.statistics().count > 3 /* 2 are always inserted for min, max! */ ) {
+        std::cout
+            << "\n== Histogram for Window Symbol Usage ==\n"
+            << "\n"
+            << globalUsedWindowSymbolsHistogram.plot()
+            << "\n";
+    }
+
+    /*    << "Counts for used symbols for each window offset in the range [0,32*1024]:\n";
+    for ( const auto count : globalUsedWindowSymbols ) {
+        std::cout << " " << count;
+    }*/
+
+    if ( totalBlockCount > 1 ) {
+        std::cout
+            << "\n"
+            << "\n"
+            << "== Encoded Block Size Distribution ==\n"
+            << "\n"
+            << Histogram<size_t>{ encodedBlockSizes, 8, "bits" }.plot()
+            << "\n"
+            << "\n"
+            << "== Decoded Block Size Distribution ==\n"
+            << "\n"
+            << Histogram<size_t>{ decodedBlockSizes, 8, "Bytes" }.plot()
+            << "\n"
+            << "\n== Compression Ratio Distribution ==\n"
+            << "\n"
+            << Histogram<double>{ compressionRatios, 8, "Bytes" }.plot()
+            << "\n";
+    }
+
     if ( streamCount > 1 ) {
         std::cout
         << "\n== Compressed Stream Sizes for " << encodedStreamSizes.size() << " streams ==\n"

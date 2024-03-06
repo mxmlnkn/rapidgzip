@@ -381,4 +381,4 @@ def cli():
             PyBuffer_Release(&buffer)
 
 
-__version__ = '1.4.1'
+__version__ = '1.6.0'

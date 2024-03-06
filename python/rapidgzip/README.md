@@ -9,6 +9,7 @@
 [![PyPI Platforms](https://img.shields.io/badge/pypi-linux%20%7C%20macOS%20%7C%20Windows-brightgreen)](https://pypi.org/project/rapidgzip/)
 [![Downloads](https://static.pepy.tech/badge/rapidgzip/month)](https://pepy.tech/project/rapidgzip)
 <br>
+[![Changelog](https://img.shields.io/badge/Changelog-Markdown-blue)](https://github.com/mxmlnkn/indexed_bzip2/blob/master/python/rapidgzip/CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](http://opensource.org/licenses/MIT)
 [![C++ Code Checks](https://github.com/mxmlnkn/indexed_bzip2/actions/workflows/test-cpp.yml/badge.svg)](https://github.com/mxmlnkn/indexed_bzip2/actions/workflows/test-cpp.yml)
 [![codecov](https://codecov.io/gh/mxmlnkn/indexed_bzip2/branch/master/graph/badge.svg?token=94ZD4UTZQW)](https://codecov.io/gh/mxmlnkn/rapidgzip)
@@ -131,7 +132,7 @@ This benchmarks uses gzip-compressed [FASTQ data](http://ftp.sra.ebi.ac.uk/vol1/
 That's why the TAR file is repeated as often as there are number of cores in the benchmark to hold the decompression times roughly constant in order to make the benchmark over this large a range feasible.
 This is almost the worst case for rapidgzip because it contains many LZ77 back-references over very long ranges.
 This means that a fallback to ISA-L is not possible and it means that the costly two-staged decoding has to be done for almost all the data.
-This is also the reason why if fails to scale above 64 cores, i.e, to teh second CPU socket.
+This is also the reason why if fails to scale above 64 cores, i.e, to the second CPU socket.
 The first and second decompression stages are completely independently submitted to a thread pool, which on this NUMA architecture means, that data needs to be costly transferred from one processor socket to the other if the second step for a chunk is not done on the same processor as the first.
 This should be fixable by making the ThreadPool NUMA-aware.
 

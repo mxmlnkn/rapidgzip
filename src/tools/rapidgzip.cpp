@@ -24,6 +24,11 @@
 #include "thirdparty.hpp"
 
 
+class BrokenPipeException :
+    public std::exception
+{};
+
+
 struct Arguments
 {
     unsigned int decoderParallelism{ 0 };
@@ -68,6 +73,8 @@ printIndexAnalytics( const Reader& reader )
         return;
     }
 
+    /* Analyze the offsets. */
+
     Statistics<double> encodedOffsetSpacings;
     Statistics<double> decodedOffsetSpacings;
     for ( auto it = offsets.begin(), nit = std::next( offsets.begin() ); nit != offsets.end(); ++it, ++nit ) {
@@ -87,16 +94,44 @@ printIndexAnalytics( const Reader& reader )
         << "    Decoded offset spacings: ( min: " << decodedOffsetSpacings.min << ", "
         << decodedOffsetSpacings.formatAverageWithUncertainty()
         << ", max: " << decodedOffsetSpacings.max << " ) MB\n";
+
+    /* Analyze the windows. */
+    const auto gzipIndex = reader->gzipIndex();
+    if ( gzipIndex.windows ) {
+        const auto [lock, windows] = gzipIndex.windows->data();
+        const auto compressedWindowSize =
+            std::accumulate( windows->begin(), windows->end(), size_t( 0 ), [] ( size_t sum, const auto& kv ) {
+                return sum + ( kv.second ? kv.second->compressedSize() : 0 );
+            } );
+        const auto decompressedWindowSize =
+            std::accumulate( windows->begin(), windows->end(), size_t( 0 ), [] ( size_t sum, const auto& kv ) {
+                return sum + ( kv.second ? kv.second->decompressedSize() : 0 );
+            } );
+        std::cerr << "    Windows Count: " << windows->size() << "\n"
+                  << "    Total Compressed Window Size: " << formatBytes( compressedWindowSize ) << "\n"
+                  << "    Total Decompressed Window Size: " << formatBytes( decompressedWindowSize ) << "\n";
+    }
 }
 
 
-template<typename Reader,
-         typename WriteFunctor>
-size_t
+enum class DecompressErrorCode
+{
+    SUCCESS = 0,
+    BROKEN_PIPE = 1,
+};
+
+
+template<typename ChunkData,
+         typename WriteFunctor = std::function<void ( const std::shared_ptr<ChunkData>&, size_t, size_t )> >
+[[nodiscard]] std::pair<DecompressErrorCode, size_t>
 decompressParallel( const Arguments&    args,
-                    const Reader&       reader,
+                    UniqueFileReader    inputFile,
                     const WriteFunctor& writeFunctor )
 {
+    using Reader = rapidgzip::ParallelGzipReader<ChunkData>;
+    auto reader = std::make_unique<Reader>( std::move( inputFile ), args.decoderParallelism, args.chunkSize );
+
+    reader->setStatisticsEnabled( args.verbose );
     reader->setShowProfileOnDestruction( args.verbose );
     reader->setCRC32Enabled( args.crc32Enabled );
     reader->setKeepIndex( !args.indexSavePath.empty() || !args.indexLoadPath.empty() );
@@ -109,7 +144,12 @@ decompressParallel( const Arguments&    args,
         }
     }
 
-    const auto totalBytesRead = reader->read( writeFunctor );
+    size_t totalBytesRead{ 0 };
+    try {
+        totalBytesRead = reader->read( writeFunctor );
+    } catch ( const BrokenPipeException& ) {
+        return { DecompressErrorCode::BROKEN_PIPE, 0 };
+    }
 
     if ( !args.indexSavePath.empty() ) {
         const auto file = throwingOpen( args.indexSavePath, "wb" );
@@ -128,29 +168,7 @@ decompressParallel( const Arguments&    args,
         printIndexAnalytics( reader );
     }
 
-    return totalBytesRead;
-}
-
-
-/**
- * Dispatch to the appropriate ParallelGzipReader template arguments based on @p verbose.
- */
-template<typename ChunkData,
-         typename WriteFunctor = std::function<void ( const std::shared_ptr<ChunkData>&, size_t, size_t )> >
-size_t
-decompressParallel( const Arguments&    args,
-                    UniqueFileReader    inputFile,
-                    const WriteFunctor& writeFunctor )
-{
-    if ( args.verbose ) {
-        using Reader = rapidgzip::ParallelGzipReader<ChunkData, /* enable statistics */ true>;
-        auto reader = std::make_unique<Reader>( std::move( inputFile ), args.decoderParallelism, args.chunkSize );
-        return decompressParallel( args, std::move( reader ), writeFunctor );
-    } else {
-        using Reader = rapidgzip::ParallelGzipReader<ChunkData, /* enable statistics */ false>;
-        auto reader = std::make_unique<Reader>( std::move( inputFile ), args.decoderParallelism, args.chunkSize );
-        return decompressParallel( args, std::move( reader ), writeFunctor );
-    }
+    return { DecompressErrorCode::SUCCESS, totalBytesRead };
 }
 
 
@@ -434,7 +452,17 @@ rapidgzipCLI( int                  argc,
               size_t const                               offsetInBlock,
               size_t const                               dataToWriteSize )
             {
-                writeAll( chunkData, outputFileDescriptor, offsetInBlock, dataToWriteSize );
+                const auto errorCode = writeAll( chunkData, outputFileDescriptor, offsetInBlock, dataToWriteSize );
+                if ( errorCode == EPIPE ) {
+                    throw BrokenPipeException();
+                }
+                if ( errorCode != 0 ) {
+                    std::stringstream message;
+                    message << "Failed to write all bytes because of: " << strerror( errorCode )
+                            << " (" << errorCode << ")";
+                    throw std::runtime_error( std::move( message ).str() );
+                }
+
                 if ( countLines ) {
                     using rapidgzip::deflate::DecodedData;
                     for ( auto it = DecodedData::Iterator( *chunkData, offsetInBlock, dataToWriteSize );
@@ -448,6 +476,7 @@ rapidgzipCLI( int                  argc,
 
         args.chunkSize = parsedArgs["chunk-size"].as<unsigned int>() * 1_Ki;
 
+        auto errorCode = DecompressErrorCode::SUCCESS;
         size_t totalBytesRead{ 0 };
         if ( ( outputFileDescriptor == -1 ) && args.indexSavePath.empty() && countBytes && !countLines
              && !args.crc32Enabled )
@@ -455,7 +484,7 @@ rapidgzipCLI( int                  argc,
             /* Need to do nothing with the chunks because decompressParallel returns the decompressed size.
              * Note that we use rapidgzip::ChunkDataCounter to speed up decompression. Therefore an index
              * will not be created and there also will be no checksum verification! */
-            totalBytesRead = decompressParallel<rapidgzip::ChunkDataCounter>(
+            std::tie( errorCode, totalBytesRead ) = decompressParallel<rapidgzip::ChunkDataCounter>(
                 args, std::move( inputFile ), /* do nothing */ {} );
         } else {
             std::function<void( const std::shared_ptr<rapidgzip::ChunkData>, size_t, size_t )> writeFunctor;
@@ -463,7 +492,8 @@ rapidgzipCLI( int                  argc,
             if ( ( outputFileDescriptor != -1 ) || countLines ) {
                 writeFunctor = writeAndCount;
             }
-            totalBytesRead = decompressParallel<rapidgzip::ChunkData>( args, std::move( inputFile ), writeFunctor );
+            std::tie( errorCode, totalBytesRead ) = decompressParallel<rapidgzip::ChunkData>(
+                args, std::move( inputFile ), writeFunctor );
         }
 
         const auto writeToStdErr = outputFile && outputFile->writingToStdout();
@@ -486,7 +516,14 @@ rapidgzipCLI( int                  argc,
             out << "Lines: " << newlineCount << "\n";
         }
 
-        return 0;
+        switch ( errorCode )
+        {
+        case DecompressErrorCode::BROKEN_PIPE:
+            return 128 + /* SIGPIPE */ 13;
+        case DecompressErrorCode::SUCCESS:
+            return 0;
+        }
+        return 2;
     }
 
     std::cerr << "No suitable arguments were given. Please refer to the help!\n\n";
@@ -508,6 +545,11 @@ main( int argc, char** argv )
     catch ( const rapidgzip::BitReader::EndOfFileReached& exception )
     {
         std::cerr << "Unexpected end of file. Truncated or invalid gzip?\n";
+        return 1;
+    }
+    catch ( const bzip2::BitReader::EndOfFileReached& exception )
+    {
+        std::cerr << "Unexpected end of file. Truncated or invalid bzip2?\n";
         return 1;
     }
     catch ( const std::exception& exception )

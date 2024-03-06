@@ -3,7 +3,7 @@ Cython wrapper for the GzipReader and ParallelGzipReader C++ classes.
 """
 
 from libc.stdlib cimport malloc, free
-from libc.stdint cimport uint32_t
+from libc.stdint cimport uint8_t, uint32_t, uint64_t
 from libc.stdio cimport SEEK_SET
 from libcpp.string cimport string
 from libcpp.map cimport map
@@ -15,6 +15,7 @@ from cpython.buffer cimport PyObject_GetBuffer, PyBuffer_Release, PyBUF_ANY_CONT
 from cpython.ref cimport PyObject
 
 import builtins
+import enum
 import io
 import os
 import sys
@@ -364,12 +365,17 @@ cdef extern from "tools/rapidgzip.cpp":
     int rapidgzipCLI(int, char**) except +
 
 cdef extern from "rapidgzip/ParallelGzipReader.hpp" namespace "rapidgzip":
+    cpdef enum class IOReadMethod(uint8_t):
+        SEQUENTIAL,
+        PREAD,
+        LOCKED_READ_AND_SEEK,
+
     cppclass ChunkData
 
-    cppclass ParallelGzipReader[ChunkData, ENABLE_STATISTICS=*]:
-        ParallelGzipReader(string, size_t) except +
-        ParallelGzipReader(int, size_t) except +
-        ParallelGzipReader(PyObject*, size_t) except +
+    cppclass ParallelGzipReader[ChunkData]:
+        ParallelGzipReader(string, size_t, uint64_t, IOReadMethod) except +
+        ParallelGzipReader(int, size_t, uint64_t, IOReadMethod) except +
+        ParallelGzipReader(PyObject*, size_t, uint64_t, IOReadMethod) except +
 
         bool eof() except +
         int fileno() except +
@@ -385,6 +391,7 @@ cdef extern from "rapidgzip/ParallelGzipReader.hpp" namespace "rapidgzip":
         bool blockOffsetsComplete() except +
         map[size_t, size_t] blockOffsets() except +
         map[size_t, size_t] availableBlockOffsets() except +
+        void setStatisticsEnabled(bool) except +
         void importIndex(PyObject*) except +
         void exportIndex(PyObject*) except +
         void joinThreads() except +
@@ -402,9 +409,6 @@ cdef extern from "rapidgzip/ParallelGzipReader.hpp" namespace "rapidgzip":
     cdef cppclass RapidgzipChunkData "rapidgzip::ChunkData":
         pass
 
-ctypedef ParallelGzipReader[RapidgzipChunkData, TrueValue] ParallelGzipReaderVerbose
-ctypedef ParallelGzipReader[RapidgzipChunkData] ParallelGzipReaderNonVerbose
-
 cdef extern from "rapidgzip/format.hpp" namespace "rapidgzip":
     string determineFileTypeAsString(PyObject*) except +
 
@@ -413,10 +417,16 @@ cdef extern from "rapidgzip/rapidgzip.hpp" namespace "rapidgzip":
 
 
 cdef class _RapidgzipFile():
-    cdef ParallelGzipReaderNonVerbose* gzipReader
-    cdef ParallelGzipReaderVerbose* gzipReaderVerbose
+    cdef ParallelGzipReader[RapidgzipChunkData]* gzipReader
 
-    def __cinit__(self, file, parallelization, verbose = False):
+    def __cinit__(
+        self,
+        file,
+        parallelization,
+        chunk_size = 4 * 1024 * 1024,
+        io_read_method = IOReadMethod.PREAD,
+        verbose = False,
+    ):
         """
         file : can be a file path, a file descriptor, or a file object
                with suitable read, seekable, seek, tell methods.
@@ -424,33 +434,31 @@ cdef class _RapidgzipFile():
         # This should be done before any error handling because we cannot initialize members in-place in Cython!
         # nullptr exists but does not work: https://github.com/cython/cython/issues/3314
         self.gzipReader = NULL
-        self.gzipReaderVerbose = NULL
 
         if not isinstance(parallelization, int):
             raise TypeError(f"Parallelization argument must be an integer not '{parallelization}'!")
 
-        if verbose:
-            if isinstance(file, int):
-                self.gzipReaderVerbose = new ParallelGzipReaderVerbose(<int>file, <int>parallelization)
-            elif _hasValidFileno(file):
-                self.gzipReaderVerbose = new ParallelGzipReaderVerbose(<int>file.fileno(), <int>parallelization)
-            elif _isFileObject(file):
-                self.gzipReaderVerbose = new ParallelGzipReaderVerbose(<PyObject*>file, <int>parallelization)
-            elif isinstance(file, basestring) and hasattr(file, 'encode'):
-                # Note that BytesIO also is an instance of basestring but fortunately has no encode method!
-                self.gzipReaderVerbose = new ParallelGzipReaderVerbose(<string>file.encode(), <int>parallelization)
-        else:
-            if isinstance(file, int):
-                self.gzipReader = new ParallelGzipReaderNonVerbose(<int>file, <int>parallelization)
-            elif _hasValidFileno(file):
-                self.gzipReader = new ParallelGzipReaderNonVerbose(<int>file.fileno(), <int>parallelization)
-            elif _isFileObject(file):
-                self.gzipReader = new ParallelGzipReaderNonVerbose(<PyObject*>file, <int>parallelization)
-            elif isinstance(file, basestring) and hasattr(file, 'encode'):
-                # Note that BytesIO also is an instance of basestring but fortunately has no encode method!
-                self.gzipReader = new ParallelGzipReaderNonVerbose(<string>file.encode(), <int>parallelization)
+        if isinstance(file, int):
+            self.gzipReader = new ParallelGzipReader[RapidgzipChunkData](
+                <int>file, <size_t>parallelization, <uint64_t>( chunk_size), <IOReadMethod>io_read_method
+            )
+        elif _hasValidFileno(file):
+            self.gzipReader = new ParallelGzipReader[RapidgzipChunkData](
+                <int>file.fileno(), <size_t>parallelization, <uint64_t>( chunk_size), <IOReadMethod>io_read_method
+            )
+        elif _isFileObject(file):
+            self.gzipReader = new ParallelGzipReader[RapidgzipChunkData](
+                <PyObject*>file, <size_t>parallelization, <uint64_t>( chunk_size), <IOReadMethod>io_read_method
+            )
+        elif isinstance(file, basestring) and hasattr(file, 'encode'):
+            # Note that BytesIO also is an instance of basestring but fortunately has no encode method!
+            self.gzipReader = new ParallelGzipReader[RapidgzipChunkData](
+                <string>file.encode(), <size_t>parallelization, <uint64_t>( chunk_size), <IOReadMethod>io_read_method
+            )
 
-        if self.gzipReader == NULL and self.gzipReaderVerbose == NULL:
+        self.gzipReader.setStatisticsEnabled(verbose);
+
+        if self.gzipReader == NULL:
             raise Exception("Expected file name string, file descriptor integer, "
                             "or file-like object for ParallelGzipReader!")
 
@@ -465,37 +473,23 @@ cdef class _RapidgzipFile():
             del self.gzipReader
             self.gzipReader = NULL
 
-        if self.gzipReaderVerbose:
-            del self.gzipReaderVerbose
-            self.gzipReaderVerbose = NULL
-
     def close(self):
-        if self.gzipReaderVerbose != NULL and not self.gzipReaderVerbose.closed():
-            self.gzipReaderVerbose.close()
         if self.gzipReader != NULL and not self.gzipReader.closed():
             self.gzipReader.close()
 
     def closed(self):
-        return (
-            ( self.gzipReader == NULL or self.gzipReader.closed() )
-            and ( self.gzipReaderVerbose == NULL or self.gzipReaderVerbose.closed() )
-        )
+        return self.gzipReader == NULL or self.gzipReader.closed()
 
     def fileno(self):
-        if self.gzipReader:
-            return self.gzipReader.fileno()
-        if self.gzipReaderVerbose:
-            return self.gzipReaderVerbose.fileno()
-        raise Exception("Invalid file object!")
+        if not self.gzipReader:
+            raise Exception("Invalid file object!")
+        return self.gzipReader.fileno()
 
     def seekable(self):
-        return (
-            ( self.gzipReader != NULL and self.gzipReader.seekable() )
-            or ( self.gzipReaderVerbose != NULL and self.gzipReaderVerbose.seekable() )
-        )
+        return self.gzipReader != NULL and self.gzipReader.seekable()
 
     def readinto(self, bytes_like):
-        if not self.gzipReader and not self.gzipReaderVerbose:
+        if not self.gzipReader:
             raise Exception("Invalid file object!")
 
         bytes_count = 0
@@ -505,118 +499,79 @@ cdef class _RapidgzipFile():
         try:
             if self.gzipReader:
                 bytes_count = self.gzipReader.read(-1, <char*>buffer.buf, len(bytes_like))
-            else:
-                bytes_count = self.gzipReaderVerbose.read(-1, <char*>buffer.buf, len(bytes_like))
         finally:
             PyBuffer_Release(&buffer)
 
         return bytes_count
 
     def seek(self, offset, whence = io.SEEK_SET):
-        if self.gzipReader:
-            return self.gzipReader.seek(offset, whence)
-        if self.gzipReaderVerbose:
-            return self.gzipReaderVerbose.seek(offset, whence)
-        raise Exception("Invalid file object!")
+        if not self.gzipReader:
+            raise Exception("Invalid file object!")
+        return self.gzipReader.seek(offset, whence)
 
     def tell(self):
-        if self.gzipReader:
-            return self.gzipReader.tell()
-        if self.gzipReaderVerbose:
-            return self.gzipReaderVerbose.tell()
-        raise Exception("Invalid file object!")
+        if not self.gzipReader:
+            raise Exception("Invalid file object!")
+        return self.gzipReader.tell()
 
     def size(self):
-        cdef optional[size_t] result
-        if self.gzipReader:
-            result = self.gzipReader.size()
-        elif self.gzipReaderVerbose:
-            result = self.gzipReaderVerbose.size()
-        else:
+        if not self.gzipReader:
             raise Exception("Invalid file object!")
-        return result.value_or( 0 )
+        return self.gzipReader.size().value_or( 0 )
 
     def tell_compressed(self):
-        if self.gzipReader:
-            return self.gzipReader.tellCompressed()
-        if self.gzipReaderVerbose:
-            return self.gzipReaderVerbose.tellCompressed()
-        raise Exception("Invalid file object!")
+        if not self.gzipReader:
+            raise Exception("Invalid file object!")
+        return self.gzipReader.tellCompressed()
 
     def block_offsets_complete(self):
-        if self.gzipReader:
-            return self.gzipReader.blockOffsetsComplete()
-        if self.gzipReaderVerbose:
-            return self.gzipReaderVerbose.blockOffsetsComplete()
-        raise Exception("Invalid file object!")
+        if not self.gzipReader:
+            raise Exception("Invalid file object!")
+        return self.gzipReader.blockOffsetsComplete()
 
     def block_offsets(self):
-        if self.gzipReader:
-            return self.gzipReader.blockOffsets()
-        if self.gzipReaderVerbose:
-            return self.gzipReaderVerbose.blockOffsets()
-        raise Exception("Invalid file object!")
+        if not self.gzipReader:
+            raise Exception("Invalid file object!")
+        return self.gzipReader.blockOffsets()
 
     def available_block_offsets(self):
-        if self.gzipReader:
-            return self.gzipReader.availableBlockOffsets()
-        if self.gzipReaderVerbose:
-            return self.gzipReaderVerbose.availableBlockOffsets()
-        raise Exception("Invalid file object!")
+        if not self.gzipReader:
+            raise Exception("Invalid file object!")
+        return self.gzipReader.availableBlockOffsets()
 
     def import_index(self, file):
-        if self.gzipReader:
-            if isinstance(file, str):
-                with builtins.open(file, "rb") as fileObject:
-                    return self.gzipReader.importIndex(<PyObject*>fileObject)
-            return self.gzipReader.importIndex(<PyObject*>file)
+        if not self.gzipReader:
+            raise Exception("Invalid file object!")
 
-        if self.gzipReaderVerbose:
-            if isinstance(file, str):
-                with builtins.open(file, "rb") as fileObject:
-                    return self.gzipReaderVerbose.importIndex(<PyObject*>fileObject)
-            return self.gzipReaderVerbose.importIndex(<PyObject*>file)
-
-        raise Exception("Invalid file object!")
+        if isinstance(file, str):
+            with builtins.open(file, "rb") as fileObject:
+                return self.gzipReader.importIndex(<PyObject*>fileObject)
+        return self.gzipReader.importIndex(<PyObject*>file)
 
     def export_index(self, file):
-        if self.gzipReader:
-            if isinstance(file, str):
-                with builtins.open(file, "wb") as fileObject:
-                    return self.gzipReader.exportIndex(<PyObject*>fileObject)
-            return self.gzipReader.exportIndex(<PyObject*>file)
+        if not self.gzipReader:
+            raise Exception("Invalid file object!")
 
-        if self.gzipReaderVerbose:
-            if isinstance(file, str):
-                with builtins.open(file, "wb") as fileObject:
-                    return self.gzipReaderVerbose.exportIndex(<PyObject*>fileObject)
-            return self.gzipReaderVerbose.exportIndex(<PyObject*>file)
-
-        raise Exception("Invalid file object!")
+        if isinstance(file, str):
+            with builtins.open(file, "wb") as fileObject:
+                return self.gzipReader.exportIndex(<PyObject*>fileObject)
+        return self.gzipReader.exportIndex(<PyObject*>file)
 
     def join_threads(self):
         if self.gzipReader:
             return self.gzipReader.joinThreads()
-        if self.gzipReaderVerbose:
-            return self.gzipReaderVerbose.joinThreads()
 
     def file_type(self):
         if self.gzipReader:
             return self.gzipReader.fileTypeAsString().decode()
-        if self.gzipReaderVerbose:
-            return self.gzipReaderVerbose.fileTypeAsString().decode()
 
     def set_deflate_stream_crc32s(self, crc32s):
         if self.gzipReader:
             self.gzipReader.setDeflateStreamCRC32s(crc32s)
-        if self.gzipReaderVerbose:
-            self.gzipReaderVerbose.setDeflateStreamCRC32s(crc32s)
 
     def add_deflate_stream_crc32(self, end_of_stream_offset_in_bytes, crc32):
         if self.gzipReader:
             self.gzipReader.addDeflateStreamCRC32(end_of_stream_offset_in_bytes, crc32)
-        if self.gzipReaderVerbose:
-            self.gzipReaderVerbose.addDeflateStreamCRC32(end_of_stream_offset_in_bytes, crc32)
 
 
 # Extra class because cdefs are not visible from outside but cdef class can't inherit from io.BufferedIOBase
@@ -626,8 +581,21 @@ cdef class _RapidgzipFile():
 # Using io.BufferedReader degraded performance by almost 2x for the test case of calculating the CRC32 four times
 # using four parallel find | xarg crc32 instances for a file containing 10k files with each 1 MiB of base64 data.
 class RapidgzipFile(io.RawIOBase):
-    def __init__(self, filename, parallelization = 0, verbose = False):
-        self.gzipReader = _RapidgzipFile(filename, parallelization, verbose)
+    def __init__(
+        self,
+        filename,
+        parallelization = 0,
+        chunk_size = 4 * 1024 * 1024,
+        io_read_method = IOReadMethod.PREAD,
+        verbose = False,
+    ):
+        self.gzipReader = _RapidgzipFile(
+            filename,
+            parallelization=parallelization,
+            chunk_size=chunk_size,
+            io_read_method=io_read_method,
+            verbose=verbose,
+        )
         self.name = filename if isinstance(filename, str) else ""
         self.mode = 'rb'
 

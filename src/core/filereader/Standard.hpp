@@ -16,7 +16,8 @@
     #include <fcntl.h>
 #endif
 
-#include <common.hpp>   // unistd, S_ISFIFO, fstat, ...
+#include <common.hpp>     // unistd, S_ISFIFO, fstat, ...
+#include <FileUtils.hpp>  // unique_file_ptr, throwingOpen
 
 #include "FileReader.hpp"
 

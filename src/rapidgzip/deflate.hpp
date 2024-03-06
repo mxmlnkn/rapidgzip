@@ -30,11 +30,19 @@
 #include <huffman/HuffmanCodingReversedBitsCached.hpp>
 //#include <huffman/HuffmanCodingReversedCodesPerLength.hpp>
 
+//#define WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER
+//#define WITH_MULTI_CACHED_HUFFMAN_DECODER
+
 #ifdef WITH_ISAL
     //#include <huffman/HuffmanCodingDistanceISAL.hpp>
     #include <huffman/HuffmanCodingISAL.hpp>
+#elif defined( WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER )
+    #include <huffman/HuffmanCodingShortBitsCachedDeflate.hpp>
+#elif defined( WITH_MULTI_CACHED_HUFFMAN_DECODER )
+    #include <huffman/HuffmanCodingShortBitsMultiCached.hpp>
 #else
-    #include <huffman/HuffmanCodingDoubleLiteralCached.hpp>
+    //#include <huffman/HuffmanCodingDoubleLiteralCached.hpp>
+    #include <huffman/HuffmanCodingShortBitsCached.hpp>
 #endif
 
 #include "DecodedDataView.hpp"
@@ -49,11 +57,137 @@ namespace rapidgzip
 {
 namespace deflate
 {
+/**
+ * @verbatim
+ * function benchmarkRapidgzipParallel()
+ * {
+ *     m rapidgzip &>/dev/null && for (( i=0; i<10; ++i)); do
+ *         src/tools/rapidgzip -v -d -o /dev/null "$1" 2>&1 | sed -nr 's|.*Decompressed in total.* -> ([0-9.]+) .*|\1|p'
+ *     done
+ * }
+ * function benchmarkRapidgzipParallelFiles()
+ * {
+ *     for file in test-files/silesia/20xsilesia.tar.gz test-files/fastq/10xSRR22403185_2.fastq.gz 4GiB-base64.gz; do
+ *         echo "$file"
+ *         uncertainValue $( benchmarkRapidgzipParallel "$file" )
+ *     done
+ * }
+ *
+ * Decompressed in total 4239155200 B from 20xsilesia.tar.gz in MB/s:
+ *     HuffmanCodingISAL with WITH_ISAL=ON                 : 4810 | 5024 +- 10 | 5127
+ *     HuffmanCodingDoubleLiteralCached                    : 3072 | 3123 +-  4 | 3178
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=8  : 3425 | 3505 +-  4 | 3564
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=10 : 3849 | 3953 +-  6 | 4025
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=11 : 3752 | 3927 +-  8 | 4017
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=12 : 3736 | 3880 +-  6 | 3953
+ *
+ * Decompressed in total 3618153020 B from 10xSRR22403185_2.fastq.gz in MB/s:
+ *     HuffmanCodingISAL with WITH_ISAL=ON                 : 2701 | 2871 +- 10 | 3056
+ *     HuffmanCodingDoubleLiteralCached                    : 2431 | 2600 +- 10 | 2719
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=8  : 2719 | 2815 +-  8 | 3000
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=10 : 2742 | 2868 +-  7 | 2945
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=11 : 2809 | 2938 +-  8 | 3046
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=12 : 2734 | 2803 +-  5 | 2888
+ *
+ * Decompressed in total 4294967296 B from 4GiB-base64.gz in MB/s:
+ *     HuffmanCodingISAL with WITH_ISAL=ON                 : 6794 | 6973 +- 9 | 7081
+ *     HuffmanCodingDoubleLiteralCached                    : 3537 | 3591 +- 3 | 3650
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=8  : 3977 | 4038 +- 4 | 4096
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=10 : 3876 | 3964 +- 6 | 4065
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=11 : 3926 | 4035 +- 6 | 4096
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=12 : 3924 | 4024 +- 5 | 4079
+ * @endverbatim
+ *
+ * BEWARE: These timings are HIGHLY dependent on something that I cannot fully reproduce.
+ *         It might be RAM usage, maybe owing to my Frankensystem not being able to use full dual-channel speed
+ *         on the whole addressable range.
+ *            2x16GiB DIMM DDR4 Synchronous Unbuffered (Unregistered) 3600 MHz (0.3 ns)
+ *            2x32GiB DIMM DDR4 Synchronous Unbuffered (Unregistered) 3600 MHz (0.3 ns)
+ *         It might even be the single Youtube video running in the background, which is GPU-accellerated and
+ *         does not cause any CPU utilization (0-1% in total) but still might result in context switches and/or
+ *         cache interference.
+ *         Interestingly, the least susceptible is base64, which is fairly constant and the most susceptible
+ *         is FASTQ, which yields 2.5 GB/s for LUT_BITS_COUNT=11 for one test and 3.3 GB/s after freeing 10 GB
+ *         of RAM, so ~20% variation! Silesia only changes by ~10%. These tests have been repeated 10 times
+ *         during which the results are fairly stable. They only vary over longer time spans.
+ *
+ * -> Even though HuffmanCodingShortBitsCached is fairly simple and does not even cache longer codes and
+ *    instead falls back to >bit-wise< code reading, it still outperforms the previous contender:
+ *    HuffmanCodingDoubleLiteralCached. All of the test cases are faster with HuffmanCodingShortBitsCached!
+ *    The highest improvements are achieved for silesia.tar.gz.
+ *    We are still far away from HuffmanCodingISAL for base64.gz.
+ *    For FASTQ, we are actually even with HuffmanCodingISAL!
+ *    This shows how much the Huffman table creation bottle-necked the decoding.
+ *    @todo Future improvements on this should also cache some of the length and distance codes
+ *          following non-literal symbols and/or double-cache symbols.
+ *
+ * Redo non-parallelized to reduce contributions of memory bandwidth and CPU utilization etc.
+ *
+ * @verbatim
+ * function benchmarkRapidgzipSequential()
+ * {
+ *     m rapidgzip &>/dev/null && for (( i=0; i<10; ++i)); do
+ *         src/tools/rapidgzip -P 1 -v -d -o /dev/null "$1" 2>&1 |
+ *             sed -nr 's|.*Decompressed in total.* -> ([0-9.]+) .*|\1|p'
+ *     done
+ * }
+ * function benchmarkRapidgzipSequentialFiles()
+ * {
+ *     for file in test-files/silesia/silesia.tar.gz test-files/fastq/SRR22403185_2.fastq.gz base64-512MiB.gz; do
+ *         echo "$file"
+ *         uncertainValue $( benchmarkRapidgzipSequential "$file" )
+ *     done
+ * }
+ *
+ * Decompressed in total  B from silesia.tar.gz in MB/s:
+ *     HuffmanCodingISAL with WITH_ISAL=ON                 : 703.8 | 720.5 +- 1.8 | 770.6
+ *     HuffmanCodingDoubleLiteralCached                    : 247.34 | 252.48 +- 0.19 | 254.12
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=8  : 269.2 | 273.2 +- 0.3 | 280.9
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=10 : 322.3 | 330.4 +- 0.4 | 335.9
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=11 : 320.1 | 327.6 +- 0.5 | 338.9
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=12 : 323.5 | 327.7 +- 0.3 | 332.5
+ *     HuffmanCodingShortBitsCachedDeflate with 11 Bits    : 307.4 | 312.8 +- 0.4 | 317.7
+ *     HuffmanCodingShortBitsMultiCached with 11 Bits      : 329.3 | 337.3 +- 0.8 | 356.5
+ *
+ * Decompressed in total  B from 10xSRR22403185_2.fastq.gz in MB/s:
+ *     HuffmanCodingISAL with WITH_ISAL=ON                 : 857.8 | 879.1 +- 1.2 | 896.5
+ *     HuffmanCodingDoubleLiteralCached                    : 334.3 | 342.3 +- 0.4 | 351.0
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=8  : 350.67 | 356.18 +- 0.27 | 361.27
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=10 : 358.3 | 366.5 +- 0.4 | 371.2
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=11 : 356.4 | 366.8 +- 0.4 | 371.4
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=12 : 360.9 | 365.8 +- 0.3 | 371.2
+ *     HuffmanCodingShortBitsCachedDeflate with 11 Bits    : 335.6 | 349.7 +- 0.6 | 357.8
+ *     HuffmanCodingShortBitsMultiCached with 11 Bits      : 363.9 | 376.3 +- 0.9 | 393.2
+ *
+ * Decompressed in total  B from 4GiB-base64.gz in MB/s:
+ *     HuffmanCodingISAL with WITH_ISAL=ON                 : 527.2 | 538.8 +- 0.7 | 545.6
+ *     HuffmanCodingDoubleLiteralCached                    : 252.9 | 254.95 +- 0.19 | 258.83
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=8  : 219.4 | 244.4 +- 1.9 | 272.6
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=10 : 210.4 | 234.6 +- 1.7 | 264.9
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=11 : 213.9 | 238.3 +- 2.0 | 262.6
+ *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=12 : 209.2 | 221.2 +- 1.1 | 240.0
+ *     HuffmanCodingShortBitsCachedDeflate with 11 Bits    : 201.1 | 243.3 +- 2.0 | 260.5
+ *     HuffmanCodingShortBitsMultiCached with 11 Bits      : 214.9 | 229.6 +- 1.0 | 242.1
+ * @endverbatim
+ *
+ * It really is insane how much these benchmarks differ from the multi-threaded ones.
+ * While base64 is the fastest multi-threaded test case, it is the slowest using a single-thread.
+ * Similarly, HuffmanCodingDoubleLiteralCached is faster with a single-thread but slower with multiple
+ * threads, probably because the LUT becomes too large for the caches when two hardware threads use
+ * the same core.
+ */
 #ifdef WITH_ISAL
 using LiteralOrLengthHuffmanCoding = HuffmanCodingISAL;
+#elif defined( WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER )
+using LiteralOrLengthHuffmanCoding = HuffmanCodingShortBitsCachedDeflate</* LUT_BITS_COUNT */ 11>;
+#elif defined( WITH_MULTI_CACHED_HUFFMAN_DECODER )
+using LiteralOrLengthHuffmanCoding = HuffmanCodingShortBitsMultiCached</* LUT_BITS_COUNT */ 11>;
 #else
-using LiteralOrLengthHuffmanCoding =
-    HuffmanCodingDoubleLiteralCached<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_LITERAL_HUFFMAN_CODE_COUNT>;
+//using LiteralOrLengthHuffmanCoding =
+//    HuffmanCodingDoubleLiteralCached<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_LITERAL_HUFFMAN_CODE_COUNT>;
+using LiteralOrLengthHuffmanCoding = HuffmanCodingShortBitsCached<
+    uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_LITERAL_HUFFMAN_CODE_COUNT,
+    /* LUT_BITS_COUNT */ 11, /* REVERSE_BITS */ true, /* CHECK_OPTIMALITY */ true>;
 #endif
 
 /**
@@ -173,7 +307,7 @@ using PrecodeHuffmanCoding = HuffmanCodingReversedBitsCachedCompressed<uint8_t, 
  *
  * HuffmanCodingDistanceISAL:
  *
- *     m rapidgzip && src/tools/rapidgzip -d -o /dev/null 10xSRR22403185_2.fastq.gz
+ *     m rapidgzip && src/tools/rapidgzip -d -o /dev/null test-files/fastq/10xSRR22403185_2.fastq.gz
  *     Decompressed in total 3618153020 B in:
  *         1.60722 s -> 2251.18 MB/s
  *         1.63562 s -> 2212.1 MB/s
@@ -188,7 +322,7 @@ using PrecodeHuffmanCoding = HuffmanCodingReversedBitsCachedCompressed<uint8_t, 
  *
  * HuffmanCodingReversedBitsCached:
  *
- *     m rapidgzip && src/tools/rapidgzip -d -o /dev/null 10xSRR22403185_2.fastq.g
+ *     m rapidgzip && src/tools/rapidgzip -d -o /dev/null test-files/fastq/10xSRR22403185_2.fastq.gz
  *     Decompressed in total 3618153020 B in:
  *         1.61128 s -> 2245.52 MB/s
  *         1.61067 s -> 2246.36 MB/s
@@ -563,18 +697,24 @@ private:
                             Window&              window,
                             const HuffmanCoding& coding );
 
-#ifdef WITH_ISAL
+#if defined( WITH_ISAL ) || defined( WITH_MULTI_CACHED_HUFFMAN_DECODER )
     template<typename Window>
     [[nodiscard]] std::pair<size_t, Error>
-    readInternalCompressedIsal( BitReader&                bitReader,
-                                size_t                    nMaxToDecode,
-                                Window&                   window,
-                                const HuffmanCodingISAL& coding );
-#endif
+    readInternalCompressedMultiCached( BitReader&                          bitReader,
+                                       size_t                              nMaxToDecode,
+                                       Window&                             window,
+                                       const LiteralOrLengthHuffmanCoding& coding );
 
-    [[nodiscard]] static uint16_t
-    getLength( uint16_t   code,
-               BitReader& bitReader );
+#elif defined( WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER )
+
+    template<typename Window>
+    [[nodiscard]] std::pair<size_t, Error>
+    readInternalCompressedSpecialized( BitReader&                          bitReader,
+                                       size_t                              nMaxToDecode,
+                                       Window&                             window,
+                                       const LiteralOrLengthHuffmanCoding& coding );
+
+#endif
 
     [[nodiscard]] std::pair<uint16_t, Error>
     getDistance( BitReader& bitReader ) const;
@@ -891,7 +1031,12 @@ Block<ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& bitReader )
     }
 
     /* Create literal HC */
+#ifdef WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER
+    error = m_literalHC.initializeFromLengths( VectorView<uint8_t>( m_literalCL.data(), literalCodeCount ),
+                                               m_distanceHC );
+#else
     error = m_literalHC.initializeFromLengths( VectorView<uint8_t>( m_literalCL.data(), literalCodeCount ) );
+#endif
     if ( error != Error::NONE ) {
         if constexpr ( ENABLE_STATISTICS ) {
             this->failedLiteralInit++;
@@ -905,25 +1050,6 @@ Block<ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& bitReader )
     }
 
     return error;
-}
-
-
-template<bool ENABLE_STATISTICS>
-uint16_t
-Block<ENABLE_STATISTICS>::getLength( uint16_t   code,
-                                     BitReader& bitReader )
-{
-    if ( code <= 264 ) {
-        return code - 257U + 3U;
-    } else if ( code < 285 ) {
-        code -= 261;
-        const auto extraBits = code / 4;
-        return calculateLength( code ) + bitReader.read( extraBits );
-    } else if ( code == 285 ) {
-        return 258;
-    }
-
-    throw std::invalid_argument( "Invalid Code!" );
 }
 
 
@@ -1216,10 +1342,14 @@ Block<ENABLE_STATISTICS>::readInternal( BitReader& bitReader,
 
 #ifdef WITH_ISAL
     if constexpr ( std::is_same_v<LiteralOrLengthHuffmanCoding, HuffmanCodingISAL> ) {
-        return readInternalCompressedIsal( bitReader, nMaxToDecode, window, m_literalHC );
+        return readInternalCompressedMultiCached( bitReader, nMaxToDecode, window, m_literalHC );
     } else {
         return readInternalCompressed( bitReader, nMaxToDecode, window, m_literalHC );
     }
+#elif defined( WITH_MULTI_CACHED_HUFFMAN_DECODER )
+    return readInternalCompressedMultiCached( bitReader, nMaxToDecode, window, m_literalHC );
+#elif defined( WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER )
+    return readInternalCompressedSpecialized( bitReader, nMaxToDecode, window, m_literalHC );
 #else
     return readInternalCompressed( bitReader, nMaxToDecode, window, m_literalHC );
 #endif
@@ -1344,16 +1474,16 @@ Block<ENABLE_STATISTICS>::readInternalCompressed( BitReader&           bitReader
 }
 
 
-#ifdef WITH_ISAL
+#if defined( WITH_ISAL ) || defined( WITH_MULTI_CACHED_HUFFMAN_DECODER )
 template<bool ENABLE_STATISTICS>
 template<typename Window>
 std::pair<size_t, Error>
-Block<ENABLE_STATISTICS>::readInternalCompressedIsal
+Block<ENABLE_STATISTICS>::readInternalCompressedMultiCached
 (
-    BitReader&               bitReader,
-    size_t                   nMaxToDecode,
-    Window&                  window,
-    const HuffmanCodingISAL& coding )
+    BitReader&                          bitReader,
+    size_t                              nMaxToDecode,
+    Window&                             window,
+    const LiteralOrLengthHuffmanCoding& coding )
 {
     if ( !coding.isValid() ) {
         throw std::invalid_argument( "No Huffman coding loaded! Call readHeader first!" );
@@ -1420,6 +1550,76 @@ Block<ENABLE_STATISTICS>::readInternalCompressedIsal
                 resolveBackreference( window, distance, length, nBytesRead );
                 nBytesRead += length;
             }
+        }
+    }
+
+    m_decodedBytes += nBytesRead;
+    return { nBytesRead, Error::NONE };
+}
+
+#elif defined( WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER )
+
+template<bool ENABLE_STATISTICS>
+template<typename Window>
+std::pair<size_t, Error>
+Block<ENABLE_STATISTICS>::readInternalCompressedSpecialized
+(
+    BitReader&                          bitReader,
+    size_t                              nMaxToDecode,
+    Window&                             window,
+    const LiteralOrLengthHuffmanCoding& coding )
+{
+    if ( !coding.isValid() ) {
+        throw std::invalid_argument( "No Huffman coding loaded! Call readHeader first!" );
+    }
+
+    constexpr bool containsMarkerBytes = std::is_same_v<std::decay_t<decltype( *window.data() ) >, uint16_t>;
+
+    nMaxToDecode = std::min( nMaxToDecode, window.size() - MAX_RUN_LENGTH );
+
+    size_t nBytesRead{ 0 };
+    LiteralOrLengthHuffmanCoding::CacheEntry cacheEntry;
+    for ( nBytesRead = 0; nBytesRead < nMaxToDecode; )
+    {
+        try {
+            cacheEntry = coding.decode( bitReader, m_distanceHC );
+        } catch ( const Error& errorCode ) {
+            return { nBytesRead, errorCode };
+        }
+
+        switch ( cacheEntry.distance )
+        {
+        case 0xFFFFU:
+            m_atEndOfBlock = true;
+            m_decodedBytes += nBytesRead;
+            return { nBytesRead, Error::NONE };
+
+        case 0U:
+            if constexpr ( ENABLE_STATISTICS ) {
+                symbolTypes.literal++;
+            }
+            appendToWindow( window, cacheEntry.symbolOrLength );
+            ++nBytesRead;
+            break;
+
+        default:
+        {
+            const auto length = cacheEntry.symbolOrLength + 3U;
+            if constexpr ( ENABLE_STATISTICS ) {
+                symbolTypes.backreference++;
+                symbolTypes.copies += length;
+            }
+
+            if constexpr ( !containsMarkerBytes ) {
+                if ( cacheEntry.distance > m_decodedBytes + nBytesRead ) {
+                    return { nBytesRead, Error::EXCEEDED_WINDOW_RANGE };
+                }
+            }
+
+            resolveBackreference( window, cacheEntry.distance, length, nBytesRead );
+            nBytesRead += length;
+            break;
+        }
         }
     }
 

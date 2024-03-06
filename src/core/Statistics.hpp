@@ -179,6 +179,30 @@ public:
         }
     }
 
+    Histogram( T                  min,
+               T                  max,
+               uint16_t           binCount,
+               const std::string& unit = {} ) :
+        m_statistics( std::array<T, 2>{ min, max } ),
+        m_bins( binCount, 0 ),
+        m_unit( std::move( unit ) )
+    {
+        if constexpr ( std::is_floating_point_v<T> ) {
+            if ( !std::isfinite( m_statistics.min ) || !std::isfinite( m_statistics.max ) ) {
+                return;
+            }
+        }
+
+        if constexpr ( std::is_integral_v<T> ) {
+            /* It seems almost impossible to me to fully avoid overflows here without casting to floating point. */
+            const auto range = static_cast<double>( m_statistics.max ) - static_cast<double>( m_statistics.min );
+            const auto usefulBinCount = static_cast<size_t>( range + 1.0 );
+            if ( usefulBinCount < binCount ) {
+                m_bins.resize( usefulBinCount, 0 );
+            }
+        }
+    }
+
     constexpr bool
     merge( T value )
     {
@@ -244,11 +268,11 @@ public:
         }
 
         std::stringstream result;
-        const auto maxBin = std::max_element( m_bins.begin(), m_bins.end() );
 
         std::vector<std::string> binLabels{ m_bins.size() };
-        binLabels.back() = formatLabel( m_statistics.max );
         binLabels.front() = formatLabel( m_statistics.min );
+        binLabels.back() = formatLabel( m_statistics.max );
+        const auto maxBin = std::max_element( m_bins.begin(), m_bins.end() );
         for ( size_t i = 1; i < m_bins.size() - 1; ++i ) {
             if ( i == static_cast<size_t>( std::distance( m_bins.begin(), maxBin ) ) ) {
                 binLabels[i] = formatLabel( binCenter( i ) );

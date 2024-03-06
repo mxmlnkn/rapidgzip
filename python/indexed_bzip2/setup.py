@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import platform
+import sys
 import tempfile
 from distutils.errors import CompileError
 
@@ -22,7 +23,7 @@ extensions = [
         # fmt: off
         name         = 'indexed_bzip2',
         sources      = ['indexed_bzip2.pyx'],
-        include_dirs = ['.', 'core', 'indexed_bzip2', 'external/cxxopts/include'],
+        include_dirs = ['.', 'core', 'huffman', 'indexed_bzip2', 'external/cxxopts/include'],
         language     = 'c++',
         # fmt: on
     ),
@@ -52,9 +53,10 @@ class Build(build_ext):
                 '-O3',
                 '-DNDEBUG',
                 '-DWITH_PYTHON_SUPPORT',
-                '-D_FORTIFY_SOURCE=2',
                 '-D_GLIBCXX_ASSERTIONS',
             ]
+            if supportsFlag(self.compiler, '-D_FORTIFY_SOURCE=2'):
+                ext.extra_compile_args += ['-D_FORTIFY_SOURCE=2']
 
             # https://github.com/cython/cython/issues/2670#issuecomment-432212671
             # https://github.com/cython/cython/issues/3405#issuecomment-596975159
@@ -95,6 +97,10 @@ class Build(build_ext):
                 # AppleClang seems to not like this flag:
                 if supportsFlag(self.compiler, '-fcf-protection=full'):
                     ext.extra_compile_args += ['-fcf-protection=full']
+
+                if sys.platform.startswith('darwin') and supportsFlag(self.compiler, '-mmacosx-version-min=10.14'):
+                    ext.extra_compile_args += ['-mmacosx-version-min=10.14']
+                    ext.extra_link_args += ['-mmacosx-version-min=10.14']
 
         super(Build, self).build_extensions()
 

@@ -2,22 +2,25 @@
 
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <mutex>
-#include <optional>
 #include <stdexcept>
 #include <utility>
 #include <vector>
 
+#include <CompressedVector.hpp>
 #include <DecodedData.hpp>
+#include <FasterVector.hpp>
 #include <VectorView.hpp>
 
 
 class WindowMap
 {
 public:
-    using Window = rapidgzip::deflate::DecodedVector;
+    using Window = CompressedVector<FasterVector<uint8_t> >;
     using WindowView = VectorView<std::uint8_t>;
-    using Windows = std::map</* encoded block offset */ size_t, Window>;
+    using SharedWindow = std::shared_ptr<const Window>;
+    using Windows = std::map</* encoded block offset */ size_t, SharedWindow>;
 
 public:
     WindowMap() = default;
@@ -30,27 +33,46 @@ public:
     }
 
     void
-    emplace( size_t encodedBlockOffset,
-             Window window )
+    emplace( const size_t    encodedBlockOffset,
+             WindowView      window,
+             CompressionType compressionType )
     {
+        emplaceShared( encodedBlockOffset, std::make_shared<Window>( window, compressionType ) );
+    }
+
+    void
+    emplaceShared( const size_t encodedBlockOffset,
+                   SharedWindow sharedWindow )
+    {
+        if ( !sharedWindow ) {
+            return;
+        }
+
         std::scoped_lock lock( m_mutex );
+
         if ( m_windows.empty() ) {
-            m_windows.emplace( encodedBlockOffset, std::move( window ) );
+            m_windows.emplace( encodedBlockOffset, std::move( sharedWindow ) );
         } else if ( m_windows.rbegin()->first < encodedBlockOffset ) {
             /* Last value is smaller, so it is given that there is no collision and we can "append"
              * the new value with a hint in constant time. This should be the common case as windows
              * should be inserted in order of the offset! */
-            m_windows.emplace_hint( m_windows.end(), encodedBlockOffset, std::move( window ) );
+            m_windows.emplace_hint( m_windows.end(), encodedBlockOffset, std::move( sharedWindow ) );
         } else {
-            const auto match = m_windows.find( encodedBlockOffset );
-            if ( ( match != m_windows.end() ) && ( match->second != window ) ) {
-                throw std::invalid_argument( "Window data to insert is inconsistent and may not be changed!" );
-            }
-            m_windows.emplace( encodedBlockOffset, std::move( window ) );
+            /* Simply overwrite windows if they do exist already.
+             * We would have to test at least for empty windows being reinserted because it happens in the common
+             * use case of opening a RapidgzipFile object, which inserts the very first block, and then loading an
+             * index!
+             * Further windows might also be inserted if the file is opened in a buffered manner, which could
+             * insert windows up to the buffer size without having read anything yet.
+             * Comparing the decompressed contents might also fail in the future when support for sparse windows
+             * is added.
+             * I am not even sure anymore why I did want to test for changes. I guess it was a consistency check,
+             * but it becomes too complex and error-prone now. */
+            m_windows.insert_or_assign( m_windows.end(), encodedBlockOffset, std::move( sharedWindow ) );
         }
     }
 
-    [[nodiscard]] std::optional<WindowView>
+    [[nodiscard]] SharedWindow
     get( size_t encodedOffsetInBits ) const
     {
         /* Note that insertions might invalidate iterators but not references to values and especially not the
@@ -58,9 +80,9 @@ public:
          * a WindowView without a corresponding lock. */
         std::scoped_lock lock( m_mutex );
         if ( const auto match = m_windows.find( encodedOffsetInBits ); match != m_windows.end() ) {
-            return WindowView( match->second.data(), match->second.size() );
+            return match->second;
         }
-        return std::nullopt;
+        return nullptr;
     }
 
     [[nodiscard]] bool
@@ -104,8 +126,29 @@ public:
     [[nodiscard]] bool
     operator==( const WindowMap& other ) const
     {
-        std::scoped_lock lock( m_mutex );
-        return m_windows == other.m_windows;
+        std::scoped_lock lock( m_mutex, other.m_mutex );
+
+        if ( m_windows.size() != other.m_windows.size() ) {
+            return false;
+        }
+
+        for ( const auto& [offset, window] : m_windows ) {
+            const auto otherWindow = other.m_windows.find( offset );
+            if ( ( otherWindow == other.m_windows.end() )
+                 || ( static_cast<bool>( window ) != static_cast<bool>( otherWindow->second ) )
+                 || ( static_cast<bool>( window ) && static_cast<bool>( otherWindow->second )
+                      && ( *window != *otherWindow->second ) ) ) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    [[nodiscard]] bool
+    operator!=( const WindowMap& other ) const
+    {
+        return !( *this == other );
     }
 
 private:

@@ -77,6 +77,22 @@ public:
     BZ2Reader&
     operator=( BZ2Reader&& ) = delete;
 
+    ~BZ2Reader()
+    {
+        if ( m_showProfileOnDestruction ) {
+            const auto& durations = m_statistics.durations;
+            std::cerr << "[BZ2Reader] Time spent:\n";
+            std::cerr << "    decodeBlock                   : " << durations.decodeBlock               << "s\n";
+            std::cerr << "    readBlockHeader               : " << durations.readBlockHeader           << "s\n";
+            std::cerr << "        readSymbolMaps            : " << durations.readSymbolMaps            << "s\n";
+            std::cerr << "        readSelectors             : " << durations.readSelectors             << "s\n";
+            std::cerr << "        readTrees                 : " << durations.readTrees                 << "s\n";
+            std::cerr << "        createHuffmanTable        : " << durations.createHuffmanTable        << "s\n";
+            std::cerr << "        burrowsWheelerPreparation : " << durations.burrowsWheelerPreparation << "s\n";
+            std::cerr << std::endl;
+        }
+    }
+
     /* FileReader overrides */
 
     [[nodiscard]] UniqueFileReader
@@ -312,6 +328,8 @@ private:
 
     /** The sum over all decodeBuffer calls. This is used to create the block offset map */
     size_t m_decodedBytesCount = 0;
+
+    BlockHeader::Statistics m_statistics;
 };
 
 
@@ -362,6 +380,7 @@ BZ2Reader::seek( long long int offset,
     }
     const auto nBytesSeekInBlock = positiveOffset - blockOffset->second;
 
+    m_statistics.merge( m_lastHeader.statistics );
     m_lastHeader = readBlockHeader( blockOffset->first );
     m_lastHeader.readBlockData();
     /* no decodeBzip2 necessary because we only seek inside one block! */
@@ -444,6 +463,7 @@ BZ2Reader::decodeStream( WriteFunctor const& writeFunctor,
     while ( nBytesDecoded < nMaxBytesToDecode ) {
         /* If we need to refill dbuf, do it. Only won't be required for resuming interrupted decodations. */
         if ( m_lastHeader.bwdata.writeCount == 0 ) {
+            m_statistics.merge( m_lastHeader.statistics );
             m_lastHeader = readBlockHeader( m_bitReader.tell() );
             if ( m_lastHeader.eos() ) {
                 return nBytesDecoded;
@@ -464,7 +484,7 @@ BZ2Reader::decodeStream( WriteFunctor const& writeFunctor,
          * There can be at maximum 255 copies! */
         assert( m_decodedBuffer.size() >= 255 );
         const auto nBytesToDecode = std::min( m_decodedBuffer.size() - 255, nMaxBytesToDecode - nBytesDecoded );
-        m_decodedBufferPos = m_lastHeader.bwdata.decodeBlock( nBytesToDecode, m_decodedBuffer.data() );
+        m_decodedBufferPos = m_lastHeader.read( nBytesToDecode, m_decodedBuffer.data() );
 
         if ( ( m_lastHeader.bwdata.writeCount == 0 ) && !m_blockToDataOffsetsComplete ) {
             m_calculatedStreamCRC = ( ( m_calculatedStreamCRC << 1U ) | ( m_calculatedStreamCRC >> 31U ) )

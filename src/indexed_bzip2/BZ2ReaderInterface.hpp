@@ -43,7 +43,13 @@ public:
               uint64_t    const size ) mutable
             {
                 auto* const currentBufferPosition = outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded;
-                writeAll( outputFileDescriptor, currentBufferPosition, buffer, size );
+                const auto errorCode = writeAll( outputFileDescriptor, currentBufferPosition, buffer, size );
+                if ( errorCode != 0 ) {
+                    std::stringstream message;
+                    message << "Failed to write all bytes because of: " << strerror( errorCode )
+                            << " (" << errorCode << ")";
+                    throw std::runtime_error( std::move( message ).str() );
+                }
                 nBytesDecoded += size;
             };
 
@@ -85,4 +91,13 @@ public:
      */
     virtual size_t
     tellCompressed() const = 0;
+
+    void
+    setShowProfileOnDestruction( bool showProfileOnDestruction )
+    {
+        m_showProfileOnDestruction = showProfileOnDestruction;
+    }
+
+protected:
+    bool m_showProfileOnDestruction{ false };
 };

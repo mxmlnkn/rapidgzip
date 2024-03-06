@@ -259,7 +259,7 @@ ibzip2CLI( int argc, char** argv )
     }
 
     if ( parsedArgs.count( "version" ) > 0 ) {
-        std::cout << "ibzip2, CLI to the indexed and seekable bzip2 decoding library indexed-bzip2 version 1.5.0.\n";
+        std::cout << "ibzip2, CLI to the indexed and seekable bzip2 decoding library indexed-bzip2 version 1.6.0.\n";
         return 0;
     }
 
@@ -372,6 +372,7 @@ ibzip2CLI( int argc, char** argv )
         } else {
             reader = std::make_unique<ParallelBZ2Reader>( std::move( fileReader ), decoderParallelism );
         }
+        reader->setShowProfileOnDestruction( verbose );
 
         size_t nBytesWrittenTotal = 0;
         if ( bufferSize > 0 ) {
@@ -480,13 +481,18 @@ ibzip2CLI( int argc, char** argv )
 int
 main( int argc, char** argv )
 {
-    try
-    {
+    try {
         return ibzip2CLI( argc, argv );
-    }
-    catch ( const std::exception& exception )
-    {
-        std::cerr << "Caught exception:\n" << exception.what() << "\n";
+    } catch ( const bzip2::BitReader::EndOfFileReached& exception ) {
+        std::cerr << "Unexpected end of file. Truncated or invalid bzip2?\n";
+        return 1;
+    } catch ( const std::exception& exception ) {
+        const std::string_view message{ exception.what() };
+        if ( message.empty() ) {
+            std::cerr << "Caught exception with typeid: " << typeid( exception ).name() << "\n";
+        } else {
+            std::cerr << "Caught exception: " << message << "\n";
+        }
         return 1;
     }
 

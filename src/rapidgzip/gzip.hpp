@@ -24,6 +24,7 @@ enum class FileType
     GZIP,
     ZLIB,
     DEFLATE,
+    BZIP2,
 };
 
 
@@ -42,6 +43,8 @@ toString( FileType fileType )
         return "ZLIB";
     case FileType::DEFLATE:
         return "DEFLATE";
+    case FileType::BZIP2:
+        return "BZIP2";
     }
     return "";
 }
@@ -53,6 +56,9 @@ hasCRC32( FileType fileType )
     switch ( fileType )
     {
     case FileType::NONE:
+    case FileType::BZIP2:
+        /* > For example, the CRC32 used in Gzip and Bzip2 use the same polynomial,
+         * > but Gzip employs reversed bit ordering, while Bzip2 does not. */
     case FileType::DEFLATE:
     case FileType::ZLIB:
         return false;
@@ -310,6 +316,20 @@ enum class CompressionLevel
     DEFAULT = 2,
     SLOWEST = 3,  /* maximum compression */
 };
+
+
+const char*
+toString( CompressionLevel compressionLevel )
+{
+    switch ( compressionLevel )
+    {
+    case CompressionLevel::FASTEST: return "Fastest";
+    case CompressionLevel::FAST:    return "Fast";
+    case CompressionLevel::DEFAULT: return "Default";
+    case CompressionLevel::SLOWEST: return "Slowest";
+    }
+    return "";
+}
 
 
 struct Header

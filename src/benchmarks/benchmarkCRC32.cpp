@@ -27,6 +27,10 @@
 #include <crc32.hpp>
 #include <Statistics.hpp>
 
+#ifdef WITH_ISAL
+    #include <crc.h>
+#endif
+
 
 constexpr size_t REPEAT_COUNT{ 10 };
 
@@ -149,6 +153,7 @@ computeCRC32SSE4u64( const std::vector<char>& buffer ) noexcept
 }
 #endif  // ifdef __SSE4_2__
 
+
 [[nodiscard]] uint32_t
 computeCRC32LUT( const std::vector<char>& buffer ) noexcept
 {
@@ -158,6 +163,15 @@ computeCRC32LUT( const std::vector<char>& buffer ) noexcept
     }
     return ~crc;
 }
+
+
+#ifdef WITH_ISAL
+[[nodiscard]] uint32_t
+computeCRC32ISAL( const std::vector<char>& buffer ) noexcept
+{
+    return crc32_gzip_refl( uint32_t( 0 ), reinterpret_cast<const uint8_t*>( buffer.data() ), buffer.size() );
+}
+#endif  // ifdef WITH_ISAL
 
 
 void
@@ -215,6 +229,10 @@ main()
     benchmarkCRC32( data, computeCRC32SSE4u64, "_mm_crc32_u64" );
 #endif
 
+#ifdef WITH_ISAL
+    benchmarkCRC32( data, computeCRC32ISAL, "ISA-L" );
+#endif
+
     return 0;
 }
 
@@ -224,39 +242,33 @@ cmake --build . -- benchmarkCRC32 && src/benchmarks/benchmarkCRC32 2>&1 | tee be
 
 Initializing random data for benchmark... Done (1.38061 s)
 
-[Compute CRC32 (LUT)]           ( min: 516.417, 517.3 +- 1.0, max: 519.571 ) MB/s -> Result: 0xFBA351D8
-[Compute CRC32 (slice by 4)]    ( min: 1402.55, 1414  +-   5, max: 1419.92 ) MB/s -> Result: 0xFBA351D8
-[Compute CRC32 (slice by 8)]    ( min: 2553.45, 2588  +-  19, max: 2618.4  ) MB/s -> Result: 0xFBA351D8
-[Compute CRC32 (slice by 12)]   ( min: 3602.26, 3760  +-  60, max: 3808.64 ) MB/s -> Result: 0xFBA351D8
-[Compute CRC32 (slice by 16)]   ( min: 3869.64, 3970  +-  50, max: 4038.77 ) MB/s -> Result: 0xFBA351D8
-[Compute CRC32 (slice by 20)]   ( min: 2586.97, 2627  +-  23, max: 2644.93 ) MB/s -> Result: 0xFBA351D8
-[Compute CRC32 (slice by 24)]   ( min: 2956.9 , 2988  +-  12, max: 2997.68 ) MB/s -> Result: 0xFBA351D8
-[Compute CRC32 (slice by 32)]   ( min: 2736.25, 2806  +-  29, max: 2828.43 ) MB/s -> Result: 0xFBA351D8
-[Compute CRC32 (slice by 64)]   ( min: 2104.77, 2139  +-  13, max: 2150.09 ) MB/s -> Result: 0xFBA351D8
-[Compute CRC32 (_mm_crc32_u32)] ( min: 5212.63, 5280  +-  50, max: 5351.18 ) MB/s -> Result: 0xAFDBD4A7
-[Compute CRC32 (_mm_crc32_u64)] ( min: 9012.49, 9700  +- 400, max: 10155.2 ) MB/s -> Result: 0xAFDBD4A7
+[Compute CRC32 (LUT)]           ( min: 521.564, 523.0 +- 1.1, max: 525.382 ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (slice by 4)]    ( min: 1388.19,  1422 +- 14 , max: 1433.76 ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (slice by 8)]    ( min: 2633.12,  2669 +- 16 , max: 2687.84 ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (slice by 12)]   ( min: 3891.46,  3911 +- 14 , max: 3932.25 ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (slice by 16)]   ( min: 4452.16,  4471 +- 13 , max: 4488.16 ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (slice by 20)]   ( min: 2594.39,  2615 +- 12 , max: 2633.63 ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (slice by 24)]   ( min: 2958.81,  3003 +- 17 , max: 3021.39 ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (slice by 32)]   ( min: 2751.77,  2782 +- 14 , max: 2799.22 ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (slice by 64)]   ( min: 2203.3 ,  2224 +-  8 , max: 2234.8  ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (_mm_crc32_u32)] ( min: 5223.39,  5330 +- 70 , max: 5427.82 ) MB/s -> Result: 0xAFDBD4A7
+[Compute CRC32 (_mm_crc32_u64)] ( min: 10590.2, 10690 +- 80 , max: 10802.9 ) MB/s -> Result: 0xAFDBD4A7
+[Compute CRC32 (ISA-L)]         ( min: 15839.4, 15960 +- 80 , max: 16095.4 ) MB/s -> Result: 0xFBA351D8
 
 Without -march=native and with loop unrolling 8:
 
 Initializing random data for benchmark... Done (1.36239 s)
-[Compute CRC32 (LUT)]         ( min: 525.228,  535 +-  6, max: 542.199 ) MB/s -> Result: 0xFBA351D8
-[Compute CRC32 (slice by 4)]  ( min: 1422.35, 1464 +- 15, max: 1478.13 ) MB/s -> Result: 0xFBA351D8
-[Compute CRC32 (slice by 8)]  ( min: 2644.90, 2668 +-  9, max: 2673.84 ) MB/s -> Result: 0xFBA351D8
-[Compute CRC32 (slice by 12)] ( min: 3926.02, 3978 +- 26, max: 4009.95 ) MB/s -> Result: 0xFBA351D8
-[Compute CRC32 (slice by 16)] ( min: 4546.23, 4630 +- 40, max: 4670.93 ) MB/s -> Result: 0xFBA351D8 <-
-[Compute CRC32 (slice by 20)] ( min: 2628.45, 2653 +- 19, max: 2676.97 ) MB/s -> Result: 0xFBA351D8
-[Compute CRC32 (slice by 24)] ( min: 2967.99, 3100 +- 60, max: 3152.44 ) MB/s -> Result: 0xFBA351D8
-[Compute CRC32 (slice by 32)] ( min: 2791.56, 2829 +- 20, max: 2845.71 ) MB/s -> Result: 0xFBA351D8
-[Compute CRC32 (slice by 64)] ( min: 2173.20, 2222 +- 21, max: 2238.27 ) MB/s -> Result: 0xFBA351D8
 
-Unroll 2:
-[Compute CRC32 (slice by 16)] ( min: 4236.64, 4330 +- 40, max: 4356.45 ) MB/s -> Result: 0xFBA351D8
-
-Unroll 4:
-[Compute CRC32 (slice by 16)] ( min: 4336.98, 4380 +- 30, max: 4466.21 ) MB/s -> Result: 0xFBA351D8
-
-Unroll 8:
-[Compute CRC32 (slice by 16)] ( min: 3970.89, 4470 +- 180, max: 4570.67 ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (LUT)]         ( min: 513.666, 514.6  +- 0.4, max: 514.958 ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (slice by 4)]  ( min: 1397.19, 1404   +-   3, max: 1408    ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (slice by 8)]  ( min: 2578.36, 2586   +-   7, max: 2598.99 ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (slice by 12)] ( min: 3803.09, 3836   +-  17, max: 3853.01 ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (slice by 16)] ( min: 4133.02, 4420   +- 100, max: 4467.26 ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (slice by 20)] ( min: 2533.99, 2550   +-   7, max: 2556.06 ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (slice by 24)] ( min: 2196.83, 2930   +- 270, max: 3050.73 ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (slice by 32)] ( min: 2717.46, 2721.6 +- 3.0, max: 2725.6  ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (slice by 64)] ( min: 2180.12, 2200   +-   8, max: 2207.14 ) MB/s -> Result: 0xFBA351D8
+[Compute CRC32 (ISA-L)]       ( min: 15570.1, 15650  +-  50, max: 15722.7 ) MB/s -> Result: 0xFBA351D8
 
 
 Benchmarks on AMD EPYC 7702 64-Core Processor at 2.0 GHz

@@ -7,15 +7,16 @@
 [![PyPI Platforms](https://img.shields.io/badge/pypi-linux%20%7C%20macOS%20%7C%20Windows-brightgreen)](https://pypi.org/project/indexed-bzip2/)
 [![Downloads](https://static.pepy.tech/badge/indexed-bzip2/month)](https://pepy.tech/project/indexed-bzip2)
 <br>
-[![Conda Platforms](https://img.shields.io/conda/v/conda-forge/indexed_bzip2?color=brightgreen)](https://anaconda.org/conda-forge/indexed_bzip2)
-[![Conda Platforms](https://img.shields.io/conda/pn/conda-forge/indexed_bzip2?color=brightgreen)](https://anaconda.org/conda-forge/indexed_bzip2)
-<br>
+[![Changelog](https://img.shields.io/badge/Changelog-Markdown-blue)](https://github.com/mxmlnkn/indexed_bzip2/blob/master/python/indexed_bzip2/CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](http://opensource.org/licenses/MIT)
 [![C++ Code Checks](https://github.com/mxmlnkn/indexed_bzip2/actions/workflows/test-cpp.yml/badge.svg)](https://github.com/mxmlnkn/indexed_bzip2/actions/workflows/test-cpp.yml)
 [![codecov](https://codecov.io/gh/mxmlnkn/indexed_bzip2/branch/master/graph/badge.svg?token=94ZD4UTZQW)](https://codecov.io/gh/mxmlnkn/indexed_bzip2)
 ![C++17](https://img.shields.io/badge/C++-17-blue.svg)
 [![Discord](https://img.shields.io/discord/783411320354766878?label=discord)](https://discord.gg/Wra6t6akh2)
 [![Telegram](https://img.shields.io/badge/Chat-Telegram-%2330A3E6)](https://t.me/joinchat/FUdXxkXIv6c4Ib8bgaSxNg)
+<br>
+[![Conda Platforms](https://img.shields.io/conda/v/conda-forge/indexed_bzip2?color=brightgreen)](https://anaconda.org/conda-forge/indexed_bzip2)
+[![Conda Platforms](https://img.shields.io/conda/pn/conda-forge/indexed_bzip2?color=brightgreen)](https://anaconda.org/conda-forge/indexed_bzip2)
 
 </div>
 
@@ -54,14 +55,15 @@ Results for an AMD Ryzen 3900X 12-core (24 virtual cores) processor and with `bz
 
 | Module                                  | Runtime / s | Bandwidth / (MB/s) | Speedup |
 |-----------------------------------------|-------------|--------------------|---------|
-| bz2                                     | 392         |  5.1               | 1       |
-| indexed_bzip2 with parallelization = 0  |  62         | 32.3               | 6.3     |
-| indexed_bzip2 with parallelization = 1  | 559         |  3.6               | 0.7     |
-| indexed_bzip2 with parallelization = 2  | 321         |  6.2               | 1.2     |
-| indexed_bzip2 with parallelization = 6  | 116         | 17.2               | 3.4     |
-| indexed_bzip2 with parallelization = 12 |  72         | 27.8               | 5.4     |
-| indexed_bzip2 with parallelization = 24 |  64         | 31.5               | 6.2     |
-| indexed_bzip2 with parallelization = 32 |  66         | 30.1               | 5.9     |
+| bz2                                     | 386         |  5.2               | 1       |
+| indexed_bzip2 with parallelization = 0  |  60         | 33.2               | 6.4     |
+| indexed_bzip2 with parallelization = 1  | 472         |  4.2               | 0.8     |
+| indexed_bzip2 with parallelization = 2  | 265         |  7.6               | 1.5     |
+| indexed_bzip2 with parallelization = 6  |  99         | 20.2               | 3.9     |
+| indexed_bzip2 with parallelization = 12 |  64         | 31.4               | 6.1     |
+| indexed_bzip2 with parallelization = 24 |  63         | 31.8               | 6.1     |
+| indexed_bzip2 with parallelization = 32 |  63         | 31.7               | 6.1     |
+
 
 The speedup of `indexed_bzip2` over the `bz2` module with `parallelization = 0` is **6**.
 When using only one core, `indexed_bzip2` is unfortunately slower by (559-392)/392 = 42%.

@@ -10,14 +10,20 @@ jobs:
 
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
+        os: [macos-latest, ubuntu-latest]
+        # Windows builds fine, but suddenly returns with non-zero exit code in 7dafe65 even though
+        # nothing changed. Maybe an issue with a new conda version. 3ca62ea did build just fine.
+        #os: [macos-latest, ubuntu-latest, windows-latest]
+
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "10.14"
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
 
-    - uses: conda-incubator/setup-miniconda@v2
+    - uses: conda-incubator/setup-miniconda@v3
       with:
         auto-update-conda: true
 
@@ -44,10 +50,10 @@ jobs:
         EOF
 
     - name: Build Conda Packages
+      working-directory: conda
       run: |
         conda install conda conda-build anaconda-client conda-verify packaging
         conda config --set anaconda_upload no
-        cd conda
         python3 -m pip install --user build
         python3 -m build -o . --sdist ../python/indexed_bzip2
         mv indexed_bzip2-*.tar* src.tar

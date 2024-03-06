@@ -76,7 +76,7 @@ print(f"  cxxopts: {withCxxopts}")
 
 zlib_sources = []
 if withZlib == 'enable':
-    zlib_sources = ['inflate.c', 'crc32.c', 'adler32.c', 'inftrees.c', 'inffast.c', 'zutil.c']
+    zlib_sources = ['deflate.c', 'inflate.c', 'crc32.c', 'adler32.c', 'inftrees.c', 'inffast.c', 'trees.c', 'zutil.c']
     zlib_sources = ['external/zlib/' + source for source in zlib_sources]
 
 isal_sources = [
@@ -95,12 +95,64 @@ isal_sources = [
     # "igzip/igzip_wrapper.h",
     # "igzip/static_inflate.h",
     "igzip/stdmac.asm",
+    # Compression
+    # "igzip/igzip_base_aliases.c",
+    "igzip/encode_df.c",
+    "igzip/igzip_deflate_hash.asm",
+    "igzip/igzip_icf_base.c",
+    "igzip/igzip_icf_body.c",
+    "igzip/igzip_base.c",
+    "igzip/igzip_body.asm",
+    "igzip/igzip_multibinary.asm",
+    "igzip/igzip_update_histogram_01.asm",
+    "igzip/igzip_update_histogram_04.asm",
+    # "igzip/igzip_update_histogram.asm",
+    # "igzip/bitbuf2.asm",
+    # "igzip/data_struct2.asm",
+    "igzip/encode_df_04.asm",
+    "igzip/encode_df_06.asm",
+    # "igzip/heap_macros.asm",
+    # "igzip/huffman.asm",
+    # "igzip/igzip_compare_types.asm",
+    "igzip/igzip_finish.asm",
+    "igzip/igzip_gen_icf_map_lh1_04.asm",
+    "igzip/igzip_gen_icf_map_lh1_06.asm",
+    "igzip/igzip_icf_body_h1_gr_bt.asm",
+    "igzip/igzip_icf_finish.asm",
+    "igzip/igzip_set_long_icf_fg_04.asm",
+    "igzip/igzip_set_long_icf_fg_06.asm",
+    # "igzip/inflate_data_structs.asm",
+    # "igzip/lz0a_const.asm",
+    # "igzip/options.asm",
+    "igzip/proc_heap.asm",
+    # "igzip/rfc1951_lookup.asm",
+    "igzip/adler32_avx2_4.asm",
+    "igzip/adler32_sse.asm",
+    "igzip/adler32_base.c",
+    # "igzip/encode_df.c",
+    "igzip/flatten_ll.c",
+    # "igzip/generate_custom_hufftables.c",
+    # "igzip/generate_static_inflate.c",
+    "igzip/huff_codes.c",
+    # "igzip/hufftables_c.c",
+    # "igzip/igzip_base_aliases.c",
+    # "igzip/igzip_base.c",
+    # "igzip/igzip_icf_base.c",
+    # "igzip/igzip_icf_body.c",
+    # "igzip/proc_heap_base.c",
+    "crc/crc_multibinary.asm",
+    "crc/crc32_gzip_refl_by16_10.asm",
+    "crc/crc32_gzip_refl_by8_02.asm",
+    "crc/crc32_gzip_refl_by8.asm",
+    "crc/crc_base.c",
+    # "crc/crc_base_aliases.c",
 ]
 isal_sources = ['external/isa-l/' + source for source in isal_sources] if withIsal == 'enable' else []
 
 include_dirs = [
     '.',
     'core',
+    'huffman',
     'rapidgzip',
     'rapidgzip/huffman',
     'indexed_bzip2',
@@ -234,9 +286,10 @@ class Build(build_ext):
                 '-DNDEBUG',
                 '-DWITH_PYTHON_SUPPORT',
                 '-D_LARGEFILE64_SOURCE=1',
-                '-D_FORTIFY_SOURCE=2',
                 '-D_GLIBCXX_ASSERTIONS',
             ]
+            if supportsFlag(self.compiler, '-D_FORTIFY_SOURCE=2'):
+                ext.extra_compile_args += ['-D_FORTIFY_SOURCE=2']
             if withRpmalloc != 'disable':
                 ext.extra_compile_args.append('-DWITH_RPMALLOC')
             if withIsal != 'disable':

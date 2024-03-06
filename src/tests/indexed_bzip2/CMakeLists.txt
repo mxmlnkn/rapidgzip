@@ -9,3 +9,9 @@ target_sources(testBZ2Reader PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testBZ2Reader.cpp
 target_link_libraries(testBZ2Reader PRIVATE indexed_bzip2_parallel)
 add_test(NAME Test-BZ2-Reader COMMAND testBZ2Reader)
 add_dependencies(all_tests testBZ2Reader)
+
+add_executable(testRunAB)
+target_sources(testRunAB PRIVATE ${CMAKE_CURRENT_LIST_DIR}/testRunAB.cpp)
+target_link_libraries(testRunAB PRIVATE core)
+add_test(NAME Test-Run-AB COMMAND testRunAB)
+add_dependencies(all_tests testRunAB)

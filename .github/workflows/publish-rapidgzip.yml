@@ -56,12 +56,12 @@ jobs:
     # The following parts should be an exact copy of the wheels-rapidgzip.yml workflow:
     # ------ Begin Copy-Paste of wheels-rapidgzip.yml ------
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.10'
 
@@ -155,11 +155,11 @@ jobs:
       MACOSX_DEPLOYMENT_TARGET: "10.14"
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
 
-    - uses: conda-incubator/setup-miniconda@v2
+    - uses: conda-incubator/setup-miniconda@v3
       with:
         auto-update-conda: true
 

@@ -11,10 +11,12 @@
 #include <vector>
 
 #include <BlockFinderInterface.hpp>
+#include <bzip2.hpp>
 #include <common.hpp>
 
 #include "blockfinder/Bgzf.hpp"
 #include "deflate.hpp"
+#include "format.hpp"
 
 
 namespace rapidgzip
@@ -53,43 +55,17 @@ public:
             throw std::invalid_argument( "A spacing smaller than the window size makes no sense!" );
         }
 
-        /* The first deflate block offset is easily found by reading over the gzip header.
-         * The correctness and existence of this first block is a required initial condition for the algorithm. */
-        BitReader bitReader{ m_file->clone() };
-        const auto [gzipHeader, gzipError] = gzip::readHeader( bitReader );
-        const auto positionAfterGzipHeader = bitReader.tell();
-        if ( gzipError == Error::NONE ) {
-            m_fileType = blockfinder::Bgzf::isBgzfFile( m_file ) ? FileType::BGZF : FileType::GZIP;
-        } else {
-            /** Try reading zlib header */
-            bitReader.seek( 0 );
-            const auto [zlibHeader, zlibError] = zlib::readHeader( bitReader );
-            if ( zlibError == Error::NONE ) {
-                m_fileType = FileType::ZLIB;
-            } else {
-                /** Try reading deflate "header" */
-                bitReader.seek( 0 );
-                deflate::Block block;
-                if ( block.readHeader( bitReader ) == Error::NONE ) {
-                    m_fileType = FileType::DEFLATE;
-                }
-                bitReader.seek( 0 );
-            }
+        const auto detectedFormat = determineFileTypeAndOffset( m_file );
+        if ( !detectedFormat ) {
+            throw std::invalid_argument( "Failed to detect a valid file format." );
         }
 
-        if ( m_fileType == FileType::NONE ) {
-            std::stringstream message;
-            message << "Encountered error while reading gzip header: " << toString( gzipError )
-                    << "\nBit reader position after trying to read gzip header: "
-                    << formatBits( positionAfterGzipHeader );
-            throw std::invalid_argument( std::move( message ).str() );
+        m_fileType = detectedFormat->first;
+        if ( m_fileType == FileType::BGZF ) {
+            m_bgzfBlockFinder = std::make_unique<blockfinder::Bgzf>( m_file->clone() );
         }
 
-        m_blockOffsets.push_back( bitReader.tell() );
-
-        m_bgzfBlockFinder = m_fileType == FileType::BGZF
-                            ? std::make_unique<blockfinder::Bgzf>( m_file->clone() )
-                            : std::unique_ptr<blockfinder::Bgzf>();
+        m_blockOffsets.push_back( detectedFormat->second );
     }
 
     /**

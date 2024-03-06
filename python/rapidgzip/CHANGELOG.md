@@ -1,4 +1,40 @@
 
+# Version 0.13.0 built on 2024-02-04
+
+## Added
+
+ - Use ISA-L CRC32 computation, which uses PCLMULQDQ if available
+ - Improve profiling output on `--verbose`.
+ - Add support for bzip2 decompression via the `ParallelGzipReader` architecture.
+   This is one small step to a unified parallelized and seekable decoder for multiple formats.
+ - Expose chunk size and I/O read method to Python interface.
+
+## Performance
+
+ - Compress windows for chunks with large compression ratios in memory to reduce the memory footprint.
+   This reduces the memory usage for working with `wikidata-20220103-all.json.gz`
+   from 20 GB down to 12 GB and can have even larger effects for larger files.
+   The compression ratio threshold and the compression being done in parallel keeps the overhead
+   for this memory optimization to a minimum.
+ - Avoid temporary allocations for internal `SharedFileReader::getLock` calls.
+ - Automatically adjust chunk size for "small" files and large parallelizations.
+ - Use faster short-/long-LUT Huffman decoder if compiled without ISA-L.
+
+## API
+
+ - Change template parameter `ENABLE_STATISTICS` into a member.
+ - Move `ChunkData` statistics into a subclass.
+
+## Fixes
+
+ - Return only an appropriate exit code instead of showing a Python stacktrace in case of a broken pipe signal.
+ - Avoid segfault when exporting the index for an empty, invalid gzip file.
+ - Use `isatty` instead of poll with 100ms timeout to determine whether rapidgzip is piped to.
+ - Fix build error on macOS when no wheel are available.
+ - Many smaller adjustmenst to the profiling output with `--verbose`.
+ - Do not terminate with an error when trying to unlock the GIL during Python finalization
+
+
 # Version 0.12.1 built on 2024-01-08
 
 ## Fixes
@@ -79,6 +115,19 @@
  - Change `size_t FileReader::size()` to `std::optional<size_t> FileReader::size()`
 
 
+# Version 0.10.5 built on 2024-02-22
+
+## Fixes
+
+ - Fix segfault with rpmalloc when creating a ParallelGzipReader object on one thread and using it into
+   another thread created manually in Python.
+ - Fix possible GIL deadlock when calling many `RapidgzipFile` methods in quick succession.
+ - Fix many issues with the GIL acquirement code logic.
+ - Avoid segfault when exporting the index for an empty, invalid gzip file.
+ - Use `isatty` instead of poll with 100ms timeout to determine whether rapidgzip is piped to.
+ - Fix build error on macOS when no wheel are available.
+
+
 # Version 0.10.4 built on 2023-11-25
 
 ## Fixes
@@ -131,7 +180,7 @@
 ## Fixes
 
  - Make `export_index` work with non-seekable output Python file objects.
- - Add -mmacosx-version-min=10.14 on macOS to avoid build problems.
+ - Add the `-mmacosx-version-min=10.14` compiler option on macOS to avoid build problems.
  - Avoid possible race condition when checking for markers in chunk data.
 
 
@@ -206,7 +255,6 @@
 ## Performance
 
  - Avoid overallocations when decompressing BGZF files with an imported index: 3.5 GB/s -> 5.8 GB/s.
-
 
 # Version 0.7.0 built on 2023-06-04
 

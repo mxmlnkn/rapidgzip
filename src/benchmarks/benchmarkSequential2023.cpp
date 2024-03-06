@@ -975,7 +975,13 @@ benchmarkWrite( const std::string&       filePath,
     uint64_t sum{ 0 };
     for ( size_t i = 0; i < data.size(); i += chunkSize ) {
         const auto sizeToWrite = std::min( chunkSize, data.size() - i );
-        writeAllToFd( *ufd, &data[i], sizeToWrite );
+        const auto errorCode = writeAllToFd( *ufd, &data[i], sizeToWrite );
+        if ( errorCode != 0 ) {
+            std::stringstream message;
+            message << "Failed to write all bytes because of: " << strerror( errorCode )
+                    << " (" << errorCode << ")";
+            throw std::runtime_error( std::move( message ).str() );
+        }
         sum += sizeToWrite;
     }
 

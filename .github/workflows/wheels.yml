@@ -30,13 +30,16 @@ jobs:
           manylinux-image: manylinux_2_28
           archs: auto64
 
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "10.14"
+
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.10'
 

@@ -189,7 +189,14 @@ public:
                  *       important as for the multi-threaded version because decoding is the bottlneck for the
                  *       sequential version.
                  */
-                ::writeAll( outputFileDescriptor, currentBufferPosition, buffer, size );
+                const auto errorCode = ::writeAll( outputFileDescriptor, currentBufferPosition, buffer, size );
+                if ( errorCode != 0 ) {
+                    std::stringstream message;
+                    message << "Failed to write all bytes because of: " << strerror( errorCode )
+                            << " (" << errorCode << ")";
+                    throw std::runtime_error( std::move( message ).str() );
+                }
+
                 nBytesDecoded += size;
             };
 

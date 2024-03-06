@@ -8,7 +8,8 @@
 #include <stdexcept>
 #include <utility>
 
-#include "HuffmanCodingSymbolsPerLength.hpp"
+#include <definitions.hpp>
+#include <huffman/HuffmanCodingSymbolsPerLength.hpp>
 
 
 namespace rapidgzip
@@ -121,6 +122,12 @@ public:
              * because the gzip footer should be longer than the peek length. */
             return BaseType::decode( bitReader );
         }
+    }
+
+    [[nodiscard]] constexpr auto const&
+    codeCache() const noexcept
+    {
+        return m_codeCache;
     }
 
 private:
