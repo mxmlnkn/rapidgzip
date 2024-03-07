@@ -81,7 +81,7 @@ testAutomaticMarkerResolution( const std::filesystem::path& filePath,
         chunkDataConfiguration.crc32Enabled = false;
         chunkDataConfiguration.fileType = FileType::GZIP;
 
-        const auto result = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlock(
+        const auto result = GzipChunk<ChunkData>::decodeChunk(
             sharedFileReader->clone(),
             blockOffset,
             /* untilOffset */ std::numeric_limits<size_t>::max(),
@@ -266,8 +266,6 @@ testIsalBug()
         std::make_unique<SharedFileReader>(
             std::make_unique<StandardFileReader>( filePath ) );
 
-    using ChunkFetcher = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>;
-
     ChunkData::Configuration chunkDataConfiguration;
     chunkDataConfiguration.crc32Enabled = false;
     chunkDataConfiguration.fileType = FileType::GZIP;
@@ -276,7 +274,7 @@ testIsalBug()
     std::vector<uint8_t> window( 32_Ki, 0 );
     const auto blockOffset = 4727960325ULL;
     const auto untilOffset = 4731261455ULL;
-    const auto result = ChunkFetcher::decodeBlock(
+    const auto result = GzipChunk<ChunkData>::decodeChunk(
         std::move( sharedFileReader ),
         blockOffset,
         untilOffset,
@@ -314,7 +312,7 @@ testWikidataException( const std::filesystem::path& rootFolder )
      * This can be remedied by trying to read a single byte, which shouold reda nothing because the BitReader
      * is also given the exactUntilOffset and does not move more bits than that to the ISA-L input buffers. */
     const auto chunk =
-        rapidgzip::GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlockWithInflateWrapper<InflateWrapper>(
+        GzipChunk<ChunkData>::decodeBlockWithInflateWrapper<InflateWrapper>(
             std::move( sharedFileReader ), exactUntilOffset, initialWindow, decodedSize, chunkDataConfiguration );
 
     REQUIRE_EQUAL( chunk.encodedSizeInBits, exactUntilOffset );
@@ -412,7 +410,7 @@ decodeWithDecodeBlockWithRapidgzip( UniqueFileReader&& fileReader )
     chunkDataConfiguration.crc32Enabled = true;
     chunkDataConfiguration.fileType = FileType::GZIP;
 
-    return GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlockWithRapidgzip(
+    return GzipChunk<ChunkData>::decodeBlockWithRapidgzip(
         &bitReader,
         /* untilOffset */ std::numeric_limits<size_t>::max(),
         /* window */ std::nullopt,
@@ -431,7 +429,7 @@ decodeWithDecodeBlock( UniqueFileReader&& fileReader )
     chunkDataConfiguration.crc32Enabled = false;
     chunkDataConfiguration.fileType = FileType::GZIP;
 
-    return GzipChunkFetcher<FetchingStrategy::FetchMultiStream>::decodeBlock(
+    return GzipChunk<ChunkData>::decodeChunk(
         std::move( sharedFileReader ),
         streamOffset,
         /* untilOffset */ std::numeric_limits<size_t>::max(),
@@ -447,7 +445,6 @@ template<typename InflateWrapper>
 decodeWithDecodeBlockWithInflateWrapper( UniqueFileReader&& fileReader )
 {
     auto [streamOffset, sharedFileReader] = getDeflateStreamOffsetAndSharedFileReader( std::move( fileReader ) );
-    using ChunkFetcher = GzipChunkFetcher<FetchingStrategy::FetchMultiStream>;
 
     ChunkData::Configuration chunkDataConfiguration;
     chunkDataConfiguration.crc32Enabled = true;
@@ -455,7 +452,7 @@ decodeWithDecodeBlockWithInflateWrapper( UniqueFileReader&& fileReader )
     chunkDataConfiguration.fileType = FileType::GZIP;
 
     const auto exactUntilOffset = sharedFileReader->size().value() * BYTE_SIZE;
-    return ChunkFetcher::decodeBlockWithInflateWrapper<InflateWrapper>(
+    return GzipChunk<ChunkData>::decodeBlockWithInflateWrapper<InflateWrapper>(
         std::move( sharedFileReader ),
         exactUntilOffset,
         /* window */ {},

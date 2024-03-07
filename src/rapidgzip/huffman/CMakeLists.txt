@@ -1,6 +1,9 @@
 add_library(libhuffmangzip INTERFACE)
+add_library(rapidgzip::gzip::huffman ALIAS libhuffmangzip)
 target_include_directories(libhuffmangzip INTERFACE ${CMAKE_CURRENT_LIST_DIR})
-# For definitions.hpp and Error.hpp. Maybe use to a "common" subfolder?
+# For definitions.hpp. Maybe use yet another target?
+target_include_directories(libhuffmangzip INTERFACE ${CMAKE_CURRENT_LIST_DIR}/../gzip)
+# In order to make the decoders includable with <huffman/...hpp>
 target_include_directories(libhuffmangzip INTERFACE ${CMAKE_CURRENT_LIST_DIR}/..)
 target_sources(libhuffmangzip INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/HuffmanCodingDoubleLiteralCached.hpp

@@ -154,7 +154,9 @@ include_dirs = [
     'core',
     'huffman',
     'rapidgzip',
+    'rapidgzip/chunkdecoding',
     'rapidgzip/huffman',
+    'rapidgzip/gzip',
     'indexed_bzip2',
 ]
 isal_includes = ['external/isa-l/include', 'external/isa-l/igzip']

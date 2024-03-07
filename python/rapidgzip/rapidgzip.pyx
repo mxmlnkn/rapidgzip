@@ -410,7 +410,7 @@ cdef extern from "rapidgzip/ParallelGzipReader.hpp" namespace "rapidgzip":
     cdef cppclass RapidgzipChunkData "rapidgzip::ChunkData":
         pass
 
-cdef extern from "rapidgzip/format.hpp" namespace "rapidgzip":
+cdef extern from "rapidgzip/gzip/format.hpp" namespace "rapidgzip":
     string determineFileTypeAsString(PyObject*) except +
 
 cdef extern from "rapidgzip/rapidgzip.hpp" namespace "rapidgzip":
