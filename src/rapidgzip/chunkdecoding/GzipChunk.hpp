@@ -47,7 +47,7 @@ public:
      */
     template<typename InflateWrapper>
     [[nodiscard]] static ChunkData
-    decodeBlockWithInflateWrapper( UniqueFileReader          && sharedFileReader,
+    decodeChunkWithInflateWrapper( UniqueFileReader          && sharedFileReader,
                                    size_t                 const exactUntilOffset,
                                    WindowView             const initialWindow,
                                    std::optional<size_t>  const decodedSize,
@@ -87,7 +87,7 @@ public:
                     break;
 
                 case FileType::BZIP2:
-                    throw std::logic_error( "[GzipChunkFetcher::decodeBlockWithInflateWrapper] Invalid file type!" );
+                    throw std::logic_error( "[GzipChunkFetcher::decodeChunkWithInflateWrapper] Invalid file type!" );
                 }
             };
 
@@ -153,12 +153,12 @@ public:
 
     #ifdef WITH_ISAL
     /**
-     * This is called from @ref decodeBlockWithRapidgzip in case the window has been fully resolved so that
+     * This is called from @ref decodeChunkWithRapidgzip in case the window has been fully resolved so that
      * normal decompression instead of two-staged one becomes possible.
      *
-     * @param untilOffset In contrast to @ref decodeBlockWithInflateWrapper, this may be an inexact guess
+     * @param untilOffset In contrast to @ref decodeChunkWithInflateWrapper, this may be an inexact guess
      *                    from which another thread starts decoding!
-     * @note This code is copy-pasted from decodeBlockWithInflateWrapper and adjusted to use the stopping
+     * @note This code is copy-pasted from decodeChunkWithInflateWrapper and adjusted to use the stopping
      *       points and deflate block properties as stop criterion.
      */
     [[nodiscard]] static ChunkData
@@ -317,7 +317,7 @@ public:
 
 
     [[nodiscard]] static ChunkData
-    decodeBlockWithRapidgzip( BitReader*                 const bitReader,
+    decodeChunkWithRapidgzip( BitReader*                 const bitReader,
                               size_t                     const untilOffset,
                               std::optional<WindowView>  const initialWindow,
                               size_t                     const maxDecompressedChunkSize,
@@ -367,7 +367,7 @@ public:
                 {
                 case FileType::NONE:
                 case FileType::BZIP2:
-                    throw std::logic_error( "[GzipChunkFetcher::decodeBlockWithRapidgzip] Invalid file type!" );
+                    throw std::logic_error( "[GzipChunkFetcher::decodeChunkWithRapidgzip] Invalid file type!" );
                 case FileType::BGZF:
                 case FileType::GZIP:
                     error = gzip::readHeader( *bitReader ).second;
@@ -571,7 +571,7 @@ public:
 
             auto configuration = chunkDataConfiguration;
             configuration.encodedOffsetInBits = blockOffset;
-            auto result = decodeBlockWithInflateWrapper<InflateWrapper>(
+            auto result = decodeChunkWithInflateWrapper<InflateWrapper>(
                 std::move( sharedFileReader ),
                 fileSize ? std::min( untilOffset, *fileSize * BYTE_SIZE ) : untilOffset,
                 *window,
@@ -599,7 +599,7 @@ public:
         if ( initialWindow ) {
             bitReader.seek( blockOffset );
             const auto window = initialWindow->decompress();
-            return decodeBlockWithRapidgzip( &bitReader, untilOffset, *window, maxDecompressedChunkSize,
+            return decodeChunkWithRapidgzip( &bitReader, untilOffset, *window, maxDecompressedChunkSize,
                                               chunkDataConfiguration );
         }
 
@@ -610,7 +610,7 @@ public:
                     /* For decoding, it does not matter whether we seek to offset.first or offset.second but it did
                      * matter a lot for interpreting and correcting the encodedSizeInBits in GzipBlockFetcer::get! */
                     bitReader.seek( offset.second );
-                    auto result = decodeBlockWithRapidgzip(
+                    auto result = decodeChunkWithRapidgzip(
                         &bitReader, untilOffset, /* initialWindow */ std::nullopt,
                         maxDecompressedChunkSize, chunkDataConfiguration );
                     result.encodedOffsetInBits = offset.first;
@@ -622,7 +622,7 @@ public:
                     return result;
                 } catch ( const std::exception& exception ) {
                     /* Ignore errors and try next block candidate. This is very likely to happen if @ref blockOffset
-                     * is only an estimated offset! If it happens because decodeBlockWithRapidgzip has a bug, then it
+                     * is only an estimated offset! If it happens because decodeChunkWithRapidgzip has a bug, then it
                      * might indirectly trigger an exception when the next required block offset cannot be found. */
                 }
                 return std::nullopt;

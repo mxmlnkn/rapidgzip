@@ -312,7 +312,7 @@ testWikidataException( const std::filesystem::path& rootFolder )
      * This can be remedied by trying to read a single byte, which shouold reda nothing because the BitReader
      * is also given the exactUntilOffset and does not move more bits than that to the ISA-L input buffers. */
     const auto chunk =
-        GzipChunk<ChunkData>::decodeBlockWithInflateWrapper<InflateWrapper>(
+        GzipChunk<ChunkData>::decodeChunkWithInflateWrapper<InflateWrapper>(
             std::move( sharedFileReader ), exactUntilOffset, initialWindow, decodedSize, chunkDataConfiguration );
 
     REQUIRE_EQUAL( chunk.encodedSizeInBits, exactUntilOffset );
@@ -410,7 +410,7 @@ decodeWithDecodeBlockWithRapidgzip( UniqueFileReader&& fileReader )
     chunkDataConfiguration.crc32Enabled = true;
     chunkDataConfiguration.fileType = FileType::GZIP;
 
-    return GzipChunk<ChunkData>::decodeBlockWithRapidgzip(
+    return GzipChunk<ChunkData>::decodeChunkWithRapidgzip(
         &bitReader,
         /* untilOffset */ std::numeric_limits<size_t>::max(),
         /* window */ std::nullopt,
@@ -452,7 +452,7 @@ decodeWithDecodeBlockWithInflateWrapper( UniqueFileReader&& fileReader )
     chunkDataConfiguration.fileType = FileType::GZIP;
 
     const auto exactUntilOffset = sharedFileReader->size().value() * BYTE_SIZE;
-    return GzipChunk<ChunkData>::decodeBlockWithInflateWrapper<InflateWrapper>(
+    return GzipChunk<ChunkData>::decodeChunkWithInflateWrapper<InflateWrapper>(
         std::move( sharedFileReader ),
         exactUntilOffset,
         /* window */ {},
@@ -625,7 +625,7 @@ testDecodeBlockWithInflateWrapperWithFiles( const std::filesystem::path& testFol
     using namespace std::literals::string_literals;
     for ( const auto& extension : { ".gz"s, ".bgz"s, ".igz"s, ".pigz"s } ) {
         for ( const auto* const fileName : GZIP_FILE_NAMES ) {
-            std::cerr << "Testing decodeBlockWithInflateWrapper with " << fileName + extension << "\n";
+            std::cerr << "Testing decodeChunkWithInflateWrapper with " << fileName + extension << "\n";
             testGettingBoundaries( std::make_unique<StandardFileReader>( testFolder / ( fileName + extension ) ) );
             testGettingFooters( std::make_unique<StandardFileReader>( testFolder / ( fileName + extension ) ) );
         }
@@ -684,7 +684,7 @@ main( int    argc,
     test( "base64-32KiB.pigz", 1, { 15793 }, { 179 } );
 
 #ifdef WITH_ISAL
-    /* When decodeBlock is able to delegate ISA-l, then the resulting chunks will be sized 128 KiB
+    /* When decodeChunk is able to delegate ISA-l, then the resulting chunks will be sized 128 KiB
      * to improve allocator behavior. All in all, testing the exact chunk sizes it not the most stable
      * unit test as it might be subject to further changes :/. For example, when decoding with rapidgzip
      * or replacing markers also tries to use chunk sizes of 128 KiB to reduce allocation fragmentation.
