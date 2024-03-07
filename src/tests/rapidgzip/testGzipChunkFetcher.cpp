@@ -26,6 +26,23 @@
 using namespace rapidgzip;
 
 
+namespace rapidgzip
+{
+[[nodiscard]] bool
+operator==( const ChunkData::Subchunk& a,
+            const ChunkData::Subchunk& b )
+{
+    if ( a.window && b.window ) {
+        throw std::logic_error( "Assuming tests to be done with empty windows." );
+    }
+    return ( a.encodedOffset == b.encodedOffset )
+           && ( a.encodedSize == b.encodedSize )
+           && ( a.decodedSize == b.decodedSize )
+           && ( a.window == b.window );
+}
+}
+
+
 [[nodiscard]] size_t
 getBlockOffset( const std::string& filePath,
                 size_t             blockIndex )

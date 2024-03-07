@@ -103,15 +103,6 @@ struct ChunkData :
         size_t encodedSize{ 0 };
         size_t decodedSize{ 0 };
         SharedWindow window{};
-
-        [[nodiscard]] bool
-        operator==( const Subchunk& other ) const
-        {
-            return ( encodedOffset == other.encodedOffset )
-                   && ( encodedSize == other.encodedSize )
-                   && ( decodedSize == other.decodedSize )
-                   && ( window == other.window );
-        }
     };
 
     class Statistics
