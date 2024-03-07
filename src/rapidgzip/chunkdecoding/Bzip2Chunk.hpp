@@ -25,6 +25,9 @@ class Bzip2Chunk
 public:
     using ChunkData = T_ChunkData;
     using ChunkConfiguration = typename ChunkData::Configuration;
+    using Window = typename ChunkData::Window;
+    using Subchunk = typename ChunkData::Subchunk;
+
 
     [[nodiscard]] static ChunkData
     decodeUnknownBzip2Chunk( bzip2::BitReader*      const bitReader,
@@ -39,6 +42,14 @@ public:
 
         ChunkData result{ chunkDataConfiguration };
         result.encodedOffsetInBits = bitReader->tell();
+        result.maxEncodedOffsetInBits = result.encodedOffsetInBits;
+
+        /* Initialize metadata for chunk splitting.
+         * We will create a new subchunk if the decodedSize exceeds a threshold. */
+        std::vector<Subchunk> subchunks;
+        subchunks.emplace_back();
+        subchunks.back().encodedOffset = result.encodedOffsetInBits;
+        subchunks.back().decodedSize = 0;
 
         /* If true, then read the gzip header. We cannot simply check the gzipHeader optional because we might
          * start reading in the middle of a gzip stream and will not meet the gzip header for a while or never. */
@@ -57,6 +68,15 @@ public:
             }
 
             nextBlockOffset = bitReader->tell();
+
+            /* Do on-the-fly chunk splitting. */
+            if ( subchunks.back().decodedSize >= result.splitChunkSize ) {
+                subchunks.back().encodedSize = nextBlockOffset - subchunks.back().encodedOffset;
+
+                auto& subchunk = subchunks.emplace_back();
+                subchunk.encodedOffset = nextBlockOffset;
+                subchunk.decodedSize = 0;
+            }
 
             /** @todo does this work when quitting on an empty block, i.e., if the next block is an end-of-stream one?
              *        test decodeUnknownBzip2Chunk with all block offsets */
@@ -138,6 +158,7 @@ public:
 
                 blockBytesRead += nBytesRead;
                 totalBytesRead += nBytesRead;
+                subchunks.back().decodedSize += nBytesRead;
 
                 if ( nBytesRead == 0 ) {
                     break;
@@ -160,6 +181,24 @@ public:
             }
         }
 
+        /* Finalize started subchunk. Merge with previous one if it is very small. */
+        subchunks.back().encodedSize = nextBlockOffset - subchunks.back().encodedOffset;
+        if ( ( subchunks.size() >= 2 )
+             && ( subchunks.back().decodedSize < result.minimumSplitChunkSize() ) )
+        {
+            const auto lastSubchunk = subchunks.back();
+            subchunks.pop_back();
+
+            subchunks.back().encodedSize += lastSubchunk.encodedSize;
+            subchunks.back().decodedSize += lastSubchunk.decodedSize;
+        }
+
+        /* Ensure that all subchunks have empty windows to avoid them being filled as windows are not ncessary. */
+        for ( auto& subchunk : subchunks ) {
+            subchunk.window = std::make_shared<Window>();
+        }
+
+        result.setSubchunks( std::move( subchunks ) );
         result.finalize( nextBlockOffset );
         return result;
     }
@@ -182,9 +221,6 @@ public:
                     bitReader.seek( offset );
                     auto result = decodeUnknownBzip2Chunk( &bitReader, untilOffset, /* decodedSize */ std::nullopt,
                                                            chunkDataConfiguration, maxDecompressedChunkSize );
-                    result.encodedOffsetInBits = offset;
-                    result.maxEncodedOffsetInBits = offset;
-                    result.encodedSizeInBits = result.encodedEndOffsetInBits - result.encodedOffsetInBits;
                     return result;
                 } catch ( const std::exception& ) {
                     /* Ignore errors and try next block candidate. This is very likely to happen if @ref blockOffset
