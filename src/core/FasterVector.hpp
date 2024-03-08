@@ -212,7 +212,12 @@ public:
     }
 
     void clear() { m_size = 0; }
-    void shrink_to_fit() { reallocate( m_size ); }
+    void shrink_to_fit()
+    {
+        if ( m_size < static_cast<size_t>( 0.9 * m_capacity ) ) {
+            reallocate( m_size );
+        }
+    }
 
     [[nodiscard]] constexpr size_t capacity() const noexcept { return m_capacity; }
     [[nodiscard]] constexpr size_t size() const noexcept { return m_size; }
