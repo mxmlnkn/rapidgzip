@@ -407,8 +407,9 @@ public:
 
     /**
      * Appends a deflate block boundary.
+     * @return true if it was appended, false if the last boundary is identical to the given one.
      */
-    void
+    bool
     appendDeflateBlockBoundary( const size_t encodedOffset,
                                 const size_t decodedOffset )
     {
@@ -417,7 +418,9 @@ public:
              || ( blockBoundaries.back().decodedOffset != decodedOffset ) )
         {
             blockBoundaries.emplace_back( BlockBoundary{ encodedOffset, decodedOffset } );
+            return true;
         }
+        return false;
     }
 
     /**

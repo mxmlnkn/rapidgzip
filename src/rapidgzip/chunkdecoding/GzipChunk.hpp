@@ -38,7 +38,57 @@ class GzipChunk
 public:
     using ChunkData = T_ChunkData;
     using ChunkConfiguration = typename ChunkData::Configuration;
+    using Subchunk = typename ChunkData::Subchunk;
     using WindowView = typename ChunkData::WindowView;
+
+
+    static void
+    startNewSubchunk( std::vector<Subchunk>& subchunks,
+                      const size_t           encodedOffset )
+    {
+        auto& subchunk = subchunks.emplace_back();
+        subchunk.encodedOffset = encodedOffset;
+        subchunk.decodedSize = 0;
+    }
+
+    static void
+    finalizeChunk( ChunkData&              chunk,
+                   std::vector<Subchunk>&& subchunks,
+                   const size_t            nextBlockOffset )
+    {
+        /* Finalize started subchunk. Merge with previous one if it is very small. */
+        subchunks.back().encodedSize = nextBlockOffset - subchunks.back().encodedOffset;
+        if ( ( subchunks.size() >= 2 )
+             && ( subchunks.back().decodedSize < chunk.minimumSplitChunkSize() ) )
+        {
+            const auto lastSubchunk = subchunks.back();
+            subchunks.pop_back();
+
+            subchunks.back().encodedSize += lastSubchunk.encodedSize;
+            subchunks.back().decodedSize += lastSubchunk.decodedSize;
+        }
+
+        chunk.setSubchunks( std::move( subchunks ) );
+        chunk.finalize( nextBlockOffset );
+    }
+
+    static void
+    appendDeflateBlockBoundary( ChunkData&             chunk,
+                                std::vector<Subchunk>& subchunks,
+                                const size_t           encodedOffset,
+                                const size_t           decodedOffset )
+    {
+        /* Try to append the block boundary, and preemptively return if the boundary already exists. */
+        if ( !chunk.appendDeflateBlockBoundary( encodedOffset, decodedOffset ) ) {
+            return;
+        }
+
+        /* Do on-the-fly chunk splitting. */
+        if ( subchunks.back().decodedSize >= chunk.splitChunkSize ) {
+            subchunks.back().encodedSize = encodedOffset - subchunks.back().encodedOffset;
+            startNewSubchunk( subchunks, encodedOffset );
+        }
+    }
 
     /**
      * @param decodedSize If given, it is used to avoid overallocations. It is NOT used as a stop condition.
@@ -161,11 +211,12 @@ public:
      *       points and deflate block properties as stop criterion.
      */
     [[nodiscard]] static ChunkData
-    finishDecodeBlockWithIsal( BitReader*  const bitReader,
-                               size_t      const untilOffset,
-                               WindowView  const initialWindow,
-                               size_t      const maxDecompressedChunkSize,
-                               ChunkData&&       result )
+    finishDecodeChunkWithIsal( BitReader*        const bitReader,
+                               size_t            const untilOffset,
+                               WindowView        const initialWindow,
+                               size_t            const maxDecompressedChunkSize,
+                               ChunkData&&             result,
+                               std::vector<Subchunk>&& subchunks )
     {
         if ( bitReader == nullptr ) {
             throw std::invalid_argument( "BitReader may not be nullptr!" );
@@ -177,7 +228,7 @@ public:
         auto alreadyDecoded = result.size();
 
         if ( ( alreadyDecoded > 0 ) && !bitReader->eof() ) {
-            result.appendDeflateBlockBoundary( nextBlockOffset, alreadyDecoded );
+            appendDeflateBlockBoundary( result, subchunks, nextBlockOffset, alreadyDecoded );
         }
 
         IsalInflateWrapper inflateWrapper{ BitReader( *bitReader ) };
@@ -209,22 +260,23 @@ public:
                     break;
 
                 case FileType::BZIP2:
-                    throw std::logic_error( "[GzipChunkFetcher::finishDecodeBlockWithIsal] Invalid file type!" );
+                    throw std::logic_error( "[GzipChunkFetcher::finishDecodeChunkWithIsal] Invalid file type!" );
                 }
             };
 
         while( !stoppingPointReached ) {
-            deflate::DecodedVector subchunk( ALLOCATION_CHUNK_SIZE );
+            deflate::DecodedVector buffer( ALLOCATION_CHUNK_SIZE );
             std::optional<IsalInflateWrapper::Footer> footer;
 
             /* In order for CRC32 verification to work, we have to append at most one gzip stream per subchunk
              * because the CRC32 calculator is swapped inside ChunkData::append. */
             size_t nBytesRead = 0;
             size_t nBytesReadPerCall{ 0 };
-            while ( ( nBytesRead < subchunk.size() ) && !footer && !stoppingPointReached ) {
-                std::tie( nBytesReadPerCall, footer ) = inflateWrapper.readStream( subchunk.data() + nBytesRead,
-                                                                                   subchunk.size() - nBytesRead );
+            while ( ( nBytesRead < buffer.size() ) && !footer && !stoppingPointReached ) {
+                std::tie( nBytesReadPerCall, footer ) = inflateWrapper.readStream( buffer.data() + nBytesRead,
+                                                                                   buffer.size() - nBytesRead );
                 nBytesRead += nBytesReadPerCall;
+                subchunks.back().decodedSize += nBytesReadPerCall;
 
                 /* We cannot stop decoding after a final block because the following decoder does not
                  * expect to start a gzip footer. Put another way, we are interested in START_OF_BLOCK
@@ -267,7 +319,7 @@ public:
                      * offset as @ref result and it also would have the same problem that the real offset is ambiguous
                      * for non-compressed blocks. */
                     if ( alreadyDecoded + nBytesRead > 0 ) {
-                        result.appendDeflateBlockBoundary( nextBlockOffset, alreadyDecoded + nBytesRead );
+                        appendDeflateBlockBoundary( result, subchunks, nextBlockOffset, alreadyDecoded + nBytesRead );
                     }
 
                     if ( alreadyDecoded >= maxDecompressedChunkSize ) {
@@ -280,8 +332,8 @@ public:
 
             alreadyDecoded += nBytesRead;
 
-            subchunk.resize( nBytesRead );
-            result.append( std::move( subchunk ) );
+            buffer.resize( nBytesRead );
+            result.append( std::move( buffer ) );
             if ( footer ) {
                 nextBlockOffset = inflateWrapper.tellCompressed();
                 appendFooter( footer->footerEndEncodedOffset, alreadyDecoded, *footer );
@@ -300,7 +352,7 @@ public:
             appendFooter( footer->footerEndEncodedOffset, alreadyDecoded, *footer );
         }
 
-        result.finalize( nextBlockOffset );
+        finalizeChunk( result, std::move( subchunks ), nextBlockOffset );
         result.statistics.decodeDurationIsal = duration( tStart );
         /**
          * Without the std::move, performance is halved! It seems like copy elision on return does not work
@@ -328,10 +380,15 @@ public:
         ChunkData result{ chunkDataConfiguration };
         result.encodedOffsetInBits = bitReader->tell();
 
+        /* Initialize metadata for chunk splitting.
+         * We will create a new subchunk if the decodedSize exceeds a threshold. */
+        std::vector<Subchunk> subchunks;
+        startNewSubchunk( subchunks, result.encodedOffsetInBits );
+
     #ifdef WITH_ISAL
         if ( initialWindow ) {
-            return finishDecodeBlockWithIsal( bitReader, untilOffset, *initialWindow, maxDecompressedChunkSize,
-                                              std::move( result ) );
+            return finishDecodeChunkWithIsal( bitReader, untilOffset, *initialWindow, maxDecompressedChunkSize,
+                                              std::move( result ), std::move( subchunks ) );
         }
     #endif
 
@@ -389,8 +446,9 @@ public:
                 }
 
             #ifdef WITH_ISAL
-                return finishDecodeBlockWithIsal( bitReader, untilOffset, /* initialWindow */ {},
-                                                  maxDecompressedChunkSize, std::move( result ) );
+                return finishDecodeChunkWithIsal( bitReader, untilOffset, /* initialWindow */ {},
+                                                  maxDecompressedChunkSize, std::move( result ),
+                                                  std::move( subchunks) );
             #endif
 
                 didReadHeader = true;
@@ -409,8 +467,9 @@ public:
 
         #ifdef WITH_ISAL
             if ( cleanDataCount >= deflate::MAX_WINDOW_SIZE ) {
-                return finishDecodeBlockWithIsal( bitReader, untilOffset, result.getLastWindow( {} ),
-                                                  maxDecompressedChunkSize, std::move( result ) );
+                return finishDecodeChunkWithIsal( bitReader, untilOffset, result.getLastWindow( {} ),
+                                                  maxDecompressedChunkSize, std::move( result ),
+                                                  std::move( subchunks) );
             }
         #endif
 
@@ -447,7 +506,7 @@ public:
              * offset as @ref result and it also would have the same problem that the real offset is ambiguous
              * for non-compressed blocks. */
             if ( totalBytesRead > 0 ) {
-                result.appendDeflateBlockBoundary( nextBlockOffset, totalBytesRead );
+                appendDeflateBlockBoundary( result, subchunks, nextBlockOffset, totalBytesRead );
             }
 
             /* Loop until we have read the full contents of the current deflate block-> */
@@ -486,6 +545,7 @@ public:
             }
             streamBytesRead += blockBytesRead;
             totalBytesRead += blockBytesRead;
+            subchunks.back().decodedSize += blockBytesRead;
 
             if ( block->isLastBlock() ) {
                 switch ( result.fileType )
@@ -541,7 +601,7 @@ public:
             }
         }
 
-        result.finalize( nextBlockOffset );
+        finalizeChunk( result, std::move( subchunks ), nextBlockOffset );
         return result;
     }
 

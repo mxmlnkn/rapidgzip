@@ -510,8 +510,15 @@ testPerformance( const std::string& encodedFilePath,
     REQUIRE( statistics.blockCountFinalized );
     std::cerr << "statistics.blockCount:" << statistics.blockCount << ", statistics.prefetchCount:"
               << statistics.prefetchCount << ", statistics.onDemandFetchCount:" << statistics.onDemandFetchCount
-              << "\n";
-    REQUIRE_EQUAL( statistics.blockCount, statistics.prefetchCount + statistics.onDemandFetchCount );
+              << ", parallelization: " << parallelization << "\n";
+
+    if ( parallelization == 1 ) {
+        REQUIRE_EQUAL( statistics.prefetchCount, 0U );
+    } else {
+        REQUIRE_EQUAL( statistics.onDemandFetchCount, 1U );
+    }
+    /* The block count can be larger if chunks were split. */
+    REQUIRE( statistics.blockCount >= statistics.prefetchCount + statistics.onDemandFetchCount );
 }
 
 
