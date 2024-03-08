@@ -153,7 +153,6 @@ public:
                 }
 
                 subchunk.resize( nBytesRead );
-                subchunk.shrink_to_fit();
                 result.append( std::move( subchunk ) );
 
                 blockBytesRead += nBytesRead;

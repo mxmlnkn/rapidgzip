@@ -115,7 +115,6 @@ public:
             alreadyDecoded += nBytesRead;
 
             subchunk.resize( nBytesRead );
-            subchunk.shrink_to_fit();
             result.append( std::move( subchunk ) );
             if ( footer ) {
                 appendFooter( footer->footerEndEncodedOffset, alreadyDecoded, *footer );
@@ -282,7 +281,6 @@ public:
             alreadyDecoded += nBytesRead;
 
             subchunk.resize( nBytesRead );
-            subchunk.shrink_to_fit();
             result.append( std::move( subchunk ) );
             if ( footer ) {
                 nextBlockOffset = inflateWrapper.tellCompressed();
