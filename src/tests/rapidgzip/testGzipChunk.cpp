@@ -13,11 +13,11 @@
 
 #include <common.hpp>
 #include <ChunkData.hpp>
+#include <chunkdecoding/GzipChunk.hpp>
 #include <definitions.hpp>
 #include <filereader/Buffered.hpp>
 #include <filereader/Standard.hpp>
 #include <FileUtils.hpp>
-#include <GzipChunkFetcher.hpp>
 #include <GzipReader.hpp>
 #include <Prefetcher.hpp>
 #include <TestHelpers.hpp>
@@ -124,6 +124,66 @@ testAutomaticMarkerResolution( const std::filesystem::path& filePath,
                   << "    exception    : " << exception.what() << "\n"
                   << "    block offset : " << blockOffset << "\n\n";
     }
+}
+
+
+void
+testAutomaticMarkerResolution( const std::filesystem::path& testFolder )
+{
+    const auto test =
+        [&testFolder]
+        ( const std::string&         fileName,
+          const size_t               blockIndex,
+          const std::vector<size_t>& markerSizes,
+          const std::vector<size_t>& sizes )
+        {
+            testAutomaticMarkerResolution( testFolder / fileName, blockIndex, markerSizes, sizes );
+        };
+
+    // *INDENT-OFF*
+    test( "base64-32KiB.gz" , 0, {}, { 32768 } );
+    test( "base64-32KiB.bgz", 0, {}, { 32768 } );
+    test( "base64-32KiB.igz", 0, {}, { 32768 } );
+    test( "base64-32KiB.pigz", 0, {}, { 16796, 15972 } );
+    test( "base64-32KiB.pigz", 1, { 15793 }, { 179 } );
+
+#ifdef WITH_ISAL
+    /* When decodeChunk is able to delegate ISA-l, then the resulting chunks will be sized 128 KiB
+     * to improve allocator behavior. All in all, testing the exact chunk sizes it not the most stable
+     * unit test as it might be subject to further changes :/. For example, when decoding with rapidgzip
+     * or replacing markers also tries to use chunk sizes of 128 KiB to reduce allocation fragmentation.
+     * What should be important is the sum of the block sizes for markers and without. */
+    test( "random-128KiB.gz" , 0, {}, { 32777, 98295 } );
+    test( "random-128KiB.bgz", 0, {}, { 65280, 65280, 512 } );
+    test( "random-128KiB.igz", 0, {}, { 65535, 65537 } );
+    test( "random-128KiB.pigz", 0, {}, { 16387, 16389, 16395, 81901 } );
+
+    test( "random-128KiB.gz" , 1, {}, { 32793, 65502 } );
+    test( "random-128KiB.bgz", 1, {}, { 65280, 512 } );
+    test( "random-128KiB.igz", 1, {}, { 65224, 313 } );
+    test( "random-128KiB.pigz", 1, {}, { 16389, 16395, 16397, 65504 } );
+
+    test( "random-128KiB.gz" , 2, {}, { 32777, 32725 } );
+    test( "random-128KiB.bgz", 2, {}, { 512 } );
+    test( "random-128KiB.igz", 2, {}, { 313 } );
+    test( "random-128KiB.pigz", 2, {}, { 16395, 16397, 16389, 49115 } );
+#else
+    test( "random-128KiB.gz" , 0, {}, { 32777, 32793, 32777, 32725 } );
+    test( "random-128KiB.bgz", 0, {}, { 65280, 65280, 512 } );
+    test( "random-128KiB.igz", 0, {}, { 65535, 65224, 313 } );
+    test( "random-128KiB.pigz", 0, {}, { 16387, 16389, 16395, 16397, 16389, 16387, 16393, 16335 } );
+
+    test( "random-128KiB.gz" , 1, {}, { 32793, 32777, 32725 } );
+    test( "random-128KiB.bgz", 1, {}, { 65280, 512 } );
+    test( "random-128KiB.igz", 1, {}, { 65224, 313 } );
+    test( "random-128KiB.pigz", 1, {}, { 16389, 16395, 16397, 16389, 16387, 16393, 16335 } );
+
+    test( "random-128KiB.gz" , 2, {}, { 32777, 32725 } );
+    test( "random-128KiB.bgz", 2, {}, { 512 } );
+    test( "random-128KiB.igz", 2, {}, { 313 } );
+    test( "random-128KiB.pigz", 2, {}, { 16395, 16397, 16389, 16387, 16393, 16335 } );
+#endif
+    // *INDENT-ON*
 }
 
 
@@ -278,7 +338,7 @@ testIsalBug()
         std::move( sharedFileReader ),
         blockOffset,
         untilOffset,
-        /* window */ std::make_shared<WindowMap::Window>( window, CompressionType::GZIP ),
+        /* window */ std::make_shared<ChunkData::Window>( window, CompressionType::GZIP ),
         /* decodedSize */ 4171816,
         cancel,
         chunkDataConfiguration,
@@ -635,6 +695,141 @@ testDecodeBlockWithInflateWrapperWithFiles( const std::filesystem::path& testFol
 }
 
 
+void
+compareBlockBoundaries( const std::vector<BlockBoundary>& blockBoundaries,
+                        const std::vector<BlockBoundary>& expectedBlockBoundaries,
+                        const std::string_view            name )
+{
+    REQUIRE_EQUAL( blockBoundaries.size(), expectedBlockBoundaries.size() );
+    if ( blockBoundaries.size() != expectedBlockBoundaries.size() ) {
+        std::cerr << "Differing block boundary counts for: " << name << "\n";
+        return;
+    }
+
+    for ( size_t i = 0; i < std::min( blockBoundaries.size(),expectedBlockBoundaries.size() ); ++i ) {
+        const auto a = blockBoundaries[i];
+        const auto b = expectedBlockBoundaries[i];
+        if ( ( a.encodedOffset != b.encodedOffset ) || ( a.decodedOffset != b.decodedOffset ) ) {
+            std::cerr << "Boundary at index " << i << " differs!\n";
+        }
+        REQUIRE_EQUAL( a.encodedOffset, b.encodedOffset );
+        REQUIRE_EQUAL( a.decodedOffset, b.decodedOffset );
+    }
+}
+
+
+void
+testBlockBoundaries( const std::filesystem::path&      filePath,
+                     const std::vector<BlockBoundary>& blockBoundaries )
+{
+    std::cerr << "Test deflate block boundary collection with: " << filePath.filename() << "\n";
+
+    auto sharedFileReader =
+        std::make_unique<SharedFileReader>(
+            std::make_unique<StandardFileReader>( filePath ) );
+
+    const auto chunkOffset = getBlockOffset( filePath, 0 );  /* This skips the gzip header. */
+
+    try {
+        ChunkData::Configuration chunkDataConfiguration;
+        chunkDataConfiguration.crc32Enabled = false;
+        chunkDataConfiguration.fileType = FileType::GZIP;
+        chunkDataConfiguration.encodedOffsetInBits = chunkOffset;
+
+        rapidgzip::BitReader bitReader{ sharedFileReader->clone() };
+        bitReader.seek( chunkOffset );
+        /* decodeChunkWithInflateWrapper is not tested because it always returns 0 because chunk splitting and
+         * such is not assumed to be necessary anymore for those decoding functions that are only called with a
+         * window and an exact until offset. */
+        const auto result = GzipChunk<ChunkData>::decodeChunkWithRapidgzip(
+            &bitReader,
+            /* untilOffset */ std::numeric_limits<size_t>::max(),
+            /* initialWindow */ {},
+            /* maxDecompressedChunkSize */ std::numeric_limits<size_t>::max(),
+            chunkDataConfiguration );
+        compareBlockBoundaries( result.blockBoundaries, blockBoundaries, "rapidgzip with " + filePath.string() );
+    } catch ( const std::exception& exception ) {
+        REQUIRE( false && "Exception thrown!" );
+        std::cerr << "  Failed to get block boundaries:\n"
+                  << "    exception    : " << exception.what() << "\n\n";
+    }
+}
+
+
+void
+testBlockBoundaries( const std::filesystem::path& testFolder )
+{
+    /* Data can e.g. be gathered with rapidgzip --analyze. The first deflate block offset is not stored as a
+     * boundary because it is redundant. So if there is only one deflate block, the list of boundaries will be empty. */
+    testBlockBoundaries( testFolder / "base64-32KiB.gz", {} );
+
+    // *INDENT-OFF*
+    /* BGZF has an empty gzip stream at the end. This results in the deflate boundary being at a decoded offset
+     * equal to the decoded size. */
+    testBlockBoundaries( testFolder / "base64-32KiB.bgz", { { 202024, 32768 } } );
+    testBlockBoundaries( testFolder / "base64-32KiB.igz", {} );
+    testBlockBoundaries( testFolder / "base64-32KiB.pigz", { { 102274, 16796 } } );
+
+    testBlockBoundaries( testFolder / "random-128KiB.gz",
+                         { { 32806 * 8, 32777 }, { 65604 * 8, 65570 }, { 98386 * 8, 98347 } } );
+    testBlockBoundaries( testFolder / "random-128KiB.bgz",
+                         { { 65329 * 8, 65280 }, { 130640 * 8, 130560 }, { 131183 * 8, 131072 } } );
+    testBlockBoundaries( testFolder / "random-128KiB.igz", { { 65564 * 8, 65535 }, { 130793 * 8, 130759 } } );
+    // *INDENT-ON*
+    testBlockBoundaries( testFolder / "random-128KiB.pigz", {
+        { 16416 * 8, 16387 },
+        { 32810 * 8, 32776 },
+        { 49210 * 8, 49171 },
+        { 65612 * 8, 65568 },
+        { 82006 * 8, 81957 },
+        { 98398 * 8, 98344 },
+        { 114796 * 8, 114737 },
+    } );
+
+    testBlockBoundaries( testFolder / "base64-256KiB.bgz", {
+        { 50500 * 8, 65280 },
+        { 100981 * 8, 130560 },
+        { 151466 * 8, 195840 },
+        { 201946 * 8, 261120 },
+        { 202772 * 8, 262144 },
+    } );
+
+    testBlockBoundaries( testFolder / "base64-256KiB.igz", {
+        { 98782 * 8, 130759 },
+        { 197542 * 8 + 4, 261520 },
+    } );
+
+    testBlockBoundaries( testFolder / "base64-256KiB.gz", {
+        { 25634 * 8 + 1, 33717 },
+        { 51431 * 8 + 0, 67669 },
+        { 77181 * 8 + 5, 101553 },
+        { 102927 * 8 + 7, 135433 },
+        { 128676 * 8 + 3, 169317 },
+        { 154383 * 8 + 6, 203155 },
+        { 180129 * 8 + 2, 237030 },
+    } );
+
+    testBlockBoundaries( testFolder / "base64-256KiB.pigz", {
+        { 12798 * 8 + 3, 16813 },
+        { 25655 * 8 + 4, 33716 },
+        { 38598 * 8 + 1, 50737 },
+        { 51472 * 8 + 5, 67667 },
+        { 64353 * 8 + 7, 84600 },
+        { 77248 * 8 + 7, 101550 },
+        { 90165 * 8 + 2, 118532 },
+        { 99713 * 8 + 1, 131072 },
+        { 99718 * 8 + 0, 131072 },
+        { 112607 * 8 + 5, 148016 },
+        { 125471 * 8 + 4, 164930 },
+        { 138370 * 8 + 4, 181888 },
+        { 151239 * 8 + 0, 198808 },
+        { 164100 * 8 + 6, 215721 },
+        { 176991 * 8 + 3, 232664 },
+        { 189857 * 8 + 5, 249581 },
+    } );
+}
+
+
 int
 main( int    argc,
       char** argv )
@@ -666,60 +861,8 @@ main( int    argc,
 #endif
 
     testDecodeBlockWithInflateWrapperWithFiles( testFolder );
-
-    const auto test =
-        [&] ( const std::string&         fileName,
-              const size_t               blockIndex,
-              const std::vector<size_t>& markerSizes,
-              const std::vector<size_t>& sizes )
-        {
-            testAutomaticMarkerResolution( testFolder / fileName, blockIndex, markerSizes, sizes );
-        };
-
-    // *INDENT-OFF*
-    test( "base64-32KiB.gz" , 0, {}, { 32768 } );
-    test( "base64-32KiB.bgz", 0, {}, { 32768 } );
-    test( "base64-32KiB.igz", 0, {}, { 32768 } );
-    test( "base64-32KiB.pigz", 0, {}, { 16796, 15972 } );
-    test( "base64-32KiB.pigz", 1, { 15793 }, { 179 } );
-
-#ifdef WITH_ISAL
-    /* When decodeChunk is able to delegate ISA-l, then the resulting chunks will be sized 128 KiB
-     * to improve allocator behavior. All in all, testing the exact chunk sizes it not the most stable
-     * unit test as it might be subject to further changes :/. For example, when decoding with rapidgzip
-     * or replacing markers also tries to use chunk sizes of 128 KiB to reduce allocation fragmentation.
-     * What should be important is the sum of the block sizes for markers and without. */
-    test( "random-128KiB.gz" , 0, {}, { 32777, 98295 } );
-    test( "random-128KiB.bgz", 0, {}, { 65280, 65280, 512 } );
-    test( "random-128KiB.igz", 0, {}, { 65535, 65537 } );
-    test( "random-128KiB.pigz", 0, {}, { 16387, 16389, 16395, 81901 } );
-
-    test( "random-128KiB.gz" , 1, {}, { 32793, 65502 } );
-    test( "random-128KiB.bgz", 1, {}, { 65280, 512 } );
-    test( "random-128KiB.igz", 1, {}, { 65224, 313 } );
-    test( "random-128KiB.pigz", 1, {}, { 16389, 16395, 16397, 65504 } );
-
-    test( "random-128KiB.gz" , 2, {}, { 32777, 32725 } );
-    test( "random-128KiB.bgz", 2, {}, { 512 } );
-    test( "random-128KiB.igz", 2, {}, { 313 } );
-    test( "random-128KiB.pigz", 2, {}, { 16395, 16397, 16389, 49115 } );
-#else
-    test( "random-128KiB.gz" , 0, {}, { 32777, 32793, 32777, 32725 } );
-    test( "random-128KiB.bgz", 0, {}, { 65280, 65280, 512 } );
-    test( "random-128KiB.igz", 0, {}, { 65535, 65224, 313 } );
-    test( "random-128KiB.pigz", 0, {}, { 16387, 16389, 16395, 16397, 16389, 16387, 16393, 16335 } );
-
-    test( "random-128KiB.gz" , 1, {}, { 32793, 32777, 32725 } );
-    test( "random-128KiB.bgz", 1, {}, { 65280, 512 } );
-    test( "random-128KiB.igz", 1, {}, { 65224, 313 } );
-    test( "random-128KiB.pigz", 1, {}, { 16389, 16395, 16397, 16389, 16387, 16393, 16335 } );
-
-    test( "random-128KiB.gz" , 2, {}, { 32777, 32725 } );
-    test( "random-128KiB.bgz", 2, {}, { 512 } );
-    test( "random-128KiB.igz", 2, {}, { 313 } );
-    test( "random-128KiB.pigz", 2, {}, { 16395, 16397, 16389, 16387, 16393, 16335 } );
-#endif
-    // *INDENT-ON*
+    testAutomaticMarkerResolution( testFolder );
+    testBlockBoundaries( testFolder );
 
     /**
      * @todo Add more tests of combinations like random + base, base + random
