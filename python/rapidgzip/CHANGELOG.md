@@ -1,4 +1,13 @@
 
+# Version 0.13.1 built on 2024-03-25
+
+## Fixes
+
+ - The `verbose` argument was accidentally used to initialize the chunk size with 0 or 1,
+   resulting in the minimum chunk size of 8 KiB being used, which can result in decompression
+   errors for false positives and which slows down decompression to a crawl.
+
+
 # Version 0.13.0 built on 2024-02-04
 
 ## Added
