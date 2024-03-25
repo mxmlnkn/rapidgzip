@@ -422,6 +422,7 @@ cdef class _RapidgzipFile():
     def __cinit__(
         self,
         file,
+        *,  # Force named arguments
         parallelization,
         chunk_size = 4 * 1024 * 1024,
         io_read_method = IOReadMethod.PREAD,
@@ -440,20 +441,20 @@ cdef class _RapidgzipFile():
 
         if isinstance(file, int):
             self.gzipReader = new ParallelGzipReader[RapidgzipChunkData](
-                <int>file, <size_t>parallelization, <uint64_t>( chunk_size), <IOReadMethod>io_read_method
+                <int>file, <size_t>parallelization, <uint64_t>chunk_size, <IOReadMethod>io_read_method
             )
         elif _hasValidFileno(file):
             self.gzipReader = new ParallelGzipReader[RapidgzipChunkData](
-                <int>file.fileno(), <size_t>parallelization, <uint64_t>( chunk_size), <IOReadMethod>io_read_method
+                <int>file.fileno(), <size_t>parallelization, <uint64_t>chunk_size, <IOReadMethod>io_read_method
             )
         elif _isFileObject(file):
             self.gzipReader = new ParallelGzipReader[RapidgzipChunkData](
-                <PyObject*>file, <size_t>parallelization, <uint64_t>( chunk_size), <IOReadMethod>io_read_method
+                <PyObject*>file, <size_t>parallelization, <uint64_t>chunk_size, <IOReadMethod>io_read_method
             )
         elif isinstance(file, basestring) and hasattr(file, 'encode'):
             # Note that BytesIO also is an instance of basestring but fortunately has no encode method!
             self.gzipReader = new ParallelGzipReader[RapidgzipChunkData](
-                <string>file.encode(), <size_t>parallelization, <uint64_t>( chunk_size), <IOReadMethod>io_read_method
+                <string>file.encode(), <size_t>parallelization, <uint64_t>chunk_size, <IOReadMethod>io_read_method
             )
 
         self.gzipReader.setStatisticsEnabled(verbose);
@@ -585,6 +586,7 @@ class RapidgzipFile(io.RawIOBase):
         self,
         filename,
         parallelization = 0,
+        *,  # Force named arguments
         chunk_size = 4 * 1024 * 1024,
         io_read_method = IOReadMethod.PREAD,
         verbose = False,
@@ -651,7 +653,7 @@ def open(filename, parallelization = 0, verbose = False):
     filename: can be a file path, a file descriptor, or a file object
               with suitable read, seekable, seek, and tell methods.
     """
-    return RapidgzipFile(filename, parallelization, verbose)
+    return RapidgzipFile(filename, parallelization=parallelization, verbose=verbose)
 
 
 def determineFileType(fileOrPath):
