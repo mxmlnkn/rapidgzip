@@ -1,4 +1,12 @@
 
+# Version 0.13.2 built on 2024-04-22
+
+## Fixes
+
+ - Disable `vmsplice` usage on `-c`/`--stdout` because it can result in wrong output if rapidgzip quits before
+   all of the splice output has been read from stdin of the piped to process.
+
+
 # Version 0.13.1 built on 2024-03-25
 
 ## Fixes
