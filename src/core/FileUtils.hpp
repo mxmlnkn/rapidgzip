@@ -36,14 +36,24 @@
     #include <sys/uio.h>
     #include <unistd.h>
 
-    #if not defined( HAVE_VMSPLICE ) and defined( __linux__ ) and defined( F_GETPIPE_SZ )
-        #define HAVE_VMSPLICE
-    #endif
+    //#if not defined( HAVE_VMSPLICE ) and defined( __linux__ ) and defined( F_GETPIPE_SZ )
+    //    #define HAVE_VMSPLICE
+    //#endif
 
     #if not defined( HAVE_IOVEC ) and defined( __linux__ )
         #define HAVE_IOVEC
     #endif
 #endif
+
+/**
+ * Disable vmsplice because it STILL has bugs. In this case it seems to happen because rapidgzip quits
+ * before everything has been read. This seems to cause a free and possible reuse of the memory section
+ * during the shutdown process and causes invalid output. I guess the only real way to get this to work
+ * is as stated below with a custom mmap allocator + vmsplice gift.
+ * Too bad, because it gave quite some performance, but it's no use when the results are wrong.
+ * https://github.com/mxmlnkn/rapidgzip/issues/39
+ */
+#undef HAVE_VMSPLICE
 
 
 #if defined( HAVE_VMSPLICE )
