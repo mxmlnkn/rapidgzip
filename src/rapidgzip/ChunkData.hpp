@@ -695,7 +695,6 @@ writeAll( const std::shared_ptr<ChunkData>& chunkData,
 #else
     using rapidgzip::deflate::DecodedData;
 
-    bool splicable = true;
     for ( auto it = DecodedData::Iterator( *chunkData, offsetInBlock, dataToWriteSize );
           static_cast<bool>( it ); ++it )
     {
