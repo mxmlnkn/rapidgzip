@@ -67,7 +67,9 @@ testCLI( const std::vector<std::string>& arguments,
          const std::vector<char>&        decompressed )
 {
     const auto writeToStdout = contains( arguments, "--stdout" ) || contains( arguments, "-c" );
-    const auto doDecompress = contains( arguments, "-d" ) || contains( arguments, "--decompress" );
+    const auto doDecompress = contains( arguments, "-d" )
+                              || contains( arguments, "--decompress" )
+                              || contains( arguments, "--ranges" );
     const auto expectOutputFile = doDecompress && !writeToStdout;
     if ( expectOutputFile ) {
         std::filesystem::remove( outputFile );
@@ -318,6 +320,22 @@ testCLI()
 
     /* Special subcommand that will ignore most of the other output options. */
     testFile( { "--analyze" } );
+
+    /* Test byte ranges */
+    {
+        std::vector<char> decompressedRanges;
+        const std::vector<std::pair<size_t, size_t> > ranges = {
+            { 1, 100 }, { 123, 2 }, { 10'000, 100 }, { 1024, 32ULL << 20U }
+        };
+        for ( const auto& [size, offset] : ranges ) {
+            decompressedRanges.insert( decompressedRanges.end(),
+                                       decompressed.begin() + offset,
+                                       decompressed.begin() + offset + size );
+        }
+        testCLI( { "--ranges"s, "1@100,123@2,10000@100,1 KiB@32 MiB"s, compressedFilePath },
+                 /* expected output file (except for --stdout) */ filePath, decompressedRanges );
+        std::filesystem::remove( filePath );
+    }
 
     /* Without --decompress, it only process the data without writing out the raw decompressed stream.
      * I think all of these combinations are valuable to test. */

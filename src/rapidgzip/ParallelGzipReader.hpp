@@ -410,6 +410,7 @@ public:
         }
 
         const auto& [lock, file] = m_sharedFileReader->underlyingFile();
+        // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
         auto* const singlePassFileReader = dynamic_cast<SinglePassFileReader*>( file );
         return singlePassFileReader == nullptr;
     }
