@@ -196,7 +196,7 @@ public:
             subchunks.back().decodedSize += lastSubchunk.decodedSize;
         }
 
-        /* Ensure that all subchunks have empty windows to avoid them being filled as windows are not ncessary. */
+        /* Ensure that all subchunks have empty windows to avoid them being filled as windows are not necessary. */
         for ( auto& subchunk : subchunks ) {
             subchunk.window = std::make_shared<Window>();
         }

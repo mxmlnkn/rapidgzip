@@ -891,10 +891,101 @@ testWindowPruningSimpleBase64Compression( const TemporaryDirectory& tmpFolder,
 
 
 void
+testWindowPruningMultiGzipStreams( const size_t gzipStreamSize,
+                                   const size_t expectedBlockCount )
+{
+    std::vector<uint8_t> uncompressedData( gzipStreamSize );
+    fillWithRandomBase64( uncompressedData );
+    const auto compressedData = compressWithZlib( uncompressedData );
+
+    size_t blockBoundaryCount{ 0 };
+    {
+        const auto collectAllBlockBoundaries =
+            [&] ( const std::shared_ptr<ChunkData>& chunkData,
+                  [[maybe_unused]] size_t const     offsetInBlock,
+                  [[maybe_unused]] size_t const     dataToWriteSize )
+            {
+                std::cerr << "Footers:";
+                for ( const auto& footer : chunkData->footers ) {
+                    std::cerr << " " << footer.blockBoundary.encodedOffset;
+                }
+                std::cerr << "\n";
+
+                std::cerr << "Boundaries:";
+                for ( const auto& blockBoundary : chunkData->blockBoundaries ) {
+                    std::cerr << " " << blockBoundary.encodedOffset;
+                }
+                std::cerr << "\n";
+                /* The list of block boundaries does not include the very first block because it is required to
+                 * be at offset 0 relative to the chunk offset. */
+                blockBoundaryCount += chunkData->blockBoundaries.size() + 1;
+            };
+
+        ParallelGzipReader singleStreamReader( std::make_unique<BufferedFileReader>( compressedData ) );
+        singleStreamReader.read( collectAllBlockBoundaries );
+    }
+
+    const auto streamCount = ceilDiv( 1_Mi, compressedData.size() );
+    const auto fullCompressedData =
+        duplicateContents( std::vector<uint8_t>( compressedData.begin(), compressedData.end() ), streamCount );
+
+    std::cerr << "Testing window pruning for " << streamCount << " gzip streams with each " << blockBoundaryCount
+              << " deflate blocks\n";
+
+    if ( blockBoundaryCount != expectedBlockCount ) {
+        throw std::runtime_error( "The compression routine does not fullfil the test precondition." );
+    }
+
+    /* Use some prime chunk number to avoid possible exact overlap with the gzip streams! */
+    ParallelGzipReader reader( std::make_unique<BufferedFileReader>( fullCompressedData ), 0, 257_Ki );
+    const auto index = reader.gzipIndex();
+
+    /* Check that all windows are empty. */
+    REQUIRE( index.checkpoints.size() > 2 );
+    REQUIRE( static_cast<bool>( index.windows ) );
+    if ( index.windows ) {
+        REQUIRE_EQUAL( index.windows->size(), index.checkpoints.size() );
+        for ( size_t i = 0; i < index.checkpoints.size(); ++i ) {
+            const auto& checkpoint = index.checkpoints[i];
+            const auto window = index.windows->get( checkpoint.compressedOffsetInBits );
+            REQUIRE( !window || window->empty() );
+            if ( window && !window->empty() ) {
+                std::cerr << "[Error] Window " << i << " is sized " << window->decompressedSize() << " at offset: "
+                          << formatBits( checkpoint.compressedOffsetInBits ) << " out of "
+                          << index.checkpoints.size() << " checkpoints and in a compressed stream sized "
+                          << formatBytes( fullCompressedData.size() ) << " when it is expected to be empty!\n";
+            }
+        }
+    }
+}
+
+
+void
 testWindowPruning( const TemporaryDirectory& tmpFolder )
 {
     testWindowPruningSimpleBase64Compression( tmpFolder, "gzip" );
     testWindowPruningSimpleBase64Compression( tmpFolder, "bgzip" );
+
+    /* BGZF window pruning only works because all chunks are ensured to start at the first deflate block
+     * inside a gzip stream. For non-BGZF files with non-single-block gzip streams, more intricate pruning
+     * has to be implemented.
+     * For the following tests, build up a larger gzip file by concatenating gzip streams. The gzip stream
+     * size is configurable and is a proxy for the number of deflate blocks in it. For gzip stream sizes
+     * smaller than 8 KiB, it can be assumed for almost all encoders that it contains only a single block.
+     * And conversely, for gzip stream sizes > 128 KiB, it can be assumed to produce more than one block.
+     * The second argument, the number of expected blocks are not something we actually want to test for,
+     * but it is a test for the precondition of the test. If for some reason, the expected blocks differ,
+     * then simple vary the stream size for the test or implement something more stable.
+     * Note that this test does not get parallelized/chunked anyway for now because it only consists of
+     * final deflate blocks! */
+    testWindowPruningMultiGzipStreams( /* gzip stream size */ 8_Ki, /* expected blocks */ 1 );
+    /**
+     * @todo This only works when blocks are split with prioritizing end-of-stream boundaries instead of splitting
+     * only exactly when the given chunk size is exceeded. However, splitting chunks smartly is not sufficient
+     * because the chunk offsets for parallelization are fixed. We would have to add some kind of chunk merging.
+     * This seems too complicated to implement in the near-tearm as it would also affect the chunk cache!
+     */
+    //testWindowPruningMultiGzipStreams( /* gzip stream size */ 31_Ki, /* expected blocks */ 2 );
 }
 
 
@@ -912,8 +1003,6 @@ printClassSizes()
     std::cout << "  ZlibInflateWrapper            : " << sizeof( ZlibInflateWrapper ) << "\n";  // 131320
 #ifdef WITH_ISAL
     std::cout << "  IsalInflateWrapper            : " << sizeof( IsalInflateWrapper ) << "\n";  // 218592
-#endif
-#ifdef WITH_ISAL
     std::cout << "  HuffmanCodingISAL             : " << sizeof( HuffmanCodingISAL ) << "\n";  // 18916
 #endif
     /* 18916 */

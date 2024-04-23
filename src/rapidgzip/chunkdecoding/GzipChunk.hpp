@@ -57,15 +57,20 @@ public:
     }
 
     static void
-    determineUsedWindowSymbols( std::vector<Subchunk>& subchunks,
-                                BitReader&             bitReader,
-                                bool                   windowSparsity )
+    determineUsedWindowSymbolsForLastSubchunk( std::vector<Subchunk>& subchunks,
+                                               BitReader&             bitReader )
     {
         if ( subchunks.empty() || ( subchunks.back().encodedSize == 0 ) ) {
             return;
         }
 
         auto& subchunk = subchunks.back();
+
+        /* Only gather sparsity information when it is necessary (non-empty window) or may become necessary
+         * (no window yet). The window may already be initialized and empty for deflate bocks after gzip headers. */
+        if ( subchunk.window && subchunk.window->empty() ) {
+            return;
+        }
 
         try {
             /* Get the window as soon as possible to avoid costly long seeks back outside the BitReader buffer.
@@ -74,13 +79,56 @@ public:
                 bitReader.seekTo( oldOffset ); }
             };
             bitReader.seek( subchunk.encodedOffset + subchunk.encodedSize );
-            if ( windowSparsity ) {
-                subchunk.usedWindowSymbols = deflate::getUsedWindowSymbols( bitReader );
-            }
+            subchunk.usedWindowSymbols = deflate::getUsedWindowSymbols( bitReader );
         } catch ( const std::exception& ) {
             /* Ignore errors such as EOF and even decompression errors because we are only collecting extra
              * data and might already be at the end of the given chunk size, so shouldn't return errors for
              * data thereafter. */
+        }
+
+        /* Check whether the no window is needed at all. This may happen when analyzing the very first deflate
+         * block and it is at the start of a gzip stream or if the subchunk starts with a non-compressed block. */
+        const auto& usedWindowSymbols = subchunk.usedWindowSymbols;
+        if ( std::all_of( usedWindowSymbols.begin(), usedWindowSymbols.end(), [] ( bool p ) { return !p; } ) ) {
+            subchunk.usedWindowSymbols = std::vector<bool>();  // Free memory!
+            subchunk.window = std::make_shared<typename ChunkData::Window>();
+        }
+
+    }
+
+    static void
+    finalizeWindowForLastSubchunk( ChunkData&             chunk,
+                                   std::vector<Subchunk>& subchunks,
+                                   BitReader&             bitReader )
+    {
+        if ( subchunks.empty() ) {
+            return;
+        }
+
+        /* Finalize the window of the previous subchunk. Either initialize it to be empty because it is at the
+         * start of a new gzip stream and does not need a window, or determine the sparsity. Note that the very
+         * first subchunk at offset 0 cannot have a corresponding footer! */
+        bool subchunkRequiresWindow{ true };
+        const auto nextWindowOffset = subchunks.back().decodedOffset + subchunks.back().decodedSize;
+        for ( auto footer = chunk.footers.rbegin(); footer != chunk.footers.rend(); ++footer ) {
+            if ( footer->blockBoundary.decodedOffset == nextWindowOffset ) {
+                subchunkRequiresWindow = false;
+                break;
+            }
+            /* Footer are sorted ascending and we iterate in reverse order, so we can pre-emptively quit this
+             * search when we find a smaller offset than wanted. This improves performance for many footers
+             * as basically only the newly added ones since the last subchunk are checked, resulting in an
+             * overal O(n) complexity instead of O(n^2) where n is the number of footers. This is why std::find
+             * is not used. */
+            if ( footer->blockBoundary.decodedOffset < nextWindowOffset ) {
+                break;
+            }
+        }
+
+        if ( !subchunkRequiresWindow ) {
+            subchunks.back().window = std::make_shared<typename ChunkData::Window>();
+        } else if ( chunk.windowSparsity ) {
+            determineUsedWindowSymbolsForLastSubchunk( subchunks, bitReader );
         }
     }
 
@@ -103,7 +151,7 @@ public:
             subchunks.back().usedWindowSymbols.clear();
         }
 
-        determineUsedWindowSymbols( subchunks, bitReader, chunk.windowSparsity );
+        finalizeWindowForLastSubchunk( chunk, subchunks, bitReader );
 
         chunk.setSubchunks( std::move( subchunks ) );
         chunk.finalize( nextBlockOffset );
@@ -128,7 +176,7 @@ public:
         /* Do on-the-fly chunk splitting. */
         if ( subchunks.back().decodedSize >= chunk.splitChunkSize ) {
             subchunks.back().encodedSize = encodedOffset - subchunks.back().encodedOffset;
-            determineUsedWindowSymbols( subchunks, bitReader, chunk.windowSparsity );
+            finalizeWindowForLastSubchunk( chunk, subchunks, bitReader );
             startNewSubchunk( subchunks, encodedOffset );
         }
     }
