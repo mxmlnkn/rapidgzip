@@ -534,7 +534,19 @@ private:
             /* The last window is always inserted into the window map by the main thread because else
              * it wouldn't be able queue the next chunk for post-processing in parallel. This is the critical
              * path that cannot be parallelized. Therefore, do not compress the last window to save time. */
-            m_windowMap->emplace( windowOffset, chunkData->getLastWindow( *previousWindow ), CompressionType::NONE );
+            if ( !chunkData->footers.empty()
+                 && ( chunkData->footers.back().blockBoundary.decodedOffset == chunkData->decodedSizeInBytes ) ) {
+                /* Assuming / requiring that back-references cannot cross footer thresholds, we can emplace an
+                 * empty window into the window map if the chunk end coincides with a footer. Note that this single
+                 * special case is sufficient for BGZF files to never produce a non-empty window because:
+                 *  1. BGZF chunks are never split during decompression. Else, the windows at split boundaries
+                 *     would also have to be checked whether they coincide with a footer.
+                 *  2. Chunks always end on a footer or rather after the next gzip header. */
+                m_windowMap->emplaceShared( windowOffset, std::make_shared<WindowMap::Window>() );
+            } else {
+                m_windowMap->emplace( windowOffset, chunkData->getLastWindow( *previousWindow ),
+                                      CompressionType::NONE );
+            }
         }
 
         return m_markersBeingReplaced.emplace(
