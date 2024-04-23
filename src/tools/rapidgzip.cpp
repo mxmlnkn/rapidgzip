@@ -510,7 +510,7 @@ rapidgzipCLI( int                  argc,
 
         auto& out = writeToStdErr ? std::cerr : std::cout;
         if ( countBytes != countLines ) {
-            out << ( countBytes ? totalBytesRead : newlineCount );
+            out << ( countBytes ? totalBytesRead : newlineCount ) << "\n";
         } else if ( countBytes && countLines ) {
             out << "Size: " << totalBytesRead << "\n";
             out << "Lines: " << newlineCount << "\n";
