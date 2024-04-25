@@ -923,6 +923,48 @@ testChecksummedMultiStreamDecompression( const std::filesystem::path& encoded,
 }
 
 
+void
+testWindowPruningSimpleBase64Compression( const TemporaryDirectory& tmpFolder,
+                                          const std::string&        command )
+{
+    const auto filePath = std::filesystem::absolute( tmpFolder.path() / "random-base64" ).string();
+    createRandomBase64( filePath, 1_Mi );
+    const auto compressedFilePath = encodeTestFile( filePath, tmpFolder, command + " --force" );
+    const auto compressedFileSize = fileSize( compressedFilePath );
+
+    ParallelGzipReader reader( std::make_unique<StandardFileReader>( compressedFilePath ), 0, 256_Ki );
+    const auto index = reader.gzipIndex();
+
+    REQUIRE( index.checkpoints.size() > 2 );
+    REQUIRE( static_cast<bool>( index.windows ) );
+    if ( index.windows ) {
+        REQUIRE_EQUAL( index.windows->size(), index.checkpoints.size() );
+        for ( const auto& checkpoint : index.checkpoints ) {
+            const auto window = index.windows->get( checkpoint.compressedOffsetInBits );
+            if ( ( checkpoint.compressedOffsetInBits < 64 * BYTE_SIZE /* guess for the gzip header size */ )
+                 || ( checkpoint.compressedOffsetInBits == compressedFileSize * BYTE_SIZE )
+                 || ( command == "bgzip" ) )
+            {
+                REQUIRE( !window || window->empty() );
+            } else {
+                REQUIRE( window && !window->empty() );
+            }
+        }
+    }
+
+    std::filesystem::remove( filePath );
+    std::filesystem::remove( compressedFilePath );
+}
+
+
+void
+testWindowPruning( const TemporaryDirectory& tmpFolder )
+{
+    testWindowPruningSimpleBase64Compression( tmpFolder, "gzip" );
+    testWindowPruningSimpleBase64Compression( tmpFolder, "bgzip" );
+}
+
+
 int
 main( int    argc,
       char** argv )
@@ -949,6 +991,8 @@ main( int    argc,
     testCachedChunkReuseAfterSplit();
 
     const auto tmpFolder = createTemporaryDirectory( "rapidgzip.testParallelGzipReader" );
+
+    testWindowPruning( tmpFolder );
 
     testPerformance( tmpFolder );
 
