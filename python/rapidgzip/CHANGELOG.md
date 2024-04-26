@@ -1,4 +1,13 @@
 
+# Version 0.13.3 built on 2024-04-27
+
+## Fixes
+
+ - Reading after seeking could fail in some cases because of a bug with the window compression.
+ - `RapidgzipFile` `verbose` parameter did not have any effect.
+ - Add newline after `--count` or `--count-lines` result.
+
+
 # Version 0.13.2 built on 2024-04-22
 
 ## Fixes
