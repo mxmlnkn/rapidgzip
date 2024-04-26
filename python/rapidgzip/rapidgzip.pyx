@@ -392,6 +392,7 @@ cdef extern from "rapidgzip/ParallelGzipReader.hpp" namespace "rapidgzip":
         map[size_t, size_t] blockOffsets() except +
         map[size_t, size_t] availableBlockOffsets() except +
         void setStatisticsEnabled(bool) except +
+        void setShowProfileOnDestruction(bool) except +
         void importIndex(PyObject*) except +
         void exportIndex(PyObject*) except +
         void joinThreads() except +
@@ -458,6 +459,7 @@ cdef class _RapidgzipFile():
             )
 
         self.gzipReader.setStatisticsEnabled(verbose);
+        self.gzipReader.setShowProfileOnDestruction(verbose);
 
         if self.gzipReader == NULL:
             raise Exception("Expected file name string, file descriptor integer, "
