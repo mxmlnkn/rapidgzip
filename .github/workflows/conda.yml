@@ -48,13 +48,18 @@ jobs:
         CONDA_BUILD_SYSROOT:
           - $PWD/MacOSX10.9.sdk
         EOF
+        mkdir -p "$HOME/Library/Application Support/pip"
+        cat <<EOF >> "$HOME/Library/Application Support/pip/pip.conf"
+        [global]
+        break-system-packages = true
+        EOF
 
     - name: Build Conda Packages
       working-directory: conda
       run: |
         conda install conda conda-build anaconda-client conda-verify packaging
         conda config --set anaconda_upload no
-        python3 -m pip install --user build
+        python3 -m pip install build
         python3 -m build -o . --sdist ../python/indexed_bzip2
         mv indexed_bzip2-*.tar* src.tar
         conda build .
