@@ -10,7 +10,10 @@ jobs:
 
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        os: [macos-13, ubuntu-latest]
+        # MacOS-14 suddenly does not build anymore and shows dumb errors such as:
+        # /Users/runner/work/indexed_bzip2/indexed_bzip2/MacOSX10.9.sdk/usr/include/sys/_types.h:94:9:
+        #   error: unknown type name '__int64_t'
         # Windows builds fine, but suddenly returns with non-zero exit code in 7dafe65 even though
         # nothing changed. Maybe an issue with a new conda version. 3ca62ea did build just fine.
         #os: [macos-latest, ubuntu-latest, windows-latest]
