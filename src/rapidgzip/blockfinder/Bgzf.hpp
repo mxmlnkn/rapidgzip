@@ -122,7 +122,7 @@ public:
         /* Check the footer, but only if it does not result in buffering the whole file as in SinglePassReader. */
         if ( m_fileReader->seekable() && m_fileReader->size().has_value() ) {
             FooterBytes footer;
-            m_fileReader->seek( -static_cast<int>( footer.size() ), SEEK_END );
+            m_fileReader->seek( -static_cast<long long int>( footer.size() ), SEEK_END );
             const auto nBytesReadFooter = m_fileReader->read( reinterpret_cast<char*>( footer.data() ), footer.size() );
             if ( nBytesReadFooter != footer.size() ) {
                 throw std::invalid_argument( "Could not read enough data from given file for BGZF footer!" );
@@ -132,7 +132,7 @@ public:
                 throw std::invalid_argument( "Given file does not end with a BGZF footer!" );
             }
 
-            m_fileReader->seek( m_currentBlockOffset );
+            m_fileReader->seekTo( m_currentBlockOffset );
         }
     }
 
@@ -144,22 +144,22 @@ public:
         HeaderBytes header;
         const auto nBytesRead = file->read( reinterpret_cast<char*>( header.data() ), header.size() );
         if ( ( nBytesRead != header.size() ) || !isBgzfHeader( header ) ) {
-            file->seek( oldPos );
+            file->seekTo( oldPos );
             return false;
         }
 
         /* Check the footer, but only if it does not result in buffering the whole file as in SinglePassReader. */
         if ( file->seekable() && file->size().has_value() ) {
             FooterBytes footer;
-            file->seek( -static_cast<int>( footer.size() ), SEEK_END );
+            file->seek( -static_cast<long long int>( footer.size() ), SEEK_END );
             const auto nBytesReadFooter = file->read( reinterpret_cast<char*>( footer.data() ), footer.size() );
             if ( ( nBytesReadFooter != footer.size() ) || ( footer != BGZF_FOOTER ) ) {
-                file->seek( oldPos );
+                file->seekTo( oldPos );
                 return false;
             }
         }
 
-        file->seek( oldPos );
+        file->seekTo( oldPos );
         return true;
     }
 
@@ -204,7 +204,7 @@ public:
 
         auto result = ( m_currentBlockOffset + HeaderBytes().size() ) * 8;
 
-        m_fileReader->seek( m_currentBlockOffset );
+        m_fileReader->seekTo( m_currentBlockOffset );
         HeaderBytes header;
         const auto nBytesRead = m_fileReader->read( reinterpret_cast<char*>( header.data() ), header.size() );
         if ( nBytesRead == header.size() ) {

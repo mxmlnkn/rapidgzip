@@ -262,7 +262,7 @@ checkHeader( BitReader& bitReader )
 
     if ( ( flags & ( 1U << 2U ) ) != 0 ) {
         const auto length = bitReader.read<16>();
-        bitReader.seek( length * BYTE_SIZE, SEEK_CUR );
+        bitReader.seek( static_cast<long long int>( length ) * BYTE_SIZE, SEEK_CUR );
     }
 
     Error error = Error::NONE;

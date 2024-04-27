@@ -221,11 +221,9 @@ public:
     {
         if ( ( origin == SEEK_END ) && !size().has_value() ) {
             const auto fileLock = getLock();
-            offset = m_sharedFile->seek( offset, origin );
+            m_currentPosition = m_sharedFile->seek( offset, origin );
             /* File size must have become available when seeking relative to end. */
             m_fileSizeBytes = m_sharedFile->size();
-
-            m_currentPosition = static_cast<size_t>( std::max( 0LL, offset ) );
             if ( const auto fileSize = size(); fileSize ) {
                 m_currentPosition = std::min( m_currentPosition, *fileSize );
             }
@@ -319,7 +317,7 @@ public:
 
             /* Seeking alone does not clear the EOF nor fail bit if the last read did set it. */
             sharedFile->clearerr();
-            sharedFile->seek( m_currentPosition, SEEK_SET );
+            sharedFile->seekTo( m_currentPosition );
             nBytesRead = sharedFile->read( buffer, nMaxBytesToRead );
             if ( ( nBytesRead == 0 ) && !m_fileSizeBytes ) {
                 m_fileSizeBytes = sharedFile->size();

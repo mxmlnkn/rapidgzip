@@ -69,6 +69,15 @@ public:
     seek( long long int offset,
           int           origin = SEEK_SET ) = 0;
 
+    size_t
+    seekTo( uint64_t offset )
+    {
+        if ( offset > static_cast<uint64_t>( std::numeric_limits<long long int>::max() ) ) {
+            throw std::invalid_argument( "Value " + std::to_string( offset ) + " out of range of long long int!" );
+        }
+        return seek( static_cast<long long int>( offset ) );
+    }
+
     [[nodiscard]] virtual std::optional<size_t>
     size() const = 0;
 

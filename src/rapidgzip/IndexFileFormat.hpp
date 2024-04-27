@@ -327,7 +327,7 @@ readGzipIndex( UniqueFileReader         indexFile,
 
     try {
         rapidgzip::BitReader bitReader( sharedArchiveFile->clone() );
-        bitReader.seek( index.checkpoints.back().compressedOffsetInBits );
+        bitReader.seekTo( index.checkpoints.back().compressedOffsetInBits );
         index.uncompressedSizeInBytes = index.checkpoints.back().uncompressedOffsetInBytes
                                         + countDecompressedBytes( std::move( bitReader ), {} );
     } catch ( const std::invalid_argument& ) {

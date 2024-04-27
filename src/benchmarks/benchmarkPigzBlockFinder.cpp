@@ -278,7 +278,7 @@ BenchmarkResults
 measureByteComparison( const UniqueFileReader& file,
                        BlockFinder             blockFinder )
 {
-    file->seek( 0 );
+    file->seekTo( 0 );
     BenchmarkResults result;
 
     const auto t0 = now();

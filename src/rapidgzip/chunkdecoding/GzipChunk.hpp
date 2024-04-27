@@ -655,7 +655,7 @@ public:
 
         BitReader bitReader( std::move( sharedFileReader ) );
         if ( initialWindow ) {
-            bitReader.seek( blockOffset );
+            bitReader.seekTo( blockOffset );
             const auto window = initialWindow->decompress();
             return decodeChunkWithRapidgzip( &bitReader, untilOffset, *window, maxDecompressedChunkSize,
                                               chunkDataConfiguration );
@@ -667,7 +667,7 @@ public:
                 try {
                     /* For decoding, it does not matter whether we seek to offset.first or offset.second but it did
                      * matter a lot for interpreting and correcting the encodedSizeInBits in GzipBlockFetcer::get! */
-                    bitReader.seek( offset.second );
+                    bitReader.seekTo( offset.second );
                     auto result = decodeChunkWithRapidgzip(
                         &bitReader, untilOffset, /* initialWindow */ std::nullopt,
                         maxDecompressedChunkSize, chunkDataConfiguration );
@@ -733,7 +733,7 @@ public:
                 if ( beginOffset >= endOffset ) {
                     return std::numeric_limits<size_t>::max();
                 }
-                bitReader.seek( beginOffset );
+                bitReader.seekTo( beginOffset );
                 return blockfinder::seekToNonFinalDynamicDeflateBlock( bitReader, endOffset );
             };
 
@@ -742,7 +742,7 @@ public:
                 if ( beginOffset >= endOffset ) {
                     return std::make_pair( std::numeric_limits<size_t>::max(), std::numeric_limits<size_t>::max() );
                 }
-                bitReader.seek( beginOffset );
+                bitReader.seekTo( beginOffset );
                 return blockfinder::seekToNonFinalUncompressedDeflateBlock( bitReader, endOffset );
             };
 

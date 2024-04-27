@@ -223,7 +223,7 @@ public:
                             try
                             {
                                 BitReader nextBzip2StreamBitReader( m_bitReader );
-                                nextBzip2StreamBitReader.seek( nextStreamOffsetInBits );
+                                nextBzip2StreamBitReader.seekTo( nextStreamOffsetInBits );
                                 bzip2::readBzip2Header( nextBzip2StreamBitReader );
                             }
                             catch ( const std::exception& )

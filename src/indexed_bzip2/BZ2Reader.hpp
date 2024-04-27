@@ -405,7 +405,7 @@ BZ2Reader::readBlockHeader( size_t offsetBits )
         m_blockToDataOffsets.insert( { offsetBits, m_decodedBytesCount } );
     }
 
-    m_bitReader.seek( offsetBits );
+    m_bitReader.seekTo( offsetBits );
     BlockHeader header( m_bitReader );
 
     if ( header.eos() ) {

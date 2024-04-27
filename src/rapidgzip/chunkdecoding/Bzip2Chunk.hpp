@@ -217,7 +217,7 @@ public:
             [&] ( const size_t offset ) -> std::optional<ChunkData>
             {
                 try {
-                    bitReader.seek( offset );
+                    bitReader.seekTo( offset );
                     auto result = decodeUnknownBzip2Chunk( &bitReader, untilOffset, /* decodedSize */ std::nullopt,
                                                            chunkDataConfiguration, maxDecompressedChunkSize );
                     return result;
@@ -233,7 +233,7 @@ public:
         }
 
         const auto blockFinderOffsetInBytes = chunkOffset / BYTE_SIZE;
-        sharedFileReader->seek( blockFinderOffsetInBytes );
+        sharedFileReader->seekTo( blockFinderOffsetInBytes );
         BitStringFinder<bzip2::MAGIC_BITS_SIZE> blockFinder{
             std::move( sharedFileReader ), bzip2::MAGIC_BITS_BLOCK, /* fileBufferSizeBytes */ 64_Ki };
         while ( !cancelThreads ) {

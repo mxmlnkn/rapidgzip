@@ -75,7 +75,7 @@ testFileReader( const std::string& tmpFileContents,
     {
         readData.assign( 2 * tmpFileContents.size(), '\0' );
 
-        fileReader->seek( 0 );
+        fileReader->seekTo( 0 );
         REQUIRE( fileReader->tell() == 0 );
 
         const auto nBytesRead = fileReader->read( readData.data(), readData.size() );
