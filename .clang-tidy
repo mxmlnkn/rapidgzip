@@ -14,14 +14,19 @@ Checks: |
     -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
     -cppcoreguidelines-pro-bounds-constant-array-index,
     -cppcoreguidelines-pro-type-reinterpret-cast,
+    -cppcoreguidelines-non-private-member-variables-in-classes,
+    -cppcoreguidelines-pro-type-const-cast,
+    -cppcoreguidelines-special-member-functions,
 
-    hicpp-*,
-    -hicpp-no-array-decay,
+    hicpp-signed-bitwise,
+    hicpp-ignored-remove-result,
 
     misc-*,
+    -misc-non-private-member-variables-in-classes,
 
     modernize-*,
     -modernize-use-trailing-return-type,
+    -modernize-deprecated-headers,
 
     performance-*,
     -performance-inefficient-string-concatenation,
@@ -35,3 +40,7 @@ Checks: |
 CheckOptions:
   - key:   misc-non-private-member-variables-in-classes.IgnoreClassesWithAllMemberVariablesBeingPublic
     value: '1'
+  - key:   hicpp-signed-bitwise.IgnorePositiveIntegerLiterals
+    value: '1'
+
+UseColor: true

@@ -8,7 +8,12 @@ option(CODE_COVERAGE "Enable coverage reporting" OFF)
 option(USE_SYSTEM_ZLIB "Use the system-installed zlib library instead of compiling it from source" OFF)
 option(WITH_RPMALLOC "Compile with rpmalloc for faster memory allocations" ON)
 option(WITH_ISAL "Compile with ISA-l for more than twice as fast decompression than zlib" ON)
+option(RUN_CLANG_TIDY "Runs clang-tidy while building targets" OFF)
 
+# https://stackoverflow.com/questions/71797349/is-it-possible-to-ignore-a-header-with-clang-tidy
+# Clang-tidy has no negative matching, so painstakingly list all except for the "external" folder.
+# Not listing the "benchmark" and "test" folders also shouldn't hurt.
+set(CLANG_TIDY_COMMAND "clang-tidy;--config-file;${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy;--header-filter=/src/\(core\|huffman\|indexed_bzip2\|rapidgzip\|tools\)")
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Chile the build type: Debug, Release, RelWithDebInfo" FORCE)
