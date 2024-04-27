@@ -139,7 +139,7 @@ public:
                 nBytesRead = std::min( nMaxBytesToRead, m_fileSizeBytes - m_currentPosition );
                 std::fseek( m_file.get(), static_cast<long int>( nBytesRead ), SEEK_CUR );
             } else {
-                std::array<char, 16_Ki> tmpBuffer;
+                std::array<char, 16_Ki> tmpBuffer{};
                 while ( nBytesRead < nMaxBytesToRead ) {
                     const auto nBytesReadPerCall =
                         std::fread( tmpBuffer.data(), /* element size */ 1, tmpBuffer.size(), m_file.get() );
@@ -256,7 +256,7 @@ private:
     [[nodiscard]] static size_t
     determineFileSize( int fileNumber )
     {
-        struct stat fileStats;
+        struct stat fileStats{};
         fstat( fileNumber, &fileStats );
         return fileStats.st_size;
     }
@@ -264,7 +264,7 @@ private:
     [[nodiscard]] static bool
     determineSeekable( int fileNumber )
     {
-        struct stat fileStats;
+        struct stat fileStats{};
         fstat( fileNumber, &fileStats );
         return !S_ISFIFO( fileStats.st_mode );
     }
@@ -283,7 +283,7 @@ protected:
     const int m_fileDescriptor;
     const std::string m_filePath;
 
-    std::fpos_t m_initialPosition;
+    std::fpos_t m_initialPosition{};
     const bool m_seekable;
     const size_t m_fileSizeBytes;
 

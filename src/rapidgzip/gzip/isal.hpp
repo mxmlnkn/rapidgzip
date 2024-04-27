@@ -200,7 +200,7 @@ private:
     inflate_state m_stream{};
     /* Loading the whole encoded data (multiple MiB) into memory first and then
      * decoding it in one go is 4x slower than processing it in chunks of 128 KiB! */
-    std::array<char, 128_Ki> m_buffer;
+    std::array<char, 128_Ki> m_buffer{};
 
     std::optional<StoppingPoint> m_currentPoint;
     bool m_needToReadHeader{ false };
@@ -588,14 +588,14 @@ compressWithIsal( const VectorView<uint8_t> toCompress,
      * while the input is limited to BLOCK_SIZE. */
     ResultContainer compressed( toCompress.size() + 1000 );
 
-    isal_zstream stream;
+    isal_zstream stream{};
     isal_deflate_stateless_init( &stream );
 
     if ( !dictionary.empty() ) {
         isal_deflate_set_dict( &stream, const_cast<uint8_t*>( dictionary.data() ), dictionary.size() );
     }
     stream.level = 1;
-    std::array<uint8_t, ISAL_DEF_LVL1_DEFAULT /* 282624 */> compressionBuffer;
+    std::array<uint8_t, ISAL_DEF_LVL1_DEFAULT /* 282624 */> compressionBuffer{};
     stream.level_buf = compressionBuffer.data();
     stream.level_buf_size = compressionBuffer.size();
 
@@ -631,7 +631,7 @@ inflateWithIsal( const Container& toDecompress,
 {
     Container decompressed( decompressedSize );
 
-    inflate_state stream;
+    inflate_state stream{};
     isal_inflate_init( &stream );
 
     stream.next_in = const_cast<uint8_t*>( reinterpret_cast<const uint8_t*>( toDecompress.data() ) );
@@ -639,7 +639,7 @@ inflateWithIsal( const Container& toDecompress,
     stream.next_out = const_cast<uint8_t*>( reinterpret_cast<const uint8_t*>( decompressed.data() ) );
     stream.avail_out = decompressed.size();
 
-    isal_gzip_header header;
+    isal_gzip_header header{};
     isal_read_gzip_header( &stream, &header );
 
     const auto result = isal_inflate_stateless( &stream );

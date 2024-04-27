@@ -642,7 +642,7 @@ private:
 
 private:
     mutable Statistics m_statistics;
-    std::atomic<bool> m_statisticsEnabled;
+    std::atomic<bool> m_statisticsEnabled{ false };
     mutable std::mutex m_analyticsMutex;
 
 protected:

@@ -234,7 +234,7 @@ private:
     z_stream m_stream{};
     /* Loading the whole encoded data (multiple MiB) into memory first and then
      * decoding it in one go is 4x slower than processing it in chunks of 128 KiB! */
-    std::array<char, 128_Ki> m_buffer;
+    std::array<char, 128_Ki> m_buffer{};
 
     FileType m_fileType{ FileType::GZIP };
 };
@@ -399,7 +399,7 @@ template<size_t SIZE>
 std::array<std::byte, SIZE>
 ZlibInflateWrapper::readBytes()
 {
-    std::array<std::byte, SIZE> buffer;
+    std::array<std::byte, SIZE> buffer{};
     size_t footerSize{ 0 };
     for ( auto stillToRemove = buffer.size(); stillToRemove > 0; ) {
         if ( m_stream.avail_in >= stillToRemove ) {

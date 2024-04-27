@@ -374,8 +374,8 @@ public:
     };
 
 public:
-    uint64_t magicBytes;
-    bool isRandomized = false;
+    uint64_t magicBytes{ 0 };
+    bool isRandomized{ false };
 
     /* First pass decompression data (Huffman and MTF decoding) */
 
@@ -386,8 +386,8 @@ public:
      * values were present.  We make a translation table to convert the symbols
      * back to the corresponding bytes.
      */
-    std::array<uint8_t, 256> symbolToByte;
-    std::array<uint8_t, 256> mtfSymbol;
+    std::array<uint8_t, 256> symbolToByte{};
+    std::array<uint8_t, 256> mtfSymbol{};
     unsigned int symbolCount{ 0 };
     /**
      * Every GROUP_SIZE many symbols we switch huffman coding tables.
@@ -399,8 +399,8 @@ public:
      */
     uint16_t selectorsCount{ 0 };
 
-    std::array<char, 32768> selectors;        // nSelectors=15 bits
-    std::array<HuffmanCoding, MAX_GROUPS> huffmanCodings;
+    std::array<char, 32768> selectors{};  // nSelectors=15 bits
+    std::array<HuffmanCoding, MAX_GROUPS> huffmanCodings{};
     int groupCount = 0;
 
     /* Second pass decompression data (burrows-wheeler transform) */
@@ -605,7 +605,7 @@ Block::readTrees()
     const auto symCount = symbolCount + 2;
     for ( int j = 0; j < groupCount; j++ ) {
         // Read lengths
-        std::array<uint8_t, MAX_SYMBOLS> lengths;
+        std::array<uint8_t, MAX_SYMBOLS> lengths{};
         unsigned int hh = getBits<5>();
         for ( unsigned int symbol = 0; symbol < symCount; symbol++ ) {
             while ( true ) {
