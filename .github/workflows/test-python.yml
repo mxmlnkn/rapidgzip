@@ -23,7 +23,9 @@ jobs:
         # 3.12 was released 2023-10-02 and end-of-life will be 2028-10
         # 3.13 will be released 2024-10-01 and end-of-life will be 2029-10
         python-version: ['3.8', '3.12']
-        os: [macos-latest, ubuntu-latest, windows-latest]
+        # 2024-04-27: macos-14/macos-latest does not work anymore because of error 134 close towards the end
+        #             when testing with parallelization=8. Could be a problem with compiling for M1.
+        os: [macos-13]
 
     steps:
     - uses: actions/checkout@v4
