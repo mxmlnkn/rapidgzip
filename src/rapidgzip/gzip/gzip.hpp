@@ -174,7 +174,7 @@ readHeader( BitReader& bitReader )
         header.extraFlags = static_cast<uint8_t>( bitReader.read<BYTE_SIZE>() );
         header.operatingSystem = static_cast<uint8_t>( bitReader.read<BYTE_SIZE>() );
 
-        header.isLikelyASCII = ( flags & 1 ) != 0;
+        header.isLikelyASCII = ( flags & 1U ) != 0U;
 
         const auto readZeroTerminatedString =
             [&bitReader] () -> std::pair<std::string, Error>
@@ -305,9 +305,7 @@ readFooter( BitReader& bitReader )
 }  // namespace rapidgzip
 
 
-namespace rapidgzip
-{
-namespace zlib
+namespace rapidgzip::zlib
 {
 enum class CompressionLevel
 {
@@ -318,7 +316,7 @@ enum class CompressionLevel
 };
 
 
-const char*
+[[nodiscard]] constexpr const char*
 toString( CompressionLevel compressionLevel )
 {
     switch ( compressionLevel )
@@ -411,5 +409,4 @@ readFooter( BitReader& bitReader )
     footer.adler32 = static_cast<uint32_t>( bitReader.read<32>() );
     return footer;
 }
-}  // namespace zlib
-}  // namespace rapidgzip
+}  // namespace rapidgzip::zlib

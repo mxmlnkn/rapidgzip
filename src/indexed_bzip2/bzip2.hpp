@@ -142,7 +142,7 @@ readBzip2Header( BitReader& bitReader )
 }
 
 
-struct Block
+struct Block  // NOLINT(clang-analyzer-optin.performance.Padding)
 {
 public:
     /**
@@ -227,6 +227,8 @@ public:
 
 public:
     Block() = default;
+
+    ~Block() = default;
 
     /** Better don't allow copies because the bitreader would be shared, which might be problematic */
     Block( const Block& ) = delete;
@@ -350,8 +352,8 @@ public:
          * to the output buffer! Currently, the caller has to ensure that the output buffer is large enough.
          */
         [[nodiscard]] size_t
-        decodeBlock( const size_t nMaxBytesToDecode,
-                     char*        outputBuffer );
+        decodeBlock( size_t nMaxBytesToDecode,
+                     char*  outputBuffer );
 
     public:
         uint32_t origPtr = 0;
@@ -692,7 +694,7 @@ Block::readBlockData()
              * symbols, but a run of length 0 doesn't mean anything in this
              * context). Thus space is saved. */
             hh += runPos << nextSym;  // +runPos if RUNA; +2*runPos if RUNB
-            runPos <<= 1;
+            runPos <<= 1U;
             continue;
         }
 
@@ -780,7 +782,7 @@ Block::BurrowsWheelerTransformData::prepare()
     // and uc as run count.
     for ( int i = 0; i < writeCount; i++ ) {
         const auto uc = static_cast<uint8_t>( dbuf[i] );
-        dbuf[byteCount[uc]] |= ( i << 8U );
+        dbuf[byteCount[uc]] |= i << 8U;
         byteCount[uc]++;
     }
 
@@ -793,7 +795,7 @@ Block::BurrowsWheelerTransformData::prepare()
     if ( writeCount > 0 ) {
         writePos = dbuf[origPtr];
         writeCurrent = (unsigned char)writePos;
-        writePos >>= 8;
+        writePos >>= 8U;
         writeRun = -1;
     }
 }
@@ -816,7 +818,7 @@ Block::BurrowsWheelerTransformData::decodeBlock( const size_t nMaxBytesToDecode,
         const auto previous = writeCurrent;
         writePos = dbuf[writePos];
         writeCurrent = writePos & 0xff;
-        writePos >>= 8;
+        writePos >>= 8U;
 
         /* Whenever we see 3 consecutive copies of the same byte, the 4th is a repeat count */
         if ( writeRun < 3 ) {

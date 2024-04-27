@@ -304,7 +304,8 @@ public:
         }
 
         const auto& [lock, file] = m_sharedFileReader->underlyingFile();
-        const auto singlePassFileReader = dynamic_cast<SinglePassFileReader*>( file );
+        // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
+        auto* const singlePassFileReader = dynamic_cast<SinglePassFileReader*>( file );
         if ( singlePassFileReader != nullptr ) {
             singlePassFileReader->setMaxReusableChunkCount(
                 static_cast<size_t>(
@@ -346,7 +347,7 @@ public:
     {}
 #endif
 
-    ~ParallelGzipReader()
+    ~ParallelGzipReader() override
     {
         if ( m_showProfileOnDestruction && m_statisticsEnabled ) {
             std::cerr << "[ParallelGzipReader] Time spent:";
@@ -409,7 +410,7 @@ public:
         }
 
         const auto& [lock, file] = m_sharedFileReader->underlyingFile();
-        const auto singlePassFileReader = dynamic_cast<SinglePassFileReader*>( file );
+        auto* const singlePassFileReader = dynamic_cast<SinglePassFileReader*>( file );
         return singlePassFileReader == nullptr;
     }
 
@@ -480,6 +481,8 @@ public:
     }
 
     /* Simpler file reader interface for Python-interfacing */
+
+    // NOLINTBEGIN(misc-no-recursion)
 
     size_t
     read( const int    outputFileDescriptor = -1,
@@ -602,7 +605,8 @@ public:
             m_currentPosition += nBytesToDecode;
 
             const auto& [lock, file] = m_sharedFileReader->underlyingFile();
-            const auto singlePassFileReader = dynamic_cast<SinglePassFileReader*>( file );
+            // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
+            auto* const singlePassFileReader = dynamic_cast<SinglePassFileReader*>( file );
             if ( singlePassFileReader != nullptr ) {
                 /* Release only up to the beginning of the currently used chunk in order to theoretically enable
                  * to clear the full cache and then continue again. This effectively require a recomputation of
@@ -681,6 +685,8 @@ public:
         return tell();
     }
 
+    // NOLINTEND(misc-no-recursion)
+
     /* Block compression specific methods */
 
     [[nodiscard]] bool
@@ -712,7 +718,7 @@ public:
      * the caller to deep clone the index and WindowMap for, e.g., the setBlockOffsets API, which
      * destructively moves from the WindowMap.
      */
-    [[nodiscard]] const GzipIndex
+    [[nodiscard]] const GzipIndex  // NOLINT(readability-const-return-type)
     gzipIndex()
     {
         const auto offsets = blockOffsets();  // Also finalizes reading implicitly.
@@ -736,7 +742,7 @@ public:
             Checkpoint checkpoint;
             checkpoint.compressedOffsetInBits = compressedOffsetInBits;
             checkpoint.uncompressedOffsetInBytes = uncompressedOffsetInBytes;
-            index.checkpoints.emplace_back( std::move( checkpoint ) );
+            index.checkpoints.emplace_back( checkpoint );
         }
 
         index.windows = m_windowMap;
@@ -797,7 +803,7 @@ public:
 
 private:
     void
-    setBlockOffsets( std::map<size_t, size_t> offsets )
+    setBlockOffsets( const std::map<size_t, size_t>& offsets )
     {
         /**
          * @todo Join very small consecutive block offsets until it roughly reflects the chunk size?
@@ -820,7 +826,7 @@ private:
         if ( offsets.size() < 2 ) {
             throw std::invalid_argument( "Block offset map must contain at least one valid block and one EOS block!" );
         }
-        m_blockMap->setBlockOffsets( std::move( offsets ) );
+        m_blockMap->setBlockOffsets( offsets );
     }
 
 public:
@@ -900,7 +906,7 @@ public:
             throw std::invalid_argument( "Index has contradicting information for the file end information!" );
         }
 
-        setBlockOffsets( std::move( newBlockOffsets ) );
+        setBlockOffsets( newBlockOffsets );
 
         chunkFetcher().clearCache();
     }
@@ -1026,8 +1032,9 @@ public:
 
 private:
     BlockFinder&
-    blockFinder()
+    blockFinder()  // NOLINT(misc-no-recursion)
     {
+        /* This guard makes the warned-about recursion via setBlockFinderOffsets safe. */
         if ( m_blockFinder ) {
             return *m_blockFinder;
         }

@@ -104,7 +104,7 @@ public:
         }
     }
 
-    [[nodiscard]] virtual bool
+    [[nodiscard]] bool
     isSequential() const noexcept override
     {
         /* Returning true for the empty case and only one element or very few is desired behavior. */

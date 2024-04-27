@@ -44,7 +44,7 @@ public:
                                      || std::is_same_v<typename Container::value_type, std::byte> ) )
              >* = nullptr>
     constexpr
-    VectorView( const Container& vector ) noexcept :
+    VectorView( const Container& vector ) noexcept :  // NOLINT
         m_data( reinterpret_cast<const T*>( vector.data() ) ),
         m_size( vector.size() )
     {}
@@ -153,7 +153,7 @@ public:
     operator=( WeakVector&& ) = default;
 
     constexpr
-    WeakVector( std::vector<T>* vector ) noexcept :
+    WeakVector( std::vector<T>* vector ) noexcept :  // NOLINT
         m_data( vector->data() ),
         m_size( vector->size() )
     {}

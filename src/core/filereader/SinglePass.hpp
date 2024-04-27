@@ -30,7 +30,7 @@
  *
  * This class is not thread-safe. It should be wrapped inside SharedFileReader to make it so.
  */
-class SinglePassFileReader :
+class SinglePassFileReader final :
     public FileReader
 {
 public:
@@ -111,7 +111,7 @@ public:
         m_fileno( m_file ? m_file->fileno() : -1 )
     {}
 
-    ~SinglePassFileReader()
+    ~SinglePassFileReader() override
     {
         close();
     }

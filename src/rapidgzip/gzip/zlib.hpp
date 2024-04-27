@@ -149,8 +149,8 @@ public:
      * the gzip footer appearing after each deflate stream.
      */
     [[nodiscard]] std::pair<size_t, std::optional<Footer> >
-    readStream( uint8_t* const output,
-                size_t   const outputSize );
+    readStream( uint8_t* output,
+                size_t   outputSize );
 
     [[nodiscard]] size_t
     tellCompressed() const
@@ -498,7 +498,7 @@ getZlibWindowBits( FileType fileType,
 inline void
 ZlibInflateWrapper::readHeader()
 {
-    const auto oldNextOut = m_stream.next_out;
+    auto* const oldNextOut = m_stream.next_out;
 
     switch ( m_fileType )
     {

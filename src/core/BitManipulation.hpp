@@ -228,7 +228,7 @@ createReversedBitsLUT()
 {
     static_assert( std::is_unsigned_v<T> && std::is_integral_v<T> );
 
-    std::array<T, 1ULL << std::numeric_limits<T>::digits> result{};
+    std::array<T, 1ULL << static_cast<uint8_t>( std::numeric_limits<T>::digits )> result{};
     for ( size_t i = 0; i < result.size(); ++i ) {
         result[i] = reverseBitsWithoutLUT( static_cast<T>( i ) );
     }

@@ -74,7 +74,7 @@ private:
                     if ( ( p != nullptr ) && !p->closed() ) {
                         p->close();
                     }
-                    delete p;
+                    delete p;  // NOLINT(cppcoreguidelines-owning-memory)
                 }
             );
     }
@@ -85,7 +85,7 @@ public:
         SharedFileReader( file.release() )
     {}
 
-    ~SharedFileReader()
+    ~SharedFileReader() override
     {
         if ( m_statistics && m_statistics->showProfileOnDestruction && ( m_statistics.use_count() == 1 ) ) {
             const auto nTimesRead = m_fileSizeBytes
@@ -290,7 +290,7 @@ public:
 
             nMaxBytesToRead = std::min( nMaxBytesToRead, *fileSize - m_currentPosition );
             const auto nBytesReadWithPread = ::pread( sharedFile->fileno(), buffer, nMaxBytesToRead,
-                                                      m_currentPosition );
+                                                      m_currentPosition );  // NOLINT
             if ( ( nBytesReadWithPread == 0 ) && !m_fileSizeBytes.has_value() ) {
                 /* EOF reached. A lock should not be necessary because the file size should not change after EOF has
                  * has been reached but, as it will only be locked once, the performance overhead is negligible
@@ -466,7 +466,7 @@ ensureSharedFileReader( UniqueFileReader&& fileReader )
     }
 
     if ( auto* const casted = dynamic_cast<SharedFileReader*>( fileReader.get() ); casted != nullptr ) {
-        fileReader.release();
+        fileReader.release();  // NOLINT(bugprone-unused-return-value)
         return std::unique_ptr<SharedFileReader>( casted );
     }
 

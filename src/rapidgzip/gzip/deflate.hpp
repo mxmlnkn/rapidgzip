@@ -53,9 +53,7 @@
 #include "RFCTables.hpp"
 
 
-namespace rapidgzip
-{
-namespace deflate
+namespace rapidgzip::deflate
 {
 /**
  * @verbatim
@@ -351,6 +349,7 @@ createFixedHC()
 {
     std::array<uint8_t, MAX_LITERAL_OR_LENGTH_SYMBOLS + 2> encodedFixedHuffmanTree{};
     for ( size_t i = 0; i < encodedFixedHuffmanTree.size(); ++i ) {
+        // NOLINTBEGIN(bugprone-branch-clone)
         if ( i < 144 ) {
             encodedFixedHuffmanTree[i] = 8;
         } else if ( i < 256 ) {
@@ -360,6 +359,7 @@ createFixedHC()
         } else {
             encodedFixedHuffmanTree[i] = 8;
         }
+        // NOLINTEND(bugprone-branch-clone)
     }
 
     FixedHuffmanCoding result;
@@ -514,7 +514,7 @@ public:
  * with the last byte.
  */
 template<bool ENABLE_STATISTICS = false>
-class Block :
+class Block :  // NOLINT(cppcoreguidelines-pro-type-member-init)
     public BlockStatistics
 {
 public:
@@ -673,10 +673,10 @@ private:
 
     template<typename Window>
     forceinline void
-    resolveBackreference( Window&        window,
-                          const uint16_t distance,
-                          const uint16_t length,
-                          const size_t   nBytesRead );
+    resolveBackreference( Window&  window,
+                          uint16_t distance,
+                          uint16_t length,
+                          size_t   nBytesRead );
 
     template<typename Window>
     [[nodiscard]] std::pair<size_t, Error>
@@ -1383,7 +1383,7 @@ Block<ENABLE_STATISTICS>::readInternalUncompressed( BitReader& bitReader,
      * @endverbatim
      */
     uint32_t totalBytesRead{ 0 };
-    std::array<uint8_t, 64> buffer;
+    std::array<uint8_t, 64> buffer{};
     for ( ; totalBytesRead + buffer.size() <= m_uncompressedSize; totalBytesRead += buffer.size() ) {
         const auto nBytesRead = bitReader.read( reinterpret_cast<char*>( buffer.data() ), buffer.size() );
         for ( size_t i = 0; i < nBytesRead; ++i ) {
@@ -1501,7 +1501,7 @@ Block<ENABLE_STATISTICS>::readInternalCompressedMultiCached
             return { nBytesRead, Error::INVALID_HUFFMAN_CODE };
         }
 
-        for ( ; symbolCount > 0; symbolCount--, symbol >>= 8 ) {
+        for ( ; symbolCount > 0; symbolCount--, symbol >>= 8U ) {
             const auto code = static_cast<uint16_t>( symbol & 0xFFFFU );
 
             if ( ( code <= 255 ) || ( symbolCount > 1 ) ) {
@@ -1672,7 +1672,5 @@ Block<ENABLE_STATISTICS>::setInitialWindow( VectorView<uint8_t> const& initialWi
     m_windowPosition = 0;
 
     m_containsMarkerBytes = false;
-    return;
 }
-}  // namespace deflate
-}  // namespace rapidgzip
+}  // namespace rapidgzip::deflate

@@ -14,8 +14,6 @@
 #include <string>
 #include <utility>
 
-#include <sys/stat.h>
-
 #ifdef _MSC_VER
     #define NOMINMAX
     #include <Windows.h>
@@ -203,11 +201,14 @@ using unique_file_ptr = std::unique_ptr<std::FILE, std::function<void ( std::FIL
 inline unique_file_ptr
 make_unique_file_ptr( std::FILE* file )
 {
-    return unique_file_ptr( file, [] ( auto* ownedFile ) {
-                                if ( ownedFile != nullptr ) {
-                                    std::fclose( ownedFile );
-                                }
-                            } );
+    return {
+        file,
+        [] ( auto* ownedFile ) {
+            if ( ownedFile != nullptr ) {
+                std::fclose( ownedFile );  // NOLINT
+            }
+        }
+    };
 }
 
 
@@ -215,7 +216,7 @@ inline unique_file_ptr
 make_unique_file_ptr( char const* const filePath,
                       char const* const mode )
 {
-    return make_unique_file_ptr( std::fopen( filePath, mode ) );
+    return make_unique_file_ptr( std::fopen( filePath, mode ) );  // NOLINT
 }
 
 
@@ -607,7 +608,7 @@ pwriteAllToFd( const int         outputFileDescriptor,
         const auto nBytesWritten = ::pwrite( outputFileDescriptor,
                                              currentBufferPosition,
                                              dataToWriteSize - nTotalWritten,
-                                             fileOffset + nTotalWritten );
+                                             fileOffset + nTotalWritten );  // NOLINT
         if ( nBytesWritten <= 0 ) {
             std::stringstream message;
             message << "Unable to write all data to the given file descriptor. Wrote " << nTotalWritten << " out of "
@@ -626,7 +627,7 @@ writeAllToFdVector( const int                   outputFileDescriptor,
 {
     for ( size_t i = 0; i < dataToWrite.size(); ) {
         const auto segmentCount = std::min( static_cast<size_t>( IOV_MAX ), dataToWrite.size() - i );
-        auto nBytesWritten = ::writev( outputFileDescriptor, &dataToWrite[i], segmentCount );
+        auto nBytesWritten = ::writev( outputFileDescriptor, &dataToWrite[i], segmentCount );  // NOLINT
 
         if ( nBytesWritten < 0 ) {
             return errno;
@@ -635,7 +636,7 @@ writeAllToFdVector( const int                   outputFileDescriptor,
         /* Skip over buffers that were written fully. */
         for ( ; ( i < dataToWrite.size() ) && ( dataToWrite[i].iov_len <= static_cast<size_t>( nBytesWritten ) );
               ++i ) {
-            nBytesWritten -= dataToWrite[i].iov_len;
+            nBytesWritten -= dataToWrite[i].iov_len;  // NOLINT
         }
 
         /* Write out last partially written buffer if necessary so that we can resume full vectorized writing
@@ -645,7 +646,7 @@ writeAllToFdVector( const int                   outputFileDescriptor,
 
             assert( iovBuffer.iov_len < static_cast<size_t>( nBytesWritten ) );
             const auto remainingSize = iovBuffer.iov_len - nBytesWritten;
-            const auto remainingData = reinterpret_cast<char*>( iovBuffer.iov_base ) + nBytesWritten;
+            auto* const remainingData = reinterpret_cast<char*>( iovBuffer.iov_base ) + nBytesWritten;
             const auto errorCode = writeAllToFd( outputFileDescriptor, remainingData, remainingSize );
             if ( errorCode != 0 ) {
                 return errorCode;
@@ -709,7 +710,7 @@ public:
                 /* Opening an existing file and overwriting its data can be much slower because posix_fallocate
                  * can be relatively slow compared to the decoding speed and memory bandwidth! Note that std::fopen
                  * would open a file with O_TRUNC, deallocating all its contents before it has to be reallocated. */
-                m_fileDescriptor = ::open( filePath.c_str(), O_WRONLY );
+                m_fileDescriptor = ::open( filePath.c_str(), O_WRONLY );  // NOLINT
                 m_ownedFd = unique_file_descriptor( m_fileDescriptor );
             }
         #endif
@@ -726,11 +727,11 @@ public:
     }
 
     void
-    truncate( size_t size )
+    truncate( size_t size )  // NOLINT
     {
     #ifndef _MSC_VER
         if ( ( m_fileDescriptor != -1 ) && ( size < m_oldOutputFileSize ) ) {
-            if ( ::ftruncate( m_fileDescriptor, size ) == -1 ) {
+            if ( ::ftruncate( m_fileDescriptor, size ) == -1 ) {  // NOLINT
                 std::cerr << "[Error] Failed to truncate file because of: " << strerror( errno )
                           << " (" << errno << ")\n";
             }
@@ -770,7 +771,7 @@ private:
 };
 
 
-[[nodiscard]] std::ios_base::seekdir
+[[nodiscard]] inline std::ios_base::seekdir
 toSeekdir( int origin )
 {
     switch ( origin )
@@ -789,7 +790,7 @@ toSeekdir( int origin )
 }
 
 
-[[nodiscard]] const char*
+[[nodiscard]] inline const char*
 originToString( int origin )
 {
     switch ( origin )

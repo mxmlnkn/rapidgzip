@@ -31,7 +31,7 @@ namespace rapidgzip
 {
 template<typename T_FetchingStrategy,
          typename T_ChunkData = ChunkData>
-class GzipChunkFetcher :
+class GzipChunkFetcher final :
     public BlockFetcher<GzipBlockFinder, T_ChunkData, T_FetchingStrategy>
 {
 public:
@@ -107,8 +107,7 @@ public:
         }
     }
 
-    virtual
-    ~GzipChunkFetcher()
+    ~GzipChunkFetcher() override
     {
         m_cancelThreads = true;
         this->stopThreadPool();
@@ -705,7 +704,7 @@ public:
     decodeBlock( UniqueFileReader             && sharedFileReader,
                  size_t                    const blockOffset,
                  size_t                    const untilOffset,
-                 SharedWindow              const initialWindow,
+                 SharedWindow                    initialWindow,
                  std::optional<size_t>     const decodedSize,
                  std::atomic<bool>        const& cancelThreads,
                  ChunkConfiguration       const& chunkDataConfiguration,

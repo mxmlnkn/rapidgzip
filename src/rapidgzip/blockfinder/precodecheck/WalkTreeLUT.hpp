@@ -60,7 +60,7 @@ createPrecodeFrequenciesValidLUTHelper( LUT&                      result,
                                         uint32_t const            freeBits = 2 )
 {
     static_assert( DEPTH <= FREQUENCY_COUNT, "Cannot descend deeper than the frequency counts!" );
-    if ( ( histogram & nLowestBitsSet<uint64_t, ( DEPTH - 1 ) * FREQUENCY_BITS>() ) != histogram ) {
+    if ( ( histogram & nLowestBitsSet<uint64_t, ( DEPTH - 1U ) * FREQUENCY_BITS>() ) != histogram ) {
         throw std::invalid_argument( "Only frequency of bit-lengths less than the depth may be set!" );
     }
 

@@ -70,8 +70,8 @@ public:
      * the gzip footer appearing after each deflate stream.
      */
     [[nodiscard]] std::pair<size_t, std::optional<Footer> >
-    readStream( uint8_t* const output,
-                size_t   const outputSize );
+    readStream( uint8_t* output,
+                size_t   outputSize );
 
     [[nodiscard]] size_t
     tellCompressed() const
@@ -184,8 +184,8 @@ private:
 
     template<typename Header,
              typename GetHeader>
-    inline bool
-    readIsalHeader( Header* const    header,
+    bool
+    readIsalHeader( Header*          header,
                     const GetHeader& getHeader );
 
     [[nodiscard]] static std::string_view
@@ -522,7 +522,7 @@ inline bool
 IsalInflateWrapper::readIsalHeader( Header* const    header,
                                     const GetHeader& getHeader )
 {
-    const auto oldNextOut = m_stream.next_out;
+    auto* const oldNextOut = m_stream.next_out;
 
     refillBuffer();
     if ( !hasInput() ) {

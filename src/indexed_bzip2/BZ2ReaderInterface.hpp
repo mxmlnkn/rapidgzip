@@ -18,8 +18,7 @@ public:
     using WriteFunctor = std::function<void ( const void*, uint64_t )>;
 
 public:
-    virtual
-    ~BZ2ReaderInterface() = default;
+    ~BZ2ReaderInterface() override = default;
 
     [[nodiscard]] size_t
     read( char*  outputBuffer,
@@ -58,11 +57,11 @@ public:
 
     virtual size_t
     read( const WriteFunctor& writeFunctor,
-          const size_t        nBytesToRead = std::numeric_limits<size_t>::max() ) = 0;
+          size_t              nBytesToRead = std::numeric_limits<size_t>::max() ) = 0;
 
     /* BZip2 specific methods */
 
-    virtual bool
+    [[nodiscard]] virtual bool
     blockOffsetsComplete() const = 0;
 
     /**
@@ -78,7 +77,7 @@ public:
      * @return vectors of block data: offset in file, offset in decoded data
      *         (cumulative size of all prior decoded blocks).
      */
-    virtual std::map<size_t, size_t>
+    [[nodiscard]] virtual std::map<size_t, size_t>
     availableBlockOffsets() const = 0;
 
     virtual void
@@ -89,7 +88,7 @@ public:
      * @note Bzip2 is block based and blocks are currently read fully, meaning that the granularity
      *       of the returned position is ~100-900kB. It's only useful for a rough estimate.
      */
-    virtual size_t
+    [[nodiscard]] virtual size_t
     tellCompressed() const = 0;
 
     void

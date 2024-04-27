@@ -51,7 +51,7 @@ public:
         init();
     }
 
-    ~StandardFileReader()
+    ~StandardFileReader() override
     {
         StandardFileReader::close();
     }

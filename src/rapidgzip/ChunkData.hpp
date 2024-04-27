@@ -105,8 +105,8 @@ struct ChunkData :
 
     struct BlockBoundary
     {
-        size_t encodedOffset;
-        size_t decodedOffset;
+        size_t encodedOffset{ 0 };
+        size_t decodedOffset{ 0 };
 
         [[nodiscard]] bool
         operator==( const BlockBoundary& other ) const
@@ -200,6 +200,7 @@ public:
         setCRC32Enabled( configuration.crc32Enabled );
     }
 
+    ~ChunkData() = default;
     ChunkData() = default;
     ChunkData( ChunkData&& ) = default;
     ChunkData( const ChunkData& ) = delete;
@@ -427,9 +428,9 @@ public:
      * Appends generic footer information at the given offset.
      */
     void
-    appendFooter( ChunkData::Footer&& footer )
+    appendFooter( const ChunkData::Footer& footer )
     {
-        footers.emplace_back( std::move( footer ) );
+        footers.emplace_back( footer );
 
         const auto wasEnabled = crc32s.back().enabled();
         crc32s.emplace_back();
@@ -447,7 +448,7 @@ public:
         typename ChunkData::Footer footerResult;
         footerResult.blockBoundary = { encodedOffset, decodedOffset };
         footerResult.gzipFooter = footer;
-        appendFooter( std::move( footerResult ) );
+        appendFooter( footerResult );
     }
 
     /**
@@ -461,7 +462,7 @@ public:
         typename ChunkData::Footer footerResult;
         footerResult.blockBoundary = { encodedOffset, decodedOffset };
         footerResult.zlibFooter = footer;
-        appendFooter( std::move( footerResult ) );
+        appendFooter( footerResult );
     }
 
     /**
@@ -473,7 +474,7 @@ public:
     {
         typename ChunkData::Footer footerResult;
         footerResult.blockBoundary = { encodedOffset, decodedOffset };
-        appendFooter( std::move( footerResult ) );
+        appendFooter( footerResult );
     }
 
     void
@@ -522,7 +523,7 @@ public:
 
 protected:
     [[nodiscard]] std::vector<Subchunk>
-    split( [[maybe_unused]] const size_t spacing ) const;
+    split( size_t spacing ) const;
 
 public:
     size_t encodedOffsetInBits{ std::numeric_limits<size_t>::max() };
@@ -569,7 +570,7 @@ private:
 };
 
 
-std::ostream&
+inline std::ostream&
 operator<<( std::ostream&    out,
             const ChunkData& chunk )
 {
@@ -840,6 +841,7 @@ struct ChunkDataCounter final :
         };
     }
 
+    ~ChunkDataCounter() = default;
     ChunkDataCounter( ChunkDataCounter&& ) = default;
     ChunkDataCounter( const ChunkDataCounter& ) = delete;
     ChunkDataCounter& operator=( ChunkDataCounter&& ) = default;

@@ -77,7 +77,7 @@ public:
     BZ2Reader&
     operator=( BZ2Reader&& ) = delete;
 
-    ~BZ2Reader()
+    ~BZ2Reader() override
     {
         if ( m_showProfileOnDestruction ) {
             const auto& durations = m_statistics.durations;
@@ -293,7 +293,7 @@ private:
                   size_t              nMaxBytesToDecode = std::numeric_limits<size_t>::max() );
 
     BlockHeader
-    readBlockHeader( size_t bitsOffset );
+    readBlockHeader( size_t offsetBits );
 
 protected:
     void
@@ -333,7 +333,7 @@ private:
 };
 
 
-size_t
+inline size_t
 BZ2Reader::seek( long long int offset,
                  int           origin )
 {

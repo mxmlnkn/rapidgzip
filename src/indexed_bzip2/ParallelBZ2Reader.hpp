@@ -366,6 +366,7 @@ public:
         return m_blockMap->blockOffsets();
     }
 
+    // NOLINTBEGIN(misc-no-recursion)
     void
     setBlockOffsets( std::map<size_t, size_t> offsets ) override
     {
@@ -378,7 +379,7 @@ public:
         if ( offsets.size() < 2 ) {
             throw std::invalid_argument( "Block offset map must contain at least one valid block and one EOS block!" );
         }
-        m_blockMap->setBlockOffsets( std::move( offsets ) );
+        m_blockMap->setBlockOffsets( offsets );
     }
 
     /**
@@ -477,6 +478,7 @@ private:
 
         blockFinder().setBlockOffsets( std::move( encodedBlockOffsets ) );
     }
+    // NOLINTEND(misc-no-recursion)
 
 private:
     std::unique_ptr<SharedFileReader> m_sharedFileReader;

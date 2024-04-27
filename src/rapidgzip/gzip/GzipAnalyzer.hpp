@@ -31,7 +31,7 @@
 
 namespace rapidgzip::deflate
 {
-void
+inline void
 analyzeExtraString( std::string_view extra,
                     std::string_view prefix = "" )
 {
@@ -207,7 +207,7 @@ analyzeExtraString( std::string_view extra,
 }
 
 
-[[nodiscard]] rapidgzip::Error
+[[nodiscard]] inline rapidgzip::Error
 analyze( UniqueFileReader inputFile,
          const bool       verbose = false )
 {

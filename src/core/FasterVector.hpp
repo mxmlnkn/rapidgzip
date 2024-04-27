@@ -55,7 +55,7 @@ public:
 };
 
 
-void*
+inline void*
 rpmalloc_ensuring_initialization( size_t nBytes = 0 )
 {
     static const thread_local RpmallocThreadInit rpmallocThreadInit{};
@@ -97,13 +97,13 @@ public:
      * Defining it to true type should be necessary because the default implementation of
      * is_always_equal == is_empty should also be true because this class does not have any members. */
     [[nodiscard]] bool
-    operator==( const RpmallocAllocator& ) const
+    operator==( const RpmallocAllocator& /* unused */ ) const
     {
         return true;
     }
 
     [[nodiscard]] bool
-    operator!=( const RpmallocAllocator& ) const
+    operator!=( const RpmallocAllocator& /* unused */ ) const
     {
         return false;
     }
@@ -364,7 +364,7 @@ private:
         #endif
         #else
             /* > If ptr is a null pointer, the behavior is the same as calling std::malloc(new_size). */
-            m_data = static_cast<T*>( std::realloc( m_data, newCapacity * sizeof( T ) ) );
+            m_data = static_cast<T*>( std::realloc( m_data, newCapacity * sizeof( T ) ) );  // NOLINT
         #endif
         }
 
@@ -377,7 +377,7 @@ private:
     #ifdef WITH_RPMALLOC
         rpfree( m_data );
     #else
-        std::free( m_data );
+        std::free( m_data );  // NOLINT
     #endif
         m_data = nullptr;
     }

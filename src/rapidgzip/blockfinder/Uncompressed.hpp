@@ -57,7 +57,7 @@ seekToNonFinalUncompressedDeflateBlock( BitReader&   bitReader,
                 continue;
             }
 
-            const auto oldOffset = offset + 4U * BYTE_SIZE;
+            const auto oldOffset = offset + 4UL * BYTE_SIZE;
             assert( oldOffset == bitReader.tell() );
 
             /* This should happen rather rarely, at least for false positives. So, we can be a bit indulgent

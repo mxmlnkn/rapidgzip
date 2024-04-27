@@ -33,7 +33,7 @@ enum class CompressionType : uint8_t
 };
 
 
-[[nodiscard]] const char*
+[[nodiscard]] constexpr const char*
 toString( const CompressionType compressionType )
 {
     switch ( compressionType )

@@ -95,7 +95,7 @@ nextDeflateCandidate( uint32_t bits )
 template<uint8_t CACHED_BIT_COUNT,
          uint8_t MAX_CACHED_BIT_COUNT = CACHED_BIT_COUNT>
 constexpr void
-initializeMergedNextDeflateLUTs( std::array<uint8_t, ( 1U << MAX_CACHED_BIT_COUNT ) * 2U>& lut )
+initializeMergedNextDeflateLUTs( std::array<uint8_t, ( 1ULL << MAX_CACHED_BIT_COUNT ) * 2ULL>& lut )
 {
     constexpr auto size = 1U << CACHED_BIT_COUNT;
     constexpr auto offset = size;
@@ -121,7 +121,7 @@ initializeMergedNextDeflateLUTs( std::array<uint8_t, ( 1U << MAX_CACHED_BIT_COUN
 static constexpr auto NEXT_DEFLATE_CANDIDATE_LUTS_UP_TO_13_BITS =
     [] ()
     {
-        std::array<uint8_t, ( 1U << MAX_EVALUATED_BITS ) * 2U> result{};
+        std::array<uint8_t, ( 1ULL << MAX_EVALUATED_BITS ) * 2ULL> result{};
         initializeMergedNextDeflateLUTs<MAX_EVALUATED_BITS>( result );
         return result;
     }();

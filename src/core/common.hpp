@@ -194,13 +194,13 @@ endsWith( const S& fullString,
 }
 
 
-[[nodiscard]] std::vector<std::string_view>
+[[nodiscard]] inline std::vector<std::string_view>
 split( const std::string_view toSplit,
        const char             separator )
 {
     std::vector<std::string_view> result;
-    auto start = toSplit.begin();
-    for ( auto it = toSplit.begin(); it != toSplit.end(); ++it ) {
+    auto start = toSplit.begin();  // NOLINT(readability-qualified-auto)
+    for ( auto it = toSplit.begin(); it != toSplit.end(); ++it ) {  // NOLINT(readability-qualified-auto)
         if ( *it == separator ) {
             result.emplace_back( toSplit.data() + std::distance( toSplit.begin(), start ),
                                  std::distance( start, it ) );
@@ -498,8 +498,8 @@ testFlags( const uint64_t value,
  * is not a problem for building the manylinux wheels on the pre 10.15 macOS kernel. */
 #ifndef __APPLE_CC__
 inline void
-createRandomTextFile( std::filesystem::path path,
-                      uint64_t              size )
+createRandomTextFile( const std::filesystem::path& path,
+                      uint64_t                     size )
 {
     std::ofstream textFile( path );
     for ( uint64_t i = 0; i < size; ++i ) {
@@ -510,13 +510,13 @@ createRandomTextFile( std::filesystem::path path,
 
 
 inline void
-createRandomFile( std::filesystem::path path,
-                  uint64_t              size )
+createRandomFile( const std::filesystem::path& path,
+                  uint64_t                     size )
 {
     std::ofstream textFile( path );
 
     std::mt19937_64 randomEngine;
-    std::array<uint64_t, 4 * 1024> buffer;  // 32 KiB of buffer
+    std::array<uint64_t, 4ULL * 1024ULL> buffer{};  // 32 KiB of buffer
     for ( size_t nBytesWritten = 0; nBytesWritten < size; ) {
         for ( auto& x : buffer ) {
             x = randomEngine();
@@ -553,12 +553,12 @@ public:
         }
     }
 
-    operator std::filesystem::path() const
+    [[nodiscard]] operator std::filesystem::path() const
     {
         return m_path;
     }
 
-    const std::filesystem::path&
+    [[nodiscard]] const std::filesystem::path&
     path() const
     {
         return m_path;
@@ -579,6 +579,7 @@ createTemporaryDirectory( const std::string& title = "tmpTest" )
 #endif
 
 
+// NOLINTBEGIN(cppcoreguidelines-macro-usage)
 #if defined( __GNUC__ )
     #define LIKELY( x ) ( __builtin_expect( static_cast<bool>( x ), 1 ))
     #define UNLIKELY( x ) ( __builtin_expect( static_cast<bool>( x ), 0 ))
@@ -586,6 +587,7 @@ createTemporaryDirectory( const std::string& title = "tmpTest" )
     #define LIKELY( x ) ( x )
     #define UNLIKELY( x ) ( x )
 #endif
+// NOLINTEND(cppcoreguidelines-macro-usage)
 
 
 enum class Endian

@@ -120,7 +120,7 @@ public:
 };
 
 
-std::ostream&
+inline std::ostream&
 operator<<( std::ostream&    out,
             const GzipIndex& index )
 {
@@ -138,7 +138,7 @@ operator<<( std::ostream&    out,
 }
 
 
-void
+inline void
 checkedRead( FileReader* const indexFile,
              void*             buffer,
              size_t            size )
@@ -179,6 +179,7 @@ countDecompressedBytes( rapidgzip::BitReader           bitReader,
         using InflateWrapper = rapidgzip::ZlibInflateWrapper;
     #endif
 
+    // NOLINTNEXTLINE(performance-move-const-arg)
     InflateWrapper inflateWrapper( std::move( bitReader ), std::numeric_limits<size_t>::max() );
     inflateWrapper.setWindow( initialWindow );
 
@@ -546,7 +547,7 @@ writeGzipIndex( const GzipIndex&                                              in
     const auto writeValue = [&checkedWrite] ( auto value ) { checkedWrite( &value, sizeof( value ) ); };
 
     const auto& checkpoints = index.checkpoints;
-    const uint32_t windowSizeInBytes = static_cast<uint32_t>( 32_Ki );
+    const auto windowSizeInBytes = static_cast<uint32_t>( 32_Ki );
 
     if ( !std::all_of( checkpoints.begin(), checkpoints.end(), [&index, windowSizeInBytes] ( const auto& checkpoint ) {
                            const auto window = index.windows->get( checkpoint.compressedOffsetInBits );
@@ -558,7 +559,7 @@ writeGzipIndex( const GzipIndex&                                              in
 
     checkedWrite( "GZIDX", 5 );
     checkedWrite( /* format version */ "\x01", 1 );
-    checkedWrite( /* reserved flags */ "\x00", 1 );
+    checkedWrite( /* reserved flags */ "\x00", 1 );  // NOLINT(bugprone-string-literal-with-embedded-nul)
 
     /* The spacing is only used for decompression, so after reading a >full< index file, it should be irrelevant! */
     uint32_t checkpointSpacing = index.checkpointSpacing;

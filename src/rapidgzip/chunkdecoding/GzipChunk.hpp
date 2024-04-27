@@ -33,7 +33,7 @@
 namespace rapidgzip
 {
 template<typename T_ChunkData>
-class GzipChunk
+class GzipChunk final
 {
 public:
     using ChunkData = T_ChunkData;

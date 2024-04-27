@@ -65,6 +65,8 @@ public:
     }
 
     /** @note This overload is used for the tests but can also be useful for other things. */
+    /* False positive because of delegating constructor. */
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
     BitStringFinder( const char* buffer,
                      size_t      size,
                      uint64_t    bitStringToFind ) :

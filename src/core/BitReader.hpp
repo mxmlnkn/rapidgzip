@@ -38,7 +38,7 @@
  */
 template<bool MOST_SIGNIFICANT_BITS_FIRST,
          typename BitBuffer>
-class BitReader :
+class BitReader final :
     public FileReader
 {
 public:
@@ -131,13 +131,13 @@ public:
     /* File Reader Interface Implementation */
 
     [[nodiscard]] UniqueFileReader
-    clone() const override final
+    clone() const override
     {
         return std::make_unique<BitReader>( *this );
     }
 
     [[nodiscard]] bool
-    fail() const override final
+    fail() const override
     {
         throw std::logic_error( "Not implemented" );
     }
@@ -147,7 +147,7 @@ public:
      *       position and size instead of checking an internal (cached) flag!
      */
     [[nodiscard]] bool
-    eof() const override final
+    eof() const override
     {
         if ( const auto fileSize = size(); seekable() && fileSize.has_value() ) {
             return tell() >= *fileSize;
@@ -156,13 +156,13 @@ public:
     }
 
     [[nodiscard]] bool
-    seekable() const override final
+    seekable() const override
     {
         return !m_file || m_file->seekable();
     }
 
     void
-    close() override final
+    close() override
     {
         m_file.reset();
         m_inputBuffer.clear();
@@ -171,7 +171,7 @@ public:
     }
 
     [[nodiscard]] bool
-    closed() const override final
+    closed() const override
     {
         return !m_file && m_inputBuffer.empty();
     }
@@ -468,7 +468,7 @@ public:
      * @return current position / number of bits already read.
      */
     [[nodiscard]] size_t
-    tell() const override final
+    tell() const override
     {
         /* Initialize with the byte buffer position converted to bits. */
         size_t position = m_inputBufferPosition * CHAR_BIT;
@@ -500,7 +500,7 @@ public:
 
 public:
     [[nodiscard]] int
-    fileno() const override final
+    fileno() const override
     {
         if ( UNLIKELY( !m_file ) ) [[unlikely]] {
             throw std::invalid_argument( "The file is not open!" );
@@ -510,10 +510,10 @@ public:
 
     size_t
     seek( long long int offsetBits,
-          int           origin = SEEK_SET ) override final;
+          int           origin = SEEK_SET ) override;
 
     [[nodiscard]] std::optional<size_t>
-    size() const override final
+    size() const override
     {
         auto sizeInBytes = m_inputBuffer.size();
         if ( m_file ) {

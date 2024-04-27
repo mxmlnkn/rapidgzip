@@ -43,9 +43,11 @@ public:
                   const size_t       offsetInChunk = 0,
                   const size_t       size = std::numeric_limits<size_t>::max() ) :
             m_data( decodedData ),
-            m_size( size )
+            m_size( size ),
+            m_offsetInChunk( offsetInChunk )
         {
-            m_offsetInChunk = offsetInChunk;
+            /* Iterate over the chunks and decrease m_offsetInChunk by each chunk size until it validly points
+             * into m_currentChunk, i.e., is smaller than its size. */
             for ( m_currentChunk = 0; m_currentChunk < m_data.data.size(); ++m_currentChunk ) {
                 const auto& chunk = m_data.data[m_currentChunk];
                 if ( ( m_offsetInChunk < chunk.size() ) && !chunk.empty() ) {
@@ -292,7 +294,7 @@ DecodedData::append( DecodedDataView const& buffers )
 DecodedData::countMarkerSymbols() const
 {
     size_t result{ 0 };
-    for ( auto& chunk : dataWithMarkers ) {
+    for ( const auto& chunk : dataWithMarkers ) {
         result += std::count_if( chunk.begin(), chunk.end(),
                                  [] ( const uint16_t symbol ) { return ( symbol & 0xFF00U ) != 0; } );
     }
@@ -443,7 +445,7 @@ DecodedData::getWindowAt( WindowView const& previousWindow,
     const auto copyFromDataWithMarkers =
         [this, &offset, &prefilled, &window] ( const auto& mapMarker )
         {
-            for ( auto& chunk : dataWithMarkers ) {
+            for ( const auto& chunk : dataWithMarkers ) {
                 if ( prefilled >= window.size() ) {
                     break;
                 }
@@ -466,7 +468,7 @@ DecodedData::getWindowAt( WindowView const& previousWindow,
         copyFromDataWithMarkers( MapMarkers</* full window */ false>( previousWindow ) );
     }
 
-    for ( auto& chunk : data ) {
+    for ( const auto& chunk : data ) {
         if ( prefilled >= window.size() ) {
             break;
         }
@@ -534,7 +536,7 @@ toIoVec( const DecodedData& decodedData,
           static_cast<bool>( it ); ++it )
     {
         const auto& [data, size] = *it;
-        ::iovec buffer;
+        ::iovec buffer{};
         /* The const_cast should be safe because vmsplice and writev should not modify the input data. */
         buffer.iov_base = const_cast<void*>( reinterpret_cast<const void*>( data ) );;
         buffer.iov_len = size;
