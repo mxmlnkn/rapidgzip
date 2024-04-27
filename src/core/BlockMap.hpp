@@ -272,7 +272,7 @@ private:
         } else {
             const auto higherBlock = std::prev( /* reverse! */ blockOffset );
             if ( higherBlock->second < blockOffset->second ) {
-                std::logic_error( "Data offsets are not monotonically increasing!" );
+                throw std::logic_error( "Data offsets are not monotonically increasing!" );
             }
             result.decodedSizeInBytes = higherBlock->second - blockOffset->second;
             result.encodedSizeInBits = higherBlock->first - blockOffset->first;

@@ -544,7 +544,7 @@ private:
                 }, /* priority */ 0 );
             const auto [_, wasInserted] = m_prefetching.emplace( *prefetchBlockOffset, std::move( prefetchedFuture ) );
             if ( !wasInserted ) {
-                std::logic_error( "Submitted future could not be inserted to prefetch queue!" );
+                throw std::logic_error( "Submitted future could not be inserted to prefetch queue!" );
             }
         }
 

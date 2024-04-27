@@ -561,7 +561,7 @@ IsalInflateWrapper::getErrorString( int errorCode ) noexcept
     case ISAL_END_INPUT          /*  1 */ : return "End of input reached";
     case ISAL_OUT_OVERFLOW       /*  2 */ : return "End of output reached";
     case ISAL_NAME_OVERFLOW      /*  3 */ : return "End of gzip name buffer reached";
-    case ISAL_COMMENT_OVERFLOW   /*  4 */ : return "End of gzip name buffer reached";
+    case ISAL_COMMENT_OVERFLOW   /*  4 */ : return "End of gzip comment buffer reached";
     case ISAL_EXTRA_OVERFLOW     /*  5 */ : return "End of extra buffer reached";
     case ISAL_NEED_DICT          /*  6 */ : return "Stream needs a dictionary to continue";
     case ISAL_INVALID_BLOCK      /* -1 */ : return "Invalid deflate block found";
