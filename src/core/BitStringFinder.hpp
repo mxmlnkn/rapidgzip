@@ -36,7 +36,7 @@ public:
     using ShiftedLUTTable = std::vector<std::pair</* shifted value to compare to */ uint64_t, /* mask */ uint64_t> >;
 
 public:
-    BitStringFinder( BitStringFinder&& ) = default;
+    BitStringFinder( BitStringFinder&& ) noexcept = default;
 
     BitStringFinder( const BitStringFinder& other ) = delete;
 
@@ -44,7 +44,7 @@ public:
     operator=( const BitStringFinder& ) = delete;
 
     BitStringFinder&
-    operator=( BitStringFinder&& ) = delete;
+    operator=( BitStringFinder&& ) noexcept = delete;
 
     BitStringFinder( UniqueFileReader fileReader,
                      uint64_t         bitStringToFind,

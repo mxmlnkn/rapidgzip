@@ -104,10 +104,12 @@ public:
         }
     }
 
-    BitReader( BitReader&& other ) = default;
+    ~BitReader() override = default;
+
+    BitReader( BitReader&& other ) noexcept = default;
 
     BitReader&
-    operator=( BitReader&& other ) = default;
+    operator=( BitReader&& other ) noexcept = default;
 
     BitReader&
     operator=( const BitReader& other ) = delete;

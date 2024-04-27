@@ -144,13 +144,13 @@ public:
     WeakVector( const WeakVector& ) = default;
 
     constexpr
-    WeakVector( WeakVector&& ) = default;
+    WeakVector( WeakVector&& ) noexcept = default;
 
     constexpr WeakVector&
     operator=( const WeakVector& ) = default;
 
     constexpr WeakVector&
-    operator=( WeakVector&& ) = default;
+    operator=( WeakVector&& ) noexcept = default;
 
     constexpr
     WeakVector( std::vector<T>* vector ) noexcept :  // NOLINT

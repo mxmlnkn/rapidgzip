@@ -156,7 +156,7 @@ public:
         insert( end(), inputBegin, inputEnd );
     }
 
-    FasterVector( FasterVector&& other ) :
+    FasterVector( FasterVector&& other ) noexcept :
         m_data( other.m_data ),
         m_capacity( other.m_capacity ),
         m_size( other.m_size )
@@ -167,7 +167,7 @@ public:
     }
 
     FasterVector&
-    operator=( FasterVector&& other )
+    operator=( FasterVector&& other ) noexcept
     {
         m_data = other.m_data;
         m_capacity = other.m_capacity;
