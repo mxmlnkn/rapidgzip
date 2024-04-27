@@ -10,10 +10,14 @@ jobs:
 
     strategy:
       matrix:
-        os: [macos-13, ubuntu-latest]
+        os: [ubuntu-latest]
         # MacOS-14 suddenly does not build anymore and shows dumb errors such as:
         # /Users/runner/work/indexed_bzip2/indexed_bzip2/MacOSX10.9.sdk/usr/include/sys/_types.h:94:9:
         #   error: unknown type name '__int64_t'
+        # MacOS 12 and 13 ALSO suddenly do not build anymore because of:
+        # > ld: unsupported tapi file type '!tapi-tbd' in YAML file
+        # https://stackoverflow.com/questions/74318052/
+        #   cant-compile-fortran-on-macos-monterey-ld-unsupported-tapi-file-type-tapi-t
         # Windows builds fine, but suddenly returns with non-zero exit code in 7dafe65 even though
         # nothing changed. Maybe an issue with a new conda version. 3ca62ea did build just fine.
         #os: [macos-latest, ubuntu-latest, windows-latest]
