@@ -522,7 +522,7 @@ createRandomFile( const std::filesystem::path& path,
             x = randomEngine();
         }
         const auto nBytesToWrite = std::min<uint64_t>( buffer.size() * sizeof( buffer[0] ), size - nBytesWritten );
-        textFile.write( reinterpret_cast<const char*>( buffer.data() ), nBytesToWrite );
+        textFile.write( reinterpret_cast<const char*>( buffer.data() ), static_cast<std::streamsize>( nBytesToWrite ) );
         nBytesWritten += nBytesToWrite;
     }
 }

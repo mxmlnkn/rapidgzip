@@ -590,7 +590,7 @@ protected:
         m_threadPool.stop();
     }
 
-    template<class T_Functor>
+    template<class T_Functor, std::enable_if_t<std::is_invocable_v<T_Functor>, void>* = nullptr>
     std::future<decltype( std::declval<T_Functor>()() )>
     submitTaskWithHighPriority( T_Functor task )
     {

@@ -1084,7 +1084,7 @@ private:
     }
 
     void
-    setBlockFinderOffsets( const std::map<size_t, size_t>& offsets )
+    setBlockFinderOffsets( const std::map<size_t, size_t>& offsets )  // NOLINT(misc-no-recursion)
     {
         if ( offsets.empty() ) {
             throw std::invalid_argument( "A non-empty list of block offsets is required!" );

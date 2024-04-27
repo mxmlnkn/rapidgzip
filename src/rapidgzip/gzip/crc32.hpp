@@ -29,7 +29,7 @@ createCRC32LookupTable() noexcept
     for ( uint32_t n = 0; n < table.size(); ++n ) {
         auto c = static_cast<unsigned long int>( n );
         for ( int j = 0; j < 8; ++j ) {
-            if ( c & 1UL ) {
+            if ( ( c & 1UL ) != 0 ) {
                 c = CRC32_GENERATOR_POLYNOMIAL ^ ( c >> 1U );
             } else {
                 c >>= 1U;

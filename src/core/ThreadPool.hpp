@@ -11,6 +11,7 @@
 #include <numeric>
 #include <optional>
 #include <thread>
+#include <type_traits>
 #include <utility>
 #include <unordered_map>
 #include <vector>
@@ -78,10 +79,10 @@ private:
         };
 
     public:
-        template<class T_Functor>
+        template<class T_Functor, std::enable_if_t<std::is_invocable_v<T_Functor>, void>* = nullptr>
         explicit
         PackagedTaskWrapper( T_Functor&& functor ) :
-            m_impl( std::make_unique<SpecializedFunctor<T_Functor> >( std::move( functor ) ) )
+            m_impl( std::make_unique<SpecializedFunctor<T_Functor> >( std::forward<T_Functor>( functor ) ) )
         {}
 
         void
@@ -134,20 +135,20 @@ public:
      * @param priority Tasks are processed ordered by their priority, i.e., tasks with priority 0
      *        are processed only after all tasks with priority 0 have been processed.
      */
-    template<class T_Functor>
+    template<class T_Functor, std::enable_if_t<std::is_invocable_v<T_Functor>, void>* = nullptr>
     std::future<decltype( std::declval<T_Functor>()() )>
-    submit( T_Functor task,
-            int       priority = 0 )
+    submit( T_Functor&& task,
+            int         priority = 0 )
     {
         std::lock_guard lock( m_mutex );
 
         if ( m_threadCount == 0 ) {
-            return std::async( std::launch::deferred, std::move( task ) );
+            return std::async( std::launch::deferred, std::forward<T_Functor>( task ) );
         }
 
         /* Use a packaged task, which abstracts handling the return type and makes the task return void. */
         using ReturnType = decltype( std::declval<T_Functor>()() );
-        std::packaged_task<ReturnType()> packagedTask{ std::move( task ) };
+        std::packaged_task<ReturnType()> packagedTask{ std::forward<T_Functor>( task ) };
         auto resultFuture = packagedTask.get_future();
         m_tasks[priority].emplace_back( std::move( packagedTask ) );
 

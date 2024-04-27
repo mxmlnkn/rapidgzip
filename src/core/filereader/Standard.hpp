@@ -95,7 +95,7 @@ public:
     [[nodiscard]] bool
     fail() const override
     {
-        return std::ferror( fp() );
+        return std::ferror( fp() ) != 0;
     }
 
     [[nodiscard]] int

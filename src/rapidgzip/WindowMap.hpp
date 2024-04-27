@@ -24,13 +24,15 @@ public:
 
 public:
     WindowMap() = default;
+    ~WindowMap() = default;
+    WindowMap( WindowMap&& ) = delete;
+    WindowMap& operator=( WindowMap&& ) = delete;
+    WindowMap& operator=( const WindowMap& ) = delete;
 
     explicit
-    WindowMap( const WindowMap& other )
-    {
-        const auto [lock, windows] = other.data();
-        m_windows = *windows;
-    }
+    WindowMap( const WindowMap& other ) :
+        m_windows( *other.data().second )
+    {}
 
     void
     emplace( const size_t    encodedBlockOffset,

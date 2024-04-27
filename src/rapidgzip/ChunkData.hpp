@@ -662,7 +662,7 @@ ChunkData::split( [[maybe_unused]] const size_t spacing ) const
     BlockBoundary lastBoundary{ encodedOffsetInBits, 0 };
     /* The first and last boundaries are static, so we only need to find nBlocks - 1 further boundaries. */
     for ( size_t iSubchunk = 1; iSubchunk < nBlocks; ++iSubchunk ) {
-        const auto perfectDecompressedOffset = static_cast<size_t>( iSubchunk * perfectSpacing );
+        const auto perfectDecompressedOffset = static_cast<size_t>( static_cast<double>( iSubchunk ) * perfectSpacing );
 
         const auto isCloser =
             [perfectDecompressedOffset] ( const auto& b1, const auto& b2 )

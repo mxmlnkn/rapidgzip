@@ -100,11 +100,13 @@ getLength( uint16_t   code,
 {
     if ( code <= 264 ) {
         return code - 257U + 3U;
-    } else if ( code < 285 ) {
+    }
+    if ( code < 285 ) {
         code -= 261;
         const auto extraBits = code / 4;
         return calculateLength( code ) + bitReader.read( extraBits );
-    } else if ( code == 285 ) {
+    }
+    if ( code == 285 ) {
         return 258;
     }
 

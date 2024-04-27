@@ -182,9 +182,9 @@ BitStringFinder<bitStringSize>::findBitStrings( std::string_view const& buffer,
         {
             std::vector<char> result( bitStringtoConvertSize / CHAR_BIT );
             auto remainingSize = bitStringtoConvertSize;
-            for ( size_t i = 0; i < result.size(); ++i ) {
+            for ( auto& value : result ) {
                 remainingSize -= CHAR_BIT;
-                result[i] = static_cast<char>( ( bitStringToConvert >> remainingSize ) & 0xFFU );
+                value = static_cast<char>( ( bitStringToConvert >> remainingSize ) & 0xFFU );
             }
             return result;
         };

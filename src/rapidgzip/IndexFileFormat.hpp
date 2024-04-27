@@ -510,7 +510,8 @@ readGzipIndex( UniqueFileReader         indexFile,
                 processFuture();
             }
         } else {
-            index.windows->emplace( offset, std::move( *window ), CompressionType::NONE );
+            index.windows->emplaceShared(
+                offset, std::make_shared<WindowMap::Window>( std::move( *window ), CompressionType::NONE ) );
         }
     }
 

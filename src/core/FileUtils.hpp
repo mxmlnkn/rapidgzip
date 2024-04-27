@@ -576,8 +576,7 @@ writeAllToFd( const int         outputFileDescriptor,
               const uint64_t    dataToWriteSize )
 {
     for ( uint64_t nTotalWritten = 0; nTotalWritten < dataToWriteSize; ) {
-        const auto currentBufferPosition =
-            reinterpret_cast<const void*>( reinterpret_cast<uintptr_t>( dataToWrite ) + nTotalWritten );
+        const auto* const currentBufferPosition = reinterpret_cast<const uint8_t*>( dataToWrite ) + nTotalWritten;
 
         const auto nBytesToWritePerCall =
             static_cast<unsigned int>(
@@ -603,8 +602,7 @@ pwriteAllToFd( const int         outputFileDescriptor,
                const uint64_t    fileOffset )
 {
     for ( uint64_t nTotalWritten = 0; nTotalWritten < dataToWriteSize; ) {
-        const auto currentBufferPosition =
-            reinterpret_cast<const void*>( reinterpret_cast<uintptr_t>( dataToWrite ) + nTotalWritten );
+        const auto* const currentBufferPosition = reinterpret_cast<const uint8_t*>( dataToWrite ) + nTotalWritten;
         const auto nBytesWritten = ::pwrite( outputFileDescriptor,
                                              currentBufferPosition,
                                              dataToWriteSize - nTotalWritten,
