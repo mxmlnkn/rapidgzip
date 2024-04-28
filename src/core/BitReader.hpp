@@ -82,6 +82,12 @@ public:
         public BitReaderException
     {};
 
+    struct Statistics
+    {
+        size_t byteBufferRefillCount{ 0 };
+        size_t bitBufferRefillCount{ 0 };
+    };
+
 public:
     explicit
     BitReader( UniqueFileReader fileReader,
@@ -199,6 +205,7 @@ private:
     read2( bit_count_t bitsWanted )
     {
         const auto bitsInResult = bitBufferSize();
+        assert( bitsWanted >= bitsInResult );
         const auto bitsNeeded = bitsWanted - bitsInResult;
         BitBuffer bits{ 0 };
 
@@ -214,6 +221,10 @@ private:
                      & N_LOWEST_BITS_SET_LUT<BitBuffer>[bitBufferSize()];
         }
 
+        /* If the system endianness matches the BitReader endianness and the byte buffer contains enough bytes
+         * for the requested number of bits, then refill the whole bit buffer with one unaligned memory read.
+         * This makes the assumption that read2 is only ever called when all the current bit buffer bits are
+         * not enough. */
         if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST && ( ENDIAN == Endian::LITTLE ) ) {
             constexpr bit_count_t BYTES_WANTED = sizeof( BitBuffer );
             constexpr bit_count_t BITS_WANTED = sizeof( BitBuffer ) * CHAR_BIT;
@@ -227,12 +238,14 @@ private:
 
                 bits |= peekUnsafe( bitsNeeded ) << bitsInResult;
                 seekAfterPeek( bitsNeeded );
+
+                m_statistics.bitBufferRefillCount++;
                 return bits;
             }
         }
 
+        clearBitBuffer();
         try {
-            clearBitBuffer();
             fillBitBuffer();
         } catch ( const BufferNeedsToBeRefilled& ) {
             refillBuffer();
@@ -514,10 +527,10 @@ public:
         return m_bufferRefillSize;
     }
 
-    [[nodiscard]] constexpr uint64_t
-    bufferRefillCount() const
+    [[nodiscard]] constexpr Statistics
+    statistics() const
     {
-        return m_bufferRefillCount;
+        return m_statistics;
     }
 
 private:
@@ -552,7 +565,7 @@ private:
         m_inputBuffer.resize( nBytesRead );
         m_inputBufferPosition = 0;
 
-        m_bufferRefillCount++;
+        m_statistics.byteBufferRefillCount++;
     }
 
     /**
@@ -673,6 +686,8 @@ private:
                  */
             }
         }
+
+        m_statistics.bitBufferRefillCount++;
     }
 
     [[nodiscard]] forceinline BitBuffer
@@ -719,7 +734,7 @@ private:
     size_t m_inputBufferPosition = 0;  /** stores current position of first valid byte in buffer */
 
     /* Performance profiling metrics. */
-    size_t m_bufferRefillCount{ 0 };
+    Statistics m_statistics;
 
 public:
     /**
