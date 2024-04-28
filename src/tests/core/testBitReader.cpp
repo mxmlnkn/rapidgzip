@@ -348,6 +348,151 @@ testLSBBitReaderPeek()
 }
 
 
+template<bool     MOST_SIGNIFICANT_BITS_FIRST,
+         typename BitBuffer>
+void
+testSequentialReading( const size_t nBitsToReadPerCall )
+{
+    const auto bufferSize = 128_Ki;
+    const size_t fileSize = 4 * bufferSize + 1;
+    const std::vector<char> fileContents( fileSize, 0 );
+    BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer> bitReader(
+        std::make_unique<BufferedFileReader>( fileContents ), bufferSize );
+
+    for ( size_t i = 0; i + nBitsToReadPerCall <= fileSize * CHAR_BIT; i += nBitsToReadPerCall ) {
+        REQUIRE_EQUAL( bitReader.tell(), i );
+        REQUIRE( !bitReader.eof() );
+        REQUIRE_EQUAL( bitReader.read( nBitsToReadPerCall ), uint64_t( 0 ) );
+    }
+
+    if ( const auto remainingBits = ( fileSize * CHAR_BIT ) % nBitsToReadPerCall; remainingBits > 0 ) {
+        REQUIRE_EQUAL( bitReader.read( remainingBits ), uint64_t( 0 ) );
+    }
+
+    REQUIRE_EQUAL( bitReader.tell(), fileSize * CHAR_BIT );
+    REQUIRE( bitReader.eof() );
+}
+
+
+enum class FastPath
+{
+    BIT_BUFFER_SEEK,
+    ALIGNED_BYTE_BUFFER_SEEK,
+    NON_ALIGNED_BYTE_BUFFER_SEEK,
+    NON_ALIGNED_BYTE_BUFFER_SEEK_CLOSE_TO_BUFFER_END,
+};
+
+
+template<bool     MOST_SIGNIFICANT_BITS_FIRST,
+         typename BitBuffer,
+         FastPath FAST_PATH>
+void
+testBufferSeekingFastPaths()
+{
+    const auto bufferSize = 1_Ki;
+    const size_t fileSize = 2 * bufferSize;
+    const std::vector<char> fileContents( fileSize, 0 );
+
+    BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer> bitReader(
+        std::make_unique<BufferedFileReader>( fileContents ), bufferSize );
+
+    /* This will trigger the first bit and byte buffer refill, after which we can test the optimized fast paths. */
+    REQUIRE_EQUAL( bitReader.read( 1 ), 0U );
+    REQUIRE_EQUAL( bitReader.statistics().bitBufferRefillCount, 1U );
+    REQUIRE_EQUAL( bitReader.statistics().byteBufferRefillCount, 1U );
+
+    switch( FAST_PATH )
+    {
+    case FastPath::BIT_BUFFER_SEEK:
+    {
+        /* Seek forward inside the bit buffer. */
+        REQUIRE_EQUAL( bitReader.seek( 2 ), 2U );
+        REQUIRE_EQUAL( bitReader.statistics().bitBufferRefillCount, 1U );
+        REQUIRE_EQUAL( bitReader.statistics().byteBufferRefillCount, 1U );
+
+        REQUIRE_EQUAL( bitReader.seek( 0 ), 0U );
+        REQUIRE_EQUAL( bitReader.statistics().bitBufferRefillCount, 1U );
+        REQUIRE_EQUAL( bitReader.statistics().byteBufferRefillCount, 1U );
+
+        break;
+    }
+    /* A seek inside the byte buffer clears the bit buffer and if and only if bit-alignment is necessary,
+     * the seek will internally delegate to reading bits, which may also refill the byte buffer! */
+    case FastPath::ALIGNED_BYTE_BUFFER_SEEK:
+    {
+        /* Byte-aligned offset inside the byte buffer will not refill the bit buffer on seek and therefore
+         * will also not refill the byte buffer. */
+        const auto byteAlignedOffset = bufferSize / 2 * CHAR_BIT;
+        bitReader.seek( byteAlignedOffset );
+        REQUIRE_EQUAL( bitReader.statistics().bitBufferRefillCount, 1U );
+        REQUIRE_EQUAL( bitReader.statistics().byteBufferRefillCount, 1U );
+        REQUIRE_EQUAL( bitReader.tell(), byteAlignedOffset );
+
+        /* Because the bit buffer has not been refilled, this read will also refill the bit buffer. */
+        REQUIRE_EQUAL( bitReader.read( 1 ), 0U );
+        REQUIRE_EQUAL( bitReader.statistics().bitBufferRefillCount, 2U );
+        REQUIRE_EQUAL( bitReader.statistics().byteBufferRefillCount, 2U );  /** @todo should be 1! */
+        REQUIRE_EQUAL( bitReader.tell(), byteAlignedOffset + 1 );
+
+        break;
+    }
+    case FastPath::NON_ALIGNED_BYTE_BUFFER_SEEK:
+    {
+        /* Non-byte-aligned offset inside the byte buffer will refill the bit buffer, but if we are far enough
+         * (as much as the full bit buffer can hold) from the byte buffer end, will not refill the byte buffer. */
+        const auto nonByteAlignedOffset = ( bufferSize - sizeof( BitBuffer ) ) * CHAR_BIT - 1;
+        bitReader.seek( nonByteAlignedOffset );
+        REQUIRE_EQUAL( bitReader.statistics().bitBufferRefillCount, 2U );
+        REQUIRE_EQUAL( bitReader.statistics().byteBufferRefillCount, 2U );  /** @todo should be 1! */
+        REQUIRE_EQUAL( bitReader.tell(), nonByteAlignedOffset );
+
+        /* Because the bit buffer has been refilled, this read will have no side effects nothing. */
+        REQUIRE_EQUAL( bitReader.read( 1 ), 0U );
+        REQUIRE_EQUAL( bitReader.statistics().bitBufferRefillCount, 2U );
+        REQUIRE_EQUAL( bitReader.statistics().byteBufferRefillCount, 2U );  /** @todo should be 1! */
+        REQUIRE_EQUAL( bitReader.tell(), nonByteAlignedOffset + 1 );
+
+        break;
+    }
+    case FastPath::NON_ALIGNED_BYTE_BUFFER_SEEK_CLOSE_TO_BUFFER_END:
+    {
+        /* Non-byte-aligned offset inside the byte buffer will refill the bit buffer, and if there are not enough
+         * bytes to refill the bit buffer wholly, will trigger a byte buffer refill! */
+        const auto nonByteAlignedOffset = ( bufferSize - sizeof( BitBuffer ) + 1 ) * CHAR_BIT + 1;
+        bitReader.seek( nonByteAlignedOffset );
+        REQUIRE_EQUAL( bitReader.statistics().bitBufferRefillCount, 2U );
+        REQUIRE_EQUAL( bitReader.statistics().byteBufferRefillCount, 2U );
+        REQUIRE_EQUAL( bitReader.tell(), nonByteAlignedOffset );
+
+        /* Because the bit buffer has been refilled, this read will have no side effects nothing. */
+        REQUIRE_EQUAL( bitReader.read( 1 ), 0U );
+        REQUIRE_EQUAL( bitReader.statistics().bitBufferRefillCount, 2U );
+        REQUIRE_EQUAL( bitReader.statistics().byteBufferRefillCount, 2U );
+        REQUIRE_EQUAL( bitReader.tell(), nonByteAlignedOffset + 1 );
+
+        break;
+    }
+    }
+}
+
+
+template<bool     MOST_SIGNIFICANT_BITS_FIRST,
+         typename BitBuffer = uint64_t>
+void
+testBitReader()
+{
+    for ( const auto nBitsToReadPerCall : { 1, 2, 3, 15, 16, 31, 32, 48, 63 } ) {
+        testSequentialReading<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>( nBitsToReadPerCall );
+    }
+
+    testBufferSeekingFastPaths<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, FastPath::BIT_BUFFER_SEEK>();
+    testBufferSeekingFastPaths<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, FastPath::ALIGNED_BYTE_BUFFER_SEEK>();
+    testBufferSeekingFastPaths<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer, FastPath::NON_ALIGNED_BYTE_BUFFER_SEEK>();
+    testBufferSeekingFastPaths<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer,
+                               FastPath::NON_ALIGNED_BYTE_BUFFER_SEEK_CLOSE_TO_BUFFER_END>();
+}
+
+
 int
 main()
 {
@@ -355,6 +500,9 @@ main()
     testLSBBitReader();
     testMSBBitReaderPeek();
     testLSBBitReaderPeek();
+
+    testBitReader<true>();
+    testBitReader<false>();
 
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
 
