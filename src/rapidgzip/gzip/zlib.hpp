@@ -108,9 +108,9 @@ public:
 
 public:
     explicit
-    ZlibInflateWrapper( BitReader    bitReader,
+    ZlibInflateWrapper( BitReader    bitReader,  // NOLINT(performance-unnecessary-value-param)
                         const size_t untilOffset = std::numeric_limits<size_t>::max() ) :
-        m_bitReader( std::move( bitReader ) ),
+        m_bitReader( std::move( bitReader ) ),  // NOLINT(performance-move-const-arg)
         m_encodedStartOffset( m_bitReader.tell() ),
         m_encodedUntilOffset(
             [untilOffset] ( const auto& size ) {

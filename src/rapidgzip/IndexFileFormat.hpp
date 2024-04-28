@@ -169,8 +169,8 @@ readValue( FileReader* const file )
 
 namespace bgzip
 {
-[[nodiscard]] size_t
-countDecompressedBytes( rapidgzip::BitReader           bitReader,
+[[nodiscard]] inline size_t
+countDecompressedBytes( rapidgzip::BitReader           bitReader,  // NOLINT(performance-unnecessary-value-param)
                         VectorView<std::uint8_t> const initialWindow )
 {
     #ifdef WITH_ISAL
@@ -329,6 +329,7 @@ readGzipIndex( UniqueFileReader         indexFile,
         rapidgzip::BitReader bitReader( sharedArchiveFile->clone() );
         bitReader.seekTo( index.checkpoints.back().compressedOffsetInBits );
         index.uncompressedSizeInBytes = index.checkpoints.back().uncompressedOffsetInBytes
+                                        // NOLINTNEXTLINE(performance-move-const-arg)
                                         + countDecompressedBytes( std::move( bitReader ), {} );
     } catch ( const std::invalid_argument& ) {
         throw std::invalid_argument( "Unable to read from the last given offset in the index!" );
