@@ -109,18 +109,18 @@ public:
     CompressedVector( Container&&           toCompress,
                       const CompressionType compressionType ) :
         m_compressionType( compressionType ),
+        m_decompressedSize( toCompress.size() ),
         m_data( compressionType == CompressionType::NONE
                 ? std::make_shared<Container>( std::move( toCompress ) )
-                : std::make_shared<Container>( compress<Container>( toCompress, compressionType ) ) ),
-        m_decompressedSize( toCompress.size() )
+                : std::make_shared<Container>( compress<Container>( toCompress, compressionType ) ) )
     {}
 
     explicit
     CompressedVector( const VectorView<typename Container::value_type> toCompress,
                       const CompressionType                            compressionType ) :
         m_compressionType( compressionType ),
-        m_data( std::make_shared<Container>( compress<Container>( toCompress, compressionType ) ) ),
-        m_decompressedSize( toCompress.size() )
+        m_decompressedSize( toCompress.size() ),
+        m_data( std::make_shared<Container>( compress<Container>( toCompress, compressionType ) ) )
     {}
 
     [[nodiscard]] CompressionType
@@ -209,7 +209,7 @@ public:
 
 private:
     CompressionType m_compressionType{ CompressionType::GZIP };
-    std::shared_ptr<const Container> m_data;
     size_t m_decompressedSize{ 0 };
+    std::shared_ptr<const Container> m_data;
 };
 

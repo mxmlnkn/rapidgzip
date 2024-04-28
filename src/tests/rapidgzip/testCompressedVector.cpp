@@ -23,10 +23,10 @@ testEmptyCompressedVector()
 }
 
 void
-testCompressedVector()
+testCompressedVector( CompressionType compressionType )
 {
     const std::vector<uint8_t> toCompress = { 0, 0, 0, 1, 1, 1 };
-    CompressedVector<std::vector<uint8_t> > vector( std::vector<uint8_t>( toCompress ), CompressionType::GZIP );
+    CompressedVector<std::vector<uint8_t> > vector( std::vector<uint8_t>( toCompress ), compressionType );
     REQUIRE( !vector.empty() );
     REQUIRE( !vector.compressedData()->empty() );
     REQUIRE_EQUAL( *vector.decompress(), toCompress );
@@ -45,7 +45,8 @@ int
 main()
 {
     testEmptyCompressedVector();
-    testCompressedVector();
+    testCompressedVector( CompressionType::NONE );
+    testCompressedVector( CompressionType::GZIP );
 
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
 

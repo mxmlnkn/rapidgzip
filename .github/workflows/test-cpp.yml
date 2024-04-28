@@ -10,6 +10,9 @@ jobs:
   Code-Coverage:
     name: Code Coverage
     runs-on: ubuntu-22.04
+    # Suddenly, the upload to codecov does not work anymore and times out after 6 hours -.-.
+    # It's not like I used it much anyway, except to have a badge.
+    if: false
     steps:
     - uses: actions/checkout@v4
       with:
