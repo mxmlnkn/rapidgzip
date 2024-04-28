@@ -431,7 +431,7 @@ testBufferSeekingFastPaths()
         /* Because the bit buffer has not been refilled, this read will also refill the bit buffer. */
         REQUIRE_EQUAL( bitReader.read( 1 ), 0U );
         REQUIRE_EQUAL( bitReader.statistics().bitBufferRefillCount, 2U );
-        REQUIRE_EQUAL( bitReader.statistics().byteBufferRefillCount, 2U );  /** @todo should be 1! */
+        REQUIRE_EQUAL( bitReader.statistics().byteBufferRefillCount, 1U );
         REQUIRE_EQUAL( bitReader.tell(), byteAlignedOffset + 1 );
 
         break;
@@ -443,13 +443,13 @@ testBufferSeekingFastPaths()
         const auto nonByteAlignedOffset = ( bufferSize - sizeof( BitBuffer ) ) * CHAR_BIT - 1;
         bitReader.seek( nonByteAlignedOffset );
         REQUIRE_EQUAL( bitReader.statistics().bitBufferRefillCount, 2U );
-        REQUIRE_EQUAL( bitReader.statistics().byteBufferRefillCount, 2U );  /** @todo should be 1! */
+        REQUIRE_EQUAL( bitReader.statistics().byteBufferRefillCount, 1U );
         REQUIRE_EQUAL( bitReader.tell(), nonByteAlignedOffset );
 
         /* Because the bit buffer has been refilled, this read will have no side effects nothing. */
         REQUIRE_EQUAL( bitReader.read( 1 ), 0U );
         REQUIRE_EQUAL( bitReader.statistics().bitBufferRefillCount, 2U );
-        REQUIRE_EQUAL( bitReader.statistics().byteBufferRefillCount, 2U );  /** @todo should be 1! */
+        REQUIRE_EQUAL( bitReader.statistics().byteBufferRefillCount, 1U );
         REQUIRE_EQUAL( bitReader.tell(), nonByteAlignedOffset + 1 );
 
         break;

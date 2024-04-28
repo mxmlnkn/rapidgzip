@@ -883,7 +883,7 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
         }
 
         /* Seek forward inside byte buffer. */
-        if ( tellBuffer() + relativeOffsets <= m_inputBuffer.size() ) {
+        if ( tellBuffer() + relativeOffsets <= m_inputBuffer.size() * CHAR_BIT ) {
             auto stillToSeek = relativeOffsets - bitBufferSize();
             clearBitBuffer();
 
