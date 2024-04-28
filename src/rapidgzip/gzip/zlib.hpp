@@ -174,7 +174,7 @@ private:
          * > The number of unused bits may in general be greater than seven, except when bit 7 of
          * > data_type is set, in which case the number of unused bits will be less than eight.
          * @see https://github.com/madler/zlib/blob/09155eaa2f9270dc4ed1fa13e2b4b2613e6e4851/zlib.h#L443C22-L444C66 */
-        return m_stream.avail_in * BYTE_SIZE + ( m_stream.data_type & 0b11'1111U );
+        return m_stream.avail_in * BYTE_SIZE + ( static_cast<uint32_t>( m_stream.data_type ) & 0b11'1111U );
     }
 
     template<size_t SIZE>
@@ -270,13 +270,13 @@ ZlibInflateWrapper::refillBuffer()
     if ( m_bitReader.tell() % BYTE_SIZE != 0 ) {
         /* This might be called at the very first refillBuffer call when it does not start on a byte-boundary. */
         const auto nBitsToPrime = BYTE_SIZE - ( m_bitReader.tell() % BYTE_SIZE );
-        if ( inflatePrime( &m_stream, nBitsToPrime, m_bitReader.read( nBitsToPrime ) ) != Z_OK ) {
+        if ( inflatePrime( &m_stream, int( nBitsToPrime ), int( m_bitReader.read( nBitsToPrime ) ) ) != Z_OK ) {
             throw std::runtime_error( "InflatePrime failed!" );
         }
         assert( m_bitReader.tell() % BYTE_SIZE == 0 );
     } else if ( const auto remainingBits = m_encodedUntilOffset - m_bitReader.tell(); remainingBits < BYTE_SIZE ) {
         /* This might be called at the very last refillBuffer call, when it does not end on a byte-boundary. */
-        if ( inflatePrime( &m_stream, remainingBits, m_bitReader.read( remainingBits ) ) != Z_OK ) {
+        if ( inflatePrime( &m_stream, int( remainingBits ), int( m_bitReader.read( remainingBits ) ) ) != Z_OK ) {
             throw std::runtime_error( "InflatePrime failed!" );
         }
         return;

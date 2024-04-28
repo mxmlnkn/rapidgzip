@@ -426,7 +426,7 @@ private:
                         shrinkBitBuffer();
 
                         if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
-                            m_bitBuffer >>= MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize;
+                            m_bitBuffer >>= static_cast<uint8_t>( MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize );
                         }
                     }
 
@@ -629,7 +629,7 @@ private:
                  * in time m_originalBitBufferSize >= bitBufferSize() should be true!
                  * Run unit tests in debug mode to ensure that the assert won't be triggered. */
                 // NOLINTNEXTLINE(clang-analyzer-core.uninitialized.Assign)
-                m_bitBuffer >>= MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize;
+                m_bitBuffer >>= static_cast<uint8_t>( MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize );
             }
         }
 
@@ -654,7 +654,7 @@ private:
                 /* Move LSB bits (which are filled left-to-right) to the left if so necessary
                  * so that the format is the same as for MSB bits! */
                 if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
-                    m_bitBuffer <<= MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize;
+                    m_bitBuffer <<= static_cast<uint8_t>( MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize );
                 }
             }
 
@@ -672,7 +672,7 @@ private:
             }
 
             if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
-                m_bitBuffer <<= CHAR_BIT;
+                m_bitBuffer <<= static_cast<uint8_t>( CHAR_BIT );
                 m_bitBuffer |= static_cast<BitBuffer>( m_inputBuffer[m_inputBufferPosition++] );
             } else {
                 m_bitBuffer |= ( static_cast<BitBuffer>( m_inputBuffer[m_inputBufferPosition++] )

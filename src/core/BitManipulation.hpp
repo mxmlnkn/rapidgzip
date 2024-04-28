@@ -40,8 +40,8 @@ byteSwap( uint32_t value )
 [[nodiscard]] constexpr uint16_t
 byteSwap( uint16_t value )
 {
-    value = ( ( value & uint16_t( 0x00FFU ) ) << 8U ) | ( ( value & uint16_t( 0xFF00U ) ) >> 8U );
-    return value;
+    return static_cast<uint16_t>( ( ( static_cast<uint32_t>( value ) & 0x00FFU ) << 8U ) |
+                                  ( ( static_cast<uint32_t>( value ) & 0xFF00U ) >> 8U ) );
 }
 
 
@@ -67,7 +67,7 @@ nLowestBitsSet( uint8_t nBitsSet )
     if ( nBitsSet >= std::numeric_limits<T>::digits ) {
         return static_cast<T>( ~T( 0 ) );
     }
-    const auto nZeroBits = std::max( 0, std::numeric_limits<T>::digits - nBitsSet );
+    const auto nZeroBits = static_cast<uint8_t>( std::max( 0, std::numeric_limits<T>::digits - nBitsSet ) );
     return static_cast<T>( static_cast<T>( ~T( 0 ) ) >> nZeroBits );
 }
 
@@ -82,7 +82,7 @@ nLowestBitsSet()
     } else if constexpr ( nBitsSet >= std::numeric_limits<T>::digits ) {
         return static_cast<T>( ~T( 0 ) );
     } else {
-        const auto nZeroBits = std::max( 0, std::numeric_limits<T>::digits - nBitsSet );
+        const auto nZeroBits = static_cast<uint8_t>( std::max( 0, std::numeric_limits<T>::digits - nBitsSet ) );
         return static_cast<T>( static_cast<T>( ~T( 0 ) ) >> nZeroBits );
     }
 }
@@ -111,7 +111,7 @@ nHighestBitsSet( uint8_t nBitsSet )
     if ( nBitsSet >= std::numeric_limits<T>::digits ) {
         return static_cast<T>( ~T( 0 ) );
     }
-    const auto nZeroBits = std::max( 0, std::numeric_limits<T>::digits - nBitsSet );
+    const auto nZeroBits = static_cast<uint8_t>( std::max( 0, std::numeric_limits<T>::digits - nBitsSet ) );
     return static_cast<T>( static_cast<T>( ~T( 0 ) ) << nZeroBits );
 }
 
@@ -150,9 +150,10 @@ reverseBitsWithoutLUT( uint8_t data )
     /* Reverse bits using bit-parallelism in a recursive fashion, i.e., first swap every bit with its neighbor,
      * then swap each half nibble with its neighbor, then each nibble. */
     constexpr std::array<uint8_t, 3> masks = { 0b0101'0101U, 0b0011'0011U, 0b0000'1111U };
-    for ( uint8_t i = 0; i < masks.size(); ++i ) {
-        data = ( ( data &  masks[i] ) << ( 1U << i ) ) |
-               ( ( data & ~masks[i] ) >> ( 1U << i ) );
+    for ( size_t i = 0; i < masks.size(); ++i ) {
+        const uint32_t mask{ masks[i] };
+        data = static_cast<uint8_t>( ( ( uint32_t( data ) &  mask ) << ( 1U << i ) ) |
+                                     ( ( uint32_t( data ) & ~mask ) >> ( 1U << i ) ) );
     }
     return data;
 }
@@ -169,9 +170,10 @@ reverseBitsWithoutLUT( uint16_t data )
         0b0000'1111'0000'1111U,
         0b0000'0000'1111'1111U,
     };
-    for ( uint8_t i = 0; i < masks.size(); ++i ) {
-        data = ( ( data &  masks[i] ) << ( 1U << i ) ) |
-               ( ( data & ~masks[i] ) >> ( 1U << i ) );
+    for ( size_t i = 0; i < masks.size(); ++i ) {
+        const uint32_t mask{ masks[i] };
+        data = static_cast<uint16_t>( ( ( uint32_t( data ) &  mask ) << ( 1U << i ) ) |
+                                      ( ( uint32_t( data ) & ~mask ) >> ( 1U << i ) ) );
     }
     return data;
 }
@@ -189,7 +191,7 @@ reverseBitsWithoutLUT( uint32_t data )
         0b0000'0000'1111'1111'0000'0000'1111'1111U,
         0b0000'0000'0000'0000'1111'1111'1111'1111U,
     };
-    for ( uint8_t i = 0; i < masks.size(); ++i ) {
+    for ( size_t i = 0; i < masks.size(); ++i ) {
         data = ( ( data &  masks[i] ) << ( 1U << i ) ) |
                ( ( data & ~masks[i] ) >> ( 1U << i ) );
     }
@@ -214,7 +216,7 @@ reverseBitsWithoutLUT( uint64_t data )
     /* Using godbolt, shows that both gcc 8.6 and clang will unroll this loop! Clang 13 seems to produce even shorter
      * code by somehow skipping word and dword swaps, maybe implementing those via moves instead. Both, evaluate
      * the 1U << i and ~masks[i] expressions at compile-time. Note that ~mask is -mask on two's-complement platforms! */
-    for ( uint8_t i = 0; i < masks.size(); ++i ) {
+    for ( size_t i = 0; i < masks.size(); ++i ) {
         data = ( ( data &  masks[i] ) << ( 1U << i ) ) |
                ( ( data & ~masks[i] ) >> ( 1U << i ) );
     }

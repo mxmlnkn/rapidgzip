@@ -50,7 +50,7 @@ public:
 
     ~RpmallocThreadInit()
     {
-        rpmalloc_thread_finalize( /* release caches */ true );
+        rpmalloc_thread_finalize( /* release caches */ 1 );
     }
 };
 

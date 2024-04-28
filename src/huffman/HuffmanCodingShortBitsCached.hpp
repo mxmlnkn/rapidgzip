@@ -66,13 +66,13 @@ public:
                 continue;
             }
 
-            const auto fillerBitCount = m_lutBitsCount - length;
+            const auto fillerBitCount = static_cast<uint8_t>( m_lutBitsCount - length );
             const auto k = length - this->m_minCodeLength;
             const auto code = codeValues[k]++;
             if constexpr ( REVERSE_BITS ) {
                 const auto reversedCode = reverseBits( code, length );
                 const auto maximumPaddedCode = static_cast<HuffmanCode>(
-                    reversedCode | ( nLowestBitsSet<HuffmanCode>( fillerBitCount ) << length ) );
+                    reversedCode | HuffmanCode( nLowestBitsSet<HuffmanCode>( fillerBitCount ) << length ) );
                 assert( maximumPaddedCode < m_codeCache.size() );
                 const auto increment = static_cast<HuffmanCode>( HuffmanCode( 1 ) << length );
                 for ( auto paddedCode = reversedCode; paddedCode <= maximumPaddedCode; paddedCode += increment ) {
@@ -125,7 +125,7 @@ private:
          * first step can be conflated and still have the correct order for comparison! */
         if constexpr ( REVERSE_BITS ) {
             for ( BitCount i = 0; i < m_bitsToReadAtOnce; ++i ) {
-                code = ( code << 1U ) | ( bitReader.template read<1>() );
+                code = HuffmanCode( code << 1U ) | bitReader.template read<1>();
             }
         } else {
             code = bitReader.read( m_bitsToReadAtOnce );

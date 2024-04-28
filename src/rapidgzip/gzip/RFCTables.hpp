@@ -54,7 +54,7 @@ createDistanceLUT() noexcept
     for ( uint16_t i = 0; i < 4; ++i ) {
         result[i] = i + 1;
     }
-    for ( uint16_t i = 4; i < result.size(); ++i ) {
+    for ( uint16_t i = 4; i < static_cast<uint16_t>( result.size() ); ++i ) {
         result[i] = calculateDistance( i );
     }
     return result;
@@ -83,7 +83,7 @@ using LengthLUT = std::array<uint16_t, 285 - 261>;
 createLengthLUT() noexcept
 {
     LengthLUT result{};
-    for ( uint16_t i = 0; i < result.size(); ++i ) {
+    for ( uint16_t i = 0; i < static_cast<uint16_t>( result.size() ); ++i ) {
         result[i] = calculateLength( i );
     }
     return result;

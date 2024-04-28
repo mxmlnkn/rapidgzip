@@ -52,7 +52,7 @@ packHistogramWithNonZeroCount( const std::array<uint8_t, 7>& histogram )
 template<uint8_t FREQUENCY_BITS,
          uint8_t FREQUENCY_COUNT,
          uint8_t DEPTH = 1,
-         typename LUT = std::array<uint64_t, ( 1ULL << ( FREQUENCY_BITS * FREQUENCY_COUNT ) ) / 64U> >
+         typename LUT = std::array<uint64_t, ( 1ULL << uint16_t( FREQUENCY_BITS * FREQUENCY_COUNT ) ) / 64U> >
 constexpr void
 createPrecodeFrequenciesValidLUTHelper( LUT&                      result,
                                         uint32_t const            remainingCount,
@@ -71,7 +71,7 @@ createPrecodeFrequenciesValidLUTHelper( LUT&                      result,
 
     const auto histogramWithCount =
         [histogram] ( auto count ) constexpr {
-            return histogram | ( static_cast<uint64_t>( count ) << ( ( DEPTH - 1 ) * FREQUENCY_BITS ) );
+            return histogram | ( static_cast<uint64_t>( count ) << uint16_t( ( DEPTH - 1 ) * FREQUENCY_BITS ) );
         };
 
     /* The for loop maximum is given by the invalid Huffman code check, i.e.,
@@ -123,9 +123,9 @@ template<uint8_t FREQUENCY_BITS,
 [[nodiscard]] constexpr auto
 createPrecodeFrequenciesValidLUT()
 {
-    static_assert( ( 1ULL << ( FREQUENCY_BITS * FREQUENCY_COUNT ) ) % 64U == 0,
+    static_assert( ( 1ULL << uint16_t( FREQUENCY_BITS * FREQUENCY_COUNT ) ) % 64U == 0,
                    "LUT size must be a multiple of 64-bit for the implemented bit-packing!" );
-    std::array<uint64_t, ( 1ULL << ( FREQUENCY_BITS * FREQUENCY_COUNT ) ) / 64U> result{};
+    std::array<uint64_t, ( 1ULL << uint16_t( FREQUENCY_BITS * FREQUENCY_COUNT ) ) / 64U> result{};
     createPrecodeFrequenciesValidLUTHelper<FREQUENCY_BITS, FREQUENCY_COUNT>( result, deflate::MAX_PRECODE_COUNT );
     return result;
 }
@@ -164,7 +164,7 @@ template<uint8_t FREQUENCY_BITS,
 [[nodiscard]] constexpr auto
 createCompressedHistogramLUT()
 {
-    std::array<CompressedHistogram, 1ULL << ( VALUE_COUNT * VALUE_BITS )> result{};
+    std::array<CompressedHistogram, 1ULL << uint16_t( VALUE_COUNT * VALUE_BITS )> result{};
     for ( size_t i = 0; i < result.size(); ++i ) {
         result[i] = calculateCompressedHistogram<FREQUENCY_BITS, VALUE_BITS, VALUE_COUNT>( i );
     }

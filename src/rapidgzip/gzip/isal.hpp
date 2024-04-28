@@ -138,7 +138,7 @@ private:
     inflatePrime( size_t   nBitsToPrime,
                   uint64_t bits )
     {
-        m_stream.read_in |= bits << m_stream.read_in_length;
+        m_stream.read_in |= bits << static_cast<uint8_t>( m_stream.read_in_length );
         m_stream.read_in_length += static_cast<int32_t>( nBitsToPrime );
     }
 
@@ -385,7 +385,7 @@ template<size_t SIZE>
 std::array<std::byte, SIZE>
 IsalInflateWrapper::readBytes()
 {
-    const auto remainingBits = m_stream.read_in_length % BYTE_SIZE;
+    const auto remainingBits = static_cast<uint8_t>( m_stream.read_in_length % BYTE_SIZE );
     m_stream.read_in >>= remainingBits;
     m_stream.read_in_length -= remainingBits;
 

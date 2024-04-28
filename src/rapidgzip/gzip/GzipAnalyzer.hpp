@@ -573,8 +573,8 @@ analyze( UniqueFileReader inputFile,
         if ( uncompressedBlockSize >= 32_Ki ) {
             std::vector<bool> usedWindowSymbols( 32_Ki, false );
             for ( const auto& [distance, length] : backreferences ) {
-                const auto begin = distance >= 32_Ki ? 0 : ( 32_Ki - distance );
-                const auto end = std::min( 32_Ki, begin + length );
+                const auto begin = static_cast<uint16_t>( distance >= 32_Ki ? 0 : ( 32_Ki - distance ) );
+                const auto end = static_cast<uint16_t>( std::min( 32_Ki, static_cast<uint64_t>( begin ) + length ) );
                 for ( auto it = usedWindowSymbols.begin() + begin; it != usedWindowSymbols.begin() + end; ++it ) {
                     *it = true;
                 }
