@@ -53,7 +53,7 @@ public:
      * Any power of 2 larger than 4096 (4k blocks) should be safe bet.
      * 4K is too few, and will lead to a 2x slowdown in some test because of the frequent buffer refills.
      */
-    static constexpr size_t IOBUF_SIZE = 128_Ki;
+    static constexpr size_t DEFAULT_BUFFER_REFILL_SIZE = 128_Ki;
     static constexpr int NO_FILE = -1;
     static constexpr auto MAX_BIT_BUFFER_SIZE = std::numeric_limits<BitBuffer>::digits;
 
@@ -84,13 +84,19 @@ public:
 
 public:
     explicit
-    BitReader( UniqueFileReader fileReader ) :
+    BitReader( UniqueFileReader fileReader,
+               const size_t     bufferRefillSize = DEFAULT_BUFFER_REFILL_SIZE ) :
         /* The UniqueFileReader input argument sufficiently conveys and ensures that the file ownership is taken.
          * But, because BitReader has a fileno getter returning the underlying fileno, it is possible that the
          * file position is changed from the outside. To still keep correct behavior in that case, we have to
          * to make it a SharedFileReader, which keeps track of the intended file position. */
-        m_file( ensureSharedFileReader( std::move( fileReader ) ) )
-    {}
+        m_file( ensureSharedFileReader( std::move( fileReader ) ) ),
+        m_bufferRefillSize( bufferRefillSize )
+    {
+        if ( m_bufferRefillSize == 0 ) {
+            throw std::invalid_argument( "The buffer size must be larger than zero!" );
+        }
+    }
 
     BitReader( BitReader&& other ) = default;
 
@@ -102,6 +108,7 @@ public:
 
     BitReader( const BitReader& other ) :
         m_file( other.m_file ? other.m_file->clone() : UniqueFileReader() ),
+        m_bufferRefillSize( other.m_bufferRefillSize ),
         m_inputBuffer( other.m_inputBuffer )
     {
         if ( dynamic_cast<const SharedFileReader*>( other.m_file.get() ) == nullptr ) {
@@ -314,8 +321,8 @@ public:
             const auto nBytesToReadFromFile = nBytesToRead - nBytesRead;
             if ( UNLIKELY( ( nBytesToReadFromFile > 0 ) && m_file ) ) [[unlikely]] {
                 assert( m_inputBufferPosition == m_inputBuffer.size() );
-                if ( nBytesToRead < std::min<size_t>( 1_Ki, IOBUF_SIZE ) ) {
-                    /* Because nBytesToRead < IOBUF_SIZE, refilling the buffer once will suffice to read the
+                if ( nBytesToRead < std::min<size_t>( 1_Ki, m_bufferRefillSize ) ) {
+                    /* Because nBytesToRead < m_bufferRefillSize, refilling the buffer once will suffice to read the
                      * requested amount of bytes or else we have reached EOF. */
                     refillBuffer();
                     readFromBuffer( outputBuffer + nBytesRead, nBytesToRead - nBytesRead );
@@ -502,6 +509,12 @@ public:
     }
 
     [[nodiscard]] constexpr uint64_t
+    bufferRefillSize() const
+    {
+        return m_bufferRefillSize;
+    }
+
+    [[nodiscard]] constexpr uint64_t
     bufferRefillCount() const
     {
         return m_bufferRefillCount;
@@ -529,7 +542,7 @@ private:
         }
 
         const auto oldBufferSize = m_inputBuffer.size();
-        m_inputBuffer.resize( IOBUF_SIZE );
+        m_inputBuffer.resize( m_bufferRefillSize );
         const auto nBytesRead = m_file->read( reinterpret_cast<char*>( m_inputBuffer.data() ), m_inputBuffer.size() );
         if ( nBytesRead == 0 ) {
             m_inputBuffer.resize( oldBufferSize );
@@ -701,6 +714,7 @@ private:
 private:
     UniqueFileReader m_file;
 
+    size_t m_bufferRefillSize{ DEFAULT_BUFFER_REFILL_SIZE };
     std::vector<uint8_t> m_inputBuffer;
     size_t m_inputBufferPosition = 0;  /** stores current position of first valid byte in buffer */
 

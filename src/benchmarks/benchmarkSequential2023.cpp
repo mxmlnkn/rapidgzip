@@ -36,6 +36,7 @@
 
 
 constexpr size_t REPEAT_COUNT{ 100 };
+constexpr size_t IOBUF_SIZE{ 128_Ki };
 
 
 [[nodiscard]] size_t
@@ -602,12 +603,12 @@ benchmarkFileReader()
     TemporaryFile temporaryFile( 1_Gi );
 
     const auto times = repeatBenchmarks(
-        [&] () { return benchmarkFileReader( temporaryFile.path, rapidgzip::BitReader::IOBUF_SIZE ); } );
+        [&] () { return benchmarkFileReader( temporaryFile.path, IOBUF_SIZE ); } );
 
     std::ofstream dataFile( "result-read-file.dat" );
     dataFile << "# dataSize/B chunkSize/B runtime/s\n";
     for ( const auto time : times ) {
-        dataFile << temporaryFile.size << " " << rapidgzip::BitReader::IOBUF_SIZE << " " << time << "\n";
+        dataFile << temporaryFile.size << " " << IOBUF_SIZE << " " << time << "\n";
     }
 
     std::cout << "[File Reading] " << formatBandwidth( times, temporaryFile.size ) << "\n";
@@ -676,7 +677,7 @@ benchmarkFileReaderParallelRepeatedly( const size_t                     fileSize
 
     auto times = repeatBenchmarks(
         [&] () {
-            return benchmarkFileReaderParallel( threadPool, temporaryFile.path, rapidgzip::BitReader::IOBUF_SIZE );
+            return benchmarkFileReaderParallel( threadPool, temporaryFile.path, IOBUF_SIZE );
         }, /* repeat count */ 50 );
 
     return times;
@@ -864,8 +865,7 @@ benchmarkFileReaderParallel()
 
             const auto times = benchmarkFileReaderParallelRepeatedly( fileSize, threadCount, threadPinning );
             for ( const auto time : times ) {
-                dataFile << threadCount << " " << fileSize << " " << rapidgzip::BitReader::IOBUF_SIZE << " " << time
-                         << std::endl;
+                dataFile << threadCount << " " << fileSize << " " << IOBUF_SIZE << " " << time << std::endl;
             }
 
             std::cout << "[Parallel File Reading (" << toString( scheme ) << ")] Using " << threadCount << " threads "
