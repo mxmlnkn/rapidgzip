@@ -166,6 +166,8 @@ public:
     {
         m_file.reset();
         m_inputBuffer.clear();
+        m_inputBufferPosition = 0;
+        clearBitBuffer();
     }
 
     [[nodiscard]] bool
@@ -468,7 +470,10 @@ public:
     [[nodiscard]] size_t
     tell() const override final
     {
-        size_t position = tellBuffer();
+        /* Initialize with the byte buffer position converted to bits. */
+        size_t position = m_inputBufferPosition * CHAR_BIT;
+
+        /* Add the file offset from which the byte buffer was read. */
         if ( m_file ) {
             const auto filePosition = m_file->tell();
             if ( UNLIKELY( static_cast<size_t>( filePosition ) < m_inputBuffer.size() ) ) [[unlikely]] {
@@ -476,7 +481,13 @@ public:
             }
             position += ( filePosition - m_inputBuffer.size() ) * CHAR_BIT;
         }
-        return position;
+
+        /* Subtract the unread bits that have already been "moved" from the byte buffer to the bit buffer. */
+        if ( UNLIKELY( position < bitBufferSize() ) ) [[unlikely]] {
+            throw std::logic_error( "The bit buffer should not contain more data than have been read from the file!" );
+        }
+
+        return position - bitBufferSize();
     }
 
     void
@@ -536,16 +547,6 @@ public:
 private:
     size_t
     fullSeek( size_t offsetBits );
-
-    [[nodiscard]] size_t
-    tellBuffer() const
-    {
-        size_t position = m_inputBufferPosition * CHAR_BIT;
-        if ( UNLIKELY( position < bitBufferSize() ) ) [[unlikely]] {
-            std::logic_error( "The bit buffer should not contain data if the byte buffer doesn't!" );
-        }
-        return position - bitBufferSize();
-    }
 
     void
     refillBuffer()
@@ -883,11 +884,12 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
         }
 
         /* Seek forward inside byte buffer. */
-        if ( tellBuffer() + relativeOffsets <= m_inputBuffer.size() * CHAR_BIT ) {
-            auto stillToSeek = relativeOffsets - bitBufferSize();
+        const auto stillToSeek = relativeOffsets - bitBufferSize();
+        const auto newInputBufferPosition = m_inputBufferPosition + stillToSeek / CHAR_BIT;
+        if ( newInputBufferPosition <= m_inputBuffer.size() ) {
             clearBitBuffer();
 
-            m_inputBufferPosition += stillToSeek / CHAR_BIT;
+            m_inputBufferPosition = newInputBufferPosition;
             if ( stillToSeek % CHAR_BIT > 0 ) {
                 read( stillToSeek % CHAR_BIT );
             }
