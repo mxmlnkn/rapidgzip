@@ -14,6 +14,7 @@
 
 #include <BitStringFinder.hpp>
 #include <common.hpp>
+#include <DataGenerators.hpp>
 #include <filereader/Standard.hpp>
 #include <FileUtils.hpp>
 #include <ParallelBZ2Reader.hpp>

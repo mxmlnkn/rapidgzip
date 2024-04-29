@@ -13,6 +13,7 @@
 #include <filereader/Buffered.hpp>
 #include <filereader/BufferView.hpp>
 #include <filereader/Standard.hpp>
+#include <DataGenerators.hpp>
 #include <ParallelGzipReader.hpp>
 #include <rapidgzip.hpp>
 #include <TestHelpers.hpp>
@@ -357,77 +358,6 @@ encodeTestFile( const std::string&           filePath,
     }
 
     throw std::runtime_error( "Encoded file was not found!" );
-}
-
-
-void
-createRandomBase64( const std::string& filePath,
-                    const size_t       fileSize )
-{
-    constexpr std::string_view BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    std::ofstream file{ filePath };
-    for ( size_t i = 0; i < fileSize; ++i ) {
-        file << ( ( i + 1 == fileSize ) || ( ( i + 1 ) % 77 == 0 )
-                  ? '\n' : BASE64[static_cast<size_t>( rand() ) % BASE64.size()] );
-    }
-}
-
-
-void
-createRandomNumbers( const std::string& filePath,
-                     const size_t       fileSize )
-{
-    constexpr std::string_view BASE64 = "0123456789";
-    std::ofstream file{ filePath };
-    for ( size_t i = 0; i < fileSize; ++i ) {
-        file << ( ( i + 1 == fileSize ) || ( ( i + 1 ) % 77 == 0 )
-                  ? '\n' : BASE64[static_cast<size_t>( rand() ) % BASE64.size()] );
-    }
-}
-
-
-void
-createRandom( const std::string& filePath,
-              const size_t       fileSize )
-{
-    std::ofstream file{ filePath };
-    for ( size_t i = 0; i < fileSize; ++i ) {
-        file << static_cast<char>( rand() );
-    }
-}
-
-
-void
-createZeros( const std::string& filePath,
-             const size_t       fileSize )
-{
-    std::ofstream file{ filePath };
-    static constexpr std::array<char, 4_Ki> BUFFER{};
-    for ( size_t i = 0; i < fileSize; i += BUFFER.size() ) {
-        const auto size = std::min( fileSize - i, BUFFER.size() );
-        file.write( BUFFER.data(), size );
-    }
-}
-
-
-void
-createRandomWords( const std::string& filePath,
-                   const size_t       fileSize )
-{
-    static constexpr size_t WORD_SIZE{ 16 };
-    std::vector<std::array<char, WORD_SIZE> > words( 32 );
-    for ( auto& word : words ) {
-        for ( auto& c : word ) {
-            c = static_cast<char>( rand() );
-        }
-    }
-
-    std::ofstream file{ filePath };
-    for ( size_t i = 0; i < fileSize; ) {
-        const auto iWord = static_cast<size_t>( rand() ) % words.size();
-        file.write( words[iWord].data(), words[iWord].size() );
-        i += words[iWord].size();
-    }
 }
 
 

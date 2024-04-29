@@ -12,6 +12,7 @@
 
 #include <BZ2Reader.hpp>
 #include <common.hpp>
+#include <DataGenerators.hpp>
 #include <filereader/Standard.hpp>
 #include <FileUtils.hpp>
 #include <TestHelpers.hpp>

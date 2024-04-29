@@ -43,6 +43,7 @@ https://www.ietf.org/rfc/rfc1952.txt
 #include <blockfinder/precodecheck/WalkTreeLUT.hpp>
 #include <blockfinder/precodecheck/WithoutLUT.hpp>
 #include <common.hpp>
+#include <DataGenerators.hpp>
 #include <filereader/Buffered.hpp>
 #include <filereader/Standard.hpp>
 #include <huffman/HuffmanCodingCheckOnly.hpp>
@@ -1780,19 +1781,6 @@ findUncompressedDeflateBlocks( const BufferedFileReader::AlignedBuffer& buffer )
     }
 
     return bitOffsets;
-}
-
-
-void
-createRandomBase64( const std::string& filePath,
-                    const size_t       fileSize )
-{
-    constexpr std::string_view BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    std::ofstream file{ filePath };
-    for ( size_t i = 0; i < fileSize; ++i ) {
-        file << ( ( i + 1 == fileSize ) || ( ( i + 1 ) % 77 == 0 )
-                  ? '\n' : BASE64[static_cast<size_t>( rand() ) % BASE64.size()] );
-    }
 }
 
 

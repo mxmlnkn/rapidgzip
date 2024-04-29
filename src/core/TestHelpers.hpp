@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iostream>
+#include <filesystem>
 #include <mutex>
 #include <optional>
 #include <stdexcept>
@@ -247,3 +248,58 @@ private:
     std::ostream& m_out;
     std::optional<std::basic_streambuf<char>*> m_rdbuf;
 };
+
+
+/* error: 'std::filesystem::path' is unavailable: introduced in macOS 10.15.
+ * Fortunately, this is only needed for the tests, so the incomplete std::filesystem support
+ * is not a problem for building the manylinux wheels on the pre 10.15 macOS kernel. */
+#ifndef __APPLE_CC__
+class TemporaryDirectory
+{
+public:
+    explicit
+    TemporaryDirectory( std::filesystem::path path ) :
+        m_path( std::move( path ) )
+    {}
+
+    TemporaryDirectory( TemporaryDirectory&& ) = default;
+
+    TemporaryDirectory( const TemporaryDirectory& ) = delete;
+
+    TemporaryDirectory&
+    operator=( TemporaryDirectory&& ) = default;
+
+    TemporaryDirectory&
+    operator=( const TemporaryDirectory& ) = delete;
+
+    ~TemporaryDirectory()
+    {
+        if ( !m_path.empty() ) {
+            std::filesystem::remove_all( m_path );
+        }
+    }
+
+    [[nodiscard]] operator std::filesystem::path() const
+    {
+        return m_path;
+    }
+
+    [[nodiscard]] const std::filesystem::path&
+    path() const
+    {
+        return m_path;
+    }
+
+private:
+    std::filesystem::path m_path;
+};
+
+
+[[nodiscard]] inline TemporaryDirectory
+createTemporaryDirectory( const std::string& title = "tmpTest" )
+{
+    const std::filesystem::path tmpFolderName = title + "." + std::to_string( unixTime() );
+    std::filesystem::create_directory( tmpFolderName );
+    return TemporaryDirectory( tmpFolderName );
+}
+#endif

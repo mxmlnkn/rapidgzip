@@ -17,8 +17,10 @@
 #include <blockfinder/PigzParallel.hpp>
 #include <blockfinder/PigzNaive.hpp>
 #include <blockfinder/PigzStringView.hpp>
+#include <DataGenerators.hpp>
 #include <filereader/Buffered.hpp>
 #include <FileUtils.hpp>
+#include <TestHelpers.hpp>
 
 
 struct BenchmarkResults
@@ -362,39 +364,6 @@ benchmarkBlockFinder( const std::string& fileName )
     std::cout << "Searched " << nBytesRead << " B in " << minTime << " s -> "
               << static_cast<double>( nBytesRead ) / 1e6 / minTime << " MB/s and found " << result.blockCount
               << " blocks.\n";
-}
-
-
-void
-createRandomBase64( const std::string& filePath,
-                    const size_t       fileSize )
-{
-#if 0
-    std::vector<char> base64;
-    for ( char c = 'A'; c <= 'Z'; ++c ) {
-        base64.push_back( c );
-    }
-    for ( char c = 'a'; c <= 'z'; ++c ) {
-        base64.push_back( c );
-    }
-    for ( char c = '0'; c <= '9'; ++c ) {
-        base64.push_back( c );
-    }
-    base64.push_back( '+' );
-    base64.push_back( '/' );
-#else
-    constexpr std::string_view BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-#endif
-
-    std::ofstream file{ filePath };
-    for ( size_t i = 0; i < fileSize; ++i ) {
-        if ( ( i + 1 == fileSize ) || ( ( i + 1 ) % 77 == 0 ) ) {
-            file << '\n';
-        } else {
-            file << BASE64[static_cast<size_t>( rand() ) % BASE64.size()];
-        }
-    }
-    file.close();
 }
 
 

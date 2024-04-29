@@ -7,7 +7,6 @@
 #include <cstdint>
 #include <cstring>
 #include <ctime>
-#include <filesystem>
 #include <fstream>
 #include <future>
 #include <iomanip>
@@ -493,92 +492,6 @@ testFlags( const uint64_t value,
 }
 
 
-/* error: 'std::filesystem::path' is unavailable: introduced in macOS 10.15.
- * Fortunately, this is only needed for the tests, so the incomplete std::filesystem support
- * is not a problem for building the manylinux wheels on the pre 10.15 macOS kernel. */
-#ifndef __APPLE_CC__
-inline void
-createRandomTextFile( const std::filesystem::path& path,
-                      uint64_t                     size )
-{
-    std::ofstream textFile( path );
-    for ( uint64_t i = 0; i < size; ++i ) {
-        const auto c = i % 80 == 0 ? '\n' : 'A' + ( rand() % ( 'Z' - 'A' ) );
-        textFile << static_cast<char>( c );
-    }
-}
-
-
-inline void
-createRandomFile( const std::filesystem::path& path,
-                  uint64_t                     size )
-{
-    std::ofstream textFile( path );
-
-    std::mt19937_64 randomEngine;
-    std::array<uint64_t, 4ULL * 1024ULL> buffer{};  // 32 KiB of buffer
-    for ( size_t nBytesWritten = 0; nBytesWritten < size; ) {
-        for ( auto& x : buffer ) {
-            x = randomEngine();
-        }
-        const auto nBytesToWrite = std::min<uint64_t>( buffer.size() * sizeof( buffer[0] ), size - nBytesWritten );
-        textFile.write( reinterpret_cast<const char*>( buffer.data() ), static_cast<std::streamsize>( nBytesToWrite ) );
-        nBytesWritten += nBytesToWrite;
-    }
-}
-
-
-class TemporaryDirectory
-{
-public:
-    explicit
-    TemporaryDirectory( std::filesystem::path path ) :
-        m_path( std::move( path ) )
-    {}
-
-    TemporaryDirectory( TemporaryDirectory&& ) = default;
-
-    TemporaryDirectory( const TemporaryDirectory& ) = delete;
-
-    TemporaryDirectory&
-    operator=( TemporaryDirectory&& ) = default;
-
-    TemporaryDirectory&
-    operator=( const TemporaryDirectory& ) = delete;
-
-    ~TemporaryDirectory()
-    {
-        if ( !m_path.empty() ) {
-            std::filesystem::remove_all( m_path );
-        }
-    }
-
-    [[nodiscard]] operator std::filesystem::path() const
-    {
-        return m_path;
-    }
-
-    [[nodiscard]] const std::filesystem::path&
-    path() const
-    {
-        return m_path;
-    }
-
-private:
-    std::filesystem::path m_path;
-};
-
-
-[[nodiscard]] inline TemporaryDirectory
-createTemporaryDirectory( const std::string& title = "tmpTest" )
-{
-    const std::filesystem::path tmpFolderName = title + "." + std::to_string( unixTime() );
-    std::filesystem::create_directory( tmpFolderName );
-    return TemporaryDirectory( tmpFolderName );
-}
-#endif
-
-
 // NOLINTBEGIN(cppcoreguidelines-macro-usage)
 #if defined( __GNUC__ )
     #define LIKELY( x ) ( __builtin_expect( static_cast<bool>( x ), 1 ))
@@ -710,7 +623,7 @@ rangesIntersect( const PairA& rangeA,
 }
 
 
-constexpr std::string_view BASE64_SYMBOLS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+/\n";
+constexpr std::string_view BASE64_SYMBOLS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+/";
 
 
 template<typename CharT>
@@ -724,6 +637,7 @@ isBase64( std::basic_string_view<CharT> data )
             result.resize( BASE64_SYMBOLS.size() );
             std::transform( BASE64_SYMBOLS.begin(), BASE64_SYMBOLS.end(), result.begin(),
                             [] ( const auto x ) { return static_cast<CharT>( x ); } );
+            result.push_back( static_cast<CharT>( '\n' ) );
             return result;
         }();
 
