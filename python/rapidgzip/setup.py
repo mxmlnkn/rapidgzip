@@ -347,7 +347,8 @@ class Build(build_ext):
                 # https://www.phoronix.com/news/GCC-fhardened-Hardening-Option
                 # https://developers.redhat.com/blog/2018/03/21/compiler-and-linker-flags-gcc
                 # I have not observed any performance impact for these.
-                ext.extra_compile_args += ['-fstack-protector-strong', '-fstack-clash-protection']
+                ext.extra_compile_args += ['-fstack-protector-strong']
+                ext.extra_link_args += ['-fstack-clash-protection']
                 # AppleClang seems to not like this flag:
                 if supportsFlag(self.compiler, '-fcf-protection=full'):
                     ext.extra_compile_args += ['-fcf-protection=full']
