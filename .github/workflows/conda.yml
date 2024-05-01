@@ -10,7 +10,7 @@ jobs:
 
     strategy:
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-latest, windows-latest]
         # MacOS-14 suddenly does not build anymore and shows dumb errors such as:
         # /Users/runner/work/indexed_bzip2/indexed_bzip2/MacOSX10.9.sdk/usr/include/sys/_types.h:94:9:
         #   error: unknown type name '__int64_t'

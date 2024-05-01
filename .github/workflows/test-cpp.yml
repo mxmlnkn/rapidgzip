@@ -40,7 +40,7 @@ jobs:
         # the coverage report, e.g., I had: "version 'A85*', prefer 'B12*'".
         # It is possible to specify a different gcov version to lcov using, e.g., lcov --gcov-tool gcov-8.
         # For me it compiled with g++-8 but used gcov-11 by default!
-        CXX=g++ CC=gcc cmake -DCMAKE_BUILD_TYPE=Debug -DCODE_COVERAGE=ON -DCMAKE_CXX_FLAGS="-DSHORT_TESTS" ..
+        CXX=g++ CC=gcc cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCODE_COVERAGE=ON -DCMAKE_CXX_FLAGS="-DSHORT_TESTS" ..
         cmake --build . -- check
         lcov --capture --directory . --base-directory "$( cd .. && pwd  )" --no-external --output-file coverage.info
         lcov --list coverage.info
@@ -82,13 +82,17 @@ jobs:
     - name: Run clang-tidy
       run: |
         mkdir -p build-compile-commands && cd -- "$_"
-        CC=clang CXX=clang++ cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DUSE_SYSTEM_ZLIB=ON -DRUN_CLANG_TIDY=ON
-        cmake --build . --parallel $( nproc )
+        CC=clang CXX=clang++ cmake -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DUSE_SYSTEM_ZLIB=ON -DRUN_CLANG_TIDY=ON ..
+        cmake --build .
 
   Check:
     name: Check without Sanitizer
     # And especially without -DSHORT_TESTS, which makes it non redundant to the sanitizer checks!
     runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        use_system_zlib: [ON, OFF]
+
     steps:
     - uses: actions/checkout@v4
       with:
@@ -101,30 +105,90 @@ jobs:
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
 
     - name: Run Tests With Sanitizers
+      env:
+        USE_SYSTEM_ZLIB: ${{ matrix.use_system_zlib }}
       run: |
         mkdir -p "build" && cd -- "$_"
-        CXX=g++ CC=gcc cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWITH_ISAL=ON ..
+        CXX=g++ CC=gcc cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWITH_ISAL=ON -DUSE_SYSTEM_ZLIB=$USE_SYSTEM_ZLIB ..
         cmake --build . -- check
 
   Check-Without-Isal:
     name: Check without Sanitizer and without ISA-L
+
     # And especially without -DSHORT_TESTS, which makes it non redundant to the sanitizer checks!
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, macos-12, macos-13]
+
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "10.15"
+
     steps:
+    - name: System Information
+      if: "! startsWith(matrix.os, 'windows')"
+      run: |
+        uname -a
+
+    - name: Print Architecture
+      if: "startsWith(matrix.os, 'macos')"
+      run: |
+        sysctl -n machdep.cpu.brand_string
+        arch
+
     - uses: actions/checkout@v4
       with:
         submodules: recursive
 
-    - name: Install Dependencies
+    - uses: seanmiddleditch/gha-setup-ninja@master
+
+    - name: Install System Dependencies
+      if: "startsWith(matrix.os , 'macos')"
       run: |
-        sudo apt-get -y install g++ ninja-build gzip tabix pigz libarchive-dev zlib1g-dev isal nasm
+        brew install ninja pigz zlib isa-l wget
+        wget 'https://github.com/samtools/htslib/releases/download/1.20/htslib-1.20.tar.bz2'
+        tar -xf htslib-1.20.tar.bz2
+        cd htslib* && ./configure && make install
+
+    - name: Install System Dependencies
+      if: "startsWith(matrix.os , 'ubuntu')"
+      run: |
+        sudo apt-get -y install g++ ninja-build gzip tabix pigz libarchive-dev zlib1g-dev isal
+
+    - name: Fix pip
+      if: "startsWith(matrix.os , 'macos')"
+      run: |
+        mkdir -p "$HOME/Library/Application Support/pip"
+        cat <<EOF >> "$HOME/Library/Application Support/pip/pip.conf"
+        [global]
+        break-system-packages = true
+        EOF
+
+    - name: Install Python Dependencies
+      run: |
         python3 -m pip install --upgrade pip
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
 
     - name: Run Tests With Sanitizers
+      if: "startsWith(matrix.os , 'ubuntu')"
       run: |
         mkdir -p "build" && cd -- "$_"
-        CXX=g++ CC=gcc cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWITH_ISAL=OFF ..
+        cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWITH_ISAL=OFF -DUSE_SYSTEM_ZLIB=OFF ..
+        cmake --build . -- check
+
+    - name: Run Tests With Sanitizers
+      if: "startsWith(matrix.os , 'macos')"
+      run: |
+        # For some reason MacOS ARM is much slower and runs into a timeout without -DSHORT_TESTS :/
+        mkdir -p "build" && cd -- "$_"
+        cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWITH_ISAL=OFF -DUSE_SYSTEM_ZLIB=OFF -DCMAKE_CXX_FLAGS="-DSHORT_TESTS" ..
+        cmake --build . -- check
+
+    - name: Run Tests With Sanitizers
+      if: "startsWith(matrix.os , 'windows')"
+      run: |
+        mkdir -p "build" && cd -- "build"
+        cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWITH_ISAL=OFF ..
         cmake --build . -- check
 
   Asan:
@@ -266,17 +330,43 @@ jobs:
 
   Ibzip2-Tests:
     name: Ibzip2 Tests
-    runs-on: ubuntu-22.04
+
+    # And especially without -DSHORT_TESTS, which makes it non redundant to the sanitizer checks!
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, macos-13, macos-14, windows-latest]
+
     steps:
     - uses: actions/checkout@v4
       with:
         submodules: recursive
 
-    - name: Install Dependencies
+    - uses: seanmiddleditch/gha-setup-ninja@master
+
+    - name: Install System Dependencies
+      if: "startsWith(matrix.os , 'macos')"
       run: |
-        sudo apt-get -y install bzip2 pbzip2 lbzip2 g++ ninja-build nasm
+        brew install ninja pigz
+
+    - name: Install System Dependencies
+      if: "startsWith(matrix.os , 'ubuntu')"
+      run: |
+        sudo apt-get -y install g++ ninja-build gzip tabix pigz libarchive-dev zlib1g-dev
+
+    - name: Fix pip
+      if: "startsWith(matrix.os , 'macos')"
+      run: |
+        mkdir -p "$HOME/Library/Application Support/pip"
+        cat <<EOF >> "$HOME/Library/Application Support/pip/pip.conf"
+        [global]
+        break-system-packages = true
+        EOF
+
+    - name: Install Python Dependencies
+      run: |
         python3 -m pip install --upgrade pip
-        python3 -m pip install --upgrade-strategy eager --upgrade cython build
+        python3 -m pip install build
 
     - name: Install indexed_bzip2
       working-directory: python/indexed_bzip2
@@ -286,10 +376,11 @@ jobs:
         python3 -m pip install dist/*.tar.gz
 
     - name: Run Standard Tests
+      shell: bash
       # At this step, indexed_bzip2 should be installed.
       run: |
         mkdir -p build-ibzip2 && cd -- "$_"
-        cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug ..
+        cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWITH_ISAL=OFF ..
         cmake --build . -- ibzip2
         set -o pipefail
         bash ../src/tests/testIbzip2.sh | tee run-standard-tests.log
