@@ -103,7 +103,7 @@ jobs:
     - name: Run Tests With Sanitizers
       run: |
         mkdir -p "build" && cd -- "$_"
-        CXX=g++ CC=gcc cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWITH_ISAL=1 ..
+        CXX=g++ CC=gcc cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWITH_ISAL=ON ..
         cmake --build . -- check
 
   Check-Without-Isal:
@@ -124,7 +124,7 @@ jobs:
     - name: Run Tests With Sanitizers
       run: |
         mkdir -p "build" && cd -- "$_"
-        CXX=g++ CC=gcc cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWITH_ISAL=0 ..
+        CXX=g++ CC=gcc cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWITH_ISAL=OFF ..
         cmake --build . -- check
 
   Asan:

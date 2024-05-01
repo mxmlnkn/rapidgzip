@@ -16,5 +16,8 @@ target_sources(librapidgzipgzip INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/RFCTables.hpp
     ${CMAKE_CURRENT_LIST_DIR}/zlib.hpp
 )
-target_link_libraries(librapidgzipgzip INTERFACE core rapidgzip::gzip::huffman isal_inflate zlibstatic)
+target_link_libraries(librapidgzipgzip INTERFACE core rapidgzip::gzip::huffman zlibstatic)
+if(WITH_ISAL)
+    target_link_libraries(librapidgzipgzip INTERFACE core rapidgzip::gzip::huffman isal_inflate zlibstatic)
+endif()
 target_compile_features(librapidgzipgzip INTERFACE cxx_std_17)

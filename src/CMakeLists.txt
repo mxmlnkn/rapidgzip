@@ -83,6 +83,7 @@ endif()
 
 # ISA-l
 
+if(WITH_ISAL)
 project(isal_inflate
     LANGUAGES C CXX ASM_NASM
 )
@@ -173,3 +174,4 @@ target_include_directories(isal_inflate
     PRIVATE
         ${ISAL_HOME}/igzip
 )
+endif()
