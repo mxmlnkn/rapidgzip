@@ -50,9 +50,8 @@ endif()
 
 #add_subdirectory(external/zlib)
 
-project(zlibstatic C)
-
 if(NOT USE_SYSTEM_ZLIB)
+    project(zlibstatic C)
     add_library(zlibstatic STATIC)
     set(ZLIB_HOME "${CMAKE_CURRENT_SOURCE_DIR}/external/zlib")
     target_include_directories(zlibstatic SYSTEM INTERFACE ${ZLIB_HOME})

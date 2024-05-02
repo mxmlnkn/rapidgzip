@@ -596,7 +596,7 @@ testCRC32AndCleanUnmarkedDataWithRandomBackreferences()
     for ( size_t i = INITIAL_RANDOM_SIZE; i < randomData.size(); ) {
         const auto distance = randomEngine() % INITIAL_RANDOM_SIZE;
         const auto remainingSize = randomData.size() - i;
-        const auto length = std::min( randomEngine() % 256, remainingSize );
+        const auto length = std::min<size_t>( randomEngine() % 256, remainingSize );
         if ( ( length < 4 ) || ( length > distance ) ) {
             continue;
         }

@@ -34,8 +34,9 @@
     #include <fcntl.h>
     #include <limits.h>         // IOV_MAX
     #include <sys/stat.h>
-    #include <sys/poll.h>
-    #include <sys/uio.h>
+    #if defined(__linux__) || defined(__APPLE__)
+        #include <sys/uio.h>
+    #endif
     #include <unistd.h>
 
     //#if not defined( HAVE_VMSPLICE ) and defined( __linux__ ) and defined( F_GETPIPE_SZ )

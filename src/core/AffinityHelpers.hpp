@@ -7,7 +7,7 @@
 
 
 inline void
-pinThreadToLogicalCore( int logicalCoreId )
+pinThreadToLogicalCore( int /* logicalCoreId */ )
 {
     /** @todo */
 }
