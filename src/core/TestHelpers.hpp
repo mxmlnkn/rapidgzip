@@ -304,7 +304,7 @@ private:
 [[nodiscard]] inline TemporaryDirectory
 createTemporaryDirectory( const std::string& title = "tmpTest" )
 {
-    const std::filesystem::path tmpFolderName = title + "." + std::to_string( unixTime() );
+    const std::filesystem::path tmpFolderName = title + "." + std::to_string( unixTimeInNanoseconds() );
     std::filesystem::create_directory( tmpFolderName );
     return TemporaryDirectory( tmpFolderName );
 }

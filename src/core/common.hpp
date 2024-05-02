@@ -277,10 +277,10 @@ duration( const T& t0,
 
 
 [[nodiscard]] inline uint64_t
-unixTime() noexcept
+unixTimeInNanoseconds() noexcept
 {
     const auto currentTime = std::chrono::system_clock::now().time_since_epoch();
-    return static_cast<uint64_t>( std::chrono::duration_cast<std::chrono::seconds>( currentTime ).count() );
+    return static_cast<uint64_t>( std::chrono::duration_cast<std::chrono::nanoseconds>( currentTime ).count() );
 }
 
 
