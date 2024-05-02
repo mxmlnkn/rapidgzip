@@ -14,6 +14,10 @@
 #include <string>
 #include <utility>
 
+#ifdef __APPLE_CC__
+    #include <AvailabilityMacros.h>
+#endif
+
 #ifdef _MSC_VER
     #define NOMINMAX
     #include <Windows.h>
@@ -276,7 +280,26 @@ fdFilePath( int fileDescriptor )
 }
 
 
-#ifndef __APPLE_CC__  // Missing std::filesytem::path support in wheels
+template<typename Container = std::vector<char> >
+[[nodiscard]] Container
+readFile( const std::string& fileName )
+{
+    Container contents( fileSize( fileName ) );
+    const auto file = throwingOpen( fileName, "rb" );
+    const auto nBytesRead = std::fread( contents.data(), sizeof( contents[0] ), contents.size(), file.get() );
+
+    if ( nBytesRead != contents.size() ) {
+        throw std::logic_error( "Did read less bytes than file is large!" );
+    }
+
+    return contents;
+}
+
+
+/* Missing std::filesytem::path support in wheels.
+ * https://opensource.apple.com/source/xnu/xnu-2050.7.9/EXTERNAL_HEADERS/AvailabilityMacros.h.auto.html */
+#if !defined(__APPLE_CC__ ) || ( defined(MAC_OS_X_VERSION_MIN_REQUIRED) \
+    && MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_15 )
 [[nodiscard]] inline std::string
 findParentFolderContaining( const std::string& folder,
                             const std::string& relativeFilePath )
@@ -296,6 +319,29 @@ findParentFolderContaining( const std::string& folder,
     }
 
     return {};
+}
+
+
+inline unique_file_ptr
+throwingOpen( const std::filesystem::path& filePath,
+              const char*                  mode )
+{
+    return throwingOpen( filePath.string(), mode );
+}
+
+
+inline size_t
+fileSize( const std::filesystem::path& filePath )
+{
+    return fileSize( filePath.string() );
+}
+
+
+template<typename Container = std::vector<char> >
+[[nodiscard]] Container
+readFile( const std::filesystem::path& filePath )
+{
+    return readFile<Container>( filePath.string() );
 }
 #endif
 
@@ -804,20 +850,4 @@ originToString( int origin )
     }
 
     throw std::invalid_argument( "Unknown origin" );
-}
-
-
-template<typename Container = std::vector<char> >
-[[nodiscard]] Container
-readFile( const std::string& fileName )
-{
-    Container contents( fileSize( fileName ) );
-    const auto file = throwingOpen( fileName, "rb" );
-    const auto nBytesRead = std::fread( contents.data(), sizeof( contents[0] ), contents.size(), file.get() );
-
-    if ( nBytesRead != contents.size() ) {
-        throw std::logic_error( "Did read less bytes than file is large!" );
-    }
-
-    return contents;
 }

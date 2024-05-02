@@ -15,7 +15,7 @@ testIndexRead( const std::filesystem::path& compressedPath,
                const std::filesystem::path& uncompressedPath,
                const std::filesystem::path& indexPath )
 {
-    auto index = readGzipIndex( std::make_unique<StandardFileReader>( indexPath ) );
+    auto index = readGzipIndex( std::make_unique<StandardFileReader>( indexPath.string() ) );
 
     REQUIRE_EQUAL( index.compressedSizeInBytes, fileSize( compressedPath ) );
     REQUIRE_EQUAL( index.uncompressedSizeInBytes, fileSize( uncompressedPath ) );
@@ -52,7 +52,7 @@ testIndexReadWrite( const std::filesystem::path& compressedPath,
                 };
             writeGzipIndex( index, checkedWrite );
         }
-        const auto rereadIndex = readGzipIndex( std::make_unique<StandardFileReader>( gzipIndexPath ) );
+        const auto rereadIndex = readGzipIndex( std::make_unique<StandardFileReader>( gzipIndexPath.string() ) );
 
         REQUIRE_EQUAL( rereadIndex.compressedSizeInBytes, index.compressedSizeInBytes );
         REQUIRE_EQUAL( rereadIndex.uncompressedSizeInBytes, index.uncompressedSizeInBytes );
@@ -104,9 +104,9 @@ testBzipIndexRead( const std::filesystem::path& compressedPath,
                    const std::filesystem::path& uncompressedPath,
                    const std::filesystem::path& indexPath )
 {
-    auto index = readGzipIndex( std::make_unique<StandardFileReader>( indexPath ),
+    auto index = readGzipIndex( std::make_unique<StandardFileReader>( indexPath.string() ),
                                 /* This second argument is only necessary when reading bgzip indexes! */
-                                std::make_unique<StandardFileReader>( compressedPath ) );
+                                std::make_unique<StandardFileReader>( compressedPath.string() ) );
 
     REQUIRE_EQUAL( index.compressedSizeInBytes, fileSize( compressedPath ) );
     REQUIRE_EQUAL( index.uncompressedSizeInBytes, fileSize( uncompressedPath ) );
@@ -131,7 +131,7 @@ main( int    argc,
     }
 
     const std::string binaryFilePath( argv[0] );
-    std::string binaryFolder = std::filesystem::path( binaryFilePath ).parent_path();
+    auto binaryFolder = std::filesystem::path( binaryFilePath ).parent_path().string();
     if ( binaryFolder.empty() ) {
         binaryFolder = ".";
     }

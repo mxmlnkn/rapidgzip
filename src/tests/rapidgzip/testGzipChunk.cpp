@@ -44,10 +44,10 @@ operator==( const ChunkData::Subchunk& a,
 
 
 [[nodiscard]] size_t
-getBlockOffset( const std::string& filePath,
-                size_t             blockIndex )
+getBlockOffset( const std::filesystem::path& filePath,
+                size_t                       blockIndex )
 {
-    GzipReader gzipReader( std::make_unique<StandardFileReader>( filePath ) );
+    GzipReader gzipReader( std::make_unique<StandardFileReader>( filePath.string() ) );
     for ( size_t i = 0; ( i <= blockIndex ) && !gzipReader.eof(); ++i ) {
         [[maybe_unused]] const auto nBytesRead =
             gzipReader.read( -1, nullptr, std::numeric_limits<size_t>::max(),
@@ -72,7 +72,7 @@ testAutomaticMarkerResolution( const std::filesystem::path& filePath,
 
     auto sharedFileReader =
         std::make_unique<SharedFileReader>(
-            std::make_unique<StandardFileReader>( filePath ) );
+            std::make_unique<StandardFileReader>( filePath.string() ) );
     const auto blockOffset = getBlockOffset( filePath, blockIndex );
     try {
         std::atomic<bool> cancel{ false };
@@ -354,7 +354,7 @@ testWikidataException( const std::filesystem::path& rootFolder )
     auto sharedFileReader =
         std::make_unique<SharedFileReader>(
             std::make_unique<StandardFileReader>(
-                rootFolder / "wikidata-20220103-all.json.gz-379508635534b--379510732698b.deflate" ) );
+                ( rootFolder / "wikidata-20220103-all.json.gz-379508635534b--379510732698b.deflate" ).string() ) );
 
     const auto startOffset = 0ULL;
     const auto exactUntilOffset = 2097164ULL;
@@ -686,8 +686,9 @@ testDecodeBlockWithInflateWrapperWithFiles( const std::filesystem::path& testFol
     for ( const auto& extension : { ".gz"s, ".bgz"s, ".igz"s, ".pigz"s } ) {
         for ( const auto* const fileName : GZIP_FILE_NAMES ) {
             std::cerr << "Testing decodeChunkWithInflateWrapper with " << fileName + extension << "\n";
-            testGettingBoundaries( std::make_unique<StandardFileReader>( testFolder / ( fileName + extension ) ) );
-            testGettingFooters( std::make_unique<StandardFileReader>( testFolder / ( fileName + extension ) ) );
+            const auto filePath = ( testFolder / ( fileName + extension ) ).string();
+            testGettingBoundaries( std::make_unique<StandardFileReader>( filePath ) );
+            testGettingFooters( std::make_unique<StandardFileReader>( filePath ) );
         }
     }
 
@@ -726,7 +727,7 @@ testBlockBoundaries( const std::filesystem::path&      filePath,
 
     auto sharedFileReader =
         std::make_unique<SharedFileReader>(
-            std::make_unique<StandardFileReader>( filePath ) );
+            std::make_unique<StandardFileReader>( filePath.string() ) );
 
     const auto chunkOffset = getBlockOffset( filePath, 0 );  /* This skips the gzip header. */
 

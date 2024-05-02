@@ -289,8 +289,8 @@ testCLI()
                                                      : "rapidgzip.testCLI" );
 
     const auto filePath = tmpFolder.path() / "random-words";
-    const auto compressedFilePath = tmpFolder.path() / "random-words.gz";
-    const auto indexFilePath = tmpFolder.path() / "random-words.gz.index";
+    const auto compressedFilePath = ( tmpFolder.path() / "random-words.gz" ).string();
+    const auto indexFilePath = ( tmpFolder.path() / "random-words.gz.index" ).string();
 
     const auto decompressed = createRandomWords( 128_Mi );  // Compresses to only ~8 MiB.
     const auto compressed = rapidgzip::compressWithZlib<std::vector<char> >( decompressed );
@@ -300,7 +300,7 @@ testCLI()
     }
 
     /* Create index for import tests. */
-    callRapidgzip( { "--export-index"s, indexFilePath, compressedFilePath.string() } );
+    callRapidgzip( { "--export-index"s, indexFilePath, compressedFilePath } );
 
     const auto testWithoutFile =
         [&] ( const std::vector<std::string>& arguments ) { testCLI( arguments, filePath, decompressed ); };
@@ -385,7 +385,7 @@ main( int    argc,
     testCLI();
 
     const std::string binaryFilePath( argv[0] );
-    std::string binaryFolder = std::filesystem::path( binaryFilePath ).parent_path();
+    auto binaryFolder = std::filesystem::path( binaryFilePath ).parent_path().string();
     if ( binaryFolder.empty() ) {
         binaryFolder = ".";
     }

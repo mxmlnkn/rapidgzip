@@ -13,6 +13,10 @@
 
 #include "common.hpp"  // duration
 
+#ifdef __APPLE_CC__
+    #include <AvailabilityMacros.h>
+#endif
+
 
 int gnTests = 0;  // NOLINT
 int gnTestErrors = 0;  // NOLINT
@@ -252,8 +256,10 @@ private:
 
 /* error: 'std::filesystem::path' is unavailable: introduced in macOS 10.15.
  * Fortunately, this is only needed for the tests, so the incomplete std::filesystem support
- * is not a problem for building the manylinux wheels on the pre 10.15 macOS kernel. */
-#ifndef __APPLE_CC__
+ * is not a problem for building the manylinux wheels on the pre 10.15 macOS kernel.
+ * https://opensource.apple.com/source/xnu/xnu-2050.7.9/EXTERNAL_HEADERS/AvailabilityMacros.h.auto.html */
+#if !defined(__APPLE_CC__ ) || ( defined(MAC_OS_X_VERSION_MIN_REQUIRED) \
+    && MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_15 )
 class TemporaryDirectory
 {
 public:

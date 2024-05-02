@@ -208,13 +208,13 @@ testParallelDecoderNano()
 void
 testParallelDecodingWithIndex( const TemporaryDirectory& tmpFolder )
 {
-    const auto decodedFile = tmpFolder.path() / "decoded";
-    const auto encodedFile = tmpFolder.path() / "decoded.gz";
-    const auto indexFile = tmpFolder.path() / "decoded.gz.index";
+    const auto decodedFile = ( tmpFolder.path() / "decoded" ).string();
+    const auto encodedFile = ( tmpFolder.path() / "decoded.gz" ).string();
+    const auto indexFile = ( tmpFolder.path() / "decoded.gz.index" ).string();
     createRandomTextFile( decodedFile, 64_Ki );
 
     {
-        const auto command = "gzip -k " + std::string( decodedFile );
+        const auto command = "gzip -k " + decodedFile;
         const auto returnCode = std::system( command.c_str() );
         REQUIRE( returnCode == 0 );
         if ( returnCode != 0 ) {
@@ -225,9 +225,9 @@ testParallelDecodingWithIndex( const TemporaryDirectory& tmpFolder )
     {
         const auto command =
             R"(python3 -c 'import indexed_gzip as ig; f = ig.IndexedGzipFile( ")"
-            + std::string( encodedFile )
+            + encodedFile
             + R"(" ); f.build_full_index(); f.export_index( ")"
-            + std::string( indexFile )
+            + indexFile
             + R"(" );')";
         const auto returnCode = std::system( command.c_str() );
         REQUIRE( returnCode == 0 );
@@ -237,7 +237,7 @@ testParallelDecodingWithIndex( const TemporaryDirectory& tmpFolder )
     }
 
     std::cerr << "Test parallel decoder with larger gz file given an indexed_gzip index.\n";
-    const auto realIndex = readGzipIndex( std::make_unique<StandardFileReader>( indexFile.string() ) );
+    const auto realIndex = readGzipIndex( std::make_unique<StandardFileReader>( indexFile ) );
     for ( const size_t nBlocksToSkip : { 0, 1, 2, 4, 8, 16, 24, 32, 64, 128 } ) {
         testParallelDecoder( std::make_unique<StandardFileReader>( encodedFile ),
                              std::make_unique<StandardFileReader>( decodedFile ),
@@ -455,7 +455,7 @@ testPerformance( const std::string& encodedFilePath,
 void
 testPerformance( const TemporaryDirectory& tmpFolder )
 {
-    const std::string fileName = std::filesystem::absolute( tmpFolder.path() / "random-base64" );
+    const auto fileName = std::filesystem::absolute( tmpFolder.path() / "random-base64" ).string();
     createRandomBase64( fileName, 64_Mi );
 
     try {
@@ -771,8 +771,8 @@ void
 testMultiStreamDecompression( const std::filesystem::path& encoded,
                               const std::filesystem::path& decoded )
 {
-    auto compressedData = readFile<std::vector<uint8_t> >( encoded );
-    auto decompressedData = readFile<std::vector<uint8_t> >( decoded );
+    auto compressedData = readFile<std::vector<uint8_t> >( encoded.string() );
+    auto decompressedData = readFile<std::vector<uint8_t> >( decoded.string() );
 
     /* Duplicate gzip stream. We need something larger than the chunk size at least. */
     const auto duplicationCount = ceilDiv( 32_Mi, compressedData.size() );

@@ -181,7 +181,7 @@ testSerialDecoder( std::filesystem::path const& decodedFilePath,
     std::vector<char> buffer( bufferSize );
 
     std::ifstream decodedFile( decodedFilePath );
-    GzipReader gzipReader( std::make_unique<StandardFileReader>( encodedFilePath.string().c_str() ) );
+    GzipReader gzipReader( std::make_unique<StandardFileReader>( encodedFilePath ) );
     gzipReader.setCRC32Enabled( true );
 
     size_t totalBytesDecoded{ 0 };
@@ -221,11 +221,11 @@ testSerialDecoder( std::filesystem::path const& decodedFilePath,
 
 
 void
-testTwoStagedDecoding( std::string_view encodedFilePath,
-                       std::string_view decodedFilePath )
+testTwoStagedDecoding( const std::string& encodedFilePath,
+                       const std::string& decodedFilePath )
 {
     /* Read first deflate block so that we can try decoding from the second one. */
-    GzipReader gzipReader{ std::make_unique<StandardFileReader>( encodedFilePath.data() ) };
+    GzipReader gzipReader{ std::make_unique<StandardFileReader>( encodedFilePath ) };
     gzipReader.setCRC32Enabled( true );
     std::vector<char> decompressed( 1_Mi );
     const auto firstBlockSize = gzipReader.read( -1, decompressed.data(), decompressed.size(),
@@ -250,7 +250,7 @@ testTwoStagedDecoding( std::string_view encodedFilePath,
     std::cout << "Test two-staged decoding for " << encodedFilePath << "\n";
 
     /* Check that decompressed data and the last window match the ground truth. */
-    std::ifstream decodedFile( decodedFilePath.data() );
+    std::ifstream decodedFile( decodedFilePath );
     std::vector<char> uncompressed( decompressed.size() );
     decodedFile.read( uncompressed.data(), static_cast<std::ptrdiff_t>( uncompressed.size() ) );
     REQUIRE( std::equal( decompressed.begin(), decompressed.end(), uncompressed.begin() ) );
@@ -278,7 +278,7 @@ testTwoStagedDecoding( std::string_view encodedFilePath,
     using DeflateBlock = rapidgzip::deflate::Block</* CRC32 */ false>;
 
     /* Try reading, starting from second block. */
-    rapidgzip::BitReader bitReader{ std::make_unique<StandardFileReader>( encodedFilePath.data() ) };
+    rapidgzip::BitReader bitReader{ std::make_unique<StandardFileReader>( encodedFilePath ) };
     bitReader.seek( static_cast<long long int>( secondBlockOffset ) );
     DeflateBlock block;
 
@@ -359,7 +359,7 @@ main( int    argc,
             continue;
         }
 
-        const auto extension = entry.path().extension();
+        const auto extension = entry.path().extension().string();
         const std::unordered_set<std::string> validExtensions = { ".gz", ".bgz", ".igz", ".pigz" };
         if ( validExtensions.find( extension ) == validExtensions.end() ) {
             continue;

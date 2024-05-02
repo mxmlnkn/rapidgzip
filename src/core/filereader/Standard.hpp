@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdio>       // fread
+#include <filesystem>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -36,6 +37,14 @@ public:
     {
         init();
     }
+
+#if !defined(__APPLE_CC__ ) || ( defined(MAC_OS_X_VERSION_MIN_REQUIRED) \
+    && MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_15 )
+    explicit
+    StandardFileReader( const std::filesystem::path& filePath ) :
+        StandardFileReader( filePath.string() )
+    {}
+#endif
 
     explicit
     StandardFileReader( int fileDescriptor ) :

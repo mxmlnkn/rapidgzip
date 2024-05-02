@@ -259,11 +259,10 @@ public:
             throw std::invalid_argument( "Invalid SharedFileReader cannot be read from!" );
         }
 
-        const auto fileSize = size();
-
         const auto t0 = now();
         size_t nBytesRead{ 0 };
-    #ifndef _MSC_VER
+    #if defined(__linux__) || defined(__APPLE__)
+        const auto fileSize = size();
         if ( m_usePread && ( m_fileDescriptor >= 0 ) && fileSize.has_value() && sharedFile->seekable() ) {
             /* This statistic only approximates the actual pread behavior. The OS can probably reorder
              * concurrent pread calls and we would have to enclose pread itself in a lock, which defeats
