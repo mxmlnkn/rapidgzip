@@ -3,6 +3,7 @@ name: Build Wheels for rapidgzip
 on:
   push:
     branches: 'master'
+    tags: 'rapidgzip-v*.*.*'
 
 jobs:
   Build-Wheels:
@@ -26,6 +27,30 @@ jobs:
           manylinux-image: manylinux_2_28
           archs: auto64
     env:
+      # By default, both build (https://pypi.org/project/build/)
+      # and cibuildwheel (https://pypi.org/project/cibuildwheel/) seem to try to compile for macOS 10.9
+      # based on the wheel output names in the logs. However, C++17 seems to have introduced some alignment
+      # for classes, which results in this error for the GzipReader class itself even without "alignas" being used:
+      # > error: aligned allocation function of type 'void *(std::size_t, std::align_val_t)'
+      # >        is only available on macOS 10.14 or newer
+      # See also this discussion https://bugs.chromium.org/p/chromium/issues/detail?id=1274388
+      #
+      # In the end, 10.9 support should not be necessary anymore in almost 2023. Apple-support for that seems
+      # to have stopped 2016-12-01 (https://endoflife.date/macos) and even support for 10.14, which was introduced
+      # in 2019-09-24 has already stopped in 2021-10-25, so more than a year ago.
+      #
+      # Release                  | Release Date  | End of Life
+      # -------------------------+---------------+-------------
+      # macOS 13 (Ventura)       | 2022-10-24    | some time after 2022-11
+      # macOS 12 (Monterey)      | 2021-10-25    | some time after 2022-11
+      # macOS 11 (Big Sur)       | 2020-11-12    | some time after 2022-11
+      # macOS 10.15 (Catalina)   | 2019-10-07    | 2022-09-12
+      # macOS 10.14 (Mojave)     | 2018-09-24    | 2021-10-25
+      # macOS 10.13 (High Sierra)| 2017-09-25    | 2020-12-01
+      # macOS 10.12 (Sierra)     | 2016-09-20    | 2019-10-01
+      # OS X 10.11 (El Capitan)  | 2015-09-30    | 2018-12-01
+      # OS X 10.10 (Yosemite)    | 2014-10-16    | 2017-08-01
+      # OS X 10.9 (Mavericks)    | 2013-10-22    | 2016-12-01
       MACOSX_DEPLOYMENT_TARGET: "10.14"
 
     steps:
@@ -104,3 +129,17 @@ jobs:
       with:
         name: Linux x86-64 CPython Wheels
         path: "dist/*-cp31*manylinux_2_28_x86_64.whl"
+
+    - name: Publish Tarball to PyPI
+      # Only one out of the OS matrix needs to upload the tarball.
+      if: startsWith(github.ref, 'refs/tags/') && matrix.manylinux-image == 'manylinux2014' && matrix.os == 'ubuntu-latest'
+      env:
+        TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD_RAPIDGZIP }}
+      working-directory: python/rapidgzip
+      run: twine upload --skip-existing -u __token__ dist/*
+
+    - name: Publish Wheels to PyPI
+      if: startsWith(github.ref, 'refs/tags/')
+      env:
+        TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD_RAPIDGZIP }}
+      run: twine upload --skip-existing -u __token__ dist/*

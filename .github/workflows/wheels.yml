@@ -3,6 +3,7 @@ name: Build Wheels
 on:
   push:
     branches: 'master'
+    tags: 'rapidgzip-v*.*.*'
 
 jobs:
   Build-Wheels:
@@ -62,3 +63,17 @@ jobs:
 
     - name: Check Wheels
       run: twine check dist/*
+
+    - name: Publish Tarball to PyPI
+      # Only one out of the OS matrix needs to upload the tarball.
+      if: startsWith(github.ref, 'refs/tags/') && matrix.manylinux-image == 'manylinux2014' && matrix.os == 'ubuntu-latest'
+      env:
+        TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+      working-directory: python/indexed_bzip2
+      run: twine upload --skip-existing -u __token__ dist/*
+
+    - name: Publish to PyPI
+      if: startsWith(github.ref, 'refs/tags/')
+      env:
+        TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+      run: twine upload --skip-existing -u __token__ dist/*
