@@ -35,6 +35,7 @@ Checks: |
     -readability-function-cognitive-complexity,
     -readability-identifier-length,
     -readability-magic-numbers,
+    -readability-use-anyofallof,
     -readability-redundant-access-specifiers
 
 CheckOptions:
