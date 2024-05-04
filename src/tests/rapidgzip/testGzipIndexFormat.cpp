@@ -149,5 +149,5 @@ main( int    argc,
 
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
 
-    return gnTestErrors;
+    return gnTestErrors == 0 ? 0 : 1;
 }
