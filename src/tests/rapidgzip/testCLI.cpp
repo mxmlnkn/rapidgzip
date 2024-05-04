@@ -283,7 +283,7 @@ void
 testCLI()
 {
     /* Write to /dev/shm if possible because writing ~240 GB to any disk is probably not want you want for
-     * a simple test and because my SSD locks p after some amount of write, which increases the test time. */
+     * a simple test and because my SSD locks up after some amount of write, which increases the test time. */
     const auto tmpFolder = createTemporaryDirectory( std::filesystem::is_directory( "/dev/shm" )
                                                      ? "/dev/shm/rapidgzip.testCLI"
                                                      : "rapidgzip.testCLI" );

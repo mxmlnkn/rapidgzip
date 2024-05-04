@@ -4,8 +4,8 @@
 #include <functional>
 #include <limits>
 #include <numeric>
-#include <stdexcept>
 #include <optional>
+#include <stdexcept>
 #include <type_traits>
 #include <unordered_map>
 #include <vector>
@@ -1144,8 +1144,10 @@ main()
         /* The maximum random value should be much larger than the amount of values produced to minimize
          * randomly sequential accesses. */
         std::vector<int> randomAccesses( 1000 );
+        int nextValue{ 0 };
         for ( auto& value : randomAccesses ) {
-            value = std::rand();
+            value = nextValue;
+            value += 1234;
         }
 
         const auto checkStatistics =
@@ -1155,6 +1157,11 @@ main()
                     /* The very first access may trigger prefetching with full parallelization as a heuristic.
                      * Without the double prefetch cache size, it seems that twice the amount of unused entries
                      * is possible. @todo That could be a bug to be further analyzed. */
+                    if ( statistics.prefetchCache.unusedEntries > 2 * statistics.parallelization ) {
+                        std::cerr << "fetching strategy: " << fetchingStratgegy
+                                  << ", unused prefetches (" << statistics.prefetchCache.unusedEntries
+                                  << ") > 2 * parallelization (" << statistics.parallelization << ")\n";
+                    }
                     REQUIRE( statistics.prefetchCache.unusedEntries <= 2 * statistics.parallelization );
                 }
             };

@@ -6,8 +6,12 @@
 #include <algorithm>
 #include <cstdio>
 #include <iostream>
+#include <memory>
+#include <random>
 #include <stdexcept>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include <zlib.h>

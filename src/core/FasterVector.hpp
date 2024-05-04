@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #if !defined( WITH_RPMALLOC )
     #include <cstdlib>
 #endif
