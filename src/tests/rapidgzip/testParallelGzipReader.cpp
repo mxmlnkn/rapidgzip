@@ -862,22 +862,24 @@ testWindowPruningSimpleBase64Compression( const TemporaryDirectory& tmpFolder,
     const auto compressedFilePath = encodeTestFile( filePath, tmpFolder, command + " --force" );
     const auto compressedFileSize = fileSize( compressedFilePath );
 
-    ParallelGzipReader reader( std::make_unique<StandardFileReader>( compressedFilePath ), 0, 256_Ki );
-    const auto index = reader.gzipIndex();
+    {
+        ParallelGzipReader reader( std::make_unique<StandardFileReader>( compressedFilePath ), 0, 256_Ki );
+        const auto index = reader.gzipIndex();
 
-    REQUIRE( index.checkpoints.size() > 2 );
-    REQUIRE( static_cast<bool>( index.windows ) );
-    if ( index.windows ) {
-        REQUIRE_EQUAL( index.windows->size(), index.checkpoints.size() );
-        for ( const auto& checkpoint : index.checkpoints ) {
-            const auto window = index.windows->get( checkpoint.compressedOffsetInBits );
-            if ( ( checkpoint.compressedOffsetInBits < 64 * BYTE_SIZE /* guess for the gzip header size */ )
-                 || ( checkpoint.compressedOffsetInBits == compressedFileSize * BYTE_SIZE )
-                 || ( command == "bgzip" ) )
-            {
-                REQUIRE( !window || window->empty() );
-            } else {
-                REQUIRE( window && !window->empty() );
+        REQUIRE( index.checkpoints.size() > 2 );
+        REQUIRE( static_cast<bool>( index.windows ) );
+        if ( index.windows ) {
+            REQUIRE_EQUAL( index.windows->size(), index.checkpoints.size() );
+            for ( const auto& checkpoint : index.checkpoints ) {
+                const auto window = index.windows->get( checkpoint.compressedOffsetInBits );
+                if ( ( checkpoint.compressedOffsetInBits < 64 * BYTE_SIZE /* guess for the gzip header size */ )
+                     || ( checkpoint.compressedOffsetInBits == compressedFileSize * BYTE_SIZE )
+                     || ( command == "bgzip" ) )
+                {
+                    REQUIRE( !window || window->empty() );
+                } else {
+                    REQUIRE( window && !window->empty() );
+                }
             }
         }
     }
