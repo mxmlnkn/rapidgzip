@@ -912,6 +912,7 @@ public:
              fileEndOffset == newBlockOffsets.end() )
         {
             newBlockOffsets.emplace( index.compressedSizeInBytes * 8, index.uncompressedSizeInBytes );
+            m_windowMap->emplace( index.compressedSizeInBytes * 8, {}, CompressionType::NONE );
         } else if ( fileEndOffset->second != index.uncompressedSizeInBytes ) {
             throw std::invalid_argument( "Index has contradicting information for the file end information!" );
         }
