@@ -30,6 +30,7 @@ Checks: |
 
     performance-*,
     -performance-inefficient-string-concatenation,
+    -performance-move-const-arg,
 
     readability-*,
     -readability-function-cognitive-complexity,

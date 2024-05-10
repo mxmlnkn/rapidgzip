@@ -121,6 +121,20 @@ public:
         m_fileType = fileType;
     }
 
+    /**
+     * For legacy reasons, this class is always intended to start decompression at deflate boundaries.
+     * The file type will only be used when the end of the deflate stream is reached and there is still data
+     * to decode. If there is a header at the beginning, you can call this method with argument "true".
+     */
+    void
+    setStartWithHeader( bool enable )
+    {
+        m_needToReadHeader = enable;
+    }
+
+    [[nodiscard]] static std::string_view
+    getErrorString( int errorCode ) noexcept;
+
 private:
     [[nodiscard]] size_t
     getUnusedBits() const
@@ -187,9 +201,6 @@ private:
     bool
     readIsalHeader( Header*          header,
                     const GetHeader& getHeader );
-
-    [[nodiscard]] static std::string_view
-    getErrorString( int errorCode ) noexcept;
 
 private:
     BitReader m_bitReader;
@@ -505,7 +516,7 @@ IsalInflateWrapper::readHeader()
         }
         if ( error != Error::NONE ) {
             std::stringstream message;
-            message << "Error reading zlib header: " << toString( error ) << "!";
+            message << "Error reading zlib header: " << toString( error );
             throw std::logic_error( std::move( message ).str() );
         }
         return true;
@@ -627,7 +638,8 @@ compressWithIsal( const VectorView<uint8_t> toCompress,
 template<typename Container>
 [[nodiscard]] Container
 inflateWithIsal( const Container& toDecompress,
-                 const size_t     decompressedSize )
+                 const size_t     decompressedSize,
+                 const FileType   fileType = FileType::GZIP )
 {
     Container decompressed( decompressedSize );
 
@@ -639,12 +651,34 @@ inflateWithIsal( const Container& toDecompress,
     stream.next_out = const_cast<uint8_t*>( reinterpret_cast<const uint8_t*>( decompressed.data() ) );
     stream.avail_out = decompressed.size();
 
-    isal_gzip_header header{};
-    isal_read_gzip_header( &stream, &header );
+    switch ( fileType )
+    {
+    case FileType::BGZF:
+    case FileType::GZIP:
+    {
+        isal_gzip_header header{};
+        isal_read_gzip_header( &stream, &header );
+        break;
+    }
+    case FileType::ZLIB:
+    {
+        isal_zlib_header header{};
+        isal_read_zlib_header( &stream, &header );
+        break;
+    }
+    case FileType::DEFLATE:
+        break;
+    default:
+        throw std::invalid_argument( std::string( "Unsupported file type for inflating with ISA-L: " )
+                                     + toString( fileType ) );
+    }
 
     const auto result = isal_inflate_stateless( &stream );
     if ( result != ISAL_DECOMP_OK ) {
-        throw std::runtime_error( "Decompression failed with error code: " + std::to_string( result ) );
+        std::stringstream message;
+        message << "Decompression of " << toDecompress.size() << "B sized vector failed with error code: "
+                << IsalInflateWrapper::getErrorString( result ) << " (" << std::to_string( result ) << ")";
+        throw std::runtime_error( std::move( message ).str() );
     }
     if ( stream.avail_out > 0 ) {
         std::stringstream message;

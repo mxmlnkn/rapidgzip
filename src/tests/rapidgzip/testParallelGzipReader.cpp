@@ -965,9 +965,11 @@ main( int    argc,
         testParallelDecoder( rootFolder / ( "zeros" + extension ) );
     }
 
-    testParallelDecoder( rootFolder / "base64-256KiB.gz",
-                         rootFolder / "base64-256KiB",
-                         rootFolder / "base64-256KiB.gz.index" );
+    for ( const auto* const indexSuffix : { ".index", ".gztool.index", ".gztool.with-lines.index" } ) {
+        testParallelDecoder( rootFolder / "base64-256KiB.gz",
+                             rootFolder / "base64-256KiB",
+                             rootFolder / ( "base64-256KiB.gz"s + indexSuffix ) );
+    }
 
     testParallelDecoder( rootFolder / "base64-256KiB.bgz",
                          rootFolder / "base64-256KiB",

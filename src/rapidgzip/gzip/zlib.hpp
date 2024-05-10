@@ -164,6 +164,17 @@ public:
         m_fileType = fileType;
     }
 
+    /**
+     * For legacy reasons, this class is always intended to start decompression at deflate boundaries.
+     * The file type will only be used when the end of the deflate stream is reached and there is still data
+     * to decode. If there is a header at the beginning, you can call this method with argument "true".
+     */
+    void
+    setStartWithHeader( bool enable )
+    {
+        m_needToReadHeader = enable;
+    }
+
 private:
     [[nodiscard]] size_t
     getUnusedBits() const
@@ -222,6 +233,7 @@ private:
     const size_t m_encodedStartOffset;
     const size_t m_encodedUntilOffset;
     std::optional<size_t> m_setWindowSize;
+    bool m_needToReadHeader{ false };
 
     /* 2^15 = 32 KiB window buffer and minus signaling raw deflate stream to decode.
      * n in [8,15]
@@ -296,6 +308,11 @@ ZlibInflateWrapper::readStream( uint8_t* const output,
     m_stream.next_out = output;
     m_stream.avail_out = outputSize;
     m_stream.total_out = 0;
+
+    if ( m_needToReadHeader ) {
+        readHeader();
+        m_needToReadHeader = false;
+    }
 
     size_t decodedSize{ 0 };
     /* Do not check for avail_out == 0 here so that progress can still be made on empty blocks as might
@@ -557,7 +574,7 @@ ZlibInflateWrapper::readHeader()
         }
         if ( error != Error::NONE ) {
             std::stringstream message;
-            message << "Error reading zlib header: " << toString( error ) << "!";
+            message << "Error reading zlib header: " << toString( error );
             throw std::logic_error( std::move( message ).str() );
         }
         break;

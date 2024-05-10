@@ -134,12 +134,29 @@ public:
             return false;
         }
 
-        for ( const auto& [offset, window] : m_windows ) {
-            const auto otherWindow = other.m_windows.find( offset );
-            if ( ( otherWindow == other.m_windows.end() )
-                 || ( static_cast<bool>( window ) != static_cast<bool>( otherWindow->second ) )
-                 || ( static_cast<bool>( window ) && static_cast<bool>( otherWindow->second )
-                      && ( *window != *otherWindow->second ) ) ) {
+        for ( const auto& [offset, window] : m_windows ) {  // NOLINT(readability-use-anyofallof)
+            const auto otherWindowIt = other.m_windows.find( offset );
+            if ( ( otherWindowIt == other.m_windows.end() )
+                 || ( static_cast<bool>( window ) != static_cast<bool>( otherWindowIt->second ) ) ) {
+                return false;
+            }
+
+            const auto& otherWindow = otherWindowIt->second;
+            if ( !static_cast<bool>( window ) || !static_cast<bool>( otherWindow ) ) {
+                continue;
+            }
+
+            if ( window->compressionType() == otherWindow->compressionType() ) {
+                if ( *window != *otherWindow ) {
+                    return false;
+                }
+                continue;
+            }
+
+            const auto a = window->decompress();
+            const auto b = otherWindow->decompress();
+            if ( ( static_cast<bool>( a ) != static_cast<bool>( b ) )
+                 || ( static_cast<bool>( a ) && static_cast<bool>( b ) && ( *a != *b ) ) ) {
                 return false;
             }
         }

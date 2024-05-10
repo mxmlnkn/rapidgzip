@@ -100,12 +100,12 @@ testIndexReadWrite( const std::filesystem::path& compressedPath,
 
 
 GzipIndex
-testBzipIndexRead( const std::filesystem::path& compressedPath,
-                   const std::filesystem::path& uncompressedPath,
-                   const std::filesystem::path& indexPath )
+testBgzipIndexRead( const std::filesystem::path& compressedPath,
+                    const std::filesystem::path& uncompressedPath,
+                    const std::filesystem::path& indexPath )
 {
     auto index = readGzipIndex( std::make_unique<StandardFileReader>( indexPath.string() ),
-                                /* This second argument is only necessary when reading bgzip indexes! */
+                                /* This second argument is necessary when reading bgzip indexes! */
                                 std::make_unique<StandardFileReader>( compressedPath.string() ) );
 
     REQUIRE_EQUAL( index.compressedSizeInBytes, fileSize( compressedPath ) );
@@ -114,6 +114,28 @@ testBzipIndexRead( const std::filesystem::path& compressedPath,
     /* checkpointSpacing is not available for bgzip indexes. */
     REQUIRE_EQUAL( index.checkpointSpacing, 0U );
     REQUIRE_EQUAL( index.checkpoints.size(), 4U );
+
+    REQUIRE( static_cast<bool>( index.windows ) );
+
+    return index;
+}
+
+
+GzipIndex
+testGztoolIndexRead( const std::filesystem::path& compressedPath,
+                     const std::filesystem::path& uncompressedPath,
+                     const std::filesystem::path& indexPath )
+{
+    auto index = readGzipIndex( std::make_unique<StandardFileReader>( indexPath.string() ),
+                                /* This second argument is necessary when reading gztool indexes! */
+                                std::make_unique<StandardFileReader>( compressedPath.string() ) );
+
+    REQUIRE_EQUAL( index.compressedSizeInBytes, fileSize( compressedPath ) );
+    REQUIRE_EQUAL( index.uncompressedSizeInBytes, fileSize( uncompressedPath ) );
+
+    /* checkpointSpacing is not available for gztool indexes. */
+    REQUIRE_EQUAL( index.checkpointSpacing, 0U );
+    REQUIRE_EQUAL( index.checkpoints.size(), 5U );
 
     REQUIRE( static_cast<bool>( index.windows ) );
 
@@ -143,9 +165,12 @@ main( int    argc,
     testIndexReadWrite( rootFolder / "base64-256KiB.gz",
                         rootFolder / "base64-256KiB",
                         rootFolder / "base64-256KiB.gz.index" );
-    testBzipIndexRead( rootFolder / "base64-256KiB.bgz",
+    testBgzipIndexRead( rootFolder / "base64-256KiB.bgz",
                        rootFolder / "base64-256KiB",
                        rootFolder / "base64-256KiB.bgz.gzi" );
+    testGztoolIndexRead( rootFolder / "base64-256KiB.gz",
+                         rootFolder / "base64-256KiB",
+                         rootFolder / "base64-256KiB.gz.gztool.index" );
 
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
 

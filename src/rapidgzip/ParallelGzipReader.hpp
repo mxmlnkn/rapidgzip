@@ -839,7 +839,7 @@ public:
         }
 
         const auto lockedWindows = index.windows->data();
-        if ( !lockedWindows.second ) {
+        if ( lockedWindows.second == nullptr ) {
             throw std::invalid_argument( "Index window map must be a valid pointer!" );
         }
 
