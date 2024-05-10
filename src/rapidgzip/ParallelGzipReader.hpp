@@ -833,7 +833,17 @@ public:
     void
     setBlockOffsets( const GzipIndex& index )
     {
+        if ( index.checkpoints.empty() ) {
+            return;
+        }
+
+        if ( !index.windows ) {
+            throw std::invalid_argument( "Index window map must be a valid pointer!" );
+        }
         const auto result = index.windows->data();
+        if ( !result.second ) {
+            throw std::invalid_argument( "Index window map must be a valid pointer!" );
+        }
         setBlockOffsets( index, [&windows = result.second] ( size_t offset ) { return windows->at( offset ); } );
     }
 
