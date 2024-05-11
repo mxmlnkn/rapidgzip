@@ -158,7 +158,8 @@ testParallelDecoder( const std::filesystem::path& encoded,
     if ( std::filesystem::is_regular_file( index ) ) {
         std::cerr << "Testing " << encoded.filename() << " with given index ("
                   << std::filesystem::file_size( encoded ) << " B)\n";
-        const auto givenIndexData = readGzipIndex( std::make_unique<StandardFileReader>( index.string() ) );
+        const auto givenIndexData = readGzipIndex( std::make_unique<StandardFileReader>( index.string() ),
+                                                   std::make_unique<StandardFileReader>( encoded.string() ) );
         for ( const size_t nBlocksToSkip : blocksToSkip ) {
             testParallelDecoder( std::make_unique<StandardFileReader>( encoded.string() ),
                                  std::make_unique<StandardFileReader>( decodedFilePath.string() ),
@@ -967,6 +968,10 @@ main( int    argc,
     testParallelDecoder( rootFolder / "base64-256KiB.gz",
                          rootFolder / "base64-256KiB",
                          rootFolder / "base64-256KiB.gz.index" );
+
+    testParallelDecoder( rootFolder / "base64-256KiB.bgz",
+                         rootFolder / "base64-256KiB",
+                         rootFolder / "base64-256KiB.bgz.gzi" );
 
     /**
      * @todo add test with false pigz positive, e.g., pigz marker inside comment, extra, or file name field.

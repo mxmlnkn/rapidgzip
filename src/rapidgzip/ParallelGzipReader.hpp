@@ -833,31 +833,13 @@ public:
     void
     setBlockOffsets( const GzipIndex& index )
     {
-        if ( index.checkpoints.empty() ) {
+        if ( index.checkpoints.empty() || !index.windows ) {
             return;
         }
 
-        if ( !index.windows ) {
+        const auto lockedWindows = index.windows->data();
+        if ( !lockedWindows.second ) {
             throw std::invalid_argument( "Index window map must be a valid pointer!" );
-        }
-        const auto result = index.windows->data();
-        if ( !result.second ) {
-            throw std::invalid_argument( "Index window map must be a valid pointer!" );
-        }
-        setBlockOffsets( index, [&windows = result.second] ( size_t offset ) { return windows->at( offset ); } );
-    }
-
-    /**
-     * @param getWindow A functor that returns the window to the requested encoded bit offset.
-     *                  It shall be a bug if this function is called twice with the same offset.
-     *                  This makes it possible to destructively return the Window to avoid a copy!
-     */
-    void
-    setBlockOffsets( const GzipIndex&                                        index,
-                     const std::function<WindowMap::SharedWindow( size_t )>& getWindow )
-    {
-        if ( index.checkpoints.empty() || !index.windows || !getWindow ) {
-            return;
         }
 
         /* Generate simple compressed to uncompressed offset map from index. */
@@ -902,9 +884,15 @@ public:
             /* Copy window data.
              * For some reason, indexed_gzip also stores windows for the very last checkpoint at the end of the file,
              * which is useless because there is nothing thereafter. But, don't filter it here so that exportIndex
-             * mirrors importIndex better. */
-            m_windowMap->emplaceShared( checkpoint.compressedOffsetInBits,
-                                        getWindow( checkpoint.compressedOffsetInBits ) );
+             * mirrors importIndex better.
+             * Bgzip indexes do not have windows because they are not needed, so we do not have to insert anything
+             * into the WindowMap in that case. Bgzip indexes will be detected by the magic bytes and in that case
+             * windows should never be looked up in the WindowMap in the first place. */
+            if ( const auto window = lockedWindows.second->find( checkpoint.compressedOffsetInBits );
+                 window != lockedWindows.second->end() )
+            {
+                m_windowMap->emplaceShared( checkpoint.compressedOffsetInBits, window->second );
+            }
         }
 
         /* Input file-end offset if not included in checkpoints. */
