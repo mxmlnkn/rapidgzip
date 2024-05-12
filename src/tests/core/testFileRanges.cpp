@@ -23,6 +23,8 @@ testFileRanges()
     REQUIRE_EQUAL( parseFileRanges( "1G@2Gi" ), ( FileRanges{ FileRange{ 2ULL << 30U, 1000'000'000 } } ) );
     REQUIRE_EQUAL( parseFileRanges( "  1  @  0  " ), ( FileRanges{ FileRange{ 0, 1 } } ) );
     REQUIRE_EQUAL( parseFileRanges( " ,, 1  @  4  , 2@3 " ), ( FileRanges{ FileRange{ 4, 1 }, FileRange{ 3, 2 } } ) );
+    REQUIRE_EQUAL( parseFileRanges( "1L@2" ), ( FileRanges{ FileRange{ 2, 1, false, true } } ) );
+    REQUIRE_EQUAL( parseFileRanges( "1@2KiL" ), ( FileRanges{ FileRange{ 2048, 1, true, false } } ) );
     REQUIRE_THROWS( parseFileRanges( "a" ) );
 }
 

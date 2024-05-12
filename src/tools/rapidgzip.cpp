@@ -240,8 +240,9 @@ rapidgzipCLI( int                  argc,
           "Note that there might be further threads being started with non-decoding work. "
           "If 0 is given, then the parallelism will be determined automatically.",
           cxxopts::value<unsigned int>()->default_value( "0" ) )
-        ( "ranges", "Decompress only the specified byte ranges. Example: 10@0,1@15,5@20 to decompress the first "
-                    "10 bytes, the byte at offset 15, as well as the 5 bytes at offset 20.",
+        ( "ranges", "Decompress only the specified byte ranges. Example: 10@0,1KiB@15KiB,5L@20L to decompress the "
+                    "first 10 bytes, 1024 bytes at offset 15 KiB, as well as the 5 lines after skipping the first "
+                    "20 lines.",
           cxxopts::value<std::string>() );
 
     options.add_options( "Advanced" )
@@ -475,8 +476,9 @@ rapidgzipCLI( int                  argc,
 
         const auto t0 = now();
 
+        size_t totalBytesRead{ 0 };
         const auto writeAndCount =
-            [outputFileDescriptor, countLines, &newlineCount]
+            [outputFileDescriptor, countLines, &newlineCount, &totalBytesRead]
             ( const std::shared_ptr<rapidgzip::ChunkData>& chunkData,
               size_t const                                 offsetInChunk,
               size_t const                                 dataToWriteSize )
@@ -485,12 +487,15 @@ rapidgzipCLI( int                  argc,
                 if ( errorCode == EPIPE ) {
                     throw BrokenPipeException();
                 }
+
                 if ( errorCode != 0 ) {
                     std::stringstream message;
                     message << "Failed to write all bytes because of: " << strerror( errorCode )
                             << " (" << errorCode << ")";
                     throw std::runtime_error( std::move( message ).str() );
                 }
+
+                totalBytesRead += dataToWriteSize;
 
                 if ( countLines ) {
                     using rapidgzip::deflate::DecodedData;
@@ -506,7 +511,6 @@ rapidgzipCLI( int                  argc,
         args.chunkSize = parsedArgs["chunk-size"].as<unsigned int>() * 1_Ki;
 
         auto errorCode = DecompressErrorCode::SUCCESS;
-        size_t totalBytesRead{ 0 };
         if ( ( outputFileDescriptor == -1 ) && args.indexSavePath.empty() && countBytes && !countLines
              && !args.crc32Enabled && !fileRanges )
         {
@@ -519,27 +523,134 @@ rapidgzipCLI( int                  argc,
                 } );
         } else {
             const auto readRange =
-                [&totalBytesRead, outputFileDescriptor, countLines, &writeAndCount] ( const auto& reader, size_t size )
+                [&totalBytesRead, outputFileDescriptor, countLines, &writeAndCount]
+                ( const auto&  reader,
+                  const size_t size )
                 {
                     /* An empty functor will lead to decompression to be skipped if the index is finalized! */
                     if ( ( outputFileDescriptor != -1 ) || countLines ) {
-                        totalBytesRead += reader->read( writeAndCount, size );
+                        reader->read( writeAndCount, size );
                     } else {
                         totalBytesRead += reader->read( /* do nothing */ nullptr, size );
                     }
                 };
 
+            const auto readLines =
+                [&] ( const auto&  reader,
+                      const size_t lineCount,
+                      const auto&  writeFunctor )
+                {
+                    size_t lastLineOffset = reader->tell();
+                    const auto newlineCharacter = reader->newlineFormat() == NewlineFormat::LINE_FEED ? '\n' : '\r';
+                    auto remainingLineCount = lineCount;
+
+                    const auto forwardLineWrites =
+                        [&lastLineOffset, &remainingLineCount, newlineCharacter, &writeFunctor]
+                        ( const std::shared_ptr<rapidgzip::ChunkData>& chunkData,
+                          const size_t                                 offsetInChunk,
+                          const size_t                                 dataToWriteSize )
+                        {
+                            if ( remainingLineCount == 0 ) {
+                                return;
+                            }
+
+                            using rapidgzip::deflate::DecodedData;
+                            size_t nBytesRead{ 0 };
+                            for ( auto it = DecodedData::Iterator( *chunkData, offsetInChunk, dataToWriteSize );
+                                  static_cast<bool>( it ); ++it )
+                            {
+                                const auto& [buffer, size] = *it;
+                                const auto result = findNthNewline( { reinterpret_cast<const char*>( buffer ), size },
+                                                                    remainingLineCount, newlineCharacter );
+                                remainingLineCount = result.remainingLineCount;
+                                if ( remainingLineCount == 0 ) {
+                                    if ( result.position == std::string_view::npos ) {
+                                        throw std::logic_error( "Find n-th line should return a valid position when "
+                                                                "the input line count was not 0 but is 0 thereafter." );
+                                    }
+
+                                    /* Skip over last newline character with +1. */
+                                    nBytesRead += result.position + 1U;
+                                    lastLineOffset += result.position + 1U;
+                                    break;
+                                }
+                                nBytesRead += size;
+                                lastLineOffset += size;
+                            }
+
+                            if ( nBytesRead > dataToWriteSize ) {
+                                throw std::logic_error( "Shouldn't have read more bytes than specified in the chunk." );
+                            }
+
+                            writeFunctor( chunkData, offsetInChunk, nBytesRead );
+                        };
+
+                    while ( remainingLineCount > 0 ) {
+                        const auto currentBytesRead = reader->read( forwardLineWrites, 4_Mi );
+                        if ( currentBytesRead == 0 ) {
+                            break;
+                        }
+                    }
+
+                    reader->seekTo( lastLineOffset );
+                };
+
             errorCode = decompressParallel<rapidgzip::ChunkData>(
                 args, std::move( inputFile ), [&] ( const auto& reader ) {
-                    if ( fileRanges ) {
-                        for ( const auto& range : *fileRanges ) {
-                            if ( range.size > 0 ) {
-                                reader->seek( range.offset );
-                                readRange( reader, range.size );
-                            }
-                        }
-                    } else {
+                    if ( !fileRanges ) {
                         readRange( reader, std::numeric_limits<size_t>::max() );
+                        return;
+                    }
+
+                    for ( const auto& range : *fileRanges ) {
+                        if ( range.size == 0 ) {
+                            continue;
+                        }
+
+                        if ( ( ( range.offsetIsLine && ( range.offset > 0 ) ) || range.sizeIsLine )
+                             && !reader->newlineFormat() )
+                        {
+                            throw std::invalid_argument( "Currently, seeking and reading lines only works when "
+                                                         "importing gztool indexes created with -x or -X!" );
+                        }
+
+                        /* Seek to line or byte offset. Note that line 0 starts at byte 0 by definition. */
+                        if ( range.offsetIsLine && ( range.offset > 0 ) ) {
+                            const auto& newlineOffsets = reader->newlineOffsets();
+                            const auto lessLineOffset = [] ( const auto& a, const auto lineOffset ) {
+                                return a.lineOffset < lineOffset;
+                            };
+                            auto newlineOffset = std::lower_bound( newlineOffsets.begin(), newlineOffsets.end(),
+                                                                   range.offset, lessLineOffset );
+                            if ( newlineOffset == newlineOffsets.end() ) {
+                                continue;
+                            }
+
+                            if ( newlineOffset == newlineOffsets.begin() ) {
+                                throw std::logic_error( "Bisection may never point to the first element because "
+                                                        "line offset 0 is always smaller than any line offset handled "
+                                                        "in this branch!" );
+                            }
+                            --newlineOffset;
+
+                            reader->seekTo( newlineOffset->uncompressedOffsetInBytes );
+
+                            if ( newlineOffset->lineOffset >= range.offset ) {
+                                throw std::logic_error( "Bisection should have returned a line offset prior to the "
+                                                        "one we need to seek to." );
+                            }
+
+                            readLines( reader, range.offset - newlineOffset->lineOffset,
+                                       [] ( const auto&, size_t, size_t ) {} );
+                        } else {
+                            reader->seekTo( range.offset );
+                        }
+
+                        if ( range.sizeIsLine ) {
+                            readLines( reader, range.size, writeAndCount );
+                        } else {
+                            readRange( reader, range.size );
+                        }
                     }
                 } );
         }

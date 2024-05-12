@@ -389,6 +389,35 @@ testCLI()
 }
 
 
+void
+testLineRanges( const std::filesystem::path& rootFolder )
+{
+    const auto decompressedFilePath = ( rootFolder / "base64-256KiB" ).string();
+    const auto compressedFilePath = decompressedFilePath + ".gz";
+    const auto decompressed = readFile<std::vector<char> >( decompressedFilePath );
+
+    std::vector<char> decompressedRanges;
+    const std::vector<std::pair<size_t, size_t> > ranges = {
+        { 1, 100 }, { 123, 2 }, { 3, 1024 }
+    };
+    static constexpr auto lineLength = 77U;
+    for ( const auto& [lineCount, lineOffset] : ranges ) {
+        const auto offset = lineOffset * lineLength;
+        const auto size = lineCount * lineLength;
+        decompressedRanges.insert( decompressedRanges.end(),
+                                   decompressed.begin() + offset,
+                                   decompressed.begin() + offset + size );
+    }
+
+    const auto tmpFolder = createTemporaryDirectory( "rapidgzip.testCLI" );
+    const auto filePath = tmpFolder.path() / "decompressed";
+
+    testCLI( { "--ranges"s, "1 L @ 100 L,123L@2L,3L@1 KiL"s, "-o", filePath.string(),
+               "--import-index", compressedFilePath + ".gztool.with-lines.index", compressedFilePath },
+             /* expected output file (except for --stdout) */ filePath, decompressedRanges );
+}
+
+
 int
 main( int    argc,
       char** argv )
@@ -411,6 +440,8 @@ main( int    argc,
         static_cast<std::filesystem::path>(
             findParentFolderContaining( binaryFolder, "src/tests/data/base64-256KiB.bgz" )
         ) / "src" / "tests" / "data";
+
+    testLineRanges( rootFolder );
 
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
 

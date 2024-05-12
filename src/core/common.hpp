@@ -558,6 +558,59 @@ countNewlines( const std::string_view& view )
 }
 
 
+struct FindNthNewlineResult
+{
+    std::size_t position{ std::string_view::npos };
+    uint64_t remainingLineCount{ 0 };
+
+    [[nodiscard]] bool
+    operator==( const FindNthNewlineResult& other ) const noexcept
+    {
+        return ( position == other.position ) && ( remainingLineCount == other.remainingLineCount );
+    }
+
+    [[nodiscard]] bool
+    operator!=( const FindNthNewlineResult& other ) const noexcept
+    {
+        return !( *this == other );
+    }
+};
+
+
+inline std::ostream&
+operator<<( std::ostream&               out,
+            const FindNthNewlineResult& result )
+{
+    out << "( position: " << result.position << ", remaining line count: " << result.remainingLineCount << ")";
+    return out;
+}
+
+
+/**
+ * @return Position of the nth newline character or std::string_view::npos and the remaining line count.
+ *         If @p lineCount is 0, always returns 0 by definition.
+ */
+[[nodiscard]] constexpr FindNthNewlineResult
+findNthNewline( const std::string_view& view,
+                const uint64_t          lineCount,
+                const char              newlineCharacter = '\n' )
+{
+    const std::string_view toFind( std::addressof( newlineCharacter ), 1 );
+
+    FindNthNewlineResult result;
+    result.remainingLineCount = lineCount;
+    while ( result.remainingLineCount > 0 ) {
+        result.position = view.find( toFind, result.position == std::string_view::npos ? 0 : result.position + 1 );
+        if ( result.position == std::string_view::npos ) {
+            return result;
+        }
+        --result.remainingLineCount;
+    }
+
+    return result;
+}
+
+
 [[nodiscard]] constexpr uint64_t
 operator "" _Ki( unsigned long long int value ) noexcept
 {

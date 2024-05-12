@@ -18,11 +18,14 @@ struct FileRange
 {
     size_t offset{ 0 };
     size_t size{ 0 };
+    bool offsetIsLine{ false };
+    bool sizeIsLine{ false };
 
     [[nodiscard]] bool
     operator==( const FileRange& other ) const noexcept
     {
-        return ( offset == other.offset ) && ( size == other.size );
+        return ( offset == other.offset ) && ( size == other.size )
+               && ( offsetIsLine == other.offsetIsLine ) && ( sizeIsLine == other.sizeIsLine );
     }
 };
 
@@ -31,7 +34,7 @@ inline std::ostream&
 operator<<( std::ostream&    out,
             const FileRange& range )
 {
-    out << range.size << "@" << range.offset;
+    out << range.size << ( range.sizeIsLine ? "L" : "" ) << "@" << range.offset << ( range.offsetIsLine ? "L" : "" );
     return out;
 }
 
@@ -53,7 +56,8 @@ skipWhitespaces( const char* const first,
 [[nodiscard]] inline const char*
 readNumber( const char* const first,
             const char* const last,
-            size_t&           value )
+            size_t&           value,
+            bool&             valueIsLine )
 {
     const auto result = std::from_chars( first, last, value );
     if ( ( result.ec != std::errc() ) || ( result.ptr == first ) ) {
@@ -83,7 +87,8 @@ readNumber( const char* const first,
 
     size_t longestMatch{ 0 };
     size_t longestMatchFactor{ 1 };
-    for ( const auto suffix : { std::string_view( "B" ), std::string_view( "" ) } ) {
+    bool longestMatchIsLine{ false };
+    for ( const auto suffix : { std::string_view( "B" ), std::string_view( "L" ), std::string_view( "" ) } ) {
         for ( const auto& [prefix, factor] : PREFIXES ) {
             if ( ( prefix.size() + suffix.size() > longestMatch )
                  && startsWith( unitString, prefix )
@@ -93,10 +98,12 @@ readNumber( const char* const first,
             {
                 longestMatch = prefix.size() + suffix.size();
                 longestMatchFactor = factor;
+                longestMatchIsLine = suffix == "L";
             }
         }
     }
 
+    valueIsLine = longestMatchIsLine;
     if ( longestMatch == 0 ) {
         return result.ptr;
     }
@@ -149,7 +156,7 @@ parseFileRanges( const std::string_view expression )
             }
 
             range.size = 0;
-            current = readNumber( current, expressionEnd, range.size );
+            current = readNumber( current, expressionEnd, range.size, range.sizeIsLine );
             state = State::SIZE_END;
             break;
 
@@ -166,7 +173,7 @@ parseFileRanges( const std::string_view expression )
 
         case State::OFFSET_SEPARATOR_END:
             range.offset = 0;
-            current = readNumber( current, expressionEnd, range.offset );
+            current = readNumber( current, expressionEnd, range.offset, range.offsetIsLine );
             ranges.emplace_back( range );
             state = State::OFFSET_END;
             break;

@@ -87,6 +87,12 @@ public:
     using WriteFunctor = std::function<void ( const std::shared_ptr<ChunkData>&, size_t, size_t )>;
     using Window = WindowMap::Window;
 
+    struct NewlineOffset
+    {
+        uint64_t lineOffset{ 0 };
+        uint64_t uncompressedOffsetInBytes{ 0 };
+    };
+
 public:
     /**
      * Quick benchmarks for spacing on AMD Ryzen 3900X 12-core.
@@ -802,6 +808,18 @@ public:
         return m_maxDecompressedChunkSize;
     }
 
+    [[nodiscard]] const std::optional<NewlineFormat>&
+    newlineFormat() const noexcept
+    {
+        return m_newlineFormat;
+    }
+
+    [[nodiscard]] const std::vector<NewlineOffset>&
+    newlineOffsets() const noexcept
+    {
+        return m_newlineOffsets;
+    }
+
 private:
     void
     setBlockOffsets( const std::map<size_t, size_t>& offsets )
@@ -841,6 +859,34 @@ public:
         const auto lockedWindows = index.windows->data();
         if ( lockedWindows.second == nullptr ) {
             throw std::invalid_argument( "Index window map must be a valid pointer!" );
+        }
+
+        const auto lessOffset =
+            [] ( const auto& a, const auto& b ) {
+                return a.uncompressedOffsetInBytes < b.uncompressedOffsetInBytes;
+            };
+        if ( !std::is_sorted( index.checkpoints.begin(), index.checkpoints.end(), lessOffset ) ) {
+            throw std::invalid_argument( "Index checkpoints must be sorted by uncompressed offsets!" );
+        }
+
+        if ( index.hasLineOffsets ) {
+            m_newlineFormat = index.newlineFormat;
+            m_newlineOffsets.resize( index.checkpoints.size() );
+            std::transform( index.checkpoints.begin(), index.checkpoints.end(), m_newlineOffsets.begin(),
+                            [] ( const auto& checkpoint ) {
+                NewlineOffset newlineOffset;
+                newlineOffset.lineOffset = checkpoint.lineOffset;
+                newlineOffset.uncompressedOffsetInBytes = checkpoint.uncompressedOffsetInBytes;
+                return newlineOffset;
+            } );
+
+            /* Checkpoints should already be sorted and therefore also the newline offsets, but just to be sure.
+             * We are not sorting here because it may be impossible to sort by line offsets and uncompressed offsets
+             * for inconsistent index data! */
+            const auto lessLineOffset = [] ( const auto& a, const auto& b ) { return a.lineOffset < b.lineOffset; };
+            if ( !std::is_sorted( m_newlineOffsets.begin(), m_newlineOffsets.end(), lessLineOffset ) ) {
+                throw std::invalid_argument( "Index checkpoints must be sorted by line offsets!" );
+            }
         }
 
         /* Generate simple compressed to uncompressed offset map from index. */
@@ -1189,6 +1235,16 @@ private:
     std::shared_ptr<WindowMap> const m_windowMap{ std::make_shared<WindowMap>() };
     bool m_keepIndex{ true };
     std::unique_ptr<ChunkFetcher> m_chunkFetcher;
+    /**
+     * Note that the uncompressed offset can point to any byte offset inside the line depending on how the chunks
+     * are split. Only the offset to the 0-th line is exact of course. To get any other line beginning exactly,
+     * you need to start from the previous line and search for the next newline.
+     * Note also that not all line offsets have to be in this vector. That's why it is a vector of pairs and not
+     * a simply vector of values. Line offsets are only available at spacings. To get an exact line offset, you
+     * need to start reading from the next smaller one and skip over as many newline characters as necessary.
+     */
+    std::vector<NewlineOffset> m_newlineOffsets;
+    std::optional<NewlineFormat> m_newlineFormat;
 
     CRC32Calculator m_crc32;
     uint64_t m_nextCRC32ChunkOffset{ 0 };

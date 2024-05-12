@@ -100,12 +100,58 @@ testSignedSaturatingAddition()
 }
 
 
+void
+testCountNewlines()
+{
+    REQUIRE_EQUAL( countNewlines( "" ), 0U );
+    REQUIRE_EQUAL( countNewlines( " " ), 0U );
+    REQUIRE_EQUAL( countNewlines( "\n" ), 1U );
+    REQUIRE_EQUAL( countNewlines( "\n " ), 1U );
+    REQUIRE_EQUAL( countNewlines( " \n" ), 1U );
+    REQUIRE_EQUAL( countNewlines( "\n\n" ), 2U );
+    REQUIRE_EQUAL( countNewlines( "\n \n" ), 2U );
+    REQUIRE_EQUAL( countNewlines( " \n \n" ), 2U );
+    REQUIRE_EQUAL( countNewlines( " \n \n " ), 2U );
+}
+
+
+void
+testFindNthNewline()
+{
+    const auto NPOS = std::string_view::npos;
+
+    const auto makeResult =
+        [] ( std::size_t position, uint64_t lineCount ) {
+            return FindNthNewlineResult{ position, lineCount };
+        };
+
+    REQUIRE_EQUAL( findNthNewline( "", 0 ), makeResult( NPOS, 0 ) );
+    REQUIRE_EQUAL( findNthNewline( " ", 0 ), makeResult( NPOS, 0 ) );
+    REQUIRE_EQUAL( findNthNewline( "\n ", 0 ), makeResult( NPOS, 0 ) );
+    REQUIRE_EQUAL( findNthNewline( " \n", 0 ), makeResult( NPOS, 0 ) );
+
+    REQUIRE_EQUAL( findNthNewline( "", 1 ), makeResult( NPOS, 1 ) );
+    REQUIRE_EQUAL( findNthNewline( " ", 1 ), makeResult( NPOS, 1 ) );
+    REQUIRE_EQUAL( findNthNewline( "\n ", 1 ), makeResult( 0, 0 ) );
+    REQUIRE_EQUAL( findNthNewline( " \n", 1 ), makeResult( 1, 0 ) );
+    REQUIRE_EQUAL( findNthNewline( " \n\n", 1 ), makeResult( 1, 0 ) );
+
+    REQUIRE_EQUAL( findNthNewline( "", 2 ), makeResult( NPOS, 2 ) );
+    REQUIRE_EQUAL( findNthNewline( " ", 2 ), makeResult( NPOS, 2 ) );
+    REQUIRE_EQUAL( findNthNewline( "\n ", 2 ), makeResult( NPOS, 1 ) );
+    REQUIRE_EQUAL( findNthNewline( " \n", 2 ), makeResult( NPOS, 1 ) );
+    REQUIRE_EQUAL( findNthNewline( " \n\n", 2 ), makeResult( 2, 0 ) );
+}
+
+
 int
 main()
 {
     testIsBase64();
     testUnsignedSaturatingAddition();
     testSignedSaturatingAddition();
+    testCountNewlines();
+    testFindNthNewline();
 
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
 

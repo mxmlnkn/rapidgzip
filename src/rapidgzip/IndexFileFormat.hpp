@@ -67,20 +67,22 @@ struct Checkpoint
 {
     uint64_t compressedOffsetInBits{ 0 };
     uint64_t uncompressedOffsetInBytes{ 0 };
+    uint64_t lineOffset{ 0 };
 
     [[nodiscard]] constexpr bool
     operator==( const Checkpoint& other ) const noexcept
     {
         return ( compressedOffsetInBits == other.compressedOffsetInBits ) &&
-               ( uncompressedOffsetInBytes == other.uncompressedOffsetInBytes );
+               ( uncompressedOffsetInBytes == other.uncompressedOffsetInBytes ) &&
+               ( lineOffset == other.lineOffset );
     }
 };
 
 
 enum class NewlineFormat
 {
-    LineFeed = 0,
-    CarriageReturn = 1,
+    LINE_FEED = 0,
+    CARRIAGE_RETURN = 1,
 };
 
 
@@ -116,9 +118,13 @@ public:
      */
     uint32_t checkpointSpacing{ 0 };
     uint32_t windowSizeInBytes{ 0 };
+    /** Must be sorted by Checkpoint::compressedOffsetInBits and Checkpoint::uncompressedOffsetInBytes. */
     std::vector<Checkpoint> checkpoints;
 
     std::shared_ptr<WindowMap> windows;
+
+    bool hasLineOffsets{ false };
+    NewlineFormat newlineFormat{ NewlineFormat::LINE_FEED };
 
     [[nodiscard]] constexpr bool
     operator==( const GzipIndex& other ) const noexcept
@@ -129,6 +135,8 @@ public:
                ( checkpointSpacing       == other.checkpointSpacing       ) &&
                ( windowSizeInBytes       == other.windowSizeInBytes       ) &&
                ( checkpoints             == other.checkpoints             ) &&
+               ( hasLineOffsets          == other.hasLineOffsets          ) &&
+               ( newlineFormat           == other.newlineFormat           ) &&
                ( ( windows == other.windows ) || ( windows && other.windows && ( *windows == *other.windows ) ) );
         // *INDENT-ON*
     }
@@ -675,11 +683,13 @@ readGzipIndex( UniqueFileReader            indexFile,
         throw std::invalid_argument( "Index was written with a newer indexed_gzip version than supported!" );
     }
 
-    if ( formatVersion == 1 ) {
+    index.hasLineOffsets = formatVersion == 1;
+    if ( index.hasLineOffsets ) {
         const auto format = readBigEndianValue<uint32_t>( indexFile.get() );
         if ( format > 1 ) {
             throw std::invalid_argument( "Expected 0 or 1 for newline format!" );
         }
+        index.newlineFormat = format == 0 ? NewlineFormat::LINE_FEED : NewlineFormat::CARRIAGE_RETURN;
     }
 
     const auto checkpointCount = readBigEndianValue<uint64_t>( indexFile.get() );
@@ -754,17 +764,29 @@ readGzipIndex( UniqueFileReader            indexFile,
                                                                                CompressionType::ZLIB ) );
         }
 
-        if ( formatVersion == 1 ) {
-            /** @todo store it into the index. */
-            [[maybe_unused]] const auto lineNumber = readBigEndianValue<uint64_t>( indexFile.get() );
+        if ( index.hasLineOffsets ) {
+            checkpoint.lineOffset = readBigEndianValue<uint64_t>( indexFile.get() );
+            if ( checkpoint.lineOffset == 0 ) {
+                throw std::invalid_argument( "Line number in gztool index is expected to be >0 by definition!" );
+            }
+            checkpoint.lineOffset -= 1;
         }
     }
 
     if ( indexIsComplete ) {
         index.uncompressedSizeInBytes = readBigEndianValue<uint64_t>( indexFile.get() );
-        if ( formatVersion == 1 ) {
-            /** @todo store it into the index. */
-            [[maybe_unused]] const auto lineNumber = readBigEndianValue<uint64_t>( indexFile.get() );
+        if ( index.hasLineOffsets ) {
+            if ( index.checkpoints.empty()
+                 || ( index.checkpoints.back().compressedOffsetInBits != index.compressedSizeInBytes * 8U ) )
+            {
+                auto& checkpoint = index.checkpoints.emplace_back();
+                checkpoint.compressedOffsetInBits = index.compressedSizeInBytes * 8U;
+                checkpoint.uncompressedOffsetInBytes = index.uncompressedSizeInBytes;
+            } else if ( index.checkpoints.back().uncompressedOffsetInBytes != index.uncompressedSizeInBytes ) {
+                throw std::domain_error( "The last checkpoint at the end of the compressed stream does not match "
+                                         "the uncompressed size!" );
+            }
+            index.checkpoints.back().lineOffset = readBigEndianValue<uint64_t>( indexFile.get() );
         }
     }
 
