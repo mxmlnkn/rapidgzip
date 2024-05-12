@@ -79,11 +79,36 @@ struct Checkpoint
 };
 
 
+enum class IndexFormat
+{
+    INDEXED_GZIP = 0,
+    GZTOOL = 1,
+    GZTOOL_WITH_LINES = 2,
+};
+
+
 enum class NewlineFormat
 {
     LINE_FEED = 0,
     CARRIAGE_RETURN = 1,
 };
+
+
+inline std::ostream&
+operator<<( std::ostream& out,
+            NewlineFormat newlineFormat )
+{
+    switch ( newlineFormat )
+    {
+    case NewlineFormat::LINE_FEED:
+        out << "\\n";
+        break;
+    case NewlineFormat::CARRIAGE_RETURN:
+        out << "\\r";
+        break;
+    }
+    return out;
+}
 
 
 struct GzipIndex
@@ -607,24 +632,31 @@ writeGzipIndex( const GzipIndex&                                              in
         checkpointSpacing = std::max( windowSizeInBytes, static_cast<uint32_t>( minSpacing ) );
     }
 
-    writeValue( index.compressedSizeInBytes );
-    writeValue( index.uncompressedSizeInBytes );
-    writeValue( checkpointSpacing );
-    writeValue( windowSizeInBytes );
+    writeValue( static_cast<uint64_t>( index.compressedSizeInBytes ) );
+    writeValue( static_cast<uint64_t>( index.uncompressedSizeInBytes ) );
+    writeValue( static_cast<uint32_t>( checkpointSpacing ) );
+    writeValue( static_cast<uint32_t>( windowSizeInBytes ) );
     writeValue( static_cast<uint32_t>( checkpoints.size() ) );
 
     for ( const auto& checkpoint : checkpoints ) {
         const auto bits = checkpoint.compressedOffsetInBits % 8;
-        writeValue( checkpoint.compressedOffsetInBits / 8 + ( bits == 0 ? 0 : 1 ) );
-        writeValue( checkpoint.uncompressedOffsetInBytes );
+        writeValue( static_cast<uint64_t>( checkpoint.compressedOffsetInBits / 8 + ( bits == 0 ? 0 : 1 ) ) );
+        writeValue( static_cast<uint64_t>( checkpoint.uncompressedOffsetInBytes ) );
         writeValue( static_cast<uint8_t>( bits == 0 ? 0 : 8 - bits ) );
-        const auto window = index.windows->get( checkpoint.compressedOffsetInBits );
-        writeValue( static_cast<uint8_t>( !window || window->empty() ? 0 : 1 ) );
+
+        const auto isLastWindow = checkpoint.compressedOffsetInBits == index.compressedSizeInBytes * 8U;
+        const auto result = index.windows->get( checkpoint.compressedOffsetInBits );
+        if ( !result && !isLastWindow ) {
+            throw std::logic_error( "Did not find window to offset " +
+                                    formatBits( checkpoint.compressedOffsetInBits ) );
+        }
+        writeValue( static_cast<uint8_t>( !result || result->empty() ? 0 : 1 ) );
     }
 
     for ( const auto& checkpoint : checkpoints ) {
         const auto result = index.windows->get( checkpoint.compressedOffsetInBits );
         if ( !result ) {
+            /* E.g., allowed for the checkpoint at the end of the file. */
             continue;
         }
 
@@ -815,7 +847,7 @@ readGzipIndex( UniqueFileReader            indexFile,
 
         const auto compressedWindowSize = readBigEndianValue<uint32_t>( indexFile.get() );
         if ( compressedWindowSize == 0 ) {
-            /* Emplace an empty window to show that the block does not need data. */
+            /* Emplace an empty window to show that the chunk does not need data. */
             index.windows->emplace( checkpoint.compressedOffsetInBits, {}, CompressionType::NONE );
         } else {
             FasterVector<uint8_t> compressedWindow( compressedWindowSize );
@@ -866,6 +898,9 @@ readGzipIndex( UniqueFileReader            indexFile,
                 auto& checkpoint = index.checkpoints.emplace_back();
                 checkpoint.compressedOffsetInBits = index.compressedSizeInBytes * 8U;
                 checkpoint.uncompressedOffsetInBytes = index.uncompressedSizeInBytes;
+
+                /* Emplace an empty window to show that the chunk at the file end does not need data. */
+                index.windows->emplace( checkpoint.compressedOffsetInBits, {}, CompressionType::NONE );
             } else if ( index.checkpoints.back().uncompressedOffsetInBytes != index.uncompressedSizeInBytes ) {
                 throw std::domain_error( "The last checkpoint at the end of the compressed stream does not match "
                                          "the uncompressed size!" );
@@ -875,6 +910,117 @@ readGzipIndex( UniqueFileReader            indexFile,
     }
 
     return index;
+}
+
+
+inline void
+writeGzipIndex( const GzipIndex&                                              index,
+                const std::function<void( const void* buffer, size_t size )>& checkedWrite )
+{
+    const auto writeValue = [&checkedWrite] ( auto value ) {
+        if ( ENDIAN == Endian::BIG ) {
+            checkedWrite( &value, sizeof( value ) );
+        } else {
+            std::array<char, sizeof( value )> buffer{};
+            auto* const src = reinterpret_cast<char*>( &value );
+            for ( size_t i = 0; i < sizeof( value ); ++i ) {
+                buffer[buffer.size() - 1 - i] = src[i];
+            }
+            checkedWrite( buffer.data(), buffer.size() );
+        }
+    };
+
+    const auto& checkpoints = index.checkpoints;
+    const auto windowSizeInBytes = static_cast<uint32_t>( 32_Ki );
+    const auto hasValidWindow =
+        [&index, windowSizeInBytes] ( const auto& checkpoint )
+        {
+            if ( checkpoint.compressedOffsetInBits == index.compressedSizeInBytes * 8U ) {
+                /* We do not need a window for the very last offset. */
+                return true;
+            }
+            const auto window = index.windows->get( checkpoint.compressedOffsetInBits );
+            return window && ( window->empty() || ( window->decompressedSize() >= windowSizeInBytes ) );
+        };
+
+    if ( !std::all_of( checkpoints.begin(), checkpoints.end(), hasValidWindow ) ) {
+        throw std::invalid_argument( "All window sizes must be at least 32 KiB or empty!" );
+    }
+
+    checkedWrite( MAGIC_BYTES.data(), MAGIC_BYTES.size() );
+    checkedWrite( /* format version */ index.hasLineOffsets ? "X" : "x", 1 );
+    if ( index.hasLineOffsets ) {
+        writeValue( static_cast<uint32_t>( index.newlineFormat == NewlineFormat::LINE_FEED ? 0 : 1 ) );
+    }
+
+    /* Do not write out the last checkpoint at the end of the file because gztool also does not write those. */
+    auto lastCheckPoint = index.checkpoints.rbegin();
+    while ( ( lastCheckPoint != index.checkpoints.rend() )
+            && ( lastCheckPoint->uncompressedOffsetInBytes == index.uncompressedSizeInBytes ) )
+    {
+        ++lastCheckPoint;
+    }
+    const auto checkpointCount = index.checkpoints.size() - std::distance( index.checkpoints.rbegin(), lastCheckPoint );
+    writeValue( /* Number of Seek Points */ static_cast<uint64_t>( checkpointCount ) );
+    writeValue( /* Number of Expected Seek Points */ static_cast<uint64_t>( checkpointCount ) );
+
+    for ( const auto& checkpoint : checkpoints ) {
+        if ( checkpoint.compressedOffsetInBits == index.compressedSizeInBytes * 8U ) {
+            continue;
+        }
+
+        const auto bits = checkpoint.compressedOffsetInBits % 8;
+        writeValue( static_cast<uint64_t>( checkpoint.uncompressedOffsetInBytes ) );
+        writeValue( static_cast<uint64_t>( checkpoint.compressedOffsetInBits / 8 + ( bits == 0 ? 0 : 1 ) ) );
+        writeValue( static_cast<uint32_t>( bits == 0 ? 0 : 8 - bits ) );
+
+        const auto result = index.windows->get( checkpoint.compressedOffsetInBits );
+        if ( !result ) {
+            throw std::logic_error( "Did not find window to offset " +
+                                    formatBits( checkpoint.compressedOffsetInBits ) );
+        }
+        if ( result->empty() ) {
+            writeValue( uint32_t( 0 ) );
+        } else if ( result->compressionType() == CompressionType::ZLIB ) {
+            writeValue( static_cast<uint32_t>( result->compressedSize() ) );
+            const auto compressedData = result->compressedData();
+            if ( !compressedData ) {
+                throw std::logic_error( "Did not get compressed data buffer!" );
+            }
+            checkedWrite( compressedData->data(), compressedData->size() );
+        } else {
+            /* Recompress window to ZLIB. */
+            /**
+             * @todo Reduce overhead from the usual gzip data by stripping of the gzip container and readding
+             *       a zlib container. This can keep the byte-aligned deflate stream but will require decompressing
+             *       it in order to compute the Adler32 checksum for the zlib footer.
+             */
+            const auto windowPointer = result->decompress();
+            if ( !windowPointer ) {
+                throw std::logic_error( "Did not get decompressed data buffer!" );
+            }
+
+            const auto& window = *windowPointer;
+            if ( window.empty() ) {
+                continue;
+            }
+
+            using namespace rapidgzip;
+            const auto recompressed = compressWithZlib( window, CompressionStrategy::DEFAULT, /* dictionary */ {},
+                                                        ContainerFormat::ZLIB );
+            writeValue( static_cast<uint32_t>( recompressed.size() ) );
+            checkedWrite( recompressed.data(), recompressed.size() );
+        }
+
+        if ( index.hasLineOffsets ) {
+            writeValue( static_cast<uint64_t>( checkpoint.lineOffset + 1U /* gztool starts counting from 1 */ ) );
+        }
+    }
+
+    writeValue( static_cast<uint64_t>( index.uncompressedSizeInBytes ) );
+    if ( index.hasLineOffsets ) {
+        writeValue( static_cast<uint64_t>( index.checkpoints.empty() ? 0 : index.checkpoints.rbegin()->lineOffset ) );
+    }
 }
 }  // namespace gztool
 

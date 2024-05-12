@@ -405,7 +405,7 @@ IsalInflateWrapper::readBytes()
         const auto footerSize = buffer.size() - stillToRemove;
         if ( m_stream.read_in_length > 0 ) {
             /* This should be ensured by making read_in_length % BYTE_SIZE == 0 prior. */
-            assert( m_stream.read_in_length >= BYTE_SIZE );
+            assert( m_stream.read_in_length >= static_cast<int>( BYTE_SIZE ) );
 
             buffer[footerSize] = static_cast<std::byte>( m_stream.read_in & 0xFFU );
             m_stream.read_in >>= BYTE_SIZE;

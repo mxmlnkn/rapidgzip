@@ -146,18 +146,14 @@ public:
                 continue;
             }
 
-            if ( window->compressionType() == otherWindow->compressionType() ) {
-                if ( *window != *otherWindow ) {
+            if ( *window != *otherWindow ) {
+                const auto a = window->decompress();
+                const auto b = otherWindow->decompress();
+                if ( ( static_cast<bool>( a ) != static_cast<bool>( b ) )
+                     || ( static_cast<bool>( a ) && static_cast<bool>( b ) && ( *a != *b ) ) )
+                {
                     return false;
                 }
-                continue;
-            }
-
-            const auto a = window->decompress();
-            const auto b = otherWindow->decompress();
-            if ( ( static_cast<bool>( a ) != static_cast<bool>( b ) )
-                 || ( static_cast<bool>( a ) && static_cast<bool>( b ) && ( *a != *b ) ) ) {
-                return false;
             }
         }
 

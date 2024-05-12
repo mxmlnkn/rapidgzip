@@ -303,6 +303,7 @@ testCLI()
 
     /* Create index for import tests. */
     callRapidgzip( { "--export-index"s, indexFilePath, compressedFilePath } );
+    callRapidgzip( { "--export-index"s, indexFilePath + ".gztool", "--index-format"s, "gztool"s, compressedFilePath } );
 
     const auto testWithoutFile =
         [&] ( const std::vector<std::string>& arguments ) { testCLI( arguments, filePath, decompressed ); };
@@ -362,6 +363,21 @@ testCLI()
 #endif
 
     ArgumentLists combinedArguments;
+
+    const auto addTest =
+        [&combinedArguments] ( std::vector<std::string> arguments ) {
+            combinedArguments.emplace_back( std::move( arguments ) );
+        };
+
+    /* Test exporting of gztool index with and without line offsets. */
+    addTest( { "--export-index"s, indexFilePath + ".gztool", "--index-format"s, "gztool"s } );
+
+    /* Test index conversion. */
+    addTest( { "--import-index"s, indexFilePath, "--export-index"s, indexFilePath + ".gztool",
+               "--index-format"s, "gztool"s } );
+    addTest( { "--import-index"s, indexFilePath + ".gztool", "--export-index"s, indexFilePath + ".converted",
+               "--index-format"s, "indexed_gzip"s } );
+
     for ( const auto& actionArguments : concatenateCombinations( combinableActions ) ) {
         combinedArguments.emplace_back( actionArguments );
         for ( const auto& optionArguments : combinableOptions ) {

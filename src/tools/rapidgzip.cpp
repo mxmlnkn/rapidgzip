@@ -39,6 +39,7 @@ struct Arguments
     bool verbose{ false };
     bool crc32Enabled{ true };
     bool keepIndex{ false };
+    IndexFormat indexFormat{ IndexFormat::INDEXED_GZIP };
 };
 
 
@@ -162,7 +163,7 @@ decompressParallel( const Arguments&   args,
                 }
             };
 
-        reader->exportIndex( checkedWrite );
+        reader->exportIndex( checkedWrite, args.indexFormat );
     }
 
     if ( args.verbose && args.indexLoadPath.empty() && !args.indexSavePath.empty() ) {
@@ -258,7 +259,10 @@ rapidgzipCLI( int                  argc,
           cxxopts::value( args.crc32Enabled )->implicit_value( "false" ) )
         ( "io-read-method", "Option to force a certain I/O method for reading. By default, pread will be used "
                             "when possible. Possible values: pread, sequential, locked-read",
-          cxxopts::value<std::string>()->default_value( "pread" ) );
+          cxxopts::value<std::string>()->default_value( "pread" ) )
+        ( "index-format", "Option to select an output index format. Possible values: gztool, gztool-with-lines, "
+                          "indexed_gzip.",
+          cxxopts::value<std::string>()->default_value( "indexed_gzip" ) );
 
     options.add_options( "Output" )
         ( "h,help"   , "Print this help message." )
@@ -423,12 +427,12 @@ rapidgzipCLI( int                  argc,
         }
     }
 
-    /* Parse other arguments. */
-
     if ( decompress && ( outputFilePath != "/dev/null" ) && fileExists( outputFilePath ) && !force ) {
         std::cerr << "Output file '" << outputFilePath << "' already exists! Use --force to overwrite.\n";
         return 1;
     }
+
+    /* Parse index arguments. */
 
     args.indexLoadPath = parsedArgs.count( "import-index" ) > 0
                          ? parsedArgs["import-index"].as<std::string>()
@@ -445,6 +449,23 @@ rapidgzipCLI( int                  argc,
     if ( !args.indexLoadPath.empty() && !fileExists( args.indexLoadPath ) ) {
         std::cerr << "The index to import was not found!\n";
         return 1;
+    }
+
+    if ( parsedArgs.count( "index-format" ) > 0 ) {
+        const auto indexFormat = parsedArgs["index-format"].as<std::string>();
+        if ( indexFormat == "indexed_gzip" ) {
+            args.indexFormat = IndexFormat::INDEXED_GZIP;
+        } else if ( indexFormat == "gztool" ) {
+            args.indexFormat = IndexFormat::GZTOOL;
+        } else if ( indexFormat == "gztool-with-lines" ) {
+            args.indexFormat = IndexFormat::GZTOOL_WITH_LINES;
+        } else {
+            throw std::invalid_argument( "Invalid index format string: " + indexFormat );
+        }
+
+        if ( args.indexSavePath.empty() ) {
+            std::cerr << "[Warning] The index format has no effect without --export-index!\n";
+        }
     }
 
     /* Check if analysis is requested. */

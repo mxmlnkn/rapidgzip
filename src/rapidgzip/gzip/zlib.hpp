@@ -45,11 +45,20 @@ toString( const CompressionStrategy compressionStrategy )
 }
 
 
+enum class ContainerFormat : int
+{
+    DEFLATE,
+    ZLIB,
+    GZIP,
+};
+
+
 template<typename ResultContainer = std::vector<uint8_t> >
 [[nodiscard]] ResultContainer
 compressWithZlib( const VectorView<uint8_t> toCompress,
                   const CompressionStrategy compressionStrategy = CompressionStrategy::DEFAULT,
-                  const VectorView<uint8_t> dictionary = {} )
+                  const VectorView<uint8_t> dictionary = {},
+                  const ContainerFormat     containerFormat = ContainerFormat::GZIP )
 {
     ResultContainer output;
     output.reserve( toCompress.size() );
@@ -64,9 +73,23 @@ compressWithZlib( const VectorView<uint8_t> toCompress,
     stream.next_out = nullptr;
 
     /* > Add 16 to windowBits to write a simple gzip header and trailer around the
-     * > compressed data instead of a zlib wrapper. */
+     * > compressed data instead of a zlib wrapper.
+     * > windowBits can also be -8..-15 for raw deflate. In this case, -windowBits determines the window size. */
+    auto windowBits = MAX_WBITS;
+    switch ( containerFormat )
+    {
+    case ContainerFormat::DEFLATE:
+        windowBits = -windowBits;
+        break;
+    case ContainerFormat::ZLIB:
+        break;
+    case ContainerFormat::GZIP:
+        windowBits += 16;
+        break;
+    }
+
     deflateInit2( &stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED,
-                  MAX_WBITS | /* gzip output */ 16, /* memLevel */ 8, static_cast<int>( compressionStrategy ) );
+                  windowBits, /* memLevel */ 8, static_cast<int>( compressionStrategy ) );
 
     if ( !dictionary.empty() ) {
         deflateSetDictionary( &stream, const_cast<Bytef*>( reinterpret_cast<const Bytef*>( dictionary.data() ) ),

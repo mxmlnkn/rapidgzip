@@ -13,15 +13,19 @@
 GzipIndex
 testIndexRead( const std::filesystem::path& compressedPath,
                const std::filesystem::path& uncompressedPath,
-               const std::filesystem::path& indexPath )
+               const std::filesystem::path& indexPath,
+               const size_t                 expectedCheckpointSpacing,
+               const size_t                 expectedCheckpointCount )
 {
-    auto index = readGzipIndex( std::make_unique<StandardFileReader>( indexPath.string() ) );
+    auto index = readGzipIndex( std::make_unique<StandardFileReader>( indexPath.string() ),
+                                /* This second argument is necessary when reading gztool indexes! */
+                                std::make_unique<StandardFileReader>( compressedPath ) );
 
     REQUIRE_EQUAL( index.compressedSizeInBytes, fileSize( compressedPath ) );
     REQUIRE_EQUAL( index.uncompressedSizeInBytes, fileSize( uncompressedPath ) );
 
-    REQUIRE_EQUAL( index.checkpointSpacing, 64_Ki );
-    REQUIRE_EQUAL( index.checkpoints.size(), 5U );
+    REQUIRE_EQUAL( index.checkpointSpacing, expectedCheckpointSpacing );
+    REQUIRE_EQUAL( index.checkpoints.size(), expectedCheckpointCount );
 
     REQUIRE( static_cast<bool>( index.windows ) );
 
@@ -32,9 +36,12 @@ testIndexRead( const std::filesystem::path& compressedPath,
 void
 testIndexReadWrite( const std::filesystem::path& compressedPath,
                     const std::filesystem::path& uncompressedPath,
-                    const std::filesystem::path& indexPath )
+                    const std::filesystem::path& indexPath,
+                    const size_t                 expectedCheckpointSpacing,
+                    const size_t                 expectedCheckpointCount )
 {
-    const auto index = testIndexRead( compressedPath, uncompressedPath, indexPath );
+    const auto index = testIndexRead( compressedPath, uncompressedPath, indexPath,
+                                      expectedCheckpointSpacing, expectedCheckpointCount );
 
     try
     {
@@ -50,14 +57,26 @@ testIndexReadWrite( const std::filesystem::path& compressedPath,
                         throw std::runtime_error( "Failed to write data to index!" );
                     }
                 };
-            indexed_gzip::writeGzipIndex( index, checkedWrite );
+
+            using namespace std::string_literals;
+            if ( endsWith( indexPath.string(), ".gztool.index"s )
+                 || endsWith( indexPath.string(), ".gztool.with-lines.index"s ) )
+            {
+                gztool::writeGzipIndex( index, checkedWrite );
+            } else  {
+                indexed_gzip::writeGzipIndex( index, checkedWrite );
+            }
         }
-        const auto rereadIndex = readGzipIndex( std::make_unique<StandardFileReader>( gzipIndexPath.string() ) );
+        const auto rereadIndex = readGzipIndex( std::make_unique<StandardFileReader>( gzipIndexPath.string() ),
+                                                /* This second argument is necessary when reading gztool indexes! */
+                                                std::make_unique<StandardFileReader>( compressedPath.string() ) );
 
         REQUIRE_EQUAL( rereadIndex.compressedSizeInBytes, index.compressedSizeInBytes );
         REQUIRE_EQUAL( rereadIndex.uncompressedSizeInBytes, index.uncompressedSizeInBytes );
         REQUIRE_EQUAL( rereadIndex.checkpointSpacing, index.checkpointSpacing );
         REQUIRE_EQUAL( rereadIndex.windowSizeInBytes, index.windowSizeInBytes );
+        REQUIRE_EQUAL( rereadIndex.hasLineOffsets, index.hasLineOffsets );
+        REQUIRE_EQUAL( rereadIndex.newlineFormat, index.newlineFormat );
 
         REQUIRE( rereadIndex.checkpoints == index.checkpoints );
 
@@ -81,8 +100,19 @@ testIndexReadWrite( const std::filesystem::path& compressedPath,
                 }
 
                 if ( *window != *rereadWindow ) {
-                    std::cerr << "Window contents for offset " << offset << " differ!\n";
-                    continue;
+                    const auto a = window->decompress();
+                    const auto b = rereadWindow->decompress();
+                    if ( ( static_cast<bool>( a ) != static_cast<bool>( b ) )
+                         || ( static_cast<bool>( a ) && static_cast<bool>( b ) && ( *a != *b ) ) )
+                    {
+                        std::cerr << "Window contents for offset " << offset << " differ!\n";
+                        std::cerr << "Compressed window size: " << window->compressedSize()
+                                  << " reread window: " << rereadWindow->compressedSize() << "\n";
+                        if ( a && b ) {
+                            std::cerr << "Decompressed window size: " << a->size()
+                                      << " reread window: " << b->size() << "\n";
+                        }
+                    }
                 }
             }
         }
@@ -96,50 +126,6 @@ testIndexReadWrite( const std::filesystem::path& compressedPath,
         std::cerr << "Caught exception: " << exception.what() << "\n";
         REQUIRE( false );
     }
-}
-
-
-GzipIndex
-testBgzipIndexRead( const std::filesystem::path& compressedPath,
-                    const std::filesystem::path& uncompressedPath,
-                    const std::filesystem::path& indexPath )
-{
-    auto index = readGzipIndex( std::make_unique<StandardFileReader>( indexPath.string() ),
-                                /* This second argument is necessary when reading bgzip indexes! */
-                                std::make_unique<StandardFileReader>( compressedPath.string() ) );
-
-    REQUIRE_EQUAL( index.compressedSizeInBytes, fileSize( compressedPath ) );
-    REQUIRE_EQUAL( index.uncompressedSizeInBytes, fileSize( uncompressedPath ) );
-
-    /* checkpointSpacing is not available for bgzip indexes. */
-    REQUIRE_EQUAL( index.checkpointSpacing, 0U );
-    REQUIRE_EQUAL( index.checkpoints.size(), 4U );
-
-    REQUIRE( static_cast<bool>( index.windows ) );
-
-    return index;
-}
-
-
-GzipIndex
-testGztoolIndexRead( const std::filesystem::path& compressedPath,
-                     const std::filesystem::path& uncompressedPath,
-                     const std::filesystem::path& indexPath )
-{
-    auto index = readGzipIndex( std::make_unique<StandardFileReader>( indexPath.string() ),
-                                /* This second argument is necessary when reading gztool indexes! */
-                                std::make_unique<StandardFileReader>( compressedPath.string() ) );
-
-    REQUIRE_EQUAL( index.compressedSizeInBytes, fileSize( compressedPath ) );
-    REQUIRE_EQUAL( index.uncompressedSizeInBytes, fileSize( uncompressedPath ) );
-
-    /* checkpointSpacing is not available for gztool indexes. */
-    REQUIRE_EQUAL( index.checkpointSpacing, 0U );
-    REQUIRE_EQUAL( index.checkpoints.size(), 5U );
-
-    REQUIRE( static_cast<bool>( index.windows ) );
-
-    return index;
 }
 
 
@@ -162,15 +148,26 @@ main( int    argc,
             findParentFolderContaining( binaryFolder, "src/tests/data/base64-256KiB.bgz" )
         ) / "src" / "tests" / "data";
 
+    using namespace std::string_literals;
     testIndexReadWrite( rootFolder / "base64-256KiB.gz",
                         rootFolder / "base64-256KiB",
-                        rootFolder / "base64-256KiB.gz.index" );
-    testBgzipIndexRead( rootFolder / "base64-256KiB.bgz",
-                       rootFolder / "base64-256KiB",
-                       rootFolder / "base64-256KiB.bgz.gzi" );
-    testGztoolIndexRead( rootFolder / "base64-256KiB.gz",
-                         rootFolder / "base64-256KiB",
-                         rootFolder / "base64-256KiB.gz.gztool.index" );
+                        rootFolder / "base64-256KiB.gz.index",
+                        64_Ki, 5U );
+
+    testIndexReadWrite( rootFolder / "base64-256KiB.gz",
+                        rootFolder / "base64-256KiB",
+                        rootFolder / "base64-256KiB.gz.gztool.index",
+                        0, 5U );
+
+    testIndexReadWrite( rootFolder / "base64-256KiB.gz",
+                        rootFolder / "base64-256KiB",
+                        rootFolder / "base64-256KiB.gz.gztool.with-lines.index",
+                        0, 9U );
+
+    testIndexRead( rootFolder / "base64-256KiB.bgz",
+                   rootFolder / "base64-256KiB",
+                   rootFolder / "base64-256KiB.bgz.gzi",
+                   0, 4U );
 
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
 

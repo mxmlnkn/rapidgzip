@@ -726,17 +726,31 @@ public:
      * destructively moves from the WindowMap.
      */
     [[nodiscard]] const GzipIndex  // NOLINT(readability-const-return-type)
-    gzipIndex()
+    gzipIndex( bool withLineOffsets = false )
     {
         const auto offsets = blockOffsets();  // Also finalizes reading implicitly.
         if ( offsets.empty() || !m_windowMap ) {
             return {};
         }
 
+        const auto archiveSize = m_sharedFileReader->size();
+        if ( !archiveSize ) {
+            std::cerr << "[Warning] The input file size should have become available after finalizing the index!\n";
+            std::cerr << "[Warning] Will use the last chunk end offset as size. This might lead to errors on import!\n";
+        }
+
         GzipIndex index;
-        index.compressedSizeInBytes = ceilDiv( offsets.rbegin()->first, 8U );
+        index.compressedSizeInBytes = archiveSize ? *archiveSize : ceilDiv( offsets.rbegin()->first, 8U );
         index.uncompressedSizeInBytes = offsets.rbegin()->second;
         index.windowSizeInBytes = 32_Ki;
+
+        if ( withLineOffsets ) {
+            if ( !m_newlineFormat ) {
+                throw std::runtime_error( "Cannot add line offsets to index when they were not gathered!" );
+            }
+            index.hasLineOffsets = true;
+            index.newlineFormat = m_newlineFormat.value();
+        }
 
         /* Heuristically determine a checkpoint spacing from the existing checkpoints. */
         size_t maximumDecompressedSpacing{ 0 };
@@ -745,10 +759,27 @@ public:
         }
         index.checkpointSpacing = maximumDecompressedSpacing / 32_Ki * 32_Ki;
 
+        auto lineOffset = m_newlineOffsets.begin();
         for ( const auto& [compressedOffsetInBits, uncompressedOffsetInBytes] : offsets ) {
             Checkpoint checkpoint;
             checkpoint.compressedOffsetInBits = compressedOffsetInBits;
             checkpoint.uncompressedOffsetInBytes = uncompressedOffsetInBytes;
+
+            if ( index.hasLineOffsets ) {
+                while ( ( lineOffset != m_newlineOffsets.end() )
+                        && ( lineOffset->uncompressedOffsetInBytes < uncompressedOffsetInBytes ) )
+                {
+                    ++lineOffset;
+                }
+
+                if ( lineOffset->uncompressedOffsetInBytes != uncompressedOffsetInBytes ) {
+                    throw std::logic_error( "Line offset not found for uncompressed offset "
+                                            + std::to_string( uncompressedOffsetInBytes ) + "!" );
+                }
+
+                checkpoint.lineOffset = lineOffset->lineOffset;
+            }
+
             index.checkpoints.emplace_back( checkpoint );
         }
 
@@ -969,7 +1000,8 @@ public:
     }
 
     void
-    exportIndex( const std::function<void( const void* buffer, size_t size )>& checkedWrite )
+    exportIndex( const std::function<void( const void* buffer, size_t size )>& checkedWrite,
+                 const IndexFormat                                             indexFormat = IndexFormat::INDEXED_GZIP )
     {
         const auto t0 = now();
 
@@ -977,7 +1009,18 @@ public:
             throw std::invalid_argument( "Exporting index not supported when index-keeping has been disabled!" );
         }
 
-        indexed_gzip::writeGzipIndex( gzipIndex(), checkedWrite );
+        switch ( indexFormat )
+        {
+        case IndexFormat::INDEXED_GZIP:
+            indexed_gzip::writeGzipIndex( gzipIndex(), checkedWrite );
+            break;
+        case IndexFormat::GZTOOL:
+            gztool::writeGzipIndex( gzipIndex( false ), checkedWrite );
+            break;
+        case IndexFormat::GZTOOL_WITH_LINES:
+            gztool::writeGzipIndex( gzipIndex( true ), checkedWrite );
+            break;
+        }
 
         if ( m_showProfileOnDestruction ) {
             std::cerr << "[ParallelGzipReader::exportIndex] Took " << duration( t0 ) << " s\n";
