@@ -39,6 +39,7 @@ struct Arguments
     bool verbose{ false };
     bool crc32Enabled{ true };
     bool keepIndex{ false };
+    bool gatherLineOffsets{ false };
     IndexFormat indexFormat{ IndexFormat::INDEXED_GZIP };
 };
 
@@ -145,6 +146,12 @@ decompressParallel( const Arguments&   args,
         if ( args.verbose && ( !args.indexSavePath.empty() || !args.indexLoadPath.empty() ) ) {
             printIndexAnalytics( reader );
         }
+    }
+
+    if ( args.gatherLineOffsets
+         || ( !args.indexSavePath.empty() && ( args.indexFormat == IndexFormat::GZTOOL_WITH_LINES ) ) )
+    {
+        reader->gatherLineOffsets();
     }
 
     try {
@@ -392,12 +399,25 @@ rapidgzipCLI( int                  argc,
     std::optional<std::vector<FileRange> > fileRanges;
     if ( parsedArgs.count( "ranges" ) > 0 ) {
         fileRanges = parseFileRanges( parsedArgs["ranges"].as<std::string>() );
+
+        /* Check whether the index needs to be kept because the ranges do not traverse the file in order. */
         if ( fileRanges->size() > 1 ) {
             for ( size_t i = 0; i + 1 < fileRanges->size(); ++i ) {
                 if ( fileRanges->at( i ).offset + fileRanges->at( i ).size > fileRanges->at( i + 1 ).offset ) {
                     args.keepIndex = true;
                     break;
                 }
+            }
+        }
+
+        /* Check whether some ranges are lines and enable line offset gathering in that case. */
+        for ( const auto& range : *fileRanges ) {
+            if ( ( range.size > 0 ) && ( range.offsetIsLine || range.sizeIsLine ) ) {
+                /* Because we cannot arbitrarly convert lines to offsets, we cannot easily determine whether
+                 * backward seeking is necessary. Therefore keep the index if line offsets are used. */
+                args.keepIndex = true;
+                args.gatherLineOffsets = true;
+                break;
             }
         }
     }

@@ -8,6 +8,7 @@
 #include <cstring>
 #include <ctime>
 #include <fstream>
+#include <functional>
 #include <future>
 #include <iomanip>
 #include <iostream>
@@ -371,6 +372,26 @@ public:
 
 private:
     std::condition_variable& m_toNotify;
+};
+
+
+class Finally
+{
+public:
+    explicit
+    Finally( std::function<void()> cleanup ) :
+        m_cleanup( std::move( cleanup ) )
+    {}
+
+    ~Finally()
+    {
+        if ( m_cleanup ) {
+            m_cleanup();
+        }
+    }
+
+private:
+    std::function<void()> m_cleanup;
 };
 
 

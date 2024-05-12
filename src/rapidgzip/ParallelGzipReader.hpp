@@ -1050,6 +1050,99 @@ public:
     }
 #endif
 
+    void
+    gatherLineOffsets( NewlineFormat newlineFormat = NewlineFormat::LINE_FEED )
+    {
+        /* Check whether the newline information has already been collected from an imported index or earlier call. */
+        if ( m_newlineFormat && !m_newlineOffsets.empty() ) {
+            return;
+        }
+
+        const Finally restorePosition{ [this, oldOffset = tell()] () { seek( oldOffset ); } };
+        seekTo( 0 );
+
+        m_newlineFormat = newlineFormat;
+
+        /* Collect line offsets until the next chunk offset has been added to the map. Then, we can look for the
+         * line number at that exact chunk offset and insert it and clear our temporary results. */
+        uint64_t processedLines{ 0 };
+        /** Index i stores the byte offset for the (processedLines + i)-th line. */
+        std::vector<uint64_t> newlineOffsets;
+        uint64_t processedBytes{ 0 };
+        const auto newlineCharacter = newlineFormat == NewlineFormat::LINE_FEED ? '\n' : '\r';
+
+        const auto collectLineOffsets =
+            [this, &processedLines, &newlineOffsets, &processedBytes, newlineCharacter]
+            ( const std::shared_ptr<rapidgzip::ChunkData>& chunkData,
+              const size_t                                 offsetInChunk,
+              const size_t                                 dataToWriteSize )
+            {
+                using rapidgzip::deflate::DecodedData;
+                for ( auto it = DecodedData::Iterator( *chunkData, offsetInChunk, dataToWriteSize );
+                      static_cast<bool>( it ); ++it )
+                {
+                    const auto& [buffer, size] = *it;
+
+                    const std::string_view view{ reinterpret_cast<const char*>( buffer ), size };
+                    for ( auto position = view.find( newlineCharacter, 0 );
+                          position != std::string_view::npos;
+                          position = view.find( newlineCharacter, position + 1 ) )
+                    {
+                        newlineOffsets.emplace_back( processedBytes + position );
+                    }
+
+                    processedBytes += size;
+                }
+
+                auto it = newlineOffsets.begin();
+                while ( it != newlineOffsets.end() ) {
+                    const auto chunkInfo = m_blockMap->findDataOffset( *it );
+                    if ( !chunkInfo.contains( *it ) ) {
+                        /* I don't think this can happen. It happens when the currently processed chunk
+                         * is not yet registered in the chunk map. */
+                        std::cerr << "[Warning] Offset in processed chunk was not found in chunk map!\n";
+                        break;
+                    }
+
+                    if ( m_newlineOffsets.empty() || ( m_newlineOffsets.back().uncompressedOffsetInBytes != *it ) ) {
+                        NewlineOffset newlineOffset;
+                        newlineOffset.lineOffset = static_cast<uint64_t>( std::distance( newlineOffsets.begin(), it ) )
+                                                   + processedLines;
+                        newlineOffset.uncompressedOffsetInBytes = chunkInfo.decodedOffsetInBytes;
+
+                        if ( !m_newlineOffsets.empty() ) {
+                            if ( m_newlineOffsets.back().uncompressedOffsetInBytes > *it ) {
+                                throw std::logic_error( "Got earlier chunk offset than the last processed one!" );
+                            }
+                            if ( m_newlineOffsets.back().lineOffset > newlineOffset.lineOffset ) {
+                                throw std::logic_error( "Got earlier line offset than the last processed one!" );
+                            }
+                        }
+
+                        m_newlineOffsets.emplace_back( newlineOffset );
+                    }
+
+                    /* Skip over all newlines still in the last processed chunk. */
+                    while ( ( it != newlineOffsets.end() ) && chunkInfo.contains( *it ) ) {
+                        ++it;
+                    }
+                }
+
+                processedLines += static_cast<uint64_t>( std::distance( newlineOffsets.begin(), it ) );
+                newlineOffsets.erase( newlineOffsets.begin(), it );
+            };
+
+        read( collectLineOffsets );
+
+        /* Insert information for the end-of-file offset. */
+        if ( m_newlineOffsets.empty() || ( processedBytes > m_newlineOffsets.back().uncompressedOffsetInBytes ) ) {
+            NewlineOffset newlineOffset;
+            newlineOffset.uncompressedOffsetInBytes = processedBytes;
+            newlineOffset.lineOffset = processedLines + newlineOffsets.size();
+            m_newlineOffsets.emplace_back( newlineOffset );
+        }
+    }
+
     /**
      * @return number of processed bits of compressed bzip2 input file stream
      * @note Bzip2 is block based and blocks are currently read fully, meaning that the granularity
