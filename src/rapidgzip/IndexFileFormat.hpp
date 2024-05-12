@@ -565,6 +565,90 @@ readGzipIndex( UniqueFileReader            indexFile,
 
     return index;
 }
+
+
+inline void
+writeGzipIndex( const GzipIndex&                                              index,
+                const std::function<void( const void* buffer, size_t size )>& checkedWrite )
+{
+    const auto writeValue = [&checkedWrite] ( auto value ) { checkedWrite( &value, sizeof( value ) ); };
+
+    const auto& checkpoints = index.checkpoints;
+    const auto windowSizeInBytes = static_cast<uint32_t>( 32_Ki );
+    const auto hasValidWindow =
+        [&index, windowSizeInBytes] ( const auto& checkpoint )
+        {
+            if ( checkpoint.compressedOffsetInBits == index.compressedSizeInBytes * 8U ) {
+                /* We do not need a window for the very last offset. */
+                return true;
+            }
+            const auto window = index.windows->get( checkpoint.compressedOffsetInBits );
+            return window && ( window->empty() || ( window->decompressedSize() >= windowSizeInBytes ) );
+        };
+
+    if ( !std::all_of( checkpoints.begin(), checkpoints.end(), hasValidWindow ) ) {
+        throw std::invalid_argument( "All window sizes must be at least 32 KiB or empty!" );
+    }
+
+    checkedWrite( MAGIC_BYTES.data(), MAGIC_BYTES.size() );
+    checkedWrite( /* format version */ "\x01", 1 );
+    checkedWrite( /* reserved flags */ "\x00", 1 );  // NOLINT(bugprone-string-literal-with-embedded-nul)
+
+    /* The spacing is only used for decompression, so after reading a >full< index file, it should be irrelevant! */
+    uint32_t checkpointSpacing = index.checkpointSpacing;
+
+    if ( !checkpoints.empty() && ( checkpointSpacing < windowSizeInBytes ) ) {
+        std::vector<uint64_t> uncompressedOffsets( checkpoints.size() );
+        std::transform( checkpoints.begin(), checkpoints.end(), uncompressedOffsets.begin(),
+                        [] ( const auto& checkpoint ) { return checkpoint.uncompressedOffsetInBytes; } );
+        std::adjacent_difference( uncompressedOffsets.begin(), uncompressedOffsets.end(), uncompressedOffsets.begin() );
+        const auto minSpacing = std::accumulate( uncompressedOffsets.begin() + 1, uncompressedOffsets.end(),
+                                                 uint64_t( 0 ), [] ( auto a, auto b ) { return std::min( a, b ); } );
+        checkpointSpacing = std::max( windowSizeInBytes, static_cast<uint32_t>( minSpacing ) );
+    }
+
+    writeValue( index.compressedSizeInBytes );
+    writeValue( index.uncompressedSizeInBytes );
+    writeValue( checkpointSpacing );
+    writeValue( windowSizeInBytes );
+    writeValue( static_cast<uint32_t>( checkpoints.size() ) );
+
+    for ( const auto& checkpoint : checkpoints ) {
+        const auto bits = checkpoint.compressedOffsetInBits % 8;
+        writeValue( checkpoint.compressedOffsetInBits / 8 + ( bits == 0 ? 0 : 1 ) );
+        writeValue( checkpoint.uncompressedOffsetInBytes );
+        writeValue( static_cast<uint8_t>( bits == 0 ? 0 : 8 - bits ) );
+        const auto window = index.windows->get( checkpoint.compressedOffsetInBits );
+        writeValue( static_cast<uint8_t>( !window || window->empty() ? 0 : 1 ) );
+    }
+
+    for ( const auto& checkpoint : checkpoints ) {
+        const auto result = index.windows->get( checkpoint.compressedOffsetInBits );
+        if ( !result ) {
+            continue;
+        }
+
+        const auto windowPointer = result->decompress();
+        if ( !windowPointer ) {
+            continue;
+        }
+
+        const auto& window = *windowPointer;
+        if ( window.empty() ) {
+            continue;
+        }
+
+        if ( window.size() == windowSizeInBytes ) {
+            checkedWrite( window.data(), window.size() );
+        } else if ( window.size() > windowSizeInBytes ) {
+            checkedWrite( window.data() + window.size() - windowSizeInBytes, windowSizeInBytes );
+        } else if ( window.size() < windowSizeInBytes ) {
+            const std::vector<char> zeros( windowSizeInBytes - window.size(), 0 );
+            checkedWrite( zeros.data(), zeros.size() );
+            checkedWrite( window.data(), window.size() );
+        }
+    }
+}
 }  // namespace indexed_gzip
 
 
@@ -825,88 +909,4 @@ readGzipIndex( UniqueFileReader indexFile,
 
     /* Bgzip indexes have no magic bytes and simply start with the number of chunks. */
     return bgzip::readGzipIndex( std::move( indexFile ), std::move( archiveFile ), formatId );
-}
-
-
-inline void
-writeGzipIndex( const GzipIndex&                                              index,
-                const std::function<void( const void* buffer, size_t size )>& checkedWrite )
-{
-    const auto writeValue = [&checkedWrite] ( auto value ) { checkedWrite( &value, sizeof( value ) ); };
-
-    const auto& checkpoints = index.checkpoints;
-    const auto windowSizeInBytes = static_cast<uint32_t>( 32_Ki );
-    const auto hasValidWindow =
-        [&index, windowSizeInBytes] ( const auto& checkpoint )
-        {
-            if ( checkpoint.compressedOffsetInBits == index.compressedSizeInBytes * 8U ) {
-                /* We do not need a window for the very last offset. */
-                return true;
-            }
-            const auto window = index.windows->get( checkpoint.compressedOffsetInBits );
-            return window && ( window->empty() || ( window->decompressedSize() >= windowSizeInBytes ) );
-        };
-
-    if ( !std::all_of( checkpoints.begin(), checkpoints.end(), hasValidWindow ) ) {
-        throw std::invalid_argument( "All window sizes must be at least 32 KiB or empty!" );
-    }
-
-    checkedWrite( "GZIDX", 5 );
-    checkedWrite( /* format version */ "\x01", 1 );
-    checkedWrite( /* reserved flags */ "\x00", 1 );  // NOLINT(bugprone-string-literal-with-embedded-nul)
-
-    /* The spacing is only used for decompression, so after reading a >full< index file, it should be irrelevant! */
-    uint32_t checkpointSpacing = index.checkpointSpacing;
-
-    if ( !checkpoints.empty() && ( checkpointSpacing < windowSizeInBytes ) ) {
-        std::vector<uint64_t> uncompressedOffsets( checkpoints.size() );
-        std::transform( checkpoints.begin(), checkpoints.end(), uncompressedOffsets.begin(),
-                        [] ( const auto& checkpoint ) { return checkpoint.uncompressedOffsetInBytes; } );
-        std::adjacent_difference( uncompressedOffsets.begin(), uncompressedOffsets.end(), uncompressedOffsets.begin() );
-        const auto minSpacing = std::accumulate( uncompressedOffsets.begin() + 1, uncompressedOffsets.end(),
-                                                 uint64_t( 0 ), [] ( auto a, auto b ) { return std::min( a, b ); } );
-        checkpointSpacing = std::max( windowSizeInBytes, static_cast<uint32_t>( minSpacing ) );
-    }
-
-    writeValue( index.compressedSizeInBytes );
-    writeValue( index.uncompressedSizeInBytes );
-    writeValue( checkpointSpacing );
-    writeValue( windowSizeInBytes );
-    writeValue( static_cast<uint32_t>( checkpoints.size() ) );
-
-    for ( const auto& checkpoint : checkpoints ) {
-        const auto bits = checkpoint.compressedOffsetInBits % 8;
-        writeValue( checkpoint.compressedOffsetInBits / 8 + ( bits == 0 ? 0 : 1 ) );
-        writeValue( checkpoint.uncompressedOffsetInBytes );
-        writeValue( static_cast<uint8_t>( bits == 0 ? 0 : 8 - bits ) );
-        const auto window = index.windows->get( checkpoint.compressedOffsetInBits );
-        writeValue( static_cast<uint8_t>( !window || window->empty() ? 0 : 1 ) );
-    }
-
-    for ( const auto& checkpoint : checkpoints ) {
-        const auto result = index.windows->get( checkpoint.compressedOffsetInBits );
-        if ( !result ) {
-            continue;
-        }
-
-        const auto windowPointer = result->decompress();
-        if ( !windowPointer ) {
-            continue;
-        }
-
-        const auto& window = *windowPointer;
-        if ( window.empty() ) {
-            continue;
-        }
-
-        if ( window.size() == windowSizeInBytes ) {
-            checkedWrite( window.data(), window.size() );
-        } else if ( window.size() > windowSizeInBytes ) {
-            checkedWrite( window.data() + window.size() - windowSizeInBytes, windowSizeInBytes );
-        } else if ( window.size() < windowSizeInBytes ) {
-            const std::vector<char> zeros( windowSizeInBytes - window.size(), 0 );
-            checkedWrite( zeros.data(), zeros.size() );
-            checkedWrite( window.data(), window.size() );
-        }
-    }
 }

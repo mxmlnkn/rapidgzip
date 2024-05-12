@@ -50,7 +50,7 @@ testIndexReadWrite( const std::filesystem::path& compressedPath,
                         throw std::runtime_error( "Failed to write data to index!" );
                     }
                 };
-            writeGzipIndex( index, checkedWrite );
+            indexed_gzip::writeGzipIndex( index, checkedWrite );
         }
         const auto rereadIndex = readGzipIndex( std::make_unique<StandardFileReader>( gzipIndexPath.string() ) );
 

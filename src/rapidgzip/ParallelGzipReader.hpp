@@ -977,7 +977,7 @@ public:
             throw std::invalid_argument( "Exporting index not supported when index-keeping has been disabled!" );
         }
 
-        writeGzipIndex( gzipIndex(), checkedWrite );
+        indexed_gzip::writeGzipIndex( gzipIndex(), checkedWrite );
 
         if ( m_showProfileOnDestruction ) {
             std::cerr << "[ParallelGzipReader::exportIndex] Took " << duration( t0 ) << " s\n";

@@ -293,7 +293,7 @@ testParallelDecodingWithIndex( const TemporaryDirectory& tmpFolder )
                     throw std::runtime_error( "Failed to write data to index!" );
                 }
             };
-        writeGzipIndex( realIndex, checkedWrite );
+        indexed_gzip::writeGzipIndex( realIndex, checkedWrite );
     }
     const auto rewrittenIndex = readGzipIndex( std::make_unique<StandardFileReader>( writtenIndexFile.string() ) );
 
