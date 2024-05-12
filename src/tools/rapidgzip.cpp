@@ -474,243 +474,243 @@ rapidgzipCLI( int                  argc,
         return rapidgzip::deflate::analyze( std::move( inputFile ), args.verbose ) == rapidgzip::Error::NONE ? 0 : 1;
     }
 
+    /* Check that there is at least one actionable request. */
+
+    if ( !decompress && !countBytes && !countLines && args.indexSavePath.empty() ) {
+        std::cerr << "No suitable arguments were given. Please refer to the help!\n\n";
+        printRapidgzipHelp( options );
+        return 1;
+    }
+
     /* Actually do things as requested. */
 
-    if ( decompress || countBytes || countLines || !args.indexSavePath.empty() ) {
-        if ( decompress && args.verbose ) {
-            std::cerr << "Decompress " << ( inputFilePath.empty() ? "<stdin>" : inputFilePath.c_str() )
-                      << " -> " << ( outputFilePath.empty() ? "<stdout>" : outputFilePath.c_str() ) << "\n";
-        }
+    if ( decompress && args.verbose ) {
+        std::cerr << "Decompress " << ( inputFilePath.empty() ? "<stdin>" : inputFilePath.c_str() )
+                  << " -> " << ( outputFilePath.empty() ? "<stdout>" : outputFilePath.c_str() ) << "\n";
+    }
 
-        if ( !inputFile ) {
-            std::cerr << "Could not open input file: " << inputFilePath << "!\n";
-            return 1;
-        }
+    if ( !inputFile ) {
+        std::cerr << "Could not open input file: " << inputFilePath << "!\n";
+        return 1;
+    }
 
-        std::unique_ptr<OutputFile> outputFile;
-        if ( decompress ) {
-            outputFile = std::make_unique<OutputFile>( outputFilePath );
-        }
-        const auto outputFileDescriptor = outputFile ? outputFile->fd() : -1;
+    std::unique_ptr<OutputFile> outputFile;
+    if ( decompress ) {
+        outputFile = std::make_unique<OutputFile>( outputFilePath );
+    }
+    const auto outputFileDescriptor = outputFile ? outputFile->fd() : -1;
 
-        uint64_t newlineCount{ 0 };
+    uint64_t newlineCount{ 0 };
 
-        const auto t0 = now();
+    const auto t0 = now();
 
-        size_t totalBytesRead{ 0 };
-        const auto writeAndCount =
-            [outputFileDescriptor, countLines, &newlineCount, &totalBytesRead]
-            ( const std::shared_ptr<rapidgzip::ChunkData>& chunkData,
-              size_t const                                 offsetInChunk,
-              size_t const                                 dataToWriteSize )
+    size_t totalBytesRead{ 0 };
+    const auto writeAndCount =
+        [outputFileDescriptor, countLines, &newlineCount, &totalBytesRead]
+        ( const std::shared_ptr<rapidgzip::ChunkData>& chunkData,
+          size_t const                                 offsetInChunk,
+          size_t const                                 dataToWriteSize )
+        {
+            const auto errorCode = writeAll( chunkData, outputFileDescriptor, offsetInChunk, dataToWriteSize );
+            if ( errorCode == EPIPE ) {
+                throw BrokenPipeException();
+            }
+
+            if ( errorCode != 0 ) {
+                std::stringstream message;
+                message << "Failed to write all bytes because of: " << strerror( errorCode )
+                        << " (" << errorCode << ")";
+                throw std::runtime_error( std::move( message ).str() );
+            }
+
+            totalBytesRead += dataToWriteSize;
+
+            if ( countLines ) {
+                using rapidgzip::deflate::DecodedData;
+                for ( auto it = DecodedData::Iterator( *chunkData, offsetInChunk, dataToWriteSize );
+                      static_cast<bool>( it ); ++it )
+                {
+                    const auto& [buffer, size] = *it;
+                    newlineCount += countNewlines( { reinterpret_cast<const char*>( buffer ), size } );
+                }
+            }
+        };
+
+    args.chunkSize = parsedArgs["chunk-size"].as<unsigned int>() * 1_Ki;
+
+    auto errorCode = DecompressErrorCode::SUCCESS;
+    if ( ( outputFileDescriptor == -1 ) && args.indexSavePath.empty() && countBytes && !countLines
+         && !args.crc32Enabled && !fileRanges )
+    {
+        /* Need to do nothing with the chunks because decompressParallel returns the decompressed size.
+         * Note that we use rapidgzip::ChunkDataCounter to speed up decompression. Therefore an index
+         * will not be created and there also will be no checksum verification! */
+        errorCode = decompressParallel<rapidgzip::ChunkDataCounter>(
+            args, std::move( inputFile ), [&totalBytesRead] ( const auto& reader ) {
+                totalBytesRead = reader->read( /* do nothing */ nullptr, std::numeric_limits<size_t>::max() );
+            } );
+    } else {
+        const auto readRange =
+            [&totalBytesRead, outputFileDescriptor, countLines, &writeAndCount]
+            ( const auto&  reader,
+              const size_t size )
             {
-                const auto errorCode = writeAll( chunkData, outputFileDescriptor, offsetInChunk, dataToWriteSize );
-                if ( errorCode == EPIPE ) {
-                    throw BrokenPipeException();
-                }
-
-                if ( errorCode != 0 ) {
-                    std::stringstream message;
-                    message << "Failed to write all bytes because of: " << strerror( errorCode )
-                            << " (" << errorCode << ")";
-                    throw std::runtime_error( std::move( message ).str() );
-                }
-
-                totalBytesRead += dataToWriteSize;
-
-                if ( countLines ) {
-                    using rapidgzip::deflate::DecodedData;
-                    for ( auto it = DecodedData::Iterator( *chunkData, offsetInChunk, dataToWriteSize );
-                          static_cast<bool>( it ); ++it )
-                    {
-                        const auto& [buffer, size] = *it;
-                        newlineCount += countNewlines( { reinterpret_cast<const char*>( buffer ), size } );
-                    }
+                /* An empty functor will lead to decompression to be skipped if the index is finalized! */
+                if ( ( outputFileDescriptor != -1 ) || countLines ) {
+                    reader->read( writeAndCount, size );
+                } else {
+                    totalBytesRead += reader->read( /* do nothing */ nullptr, size );
                 }
             };
 
-        args.chunkSize = parsedArgs["chunk-size"].as<unsigned int>() * 1_Ki;
+        const auto readLines =
+            [&] ( const auto&  reader,
+                  const size_t lineCount,
+                  const auto&  writeFunctor )
+            {
+                size_t lastLineOffset = reader->tell();
+                const auto newlineCharacter = reader->newlineFormat() == NewlineFormat::LINE_FEED ? '\n' : '\r';
+                auto remainingLineCount = lineCount;
 
-        auto errorCode = DecompressErrorCode::SUCCESS;
-        if ( ( outputFileDescriptor == -1 ) && args.indexSavePath.empty() && countBytes && !countLines
-             && !args.crc32Enabled && !fileRanges )
-        {
-            /* Need to do nothing with the chunks because decompressParallel returns the decompressed size.
-             * Note that we use rapidgzip::ChunkDataCounter to speed up decompression. Therefore an index
-             * will not be created and there also will be no checksum verification! */
-            errorCode = decompressParallel<rapidgzip::ChunkDataCounter>(
-                args, std::move( inputFile ), [&totalBytesRead] ( const auto& reader ) {
-                    totalBytesRead = reader->read( /* do nothing */ nullptr, std::numeric_limits<size_t>::max() );
-                } );
-        } else {
-            const auto readRange =
-                [&totalBytesRead, outputFileDescriptor, countLines, &writeAndCount]
-                ( const auto&  reader,
-                  const size_t size )
-                {
-                    /* An empty functor will lead to decompression to be skipped if the index is finalized! */
-                    if ( ( outputFileDescriptor != -1 ) || countLines ) {
-                        reader->read( writeAndCount, size );
-                    } else {
-                        totalBytesRead += reader->read( /* do nothing */ nullptr, size );
-                    }
-                };
-
-            const auto readLines =
-                [&] ( const auto&  reader,
-                      const size_t lineCount,
-                      const auto&  writeFunctor )
-                {
-                    size_t lastLineOffset = reader->tell();
-                    const auto newlineCharacter = reader->newlineFormat() == NewlineFormat::LINE_FEED ? '\n' : '\r';
-                    auto remainingLineCount = lineCount;
-
-                    const auto forwardLineWrites =
-                        [&lastLineOffset, &remainingLineCount, newlineCharacter, &writeFunctor]
-                        ( const std::shared_ptr<rapidgzip::ChunkData>& chunkData,
-                          const size_t                                 offsetInChunk,
-                          const size_t                                 dataToWriteSize )
-                        {
-                            if ( remainingLineCount == 0 ) {
-                                return;
-                            }
-
-                            using rapidgzip::deflate::DecodedData;
-                            size_t nBytesRead{ 0 };
-                            for ( auto it = DecodedData::Iterator( *chunkData, offsetInChunk, dataToWriteSize );
-                                  static_cast<bool>( it ); ++it )
-                            {
-                                const auto& [buffer, size] = *it;
-                                const auto result = findNthNewline( { reinterpret_cast<const char*>( buffer ), size },
-                                                                    remainingLineCount, newlineCharacter );
-                                remainingLineCount = result.remainingLineCount;
-                                if ( remainingLineCount == 0 ) {
-                                    if ( result.position == std::string_view::npos ) {
-                                        throw std::logic_error( "Find n-th line should return a valid position when "
-                                                                "the input line count was not 0 but is 0 thereafter." );
-                                    }
-
-                                    /* Skip over last newline character with +1. */
-                                    nBytesRead += result.position + 1U;
-                                    lastLineOffset += result.position + 1U;
-                                    break;
-                                }
-                                nBytesRead += size;
-                                lastLineOffset += size;
-                            }
-
-                            if ( nBytesRead > dataToWriteSize ) {
-                                throw std::logic_error( "Shouldn't have read more bytes than specified in the chunk." );
-                            }
-
-                            writeFunctor( chunkData, offsetInChunk, nBytesRead );
-                        };
-
-                    while ( remainingLineCount > 0 ) {
-                        const auto currentBytesRead = reader->read( forwardLineWrites, 4_Mi );
-                        if ( currentBytesRead == 0 ) {
-                            break;
+                const auto forwardLineWrites =
+                    [&lastLineOffset, &remainingLineCount, newlineCharacter, &writeFunctor]
+                    ( const std::shared_ptr<rapidgzip::ChunkData>& chunkData,
+                      const size_t                                 offsetInChunk,
+                      const size_t                                 dataToWriteSize )
+                    {
+                        if ( remainingLineCount == 0 ) {
+                            return;
                         }
+
+                        using rapidgzip::deflate::DecodedData;
+                        size_t nBytesRead{ 0 };
+                        for ( auto it = DecodedData::Iterator( *chunkData, offsetInChunk, dataToWriteSize );
+                              static_cast<bool>( it ); ++it )
+                        {
+                            const auto& [buffer, size] = *it;
+                            const auto result = findNthNewline( { reinterpret_cast<const char*>( buffer ), size },
+                                                                remainingLineCount, newlineCharacter );
+                            remainingLineCount = result.remainingLineCount;
+                            if ( remainingLineCount == 0 ) {
+                                if ( result.position == std::string_view::npos ) {
+                                    throw std::logic_error( "Find n-th line should return a valid position when "
+                                                            "the input line count was not 0 but is 0 thereafter." );
+                                }
+
+                                /* Skip over last newline character with +1. */
+                                nBytesRead += result.position + 1U;
+                                lastLineOffset += result.position + 1U;
+                                break;
+                            }
+                            nBytesRead += size;
+                            lastLineOffset += size;
+                        }
+
+                        if ( nBytesRead > dataToWriteSize ) {
+                            throw std::logic_error( "Shouldn't have read more bytes than specified in the chunk." );
+                        }
+
+                        writeFunctor( chunkData, offsetInChunk, nBytesRead );
+                    };
+
+                while ( remainingLineCount > 0 ) {
+                    const auto currentBytesRead = reader->read( forwardLineWrites, 4_Mi );
+                    if ( currentBytesRead == 0 ) {
+                        break;
+                    }
+                }
+
+                reader->seekTo( lastLineOffset );
+            };
+
+        errorCode = decompressParallel<rapidgzip::ChunkData>(
+            args, std::move( inputFile ), [&] ( const auto& reader ) {
+                if ( !fileRanges ) {
+                    readRange( reader, std::numeric_limits<size_t>::max() );
+                    return;
+                }
+
+                for ( const auto& range : *fileRanges ) {
+                    if ( range.size == 0 ) {
+                        continue;
                     }
 
-                    reader->seekTo( lastLineOffset );
-                };
-
-            errorCode = decompressParallel<rapidgzip::ChunkData>(
-                args, std::move( inputFile ), [&] ( const auto& reader ) {
-                    if ( !fileRanges ) {
-                        readRange( reader, std::numeric_limits<size_t>::max() );
-                        return;
+                    if ( ( ( range.offsetIsLine && ( range.offset > 0 ) ) || range.sizeIsLine )
+                         && !reader->newlineFormat() )
+                    {
+                        throw std::invalid_argument( "Currently, seeking and reading lines only works when "
+                                                     "importing gztool indexes created with -x or -X!" );
                     }
 
-                    for ( const auto& range : *fileRanges ) {
-                        if ( range.size == 0 ) {
+                    /* Seek to line or byte offset. Note that line 0 starts at byte 0 by definition. */
+                    if ( range.offsetIsLine && ( range.offset > 0 ) ) {
+                        const auto& newlineOffsets = reader->newlineOffsets();
+                        const auto lessLineOffset = [] ( const auto& a, const auto lineOffset ) {
+                            return a.lineOffset < lineOffset;
+                        };
+                        auto newlineOffset = std::lower_bound( newlineOffsets.begin(), newlineOffsets.end(),
+                                                               range.offset, lessLineOffset );
+                        if ( newlineOffset == newlineOffsets.end() ) {
                             continue;
                         }
 
-                        if ( ( ( range.offsetIsLine && ( range.offset > 0 ) ) || range.sizeIsLine )
-                             && !reader->newlineFormat() )
-                        {
-                            throw std::invalid_argument( "Currently, seeking and reading lines only works when "
-                                                         "importing gztool indexes created with -x or -X!" );
+                        if ( newlineOffset == newlineOffsets.begin() ) {
+                            throw std::logic_error( "Bisection may never point to the first element because "
+                                                    "line offset 0 is always smaller than any line offset handled "
+                                                    "in this branch!" );
+                        }
+                        --newlineOffset;
+
+                        reader->seekTo( newlineOffset->uncompressedOffsetInBytes );
+
+                        if ( newlineOffset->lineOffset >= range.offset ) {
+                            throw std::logic_error( "Bisection should have returned a line offset prior to the "
+                                                    "one we need to seek to." );
                         }
 
-                        /* Seek to line or byte offset. Note that line 0 starts at byte 0 by definition. */
-                        if ( range.offsetIsLine && ( range.offset > 0 ) ) {
-                            const auto& newlineOffsets = reader->newlineOffsets();
-                            const auto lessLineOffset = [] ( const auto& a, const auto lineOffset ) {
-                                return a.lineOffset < lineOffset;
-                            };
-                            auto newlineOffset = std::lower_bound( newlineOffsets.begin(), newlineOffsets.end(),
-                                                                   range.offset, lessLineOffset );
-                            if ( newlineOffset == newlineOffsets.end() ) {
-                                continue;
-                            }
-
-                            if ( newlineOffset == newlineOffsets.begin() ) {
-                                throw std::logic_error( "Bisection may never point to the first element because "
-                                                        "line offset 0 is always smaller than any line offset handled "
-                                                        "in this branch!" );
-                            }
-                            --newlineOffset;
-
-                            reader->seekTo( newlineOffset->uncompressedOffsetInBytes );
-
-                            if ( newlineOffset->lineOffset >= range.offset ) {
-                                throw std::logic_error( "Bisection should have returned a line offset prior to the "
-                                                        "one we need to seek to." );
-                            }
-
-                            readLines( reader, range.offset - newlineOffset->lineOffset,
-                                       [] ( const auto&, size_t, size_t ) {} );
-                        } else {
-                            reader->seekTo( range.offset );
-                        }
-
-                        if ( range.sizeIsLine ) {
-                            readLines( reader, range.size, writeAndCount );
-                        } else {
-                            readRange( reader, range.size );
-                        }
+                        readLines( reader, range.offset - newlineOffset->lineOffset,
+                                   [] ( const auto&, size_t, size_t ) {} );
+                    } else {
+                        reader->seekTo( range.offset );
                     }
-                } );
-        }
 
-        const auto writeToStdErr = outputFile && outputFile->writingToStdout();
-        if ( outputFile ) {
-            outputFile->truncate( totalBytesRead );
-            outputFile.reset();  // Close the file here to include it in the time measurement.
-        }
-
-        const auto t1 = now();
-        if ( args.verbose ) {
-            std::cerr << "Decompressed in total " << totalBytesRead << " B in " << duration( t0, t1 ) << " s -> "
-                      << static_cast<double>( totalBytesRead ) / 1e6 / duration( t0, t1 ) << " MB/s\n";
-        }
-
-        auto& out = writeToStdErr ? std::cerr : std::cout;
-        if ( countBytes != countLines ) {
-            out << ( countBytes ? totalBytesRead : newlineCount ) << "\n";
-        } else if ( countBytes && countLines ) {
-            out << "Size: " << totalBytesRead << "\n";
-            out << "Lines: " << newlineCount << "\n";
-        }
-
-        switch ( errorCode )
-        {
-        case DecompressErrorCode::BROKEN_PIPE:
-            return 128 + /* SIGPIPE */ 13;
-        case DecompressErrorCode::SUCCESS:
-            return 0;
-        }
-        return 2;
+                    if ( range.sizeIsLine ) {
+                        readLines( reader, range.size, writeAndCount );
+                    } else {
+                        readRange( reader, range.size );
+                    }
+                }
+            } );
     }
 
-    std::cerr << "No suitable arguments were given. Please refer to the help!\n\n";
+    const auto writeToStdErr = outputFile && outputFile->writingToStdout();
+    if ( outputFile ) {
+        outputFile->truncate( totalBytesRead );
+        outputFile.reset();  // Close the file here to include it in the time measurement.
+    }
 
-    printRapidgzipHelp( options );
+    const auto t1 = now();
+    if ( args.verbose ) {
+        std::cerr << "Decompressed in total " << totalBytesRead << " B in " << duration( t0, t1 ) << " s -> "
+                  << static_cast<double>( totalBytesRead ) / 1e6 / duration( t0, t1 ) << " MB/s\n";
+    }
 
-    return 1;
+    auto& out = writeToStdErr ? std::cerr : std::cout;
+    if ( countBytes != countLines ) {
+        out << ( countBytes ? totalBytesRead : newlineCount ) << "\n";
+    } else if ( countBytes && countLines ) {
+        out << "Size: " << totalBytesRead << "\n";
+        out << "Lines: " << newlineCount << "\n";
+    }
+
+    switch ( errorCode )
+    {
+    case DecompressErrorCode::BROKEN_PIPE:
+        return 128 + /* SIGPIPE */ 13;
+    case DecompressErrorCode::SUCCESS:
+        return 0;
+    }
+    return 2;
 }
 
 
