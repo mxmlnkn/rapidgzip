@@ -139,6 +139,10 @@ decompressParallel( const Arguments&   args,
     reader->setShowProfileOnDestruction( args.verbose );
     reader->setCRC32Enabled( args.crc32Enabled );
     reader->setKeepIndex( !args.indexSavePath.empty() || !args.indexLoadPath.empty() || args.keepIndex );
+    if ( ( args.indexFormat == IndexFormat::GZTOOL ) || ( args.indexFormat == IndexFormat::GZTOOL_WITH_LINES ) ) {
+        /* Compress with zlib instead of gzip to avoid recompressions when exporting the index. */
+        reader->setWindowCompressionType( CompressionType::ZLIB );
+    }
 
     if ( !args.indexLoadPath.empty() ) {
         reader->importIndex( std::make_unique<StandardFileReader>( args.indexLoadPath ) );

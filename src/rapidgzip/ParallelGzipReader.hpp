@@ -317,7 +317,7 @@ public:
                 static_cast<size_t>(
                     std::ceil( static_cast<double>( parallelization ) * static_cast<double>( m_chunkSizeInBytes )
                                / static_cast<double>( SinglePassFileReader::CHUNK_SIZE ) ) ) );
-            m_keepIndex = false;
+            setKeepIndex( false );
         }
     }
 
@@ -1187,10 +1187,14 @@ public:
     setKeepIndex( bool keep )
     {
         m_keepIndex = keep;
-        if ( m_chunkFetcher ) {
-            m_chunkFetcher->setWindowCompressionType(
-                m_keepIndex ? std::nullopt : std::make_optional( CompressionType::NONE ) );
-        }
+        updateWindowCompression();
+    }
+
+    void
+    setWindowCompressionType( CompressionType windowCompressionType )
+    {
+        m_windowCompressionType = windowCompressionType;
+        updateWindowCompression();
     }
 
     [[nodiscard]] std::string
@@ -1213,6 +1217,15 @@ public:
     }
 
 private:
+    void
+    updateWindowCompression()
+    {
+        if ( m_chunkFetcher ) {
+            m_chunkFetcher->setWindowCompressionType(
+                m_keepIndex ? m_windowCompressionType : std::make_optional( CompressionType::NONE ) );
+        }
+    }
+
     BlockFinder&
     blockFinder()  // NOLINT(misc-no-recursion)
     {
@@ -1259,8 +1272,7 @@ private:
         m_chunkFetcher->setMaxDecompressedChunkSize( m_maxDecompressedChunkSize );
         m_chunkFetcher->setShowProfileOnDestruction( m_showProfileOnDestruction );
         m_chunkFetcher->setStatisticsEnabled( m_statisticsEnabled );
-        m_chunkFetcher->setWindowCompressionType(
-            m_keepIndex ? std::nullopt : std::make_optional( CompressionType::NONE ) );
+        updateWindowCompression();
 
         return *m_chunkFetcher;
     }
@@ -1370,6 +1382,7 @@ private:
      */
     std::shared_ptr<WindowMap> const m_windowMap{ std::make_shared<WindowMap>() };
     bool m_keepIndex{ true };
+    std::optional<CompressionType> m_windowCompressionType;
     std::unique_ptr<ChunkFetcher> m_chunkFetcher;
     /**
      * Note that the uncompressed offset can point to any byte offset inside the line depending on how the chunks

@@ -63,6 +63,8 @@ template<typename Container = FasterVector<uint8_t> >
 compress( const VectorView<typename Container::value_type> toCompress,
           const CompressionType                            compressionType )
 {
+    using namespace rapidgzip;
+
     switch ( compressionType )
     {
     case CompressionType::GZIP:
@@ -78,6 +80,10 @@ compress( const VectorView<typename Container::value_type> toCompress,
         return rapidgzip::compressWithZlib<Container>( toCompress );
     #endif
         break;
+
+    case CompressionType::ZLIB:
+        return rapidgzip::compressWithZlib<Container>( toCompress, CompressionStrategy::DEFAULT, /* dictionary */ {},
+                                                       ContainerFormat::ZLIB );
 
     case CompressionType::NONE:
         return Container( toCompress.begin(), toCompress.end() );

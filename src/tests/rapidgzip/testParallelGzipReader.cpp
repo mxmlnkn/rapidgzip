@@ -506,7 +506,7 @@ testParallelCRC32( const std::vector<std::byte>& uncompressed,
     reader.setStatisticsEnabled( true );
     reader.setCRC32Enabled( true );
 
-    /* Read everything. The data should contain sufficient chunks such that the first one have been evicted. */
+    /* Read everything. The data should contain sufficient chunks such that the first ones have been evicted. */
     std::vector<std::byte> decompressed( uncompressed.size() );
     /* In the bugged version, which did not calcualte the CRC32 for data cleaned inside cleanUnmarkedData,
      * this call would throw an exception because CRC32 verification failed. */
