@@ -273,7 +273,7 @@ rapidgzipCLI( int                  argc,
 
     options.add_options( "Output" )
         ( "h,help"   , "Print this help message." )
-        ( "q,quiet"  , "Suppress noncritical error messages." )
+        ( "q,quiet"  , "Suppress non-critical error messages." )
         ( "v,verbose", "Print debug output and profiling statistics." )
         ( "V,version", "Display software version." )
         ( "oss-attributions", "Display open-source software licenses." )
@@ -463,8 +463,8 @@ rapidgzipCLI( int                  argc,
     if ( !args.indexLoadPath.empty() && !args.indexSavePath.empty() ) {
         std::cerr << "[Warning] Importing and exporting an index makes limited sense.\n";
     }
-    if ( ( !args.indexLoadPath.empty() || !args.indexSavePath.empty() ) && ( args.decoderParallelism == 1 ) ) {
-        std::cerr << "[Warning] The index only has an effect for parallel decoding.\n";
+    if ( !args.indexLoadPath.empty() && args.indexSavePath.empty() && ( args.decoderParallelism == 1 ) ) {
+        std::cerr << "[Warning] The index only has an effect for parallel decoding and index exporting.\n";
     }
     if ( !args.indexLoadPath.empty() && !fileExists( args.indexLoadPath ) ) {
         std::cerr << "The index to import was not found!\n";
