@@ -193,75 +193,149 @@ jobs:
 
   Asan:
     name: ASan
-    runs-on: ubuntu-22.04
+
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, macos-13]
+
     steps:
     - uses: actions/checkout@v4
       with:
         submodules: recursive
 
-    - name: Install Dependencies
+    - name: Install System Dependencies
+      if: "startsWith(matrix.os , 'macos')"
+      run: |
+        brew install ninja pigz zlib isa-l wget nasm
+        wget 'https://github.com/samtools/htslib/releases/download/1.20/htslib-1.20.tar.bz2'
+        tar -xf htslib-1.20.tar.bz2
+        cd htslib* && ./configure && make install
+
+    - name: Install System Dependencies
+      if: "startsWith(matrix.os , 'ubuntu')"
       run: |
         sudo apt-get -y install clang g++ ninja-build gzip tabix pigz gztool libarchive-dev zlib1g-dev isal nasm
+
+    - name: Install Python Dependencies
+      run: |
         python3 -m pip install --upgrade pip
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
 
     - name: Run Tests With Sanitizers
+      if: "startsWith(matrix.os , 'macos')"
       run: |
-        for sanitized in address; do
-        (
-            mkdir -p "build-sanitized-$sanitized" && cd -- "$_"
-            CXX=clang++ CC=clang cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=$sanitized -DSHORT_TESTS" ..
-            cmake --build . -- check
-        )
-        done
+        sanitizer=address
+        mkdir -p "build-sanitized-$sanitizer" && cd -- "$_"
+        cmake -G Ninja -DWITH_ISAL=OFF -DUSE_SYSTEM_ZLIB=OFF -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS="-fsanitize=$sanitizer -DSHORT_TESTS" ..
+        cmake --build . -- check
+
+    - name: Run Tests With Sanitizers
+      if: "startsWith(matrix.os , 'ubuntu')"
+      run: |
+        sanitizer=address
+        mkdir -p "build-sanitized-$sanitizer" && cd -- "$_"
+        CXX=clang++ CC=clang cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=$sanitizer -DSHORT_TESTS" ..
+        cmake --build . -- check
 
   UBSan:
     name: UBSan
-    runs-on: ubuntu-22.04
+
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, macos-13]
+
     steps:
     - uses: actions/checkout@v4
       with:
         submodules: recursive
 
-    - name: Install Dependencies
+    - name: Install System Dependencies
+      if: "startsWith(matrix.os , 'macos')"
+      run: |
+        brew install ninja pigz zlib isa-l wget nasm
+        wget 'https://github.com/samtools/htslib/releases/download/1.20/htslib-1.20.tar.bz2'
+        tar -xf htslib-1.20.tar.bz2
+        cd htslib* && ./configure && make install
+
+    - name: Install System Dependencies
+      if: "startsWith(matrix.os , 'ubuntu')"
       run: |
         sudo apt-get -y install clang g++ ninja-build gzip tabix pigz gztool libarchive-dev zlib1g-dev isal nasm
+
+    - name: Install Python Dependencies
+      run: |
         python3 -m pip install --upgrade pip
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
 
     - name: Run Tests With Sanitizers
+      if: "startsWith(matrix.os , 'macos')"
       run: |
-        for sanitized in undefined; do
-        (
-            mkdir -p "build-sanitized-$sanitized" && cd -- "$_"
-            CXX=clang++ CC=clang cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=$sanitized -DSHORT_TESTS" ..
-            cmake --build . -- check
-        )
-        done
+        sanitizer=undefined
+        mkdir -p "build-sanitized-$sanitizer" && cd -- "$_"
+        cmake -G Ninja -DWITH_ISAL=OFF -DUSE_SYSTEM_ZLIB=OFF -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS="-fsanitize=$sanitizer -DSHORT_TESTS" ..
+        cmake --build . -- testParallelGzipReader
+        src/tests/rapidgzip/testParallelGzipReader
+
+    - name: Run Tests With Sanitizers
+      if: "startsWith(matrix.os , 'ubuntu')"
+      run: |
+        sanitizer=undefined
+        mkdir -p "build-sanitized-$sanitizer" && cd -- "$_"
+        CXX=clang++ CC=clang cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=$sanitizer -DSHORT_TESTS" ..
+        cmake --build . -- check
 
   Safe-Stack:
     name: Safe-Stack
-    runs-on: ubuntu-22.04
+
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, macos-13]
+
     steps:
     - uses: actions/checkout@v4
       with:
         submodules: recursive
 
-    - name: Install Dependencies
+    - name: Install System Dependencies
+      if: "startsWith(matrix.os , 'macos')"
       run: |
-        sudo apt-get -y install clang ninja-build gzip tabix pigz gztool libarchive-dev zlib1g-dev isal nasm
+        brew install ninja pigz zlib isa-l wget nasm gcc
+        wget 'https://github.com/samtools/htslib/releases/download/1.20/htslib-1.20.tar.bz2'
+        tar -xf htslib-1.20.tar.bz2
+        cd htslib* && ./configure && make install
+
+    - name: Install System Dependencies
+      if: "startsWith(matrix.os , 'ubuntu')"
+      run: |
+        sudo apt-get -y install clang g++ ninja-build gzip tabix pigz gztool libarchive-dev zlib1g-dev isal nasm
+
+    - name: Install Python Dependencies
+      run: |
         python3 -m pip install --upgrade pip
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
 
     - name: Run Tests With Sanitizers
+      if: "startsWith(matrix.os , 'macos')"
       run: |
-        for sanitized in safe-stack; do
-        (
-            mkdir -p "build-sanitized-$sanitized" && cd -- "$_"
-            CXX=clang++ CC=clang cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=$sanitized -DSHORT_TESTS" ..
-            cmake --build . -- check
-        )
-        done
+        sanitizer=address
+        mkdir -p "build-sanitized-$sanitizer" && cd -- "$_"
+        CXX=g++ CC=gcc cmake -G Ninja -DWITH_ISAL=OFF -DUSE_SYSTEM_ZLIB=OFF -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS="-fsanitize=$sanitizer -DSHORT_TESTS" ..
+        cmake --build . -- testParallelGzipReader
+        src/tests/rapidgzip/testParallelGzipReader
+
+    - name: Run Tests With Sanitizers
+      if: "startsWith(matrix.os , 'ubuntu')"
+      run: |
+        sanitizer=safe-stack
+        mkdir -p "build-sanitized-$sanitizer" && cd -- "$_"
+        CXX=clang++ CC=clang cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=$sanitizer -DSHORT_TESTS" ..
+        cmake --build . -- check
 
   TSan:
     name: TSan
