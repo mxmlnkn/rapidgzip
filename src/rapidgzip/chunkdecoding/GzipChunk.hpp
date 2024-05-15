@@ -52,8 +52,37 @@ public:
     }
 
     static void
+    determineUsedWindowSymbols( std::vector<Subchunk>& subchunks,
+                                BitReader&             bitReader,
+                                bool                   windowSparsity )
+    {
+        if ( subchunks.empty() || ( subchunks.back().encodedSize == 0 ) ) {
+            return;
+        }
+
+        auto& subchunk = subchunks.back();
+
+        try {
+            /* Get the window as soon as possible to avoid costly long seeks back outside the BitReader buffer.
+             * Especially, don't do it during chunk splitting because it would be too late in general. */
+            const Finally seekBack{ [&bitReader, oldOffset = bitReader.tell()] () {
+                bitReader.seekTo( oldOffset ); }
+            };
+            bitReader.seek( subchunk.encodedOffset + subchunk.encodedSize );
+            if ( windowSparsity ) {
+                subchunk.usedWindowSymbols = deflate::getUsedWindowSymbols( bitReader );
+            }
+        } catch ( const std::exception& ) {
+            /* Ignore errors such as EOF and even decompression errors because we are only collecting extra
+             * data and might already be at the end of the given chunk size, so shouldn't return errors for
+             * data thereafter. */
+        }
+    }
+
+    static void
     finalizeChunk( ChunkData&              chunk,
                    std::vector<Subchunk>&& subchunks,
+                   BitReader&              bitReader,
                    const size_t            nextBlockOffset )
     {
         /* Finalize started subchunk. Merge with previous one if it is very small. */
@@ -66,7 +95,10 @@ public:
 
             subchunks.back().encodedSize += lastSubchunk.encodedSize;
             subchunks.back().decodedSize += lastSubchunk.decodedSize;
+            subchunks.back().usedWindowSymbols.clear();
         }
+
+        determineUsedWindowSymbols( subchunks, bitReader, chunk.windowSparsity );
 
         chunk.setSubchunks( std::move( subchunks ) );
         chunk.finalize( nextBlockOffset );
@@ -75,6 +107,7 @@ public:
     static void
     appendDeflateBlockBoundary( ChunkData&             chunk,
                                 std::vector<Subchunk>& subchunks,
+                                BitReader&             bitReader,
                                 const size_t           encodedOffset,
                                 const size_t           decodedOffset )
     {
@@ -83,9 +116,14 @@ public:
             return;
         }
 
+        if ( subchunks.empty() ) {
+            return;
+        }
+
         /* Do on-the-fly chunk splitting. */
         if ( subchunks.back().decodedSize >= chunk.splitChunkSize ) {
             subchunks.back().encodedSize = encodedOffset - subchunks.back().encodedOffset;
+            determineUsedWindowSymbols( subchunks, bitReader, chunk.windowSparsity );
             startNewSubchunk( subchunks, encodedOffset );
         }
     }
@@ -228,7 +266,7 @@ public:
         auto alreadyDecoded = result.size();
 
         if ( ( alreadyDecoded > 0 ) && !bitReader->eof() ) {
-            appendDeflateBlockBoundary( result, subchunks, nextBlockOffset, alreadyDecoded );
+            appendDeflateBlockBoundary( result, subchunks, *bitReader, nextBlockOffset, alreadyDecoded );
         }
 
         IsalInflateWrapper inflateWrapper{ BitReader( *bitReader ) };
@@ -319,7 +357,8 @@ public:
                      * offset as @ref result and it also would have the same problem that the real offset is ambiguous
                      * for non-compressed blocks. */
                     if ( alreadyDecoded + nBytesRead > 0 ) {
-                        appendDeflateBlockBoundary( result, subchunks, nextBlockOffset, alreadyDecoded + nBytesRead );
+                        appendDeflateBlockBoundary( result, subchunks, *bitReader,
+                                                    nextBlockOffset, alreadyDecoded + nBytesRead );
                     }
 
                     if ( alreadyDecoded >= maxDecompressedChunkSize ) {
@@ -352,7 +391,7 @@ public:
             appendFooter( footer->footerEndEncodedOffset, alreadyDecoded, *footer );
         }
 
-        finalizeChunk( result, std::move( subchunks ), nextBlockOffset );
+        finalizeChunk( result, std::move( subchunks ), *bitReader, nextBlockOffset );
         result.statistics.decodeDurationIsal = duration( tStart );
         /**
          * Without the std::move, performance is halved! It seems like copy elision on return does not work
@@ -506,7 +545,7 @@ public:
              * offset as @ref result and it also would have the same problem that the real offset is ambiguous
              * for non-compressed blocks. */
             if ( totalBytesRead > 0 ) {
-                appendDeflateBlockBoundary( result, subchunks, nextBlockOffset, totalBytesRead );
+                appendDeflateBlockBoundary( result, subchunks, *bitReader, nextBlockOffset, totalBytesRead );
             }
 
             /* Loop until we have read the full contents of the current deflate block-> */
@@ -601,7 +640,7 @@ public:
             }
         }
 
-        finalizeChunk( result, std::move( subchunks ), nextBlockOffset );
+        finalizeChunk( result, std::move( subchunks ), *bitReader, nextBlockOffset );
         return result;
     }
 

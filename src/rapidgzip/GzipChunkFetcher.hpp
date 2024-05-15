@@ -242,9 +242,11 @@ public:
     }
 
     void
-    setWindowCompressionType( std::optional<CompressionType> windowCompressionType )
+    setWindowCompressionType( std::optional<CompressionType> windowCompressionType,
+                              bool                           useSparseWindows )
     {
         m_windowCompressionType = windowCompressionType;
+        m_windowSparsity = useSparseWindows;
     }
 
 private:
@@ -667,6 +669,7 @@ private:
         chunkDataConfiguration.fileType = m_blockFinder->fileType();
         chunkDataConfiguration.splitChunkSize = m_blockFinder->spacingInBits() / 8U;
         chunkDataConfiguration.windowCompressionType = m_windowCompressionType;
+        chunkDataConfiguration.windowSparsity = m_windowSparsity;
 
         /* If we are a BGZF file and we have not imported an index, then we can assume the
          * window to be empty because we should only get offsets at gzip stream starts.
@@ -745,5 +748,6 @@ private:
 
     PostProcessingFutures m_markersBeingReplaced;
     std::optional<CompressionType> m_windowCompressionType;
+    bool m_windowSparsity{ true };
 };
 }  // namespace rapidgzip

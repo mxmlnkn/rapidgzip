@@ -1188,6 +1188,17 @@ public:
     {
         m_keepIndex = keep;
         updateWindowCompression();
+        if ( !m_keepIndex ) {
+            /* Computing the sparsity is overhead and does not justify the saved memory when not keeping the index. */
+            setWindowSparsity( false );
+        }
+    }
+
+    void
+    setWindowSparsity( bool useSparseWindows )
+    {
+        m_windowSparsity = useSparseWindows;
+        updateWindowCompression();
     }
 
     void
@@ -1222,7 +1233,7 @@ private:
     {
         if ( m_chunkFetcher ) {
             m_chunkFetcher->setWindowCompressionType(
-                m_keepIndex ? m_windowCompressionType : std::make_optional( CompressionType::NONE ) );
+                m_keepIndex ? m_windowCompressionType : std::make_optional( CompressionType::NONE ), m_windowSparsity );
         }
     }
 
@@ -1382,6 +1393,7 @@ private:
      */
     std::shared_ptr<WindowMap> const m_windowMap{ std::make_shared<WindowMap>() };
     bool m_keepIndex{ true };
+    bool m_windowSparsity{ true };
     std::optional<CompressionType> m_windowCompressionType;
     std::unique_ptr<ChunkFetcher> m_chunkFetcher;
     /**

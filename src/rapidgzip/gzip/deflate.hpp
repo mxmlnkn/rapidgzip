@@ -1779,16 +1779,24 @@ Block<ENABLE_STATISTICS>::setInitialWindow( VectorView<uint8_t> const& initialWi
 }
 
 
-[[nodiscard]] inline std::vector<bool>
-getUsedWindowSymbols( BitReader& bitReader )
+[[nodiscard]] inline bool
+verifySparseWindow( BitReader&                bitReader,
+                    const std::vector<bool>&  windowByteIsRequired,
+                    const VectorView<uint8_t> expectedOutput )
 {
-    std::vector<bool> window( MAX_WINDOW_SIZE, false );
-
     Block</* ENABLE_STATISTICS */ false> block;
-    block.setTrackBackreferences( true );
+
+    /* Check that the created sparse window is correct by setting all sparse bytes to some arbitrary canary token.
+     * If not (should not happen), show a warning and fall back to a non-sparse window. */
+    std::vector<uint8_t> initialWindow( MAX_WINDOW_SIZE, 0 );
+    for ( size_t i = 0; i < windowByteIsRequired.size(); ++i ) {
+        if ( !windowByteIsRequired[i] ) {
+            initialWindow[i] = 1;
+        }
+    }
+    block.setInitialWindow( { initialWindow.data(), initialWindow.size() } );
 
     for ( size_t nBytesRead = 0; nBytesRead < MAX_WINDOW_SIZE; ) {
-        /* Block::readHeader also clears the backreferences. */
         const auto headerError = block.readHeader( bitReader );
         if ( headerError == Error::END_OF_FILE ) {
             break;
@@ -1798,46 +1806,167 @@ getUsedWindowSymbols( BitReader& bitReader )
         }
 
         size_t nBytesReadFromBlock{ 0 };
-        while ( nBytesRead + nBytesReadFromBlock < MAX_WINDOW_SIZE ) {
+        while ( ( nBytesRead + nBytesReadFromBlock < MAX_WINDOW_SIZE ) && !block.eob() ) {
             const auto [view, readError] = block.read( bitReader, MAX_WINDOW_SIZE - nBytesRead );
             if ( readError != Error::NONE ) {
                 throw std::invalid_argument( "Failed to read deflate block data! " + toString( readError ) );
             }
-            nBytesReadFromBlock += view.size();
-            if ( block.eob() ) {
-                break;
-            }
-        }
 
-        const auto& backreferences = block.backreferences();
-        for ( const auto& reference : backreferences ) {
-            /* The back-references are relative to the current block, so we need to subtract nBytesRead
-             * from the relative distance to get the distance relative to the first block start.
-             * If the result would become negative, then nothing from the window is needed and we can skip it. */
-            if ( reference.distance < nBytesRead ) {
-                continue;
+            if ( view.dataWithMarkersSize() > 0 ) {
+                throw std::logic_error( "Result should not contain markers because we have set a window!" );
             }
-
-            const auto distanceFromEnd = reference.distance - nBytesRead;
-            if ( distanceFromEnd > window.size() ) {
-                std::stringstream message;
-                message << "The back-reference distance should not exceed MAX_WINDOW_SIZE ("
-                        << formatBytes( MAX_WINDOW_SIZE ) << ") but got: " << formatBytes( distanceFromEnd ) << "!";
-                throw std::logic_error( std::move( message ).str() );
-            }
-            if ( reference.length == 0 ) {
-                continue;
-            }
-            const auto startOffset = window.size() - distanceFromEnd;
-
-            for ( size_t i = 0; ( i < reference.length ) && ( startOffset + i < window.size() ); ++i ) {
-                window[startOffset + i] = true;
+            for ( const auto& buffer : view.data ) {
+                const auto sizeToCompare = std::min( expectedOutput.size() - ( nBytesRead + nBytesReadFromBlock ),
+                                                     buffer.size() );
+                if ( !std::equal( buffer.data(), buffer.data() + sizeToCompare,
+                                  expectedOutput.data() + nBytesRead + nBytesReadFromBlock ) )
+                {
+                    return false;
+                }
+                nBytesReadFromBlock += buffer.size();
             }
         }
 
         nBytesRead += nBytesReadFromBlock;
         if ( block.eos() ) {
             break;
+        }
+    }
+
+    return true;
+}
+
+
+[[nodiscard]] inline std::vector<bool>
+getUsedWindowSymbols( BitReader& bitReader )
+{
+    std::vector<bool> window( MAX_WINDOW_SIZE, false );
+
+    static constexpr bool CHECK_CORRECTNESS{ true };
+    /* Store the decompressed data to check for sparsity correctness. Initialize to 0 for correctness and also
+     * in order to set a dummy window with only zeros so that we do not get any marker bytes! This simplifies
+     * the correctness check and assuming that the sparse bytes are cleared to 0, then using zeros for the
+     * dummy window is perfect because it will not give mismatches in the case some sparsity is wrong but the
+     * data to be sparsed out is 0 anyway! */
+    [[maybe_unused]] std::vector<uint8_t> decompressed;
+    [[maybe_unused]] const auto oldOffset = bitReader.tell();
+    size_t nBytesRead{ 0 };
+
+    /* Anonymous namespace to ensure that the 208kB deflate::Block is cleared from the stack before
+     * allocating another such block inside verifySparseWindow! */
+    {
+        /* Size of deflate::Block is 207616. Allocation on stack did result in a SIGBUS
+         * because of a stack overflow on MacOS:
+         * #0 rapidgzip::deflate::Block<false>::setInitialWindow
+         * #1 rapidgzip::deflate::getUsedWindowSymbols
+         * #2 rapidgzip::GzipChunk<rapidgzip::ChunkData>::determineUsedWindowSymbols
+         * #3 rapidgzip::GzipChunk<rapidgzip::ChunkData>::appendDeflateBlockBoundary
+         * #4 rapidgzip::GzipChunk<rapidgzip::ChunkData>::decodeChunkWithRapidgzip
+         * #5 rapidgzip::GzipChunk<rapidgzip::ChunkData>::decodeChunk
+         * #6 rapidgzip::GzipChunkFetcher<FetchingStrategy::FetchMultiStream, rapidgzip::ChunkData>::decodeBlock
+         * #7 rapidgzip::GzipChunkFetcher<FetchingStrategy::FetchMultiStream, rapidgzip::ChunkData>::decodeBlock
+         * #8 BlockFetcher<...>::decodeAndMeasureBlock
+         * #9 BlockFetcher<...>::submitOnDemandTask
+         * #10 decltype(std::declval<BlockFetcher<rapidgzip::GzipBlockFinder, rapidgzip::ChunkData, FetchingStrategy::FetchMultiStream>::submitOnDemandTask
+         * #11 std::__1::__packaged_task_func<BlockFetcher<rapidgzip::GzipBlockFinder, rapidgzip::ChunkData, FetchingStrategy::FetchMultiStream>::submitOnDemandTask
+         * #12 std::__1::__packaged_task_function<rapidgzip::ChunkData ()>::operator()() const future:1880
+         * #13 std::__1::packaged_task<rapidgzip::ChunkData ()>::operator()() future:1957
+         * #14 ThreadPool::PackagedTaskWrapper::SpecializedFunctor<...>::operator()()
+         * #15 ThreadPool::PackagedTaskWrapper::operator()()
+         * #16 ThreadPool::workerMain(unsigned long)
+         * [...]
+         * HOWEVER, allocation on the heap with std::make_unique leads to some weird memory leak with
+         * benchmarkIndexCompression. I cannot debug it with heaptrack because it shows only 1 GB memory usage,
+         * not the 50+ GB observerd. It seems that POSIX brk is used and this leads to some fragmentation for
+         * because it basically is only a linear allocator and can only free in LIFO order. Why exactly this
+         * happens, I have no idea. It may be a tiny memory leak or it may be some weird allocation ordering
+         * problem, especially with the heap-allocated return result ... The memory rises really fast with Clang 15,
+         * but also seems to leak, albeit much much slower, with GCC 11.
+         * It is made even harder to debug because this memory leak disappears, when enabling -fsanitize=leak, or
+         * -fsanitize=address, and even when using valgrind --tool=massif! Utter fucking garbage!
+         */
+        Block</* ENABLE_STATISTICS */ false> block;
+        block.setTrackBackreferences( true );
+
+        if constexpr ( CHECK_CORRECTNESS ) {
+            decompressed.assign( MAX_WINDOW_SIZE, 0 );
+            block.setInitialWindow( { decompressed.data(), decompressed.size() } );
+        }
+
+        for ( ; nBytesRead < MAX_WINDOW_SIZE; ) {
+            /* Block::readHeader also clears the backreferences. */
+            const auto headerError = block.readHeader( bitReader );
+            if ( headerError == Error::END_OF_FILE ) {
+                break;
+            }
+            if ( headerError != Error::NONE ) {
+                throw std::invalid_argument( "Failed to decode the deflate block header! " + toString( headerError ) );
+            }
+
+            size_t nBytesReadFromBlock{ 0 };
+            while ( ( nBytesRead + nBytesReadFromBlock < MAX_WINDOW_SIZE ) && !block.eob() ) {
+                const auto [view, readError] = block.read( bitReader, MAX_WINDOW_SIZE - nBytesRead );
+                if ( readError != Error::NONE ) {
+                    throw std::invalid_argument( "Failed to read deflate block data! " + toString( readError ) );
+                }
+
+                if constexpr ( CHECK_CORRECTNESS ) {
+                    if ( view.dataWithMarkersSize() > 0 ) {
+                        throw std::logic_error( "Result should not contain markers because we have set a window!" );
+                    }
+                    for ( const auto& buffer : view.data ) {
+                        const auto sizeToCopy = std::min( decompressed.size() - ( nBytesRead + nBytesReadFromBlock ),
+                                                          buffer.size() );
+                        std::memcpy( decompressed.data() + nBytesRead + nBytesReadFromBlock, buffer.data(), sizeToCopy );
+                        nBytesReadFromBlock += sizeToCopy;
+                    }
+                } else {
+                    nBytesReadFromBlock += view.size();
+                }
+            }
+
+            const auto& backreferences = block.backreferences();
+            for ( const auto& reference : backreferences ) {
+                /* The back-references are relative to the current block, so we need to subtract nBytesRead
+                 * from the relative distance to get the distance relative to the first block start.
+                 * If the result would become negative, then nothing from the window is needed and we can skip it. */
+                if ( reference.distance < nBytesRead ) {
+                    continue;
+                }
+
+                const auto distanceFromEnd = reference.distance - nBytesRead;
+                if ( distanceFromEnd > window.size() ) {
+                    std::stringstream message;
+                    message << "The back-reference distance should not exceed MAX_WINDOW_SIZE ("
+                            << formatBytes( MAX_WINDOW_SIZE ) << ") but got: " << formatBytes( distanceFromEnd ) << "!";
+                    throw std::logic_error( std::move( message ).str() );
+                }
+                if ( reference.length == 0 ) {
+                    continue;
+                }
+                const auto startOffset = window.size() - distanceFromEnd;
+
+                for ( size_t i = 0; ( i < reference.length ) && ( startOffset + i < window.size() ); ++i ) {
+                    window[startOffset + i] = true;
+                }
+            }
+
+            nBytesRead += nBytesReadFromBlock;
+            if ( block.eos() ) {
+                break;
+            }
+        }
+    }
+
+    if constexpr ( CHECK_CORRECTNESS ) {
+        bitReader.seekTo( oldOffset );
+        if ( !verifySparseWindow( bitReader, window, { decompressed.data(), nBytesRead } ) ) {
+            std::stringstream message;
+            message << "[Warning] Sparse window detection failed at offset " << formatBits( oldOffset )
+                    << ". Will fall back to full window\n";
+            std::cerr << std::move( message ).str();
+            window.assign( MAX_WINDOW_SIZE, true );
+            return window;
         }
     }
 

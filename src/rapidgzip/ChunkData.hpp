@@ -101,6 +101,7 @@ struct ChunkData :
         FileType fileType{ FileType::NONE };
         bool crc32Enabled{ true };
         std::optional<CompressionType> windowCompressionType;
+        bool windowSparsity{ true };
     };
 
     struct BlockBoundary
@@ -152,6 +153,7 @@ struct ChunkData :
         size_t encodedSize{ 0 };
         size_t decodedSize{ 0 };
         SharedWindow window{};
+        std::vector<bool> usedWindowSymbols{};
     };
 
     class Statistics
@@ -195,6 +197,7 @@ public:
         encodedOffsetInBits( configuration.encodedOffsetInBits ),
         fileType( configuration.fileType ),
         splitChunkSize( configuration.splitChunkSize ),
+        windowSparsity( configuration.windowSparsity ),
         m_windowCompressionType( configuration.windowCompressionType )
     {
         setCRC32Enabled( configuration.crc32Enabled );
@@ -214,7 +217,9 @@ public:
             return *m_windowCompressionType;
         }
         /* Only bother with overhead-introducing compression for large chunk compression ratios. */
-        return decodedSizeInBytes * 8 > 2 * encodedSizeInBits ? CompressionType::GZIP : CompressionType::NONE;
+        return windowSparsity || ( decodedSizeInBytes * 8 > 2 * encodedSizeInBits )
+               ? CompressionType::GZIP
+               : CompressionType::NONE;
     }
 
     void
@@ -343,10 +348,21 @@ public:
         size_t decodedOffsetInBlock{ 0 };
         for ( auto& subchunk : m_subchunks ) {
             decodedOffsetInBlock += subchunk.decodedSize;
-            if ( !subchunk.window ) {
-                subchunk.window = std::make_shared<Window>(
-                    getWindowAt( window, decodedOffsetInBlock ), windowCompressionType );
+            if ( subchunk.window ) {
+                continue;
             }
+
+            auto subchunkWindow = getWindowAt( window, decodedOffsetInBlock );
+            /* Set unused symbols to 0 to increase compressibility. */
+            if ( subchunkWindow.size() == subchunk.usedWindowSymbols.size() ) {
+                for ( size_t i = 0; i < subchunkWindow.size(); ++i ) {
+                    if ( !subchunk.usedWindowSymbols[i] ) {
+                        subchunkWindow[i] = 0;
+                    }
+                }
+            }
+            subchunk.usedWindowSymbols = std::vector<bool>();  // Free memory!
+            subchunk.window = std::make_shared<Window>( std::move( subchunkWindow ), windowCompressionType );
         }
         statistics.compressWindowDuration += duration( tWindowCompressionStart );
     }
@@ -556,6 +572,8 @@ public:
     Statistics statistics{};
 
     bool stoppedPreemptively{ false };
+
+    bool windowSparsity{ true };
 
 protected:
     /**
