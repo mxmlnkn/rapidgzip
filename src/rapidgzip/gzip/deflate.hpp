@@ -810,16 +810,67 @@ private:
                    "Buffers should at least be able to fit the back-reference window plus the maximum match length." );
 
 private:
-    /* Note that making this constexpr or an immediately evaluated lambda expression to initialize the buffer,
-     * increases compile time from 14s to 64s with GCC 11! */
-    [[nodiscard]] static PreDecodedBuffer
+    /**
+     * @note Making this constexpr or an immediately evaluated lambda expression to initialize the buffer,
+     * increases release build compile time from 30s to 135s with GCC 11, and no measurable change (~80s) with
+     * Clang 15! But it is important to avoid frequent recomputations for streams of many small fixed huffman
+     * blocks, so use a function-local static variable, the best kind of static besides static constexpr where
+     * possible.
+     *
+     * E.g. create a test file with this:
+     * @verbatim
+     * echo foo | gzip > many-small-streams.gz
+     * for (( i=0; i < 1000; ++i )); do cat many-small-streams.gz >> 1000-24B-fixed-huffman-streams.gz; done
+     * for (( i=0; i < 1000; ++i )); do cat 1000-24B-fixed-huffman-streams.gz >> 1M-24B-fixed-huffman-streams.gz; done
+     * @endverbatim
+     *
+     * Comparison with default tools:
+     * @verbatim
+     * time igzip -d -c 1M-24B-fixed-huffman-streams.gz > /dev/null
+     *   -> 0.471s 0.526s 0.471s 0.482s 0.518s
+     * time gzip -d -c 1M-24B-fixed-huffman-streams.gz > /dev/null
+     *   -> 5.566s 5.409s 5.431s 5.514s 5.470s
+     * @endverbatim
+     *
+     * And benchmark with:
+     * @verbatim
+     * cmake -DWITH_ISAL=OFF .. && cmake --build -- rapidgzip
+     * for (( i=0; i < 5; ++i )); do
+     *     src/tools/rapidgzip -v -d -o /dev/null 1M-24B-fixed-huffman-streams.gz 2>&1 | grep "Decompressed"
+     * done
+     * @endverbatim
+     * Before:
+     * @verbatim
+     * Decompressed in total 4000000 B in:
+     *     8.06588 s -> 0.495916 MB/s
+     *     8.00692 s -> 0.499568 MB/s
+     *     8.17901 s -> 0.489057 MB/s
+     *     8.12103 s -> 0.492548 MB/s
+     *     8.13215 s -> 0.491875 MB/s
+     * @endverbatim
+     * After introducing the static function-local variable and returning a reference:
+     * @verbatim
+     * Decompressed in total 4000000 B in:
+     *     2.63232 s -> 1.51957 MB/s
+     *     2.66496 s -> 1.50096 MB/s
+     *     2.54554 s -> 1.57138 MB/s
+     *     2.60184 s -> 1.53737 MB/s
+     *     2.64525 s -> 1.51214 MB/s
+     * @endverbatim
+     */
+    [[nodiscard]] static const PreDecodedBuffer&
     initializeMarkedWindowBuffer()
     {
-        PreDecodedBuffer result{};
-        for ( size_t i = 0; i < MAX_WINDOW_SIZE; ++i ) {
-            result[result.size() - MAX_WINDOW_SIZE + i] = i + MAX_WINDOW_SIZE;
-        }
-        return result;
+        static const PreDecodedBuffer markers =
+            [] ()
+            {
+                PreDecodedBuffer result{};
+                for ( size_t i = 0; i < MAX_WINDOW_SIZE; ++i ) {
+                    result[result.size() - MAX_WINDOW_SIZE + i] = i + MAX_WINDOW_SIZE;
+                }
+                return result;
+            } ();
+        return markers;
     }
 
 private:
