@@ -221,6 +221,9 @@ inline unique_file_ptr
 make_unique_file_ptr( char const* const filePath,
                       char const* const mode )
 {
+    if ( ( filePath == nullptr ) || ( mode == nullptr ) || ( std::strlen( filePath ) == 0 ) ) {
+        return {};
+    }
     return make_unique_file_ptr( std::fopen( filePath, mode ) );  // NOLINT
 }
 

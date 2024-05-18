@@ -193,11 +193,6 @@ parseInputFileSpecification( const cxxopts::ParseResult& parsedArgs )
         return {};
     }
 
-    if ( !stdinHasInput() && ( parsedArgs.count( "input" ) != 1 ) ) {
-        std::cerr << "Either stdin must have input, e.g., by piping to it, or an input file must be specified!\n";
-        return {};
-    }
-
     std::string inputFilePath;  /* Can be empty. Then, read from STDIN. */
     if ( parsedArgs.count( "input" ) == 1 ) {
         inputFilePath = parsedArgs["input"].as<std::string>();
@@ -205,6 +200,11 @@ parseInputFileSpecification( const cxxopts::ParseResult& parsedArgs )
             std::cerr << "Input file could not be found! Specified path: " << inputFilePath << "\n";
             return {};
         }
+    }
+
+    if ( inputFilePath.empty() && !stdinHasInput() ) {
+        std::cerr << "Either stdin must have input, e.g., by piping to it, or an input file must be specified!\n";
+        return {};
     }
 
     auto inputFile = openFileOrStdin( inputFilePath );
