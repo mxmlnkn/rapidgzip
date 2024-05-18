@@ -453,8 +453,7 @@ public:
             #endif
 
                 didReadHeader = true;
-                block.reset();
-                block = std::make_unique<deflate::Block<> >();
+                block->reset();
                 block->setInitialWindow();
 
                 isAtStreamEnd = false;

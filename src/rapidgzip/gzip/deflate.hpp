@@ -660,6 +660,37 @@ public:
         return m_backreferences;
     }
 
+    /**
+     * Reinitializes this block to behave basically as if default-constructed,
+     * This avoids a generic reinitialization, e.g., by copying a default-constructed Block to it
+     * because it might be more expensive than necessary for multi-stream gzips because it would zero the whole
+     * 128 KiB decode buffer and all the 64 KiB DistanceHuffmanCoding buffer even though that is unnecessary.
+     */
+    void
+    reset()
+    {
+        m_uncompressedSize = 0;
+
+        m_atEndOfBlock = false;
+        m_atEndOfFile = false;
+
+        m_isLastBlock = false;
+        m_compressionType = CompressionType::RESERVED;
+        m_padding = 0;
+
+        m_window16 = initializeMarkedWindowBuffer();
+
+        m_windowPosition = 0;
+        m_containsMarkerBytes = true;
+        m_decodedBytes = 0;
+
+        m_distanceToLastMarkerByte = 0;
+
+        m_trackBackreferences = false;
+        m_decodedBytesAtBlockStart = 0;
+        m_backreferences.clear();
+    }
+
 private:
     template<typename Window>
     forceinline void
@@ -729,9 +760,9 @@ private:
              typename Symbol = typename Window::value_type,
              typename View = VectorView<Symbol> >
     [[nodiscard]] static std::array<View, 2>
-    lastBuffers( Window& window,
-                 size_t  position,
-                 size_t  size )
+    lastBuffers( const Window& window,
+                 size_t        position,
+                 size_t        size )
     {
         if ( size > window.size() ) {
             throw std::invalid_argument( "Requested more bytes than fit in the buffer. Data is missing!" );
@@ -792,7 +823,7 @@ private:
     }
 
 private:
-    uint16_t m_uncompressedSize = 0;
+    uint16_t m_uncompressedSize{ 0 };
 
 private:
     /* These flags might get triggered by the read function. */
@@ -823,7 +854,7 @@ private:
 
     alignas( 64 ) PreDecodedBuffer m_window16{ initializeMarkedWindowBuffer() };
 
-    DecodedBuffer m_window{ reinterpret_cast<std::uint8_t*>( m_window16.data() ) };
+    const DecodedBuffer m_window{ reinterpret_cast<std::uint8_t*>( m_window16.data() ) };
 
     /**
      * Points to the index of the next code to be written in @ref m_window. I.e., can also be interpreted as
