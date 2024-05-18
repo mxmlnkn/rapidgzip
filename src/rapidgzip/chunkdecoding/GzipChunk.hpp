@@ -453,8 +453,7 @@ public:
             #endif
 
                 didReadHeader = true;
-                block->reset();
-                block->setInitialWindow();
+                block->reset( /* initial window */ VectorView<uint8_t>{} );
 
                 isAtStreamEnd = false;
             }

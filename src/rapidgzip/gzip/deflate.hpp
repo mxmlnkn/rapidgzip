@@ -667,7 +667,7 @@ public:
      * 128 KiB decode buffer and all the 64 KiB DistanceHuffmanCoding buffer even though that is unnecessary.
      */
     void
-    reset()
+    reset( const std::optional<VectorView<uint8_t> > initialWindow = {} )
     {
         m_uncompressedSize = 0;
 
@@ -678,8 +678,6 @@ public:
         m_compressionType = CompressionType::RESERVED;
         m_padding = 0;
 
-        m_window16 = initializeMarkedWindowBuffer();
-
         m_windowPosition = 0;
         m_containsMarkerBytes = true;
         m_decodedBytes = 0;
@@ -689,6 +687,12 @@ public:
         m_trackBackreferences = false;
         m_decodedBytesAtBlockStart = 0;
         m_backreferences.clear();
+
+        if ( initialWindow ) {
+            setInitialWindow( *initialWindow );
+        } else {
+            m_window16 = initializeMarkedWindowBuffer();
+        }
     }
 
 private:
@@ -856,6 +860,15 @@ private:
      *     2.54554 s -> 1.57138 MB/s
      *     2.60184 s -> 1.53737 MB/s
      *     2.64525 s -> 1.51214 MB/s
+     * @endverbatim
+     * After avoiding unnecessary calls to this function during resetting of the block:
+     * @verbatim
+     * Decompressed in total 4000000 B in:
+     *     0.550918 s -> 7.2606 MB/s
+     *     0.561135 s -> 7.12841 MB/s
+     *     0.572299 s -> 6.98935 MB/s
+     *     0.592707 s -> 6.7487 MB/s
+     *     0.606601 s -> 6.59412 MB/s
      * @endverbatim
      */
     [[nodiscard]] static const PreDecodedBuffer&
