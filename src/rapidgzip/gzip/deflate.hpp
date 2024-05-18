@@ -763,6 +763,8 @@ private:
      * For the former we need twice the size!
      * @note The buffer size should probably be a power of two or else I observed a slowdown probably because the
      *       circular buffer index modulo operation cannot be executed by a simple bitwise 'and' anymore.
+     * @note 128 KiB is quite a lot of stack pressure. It actually leads to stack overflows on MacOS when creating
+     *       multiple Block objects in the function call hierarchy such as in getUsedWindowSymbols!
      */
     using PreDecodedBuffer = std::array<uint16_t, 2 * MAX_WINDOW_SIZE>;
     using DecodedBuffer = WeakArray<std::uint8_t, PreDecodedBuffer().size() * sizeof( uint16_t ) / sizeof( uint8_t )>;

@@ -399,8 +399,9 @@ public:
         size_t totalBytesRead = 0;
         bool didReadHeader{ false };
 
-        std::optional<deflate::Block<> > block;
-        block.emplace();
+        /* Allocate on heap because it is ~217 kB large!
+         * Allocating it once for this whole chunk should be negligible overhead. */
+        auto block = std::make_unique<deflate::Block<> >();
         if ( initialWindow ) {
             block->setInitialWindow( *initialWindow );
         }
@@ -452,7 +453,8 @@ public:
             #endif
 
                 didReadHeader = true;
-                block.emplace();
+                block.reset();
+                block = std::make_unique<deflate::Block<> >();
                 block->setInitialWindow();
 
                 isAtStreamEnd = false;

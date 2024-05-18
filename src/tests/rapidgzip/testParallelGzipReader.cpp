@@ -898,6 +898,43 @@ testWindowPruning( const TemporaryDirectory& tmpFolder )
 }
 
 
+void
+printClassSizes()
+{
+    std::cout << "== Rapidgzip class sizes ==\n";
+    std::cout << "  BitReader                     : " << sizeof( rapidgzip::BitReader ) << "\n";  // 88
+    std::cout << "  WindowMap                     : " << sizeof( WindowMap ) << "\n";  // 88
+    std::cout << "  deflate::DecodedDataView      : " << sizeof( deflate::DecodedDataView ) << "\n";  // 64
+    std::cout << "  deflate::DecodedData          : " << sizeof( deflate::DecodedData ) << "\n";  // 96
+    std::cout << "  ChunkData                     : " << sizeof( ChunkData ) << "\n";  // 392
+    std::cout << "  ChunkDataCounter              : " << sizeof( ChunkDataCounter ) << "\n";  // 392
+    std::cout << "  CompressedVector              : " << sizeof( CompressedVector<> ) << "\n";  // 32
+    std::cout << "  ZlibInflateWrapper            : " << sizeof( ZlibInflateWrapper ) << "\n";  // 131320
+#ifdef WITH_ISAL
+    std::cout << "  IsalInflateWrapper            : " << sizeof( IsalInflateWrapper ) << "\n";  // 218592
+#endif
+#ifdef WITH_ISAL
+    std::cout << "  HuffmanCodingISAL             : " << sizeof( HuffmanCodingISAL ) << "\n";  // 18916
+#endif
+    /* 18916 */
+    std::cout << "  LiteralOrLengthHuffmanCoding  : " << sizeof( deflate::LiteralOrLengthHuffmanCoding ) << "\n";
+    std::cout << "  FixedHuffmanCoding            : " << sizeof( deflate::FixedHuffmanCoding ) << "\n";  // 131776
+    std::cout << "  PrecodeHuffmanCoding          : " << sizeof( deflate::PrecodeHuffmanCoding ) << "\n";  // 320
+    std::cout << "  DistanceHuffmanCoding         : " << sizeof( deflate::DistanceHuffmanCoding ) << "\n";  // 65728
+    std::cout << "  LiteralAndDistanceCLBuffer    : " << sizeof( deflate::LiteralAndDistanceCLBuffer ) << "\n";  // 572
+    std::cout << "  GzipIndex                     : " << sizeof( GzipIndex ) << "\n";  // 72
+    std::cout << "  GzipBlockFinder               : " << sizeof( GzipBlockFinder ) << "\n";  // 192
+    std::cout << "  ParallelGzipReader            : " << sizeof( ParallelGzipReader<ChunkData> ) << "\n";  // 288
+    std::cout << "  deflate::Block                : " << sizeof( deflate::Block<> ) << "\n";  // 207616
+    std::cout << "  std::optional<deflate::Block> : " << sizeof( std::optional<deflate::Block<> >) << "\n";  // 217216
+    std::cout << "  Bzip2Chunk                    : " << sizeof( Bzip2Chunk<ChunkData> ) << "\n";
+    std::cout << "  GzipChunk                     : " << sizeof( GzipChunk<ChunkData> ) << "\n";
+    std::cout << "  GzipReader                    : " << sizeof( GzipReader ) << "\n";  // 208064
+    std::cout << "  GzipChunkFetcher              : " << sizeof( GzipChunkFetcher<FetchingStrategy::FetchMultiStream> )
+              << "\n";
+}
+
+
 int
 main( int    argc,
       char** argv )
@@ -906,6 +943,8 @@ main( int    argc,
         std::cerr << "Expected at least the launch command as the first argument!\n";
         return 1;
     }
+
+    printClassSizes();
 
     const std::string binaryFilePath( argv[0] );
     std::string binaryFolder = ".";
