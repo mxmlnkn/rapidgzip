@@ -46,9 +46,14 @@ public:
     startNewSubchunk( std::vector<Subchunk>& subchunks,
                       const size_t           encodedOffset )
     {
+        const auto nextDecodedOffset = subchunks.empty()
+                                       ? 0
+                                       : subchunks.back().decodedOffset + subchunks.back().decodedSize;
+
         auto& subchunk = subchunks.emplace_back();
         subchunk.encodedOffset = encodedOffset;
         subchunk.decodedSize = 0;
+        subchunk.decodedOffset = nextDecodedOffset;
     }
 
     static void

@@ -110,6 +110,7 @@ struct ChunkData :
         operator==( const Subchunk& other ) const
         {
             return ( encodedOffset == other.encodedOffset )
+                   && ( decodedOffset == other.decodedOffset )
                    && ( encodedSize == other.encodedSize )
                    && ( decodedSize == other.decodedSize )
                    && ( static_cast<bool>( window ) == static_cast<bool>( other.window ) )
@@ -119,6 +120,7 @@ struct ChunkData :
 
     public:
         size_t encodedOffset{ 0 };
+        size_t decodedOffset{ 0 };
         size_t encodedSize{ 0 };
         size_t decodedSize{ 0 };
         SharedWindow window{};
@@ -593,6 +595,7 @@ ChunkData::split( [[maybe_unused]] const size_t spacing ) const
                                                           / static_cast<double>( spacing ) ) );
     Subchunk wholeChunkAsSubchunk;
     wholeChunkAsSubchunk.encodedOffset = encodedOffsetInBits;
+    wholeChunkAsSubchunk.decodedOffset = 0;
     wholeChunkAsSubchunk.encodedSize = encodedSizeInBits;
     wholeChunkAsSubchunk.decodedSize = decodedSizeInBytes;
     /* blockBoundaries does not contain the first block begin but all thereafter including the boundary after
@@ -640,6 +643,7 @@ ChunkData::split( [[maybe_unused]] const size_t spacing ) const
 
         Subchunk subchunk;
         subchunk.encodedOffset = lastBoundary.encodedOffset;
+        subchunk.decodedOffset = result.empty() ? 0 : result.back().decodedOffset + result.back().decodedSize;
         subchunk.encodedSize = closest->encodedOffset - lastBoundary.encodedOffset;
         subchunk.decodedSize = closest->decodedOffset - lastBoundary.decodedOffset;
         result.emplace_back( subchunk );
@@ -653,6 +657,7 @@ ChunkData::split( [[maybe_unused]] const size_t spacing ) const
         /* Create the last subchunk from lastBoundary and the chunk end. */
         Subchunk subchunk;
         subchunk.encodedOffset = lastBoundary.encodedOffset,
+        subchunk.decodedOffset = result.empty() ? 0 : result.back().decodedOffset + result.back().decodedSize;
         subchunk.encodedSize = encodedEndOffsetInBits - lastBoundary.encodedOffset,
         subchunk.decodedSize = decodedSizeInBytes - lastBoundary.decodedOffset,
         result.emplace_back( subchunk );

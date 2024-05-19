@@ -247,7 +247,7 @@ testBlockSplit()
         chunk2.append( toAppend );
 
         chunk2.finalize( 8 );
-        const std::vector<Subchunk> expected = { Subchunk{ 0, 8, 1 } };
+        const std::vector<Subchunk> expected = { Subchunk{ 0, 0, 8, 1 } };
         REQUIRE( split( chunk2, 1 ) == expected );
         REQUIRE( split( chunk2, 2 ) == expected );
         REQUIRE( split( chunk2, 10 ) == expected );
@@ -257,7 +257,7 @@ testBlockSplit()
     {
         const size_t encodedEndOffsetInBits = 128;
         const std::vector<BlockBoundary> blockBoundaries = { BlockBoundary{ encodedEndOffsetInBits, 1024 } };
-        const std::vector<Subchunk> expected = { Subchunk{ 0, encodedEndOffsetInBits, 1024 } };
+        const std::vector<Subchunk> expected = { Subchunk{ 0, 0, encodedEndOffsetInBits, 1024 } };
         REQUIRE( splitChunk( 1024, blockBoundaries, encodedEndOffsetInBits, 1 ) == expected );
         REQUIRE( splitChunk( 1024, blockBoundaries, encodedEndOffsetInBits, 1024 ) == expected );
         REQUIRE( splitChunk( 1024, blockBoundaries, encodedEndOffsetInBits, 10000 ) == expected );
@@ -270,13 +270,13 @@ testBlockSplit()
             BlockBoundary{ 30, 300 }, BlockBoundary{ encodedEndOffsetInBits, 1024 }
         };
         {
-            const std::vector<Subchunk> expected = { Subchunk{ 0, encodedEndOffsetInBits, 1024 } };
+            const std::vector<Subchunk> expected = { Subchunk{ 0, 0, encodedEndOffsetInBits, 1024 } };
             REQUIRE( splitChunk( 1024, blockBoundaries, encodedEndOffsetInBits, 1024 ) == expected );
             REQUIRE( splitChunk( 1024, blockBoundaries, encodedEndOffsetInBits, 10000 ) == expected );
         }
 
         const std::vector<Subchunk> expected = {
-            Subchunk{ 0, 30, 300 }, Subchunk{ 30, encodedEndOffsetInBits - 30, 1024 - 300 }
+            Subchunk{ 0, 0, 30, 300 }, Subchunk{ 30, 300, encodedEndOffsetInBits - 30, 1024 - 300 }
         };
         REQUIRE( splitChunk( 1024, blockBoundaries, encodedEndOffsetInBits, 400 ) == expected );
         REQUIRE( splitChunk( 1024, blockBoundaries, encodedEndOffsetInBits, 512 ) == expected );

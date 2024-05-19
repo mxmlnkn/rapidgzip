@@ -49,6 +49,7 @@ public:
         std::vector<Subchunk> subchunks;
         subchunks.emplace_back();
         subchunks.back().encodedOffset = result.encodedOffsetInBits;
+        subchunks.back().decodedOffset = 0;
         subchunks.back().decodedSize = 0;
 
         /* If true, then read the gzip header. We cannot simply check the gzipHeader optional because we might
@@ -73,8 +74,11 @@ public:
             if ( subchunks.back().decodedSize >= result.splitChunkSize ) {
                 subchunks.back().encodedSize = nextBlockOffset - subchunks.back().encodedOffset;
 
+                const auto nextdecodedOffset = subchunks.back().decodedOffset + subchunks.back().decodedSize;
+
                 auto& subchunk = subchunks.emplace_back();
                 subchunk.encodedOffset = nextBlockOffset;
+                subchunk.decodedOffset = nextdecodedOffset;
                 subchunk.decodedSize = 0;
             }
 

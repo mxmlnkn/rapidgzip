@@ -427,9 +427,9 @@ private:
 
         const auto t0 = now();
 
-        size_t decodedOffsetInBlock{ 0 };
+        /* Emplace provided windows for subchunks into window map. */
         for ( const auto& subchunk : subchunks ) {
-            decodedOffsetInBlock += subchunk.decodedSize;
+            /* Compute offset of the window >provided< by this subchunk, not the window >required< by this subchunk. */
             const auto windowOffset = subchunk.encodedOffset + subchunk.encodedSize;
             /* Explicitly reinsert what we already emplaced in waitForReplacedMarkers when calling getLastWindow,
              * but now the window shold be compressed with sparsity applied! Thanks to the WindowMap being locked
@@ -442,7 +442,8 @@ private:
                     m_windowMap->emplaceShared( windowOffset, subchunk.window );
                 }
             } else if ( !existingWindow ) {
-                m_windowMap->emplace( windowOffset, chunkData->getWindowAt( lastWindow, decodedOffsetInBlock ),
+                const auto nextDecodedWindowOffset = subchunk.decodedOffset + subchunk.decodedSize;
+                m_windowMap->emplace( windowOffset, chunkData->getWindowAt( lastWindow, nextDecodedWindowOffset ),
                                       chunkData->windowCompressionType() );
                 std::cerr << "[Info] The subchunk window for offset " << windowOffset << " is not compressed yet. "
                           << "Compressing it now might slow down the program.\n";
