@@ -106,6 +106,18 @@ struct ChunkData :
 
     struct Subchunk
     {
+        [[nodiscard]] bool
+        operator==( const Subchunk& other ) const
+        {
+            return ( encodedOffset == other.encodedOffset )
+                   && ( encodedSize == other.encodedSize )
+                   && ( decodedSize == other.decodedSize )
+                   && ( static_cast<bool>( window ) == static_cast<bool>( other.window ) )
+                   && ( !static_cast<bool>( window ) || !static_cast<bool>( other.window )
+                        || ( *window == *other.window ) );
+        }
+
+    public:
         size_t encodedOffset{ 0 };
         size_t encodedSize{ 0 };
         size_t decodedSize{ 0 };

@@ -27,23 +27,6 @@
 using namespace rapidgzip;
 
 
-namespace rapidgzip
-{
-[[nodiscard]] bool
-operator==( const ChunkData::Subchunk& a,
-            const ChunkData::Subchunk& b )
-{
-    if ( a.window && b.window ) {
-        throw std::logic_error( "Assuming tests to be done with empty windows." );
-    }
-    return ( a.encodedOffset == b.encodedOffset )
-           && ( a.encodedSize == b.encodedSize )
-           && ( a.decodedSize == b.decodedSize )
-           && ( a.window == b.window );
-}
-}
-
-
 [[nodiscard]] size_t
 getBlockOffset( const std::filesystem::path& filePath,
                 size_t                       blockIndex )
@@ -188,9 +171,13 @@ testAutomaticMarkerResolution( const std::filesystem::path& testFolder )
 }
 
 
+using DecodedDataView = rapidgzip::deflate::DecodedDataView;
+using Subchunk = rapidgzip::ChunkData::Subchunk;;
+
+
 std::ostream&
-operator<<( std::ostream&                                    out,
-            const std::vector<rapidgzip::ChunkData::Subchunk>& chunks )
+operator<<( std::ostream&                out,
+            const std::vector<Subchunk>& chunks )
 {
     out << "{";
     for ( const auto& chunk : chunks ) {
@@ -199,10 +186,6 @@ operator<<( std::ostream&                                    out,
     out << " }";
     return out;
 }
-
-
-using DecodedDataView = rapidgzip::deflate::DecodedDataView;
-using Subchunk = rapidgzip::ChunkData::Subchunk;;
 
 
 [[nodiscard]] std::vector<Subchunk>
