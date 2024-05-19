@@ -202,8 +202,7 @@ operator<<( std::ostream&                                    out,
 
 
 using DecodedDataView = rapidgzip::deflate::DecodedDataView;
-using Subchunk = rapidgzip::ChunkData::Subchunk;
-using BlockBoundary = rapidgzip::ChunkData::BlockBoundary;
+using Subchunk = rapidgzip::ChunkData::Subchunk;;
 
 
 [[nodiscard]] std::vector<Subchunk>

@@ -104,49 +104,6 @@ struct ChunkData :
         bool windowSparsity{ true };
     };
 
-    struct BlockBoundary
-    {
-        size_t encodedOffset{ 0 };
-        size_t decodedOffset{ 0 };
-
-        [[nodiscard]] bool
-        operator==( const BlockBoundary& other ) const
-        {
-            return ( encodedOffset == other.encodedOffset ) && ( decodedOffset == other.decodedOffset );
-        }
-    };
-
-    struct Footer
-    {
-        /**
-         * The blockBoundary is currently (2023-08-26) unused. It is intended to aid block splitting in order
-         * to split after a gzip footer because then the window is known to be empty, which would save space
-         * and time.
-         * The uncompressed block boundary offset is unambiguous.
-         * The compressed block boundary is more ambiguous. There are three possibilities:
-         *  - The end of the preceding deflate block. The footer start is then the next byte-aligned boundary.
-         *  - The byte-aligned footer start.
-         *  - The byte-aligned footer end, which is the file end or the next gzip stream start.
-         *    For gzip, it is exactly FOOTER_SIZE bytes after the footer start.
-         * Thoughts about the choice:
-         *  - The offset after the footer is more relevant to the intended block splitting improvement.
-         *  - The previous deflate block end contains the most information because the other two possible
-         *    choices can be derived from it by rounding up and adding FOOTER_SIZE. The inverse is not true.
-         *  - The previous block end might be the most stable choice because stopping at that boundary is
-         *    already a requirement for using ISA-l without an exact untilOffset. Stopping at the footer end
-         *    might not work perfectly and might already have read some of the next block.
-         * Currently, the unit tests, test that all possibilities to derive the footer offsets: GzipReader, decodeBlock,
-         * decodeBlockWithInflateWrapper with ISA-L or zlib, return the same value.
-         * That value is currently the footer end because it seemed easier to implement. This might be subject to
-         * change until it is actually used for something (e.g. smarter block splitting).
-         * The most complicated to implement but least ambiguous solution would be to add all three boundaries to
-         * this struct.
-         */
-        BlockBoundary blockBoundary;
-        gzip::Footer gzipFooter;
-        zlib::Footer zlibFooter;
-    };
-
     struct Subchunk
     {
         size_t encodedOffset{ 0 };
@@ -444,7 +401,7 @@ public:
      * Appends generic footer information at the given offset.
      */
     void
-    appendFooter( const ChunkData::Footer& footer )
+    appendFooter( const Footer& footer )
     {
         footers.emplace_back( footer );
 
@@ -452,47 +409,6 @@ public:
         crc32s.emplace_back();
         crc32s.back().setEnabled( wasEnabled );
     }
-
-    /**
-     * Appends gzip footer information at the given offset.
-     */
-    void
-    appendFooter( const size_t encodedOffset,
-                  const size_t decodedOffset,
-                  gzip::Footer footer )
-    {
-        typename ChunkData::Footer footerResult;
-        footerResult.blockBoundary = { encodedOffset, decodedOffset };
-        footerResult.gzipFooter = footer;
-        appendFooter( footerResult );
-    }
-
-    /**
-     * Appends zlib footer information at the given offset.
-     */
-    void
-    appendFooter( const size_t encodedOffset,
-                  const size_t decodedOffset,
-                  zlib::Footer footer )
-    {
-        typename ChunkData::Footer footerResult;
-        footerResult.blockBoundary = { encodedOffset, decodedOffset };
-        footerResult.zlibFooter = footer;
-        appendFooter( footerResult );
-    }
-
-    /**
-     * Appends raw deflate stream footer meta information at the given offset.
-     */
-    void
-    appendFooter( const size_t encodedOffset,
-                  const size_t decodedOffset )
-    {
-        typename ChunkData::Footer footerResult;
-        footerResult.blockBoundary = { encodedOffset, decodedOffset };
-        appendFooter( footerResult );
-    }
-
     void
     setCRC32Enabled( bool enabled )
     {

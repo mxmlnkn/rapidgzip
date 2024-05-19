@@ -28,13 +28,6 @@ class IsalInflateWrapper
 public:
     using CompressionType = deflate::CompressionType;
 
-    struct Footer
-    {
-        gzip::Footer gzipFooter;
-        zlib::Footer zlibFooter;
-        size_t footerEndEncodedOffset{ 0 };
-    };
-
 public:
     explicit
     IsalInflateWrapper( BitReader    bitReader,  // NOLINT(performance-unnecessary-value-param)
@@ -257,7 +250,7 @@ IsalInflateWrapper::refillBuffer()
 }
 
 
-[[nodiscard]] inline std::pair<size_t, std::optional<IsalInflateWrapper::Footer> >
+[[nodiscard]] inline std::pair<size_t, std::optional<Footer> >
 IsalInflateWrapper::readStream( uint8_t* const output,
                                 size_t   const outputSize )
 {
@@ -431,7 +424,7 @@ IsalInflateWrapper::readBytes()
 }
 
 
-inline IsalInflateWrapper::Footer
+inline Footer
 IsalInflateWrapper::readGzipFooter()
 {
     const auto footerBuffer = readBytes<8U>();
@@ -449,12 +442,13 @@ IsalInflateWrapper::readGzipFooter()
 
     Footer result;
     result.gzipFooter = footer;
-    result.footerEndEncodedOffset = tellCompressed();
+    result.blockBoundary.encodedOffset = tellCompressed();
+    result.blockBoundary.decodedOffset = 0;  // Should not be used by the caller.
     return result;
 }
 
 
-inline IsalInflateWrapper::Footer
+inline Footer
 IsalInflateWrapper::readZlibFooter()
 {
     const auto footerBuffer = readBytes<4U>();
@@ -468,7 +462,8 @@ IsalInflateWrapper::readZlibFooter()
 
     Footer result;
     result.zlibFooter = footer;
-    result.footerEndEncodedOffset = tellCompressed();
+    result.blockBoundary.encodedOffset = tellCompressed();
+    result.blockBoundary.decodedOffset = 0;  // Should not be used by the caller.
     return result;
 }
 

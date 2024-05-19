@@ -151,39 +151,13 @@ public:
         inflateWrapper.setWindow( initialWindow );
         inflateWrapper.setFileType( result.fileType );
 
-        const auto appendFooter =
-            [&] ( size_t encodedOffset,
-                  size_t decodedOffset,
-                  const typename InflateWrapper::Footer& footer )
-            {
-                switch ( result.fileType )
-                {
-                case FileType::BGZF:
-                case FileType::GZIP:
-                    result.appendFooter( encodedOffset, decodedOffset, footer.gzipFooter );
-                    break;
-
-                case FileType::ZLIB:
-                    result.appendFooter( encodedOffset, decodedOffset, footer.zlibFooter );
-                    break;
-
-                case FileType::NONE:
-                case FileType::DEFLATE:
-                    result.appendFooter( encodedOffset, decodedOffset );
-                    break;
-
-                case FileType::BZIP2:
-                    throw std::logic_error( "[GzipChunkFetcher::decodeChunkWithInflateWrapper] Invalid file type!" );
-                }
-            };
-
         size_t alreadyDecoded{ 0 };
         while( true ) {
             const auto suggestedDecodeSize = decodedSize.value_or( ALLOCATION_CHUNK_SIZE );
             deflate::DecodedVector subchunk( suggestedDecodeSize > alreadyDecoded
                                              ? std::min( ALLOCATION_CHUNK_SIZE, suggestedDecodeSize - alreadyDecoded )
                                              : ALLOCATION_CHUNK_SIZE );
-            std::optional<typename InflateWrapper::Footer> footer;
+            std::optional<Footer> footer;
 
             /* In order for CRC32 verification to work, we have to append at most one gzip stream per subchunk
              * because the CRC32 calculator is swapped inside ChunkData::append. That's why the stop condition
@@ -203,7 +177,8 @@ public:
             subchunk.resize( nBytesRead );
             result.append( std::move( subchunk ) );
             if ( footer ) {
-                appendFooter( footer->footerEndEncodedOffset, alreadyDecoded, *footer );
+                footer->blockBoundary.decodedOffset = alreadyDecoded;
+                result.appendFooter( *footer );
             }
 
             if ( ( nBytesReadPerCall == 0 ) && !footer ) {
@@ -212,9 +187,10 @@ public:
         }
 
         uint8_t dummy{ 0 };
-        const auto [nBytesReadPerCall, footer] = inflateWrapper.readStream( &dummy, 1 );
+        auto [nBytesReadPerCall, footer] = inflateWrapper.readStream( &dummy, 1 );
         if ( ( nBytesReadPerCall == 0 ) && footer ) {
-            appendFooter( footer->footerEndEncodedOffset, alreadyDecoded, *footer );
+            footer->blockBoundary.decodedOffset = alreadyDecoded;
+            result.appendFooter( *footer );
         }
 
         if ( exactUntilOffset != inflateWrapper.tellCompressed() ) {
@@ -274,35 +250,9 @@ public:
                                                                       StoppingPoint::END_OF_BLOCK_HEADER |
                                                                       StoppingPoint::END_OF_STREAM_HEADER ) );
 
-        const auto appendFooter =
-            [&] ( size_t encodedOffset,
-                  size_t decodedOffset,
-                  const IsalInflateWrapper::Footer& footer )
-            {
-                switch ( result.fileType )
-                {
-                case FileType::BGZF:
-                case FileType::GZIP:
-                    result.appendFooter( encodedOffset, decodedOffset, footer.gzipFooter );
-                    break;
-
-                case FileType::ZLIB:
-                    result.appendFooter( encodedOffset, decodedOffset, footer.zlibFooter );
-                    break;
-
-                case FileType::NONE:
-                case FileType::DEFLATE:
-                    result.appendFooter( encodedOffset, decodedOffset );
-                    break;
-
-                case FileType::BZIP2:
-                    throw std::logic_error( "[GzipChunkFetcher::finishDecodeChunkWithIsal] Invalid file type!" );
-                }
-            };
-
         while( !stoppingPointReached ) {
             deflate::DecodedVector buffer( ALLOCATION_CHUNK_SIZE );
-            std::optional<IsalInflateWrapper::Footer> footer;
+            std::optional<Footer> footer;
 
             /* In order for CRC32 verification to work, we have to append at most one gzip stream per subchunk
              * because the CRC32 calculator is swapped inside ChunkData::append. */
@@ -373,7 +323,8 @@ public:
             result.append( std::move( buffer ) );
             if ( footer ) {
                 nextBlockOffset = inflateWrapper.tellCompressed();
-                appendFooter( footer->footerEndEncodedOffset, alreadyDecoded, *footer );
+                footer->blockBoundary.decodedOffset = alreadyDecoded;
+                result.appendFooter( *footer );
             }
 
             if ( ( inflateWrapper.stoppedAt() == StoppingPoint::NONE )
@@ -383,10 +334,11 @@ public:
         }
 
         uint8_t dummy{ 0 };
-        const auto [nBytesReadPerCall, footer] = inflateWrapper.readStream( &dummy, 1 );
+        auto [nBytesReadPerCall, footer] = inflateWrapper.readStream( &dummy, 1 );
         if ( ( inflateWrapper.stoppedAt() == StoppingPoint::NONE ) && ( nBytesReadPerCall == 0 ) && footer ) {
             nextBlockOffset = inflateWrapper.tellCompressed();
-            appendFooter( footer->footerEndEncodedOffset, alreadyDecoded, *footer );
+            footer->blockBoundary.decodedOffset = alreadyDecoded;
+            result.appendFooter( *footer );
         }
 
         finalizeChunk( result, std::move( subchunks ), *bitReader, nextBlockOffset );
@@ -585,6 +537,8 @@ public:
             subchunks.back().decodedSize += blockBytesRead;
 
             if ( block->isLastBlock() ) {
+                Footer footer;
+
                 switch ( result.fileType )
                 {
                 case FileType::NONE:
@@ -595,37 +549,35 @@ public:
                     if ( bitReader->tell() % BYTE_SIZE != 0 ) {
                         bitReader->read( BYTE_SIZE - bitReader->tell() % BYTE_SIZE );
                     }
-                    result.appendFooter( bitReader->tell(), totalBytesRead );
                     break;
 
                 case FileType::ZLIB:
                 {
-                    const auto footer = zlib::readFooter( *bitReader );
-                    const auto footerOffset = bitReader->tell();
-                    result.appendFooter( footerOffset, totalBytesRead, footer );
+                    footer.zlibFooter = zlib::readFooter( *bitReader );
+                    /** @todo check Adler32 checksum when computation has been implemented. */
                     break;
                 }
 
                 case FileType::BGZF:
                 case FileType::GZIP:
                 {
-                    const auto footer = gzip::readFooter( *bitReader );
-                    const auto footerOffset = bitReader->tell();
-
+                    footer.gzipFooter = gzip::readFooter( *bitReader );
                     /* We only check for the stream size and CRC32 if we have read the whole stream including the header! */
                     if ( didReadHeader ) {
-                        if ( streamBytesRead != footer.uncompressedSize ) {
+                        if ( streamBytesRead != footer.gzipFooter.uncompressedSize ) {
                             std::stringstream message;
                             message << "Mismatching size (" << streamBytesRead << " <-> footer: "
-                                    << footer.uncompressedSize << ") for gzip stream!";
+                                    << footer.gzipFooter.uncompressedSize << ") for gzip stream!";
                             throw std::runtime_error( std::move( message ).str() );
                         }
                     }
-
-                    result.appendFooter( footerOffset, totalBytesRead, footer );
                     break;
                 }
                 }
+
+                footer.blockBoundary.decodedOffset = totalBytesRead;
+                footer.blockBoundary.encodedOffset = bitReader->tell();  // End-of-footer offset for now!
+                result.appendFooter( footer );
 
                 isAtStreamEnd = true;
                 didReadHeader = false;

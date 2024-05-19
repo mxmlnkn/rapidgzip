@@ -264,7 +264,7 @@ testSmallReads( const std::filesystem::path& compressedFilePath,
     std::vector<uint8_t> decompressedResult( originalData.size(), 3 );
 
     size_t decompressedSize{ 0 };
-    std::optional<typename InflateWrapper::Footer> footer;
+    std::optional<Footer> footer;
     for ( size_t i = 0; i < decompressedResult.size(); ++i ) {
         std::tie( decompressedSize, footer ) = inflateWrapper.readStream( decompressedResult.data() + i, 1 );
         /* While loop in case there are lots of empty gzip streams for some reason.
@@ -431,7 +431,7 @@ testSmallReadsUntilOffset( const std::filesystem::path& compressedFilePath,
         std::vector<uint8_t> decompressedResult( expectedResult.size(), 3U );
 
         size_t decompressedSize{ 0 };
-        std::optional<typename InflateWrapper::Footer> footer;
+        std::optional<Footer> footer;
         for ( size_t j = 0; j < decompressedResult.size(); ++j ) {
             std::tie( decompressedSize, footer ) = inflateWrapper.readStream( decompressedResult.data() + j, 1U );
             /* While loop in case there are lots of empty gzip streams for some reason.

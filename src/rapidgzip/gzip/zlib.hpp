@@ -122,14 +122,6 @@ compressWithZlib( const VectorView<uint8_t> toCompress,
 class ZlibInflateWrapper
 {
 public:
-    struct Footer
-    {
-        gzip::Footer gzipFooter;
-        zlib::Footer zlibFooter;
-        size_t footerEndEncodedOffset{ 0 };
-    };
-
-public:
     explicit
     ZlibInflateWrapper( BitReader    bitReader,  // NOLINT(performance-unnecessary-value-param)
                         const size_t untilOffset = std::numeric_limits<size_t>::max() ) :
@@ -324,7 +316,7 @@ ZlibInflateWrapper::refillBuffer()
 }
 
 
-[[nodiscard]] inline std::pair<size_t, std::optional<ZlibInflateWrapper::Footer> >
+[[nodiscard]] inline std::pair<size_t, std::optional<Footer> >
 ZlibInflateWrapper::readStream( uint8_t* const output,
                                 size_t   const outputSize )
 {
@@ -466,7 +458,7 @@ ZlibInflateWrapper::readBytes()
 }
 
 
-inline ZlibInflateWrapper::Footer
+inline Footer
 ZlibInflateWrapper::readGzipFooter()
 {
     const auto footerBuffer = readBytes<8U>();
@@ -484,12 +476,13 @@ ZlibInflateWrapper::readGzipFooter()
 
     Footer result;
     result.gzipFooter = footer;
-    result.footerEndEncodedOffset = tellCompressed();
+    result.blockBoundary.encodedOffset = tellCompressed();
+    result.blockBoundary.decodedOffset = 0;  // Should not be used by the caller.
     return result;
 }
 
 
-inline ZlibInflateWrapper::Footer
+inline Footer
 ZlibInflateWrapper::readZlibFooter()
 {
     const auto footerBuffer = readBytes<4U>();
@@ -503,7 +496,8 @@ ZlibInflateWrapper::readZlibFooter()
 
     Footer result;
     result.zlibFooter = footer;
-    result.footerEndEncodedOffset = tellCompressed();
+    result.blockBoundary.encodedOffset = tellCompressed();
+    result.blockBoundary.decodedOffset = 0;  // Should not be used by the caller.
     return result;
 }
 

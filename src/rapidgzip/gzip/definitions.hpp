@@ -113,4 +113,17 @@ toString( StoppingPoint stoppingPoint )
     return "Unknown";
     // *INDENT-ON*
 }
+
+
+struct BlockBoundary
+{
+    size_t encodedOffset{ 0 };
+    size_t decodedOffset{ 0 };
+
+    [[nodiscard]] bool
+    operator==( const BlockBoundary& other ) const
+    {
+        return ( encodedOffset == other.encodedOffset ) && ( decodedOffset == other.decodedOffset );
+    }
+};
 }  // namespace rapidgzip

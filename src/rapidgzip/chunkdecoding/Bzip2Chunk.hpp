@@ -118,7 +118,7 @@ public:
              * Therefore, we need to check for it before calling block.decodeBlock. */
             if ( block->eos() ) {
                 const auto footerOffset = bitReader->tell();
-                typename ChunkData::Footer footer;
+                Footer footer;
                 footer.blockBoundary = { footerOffset, totalBytesRead };
                 result.appendFooter( std::move( footer ) );
 

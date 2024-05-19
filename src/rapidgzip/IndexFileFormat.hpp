@@ -250,7 +250,7 @@ countDecompressedBytes( rapidgzip::BitReader           bitReader,  // NOLINT(per
     size_t alreadyDecoded{ 0 };
     std::vector<uint8_t> subchunk( 128_Ki );
     while ( true ) {
-        std::optional<InflateWrapper::Footer> footer;
+        std::optional<rapidgzip::Footer> footer;
         size_t nBytesReadPerCall{ 0 };
         while ( !footer ) {
             std::tie( nBytesReadPerCall, footer ) = inflateWrapper.readStream( subchunk.data(), subchunk.size() );
