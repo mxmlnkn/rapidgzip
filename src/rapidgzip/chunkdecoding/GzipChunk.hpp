@@ -156,8 +156,6 @@ public:
                   size_t decodedOffset,
                   const typename InflateWrapper::Footer& footer )
             {
-                result.appendFooter( encodedOffset, decodedOffset, footer.gzipFooter );
-                return;
                 switch ( result.fileType )
                 {
                 case FileType::BGZF:
