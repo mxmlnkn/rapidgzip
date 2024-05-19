@@ -431,16 +431,21 @@ private:
         for ( const auto& subchunk : subchunks ) {
             decodedOffsetInBlock += subchunk.decodedSize;
             const auto windowOffset = subchunk.encodedOffset + subchunk.encodedSize;
-            /* Avoid recalculating what we already emplaced in waitForReplacedMarkers when calling getLastWindow. */
-            if ( !m_windowMap->get( windowOffset ) ) {
-                if ( subchunk.window ) {
+            /* Explicitly reinsert what we already emplaced in waitForReplacedMarkers when calling getLastWindow,
+             * but now the window shold be compressed with sparsity applied! Thanks to the WindowMap being locked
+             * and the windows being shared pointers, this should lead to no bugs, and the consistency check in
+             * the WindowMap is also long gone, i.e., overwriting windows is allowed and now a required feature. */
+            const auto existingWindow = m_windowMap->get( windowOffset );
+            if ( subchunk.window ) {
+                /* Do not overwrite empty windows signaling windows that are not required at all. */
+                if ( !existingWindow || !existingWindow->empty() ) {
                     m_windowMap->emplaceShared( windowOffset, subchunk.window );
-                } else {
-                    m_windowMap->emplace( windowOffset, chunkData->getWindowAt( lastWindow, decodedOffsetInBlock ),
-                                          chunkData->windowCompressionType() );
-                    std::cerr << "[Info] The subchunk window for offset " << windowOffset << " is not compressed yet. "
-                              << "Compressing it now might slow down the program.\n";
                 }
+            } else if ( !existingWindow ) {
+                m_windowMap->emplace( windowOffset, chunkData->getWindowAt( lastWindow, decodedOffsetInBlock ),
+                                      chunkData->windowCompressionType() );
+                std::cerr << "[Info] The subchunk window for offset " << windowOffset << " is not compressed yet. "
+                          << "Compressing it now might slow down the program.\n";
             }
         }
 

@@ -66,8 +66,8 @@ public:
              * index!
              * Further windows might also be inserted if the file is opened in a buffered manner, which could
              * insert windows up to the buffer size without having read anything yet.
-             * Comparing the decompressed contents might also fail in the future when support for sparse windows
-             * is added.
+             * Comparing the decompressed contents will also fail when overwriting non-compressed windows
+             * with asynchronically compressed and made-sparse windows.
              * I am not even sure anymore why I did want to test for changes. I guess it was a consistency check,
              * but it becomes too complex and error-prone now. */
             m_windows.insert_or_assign( m_windows.end(), encodedBlockOffset, std::move( sharedWindow ) );

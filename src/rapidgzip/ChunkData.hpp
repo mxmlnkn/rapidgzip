@@ -312,7 +312,9 @@ public:
             statistics.computeChecksumDuration += duration( tApplyEnd );
         }
 
-        /* Replace markers in subchunk windows and compress the resulting fully-resolved window. */
+        /* Replace markers in and compress the resulting fully-resolved window provided by each subchunk,
+         * i.e., at the end of each subchunk. In benchmarks with random base64 data and ISA-L, this takes
+         * roughly 0.5 ms per 32 KiB window (0.048s for 97 compressed windows). */
         const auto tWindowCompressionStart = now();
         size_t decodedOffsetInBlock{ 0 };
         for ( auto& subchunk : m_subchunks ) {
@@ -421,6 +423,7 @@ public:
         crc32s.emplace_back();
         crc32s.back().setEnabled( wasEnabled );
     }
+
     void
     setCRC32Enabled( bool enabled )
     {
