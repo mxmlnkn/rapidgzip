@@ -573,7 +573,7 @@ readGzipIndex( UniqueFileReader            indexFile,
         if ( compressionRatio > 2  ) {
             futures.emplace_back( threadPool.submit( [toCompress = std::move( window ), offset = offset] () mutable {
                 return std::make_pair(
-                    offset, std::make_shared<WindowMap::Window>( std::move( *toCompress ), CompressionType::GZIP ) );
+                    offset, std::make_shared<WindowMap::Window>( std::move( *toCompress ), CompressionType::ZLIB ) );
             } ) );
             if ( futures.size() >= 2 * backgroundThreadCount ) {
                 processFuture();
