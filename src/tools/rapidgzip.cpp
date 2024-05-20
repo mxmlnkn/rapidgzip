@@ -39,6 +39,7 @@ struct Arguments
     bool verbose{ false };
     bool crc32Enabled{ true };
     bool keepIndex{ false };
+    bool windowSparsity{ true };
     bool gatherLineOffsets{ false };
     IndexFormat indexFormat{ IndexFormat::INDEXED_GZIP };
 };
@@ -139,6 +140,7 @@ decompressParallel( const Arguments&   args,
     reader->setShowProfileOnDestruction( args.verbose );
     reader->setCRC32Enabled( args.crc32Enabled );
     reader->setKeepIndex( !args.indexSavePath.empty() || !args.indexLoadPath.empty() || args.keepIndex );
+    reader->setWindowSparsity( args.windowSparsity );
     if ( ( args.indexFormat == IndexFormat::GZTOOL ) || ( args.indexFormat == IndexFormat::GZTOOL_WITH_LINES ) ) {
         /* Compress with zlib instead of gzip to avoid recompressions when exporting the index. */
         reader->setWindowCompressionType( CompressionType::ZLIB );
@@ -273,7 +275,16 @@ rapidgzipCLI( int                  argc,
           cxxopts::value<std::string>()->default_value( "pread" ) )
         ( "index-format", "Option to select an output index format. Possible values: gztool, gztool-with-lines, "
                           "indexed_gzip.",
-          cxxopts::value<std::string>()->default_value( "indexed_gzip" ) );
+          cxxopts::value<std::string>()->default_value( "indexed_gzip" ) )
+        ( "sparse-windows", "On by default. Reduce index compressibility by zeroing out window data that is not "
+                            "referenced in the subsequent stream.",
+          cxxopts::value( args.windowSparsity )->implicit_value( "true" ) )
+        ( "no-sparse-windows", "Do not zero out unreferenced data in index windows. This may very slightly improve "
+                               "first-time decompression speed, but may also lead to higher memory usage. It can also "
+                               "be useful to create exported index that are binary identical to other those created "
+                               "by other tools such as gztool to debug indexes. In normal usage the sparsity is an "
+                               "index modification that is fully compatible with the original tools.",
+          cxxopts::value( args.windowSparsity )->implicit_value( "false" ) );
 
     options.add_options( "Output" )
         ( "h,help"   , "Print this help message." )
