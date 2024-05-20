@@ -187,7 +187,7 @@ public:
         }
         /* Only bother with overhead-introducing compression for large chunk compression ratios. */
         return windowSparsity || ( decodedSizeInBytes * 8 > 2 * encodedSizeInBits )
-               ? CompressionType::GZIP
+               ? CompressionType::ZLIB
                : CompressionType::NONE;
     }
 
