@@ -364,6 +364,12 @@ class IndexedBzip2File(io.BufferedReader):
 cdef extern from "tools/rapidgzip.cpp":
     int rapidgzipCLI(int, char**) except +
 
+cdef extern from "rapidgzip/IndexFileFormat.hpp":
+    cpdef enum class IndexFormat:
+        INDEXED_GZIP,
+        GZTOOL,
+        GZTOOL_WITH_LINES,
+
 cdef extern from "rapidgzip/ParallelGzipReader.hpp" namespace "rapidgzip":
     cpdef enum class IOReadMethod(uint8_t):
         SEQUENTIAL,
@@ -394,7 +400,7 @@ cdef extern from "rapidgzip/ParallelGzipReader.hpp" namespace "rapidgzip":
         void setStatisticsEnabled(bool) except +
         void setShowProfileOnDestruction(bool) except +
         void importIndex(PyObject*) except +
-        void exportIndex(PyObject*) except +
+        void exportIndex(PyObject*, IndexFormat) except +
         void joinThreads() except +
         string fileTypeAsString() except +
 
@@ -551,14 +557,14 @@ cdef class _RapidgzipFile():
                 return self.gzipReader.importIndex(<PyObject*>fileObject)
         return self.gzipReader.importIndex(<PyObject*>file)
 
-    def export_index(self, file):
+    def export_index(self, file, index_format = IndexFormat.INDEXED_GZIP):
         if not self.gzipReader:
             raise Exception("Invalid file object!")
 
         if isinstance(file, str):
             with builtins.open(file, "wb") as fileObject:
-                return self.gzipReader.exportIndex(<PyObject*>fileObject)
-        return self.gzipReader.exportIndex(<PyObject*>file)
+                return self.gzipReader.exportIndex(<PyObject*>fileObject, index_format)
+        return self.gzipReader.exportIndex(<PyObject*>file, index_format)
 
     def join_threads(self):
         if self.gzipReader:

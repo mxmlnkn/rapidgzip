@@ -1037,7 +1037,8 @@ public:
     }
 
     void
-    exportIndex( PyObject* pythonObject )
+    exportIndex( PyObject*         pythonObject,
+                 const IndexFormat indexFormat = IndexFormat::INDEXED_GZIP )
     {
         const auto file = std::make_unique<PythonFileReader>( pythonObject );
         const auto checkedWrite =
@@ -1048,7 +1049,7 @@ public:
                 }
             };
 
-        exportIndex( checkedWrite );
+        exportIndex( checkedWrite, indexFormat );
     }
 #endif
 
