@@ -734,7 +734,8 @@ public:
         }
 
         const auto archiveSize = m_sharedFileReader->size();
-        if ( !archiveSize ) {
+        if ( !archiveSize && !m_indexIsImported ) {
+            /* If the index was imported, then this warning is moot and using the last chunk offset is sufficient. */
             std::cerr << "[Warning] The input file size should have become available after finalizing the index!\n";
             std::cerr << "[Warning] Will use the last chunk end offset as size. This might lead to errors on import!\n";
         }
@@ -991,6 +992,7 @@ public:
     void
     importIndex( UniqueFileReader indexFile )
     {
+        m_indexIsImported = true;
         const auto t0 = now();
         setBlockOffsets( readGzipIndex( std::move( indexFile ), m_sharedFileReader->clone(),
                                         m_fetcherParallelization ) );
@@ -1407,5 +1409,7 @@ private:
     CRC32Calculator m_crc32;
     uint64_t m_nextCRC32ChunkOffset{ 0 };
     std::unordered_map<size_t, uint32_t> m_deflateStreamCRC32s;
+
+    bool m_indexIsImported{ false };
 };
 }  // namespace rapidgzip
