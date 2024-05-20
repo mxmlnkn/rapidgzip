@@ -135,6 +135,7 @@ public:
             const auto totalDecompressedCount = m_statistics.nonMarkerCount + m_statistics.markerCount;
 
             std::stringstream out;
+            out << std::boolalpha;
             out << "[GzipChunkFetcher::GzipChunkFetcher] First block access statistics:\n";
             out << "    Number of false positives                : " << m_statistics.falsePositiveCount << "\n";
             out << "    Time spent in block finder               : " << m_statistics.blockFinderDuration << " s\n";
@@ -191,6 +192,13 @@ public:
             out << "        Total Real Decode Duration    : " << decodeDuration << " s\n";
             out << "        Theoretical Optimal Duration  : " << optimalDecodeDuration << " s\n";
             out << "        Pool Efficiency (Fill Factor) : " << poolEfficiency * 100 << " %\n";
+
+            out << "    CRC32 enabled      : " << m_crc32Enabled.load() << "\n";
+            out << "    BGZF file          : " << m_isBgzfFile << "\n";
+            out << "    Window compression : " << ( m_windowCompressionType
+                                                    ? toString( *m_windowCompressionType )
+                                                    : std::string( "Default" ) ) << "\n";
+            out << "    Window sparsity    : " << m_windowSparsity << "\n";
 
             std::cerr << std::move( out ).str();
         }
