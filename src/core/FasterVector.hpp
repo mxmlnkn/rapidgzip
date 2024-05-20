@@ -116,6 +116,18 @@ static_assert( std::is_empty_v<RpmallocAllocator<char> > );
 #endif
 
 
+#if 1
+
+#ifdef WITH_RPMALLOC
+template<typename T>
+using FasterVector = std::vector<T, RpmallocAllocator<T> >;
+#else
+template<typename T>
+using FasterVector = std::vector<T>;
+#endif
+
+#else
+
 [[nodiscard]] constexpr bool
 isPowerOf2( size_t value )
 {
@@ -130,6 +142,19 @@ using RequireInputIterator = typename std::enable_if<
 >::type;
 
 
+/**
+ * This was supposed to be a faster std::vector alternative that saves time by not initializing its contents
+ * on resize as introduced in 093805ab24c93b7150b56d16bde418e51c0dd970. However, it leads to almost double
+ * the memory usage with wikidata.json (12 GB -> 16 GB) even when disabling rounding to powers of 2 when
+ * reserving in @ref insert and when disabling alignment and disabling the shrink_to_fit check.
+ * @verbatim
+ * make rapidgzip
+ * /usr/bin/time -v src/tools/rapidgzip -v -P 24 --io-read-method sequential --export-index "$file"{.index,}
+ * With std::vector using rpmalloc allocator:
+ *     Maximum resident set size (kbytes): 11631884
+ * FasterVector:
+ *     Maximum resident set size (kbytes): 16360928
+ */
 template<typename T>
 class FasterVector
 {
@@ -424,3 +449,4 @@ operator!=( const std::vector<T, Alloc>&  lhs,
 {
     return !std::equal( lhs.begin(), lhs.end(), rhs.begin(), rhs.end() );
 }
+#endif
