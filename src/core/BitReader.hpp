@@ -348,6 +348,20 @@ public:
                         /* We don't need the return value because we are using tell! */
                         [[maybe_unused]] const auto nBytesReadFromFile =
                             m_file->read( outputBuffer + nBytesRead, nBytesToReadFromFile );
+                        /* Clear the byte buffer because the assumed invariant that the byte buffer contains the
+                         * data of m_file->tell() - m_inputBuffer.size() is wrong after reading from the file and
+                         * will result in a bug when seeking back and when the supposed offset is thought to be
+                         * inside the buffer. This can be triggered now after adding sparse windows because
+                         * InflateWrapper will refill the buffer with this method and getUsedWindowSymbols will
+                         * seek back. Before sparse windows, it might have been virtually impossible to trigger this.
+                         * @todo This understanding gives two optimization ideas:
+                         *       1. For InflateWrapper + getUsedWindowSymbols, reduce the byte buffer size to something
+                         *          <= 32 KiB instead of 128 KiB to avoid unnecessarily large refills.
+                         *       2. Check that InflateWrapper only calls this function with byte-aligned offsets
+                         *          so that it doesn't trigger the possibly slower other path that has to shift
+                         *          everything by a constant amount of bits. */
+                        m_inputBufferPosition = 0;
+                        m_inputBuffer.clear();
                     }
                 }
             }

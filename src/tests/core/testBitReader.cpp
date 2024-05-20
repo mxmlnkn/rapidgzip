@@ -8,6 +8,7 @@
 #include <BitManipulation.hpp>
 #include <BitReader.hpp>
 #include <filereader/Buffered.hpp>
+#include <filereader/Standard.hpp>
 #include <TestHelpers.hpp>
 
 
@@ -493,9 +494,57 @@ testBitReader()
 }
 
 
-int
-main()
+void
+testDirectFileReadingBitReaderBug( const std::filesystem::path& path )
 {
+    /* This test is intended to work with random-128KiB.gz, but it should work with any file that is
+     * greater than 128 KiB (BitReader byte buffer size) and that has mostly different bytes so that
+     * the check that compares the read bytes at position 128_Ki - 1 after seeking forward and after
+     * seeking back fails. */
+    BitReader<false, uint64_t> bitReader( std::make_unique<StandardFileReader>( path.string() ),
+                                          /* byte buffer size */ 128_Ki );
+
+    static constexpr size_t GZIP_HEADER_SIZE = 0;
+    bitReader.seek( GZIP_HEADER_SIZE * CHAR_BIT );
+    REQUIRE_EQUAL( bitReader.tell(), GZIP_HEADER_SIZE * CHAR_BIT );
+    /* The byte buffer should already have been refilled in the seek above but this may change in the future. */
+    bitReader.read<8>();
+    REQUIRE_EQUAL( bitReader.tell(), GZIP_HEADER_SIZE * CHAR_BIT + 8 );
+
+    bitReader.seek( bitReader.bufferRefillSize() * CHAR_BIT - 16, SEEK_CUR );
+    const auto oneByteBeforeByteBufferEnd = ( GZIP_HEADER_SIZE + bitReader.bufferRefillSize() - 1 ) * CHAR_BIT;
+    REQUIRE_EQUAL( bitReader.tell(), oneByteBeforeByteBufferEnd );
+
+    /* Read bytes until the end of the byte buffer. */
+    char firstDummy{ 0 };
+    REQUIRE_EQUAL( bitReader.read( &firstDummy, 1 ), 1U );
+    REQUIRE_EQUAL( bitReader.tell(), ( GZIP_HEADER_SIZE + bitReader.bufferRefillSize() ) * CHAR_BIT );
+
+    /* Read bytes and especially trigger the byte reading DIRECTLY from the file!
+     * This only gets triggered when reading more than 1 KiB, or at least requesting that much at once. */
+    std::array<char, 4_Ki> buffer;
+    REQUIRE( bitReader.read( buffer.data(), buffer.size() ) > 0 );
+    REQUIRE_EQUAL( bitReader.tell(), bitReader.size().value() );
+
+    /* The proble here was that the byte buffer did not get cleared. This resulted in a bug because the assumption /
+     * assumed invariant was that the byte buffer offset in the file matches file offset - byte buffer size.
+     * But, the direct reading of bytes forwarded the file offset without clearing the byte buffer, therefore
+     * seeking back inside the byte buffer is now WRONG! */
+    bitReader.seek( oneByteBeforeByteBufferEnd );
+    REQUIRE_EQUAL( bitReader.tell(), oneByteBeforeByteBufferEnd );
+    REQUIRE_EQUAL( bitReader.read<8>(), static_cast<uint8_t>( firstDummy ) );
+}
+
+
+int
+main( int    argc,
+      char** argv )
+{
+    if ( argc == 0 ) {
+        std::cerr << "Expected at least the launch command as the first argument!\n";
+        return 1;
+    }
+
     testMSBBitReader();
     testLSBBitReader();
     testMSBBitReaderPeek();
@@ -503,6 +552,19 @@ main()
 
     testBitReader<true>();
     testBitReader<false>();
+
+    const std::string binaryFilePath( argv[0] );
+    std::string binaryFolder = ".";
+    if ( const auto lastSlash = binaryFilePath.find_last_of( '/' ); lastSlash != std::string::npos ) {
+        binaryFolder = std::string( binaryFilePath.begin(),
+                                    binaryFilePath.begin() + static_cast<std::string::difference_type>( lastSlash ) );
+    }
+    const auto testFolder =
+        static_cast<std::filesystem::path>(
+            findParentFolderContaining( binaryFolder, "src/tests/data/random-128KiB.gz" )
+        ) / "src" / "tests" / "data";
+
+    testDirectFileReadingBitReaderBug( testFolder / "random-128KiB.gz" );
 
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
 
