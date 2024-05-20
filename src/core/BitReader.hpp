@@ -668,7 +668,9 @@ private:
                 /* Move LSB bits (which are filled left-to-right) to the left if so necessary
                  * so that the format is the same as for MSB bits! */
                 if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
-                    m_bitBuffer <<= static_cast<uint8_t>( MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize );
+                    if ( m_originalBitBufferSize > 0 ) {
+                        m_bitBuffer <<= static_cast<uint8_t>( MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize );
+                    }
                 }
             }
 

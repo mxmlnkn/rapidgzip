@@ -1917,6 +1917,9 @@ getUsedWindowSymbols( BitReader& bitReader )
                     for ( const auto& buffer : view.data ) {
                         const auto sizeToCopy = std::min( decompressed.size() - ( nBytesRead + nBytesReadFromBlock ),
                                                           buffer.size() );
+                        if ( sizeToCopy == 0 ) {
+                            continue;
+                        }
                         std::memcpy( decompressed.data() + nBytesRead + nBytesReadFromBlock, buffer.data(), sizeToCopy );
                         nBytesReadFromBlock += sizeToCopy;
                     }
