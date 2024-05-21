@@ -1,4 +1,11 @@
 
+# Version 0.14.1 built on 2024-05-21
+
+## Fixes
+
+ - Fix error when reading from stdin.
+
+
 # Version 0.14.0 built on 2024-05-21
 
 ## Added
