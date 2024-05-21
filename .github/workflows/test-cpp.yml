@@ -238,6 +238,8 @@ jobs:
         mkdir -p "build-sanitized-$sanitizer" && cd -- "$_"
         CXX=clang++ CC=clang cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=$sanitizer -DSHORT_TESTS" ..
         cmake --build . -- check
+        cmake --build .
+        bash ../src/tests/testRapidgzip.sh
 
   UBSan:
     name: UBSan
