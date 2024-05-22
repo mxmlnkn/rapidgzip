@@ -1,4 +1,11 @@
 
+# Version 0.14.2 built on 2024-05-22
+
+## Fixes
+
+ - Exporting an index for some files threw an exception.
+
+
 # Version 0.14.1 built on 2024-05-21
 
 ## Fixes
