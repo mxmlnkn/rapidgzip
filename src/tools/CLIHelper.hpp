@@ -5,7 +5,7 @@
 #include <cxxopts.hpp>
 
 
-std::string
+[[nodiscard]] inline std::string
 getFilePath( cxxopts::ParseResult const& parsedArgs,
              std::string          const& argument )
 {

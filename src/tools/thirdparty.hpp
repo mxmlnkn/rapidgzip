@@ -166,7 +166,7 @@ static constexpr std::string_view license{
 }  // namespace thirdparty
 
 
-[[nodiscard]] std::string
+[[nodiscard]] inline std::string
 toYamlString( const std::string_view text )
 {
     std::string result;

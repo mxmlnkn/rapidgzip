@@ -17,7 +17,7 @@ namespace rapidgzip
 /**
  * A wrapper around the Huffman decoder from ISA-l
  */
-class HuffmanCodingISAL
+class HuffmanCodingISAL  // NOLINT(cppcoreguidelines-pro-type-member-init)
 {
 public:
     static constexpr auto LIT_LEN_ELEMS = 514U;
@@ -26,7 +26,7 @@ public:
     static constexpr auto MAX_LIT_LEN_COUNT = MAX_LIT_LEN_CODE_LEN + 2U;
     static constexpr auto LIT_LEN = ISAL_DEF_LIT_LEN_SYMBOLS;
 
-    static constexpr uint8_t len_extra_bit_count[32] = {
+    static constexpr std::array<uint8_t, 32> len_extra_bit_count = {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x01, 0x01, 0x01, 0x01, 0x02, 0x02, 0x02, 0x02,
         0x03, 0x03, 0x03, 0x03, 0x04, 0x04, 0x04, 0x04,
@@ -83,7 +83,7 @@ private:
                      uint32_t    const code,
                      uint32_t    const length )
     {
-        huff_code->code_and_length = code | ( length << 24U );
+        huff_code->code_and_length = code | ( length << 24U );  // NOLINT(cppcoreguidelines-pro-type-union-access)
     }
 
 public:

@@ -36,7 +36,7 @@ public:
     using ShiftedLUTTable = std::vector<std::pair</* shifted value to compare to */ uint64_t, /* mask */ uint64_t> >;
 
 public:
-    BitStringFinder( BitStringFinder&& ) = default;
+    BitStringFinder( BitStringFinder&& ) noexcept = default;
 
     BitStringFinder( const BitStringFinder& other ) = delete;
 
@@ -44,7 +44,7 @@ public:
     operator=( const BitStringFinder& ) = delete;
 
     BitStringFinder&
-    operator=( BitStringFinder&& ) = delete;
+    operator=( BitStringFinder&& ) noexcept = delete;
 
     BitStringFinder( UniqueFileReader fileReader,
                      uint64_t         bitStringToFind,
@@ -65,6 +65,8 @@ public:
     }
 
     /** @note This overload is used for the tests but can also be useful for other things. */
+    /* False positive because of delegating constructor. */
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
     BitStringFinder( const char* buffer,
                      size_t      size,
                      uint64_t    bitStringToFind ) :
@@ -180,9 +182,9 @@ BitStringFinder<bitStringSize>::findBitStrings( std::string_view const& buffer,
         {
             std::vector<char> result( bitStringtoConvertSize / CHAR_BIT );
             auto remainingSize = bitStringtoConvertSize;
-            for ( size_t i = 0; i < result.size(); ++i ) {
+            for ( auto& value : result ) {
                 remainingSize -= CHAR_BIT;
-                result[i] = static_cast<char>( ( bitStringToConvert >> remainingSize ) & 0xFFU );
+                value = static_cast<char>( ( bitStringToConvert >> remainingSize ) & 0xFFU );
             }
             return result;
         };

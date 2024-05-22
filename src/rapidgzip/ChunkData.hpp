@@ -18,6 +18,54 @@
 namespace rapidgzip
 {
 /**
+ * Rpmalloc does worse than standard malloc (Clang 13) for the case when using 128 cores, chunk size 4 MiB
+ * with imported index of Silesia (compression ratio ~3.1), i.e., the decompressed chunk sizes are ~12 MiB
+ * and probably deviate wildly in size (4-100 MiB maybe?). I guess that this leads to overallocation and
+ * memory slab reuse issues in rpmalloc.
+ * Allocating memory chunks in much more deterministic sizes seems to alleviate this problem immensely!
+ *
+ * Problematic commit:
+ *     dd678c7 2022-11-06 mxmlnkn [performance] Use rpmalloc to increase multi-threaded malloc performance
+ *
+ * Approximate benchmark results for:
+ *     rapidgzip -P $( nproc ) -o /dev/null -f --export-index index silesia-256x.tar.pigz
+ *     taskset --cpu-list 0-127 rapidgzip -P 128 -d -o /dev/null --import-index index silesia-256x.tar.pigz
+ *
+ * Commit:
+ *     rapidgzip-v0.5.0   16 GB/s
+ *     dd678c7~1        16 GB/s
+ *     dd678c7           8 GB/s
+ *
+ * dd678c7 with ALLOCATION_CHUNK_SIZE:
+ *     64  KiB       19.4 19.7       GB/s
+ *     256 KiB       20.8 20.7       GB/s
+ *     1   MiB       21.2 20.7 20.8  GB/s
+ *     4   MiB       8.4 8.5 8.3     GB/s
+ *
+ * It seems to be pretty stable across magnitudes as long as the number of allocations doesn't get too
+ * large and as long as the allocation chunk size is much smaller than the decompressed data chunk size.
+ * 1 MiB seems like the natural choice because the optimum (compressed) chunk size is around 4 MiB
+ * and it would also be exactly one hugepage if support for that would ever be added.
+ * Beware that each chunk is only as large as one gzip stream. And bgzip creates gzip streams that are only
+ * ~64 KiB each! Therefore, when decoding bgzip while importing the index, we need to account for this here
+ * and avoid frequent overallocations and resizes, which slow down the program immensely!
+ *
+ * Test with:
+ *     m rapidgzip && src/tools/rapidgzip -o /dev/null -d \
+ *       --import-index silesia-32x.tar.bgzip.gzi silesia-32x.tar.bgzip
+ *
+ * ALLOCATION_CHUNK_SIZE  Bandwidth
+ *        32  KiB         2.4 GB/s
+ *        64  KiB         2.5 GB/s
+ *        128 KiB         2.5 GB/s
+ *        256 KiB         2.4 GB/s
+ *        512 KiB         1.5 GB/s
+ *        1   MiB         370 MB/s
+ */
+static constexpr size_t ALLOCATION_CHUNK_SIZE = 128_Ki;
+
+
+/**
  * This class adds higher-level capabilities onto @ref deflate::DecodedData, which was only intended for
  * returning decompression results and aggregating them during decompression of a single deflate block.
  * This class instead is intended to aggregate results from multiple deflate blocks, possibly even multiple
@@ -42,7 +90,9 @@ struct ChunkData :
 {
     using BaseType = deflate::DecodedData;
 
-    using SharedWindow = std::shared_ptr<CompressedVector<FasterVector<uint8_t> > >;
+    using Window = CompressedVector<FasterVector<uint8_t> >;
+    using SharedWindow = std::shared_ptr<const Window>;
+    using WindowView = VectorView<uint8_t>;
 
     struct Configuration
     {
@@ -51,66 +101,30 @@ struct ChunkData :
         FileType fileType{ FileType::NONE };
         bool crc32Enabled{ true };
         std::optional<CompressionType> windowCompressionType;
-    };
-
-    struct BlockBoundary
-    {
-        size_t encodedOffset;
-        size_t decodedOffset;
-
-        [[nodiscard]] bool
-        operator==( const BlockBoundary& other ) const
-        {
-            return ( encodedOffset == other.encodedOffset ) && ( decodedOffset == other.decodedOffset );
-        }
-    };
-
-    struct Footer
-    {
-        /**
-         * The blockBoundary is currently (2023-08-26) unused. It is intended to aid block splitting in order
-         * to split after a gzip footer because then the window is known to be empty, which would save space
-         * and time.
-         * The uncompressed block boundary offset is unambiguous.
-         * The compressed block boundary is more ambiguous. There are three possibilities:
-         *  - The end of the preceding deflate block. The footer start is then the next byte-aligned boundary.
-         *  - The byte-aligned footer start.
-         *  - The byte-aligned footer end, which is the file end or the next gzip stream start.
-         *    For gzip, it is exactly FOOTER_SIZE bytes after the footer start.
-         * Thoughts about the choice:
-         *  - The offset after the footer is more relevant to the intended block splitting improvement.
-         *  - The previous deflate block end contains the most information because the other two possible
-         *    choices can be derived from it by rounding up and adding FOOTER_SIZE. The inverse is not true.
-         *  - The previous block end might be the most stable choice because stopping at that boundary is
-         *    already a requirement for using ISA-l without an exact untilOffset. Stopping at the footer end
-         *    might not work perfectly and might already have read some of the next block.
-         * Currently, the unit tests, test that all possibilities to derive the footer offsets: GzipReader, decodeBlock,
-         * decodeBlockWithInflateWrapper with ISA-L or zlib, return the same value.
-         * That value is currently the footer end because it seemed easier to implement. This might be subject to
-         * change until it is actually used for something (e.g. smarter block splitting).
-         * The most complicated to implement but least ambiguous solution would be to add all three boundaries to
-         * this struct.
-         */
-        BlockBoundary blockBoundary;
-        gzip::Footer gzipFooter;
-        zlib::Footer zlibFooter;
+        bool windowSparsity{ true };
     };
 
     struct Subchunk
     {
-        size_t encodedOffset{ 0 };
-        size_t encodedSize{ 0 };
-        size_t decodedSize{ 0 };
-        SharedWindow window{};
-
         [[nodiscard]] bool
         operator==( const Subchunk& other ) const
         {
             return ( encodedOffset == other.encodedOffset )
+                   && ( decodedOffset == other.decodedOffset )
                    && ( encodedSize == other.encodedSize )
                    && ( decodedSize == other.decodedSize )
-                   && ( window == other.window );
+                   && ( static_cast<bool>( window ) == static_cast<bool>( other.window ) )
+                   && ( !static_cast<bool>( window ) || !static_cast<bool>( other.window )
+                        || ( *window == *other.window ) );
         }
+
+    public:
+        size_t encodedOffset{ 0 };
+        size_t decodedOffset{ 0 };
+        size_t encodedSize{ 0 };
+        size_t decodedSize{ 0 };
+        SharedWindow window{};
+        std::vector<bool> usedWindowSymbols{};
     };
 
     class Statistics
@@ -154,11 +168,13 @@ public:
         encodedOffsetInBits( configuration.encodedOffsetInBits ),
         fileType( configuration.fileType ),
         splitChunkSize( configuration.splitChunkSize ),
+        windowSparsity( configuration.windowSparsity ),
         m_windowCompressionType( configuration.windowCompressionType )
     {
         setCRC32Enabled( configuration.crc32Enabled );
     }
 
+    ~ChunkData() = default;
     ChunkData() = default;
     ChunkData( ChunkData&& ) = default;
     ChunkData( const ChunkData& ) = delete;
@@ -172,7 +188,9 @@ public:
             return *m_windowCompressionType;
         }
         /* Only bother with overhead-introducing compression for large chunk compression ratios. */
-        return decodedSizeInBytes * 8 > 2 * encodedSizeInBits ? CompressionType::GZIP : CompressionType::NONE;
+        return windowSparsity || ( decodedSizeInBytes * 8 > 2 * encodedSizeInBits )
+               ? CompressionType::ZLIB
+               : CompressionType::NONE;
     }
 
     void
@@ -213,7 +231,8 @@ public:
     }
 
     void
-    applyWindow( WindowView const& window )
+    applyWindow( WindowView const&     window,
+                 CompressionType const windowCompressionType )
     {
         const auto markerCount = dataWithMarkersSize();
         const auto tApplyStart = now();
@@ -294,6 +313,31 @@ public:
 
             statistics.computeChecksumDuration += duration( tApplyEnd );
         }
+
+        /* Replace markers in and compress the resulting fully-resolved window provided by each subchunk,
+         * i.e., at the end of each subchunk. In benchmarks with random base64 data and ISA-L, this takes
+         * roughly 0.5 ms per 32 KiB window (0.048s for 97 compressed windows). */
+        const auto tWindowCompressionStart = now();
+        size_t decodedOffsetInBlock{ 0 };
+        for ( auto& subchunk : m_subchunks ) {
+            decodedOffsetInBlock += subchunk.decodedSize;
+            if ( subchunk.window ) {
+                continue;
+            }
+
+            auto subchunkWindow = getWindowAt( window, decodedOffsetInBlock );
+            /* Set unused symbols to 0 to increase compressibility. */
+            if ( subchunkWindow.size() == subchunk.usedWindowSymbols.size() ) {
+                for ( size_t i = 0; i < subchunkWindow.size(); ++i ) {
+                    if ( !subchunk.usedWindowSymbols[i] ) {
+                        subchunkWindow[i] = 0;
+                    }
+                }
+            }
+            subchunk.usedWindowSymbols = std::vector<bool>();  // Free memory!
+            subchunk.window = std::make_shared<Window>( std::move( subchunkWindow ), windowCompressionType );
+        }
+        statistics.compressWindowDuration += duration( tWindowCompressionStart );
     }
 
     [[nodiscard]] bool
@@ -307,6 +351,12 @@ public:
 
     void
     setEncodedOffset( size_t offset );
+
+    void
+    setSubchunks( std::vector<Subchunk>&& newSubchunks )
+    {
+        m_subchunks = std::move( newSubchunks );
+    }
 
     /**
      * @note Probably should not be called internally because it is allowed to be shadowed by a child class method.
@@ -340,13 +390,16 @@ public:
         encodedSizeInBits = newEncodedEndOffsetInBits - encodedOffsetInBits;
         decodedSizeInBytes = BaseType::size();
 
-        subchunks = split( splitChunkSize );
+        if ( m_subchunks.empty() ) {
+            m_subchunks = split( splitChunkSize );
+        }
     }
 
     /**
      * Appends a deflate block boundary.
+     * @return true if it was appended, false if the last boundary is identical to the given one.
      */
-    void
+    bool
     appendDeflateBlockBoundary( const size_t encodedOffset,
                                 const size_t decodedOffset )
     {
@@ -355,60 +408,22 @@ public:
              || ( blockBoundaries.back().decodedOffset != decodedOffset ) )
         {
             blockBoundaries.emplace_back( BlockBoundary{ encodedOffset, decodedOffset } );
+            return true;
         }
+        return false;
     }
 
     /**
      * Appends generic footer information at the given offset.
      */
     void
-    appendFooter( ChunkData::Footer&& footer )
+    appendFooter( const Footer& footer )
     {
-        footers.emplace_back( std::move( footer ) );
+        footers.emplace_back( footer );
 
         const auto wasEnabled = crc32s.back().enabled();
         crc32s.emplace_back();
         crc32s.back().setEnabled( wasEnabled );
-    }
-
-    /**
-     * Appends gzip footer information at the given offset.
-     */
-    void
-    appendFooter( const size_t encodedOffset,
-                  const size_t decodedOffset,
-                  gzip::Footer footer )
-    {
-        typename ChunkData::Footer footerResult;
-        footerResult.blockBoundary = { encodedOffset, decodedOffset };
-        footerResult.gzipFooter = footer;
-        appendFooter( std::move( footerResult ) );
-    }
-
-    /**
-     * Appends zlib footer information at the given offset.
-     */
-    void
-    appendFooter( const size_t encodedOffset,
-                  const size_t decodedOffset,
-                  zlib::Footer footer )
-    {
-        typename ChunkData::Footer footerResult;
-        footerResult.blockBoundary = { encodedOffset, decodedOffset };
-        footerResult.zlibFooter = footer;
-        appendFooter( std::move( footerResult ) );
-    }
-
-    /**
-     * Appends raw deflate stream footer meta information at the given offset.
-     */
-    void
-    appendFooter( const size_t encodedOffset,
-                  const size_t decodedOffset )
-    {
-        typename ChunkData::Footer footerResult;
-        footerResult.blockBoundary = { encodedOffset, decodedOffset };
-        appendFooter( std::move( footerResult ) );
     }
 
     void
@@ -422,12 +437,42 @@ public:
     [[nodiscard]] bool
     hasBeenPostProcessed() const
     {
-        return !subchunks.empty() && subchunks.front().window && !containsMarkers();
+        return !m_subchunks.empty() && m_subchunks.front().window && !containsMarkers();
+    }
+
+    [[nodiscard]] const std::vector<Subchunk>&
+    subchunks() const noexcept
+    {
+        return m_subchunks;
+    }
+
+    /**
+     * Chunks smaller than the returned value should not be created. In practice, this currently means that
+     * such small chunks are appended to the previous one. This means however that some chunks can grow
+     * larger than splitChunkSize.
+     */
+    [[nodiscard]] constexpr size_t
+    minimumSplitChunkSize() const
+    {
+        return splitChunkSize / 4U;
+    }
+
+    /**
+     * Implement a kind of virtual method by using a std::function member because making ChunkData polymorphic
+     * had catastrophic impact on the performance for unknown reason.
+     */
+    [[nodiscard]] deflate::DecodedVector
+    getWindowAt( WindowView const& previousWindow,
+                 size_t            skipBytes ) const
+    {
+        return m_getWindowAt
+                ? m_getWindowAt( *this, previousWindow, skipBytes )
+                : DecodedData::getWindowAt( previousWindow, skipBytes );
     }
 
 protected:
     [[nodiscard]] std::vector<Subchunk>
-    split( [[maybe_unused]] const size_t spacing ) const;
+    split( size_t spacing ) const;
 
 public:
     size_t encodedOffsetInBits{ std::numeric_limits<size_t>::max() };
@@ -456,18 +501,27 @@ public:
     std::vector<CRC32Calculator> crc32s{ std::vector<CRC32Calculator>( 1 ) };
 
     size_t splitChunkSize{ std::numeric_limits<size_t>::max() };
-    std::vector<Subchunk> subchunks;
 
     Statistics statistics{};
 
     bool stoppedPreemptively{ false };
+
+    bool windowSparsity{ true };
+
+protected:
+    /**
+     * Takes ChunkData& as first argumenst instead of capturing this in order to avoid having to implement
+     * custom move and copy constructors.
+     */
+    std::function<deflate::DecodedVector( const ChunkData&, WindowView const&, size_t )> m_getWindowAt;
+    std::vector<Subchunk> m_subchunks;
 
 private:
     std::optional<CompressionType> m_windowCompressionType;
 };
 
 
-std::ostream&
+inline std::ostream&
 operator<<( std::ostream&    out,
             const ChunkData& chunk )
 {
@@ -512,11 +566,12 @@ ChunkData::setEncodedOffset( size_t offset )
     encodedOffsetInBits = offset;
     maxEncodedOffsetInBits = offset;
 
-    if ( !subchunks.empty() ) {
-        const auto nextSubchunk = std::next( subchunks.begin() );
-        const auto nextOffset = nextSubchunk == subchunks.end() ? encodedEndOffsetInBits : nextSubchunk->encodedOffset;
-        subchunks.front().encodedOffset = offset;
-        subchunks.front().encodedSize = nextOffset - offset;
+    /* Adjust the encoded offset of the first subchunk because it may have been a range at the time of splitting. */
+    if ( !m_subchunks.empty() ) {
+        const auto nextSubchunk = std::next( m_subchunks.begin() );
+        const auto nextOffset = nextSubchunk == m_subchunks.end() ? encodedEndOffsetInBits : nextSubchunk->encodedOffset;
+        m_subchunks.front().encodedOffset = offset;
+        m_subchunks.front().encodedSize = nextOffset - offset;
     }
 }
 
@@ -540,6 +595,7 @@ ChunkData::split( [[maybe_unused]] const size_t spacing ) const
                                                           / static_cast<double>( spacing ) ) );
     Subchunk wholeChunkAsSubchunk;
     wholeChunkAsSubchunk.encodedOffset = encodedOffsetInBits;
+    wholeChunkAsSubchunk.decodedOffset = 0;
     wholeChunkAsSubchunk.encodedSize = encodedSizeInBits;
     wholeChunkAsSubchunk.decodedSize = decodedSizeInBytes;
     /* blockBoundaries does not contain the first block begin but all thereafter including the boundary after
@@ -558,7 +614,7 @@ ChunkData::split( [[maybe_unused]] const size_t spacing ) const
     BlockBoundary lastBoundary{ encodedOffsetInBits, 0 };
     /* The first and last boundaries are static, so we only need to find nBlocks - 1 further boundaries. */
     for ( size_t iSubchunk = 1; iSubchunk < nBlocks; ++iSubchunk ) {
-        const auto perfectDecompressedOffset = static_cast<size_t>( iSubchunk * perfectSpacing );
+        const auto perfectDecompressedOffset = static_cast<size_t>( static_cast<double>( iSubchunk ) * perfectSpacing );
 
         const auto isCloser =
             [perfectDecompressedOffset] ( const auto& b1, const auto& b2 )
@@ -587,6 +643,7 @@ ChunkData::split( [[maybe_unused]] const size_t spacing ) const
 
         Subchunk subchunk;
         subchunk.encodedOffset = lastBoundary.encodedOffset;
+        subchunk.decodedOffset = result.empty() ? 0 : result.back().decodedOffset + result.back().decodedSize;
         subchunk.encodedSize = closest->encodedOffset - lastBoundary.encodedOffset;
         subchunk.decodedSize = closest->decodedOffset - lastBoundary.decodedOffset;
         result.emplace_back( subchunk );
@@ -600,6 +657,7 @@ ChunkData::split( [[maybe_unused]] const size_t spacing ) const
         /* Create the last subchunk from lastBoundary and the chunk end. */
         Subchunk subchunk;
         subchunk.encodedOffset = lastBoundary.encodedOffset,
+        subchunk.decodedOffset = result.empty() ? 0 : result.back().decodedOffset + result.back().decodedSize;
         subchunk.encodedSize = encodedEndOffsetInBits - lastBoundary.encodedOffset,
         subchunk.decodedSize = decodedSizeInBytes - lastBoundary.decodedOffset,
         result.emplace_back( subchunk );
@@ -719,9 +777,25 @@ struct ChunkDataCounter final :
     explicit
     ChunkDataCounter( const Configuration& configuration ) :
         ChunkData( configuration )
-    {}
+    {
+        /**
+         * The internal index will only contain the offsets and empty windows.
+         * The index should not be exported when this is used.
+         * Return a dummy window so that decoding can be resumed after stopping.
+         */
+        m_getWindowAt = [] ( const ChunkData&, WindowView const&, size_t ) {
+            return deflate::DecodedVector( deflate::MAX_WINDOW_SIZE, 0 );
+        };
+    }
 
-    ChunkDataCounter() = default;
+    ChunkDataCounter()
+    {
+        m_getWindowAt = [] ( const ChunkData&, WindowView const&, size_t ) {
+            return deflate::DecodedVector( deflate::MAX_WINDOW_SIZE, 0 );
+        };
+    }
+
+    ~ChunkDataCounter() = default;
     ChunkDataCounter( ChunkDataCounter&& ) = default;
     ChunkDataCounter( const ChunkDataCounter& ) = delete;
     ChunkDataCounter& operator=( ChunkDataCounter&& ) = default;
@@ -747,19 +821,7 @@ struct ChunkDataCounter final :
         /* Do not overwrite decodedSizeInBytes like is done in the base class
          * because DecodedData::size() would return 0! Instead, it is updated inside append. */
 
-        subchunks = split( splitChunkSize );
-    }
-
-    /**
-     * The internal index will only contain the offsets and empty windows.
-     * The index should not be exported when this is used.
-     * Return a dummy window so that decoding can be resumed after stopping.
-     */
-    [[nodiscard]] deflate::DecodedVector
-    getWindowAt( WindowView const& /* previousWindow */,
-                 size_t            /* skipBytes */ ) const
-    {
-        return deflate::DecodedVector( deflate::MAX_WINDOW_SIZE, 0 );
+        m_subchunks = split( splitChunkSize );
     }
 
     /**

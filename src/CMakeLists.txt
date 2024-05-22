@@ -50,9 +50,8 @@ endif()
 
 #add_subdirectory(external/zlib)
 
-project(zlibstatic C)
-
 if(NOT USE_SYSTEM_ZLIB)
+    project(zlibstatic C)
     add_library(zlibstatic STATIC)
     set(ZLIB_HOME "${CMAKE_CURRENT_SOURCE_DIR}/external/zlib")
     target_include_directories(zlibstatic SYSTEM INTERFACE ${ZLIB_HOME})
@@ -83,6 +82,7 @@ endif()
 
 # ISA-l
 
+if(WITH_ISAL)
 project(isal_inflate
     LANGUAGES C CXX ASM_NASM
 )
@@ -163,9 +163,14 @@ add_library(isal_inflate STATIC
     #${ISAL_HOME}/crc/crc_base_aliases.c
 )
 set_target_properties(isal_inflate PROPERTIES LANGUAGE "C ASM_NASM")
+target_compile_options(isal_inflate PRIVATE
+    "$<$<OR:$<COMPILE_LANG_AND_ID:CXX,Clang>,$<COMPILE_LANG_AND_ID:C,Clang>>:-Wno-sign-compare;-Wno-unused-parameter;-Wno-shadow;-Wno-incompatible-pointer-types-discards-qualifiers;-Wno-implicit-fallthrough>"
+    "$<$<OR:$<COMPILE_LANG_AND_ID:CXX,GNU>,$<COMPILE_LANG_AND_ID:C,GNU>>:-Wno-sign-compare;-Wno-unused-parameter;-Wno-shadow;-Wno-incompatible-pointer-types-discards-qualifiers;-Wno-implicit-fallthrough>"
+)
 target_include_directories(isal_inflate
     PUBLIC
         ${ISAL_HOME}/include
     PRIVATE
         ${ISAL_HOME}/igzip
 )
+endif()

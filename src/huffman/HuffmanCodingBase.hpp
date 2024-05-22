@@ -143,7 +143,7 @@ protected:
         HuffmanCode minCode = 0;
         /* minCodeLength might be zero for empty deflate blocks as can happen when compressing an empty file! */
         for ( size_t bits = std::max<size_t>( 1U, m_minCodeLength ); bits <= m_maxCodeLength; ++bits ) {
-            minCode = ( minCode + bitLengthFrequencies[bits - 1U] ) << 1U;
+            minCode = static_cast<HuffmanCode>( HuffmanCode( minCode + bitLengthFrequencies[bits - 1U] ) << 1U );
             m_minimumCodeValuesPerLevel[bits - m_minCodeLength] = minCode;
         }
     }

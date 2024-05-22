@@ -148,7 +148,7 @@ private:
              && ( bitReader.tell() % CHAR_BIT == 0 ) ) {
             m_blockOffsets.push_back( bitReader.tell() / CHAR_BIT );
             /* Do not seek directly to one byte after the found offset in order to keep I/O aligned. */
-            m_fileReader->seek( 0 );
+            m_fileReader->seekTo( 0 );
             m_bufferSize = 0;
             foundFirstBlock = true;
             return;

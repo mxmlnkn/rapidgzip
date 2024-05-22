@@ -7,15 +7,14 @@
 #include <cstdint>
 #include <cstring>
 #include <ctime>
-#include <filesystem>
 #include <fstream>
+#include <functional>
 #include <future>
 #include <iomanip>
 #include <iostream>
 #include <memory>
 #include <numeric>
 #include <ostream>
-#include <random>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -194,13 +193,13 @@ endsWith( const S& fullString,
 }
 
 
-[[nodiscard]] std::vector<std::string_view>
+[[nodiscard]] inline std::vector<std::string_view>
 split( const std::string_view toSplit,
        const char             separator )
 {
     std::vector<std::string_view> result;
-    auto start = toSplit.begin();
-    for ( auto it = toSplit.begin(); it != toSplit.end(); ++it ) {
+    auto start = toSplit.begin();  // NOLINT(readability-qualified-auto)
+    for ( auto it = toSplit.begin(); it != toSplit.end(); ++it ) {  // NOLINT(readability-qualified-auto)
         if ( *it == separator ) {
             result.emplace_back( toSplit.data() + std::distance( toSplit.begin(), start ),
                                  std::distance( start, it ) );
@@ -278,10 +277,10 @@ duration( const T& t0,
 
 
 [[nodiscard]] inline uint64_t
-unixTime() noexcept
+unixTimeInNanoseconds() noexcept
 {
     const auto currentTime = std::chrono::system_clock::now().time_since_epoch();
-    return static_cast<uint64_t>( std::chrono::duration_cast<std::chrono::seconds>( currentTime ).count() );
+    return static_cast<uint64_t>( std::chrono::duration_cast<std::chrono::nanoseconds>( currentTime ).count() );
 }
 
 
@@ -373,6 +372,26 @@ public:
 
 private:
     std::condition_variable& m_toNotify;
+};
+
+
+class Finally
+{
+public:
+    explicit
+    Finally( std::function<void()> cleanup ) :
+        m_cleanup( std::move( cleanup ) )
+    {}
+
+    ~Finally()
+    {
+        if ( m_cleanup ) {
+            m_cleanup();
+        }
+    }
+
+private:
+    std::function<void()> m_cleanup;
 };
 
 
@@ -493,92 +512,7 @@ testFlags( const uint64_t value,
 }
 
 
-/* error: 'std::filesystem::path' is unavailable: introduced in macOS 10.15.
- * Fortunately, this is only needed for the tests, so the incomplete std::filesystem support
- * is not a problem for building the manylinux wheels on the pre 10.15 macOS kernel. */
-#ifndef __APPLE_CC__
-inline void
-createRandomTextFile( std::filesystem::path path,
-                      uint64_t              size )
-{
-    std::ofstream textFile( path );
-    for ( uint64_t i = 0; i < size; ++i ) {
-        const auto c = i % 80 == 0 ? '\n' : 'A' + ( rand() % ( 'Z' - 'A' ) );
-        textFile << static_cast<char>( c );
-    }
-}
-
-
-inline void
-createRandomFile( std::filesystem::path path,
-                  uint64_t              size )
-{
-    std::ofstream textFile( path );
-
-    std::mt19937_64 randomEngine;
-    std::array<uint64_t, 4 * 1024> buffer;  // 32 KiB of buffer
-    for ( size_t nBytesWritten = 0; nBytesWritten < size; ) {
-        for ( auto& x : buffer ) {
-            x = randomEngine();
-        }
-        const auto nBytesToWrite = std::min<uint64_t>( buffer.size() * sizeof( buffer[0] ), size - nBytesWritten );
-        textFile.write( reinterpret_cast<const char*>( buffer.data() ), nBytesToWrite );
-        nBytesWritten += nBytesToWrite;
-    }
-}
-
-
-class TemporaryDirectory
-{
-public:
-    explicit
-    TemporaryDirectory( std::filesystem::path path ) :
-        m_path( std::move( path ) )
-    {}
-
-    TemporaryDirectory( TemporaryDirectory&& ) = default;
-
-    TemporaryDirectory( const TemporaryDirectory& ) = delete;
-
-    TemporaryDirectory&
-    operator=( TemporaryDirectory&& ) = default;
-
-    TemporaryDirectory&
-    operator=( const TemporaryDirectory& ) = delete;
-
-    ~TemporaryDirectory()
-    {
-        if ( !m_path.empty() ) {
-            std::filesystem::remove_all( m_path );
-        }
-    }
-
-    operator std::filesystem::path() const
-    {
-        return m_path;
-    }
-
-    const std::filesystem::path&
-    path() const
-    {
-        return m_path;
-    }
-
-private:
-    std::filesystem::path m_path;
-};
-
-
-[[nodiscard]] inline TemporaryDirectory
-createTemporaryDirectory( const std::string& title = "tmpTest" )
-{
-    const std::filesystem::path tmpFolderName = title + "." + std::to_string( unixTime() );
-    std::filesystem::create_directory( tmpFolderName );
-    return TemporaryDirectory( tmpFolderName );
-}
-#endif
-
-
+// NOLINTBEGIN(cppcoreguidelines-macro-usage)
 #if defined( __GNUC__ )
     #define LIKELY( x ) ( __builtin_expect( static_cast<bool>( x ), 1 ))
     #define UNLIKELY( x ) ( __builtin_expect( static_cast<bool>( x ), 0 ))
@@ -586,6 +520,7 @@ createTemporaryDirectory( const std::string& title = "tmpTest" )
     #define LIKELY( x ) ( x )
     #define UNLIKELY( x ) ( x )
 #endif
+// NOLINTEND(cppcoreguidelines-macro-usage)
 
 
 enum class Endian
@@ -641,6 +576,59 @@ countNewlines( const std::string_view& view )
     }
 
     return matches;
+}
+
+
+struct FindNthNewlineResult
+{
+    std::size_t position{ std::string_view::npos };
+    uint64_t remainingLineCount{ 0 };
+
+    [[nodiscard]] bool
+    operator==( const FindNthNewlineResult& other ) const noexcept
+    {
+        return ( position == other.position ) && ( remainingLineCount == other.remainingLineCount );
+    }
+
+    [[nodiscard]] bool
+    operator!=( const FindNthNewlineResult& other ) const noexcept
+    {
+        return !( *this == other );
+    }
+};
+
+
+inline std::ostream&
+operator<<( std::ostream&               out,
+            const FindNthNewlineResult& result )
+{
+    out << "( position: " << result.position << ", remaining line count: " << result.remainingLineCount << ")";
+    return out;
+}
+
+
+/**
+ * @return Position of the nth newline character or std::string_view::npos and the remaining line count.
+ *         If @p lineCount is 0, always returns 0 by definition.
+ */
+[[nodiscard]] constexpr FindNthNewlineResult
+findNthNewline( const std::string_view& view,
+                const uint64_t          lineCount,
+                const char              newlineCharacter = '\n' )
+{
+    const std::string_view toFind( std::addressof( newlineCharacter ), 1 );
+
+    FindNthNewlineResult result;
+    result.remainingLineCount = lineCount;
+    while ( result.remainingLineCount > 0 ) {
+        result.position = view.find( toFind, result.position == std::string_view::npos ? 0 : result.position + 1 );
+        if ( result.position == std::string_view::npos ) {
+            return result;
+        }
+        --result.remainingLineCount;
+    }
+
+    return result;
 }
 
 
@@ -708,7 +696,7 @@ rangesIntersect( const PairA& rangeA,
 }
 
 
-constexpr std::string_view BASE64_SYMBOLS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+/\n";
+constexpr std::string_view BASE64_SYMBOLS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+/";
 
 
 template<typename CharT>
@@ -722,6 +710,7 @@ isBase64( std::basic_string_view<CharT> data )
             result.resize( BASE64_SYMBOLS.size() );
             std::transform( BASE64_SYMBOLS.begin(), BASE64_SYMBOLS.end(), result.begin(),
                             [] ( const auto x ) { return static_cast<CharT>( x ); } );
+            result.push_back( static_cast<CharT>( '\n' ) );
             return result;
         }();
 

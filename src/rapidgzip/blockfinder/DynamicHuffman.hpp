@@ -95,7 +95,7 @@ nextDeflateCandidate( uint32_t bits )
 template<uint8_t CACHED_BIT_COUNT,
          uint8_t MAX_CACHED_BIT_COUNT = CACHED_BIT_COUNT>
 constexpr void
-initializeMergedNextDeflateLUTs( std::array<uint8_t, ( 1U << MAX_CACHED_BIT_COUNT ) * 2U>& lut )
+initializeMergedNextDeflateLUTs( std::array<uint8_t, ( 1ULL << MAX_CACHED_BIT_COUNT ) * 2ULL>& lut )
 {
     constexpr auto size = 1U << CACHED_BIT_COUNT;
     constexpr auto offset = size;
@@ -121,7 +121,7 @@ initializeMergedNextDeflateLUTs( std::array<uint8_t, ( 1U << MAX_CACHED_BIT_COUN
 static constexpr auto NEXT_DEFLATE_CANDIDATE_LUTS_UP_TO_13_BITS =
     [] ()
     {
-        std::array<uint8_t, ( 1U << MAX_EVALUATED_BITS ) * 2U> result{};
+        std::array<uint8_t, ( 1ULL << MAX_EVALUATED_BITS ) * 2ULL> result{};
         initializeMergedNextDeflateLUTs<MAX_EVALUATED_BITS>( result );
         return result;
     }();
@@ -226,7 +226,7 @@ seekToNonFinalDynamicDeflateBlock( BitReader&   bitReader,
          * instructions but might not be worth it.
          */
         auto bitBufferForLUT = bitReader.peek<CACHED_BIT_COUNT>();
-        bitReader.seek( static_cast<long long int>( oldOffset ) + 13 );
+        bitReader.seekTo( oldOffset + 13 );
         constexpr auto ALL_PRECODE_BITS = PRECODE_COUNT_BITS + MAX_PRECODE_COUNT * PRECODE_BITS;
         static_assert( ( ALL_PRECODE_BITS == 61 ) && ( ALL_PRECODE_BITS >= CACHED_BIT_COUNT )
                        && ( ALL_PRECODE_BITS <= std::numeric_limits<uint64_t>::digits )
@@ -276,13 +276,12 @@ seekToNonFinalDynamicDeflateBlock( BitReader&   bitReader,
                      * already returned successful! */
                     LiteralAndDistanceCLBuffer literalCL{};
                     if ( LIKELY( error == Error::NONE ) ) [[likely]] {
-                        bitReader.seek( static_cast<long long int>( offset )
-                                        + 13 + 4 + ( codeLengthCount * PRECODE_BITS ) );
+                        bitReader.seekTo( offset + 13 + 4 + codeLengthCount * PRECODE_BITS );
                         error = readDistanceAndLiteralCodeLengths(
                             literalCL, bitReader, precodeHC, literalCodeCount + distanceCodeCount );
                         /* Using this theoretically derivable position avoids a possibly costly call to tell()
                          * to save the old offset. */
-                        bitReader.seek( static_cast<long long int>( offset ) + 13 + ALL_PRECODE_BITS );
+                        bitReader.seekTo( offset + 13 + ALL_PRECODE_BITS );
                     }
 
                     if ( UNLIKELY( literalCL[deflate::END_OF_BLOCK_SYMBOL] == 0 ) ) [[unlikely]] {

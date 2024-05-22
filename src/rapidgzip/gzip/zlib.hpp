@@ -45,11 +45,20 @@ toString( const CompressionStrategy compressionStrategy )
 }
 
 
+enum class ContainerFormat : int
+{
+    DEFLATE,
+    ZLIB,
+    GZIP,
+};
+
+
 template<typename ResultContainer = std::vector<uint8_t> >
 [[nodiscard]] ResultContainer
 compressWithZlib( const VectorView<uint8_t> toCompress,
                   const CompressionStrategy compressionStrategy = CompressionStrategy::DEFAULT,
-                  const VectorView<uint8_t> dictionary = {} )
+                  const VectorView<uint8_t> dictionary = {},
+                  const ContainerFormat     containerFormat = ContainerFormat::GZIP )
 {
     ResultContainer output;
     output.reserve( toCompress.size() );
@@ -64,9 +73,23 @@ compressWithZlib( const VectorView<uint8_t> toCompress,
     stream.next_out = nullptr;
 
     /* > Add 16 to windowBits to write a simple gzip header and trailer around the
-     * > compressed data instead of a zlib wrapper. */
+     * > compressed data instead of a zlib wrapper.
+     * > windowBits can also be -8..-15 for raw deflate. In this case, -windowBits determines the window size. */
+    auto windowBits = MAX_WBITS;
+    switch ( containerFormat )
+    {
+    case ContainerFormat::DEFLATE:
+        windowBits = -windowBits;
+        break;
+    case ContainerFormat::ZLIB:
+        break;
+    case ContainerFormat::GZIP:
+        windowBits += 16;
+        break;
+    }
+
     deflateInit2( &stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED,
-                  MAX_WBITS | /* gzip output */ 16, /* memLevel */ 8, static_cast<int>( compressionStrategy ) );
+                  windowBits, /* memLevel */ 8, static_cast<int>( compressionStrategy ) );
 
     if ( !dictionary.empty() ) {
         deflateSetDictionary( &stream, const_cast<Bytef*>( reinterpret_cast<const Bytef*>( dictionary.data() ) ),
@@ -99,18 +122,10 @@ compressWithZlib( const VectorView<uint8_t> toCompress,
 class ZlibInflateWrapper
 {
 public:
-    struct Footer
-    {
-        gzip::Footer gzipFooter;
-        zlib::Footer zlibFooter;
-        size_t footerEndEncodedOffset{ 0 };
-    };
-
-public:
     explicit
-    ZlibInflateWrapper( BitReader    bitReader,
+    ZlibInflateWrapper( BitReader    bitReader,  // NOLINT(performance-unnecessary-value-param)
                         const size_t untilOffset = std::numeric_limits<size_t>::max() ) :
-        m_bitReader( std::move( bitReader ) ),
+        m_bitReader( std::move( bitReader ) ),  // NOLINT(performance-move-const-arg)
         m_encodedStartOffset( m_bitReader.tell() ),
         m_encodedUntilOffset(
             [untilOffset] ( const auto& size ) {
@@ -149,8 +164,8 @@ public:
      * the gzip footer appearing after each deflate stream.
      */
     [[nodiscard]] std::pair<size_t, std::optional<Footer> >
-    readStream( uint8_t* const output,
-                size_t   const outputSize );
+    readStream( uint8_t* output,
+                size_t   outputSize );
 
     [[nodiscard]] size_t
     tellCompressed() const
@@ -164,6 +179,17 @@ public:
         m_fileType = fileType;
     }
 
+    /**
+     * For legacy reasons, this class is always intended to start decompression at deflate boundaries.
+     * The file type will only be used when the end of the deflate stream is reached and there is still data
+     * to decode. If there is a header at the beginning, you can call this method with argument "true".
+     */
+    void
+    setStartWithHeader( bool enable )
+    {
+        m_needToReadHeader = enable;
+    }
+
 private:
     [[nodiscard]] size_t
     getUnusedBits() const
@@ -174,7 +200,7 @@ private:
          * > The number of unused bits may in general be greater than seven, except when bit 7 of
          * > data_type is set, in which case the number of unused bits will be less than eight.
          * @see https://github.com/madler/zlib/blob/09155eaa2f9270dc4ed1fa13e2b4b2613e6e4851/zlib.h#L443C22-L444C66 */
-        return m_stream.avail_in * BYTE_SIZE + ( m_stream.data_type & 0b11'1111U );
+        return m_stream.avail_in * BYTE_SIZE + ( static_cast<uint32_t>( m_stream.data_type ) & 0b11'1111U );
     }
 
     template<size_t SIZE>
@@ -222,6 +248,7 @@ private:
     const size_t m_encodedStartOffset;
     const size_t m_encodedUntilOffset;
     std::optional<size_t> m_setWindowSize;
+    bool m_needToReadHeader{ false };
 
     /* 2^15 = 32 KiB window buffer and minus signaling raw deflate stream to decode.
      * n in [8,15]
@@ -234,7 +261,7 @@ private:
     z_stream m_stream{};
     /* Loading the whole encoded data (multiple MiB) into memory first and then
      * decoding it in one go is 4x slower than processing it in chunks of 128 KiB! */
-    std::array<char, 128_Ki> m_buffer;
+    std::array<char, 128_Ki> m_buffer{};
 
     FileType m_fileType{ FileType::GZIP };
 };
@@ -270,13 +297,13 @@ ZlibInflateWrapper::refillBuffer()
     if ( m_bitReader.tell() % BYTE_SIZE != 0 ) {
         /* This might be called at the very first refillBuffer call when it does not start on a byte-boundary. */
         const auto nBitsToPrime = BYTE_SIZE - ( m_bitReader.tell() % BYTE_SIZE );
-        if ( inflatePrime( &m_stream, nBitsToPrime, m_bitReader.read( nBitsToPrime ) ) != Z_OK ) {
+        if ( inflatePrime( &m_stream, int( nBitsToPrime ), int( m_bitReader.read( nBitsToPrime ) ) ) != Z_OK ) {
             throw std::runtime_error( "InflatePrime failed!" );
         }
         assert( m_bitReader.tell() % BYTE_SIZE == 0 );
     } else if ( const auto remainingBits = m_encodedUntilOffset - m_bitReader.tell(); remainingBits < BYTE_SIZE ) {
         /* This might be called at the very last refillBuffer call, when it does not end on a byte-boundary. */
-        if ( inflatePrime( &m_stream, remainingBits, m_bitReader.read( remainingBits ) ) != Z_OK ) {
+        if ( inflatePrime( &m_stream, int( remainingBits ), int( m_bitReader.read( remainingBits ) ) ) != Z_OK ) {
             throw std::runtime_error( "InflatePrime failed!" );
         }
         return;
@@ -289,13 +316,18 @@ ZlibInflateWrapper::refillBuffer()
 }
 
 
-[[nodiscard]] inline std::pair<size_t, std::optional<ZlibInflateWrapper::Footer> >
+[[nodiscard]] inline std::pair<size_t, std::optional<Footer> >
 ZlibInflateWrapper::readStream( uint8_t* const output,
                                 size_t   const outputSize )
 {
     m_stream.next_out = output;
     m_stream.avail_out = outputSize;
     m_stream.total_out = 0;
+
+    if ( m_needToReadHeader ) {
+        readHeader();
+        m_needToReadHeader = false;
+    }
 
     size_t decodedSize{ 0 };
     /* Do not check for avail_out == 0 here so that progress can still be made on empty blocks as might
@@ -399,7 +431,7 @@ template<size_t SIZE>
 std::array<std::byte, SIZE>
 ZlibInflateWrapper::readBytes()
 {
-    std::array<std::byte, SIZE> buffer;
+    std::array<std::byte, SIZE> buffer{};
     size_t footerSize{ 0 };
     for ( auto stillToRemove = buffer.size(); stillToRemove > 0; ) {
         if ( m_stream.avail_in >= stillToRemove ) {
@@ -426,7 +458,7 @@ ZlibInflateWrapper::readBytes()
 }
 
 
-inline ZlibInflateWrapper::Footer
+inline Footer
 ZlibInflateWrapper::readGzipFooter()
 {
     const auto footerBuffer = readBytes<8U>();
@@ -444,12 +476,13 @@ ZlibInflateWrapper::readGzipFooter()
 
     Footer result;
     result.gzipFooter = footer;
-    result.footerEndEncodedOffset = tellCompressed();
+    result.blockBoundary.encodedOffset = tellCompressed();
+    result.blockBoundary.decodedOffset = 0;  // Should not be used by the caller.
     return result;
 }
 
 
-inline ZlibInflateWrapper::Footer
+inline Footer
 ZlibInflateWrapper::readZlibFooter()
 {
     const auto footerBuffer = readBytes<4U>();
@@ -463,7 +496,8 @@ ZlibInflateWrapper::readZlibFooter()
 
     Footer result;
     result.zlibFooter = footer;
-    result.footerEndEncodedOffset = tellCompressed();
+    result.blockBoundary.encodedOffset = tellCompressed();
+    result.blockBoundary.decodedOffset = 0;  // Should not be used by the caller.
     return result;
 }
 
@@ -498,7 +532,7 @@ getZlibWindowBits( FileType fileType,
 inline void
 ZlibInflateWrapper::readHeader()
 {
-    const auto oldNextOut = m_stream.next_out;
+    auto* const oldNextOut = m_stream.next_out;
 
     switch ( m_fileType )
     {
@@ -557,7 +591,7 @@ ZlibInflateWrapper::readHeader()
         }
         if ( error != Error::NONE ) {
             std::stringstream message;
-            message << "Error reading zlib header: " << toString( error ) << "!";
+            message << "Error reading zlib header: " << toString( error );
             throw std::logic_error( std::move( message ).str() );
         }
         break;

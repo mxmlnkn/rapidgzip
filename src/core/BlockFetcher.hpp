@@ -544,7 +544,7 @@ private:
                 }, /* priority */ 0 );
             const auto [_, wasInserted] = m_prefetching.emplace( *prefetchBlockOffset, std::move( prefetchedFuture ) );
             if ( !wasInserted ) {
-                std::logic_error( "Submitted future could not be inserted to prefetch queue!" );
+                throw std::logic_error( "Submitted future could not be inserted to prefetch queue!" );
             }
         }
 
@@ -590,7 +590,7 @@ protected:
         m_threadPool.stop();
     }
 
-    template<class T_Functor>
+    template<class T_Functor, std::enable_if_t<std::is_invocable_v<T_Functor>, void>* = nullptr>
     std::future<decltype( std::declval<T_Functor>()() )>
     submitTaskWithHighPriority( T_Functor task )
     {
@@ -642,7 +642,7 @@ private:
 
 private:
     mutable Statistics m_statistics;
-    std::atomic<bool> m_statisticsEnabled;
+    std::atomic<bool> m_statisticsEnabled{ false };
     mutable std::mutex m_analyticsMutex;
 
 protected:

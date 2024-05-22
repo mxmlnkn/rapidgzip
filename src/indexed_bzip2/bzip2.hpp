@@ -65,9 +65,9 @@ createCRC32LookupTable() noexcept
         uint32_t c = littleEndian ? i : i << 24U;
         for ( int j = 0; j < 8; ++j ) {
             if ( littleEndian ) {
-                c = ( c & 1 ) ? ( c >> 1U ) ^ 0xEDB88320 : c >> 1U;
+                c = ( ( c & 1U ) != 0U ) ? ( c >> 1U ) ^ 0xEDB8'8320U : c >> 1U;
             } else {
-                c = ( c & 0x80000000 ) ? ( c << 1U ) ^ 0x04c11db7 : ( c << 1U );
+                c = ( ( ( c & 0x8000'0000U ) != 0U ) ) ? ( c << 1U ) ^ 0x04C1'1DB7U : ( c << 1U );
             }
         }
         table[i] = c;
@@ -92,12 +92,12 @@ updateCRC32( uint32_t crc,
 
 
 /* Constants for huffman coding */
-static constexpr int MAX_GROUPS = 6;
+static constexpr uint32_t MAX_GROUPS = 6;
 static constexpr int GROUP_SIZE = 50;       /* 64 would have been more efficient */
 static constexpr int MAX_HUFCODE_BITS = 20; /* Longest huffman code allowed */
-static constexpr int MAX_SYMBOLS = 258;     /* 256 literals + RUNA + RUNB */
-static constexpr int SYMBOL_RUNA = 0;
-static constexpr int SYMBOL_RUNB = 1;
+static constexpr size_t MAX_SYMBOLS = 258;  /* 256 literals + RUNA + RUNB */
+static constexpr uint16_t SYMBOL_RUNA = 0;
+static constexpr uint16_t SYMBOL_RUNB = 1;
 
 
 constexpr auto MAGIC_BITS_BLOCK = 0x314159265359ULL;  /* bcd(pi) */
@@ -142,7 +142,7 @@ readBzip2Header( BitReader& bitReader )
 }
 
 
-struct Block
+struct Block  // NOLINT(clang-analyzer-optin.performance.Padding)
 {
 public:
     /**
@@ -227,6 +227,8 @@ public:
 
 public:
     Block() = default;
+
+    ~Block() = default;
 
     /** Better don't allow copies because the bitreader would be shared, which might be problematic */
     Block( const Block& ) = delete;
@@ -350,17 +352,17 @@ public:
          * to the output buffer! Currently, the caller has to ensure that the output buffer is large enough.
          */
         [[nodiscard]] size_t
-        decodeBlock( const size_t nMaxBytesToDecode,
-                     char*        outputBuffer );
+        decodeBlock( size_t nMaxBytesToDecode,
+                     char*  outputBuffer );
 
     public:
         uint32_t origPtr = 0;
-        std::array<int, 256> byteCount;
+        std::array<uint32_t, 256> byteCount{};
 
         /* These variables are saved when interrupting decode and are required for resuming */
-        int writePos = 0;
+        uint32_t writePos = 0;
         int writeRun = 0;
-        int writeCount = 0;
+        uint32_t writeCount = 0;
         int writeCurrent = 0;
 
         uint32_t dataCRC = 0xFFFFFFFFL;  /* CRC of block as calculated by us */
@@ -372,8 +374,8 @@ public:
     };
 
 public:
-    uint64_t magicBytes;
-    bool isRandomized = false;
+    uint64_t magicBytes{ 0 };
+    bool isRandomized{ false };
 
     /* First pass decompression data (Huffman and MTF decoding) */
 
@@ -384,8 +386,8 @@ public:
      * values were present.  We make a translation table to convert the symbols
      * back to the corresponding bytes.
      */
-    std::array<uint8_t, 256> symbolToByte;
-    std::array<uint8_t, 256> mtfSymbol;
+    std::array<uint8_t, 256> symbolToByte{};
+    std::array<uint8_t, 256> mtfSymbol{};
     unsigned int symbolCount{ 0 };
     /**
      * Every GROUP_SIZE many symbols we switch huffman coding tables.
@@ -397,9 +399,9 @@ public:
      */
     uint16_t selectorsCount{ 0 };
 
-    std::array<char, 32768> selectors;        // nSelectors=15 bits
-    std::array<HuffmanCoding, MAX_GROUPS> huffmanCodings;
-    int groupCount = 0;
+    std::array<char, 32768> selectors{};  // nSelectors=15 bits
+    std::array<HuffmanCoding, MAX_GROUPS> huffmanCodings{};
+    uint32_t groupCount = 0;
 
     /* Second pass decompression data (burrows-wheeler transform) */
     BurrowsWheelerTransformData bwdata;
@@ -461,7 +463,7 @@ Block::readBlockHeader()
         throw std::domain_error( std::move( msg ).str() );
     }
 
-    isRandomized = getBits<1>();
+    isRandomized = getBits<1>() != 0;
     if ( isRandomized ) {
         throw std::domain_error( "[BZip2 block header] deprecated isRandomized bit is not supported" );
     }
@@ -514,10 +516,10 @@ Block::readSymbolMaps()
     /* Can at most grow up to 256 symbols, i.e., MAX_SYMBOLS - 2 (RUNA, RUNB). */
     symbolCount = 0;
     for ( int i = 0; i < 16; i++ ) {
-        if ( huffmanUsedMap & ( 1 << ( 15 - i ) ) ) {
+        if ( ( huffmanUsedMap & ( 1U << ( 15U - i ) ) ) != 0 ) {
             const auto bitmap = getBits<16>();
             for ( int j = 0; j < 16; j++ ) {
-                if ( bitmap & ( 1 << ( 15 - j ) ) ) {
+                if ( ( bitmap & ( 1U << ( 15U - j ) ) ) != 0 ) {
                     symbolToByte[symbolCount++] = ( 16 * i ) + j;
                 }
             }
@@ -586,7 +588,8 @@ Block::readSelectors()
         // Decode MTF to get the next selector, and move it to the front.
         const auto uc = mtfSymbol[j];
         memmove( mtfSymbol.data() + 1, mtfSymbol.data(), j );
-        mtfSymbol[0] = selectors[i] = uc;
+        mtfSymbol[0] = uc;
+        selectors[i] = static_cast<char>( uc );
     }
 }
 
@@ -601,9 +604,9 @@ Block::readTrees()
     // Read the huffman coding tables for each group, which code for symTotal
     // literal symbols, plus two run symbols (RUNA, RUNB)
     const auto symCount = symbolCount + 2;
-    for ( int j = 0; j < groupCount; j++ ) {
+    for ( size_t j = 0; j < groupCount; j++ ) {
         // Read lengths
-        std::array<uint8_t, MAX_SYMBOLS> lengths;
+        std::array<uint8_t, MAX_SYMBOLS> lengths{};
         unsigned int hh = getBits<5>();
         for ( unsigned int symbol = 0; symbol < symCount; symbol++ ) {
             while ( true ) {
@@ -660,9 +663,9 @@ Block::readBlockData()
     // linearly, staying in cache more, so isn't as limited by DRAM access.)
     uint32_t dbufCount = 0;
     const auto* huffmanCoding = &huffmanCodings.front();
-    for ( int hh = 0, runPos = 0, symCount = 0, selector = 0; ; ) {
+    for ( uint32_t hh = 0, runPos = 0, symCount = 0, selector = 0; ; ) {
         // Have we reached the end of this huffman group?
-        if ( !( symCount-- ) ) {
+        if ( symCount-- == 0 ) {
             // Determine which huffman coding group to use.
             symCount = GROUP_SIZE - 1;
             if ( selector >= selectorsCount ) {
@@ -677,9 +680,9 @@ Block::readBlockData()
         const auto nextSym = huffmanCoding->decode( *m_bitReader ).value();
 
         // If this is a repeated run, loop collecting data
-        if ( (unsigned int)nextSym <= SYMBOL_RUNB ) {
+        if ( nextSym <= SYMBOL_RUNB ) {
             // If this is the start of a new run, zero out counter
-            if ( !runPos ) {
+            if ( runPos == 0 ) {
                 runPos = 1;
                 hh = 0;
             }
@@ -692,7 +695,7 @@ Block::readBlockData()
              * symbols, but a run of length 0 doesn't mean anything in this
              * context). Thus space is saved. */
             hh += runPos << nextSym;  // +runPos if RUNA; +2*runPos if RUNB
-            runPos <<= 1;
+            runPos <<= 1U;
             continue;
         }
 
@@ -700,7 +703,7 @@ Block::readBlockData()
          * how many times to repeat the last literal, so append that many
          * copies to our buffer of decoded symbols (dbuf) now. (The last
          * literal used is the one at the head of the mtfSymbol array.) */
-        if ( runPos ) {
+        if ( runPos != 0 ) {
             runPos = 0;
             if ( dbufCount + hh > bwdata.dbuf.size() ) {
                 std::stringstream msg;
@@ -711,7 +714,7 @@ Block::readBlockData()
 
             const auto uc = symbolToByte[mtfSymbol[0]];
             bwdata.byteCount[uc] += hh;
-            while ( hh-- ) {
+            while ( hh-- != 0 ) {
                 bwdata.dbuf[dbufCount++] = uc;
             }
         }
@@ -770,7 +773,7 @@ Block::BurrowsWheelerTransformData::prepare()
      */
     for ( size_t i = 0, cumulativeCount = 0; i < byteCount.size(); ++i ) {
         const auto newCumulativeCount = cumulativeCount + byteCount[i];
-        byteCount[i] = cumulativeCount;
+        byteCount[i] = static_cast<uint32_t>( cumulativeCount );
         cumulativeCount = newCumulativeCount;
     }
 
@@ -778,9 +781,9 @@ Block::BurrowsWheelerTransformData::prepare()
     // if we sorted it.
     // Using i as position, j as previous character, hh as current character,
     // and uc as run count.
-    for ( int i = 0; i < writeCount; i++ ) {
+    for ( uint32_t i = 0; i < writeCount; i++ ) {
         const auto uc = static_cast<uint8_t>( dbuf[i] );
-        dbuf[byteCount[uc]] |= ( i << 8U );
+        dbuf[byteCount[uc]] |= i << 8U;
         byteCount[uc]++;
     }
 
@@ -792,8 +795,8 @@ Block::BurrowsWheelerTransformData::prepare()
      * to 1 or get reset). */
     if ( writeCount > 0 ) {
         writePos = dbuf[origPtr];
-        writeCurrent = (unsigned char)writePos;
-        writePos >>= 8;
+        writeCurrent = static_cast<uint8_t>( writePos & 0xFFU );
+        writePos >>= 8U;
         writeRun = -1;
     }
 }
@@ -815,12 +818,12 @@ Block::BurrowsWheelerTransformData::decodeBlock( const size_t nMaxBytesToDecode,
         // Follow sequence vector to undo Burrows-Wheeler transform.
         const auto previous = writeCurrent;
         writePos = dbuf[writePos];
-        writeCurrent = writePos & 0xff;
-        writePos >>= 8;
+        writeCurrent = static_cast<uint8_t>( writePos & 0xFFU );
+        writePos >>= 8U;
 
         /* Whenever we see 3 consecutive copies of the same byte, the 4th is a repeat count */
         if ( writeRun < 3 ) {
-            outputBuffer[nBytesDecoded++] = writeCurrent;
+            outputBuffer[nBytesDecoded++] = static_cast<char>( writeCurrent );
             dataCRC = updateCRC32( dataCRC, writeCurrent );
             if ( writeCurrent != previous ) {
                 writeRun = 0;
@@ -829,8 +832,8 @@ Block::BurrowsWheelerTransformData::decodeBlock( const size_t nMaxBytesToDecode,
             }
         } else {
             int copies = writeCurrent;
-            while ( copies-- ) {
-                outputBuffer[nBytesDecoded++] = previous;
+            while ( copies-- != 0 ) {
+                outputBuffer[nBytesDecoded++] = static_cast<char>( previous );
                 dataCRC = updateCRC32( dataCRC, previous );
             }
             writeCurrent = -1;

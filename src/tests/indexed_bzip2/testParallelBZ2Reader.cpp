@@ -14,6 +14,7 @@
 
 #include <BitStringFinder.hpp>
 #include <common.hpp>
+#include <DataGenerators.hpp>
 #include <filereader/Standard.hpp>
 #include <FileUtils.hpp>
 #include <ParallelBZ2Reader.hpp>
@@ -263,9 +264,9 @@ main()
     const auto tmpFolder = createTemporaryDirectory( "indexed_bzip2.testParallelBZ2Reader" );
 
     const auto decodedTestFilePath = tmpFolder.path() / "decoded";
-    createRandomTextFile( decodedTestFilePath, 2_Mi );
+    createRandomTextFile( decodedTestFilePath.string(), 2_Mi );
 
-    const auto command = "bzip2 -k -- '" + std::string( decodedTestFilePath ) + "'";
+    const auto command = "bzip2 -k -- '" + decodedTestFilePath.string() + "'";
     const auto returnCode = std::system( command.c_str() );
     if ( returnCode != 0 ) {
         std::cerr << "Failed to compress sample file\n";
@@ -276,8 +277,8 @@ main()
 
     try
     {
-        testSimpleOpenAndClose( encodedTestFilePath );
-        testDecodingBz2ForFirstTime( decodedTestFilePath, encodedTestFilePath );
+        testSimpleOpenAndClose( encodedTestFilePath.string() );
+        testDecodingBz2ForFirstTime( decodedTestFilePath.string(), encodedTestFilePath.string() );
     } catch ( const std::exception& exception ) {
         /* Note that the destructor for TemporaryDirectory might not be called for uncaught exceptions!
          * @see https://stackoverflow.com/questions/222175/why-destructor-is-not-called-on-exception */
@@ -287,5 +288,5 @@ main()
 
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
 
-    return gnTestErrors;
+    return gnTestErrors == 0 ? 0 : 1;
 }

@@ -74,7 +74,7 @@ private:
                     if ( ( p != nullptr ) && !p->closed() ) {
                         p->close();
                     }
-                    delete p;
+                    delete p;  // NOLINT(cppcoreguidelines-owning-memory)
                 }
             );
     }
@@ -85,7 +85,7 @@ public:
         SharedFileReader( file.release() )
     {}
 
-    ~SharedFileReader()
+    ~SharedFileReader() override
     {
         if ( m_statistics && m_statistics->showProfileOnDestruction && ( m_statistics.use_count() == 1 ) ) {
             const auto nTimesRead = m_fileSizeBytes
@@ -221,11 +221,9 @@ public:
     {
         if ( ( origin == SEEK_END ) && !size().has_value() ) {
             const auto fileLock = getLock();
-            offset = m_sharedFile->seek( offset, origin );
+            m_currentPosition = m_sharedFile->seek( offset, origin );
             /* File size must have become available when seeking relative to end. */
             m_fileSizeBytes = m_sharedFile->size();
-
-            m_currentPosition = static_cast<size_t>( std::max( 0LL, offset ) );
             if ( const auto fileSize = size(); fileSize ) {
                 m_currentPosition = std::min( m_currentPosition, *fileSize );
             }
@@ -261,11 +259,10 @@ public:
             throw std::invalid_argument( "Invalid SharedFileReader cannot be read from!" );
         }
 
-        const auto fileSize = size();
-
         const auto t0 = now();
         size_t nBytesRead{ 0 };
-    #ifndef _MSC_VER
+    #if defined(__linux__) || defined(__APPLE__)
+        const auto fileSize = size();
         if ( m_usePread && ( m_fileDescriptor >= 0 ) && fileSize.has_value() && sharedFile->seekable() ) {
             /* This statistic only approximates the actual pread behavior. The OS can probably reorder
              * concurrent pread calls and we would have to enclose pread itself in a lock, which defeats
@@ -290,7 +287,7 @@ public:
 
             nMaxBytesToRead = std::min( nMaxBytesToRead, *fileSize - m_currentPosition );
             const auto nBytesReadWithPread = ::pread( sharedFile->fileno(), buffer, nMaxBytesToRead,
-                                                      m_currentPosition );
+                                                      m_currentPosition );  // NOLINT
             if ( ( nBytesReadWithPread == 0 ) && !m_fileSizeBytes.has_value() ) {
                 /* EOF reached. A lock should not be necessary because the file size should not change after EOF has
                  * has been reached but, as it will only be locked once, the performance overhead is negligible
@@ -319,7 +316,7 @@ public:
 
             /* Seeking alone does not clear the EOF nor fail bit if the last read did set it. */
             sharedFile->clearerr();
-            sharedFile->seek( m_currentPosition, SEEK_SET );
+            sharedFile->seekTo( m_currentPosition );
             nBytesRead = sharedFile->read( buffer, nMaxBytesToRead );
             if ( ( nBytesRead == 0 ) && !m_fileSizeBytes ) {
                 m_fileSizeBytes = sharedFile->size();
@@ -466,7 +463,7 @@ ensureSharedFileReader( UniqueFileReader&& fileReader )
     }
 
     if ( auto* const casted = dynamic_cast<SharedFileReader*>( fileReader.get() ); casted != nullptr ) {
-        fileReader.release();
+        fileReader.release();  // NOLINT(bugprone-unused-return-value)
         return std::unique_ptr<SharedFileReader>( casted );
     }
 

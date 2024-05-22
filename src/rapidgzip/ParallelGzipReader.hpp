@@ -87,6 +87,12 @@ public:
     using WriteFunctor = std::function<void ( const std::shared_ptr<ChunkData>&, size_t, size_t )>;
     using Window = WindowMap::Window;
 
+    struct NewlineOffset
+    {
+        uint64_t lineOffset{ 0 };
+        uint64_t uncompressedOffsetInBytes{ 0 };
+    };
+
 public:
     /**
      * Quick benchmarks for spacing on AMD Ryzen 3900X 12-core.
@@ -304,13 +310,14 @@ public:
         }
 
         const auto& [lock, file] = m_sharedFileReader->underlyingFile();
-        const auto singlePassFileReader = dynamic_cast<SinglePassFileReader*>( file );
+        // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
+        auto* const singlePassFileReader = dynamic_cast<SinglePassFileReader*>( file );
         if ( singlePassFileReader != nullptr ) {
             singlePassFileReader->setMaxReusableChunkCount(
                 static_cast<size_t>(
                     std::ceil( static_cast<double>( parallelization ) * static_cast<double>( m_chunkSizeInBytes )
                                / static_cast<double>( SinglePassFileReader::CHUNK_SIZE ) ) ) );
-            m_keepIndex = false;
+            setKeepIndex( false );
         }
     }
 
@@ -346,7 +353,7 @@ public:
     {}
 #endif
 
-    ~ParallelGzipReader()
+    ~ParallelGzipReader() override
     {
         if ( m_showProfileOnDestruction && m_statisticsEnabled ) {
             std::cerr << "[ParallelGzipReader] Time spent:";
@@ -409,7 +416,8 @@ public:
         }
 
         const auto& [lock, file] = m_sharedFileReader->underlyingFile();
-        const auto singlePassFileReader = dynamic_cast<SinglePassFileReader*>( file );
+        // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
+        auto* const singlePassFileReader = dynamic_cast<SinglePassFileReader*>( file );
         return singlePassFileReader == nullptr;
     }
 
@@ -480,6 +488,8 @@ public:
     }
 
     /* Simpler file reader interface for Python-interfacing */
+
+    // NOLINTBEGIN(misc-no-recursion)
 
     size_t
     read( const int    outputFileDescriptor = -1,
@@ -602,7 +612,8 @@ public:
             m_currentPosition += nBytesToDecode;
 
             const auto& [lock, file] = m_sharedFileReader->underlyingFile();
-            const auto singlePassFileReader = dynamic_cast<SinglePassFileReader*>( file );
+            // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
+            auto* const singlePassFileReader = dynamic_cast<SinglePassFileReader*>( file );
             if ( singlePassFileReader != nullptr ) {
                 /* Release only up to the beginning of the currently used chunk in order to theoretically enable
                  * to clear the full cache and then continue again. This effectively require a recomputation of
@@ -681,6 +692,8 @@ public:
         return tell();
     }
 
+    // NOLINTEND(misc-no-recursion)
+
     /* Block compression specific methods */
 
     [[nodiscard]] bool
@@ -712,18 +725,33 @@ public:
      * the caller to deep clone the index and WindowMap for, e.g., the setBlockOffsets API, which
      * destructively moves from the WindowMap.
      */
-    [[nodiscard]] const GzipIndex
-    gzipIndex()
+    [[nodiscard]] const GzipIndex  // NOLINT(readability-const-return-type)
+    gzipIndex( bool withLineOffsets = false )
     {
         const auto offsets = blockOffsets();  // Also finalizes reading implicitly.
         if ( offsets.empty() || !m_windowMap ) {
             return {};
         }
 
+        const auto archiveSize = m_sharedFileReader->size();
+        if ( !archiveSize && !m_indexIsImported ) {
+            /* If the index was imported, then this warning is moot and using the last chunk offset is sufficient. */
+            std::cerr << "[Warning] The input file size should have become available after finalizing the index!\n";
+            std::cerr << "[Warning] Will use the last chunk end offset as size. This might lead to errors on import!\n";
+        }
+
         GzipIndex index;
-        index.compressedSizeInBytes = ceilDiv( offsets.rbegin()->first, 8U );
+        index.compressedSizeInBytes = archiveSize ? *archiveSize : ceilDiv( offsets.rbegin()->first, 8U );
         index.uncompressedSizeInBytes = offsets.rbegin()->second;
         index.windowSizeInBytes = 32_Ki;
+
+        if ( withLineOffsets ) {
+            if ( !m_newlineFormat ) {
+                throw std::runtime_error( "Cannot add line offsets to index when they were not gathered!" );
+            }
+            index.hasLineOffsets = true;
+            index.newlineFormat = m_newlineFormat.value();
+        }
 
         /* Heuristically determine a checkpoint spacing from the existing checkpoints. */
         size_t maximumDecompressedSpacing{ 0 };
@@ -732,11 +760,28 @@ public:
         }
         index.checkpointSpacing = maximumDecompressedSpacing / 32_Ki * 32_Ki;
 
+        auto lineOffset = m_newlineOffsets.begin();
         for ( const auto& [compressedOffsetInBits, uncompressedOffsetInBytes] : offsets ) {
             Checkpoint checkpoint;
             checkpoint.compressedOffsetInBits = compressedOffsetInBits;
             checkpoint.uncompressedOffsetInBytes = uncompressedOffsetInBytes;
-            index.checkpoints.emplace_back( std::move( checkpoint ) );
+
+            if ( index.hasLineOffsets ) {
+                while ( ( lineOffset != m_newlineOffsets.end() )
+                        && ( lineOffset->uncompressedOffsetInBytes < uncompressedOffsetInBytes ) )
+                {
+                    ++lineOffset;
+                }
+
+                if ( lineOffset->uncompressedOffsetInBytes != uncompressedOffsetInBytes ) {
+                    throw std::logic_error( "Line offset not found for uncompressed offset "
+                                            + std::to_string( uncompressedOffsetInBytes ) + "!" );
+                }
+
+                checkpoint.lineOffset = lineOffset->lineOffset;
+            }
+
+            index.checkpoints.emplace_back( checkpoint );
         }
 
         index.windows = m_windowMap;
@@ -795,9 +840,21 @@ public:
         return m_maxDecompressedChunkSize;
     }
 
+    [[nodiscard]] const std::optional<NewlineFormat>&
+    newlineFormat() const noexcept
+    {
+        return m_newlineFormat;
+    }
+
+    [[nodiscard]] const std::vector<NewlineOffset>&
+    newlineOffsets() const noexcept
+    {
+        return m_newlineOffsets;
+    }
+
 private:
     void
-    setBlockOffsets( std::map<size_t, size_t> offsets )
+    setBlockOffsets( const std::map<size_t, size_t>& offsets )
     {
         /**
          * @todo Join very small consecutive block offsets until it roughly reflects the chunk size?
@@ -820,28 +877,48 @@ private:
         if ( offsets.size() < 2 ) {
             throw std::invalid_argument( "Block offset map must contain at least one valid block and one EOS block!" );
         }
-        m_blockMap->setBlockOffsets( std::move( offsets ) );
+        m_blockMap->setBlockOffsets( offsets );
     }
 
 public:
     void
     setBlockOffsets( const GzipIndex& index )
     {
-        const auto result = index.windows->data();
-        setBlockOffsets( index, [&windows = result.second] ( size_t offset ) { return windows->at( offset ); } );
-    }
-
-    /**
-     * @param getWindow A functor that returns the window to the requested encoded bit offset.
-     *                  It shall be a bug if this function is called twice with the same offset.
-     *                  This makes it possible to destructively return the Window to avoid a copy!
-     */
-    void
-    setBlockOffsets( const GzipIndex&                                        index,
-                     const std::function<WindowMap::SharedWindow( size_t )>& getWindow )
-    {
-        if ( index.checkpoints.empty() || !index.windows || !getWindow ) {
+        if ( index.checkpoints.empty() || !index.windows ) {
             return;
+        }
+
+        const auto lockedWindows = index.windows->data();
+        if ( lockedWindows.second == nullptr ) {
+            throw std::invalid_argument( "Index window map must be a valid pointer!" );
+        }
+
+        const auto lessOffset =
+            [] ( const auto& a, const auto& b ) {
+                return a.uncompressedOffsetInBytes < b.uncompressedOffsetInBytes;
+            };
+        if ( !std::is_sorted( index.checkpoints.begin(), index.checkpoints.end(), lessOffset ) ) {
+            throw std::invalid_argument( "Index checkpoints must be sorted by uncompressed offsets!" );
+        }
+
+        if ( index.hasLineOffsets ) {
+            m_newlineFormat = index.newlineFormat;
+            m_newlineOffsets.resize( index.checkpoints.size() );
+            std::transform( index.checkpoints.begin(), index.checkpoints.end(), m_newlineOffsets.begin(),
+                            [] ( const auto& checkpoint ) {
+                NewlineOffset newlineOffset;
+                newlineOffset.lineOffset = checkpoint.lineOffset;
+                newlineOffset.uncompressedOffsetInBytes = checkpoint.uncompressedOffsetInBytes;
+                return newlineOffset;
+            } );
+
+            /* Checkpoints should already be sorted and therefore also the newline offsets, but just to be sure.
+             * We are not sorting here because it may be impossible to sort by line offsets and uncompressed offsets
+             * for inconsistent index data! */
+            const auto lessLineOffset = [] ( const auto& a, const auto& b ) { return a.lineOffset < b.lineOffset; };
+            if ( !std::is_sorted( m_newlineOffsets.begin(), m_newlineOffsets.end(), lessLineOffset ) ) {
+                throw std::invalid_argument( "Index checkpoints must be sorted by line offsets!" );
+            }
         }
 
         /* Generate simple compressed to uncompressed offset map from index. */
@@ -886,9 +963,15 @@ public:
             /* Copy window data.
              * For some reason, indexed_gzip also stores windows for the very last checkpoint at the end of the file,
              * which is useless because there is nothing thereafter. But, don't filter it here so that exportIndex
-             * mirrors importIndex better. */
-            m_windowMap->emplaceShared( checkpoint.compressedOffsetInBits,
-                                        getWindow( checkpoint.compressedOffsetInBits ) );
+             * mirrors importIndex better.
+             * Bgzip indexes do not have windows because they are not needed, so we do not have to insert anything
+             * into the WindowMap in that case. Bgzip indexes will be detected by the magic bytes and in that case
+             * windows should never be looked up in the WindowMap in the first place. */
+            if ( const auto window = lockedWindows.second->find( checkpoint.compressedOffsetInBits );
+                 window != lockedWindows.second->end() )
+            {
+                m_windowMap->emplaceShared( checkpoint.compressedOffsetInBits, window->second );
+            }
         }
 
         /* Input file-end offset if not included in checkpoints. */
@@ -896,11 +979,12 @@ public:
              fileEndOffset == newBlockOffsets.end() )
         {
             newBlockOffsets.emplace( index.compressedSizeInBytes * 8, index.uncompressedSizeInBytes );
+            m_windowMap->emplace( index.compressedSizeInBytes * 8, {}, CompressionType::NONE );
         } else if ( fileEndOffset->second != index.uncompressedSizeInBytes ) {
             throw std::invalid_argument( "Index has contradicting information for the file end information!" );
         }
 
-        setBlockOffsets( std::move( newBlockOffsets ) );
+        setBlockOffsets( newBlockOffsets );
 
         chunkFetcher().clearCache();
     }
@@ -908,6 +992,7 @@ public:
     void
     importIndex( UniqueFileReader indexFile )
     {
+        m_indexIsImported = true;
         const auto t0 = now();
         setBlockOffsets( readGzipIndex( std::move( indexFile ), m_sharedFileReader->clone(),
                                         m_fetcherParallelization ) );
@@ -917,7 +1002,8 @@ public:
     }
 
     void
-    exportIndex( const std::function<void( const void* buffer, size_t size )>& checkedWrite )
+    exportIndex( const std::function<void( const void* buffer, size_t size )>& checkedWrite,
+                 const IndexFormat                                             indexFormat = IndexFormat::INDEXED_GZIP )
     {
         const auto t0 = now();
 
@@ -925,7 +1011,18 @@ public:
             throw std::invalid_argument( "Exporting index not supported when index-keeping has been disabled!" );
         }
 
-        writeGzipIndex( gzipIndex(), checkedWrite );
+        switch ( indexFormat )
+        {
+        case IndexFormat::INDEXED_GZIP:
+            indexed_gzip::writeGzipIndex( gzipIndex(), checkedWrite );
+            break;
+        case IndexFormat::GZTOOL:
+            gztool::writeGzipIndex( gzipIndex( false ), checkedWrite );
+            break;
+        case IndexFormat::GZTOOL_WITH_LINES:
+            gztool::writeGzipIndex( gzipIndex( true ), checkedWrite );
+            break;
+        }
 
         if ( m_showProfileOnDestruction ) {
             std::cerr << "[ParallelGzipReader::exportIndex] Took " << duration( t0 ) << " s\n";
@@ -940,7 +1037,8 @@ public:
     }
 
     void
-    exportIndex( PyObject* pythonObject )
+    exportIndex( PyObject*         pythonObject,
+                 const IndexFormat indexFormat = IndexFormat::INDEXED_GZIP )
     {
         const auto file = std::make_unique<PythonFileReader>( pythonObject );
         const auto checkedWrite =
@@ -951,9 +1049,102 @@ public:
                 }
             };
 
-        exportIndex( checkedWrite );
+        exportIndex( checkedWrite, indexFormat );
     }
 #endif
+
+    void
+    gatherLineOffsets( NewlineFormat newlineFormat = NewlineFormat::LINE_FEED )
+    {
+        /* Check whether the newline information has already been collected from an imported index or earlier call. */
+        if ( m_newlineFormat && !m_newlineOffsets.empty() ) {
+            return;
+        }
+
+        const Finally restorePosition{ [this, oldOffset = tell()] () { seek( oldOffset ); } };
+        seekTo( 0 );
+
+        m_newlineFormat = newlineFormat;
+
+        /* Collect line offsets until the next chunk offset has been added to the map. Then, we can look for the
+         * line number at that exact chunk offset and insert it and clear our temporary results. */
+        uint64_t processedLines{ 0 };
+        /** Index i stores the byte offset for the (processedLines + i)-th line. */
+        std::vector<uint64_t> newlineOffsets;
+        uint64_t processedBytes{ 0 };
+        const auto newlineCharacter = newlineFormat == NewlineFormat::LINE_FEED ? '\n' : '\r';
+
+        const auto collectLineOffsets =
+            [this, &processedLines, &newlineOffsets, &processedBytes, newlineCharacter]
+            ( const std::shared_ptr<rapidgzip::ChunkData>& chunkData,
+              const size_t                                 offsetInChunk,
+              const size_t                                 dataToWriteSize )
+            {
+                using rapidgzip::deflate::DecodedData;
+                for ( auto it = DecodedData::Iterator( *chunkData, offsetInChunk, dataToWriteSize );
+                      static_cast<bool>( it ); ++it )
+                {
+                    const auto& [buffer, size] = *it;
+
+                    const std::string_view view{ reinterpret_cast<const char*>( buffer ), size };
+                    for ( auto position = view.find( newlineCharacter, 0 );
+                          position != std::string_view::npos;
+                          position = view.find( newlineCharacter, position + 1 ) )
+                    {
+                        newlineOffsets.emplace_back( processedBytes + position );
+                    }
+
+                    processedBytes += size;
+                }
+
+                auto it = newlineOffsets.begin();
+                while ( it != newlineOffsets.end() ) {
+                    const auto chunkInfo = m_blockMap->findDataOffset( *it );
+                    if ( !chunkInfo.contains( *it ) ) {
+                        /* I don't think this can happen. It happens when the currently processed chunk
+                         * is not yet registered in the chunk map. */
+                        std::cerr << "[Warning] Offset in processed chunk was not found in chunk map!\n";
+                        break;
+                    }
+
+                    if ( m_newlineOffsets.empty() || ( m_newlineOffsets.back().uncompressedOffsetInBytes != *it ) ) {
+                        NewlineOffset newlineOffset;
+                        newlineOffset.lineOffset = static_cast<uint64_t>( std::distance( newlineOffsets.begin(), it ) )
+                                                   + processedLines;
+                        newlineOffset.uncompressedOffsetInBytes = chunkInfo.decodedOffsetInBytes;
+
+                        if ( !m_newlineOffsets.empty() ) {
+                            if ( m_newlineOffsets.back().uncompressedOffsetInBytes > *it ) {
+                                throw std::logic_error( "Got earlier chunk offset than the last processed one!" );
+                            }
+                            if ( m_newlineOffsets.back().lineOffset > newlineOffset.lineOffset ) {
+                                throw std::logic_error( "Got earlier line offset than the last processed one!" );
+                            }
+                        }
+
+                        m_newlineOffsets.emplace_back( newlineOffset );
+                    }
+
+                    /* Skip over all newlines still in the last processed chunk. */
+                    while ( ( it != newlineOffsets.end() ) && chunkInfo.contains( *it ) ) {
+                        ++it;
+                    }
+                }
+
+                processedLines += static_cast<uint64_t>( std::distance( newlineOffsets.begin(), it ) );
+                newlineOffsets.erase( newlineOffsets.begin(), it );
+            };
+
+        read( collectLineOffsets );
+
+        /* Insert information for the end-of-file offset. */
+        if ( m_newlineOffsets.empty() || ( processedBytes > m_newlineOffsets.back().uncompressedOffsetInBytes ) ) {
+            NewlineOffset newlineOffset;
+            newlineOffset.uncompressedOffsetInBytes = processedBytes;
+            newlineOffset.lineOffset = processedLines + newlineOffsets.size();
+            m_newlineOffsets.emplace_back( newlineOffset );
+        }
+    }
 
     /**
      * @return number of processed bits of compressed bzip2 input file stream
@@ -999,10 +1190,21 @@ public:
     setKeepIndex( bool keep )
     {
         m_keepIndex = keep;
-        if ( m_chunkFetcher ) {
-            m_chunkFetcher->setWindowCompressionType(
-                m_keepIndex ? std::nullopt : std::make_optional( CompressionType::NONE ) );
-        }
+        updateWindowCompression();
+    }
+
+    void
+    setWindowSparsity( bool useSparseWindows )
+    {
+        m_windowSparsity = useSparseWindows;
+        updateWindowCompression();
+    }
+
+    void
+    setWindowCompressionType( CompressionType windowCompressionType )
+    {
+        m_windowCompressionType = windowCompressionType;
+        updateWindowCompression();
     }
 
     [[nodiscard]] std::string
@@ -1025,9 +1227,20 @@ public:
     }
 
 private:
-    BlockFinder&
-    blockFinder()
+    void
+    updateWindowCompression()
     {
+        if ( m_chunkFetcher ) {
+            m_chunkFetcher->setWindowCompressionType(
+                m_keepIndex ? m_windowCompressionType : std::make_optional( CompressionType::NONE ),
+                m_keepIndex && m_windowSparsity /* Window sparsity only makes sense when keeping the index. */ );
+        }
+    }
+
+    BlockFinder&
+    blockFinder()  // NOLINT(misc-no-recursion)
+    {
+        /* This guard makes the warned-about recursion via setBlockFinderOffsets safe. */
         if ( m_blockFinder ) {
             return *m_blockFinder;
         }
@@ -1070,14 +1283,13 @@ private:
         m_chunkFetcher->setMaxDecompressedChunkSize( m_maxDecompressedChunkSize );
         m_chunkFetcher->setShowProfileOnDestruction( m_showProfileOnDestruction );
         m_chunkFetcher->setStatisticsEnabled( m_statisticsEnabled );
-        m_chunkFetcher->setWindowCompressionType(
-            m_keepIndex ? std::nullopt : std::make_optional( CompressionType::NONE ) );
+        updateWindowCompression();
 
         return *m_chunkFetcher;
     }
 
     void
-    setBlockFinderOffsets( const std::map<size_t, size_t>& offsets )
+    setBlockFinderOffsets( const std::map<size_t, size_t>& offsets )  // NOLINT(misc-no-recursion)
     {
         if ( offsets.empty() ) {
             throw std::invalid_argument( "A non-empty list of block offsets is required!" );
@@ -1181,10 +1393,24 @@ private:
      */
     std::shared_ptr<WindowMap> const m_windowMap{ std::make_shared<WindowMap>() };
     bool m_keepIndex{ true };
+    bool m_windowSparsity{ true };
+    std::optional<CompressionType> m_windowCompressionType;
     std::unique_ptr<ChunkFetcher> m_chunkFetcher;
+    /**
+     * Note that the uncompressed offset can point to any byte offset inside the line depending on how the chunks
+     * are split. Only the offset to the 0-th line is exact of course. To get any other line beginning exactly,
+     * you need to start from the previous line and search for the next newline.
+     * Note also that not all line offsets have to be in this vector. That's why it is a vector of pairs and not
+     * a simply vector of values. Line offsets are only available at spacings. To get an exact line offset, you
+     * need to start reading from the next smaller one and skip over as many newline characters as necessary.
+     */
+    std::vector<NewlineOffset> m_newlineOffsets;
+    std::optional<NewlineFormat> m_newlineFormat;
 
     CRC32Calculator m_crc32;
     uint64_t m_nextCRC32ChunkOffset{ 0 };
     std::unordered_map<size_t, uint32_t> m_deflateStreamCRC32s;
+
+    bool m_indexIsImported{ false };
 };
 }  // namespace rapidgzip

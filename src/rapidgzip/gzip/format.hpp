@@ -4,12 +4,12 @@
 #include <optional>
 #include <utility>
 
+#include <bzip2.hpp>
 #include <filereader/FileReader.hpp>
 #include <filereader/Shared.hpp>
-#include <bzip2.hpp>
+#include <gzip.hpp>
 
 #include "blockfinder/Bgzf.hpp"
-#include "gzip.hpp"
 
 
 namespace rapidgzip

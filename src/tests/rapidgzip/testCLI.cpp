@@ -67,7 +67,9 @@ testCLI( const std::vector<std::string>& arguments,
          const std::vector<char>&        decompressed )
 {
     const auto writeToStdout = contains( arguments, "--stdout" ) || contains( arguments, "-c" );
-    const auto doDecompress = contains( arguments, "-d" ) || contains( arguments, "--decompress" );
+    const auto doDecompress = contains( arguments, "-d" )
+                              || contains( arguments, "--decompress" )
+                              || contains( arguments, "--ranges" );
     const auto expectOutputFile = doDecompress && !writeToStdout;
     if ( expectOutputFile ) {
         std::filesystem::remove( outputFile );
@@ -283,14 +285,14 @@ void
 testCLI()
 {
     /* Write to /dev/shm if possible because writing ~240 GB to any disk is probably not want you want for
-     * a simple test and because my SSD locks p after some amount of write, which increases the test time. */
+     * a simple test and because my SSD locks up after some amount of write, which increases the test time. */
     const auto tmpFolder = createTemporaryDirectory( std::filesystem::is_directory( "/dev/shm" )
                                                      ? "/dev/shm/rapidgzip.testCLI"
                                                      : "rapidgzip.testCLI" );
 
     const auto filePath = tmpFolder.path() / "random-words";
-    const auto compressedFilePath = tmpFolder.path() / "random-words.gz";
-    const auto indexFilePath = tmpFolder.path() / "random-words.gz.index";
+    const auto compressedFilePath = ( tmpFolder.path() / "random-words.gz" ).string();
+    const auto indexFilePath = ( tmpFolder.path() / "random-words.gz.index" ).string();
 
     const auto decompressed = createRandomWords( 128_Mi );  // Compresses to only ~8 MiB.
     const auto compressed = rapidgzip::compressWithZlib<std::vector<char> >( decompressed );
@@ -300,7 +302,8 @@ testCLI()
     }
 
     /* Create index for import tests. */
-    callRapidgzip( { "--export-index"s, indexFilePath, compressedFilePath.string() } );
+    callRapidgzip( { "--export-index"s, indexFilePath, compressedFilePath } );
+    callRapidgzip( { "--export-index"s, indexFilePath + ".gztool", "--index-format"s, "gztool"s, compressedFilePath } );
 
     const auto testWithoutFile =
         [&] ( const std::vector<std::string>& arguments ) { testCLI( arguments, filePath, decompressed ); };
@@ -318,6 +321,22 @@ testCLI()
 
     /* Special subcommand that will ignore most of the other output options. */
     testFile( { "--analyze" } );
+
+    /* Test byte ranges */
+    {
+        std::vector<char> decompressedRanges;
+        const std::vector<std::pair<size_t, size_t> > ranges = {
+            { 1, 100 }, { 123, 2 }, { 10'000, 100 }, { 1024, 32ULL << 20U }
+        };
+        for ( const auto& [size, offset] : ranges ) {
+            decompressedRanges.insert( decompressedRanges.end(),
+                                       decompressed.begin() + offset,
+                                       decompressed.begin() + offset + size );
+        }
+        testCLI( { "--ranges"s, "1@100,123@2,10000@100,1 KiB@32 MiB"s, compressedFilePath },
+                 /* expected output file (except for --stdout) */ filePath, decompressedRanges );
+        std::filesystem::remove( filePath );
+    }
 
     /* Without --decompress, it only process the data without writing out the raw decompressed stream.
      * I think all of these combinations are valuable to test. */
@@ -344,6 +363,24 @@ testCLI()
 #endif
 
     ArgumentLists combinedArguments;
+
+    const auto addTest =
+        [&combinedArguments] ( std::vector<std::string> arguments ) {
+            combinedArguments.emplace_back( std::move( arguments ) );
+        };
+
+    /* Test exporting of gztool index with and without line offsets. */
+    addTest( { "--export-index"s, indexFilePath + ".gztool", "--index-format"s, "gztool"s } );
+    addTest( { "--export-index"s, indexFilePath + ".with-lines.gztool", "--index-format"s, "gztool-with-lines"s } );
+
+    /* Test index conversion. */
+    addTest( { "--import-index"s, indexFilePath, "--export-index"s, indexFilePath + ".gztool",
+               "--index-format"s, "gztool"s } );
+    addTest( { "--import-index"s, indexFilePath + ".gztool", "--export-index"s, indexFilePath + ".converted",
+               "--index-format"s, "indexed_gzip"s } );
+    addTest( { "--import-index"s, indexFilePath + ".gztool", "--export-index"s, indexFilePath + ".converted",
+               "--index-format"s, "gztool-with-lines"s } );
+
     for ( const auto& actionArguments : concatenateCombinations( combinableActions ) ) {
         combinedArguments.emplace_back( actionArguments );
         for ( const auto& optionArguments : combinableOptions ) {
@@ -371,6 +408,43 @@ testCLI()
 }
 
 
+void
+testLineRanges( const std::filesystem::path& rootFolder,
+                bool                         testWithIndex )
+{
+    const auto decompressedFilePath = ( rootFolder / "base64-256KiB" ).string();
+    const auto compressedFilePath = decompressedFilePath + ".gz";
+    const auto decompressed = readFile<std::vector<char> >( decompressedFilePath );
+
+    std::vector<char> decompressedRanges;
+    const std::vector<std::pair<size_t, size_t> > ranges = {
+        { 1, 100 }, { 123, 2 }, { 3, 1024 }
+    };
+    static constexpr auto lineLength = 77U;
+    for ( const auto& [lineCount, lineOffset] : ranges ) {
+        const auto offset = lineOffset * lineLength;
+        const auto size = lineCount * lineLength;
+        decompressedRanges.insert( decompressedRanges.end(),
+                                   decompressed.begin() + offset,
+                                   decompressed.begin() + offset + size );
+    }
+
+    const auto tmpFolder = createTemporaryDirectory( "rapidgzip.testCLI" );
+    const auto filePath = tmpFolder.path() / "decompressed";
+
+    std::vector<std::string> arguments = {
+        "--ranges"s, "1 L @ 100 L,123L@2L,3L@1 KiL"s, "-o", filePath.string(), compressedFilePath
+    };
+    if ( testWithIndex ) {
+        const std::vector<std::string> importArguments = {
+            "--import-index", compressedFilePath + ".gztool.with-lines.index"
+        };
+        arguments.insert( arguments.begin(), importArguments.begin(), importArguments.end() );
+    }
+    testCLI( arguments, /* expected output file (except for --stdout) */ filePath, decompressedRanges );
+}
+
+
 int
 main( int    argc,
       char** argv )
@@ -385,7 +459,7 @@ main( int    argc,
     testCLI();
 
     const std::string binaryFilePath( argv[0] );
-    std::string binaryFolder = std::filesystem::path( binaryFilePath ).parent_path();
+    auto binaryFolder = std::filesystem::path( binaryFilePath ).parent_path().string();
     if ( binaryFolder.empty() ) {
         binaryFolder = ".";
     }
@@ -394,7 +468,10 @@ main( int    argc,
             findParentFolderContaining( binaryFolder, "src/tests/data/base64-256KiB.bgz" )
         ) / "src" / "tests" / "data";
 
+    testLineRanges( rootFolder, /* with imported index */ true );
+    testLineRanges( rootFolder, /* with imported index */ false );
+
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
 
-    return gnTestErrors;
+    return gnTestErrors == 0 ? 0 : 1;
 }

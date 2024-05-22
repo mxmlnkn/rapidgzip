@@ -44,7 +44,7 @@ public:
                                      || std::is_same_v<typename Container::value_type, std::byte> ) )
              >* = nullptr>
     constexpr
-    VectorView( const Container& vector ) noexcept :
+    VectorView( const Container& vector ) noexcept :  // NOLINT
         m_data( reinterpret_cast<const T*>( vector.data() ) ),
         m_size( vector.size() )
     {}
@@ -144,16 +144,16 @@ public:
     WeakVector( const WeakVector& ) = default;
 
     constexpr
-    WeakVector( WeakVector&& ) = default;
+    WeakVector( WeakVector&& ) noexcept = default;
 
     constexpr WeakVector&
     operator=( const WeakVector& ) = default;
 
     constexpr WeakVector&
-    operator=( WeakVector&& ) = default;
+    operator=( WeakVector&& ) noexcept = default;
 
     constexpr
-    WeakVector( std::vector<T>* vector ) noexcept :
+    WeakVector( std::vector<T>* vector ) noexcept :  // NOLINT
         m_data( vector->data() ),
         m_size( vector->size() )
     {}
@@ -347,14 +347,8 @@ public:
         return m_data + m_size;
     }
 
-    [[nodiscard]] constexpr const T*
-    data() const noexcept
-    {
-        return m_data;
-    }
-
     [[nodiscard]] constexpr T*
-    data() noexcept
+    data() const noexcept
     {
         return m_data;
     }
@@ -371,14 +365,8 @@ public:
         return m_size == 0;
     }
 
-    [[nodiscard]] constexpr const T&
-    operator[]( size_t i ) const noexcept
-    {
-        return m_data[i];
-    }
-
     [[nodiscard]] constexpr T&
-    operator[]( size_t i ) noexcept
+    operator[]( size_t i ) const noexcept
     {
         return m_data[i];
     }

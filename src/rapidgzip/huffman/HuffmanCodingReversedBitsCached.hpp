@@ -82,7 +82,7 @@ public:
 
             const auto fillerBitCount = this->m_maxCodeLength - length;
             const auto maximumPaddedCode = static_cast<HuffmanCode>(
-                reversedCode | ( nLowestBitsSet<HuffmanCode>( fillerBitCount ) << length ) );
+                reversedCode | static_cast<HuffmanCode>( nLowestBitsSet<HuffmanCode>( fillerBitCount ) << length ) );
             assert( maximumPaddedCode < m_codeCache.size() );
             const auto increment = static_cast<HuffmanCode>( HuffmanCode( 1 ) << length );
             for ( auto paddedCode = reversedCode; paddedCode <= maximumPaddedCode; paddedCode += increment ) {

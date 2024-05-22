@@ -38,7 +38,7 @@
  */
 template<bool MOST_SIGNIFICANT_BITS_FIRST,
          typename BitBuffer>
-class BitReader :
+class BitReader final :
     public FileReader
 {
 public:
@@ -53,7 +53,7 @@ public:
      * Any power of 2 larger than 4096 (4k blocks) should be safe bet.
      * 4K is too few, and will lead to a 2x slowdown in some test because of the frequent buffer refills.
      */
-    static constexpr size_t IOBUF_SIZE = 128_Ki;
+    static constexpr size_t DEFAULT_BUFFER_REFILL_SIZE = 128_Ki;
     static constexpr int NO_FILE = -1;
     static constexpr auto MAX_BIT_BUFFER_SIZE = std::numeric_limits<BitBuffer>::digits;
 
@@ -82,26 +82,41 @@ public:
         public BitReaderException
     {};
 
+    struct Statistics
+    {
+        size_t byteBufferRefillCount{ 0 };
+        size_t bitBufferRefillCount{ 0 };
+    };
+
 public:
     explicit
-    BitReader( UniqueFileReader fileReader ) :
+    BitReader( UniqueFileReader fileReader,
+               const size_t     bufferRefillSize = DEFAULT_BUFFER_REFILL_SIZE ) :
         /* The UniqueFileReader input argument sufficiently conveys and ensures that the file ownership is taken.
          * But, because BitReader has a fileno getter returning the underlying fileno, it is possible that the
          * file position is changed from the outside. To still keep correct behavior in that case, we have to
          * to make it a SharedFileReader, which keeps track of the intended file position. */
-        m_file( ensureSharedFileReader( std::move( fileReader ) ) )
-    {}
+        m_file( ensureSharedFileReader( std::move( fileReader ) ) ),
+        m_bufferRefillSize( bufferRefillSize )
+    {
+        if ( m_bufferRefillSize == 0 ) {
+            throw std::invalid_argument( "The buffer size must be larger than zero!" );
+        }
+    }
 
-    BitReader( BitReader&& other ) = default;
+    ~BitReader() override = default;
+
+    BitReader( BitReader&& other ) noexcept = default;
 
     BitReader&
-    operator=( BitReader&& other ) = default;
+    operator=( BitReader&& other ) noexcept = default;
 
     BitReader&
     operator=( const BitReader& other ) = delete;
 
     BitReader( const BitReader& other ) :
         m_file( other.m_file ? other.m_file->clone() : UniqueFileReader() ),
+        m_bufferRefillSize( other.m_bufferRefillSize ),
         m_inputBuffer( other.m_inputBuffer )
     {
         if ( dynamic_cast<const SharedFileReader*>( other.m_file.get() ) == nullptr ) {
@@ -118,13 +133,13 @@ public:
     /* File Reader Interface Implementation */
 
     [[nodiscard]] UniqueFileReader
-    clone() const override final
+    clone() const override
     {
         return std::make_unique<BitReader>( *this );
     }
 
     [[nodiscard]] bool
-    fail() const override final
+    fail() const override
     {
         throw std::logic_error( "Not implemented" );
     }
@@ -134,7 +149,7 @@ public:
      *       position and size instead of checking an internal (cached) flag!
      */
     [[nodiscard]] bool
-    eof() const override final
+    eof() const override
     {
         if ( const auto fileSize = size(); seekable() && fileSize.has_value() ) {
             return tell() >= *fileSize;
@@ -143,20 +158,22 @@ public:
     }
 
     [[nodiscard]] bool
-    seekable() const override final
+    seekable() const override
     {
         return !m_file || m_file->seekable();
     }
 
     void
-    close() override final
+    close() override
     {
         m_file.reset();
         m_inputBuffer.clear();
+        m_inputBufferPosition = 0;
+        clearBitBuffer();
     }
 
     [[nodiscard]] bool
-    closed() const override final
+    closed() const override
     {
         return !m_file && m_inputBuffer.empty();
     }
@@ -192,6 +209,7 @@ private:
     read2( bit_count_t bitsWanted )
     {
         const auto bitsInResult = bitBufferSize();
+        assert( bitsWanted >= bitsInResult );
         const auto bitsNeeded = bitsWanted - bitsInResult;
         BitBuffer bits{ 0 };
 
@@ -207,6 +225,10 @@ private:
                      & N_LOWEST_BITS_SET_LUT<BitBuffer>[bitBufferSize()];
         }
 
+        /* If the system endianness matches the BitReader endianness and the byte buffer contains enough bytes
+         * for the requested number of bits, then refill the whole bit buffer with one unaligned memory read.
+         * This makes the assumption that read2 is only ever called when all the current bit buffer bits are
+         * not enough. */
         if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST && ( ENDIAN == Endian::LITTLE ) ) {
             constexpr bit_count_t BYTES_WANTED = sizeof( BitBuffer );
             constexpr bit_count_t BITS_WANTED = sizeof( BitBuffer ) * CHAR_BIT;
@@ -220,12 +242,14 @@ private:
 
                 bits |= peekUnsafe( bitsNeeded ) << bitsInResult;
                 seekAfterPeek( bitsNeeded );
+
+                m_statistics.bitBufferRefillCount++;
                 return bits;
             }
         }
 
+        clearBitBuffer();
         try {
-            clearBitBuffer();
             fillBitBuffer();
         } catch ( const BufferNeedsToBeRefilled& ) {
             refillBuffer();
@@ -314,8 +338,8 @@ public:
             const auto nBytesToReadFromFile = nBytesToRead - nBytesRead;
             if ( UNLIKELY( ( nBytesToReadFromFile > 0 ) && m_file ) ) [[unlikely]] {
                 assert( m_inputBufferPosition == m_inputBuffer.size() );
-                if ( nBytesToRead < std::min<size_t>( 1_Ki, IOBUF_SIZE ) ) {
-                    /* Because nBytesToRead < IOBUF_SIZE, refilling the buffer once will suffice to read the
+                if ( nBytesToRead < std::min<size_t>( 1_Ki, m_bufferRefillSize ) ) {
+                    /* Because nBytesToRead < m_bufferRefillSize, refilling the buffer once will suffice to read the
                      * requested amount of bytes or else we have reached EOF. */
                     refillBuffer();
                     readFromBuffer( outputBuffer + nBytesRead, nBytesToRead - nBytesRead );
@@ -324,6 +348,20 @@ public:
                         /* We don't need the return value because we are using tell! */
                         [[maybe_unused]] const auto nBytesReadFromFile =
                             m_file->read( outputBuffer + nBytesRead, nBytesToReadFromFile );
+                        /* Clear the byte buffer because the assumed invariant that the byte buffer contains the
+                         * data of m_file->tell() - m_inputBuffer.size() is wrong after reading from the file and
+                         * will result in a bug when seeking back and when the supposed offset is thought to be
+                         * inside the buffer. This can be triggered now after adding sparse windows because
+                         * InflateWrapper will refill the buffer with this method and getUsedWindowSymbols will
+                         * seek back. Before sparse windows, it might have been virtually impossible to trigger this.
+                         * @todo This understanding gives two optimization ideas:
+                         *       1. For InflateWrapper + getUsedWindowSymbols, reduce the byte buffer size to something
+                         *          <= 32 KiB instead of 128 KiB to avoid unnecessarily large refills.
+                         *       2. Check that InflateWrapper only calls this function with byte-aligned offsets
+                         *          so that it doesn't trigger the possibly slower other path that has to shift
+                         *          everything by a constant amount of bits. */
+                        m_inputBufferPosition = 0;
+                        m_inputBuffer.clear();
                     }
                 }
             }
@@ -402,7 +440,7 @@ private:
                         shrinkBitBuffer();
 
                         if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
-                            m_bitBuffer >>= MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize;
+                            m_bitBuffer >>= static_cast<uint8_t>( MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize );
                         }
                     }
 
@@ -446,9 +484,12 @@ public:
      * @return current position / number of bits already read.
      */
     [[nodiscard]] size_t
-    tell() const override final
+    tell() const override
     {
-        size_t position = tellBuffer();
+        /* Initialize with the byte buffer position converted to bits. */
+        size_t position = m_inputBufferPosition * CHAR_BIT;
+
+        /* Add the file offset from which the byte buffer was read. */
         if ( m_file ) {
             const auto filePosition = m_file->tell();
             if ( UNLIKELY( static_cast<size_t>( filePosition ) < m_inputBuffer.size() ) ) [[unlikely]] {
@@ -456,7 +497,13 @@ public:
             }
             position += ( filePosition - m_inputBuffer.size() ) * CHAR_BIT;
         }
-        return position;
+
+        /* Subtract the unread bits that have already been "moved" from the byte buffer to the bit buffer. */
+        if ( UNLIKELY( position < bitBufferSize() ) ) [[unlikely]] {
+            throw std::logic_error( "The bit buffer should not contain more data than have been read from the file!" );
+        }
+
+        return position - bitBufferSize();
     }
 
     void
@@ -469,7 +516,7 @@ public:
 
 public:
     [[nodiscard]] int
-    fileno() const override final
+    fileno() const override
     {
         if ( UNLIKELY( !m_file ) ) [[unlikely]] {
             throw std::invalid_argument( "The file is not open!" );
@@ -479,10 +526,10 @@ public:
 
     size_t
     seek( long long int offsetBits,
-          int           origin = SEEK_SET ) override final;
+          int           origin = SEEK_SET ) override;
 
     [[nodiscard]] std::optional<size_t>
-    size() const override final
+    size() const override
     {
         auto sizeInBytes = m_inputBuffer.size();
         if ( m_file ) {
@@ -502,24 +549,20 @@ public:
     }
 
     [[nodiscard]] constexpr uint64_t
-    bufferRefillCount() const
+    bufferRefillSize() const
     {
-        return m_bufferRefillCount;
+        return m_bufferRefillSize;
+    }
+
+    [[nodiscard]] constexpr Statistics
+    statistics() const
+    {
+        return m_statistics;
     }
 
 private:
     size_t
     fullSeek( size_t offsetBits );
-
-    [[nodiscard]] size_t
-    tellBuffer() const
-    {
-        size_t position = m_inputBufferPosition * CHAR_BIT;
-        if ( UNLIKELY( position < bitBufferSize() ) ) [[unlikely]] {
-            std::logic_error( "The bit buffer should not contain data if the byte buffer doesn't!" );
-        }
-        return position - bitBufferSize();
-    }
 
     void
     refillBuffer()
@@ -529,7 +572,7 @@ private:
         }
 
         const auto oldBufferSize = m_inputBuffer.size();
-        m_inputBuffer.resize( IOBUF_SIZE );
+        m_inputBuffer.resize( m_bufferRefillSize );
         const auto nBytesRead = m_file->read( reinterpret_cast<char*>( m_inputBuffer.data() ), m_inputBuffer.size() );
         if ( nBytesRead == 0 ) {
             m_inputBuffer.resize( oldBufferSize );
@@ -539,7 +582,7 @@ private:
         m_inputBuffer.resize( nBytesRead );
         m_inputBufferPosition = 0;
 
-        m_bufferRefillCount++;
+        m_statistics.byteBufferRefillCount++;
     }
 
     /**
@@ -600,7 +643,7 @@ private:
                  * in time m_originalBitBufferSize >= bitBufferSize() should be true!
                  * Run unit tests in debug mode to ensure that the assert won't be triggered. */
                 // NOLINTNEXTLINE(clang-analyzer-core.uninitialized.Assign)
-                m_bitBuffer >>= MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize;
+                m_bitBuffer >>= static_cast<uint8_t>( MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize );
             }
         }
 
@@ -625,7 +668,9 @@ private:
                 /* Move LSB bits (which are filled left-to-right) to the left if so necessary
                  * so that the format is the same as for MSB bits! */
                 if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST ) {
-                    m_bitBuffer <<= MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize;
+                    if ( m_originalBitBufferSize > 0 ) {
+                        m_bitBuffer <<= static_cast<uint8_t>( MAX_BIT_BUFFER_SIZE - m_originalBitBufferSize );
+                    }
                 }
             }
 
@@ -643,7 +688,7 @@ private:
             }
 
             if constexpr ( MOST_SIGNIFICANT_BITS_FIRST ) {
-                m_bitBuffer <<= CHAR_BIT;
+                m_bitBuffer <<= static_cast<uint8_t>( CHAR_BIT );
                 m_bitBuffer |= static_cast<BitBuffer>( m_inputBuffer[m_inputBufferPosition++] );
             } else {
                 m_bitBuffer |= ( static_cast<BitBuffer>( m_inputBuffer[m_inputBufferPosition++] )
@@ -660,6 +705,8 @@ private:
                  */
             }
         }
+
+        m_statistics.bitBufferRefillCount++;
     }
 
     [[nodiscard]] forceinline BitBuffer
@@ -701,11 +748,12 @@ private:
 private:
     UniqueFileReader m_file;
 
+    size_t m_bufferRefillSize{ DEFAULT_BUFFER_REFILL_SIZE };
     std::vector<uint8_t> m_inputBuffer;
     size_t m_inputBufferPosition = 0;  /** stores current position of first valid byte in buffer */
 
     /* Performance profiling metrics. */
-    size_t m_bufferRefillCount{ 0 };
+    Statistics m_statistics;
 
 public:
     /**
@@ -854,11 +902,12 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::seek(
         }
 
         /* Seek forward inside byte buffer. */
-        if ( tellBuffer() + relativeOffsets <= m_inputBuffer.size() ) {
-            auto stillToSeek = relativeOffsets - bitBufferSize();
+        const auto stillToSeek = relativeOffsets - bitBufferSize();
+        const auto newInputBufferPosition = m_inputBufferPosition + stillToSeek / CHAR_BIT;
+        if ( newInputBufferPosition <= m_inputBuffer.size() ) {
             clearBitBuffer();
 
-            m_inputBufferPosition += stillToSeek / CHAR_BIT;
+            m_inputBufferPosition = newInputBufferPosition;
             if ( stillToSeek % CHAR_BIT > 0 ) {
                 read( stillToSeek % CHAR_BIT );
             }

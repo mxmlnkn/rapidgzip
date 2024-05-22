@@ -233,7 +233,7 @@ public:
     {
         std::scoped_lock lock( m_mutex );
 
-        return std::map<size_t, size_t>( m_blockToDataOffsets.begin(), m_blockToDataOffsets.end() );
+        return { m_blockToDataOffsets.begin(), m_blockToDataOffsets.end() };
     }
 
     [[nodiscard]] std::pair<size_t, size_t>
@@ -255,7 +255,7 @@ public:
 
 private:
     [[nodiscard]] BlockInfo
-    get( typename BlockOffsets::const_reverse_iterator blockOffset ) const
+    get( const typename BlockOffsets::const_reverse_iterator& blockOffset ) const
     {
         BlockInfo result;
         if ( blockOffset == m_blockToDataOffsets.rend() ) {
@@ -272,7 +272,7 @@ private:
         } else {
             const auto higherBlock = std::prev( /* reverse! */ blockOffset );
             if ( higherBlock->second < blockOffset->second ) {
-                std::logic_error( "Data offsets are not monotonically increasing!" );
+                throw std::logic_error( "Data offsets are not monotonically increasing!" );
             }
             result.decodedSizeInBytes = higherBlock->second - blockOffset->second;
             result.encodedSizeInBits = higherBlock->first - blockOffset->first;

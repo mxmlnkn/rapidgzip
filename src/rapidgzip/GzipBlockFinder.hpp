@@ -303,6 +303,6 @@ private:
     /** Only used for Bgzf files in which case it will gather offsets in chunks of this. */
     FileType m_fileType{ FileType::NONE };
     std::unique_ptr<blockfinder::Bgzf> m_bgzfBlockFinder;
-    const size_t m_batchFetchCount = std::max<size_t>( 16, 3U * std::thread::hardware_concurrency() );
+    const size_t m_batchFetchCount = std::max<size_t>( 16, 3ULL * std::thread::hardware_concurrency() );
 };
 }  // namespace rapidgzip

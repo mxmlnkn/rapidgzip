@@ -254,6 +254,7 @@ public:
                     }
                     break;
 
+                // NOLINTBEGIN(bugprone-branch-clone)
                 case StoppingPoint::END_OF_BLOCK_HEADER:
                     assert( false && "Should have been handled before the switch!" );
                     break;
@@ -261,6 +262,7 @@ public:
                 case StoppingPoint::ALL:
                     assert( false && "Should only be specified by the user not appear internally!" );
                     break;
+                // NOLINTEND(bugprone-branch-clone)
                 }
             }
 
@@ -319,7 +321,7 @@ private:
     void
     readGzipHeader()
     {
-        const auto [header, error] = rapidgzip::gzip::readHeader( m_bitReader );
+        auto [header, error] = rapidgzip::gzip::readHeader( m_bitReader );
         if ( error != rapidgzip::Error::NONE ) {
             std::stringstream message;
             message << "Encountered error: " << rapidgzip::toString( error ) << " while trying to read gzip header!";

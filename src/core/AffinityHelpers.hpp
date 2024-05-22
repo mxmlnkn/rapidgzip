@@ -7,7 +7,7 @@
 
 
 inline void
-pinThreadToLogicalCore( int logicalCoreId )
+pinThreadToLogicalCore( int /* logicalCoreId */ )
 {
     /** @todo */
 }
@@ -43,7 +43,7 @@ getRequiredBitMaskSize()
     while ( einvalError ) {
         nCpus += nCpusPerElement;
 
-        auto pCpuSet = CPU_ALLOC( nCpus );
+        auto* pCpuSet = CPU_ALLOC( nCpus );
         if ( pCpuSet == nullptr ) {
             std::stringstream msg;
             msg << "Could not allocate cpu set for " << nCpus << " CPUs!";
@@ -81,7 +81,7 @@ pinThreadToLogicalCore( int logicalCoreId )
      */
 
     const auto nCpusForSufficientMask = getRequiredBitMaskSize();
-    auto pCpuSet = CPU_ALLOC( nCpusForSufficientMask );
+    auto* pCpuSet = CPU_ALLOC( nCpusForSufficientMask );
     const auto cpuSetSize = CPU_ALLOC_SIZE( nCpusForSufficientMask );
     CPU_ZERO_S( cpuSetSize, pCpuSet );
     CPU_SET_S( logicalCoreId, cpuSetSize, pCpuSet );
@@ -103,7 +103,7 @@ pinThreadToLogicalCore( int logicalCoreId )
 availableCores()
 {
     const auto nCpusForSufficientMask = getRequiredBitMaskSize();
-    auto pCpuSet = CPU_ALLOC( nCpusForSufficientMask );
+    auto* pCpuSet = CPU_ALLOC( nCpusForSufficientMask );
     const auto cpuSetSize = CPU_ALLOC_SIZE( nCpusForSufficientMask );
     CPU_ZERO_S( cpuSetSize, pCpuSet );
     const auto result = sched_getaffinity( /* get affinity for calling thread */ 0, cpuSetSize, pCpuSet );

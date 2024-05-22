@@ -43,6 +43,7 @@ https://www.ietf.org/rfc/rfc1952.txt
 #include <blockfinder/precodecheck/WalkTreeLUT.hpp>
 #include <blockfinder/precodecheck/WithoutLUT.hpp>
 #include <common.hpp>
+#include <DataGenerators.hpp>
 #include <filereader/Buffered.hpp>
 #include <filereader/Standard.hpp>
 #include <huffman/HuffmanCodingCheckOnly.hpp>
@@ -364,7 +365,7 @@ public:
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
         m_stream.next_in = const_cast<unsigned char*>( compressed ) + byteOffset;
 
-        const auto outputPreviouslyAvailable = std::min( 8_Ki, m_outputBuffer.size() );
+        const auto outputPreviouslyAvailable = std::min<size_t>( 8_Ki, m_outputBuffer.size() );
         m_stream.avail_out = outputPreviouslyAvailable;
         m_stream.next_out = m_outputBuffer.data();
 
@@ -483,7 +484,7 @@ findDeflateBlocksZlibOptimized( BufferedFileReader::AlignedBuffer buffer )
 
     std::vector<size_t> bitOffsets;
     GzipWrapper gzip( GzipWrapper::Format::RAW );
-    size_t zlibTestCount = 0;
+    //size_t zlibTestCount = 0;
 
     uint32_t nextThreeBits = bitReader.read<2>();
 
@@ -549,7 +550,7 @@ findDeflateBlocksZlibOptimized( BufferedFileReader::AlignedBuffer buffer )
          * can be valid because of the padding. This becomes important when matching the previous block's
          * end to this block's beginning. It would require a min,max possible range (<8)!
          */
-        ++zlibTestCount;
+        //++zlibTestCount;
         if ( gzip.tryInflate( reinterpret_cast<unsigned char const*>( buffer.data() ),
                               buffer.size() * sizeof( buffer[0] ),
                               offset ) ) {
@@ -1780,19 +1781,6 @@ findUncompressedDeflateBlocks( const BufferedFileReader::AlignedBuffer& buffer )
     }
 
     return bitOffsets;
-}
-
-
-void
-createRandomBase64( const std::string& filePath,
-                    const size_t       fileSize )
-{
-    constexpr std::string_view BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    std::ofstream file{ filePath };
-    for ( size_t i = 0; i < fileSize; ++i ) {
-        file << ( ( i + 1 == fileSize ) || ( ( i + 1 ) % 77 == 0 )
-                  ? '\n' : BASE64[static_cast<size_t>( rand() ) % BASE64.size()] );
-    }
 }
 
 

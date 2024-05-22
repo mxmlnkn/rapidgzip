@@ -33,7 +33,7 @@ enum class CompressionType : uint8_t
 };
 
 
-[[nodiscard]] const char*
+[[nodiscard]] constexpr const char*
 toString( const CompressionType compressionType )
 {
     switch ( compressionType )
@@ -63,6 +63,8 @@ template<typename Container = FasterVector<uint8_t> >
 compress( const VectorView<typename Container::value_type> toCompress,
           const CompressionType                            compressionType )
 {
+    using namespace rapidgzip;
+
     switch ( compressionType )
     {
     case CompressionType::GZIP:
@@ -78,6 +80,10 @@ compress( const VectorView<typename Container::value_type> toCompress,
         return rapidgzip::compressWithZlib<Container>( toCompress );
     #endif
         break;
+
+    case CompressionType::ZLIB:
+        return rapidgzip::compressWithZlib<Container>( toCompress, CompressionStrategy::DEFAULT, /* dictionary */ {},
+                                                       ContainerFormat::ZLIB );
 
     case CompressionType::NONE:
         return Container( toCompress.begin(), toCompress.end() );
@@ -123,6 +129,15 @@ public:
         m_data( std::make_shared<Container>( compress<Container>( toCompress, compressionType ) ) )
     {}
 
+    [[deprecated]] explicit
+    CompressedVector( Container&&           compressedData,
+                      const size_t          decompressedSize,
+                      const CompressionType compressionType ) :
+        m_compressionType( compressionType ),
+        m_decompressedSize( decompressedSize ),
+        m_data( std::make_shared<Container>( std::move( compressedData ) ) )
+    {}
+
     [[nodiscard]] CompressionType
     compressionType() const noexcept
     {
@@ -151,20 +166,30 @@ public:
             return std::make_shared<Container>();
         }
 
-        switch ( m_compressionType )
-        {
-        case CompressionType::GZIP:
         #ifdef WITH_ISAL
-            return std::make_shared<Container>(
-                inflateWithWrapper<rapidgzip::IsalInflateWrapper>( *m_data, m_decompressedSize ) );
+            using InflateWrapper = rapidgzip::IsalInflateWrapper;
         #else
-            return std::make_shared<Container>(
-                inflateWithWrapper<rapidgzip::ZlibInflateWrapper>( *m_data, m_decompressedSize ) );
+            using InflateWrapper = rapidgzip::ZlibInflateWrapper;
         #endif
 
+        using FileType = rapidgzip::FileType;
+
+        const auto decompressWithWrapper =
+            [this] ( FileType fileType ) {
+                return std::make_shared<Container>(
+                    inflateWithWrapper<InflateWrapper>( *m_data, m_decompressedSize, /* window */ {}, fileType ) );
+            };
+
+        switch ( m_compressionType )
+        {
+        case CompressionType::DEFLATE:
+            return decompressWithWrapper( FileType::DEFLATE );
+        case CompressionType::GZIP:
+            return decompressWithWrapper( FileType::GZIP );
+        case CompressionType::ZLIB:
+            return decompressWithWrapper( FileType::ZLIB );
         case CompressionType::NONE:
             return m_data;
-
         default:
             break;
         }

@@ -24,13 +24,15 @@ public:
 
 public:
     WindowMap() = default;
+    ~WindowMap() = default;
+    WindowMap( WindowMap&& ) = delete;
+    WindowMap& operator=( WindowMap&& ) = delete;
+    WindowMap& operator=( const WindowMap& ) = delete;
 
     explicit
-    WindowMap( const WindowMap& other )
-    {
-        const auto [lock, windows] = other.data();
-        m_windows = *windows;
-    }
+    WindowMap( const WindowMap& other ) :
+        m_windows( *other.data().second )
+    {}
 
     void
     emplace( const size_t    encodedBlockOffset,
@@ -64,8 +66,8 @@ public:
              * index!
              * Further windows might also be inserted if the file is opened in a buffered manner, which could
              * insert windows up to the buffer size without having read anything yet.
-             * Comparing the decompressed contents might also fail in the future when support for sparse windows
-             * is added.
+             * Comparing the decompressed contents will also fail when overwriting non-compressed windows
+             * with asynchronically compressed and made-sparse windows.
              * I am not even sure anymore why I did want to test for changes. I guess it was a consistency check,
              * but it becomes too complex and error-prone now. */
             m_windows.insert_or_assign( m_windows.end(), encodedBlockOffset, std::move( sharedWindow ) );
@@ -132,13 +134,26 @@ public:
             return false;
         }
 
-        for ( const auto& [offset, window] : m_windows ) {
-            const auto otherWindow = other.m_windows.find( offset );
-            if ( ( otherWindow == other.m_windows.end() )
-                 || ( static_cast<bool>( window ) != static_cast<bool>( otherWindow->second ) )
-                 || ( static_cast<bool>( window ) && static_cast<bool>( otherWindow->second )
-                      && ( *window != *otherWindow->second ) ) ) {
+        for ( const auto& [offset, window] : m_windows ) {  // NOLINT(readability-use-anyofallof)
+            const auto otherWindowIt = other.m_windows.find( offset );
+            if ( ( otherWindowIt == other.m_windows.end() )
+                 || ( static_cast<bool>( window ) != static_cast<bool>( otherWindowIt->second ) ) ) {
                 return false;
+            }
+
+            const auto& otherWindow = otherWindowIt->second;
+            if ( !static_cast<bool>( window ) || !static_cast<bool>( otherWindow ) ) {
+                continue;
+            }
+
+            if ( *window != *otherWindow ) {
+                const auto a = window->decompress();
+                const auto b = otherWindow->decompress();
+                if ( ( static_cast<bool>( a ) != static_cast<bool>( b ) )
+                     || ( static_cast<bool>( a ) && static_cast<bool>( b ) && ( *a != *b ) ) )
+                {
+                    return false;
+                }
             }
         }
 

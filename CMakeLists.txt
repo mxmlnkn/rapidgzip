@@ -8,31 +8,42 @@ option(CODE_COVERAGE "Enable coverage reporting" OFF)
 option(USE_SYSTEM_ZLIB "Use the system-installed zlib library instead of compiling it from source" OFF)
 option(WITH_RPMALLOC "Compile with rpmalloc for faster memory allocations" ON)
 option(WITH_ISAL "Compile with ISA-l for more than twice as fast decompression than zlib" ON)
+option(RUN_CLANG_TIDY "Runs clang-tidy while building targets" OFF)
 
+set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "" FORCE)
+
+# https://stackoverflow.com/questions/71797349/is-it-possible-to-ignore-a-header-with-clang-tidy
+# Clang-tidy has no negative matching, so painstakingly list all except for the "external" folder.
+# Not listing the "benchmark" and "test" folders also shouldn't hurt.
+set(CLANG_TIDY_COMMAND "clang-tidy;--config-file;${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy;--header-filter=/src/\(core\|huffman\|indexed_bzip2\|rapidgzip\|tools\)")
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Chile the build type: Debug, Release, RelWithDebInfo" FORCE)
 endif()
 
 add_compile_options(
-    "$<$<OR:$<COMPILE_LANG_AND_ID:CXX,Clang>,$<COMPILE_LANG_AND_ID:C,Clang>>:-Wall;-Wextra;-Wshadow;-Werror=return-type;-Wno-unknown-attributes>"
+    "$<$<OR:$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang>,$<COMPILE_LANG_AND_ID:C,AppleClang,Clang>>:-Wall;-Wextra;-Wshadow;-Werror=return-type;-Wno-unknown-attributes>"
     "$<$<OR:$<COMPILE_LANG_AND_ID:CXX,GNU>,$<COMPILE_LANG_AND_ID:C,GNU>>:-Wall;-Wextra;-Wshadow;-Wunused;-Werror=return-type;-Wno-attributes>"
     "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-Wsuggest-override>"
     # The default limit is ~33 M (1<<25) and 99 M seem to be enough currently to compile.
-    "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-fconstexpr-ops-limit=99000100>"
-    "$<$<COMPILE_LANG_AND_ID:CXX,Clang>:-fconstexpr-steps=99000100>"
-    "$<$<AND:$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>,$<BOOL:${CODE_COVERAGE}>>:-O0;-g;--coverage>"
+    "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-fconstexpr-ops-limit=199000100>"
+    "$<$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang>:-fconstexpr-steps=199000100>"
+    "$<$<AND:$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang,GNU>,$<BOOL:${CODE_COVERAGE}>>:-O0;-g;--coverage>"
     # Add some hardening. See e.g.:
     # https://www.phoronix.com/news/GCC-fhardened-Hardening-Option
     # https://developers.redhat.com/blog/2018/03/21/compiler-and-linker-flags-gcc
     # I have not observed any performance impact for these.
-    "$<$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>:-fpie;-fstack-protector-strong;-fstack-clash-protection;-fcf-protection=full>"
+    "$<$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>:-fpie;-fstack-protector-strong;-fcf-protection=full>"
+    # -fstack-clash-protection crashes the MINGW compiler https://github.com/msys2/MINGW-packages/issues/5348
+    "$<$<AND:$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>,$<NOT:$<PLATFORM_ID:Windows>>>:-fstack-clash-protection>"
+    # Fix error with MINGW: Fatal error: can't write 94 bytes to section .text of testCLI.cpp.obj: 'file too big'
+    "$<$<AND:$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>,$<PLATFORM_ID:Windows>>:-Wa,-mbig-obj>"
 )
 
 add_link_options(
-    "$<$<AND:$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>,$<BOOL:${CODE_COVERAGE}>>:--coverage>"
+    "$<$<AND:$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang,GNU>,$<BOOL:${CODE_COVERAGE}>>:--coverage>"
     # See the note about hardening inside add_compile_options.
-    "$<$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>:-Wl,-pie,-z,relro,-z,now,-z,defs>"
+    "$<$<AND:$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>,$<NOT:$<PLATFORM_ID:Windows>>>:-Wl,-pie,-z,relro,-z,now,-z,defs>"
 )
 
 if(CODE_COVERAGE)
@@ -47,7 +58,7 @@ include(CTest)
 if(USE_SYSTEM_ZLIB)
     set(OLD_CMAKE_FIND_LIBRARY_SUFFIXES "${CMAKE_FIND_LIBRARY_SUFFIXES}")
     set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-    find_package(ZLIB QUIET)
+    find_package(ZLIB REQUIRED)
     set(CMAKE_FIND_LIBRARY_SUFFIXES "${OLD_CMAKE_FIND_LIBRARY_SUFFIXES}")
     add_library(zlibstatic ALIAS ZLIB::ZLIB)
 endif()

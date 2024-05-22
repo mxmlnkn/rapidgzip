@@ -6,8 +6,12 @@
 #include <algorithm>
 #include <cstdio>
 #include <iostream>
+#include <memory>
+#include <random>
 #include <stdexcept>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include <zlib.h>
@@ -27,7 +31,7 @@ decompressWithRapidgzip( UniqueFileReader fileReader )
     using namespace rapidgzip;
 
     size_t totalDecodedBytes = 0;
-    size_t blockCount = 0;
+    [[maybe_unused]] size_t blockCount = 0;
 
     GzipReader gzipReader( std::move( fileReader ) );
     std::vector<uint8_t> outputBuffer( 64_Mi );
@@ -233,7 +237,7 @@ benchmarkDecompressionOfRandomBackreferences()
     for ( size_t i = INITIAL_RANDOM_SIZE; i < randomData.size(); ) {
         const auto distance = randomEngine() % INITIAL_RANDOM_SIZE;
         const auto remainingSize = randomData.size() - i;
-        const auto length = std::min( randomEngine() % 256, remainingSize );
+        const auto length = std::min<size_t>( randomEngine() % 256, remainingSize );
         if ( ( length < 4 ) || ( length > distance ) ) {
             continue;
         }

@@ -13,6 +13,7 @@
 #include <filereader/Buffered.hpp>
 #include <filereader/BufferView.hpp>
 #include <filereader/Standard.hpp>
+#include <DataGenerators.hpp>
 #include <ParallelGzipReader.hpp>
 #include <rapidgzip.hpp>
 #include <TestHelpers.hpp>
@@ -157,7 +158,8 @@ testParallelDecoder( const std::filesystem::path& encoded,
     if ( std::filesystem::is_regular_file( index ) ) {
         std::cerr << "Testing " << encoded.filename() << " with given index ("
                   << std::filesystem::file_size( encoded ) << " B)\n";
-        const auto givenIndexData = readGzipIndex( std::make_unique<StandardFileReader>( index.string() ) );
+        const auto givenIndexData = readGzipIndex( std::make_unique<StandardFileReader>( index.string() ),
+                                                   std::make_unique<StandardFileReader>( encoded.string() ) );
         for ( const size_t nBlocksToSkip : blocksToSkip ) {
             testParallelDecoder( std::make_unique<StandardFileReader>( encoded.string() ),
                                  std::make_unique<StandardFileReader>( decodedFilePath.string() ),
@@ -207,13 +209,13 @@ testParallelDecoderNano()
 void
 testParallelDecodingWithIndex( const TemporaryDirectory& tmpFolder )
 {
-    const auto decodedFile = tmpFolder.path() / "decoded";
-    const auto encodedFile = tmpFolder.path() / "decoded.gz";
-    const auto indexFile = tmpFolder.path() / "decoded.gz.index";
+    const auto decodedFile = ( tmpFolder.path() / "decoded" ).string();
+    const auto encodedFile = ( tmpFolder.path() / "decoded.gz" ).string();
+    const auto indexFile = ( tmpFolder.path() / "decoded.gz.index" ).string();
     createRandomTextFile( decodedFile, 64_Ki );
 
     {
-        const auto command = "gzip -k " + std::string( decodedFile );
+        const auto command = "gzip -k " + decodedFile;
         const auto returnCode = std::system( command.c_str() );
         REQUIRE( returnCode == 0 );
         if ( returnCode != 0 ) {
@@ -224,9 +226,9 @@ testParallelDecodingWithIndex( const TemporaryDirectory& tmpFolder )
     {
         const auto command =
             R"(python3 -c 'import indexed_gzip as ig; f = ig.IndexedGzipFile( ")"
-            + std::string( encodedFile )
+            + encodedFile
             + R"(" ); f.build_full_index(); f.export_index( ")"
-            + std::string( indexFile )
+            + indexFile
             + R"(" );')";
         const auto returnCode = std::system( command.c_str() );
         REQUIRE( returnCode == 0 );
@@ -236,7 +238,7 @@ testParallelDecodingWithIndex( const TemporaryDirectory& tmpFolder )
     }
 
     std::cerr << "Test parallel decoder with larger gz file given an indexed_gzip index.\n";
-    const auto realIndex = readGzipIndex( std::make_unique<StandardFileReader>( indexFile.string() ) );
+    const auto realIndex = readGzipIndex( std::make_unique<StandardFileReader>( indexFile ) );
     for ( const size_t nBlocksToSkip : { 0, 1, 2, 4, 8, 16, 24, 32, 64, 128 } ) {
         testParallelDecoder( std::make_unique<StandardFileReader>( encodedFile ),
                              std::make_unique<StandardFileReader>( decodedFile ),
@@ -291,7 +293,7 @@ testParallelDecodingWithIndex( const TemporaryDirectory& tmpFolder )
                     throw std::runtime_error( "Failed to write data to index!" );
                 }
             };
-        writeGzipIndex( realIndex, checkedWrite );
+        indexed_gzip::writeGzipIndex( realIndex, checkedWrite );
     }
     const auto rewrittenIndex = readGzipIndex( std::make_unique<StandardFileReader>( writtenIndexFile.string() ) );
 
@@ -357,77 +359,6 @@ encodeTestFile( const std::string&           filePath,
     }
 
     throw std::runtime_error( "Encoded file was not found!" );
-}
-
-
-void
-createRandomBase64( const std::string& filePath,
-                    const size_t       fileSize )
-{
-    constexpr std::string_view BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    std::ofstream file{ filePath };
-    for ( size_t i = 0; i < fileSize; ++i ) {
-        file << ( ( i + 1 == fileSize ) || ( ( i + 1 ) % 77 == 0 )
-                  ? '\n' : BASE64[static_cast<size_t>( rand() ) % BASE64.size()] );
-    }
-}
-
-
-void
-createRandomNumbers( const std::string& filePath,
-                     const size_t       fileSize )
-{
-    constexpr std::string_view BASE64 = "0123456789";
-    std::ofstream file{ filePath };
-    for ( size_t i = 0; i < fileSize; ++i ) {
-        file << ( ( i + 1 == fileSize ) || ( ( i + 1 ) % 77 == 0 )
-                  ? '\n' : BASE64[static_cast<size_t>( rand() ) % BASE64.size()] );
-    }
-}
-
-
-void
-createRandom( const std::string& filePath,
-              const size_t       fileSize )
-{
-    std::ofstream file{ filePath };
-    for ( size_t i = 0; i < fileSize; ++i ) {
-        file << static_cast<char>( rand() );
-    }
-}
-
-
-void
-createZeros( const std::string& filePath,
-             const size_t       fileSize )
-{
-    std::ofstream file{ filePath };
-    static constexpr std::array<char, 4_Ki> BUFFER{};
-    for ( size_t i = 0; i < fileSize; i += BUFFER.size() ) {
-        const auto size = std::min( fileSize - i, BUFFER.size() );
-        file.write( BUFFER.data(), size );
-    }
-}
-
-
-void
-createRandomWords( const std::string& filePath,
-                   const size_t       fileSize )
-{
-    static constexpr size_t WORD_SIZE{ 16 };
-    std::vector<std::array<char, WORD_SIZE> > words( 32 );
-    for ( auto& word : words ) {
-        for ( auto& c : word ) {
-            c = static_cast<char>( rand() );
-        }
-    }
-
-    std::ofstream file{ filePath };
-    for ( size_t i = 0; i < fileSize; ) {
-        const auto iWord = static_cast<size_t>( rand() ) % words.size();
-        file.write( words[iWord].data(), words[iWord].size() );
-        i += words[iWord].size();
-    }
 }
 
 
@@ -510,15 +441,22 @@ testPerformance( const std::string& encodedFilePath,
     REQUIRE( statistics.blockCountFinalized );
     std::cerr << "statistics.blockCount:" << statistics.blockCount << ", statistics.prefetchCount:"
               << statistics.prefetchCount << ", statistics.onDemandFetchCount:" << statistics.onDemandFetchCount
-              << "\n";
-    REQUIRE_EQUAL( statistics.blockCount, statistics.prefetchCount + statistics.onDemandFetchCount );
+              << ", parallelization: " << parallelization << "\n";
+
+    if ( parallelization == 1 ) {
+        REQUIRE_EQUAL( statistics.prefetchCount, 0U );
+    } else {
+        REQUIRE_EQUAL( statistics.onDemandFetchCount, 1U );
+    }
+    /* The block count can be larger if chunks were split. */
+    REQUIRE( statistics.blockCount >= statistics.prefetchCount + statistics.onDemandFetchCount );
 }
 
 
 void
 testPerformance( const TemporaryDirectory& tmpFolder )
 {
-    const std::string fileName = std::filesystem::absolute( tmpFolder.path() / "random-base64" );
+    const auto fileName = std::filesystem::absolute( tmpFolder.path() / "random-base64" ).string();
     createRandomBase64( fileName, 64_Mi );
 
     try {
@@ -568,7 +506,7 @@ testParallelCRC32( const std::vector<std::byte>& uncompressed,
     reader.setStatisticsEnabled( true );
     reader.setCRC32Enabled( true );
 
-    /* Read everything. The data should contain sufficient chunks such that the first one have been evicted. */
+    /* Read everything. The data should contain sufficient chunks such that the first ones have been evicted. */
     std::vector<std::byte> decompressed( uncompressed.size() );
     /* In the bugged version, which did not calcualte the CRC32 for data cleaned inside cleanUnmarkedData,
      * this call would throw an exception because CRC32 verification failed. */
@@ -659,7 +597,7 @@ testCRC32AndCleanUnmarkedDataWithRandomBackreferences()
     for ( size_t i = INITIAL_RANDOM_SIZE; i < randomData.size(); ) {
         const auto distance = randomEngine() % INITIAL_RANDOM_SIZE;
         const auto remainingSize = randomData.size() - i;
-        const auto length = std::min( randomEngine() % 256, remainingSize );
+        const auto length = std::min<size_t>( randomEngine() % 256, remainingSize );
         if ( ( length < 4 ) || ( length > distance ) ) {
             continue;
         }
@@ -834,8 +772,8 @@ void
 testMultiStreamDecompression( const std::filesystem::path& encoded,
                               const std::filesystem::path& decoded )
 {
-    auto compressedData = readFile<std::vector<uint8_t> >( encoded );
-    auto decompressedData = readFile<std::vector<uint8_t> >( decoded );
+    auto compressedData = readFile<std::vector<uint8_t> >( encoded.string() );
+    auto decompressedData = readFile<std::vector<uint8_t> >( decoded.string() );
 
     /* Duplicate gzip stream. We need something larger than the chunk size at least. */
     const auto duplicationCount = ceilDiv( 32_Mi, compressedData.size() );
@@ -916,6 +854,176 @@ testChecksummedMultiStreamDecompression( const std::filesystem::path& encoded,
 }
 
 
+void
+testWindowPruningSimpleBase64Compression( const TemporaryDirectory& tmpFolder,
+                                          const std::string&        command )
+{
+    const auto filePath = std::filesystem::absolute( tmpFolder.path() / "random-base64" ).string();
+    createRandomBase64( filePath, 1_Mi );
+    const auto compressedFilePath = encodeTestFile( filePath, tmpFolder, command + " --force" );
+    const auto compressedFileSize = fileSize( compressedFilePath );
+
+    {
+        ParallelGzipReader reader( std::make_unique<StandardFileReader>( compressedFilePath ), 0, 256_Ki );
+        const auto index = reader.gzipIndex();
+
+        REQUIRE( index.checkpoints.size() > 2 );
+        REQUIRE( static_cast<bool>( index.windows ) );
+        if ( index.windows ) {
+            REQUIRE_EQUAL( index.windows->size(), index.checkpoints.size() );
+            for ( const auto& checkpoint : index.checkpoints ) {
+                const auto window = index.windows->get( checkpoint.compressedOffsetInBits );
+                if ( ( checkpoint.compressedOffsetInBits < 64 * BYTE_SIZE /* guess for the gzip header size */ )
+                     || ( checkpoint.compressedOffsetInBits == compressedFileSize * BYTE_SIZE )
+                     || ( command == "bgzip" ) )
+                {
+                    REQUIRE( !window || window->empty() );
+                } else {
+                    REQUIRE( window && !window->empty() );
+                }
+            }
+        }
+    }
+
+    std::filesystem::remove( filePath );
+    std::filesystem::remove( compressedFilePath );
+}
+
+
+void
+testWindowPruningMultiGzipStreams( const size_t gzipStreamSize,
+                                   const size_t expectedBlockCount )
+{
+    std::vector<uint8_t> uncompressedData( gzipStreamSize );
+    fillWithRandomBase64( uncompressedData );
+    const auto compressedData = compressWithZlib( uncompressedData );
+
+    size_t blockBoundaryCount{ 0 };
+    {
+        const auto collectAllBlockBoundaries =
+            [&] ( const std::shared_ptr<ChunkData>& chunkData,
+                  [[maybe_unused]] size_t const     offsetInBlock,
+                  [[maybe_unused]] size_t const     dataToWriteSize )
+            {
+                std::cerr << "Footers:";
+                for ( const auto& footer : chunkData->footers ) {
+                    std::cerr << " " << footer.blockBoundary.encodedOffset;
+                }
+                std::cerr << "\n";
+
+                std::cerr << "Boundaries:";
+                for ( const auto& blockBoundary : chunkData->blockBoundaries ) {
+                    std::cerr << " " << blockBoundary.encodedOffset;
+                }
+                std::cerr << "\n";
+                /* The list of block boundaries does not include the very first block because it is required to
+                 * be at offset 0 relative to the chunk offset. */
+                blockBoundaryCount += chunkData->blockBoundaries.size() + 1;
+            };
+
+        ParallelGzipReader singleStreamReader( std::make_unique<BufferedFileReader>( compressedData ) );
+        singleStreamReader.read( collectAllBlockBoundaries );
+    }
+
+    const auto streamCount = ceilDiv( 1_Mi, compressedData.size() );
+    const auto fullCompressedData =
+        duplicateContents( std::vector<uint8_t>( compressedData.begin(), compressedData.end() ), streamCount );
+
+    std::cerr << "Testing window pruning for " << streamCount << " gzip streams with each " << blockBoundaryCount
+              << " deflate blocks\n";
+
+    if ( blockBoundaryCount != expectedBlockCount ) {
+        throw std::runtime_error( "The compression routine does not fullfil the test precondition." );
+    }
+
+    /* Use some prime chunk number to avoid possible exact overlap with the gzip streams! */
+    ParallelGzipReader reader( std::make_unique<BufferedFileReader>( fullCompressedData ), 0, 257_Ki );
+    const auto index = reader.gzipIndex();
+
+    /* Check that all windows are empty. */
+    REQUIRE( index.checkpoints.size() > 2 );
+    REQUIRE( static_cast<bool>( index.windows ) );
+    if ( index.windows ) {
+        REQUIRE_EQUAL( index.windows->size(), index.checkpoints.size() );
+        for ( size_t i = 0; i < index.checkpoints.size(); ++i ) {
+            const auto& checkpoint = index.checkpoints[i];
+            const auto window = index.windows->get( checkpoint.compressedOffsetInBits );
+            REQUIRE( !window || window->empty() );
+            if ( window && !window->empty() ) {
+                std::cerr << "[Error] Window " << i << " is sized " << window->decompressedSize() << " at offset: "
+                          << formatBits( checkpoint.compressedOffsetInBits ) << " out of "
+                          << index.checkpoints.size() << " checkpoints and in a compressed stream sized "
+                          << formatBytes( fullCompressedData.size() ) << " when it is expected to be empty!\n";
+            }
+        }
+    }
+}
+
+
+void
+testWindowPruning( const TemporaryDirectory& tmpFolder )
+{
+    testWindowPruningSimpleBase64Compression( tmpFolder, "gzip" );
+    testWindowPruningSimpleBase64Compression( tmpFolder, "bgzip" );
+
+    /* BGZF window pruning only works because all chunks are ensured to start at the first deflate block
+     * inside a gzip stream. For non-BGZF files with non-single-block gzip streams, more intricate pruning
+     * has to be implemented.
+     * For the following tests, build up a larger gzip file by concatenating gzip streams. The gzip stream
+     * size is configurable and is a proxy for the number of deflate blocks in it. For gzip stream sizes
+     * smaller than 8 KiB, it can be assumed for almost all encoders that it contains only a single block.
+     * And conversely, for gzip stream sizes > 128 KiB, it can be assumed to produce more than one block.
+     * The second argument, the number of expected blocks are not something we actually want to test for,
+     * but it is a test for the precondition of the test. If for some reason, the expected blocks differ,
+     * then simple vary the stream size for the test or implement something more stable.
+     * Note that this test does not get parallelized/chunked anyway for now because it only consists of
+     * final deflate blocks! */
+    testWindowPruningMultiGzipStreams( /* gzip stream size */ 8_Ki, /* expected blocks */ 1 );
+    /**
+     * @todo This only works when blocks are split with prioritizing end-of-stream boundaries instead of splitting
+     * only exactly when the given chunk size is exceeded. However, splitting chunks smartly is not sufficient
+     * because the chunk offsets for parallelization are fixed. We would have to add some kind of chunk merging.
+     * This seems too complicated to implement in the near-tearm as it would also affect the chunk cache!
+     */
+    //testWindowPruningMultiGzipStreams( /* gzip stream size */ 31_Ki, /* expected blocks */ 2 );
+}
+
+
+void
+printClassSizes()
+{
+    std::cout << "== Rapidgzip class sizes ==\n";
+    std::cout << "  BitReader                     : " << sizeof( rapidgzip::BitReader ) << "\n";  // 88
+    std::cout << "  WindowMap                     : " << sizeof( WindowMap ) << "\n";  // 88
+    std::cout << "  deflate::DecodedDataView      : " << sizeof( deflate::DecodedDataView ) << "\n";  // 64
+    std::cout << "  deflate::DecodedData          : " << sizeof( deflate::DecodedData ) << "\n";  // 96
+    std::cout << "  ChunkData                     : " << sizeof( ChunkData ) << "\n";  // 392
+    std::cout << "  ChunkDataCounter              : " << sizeof( ChunkDataCounter ) << "\n";  // 392
+    std::cout << "  CompressedVector              : " << sizeof( CompressedVector<> ) << "\n";  // 32
+    std::cout << "  ZlibInflateWrapper            : " << sizeof( ZlibInflateWrapper ) << "\n";  // 131320
+#ifdef WITH_ISAL
+    std::cout << "  IsalInflateWrapper            : " << sizeof( IsalInflateWrapper ) << "\n";  // 218592
+    std::cout << "  HuffmanCodingISAL             : " << sizeof( HuffmanCodingISAL ) << "\n";  // 18916
+#endif
+    /* 18916 */
+    std::cout << "  LiteralOrLengthHuffmanCoding  : " << sizeof( deflate::LiteralOrLengthHuffmanCoding ) << "\n";
+    std::cout << "  FixedHuffmanCoding            : " << sizeof( deflate::FixedHuffmanCoding ) << "\n";  // 131776
+    std::cout << "  PrecodeHuffmanCoding          : " << sizeof( deflate::PrecodeHuffmanCoding ) << "\n";  // 320
+    std::cout << "  DistanceHuffmanCoding         : " << sizeof( deflate::DistanceHuffmanCoding ) << "\n";  // 65728
+    std::cout << "  LiteralAndDistanceCLBuffer    : " << sizeof( deflate::LiteralAndDistanceCLBuffer ) << "\n";  // 572
+    std::cout << "  GzipIndex                     : " << sizeof( GzipIndex ) << "\n";  // 72
+    std::cout << "  GzipBlockFinder               : " << sizeof( GzipBlockFinder ) << "\n";  // 192
+    std::cout << "  ParallelGzipReader            : " << sizeof( ParallelGzipReader<ChunkData> ) << "\n";  // 288
+    std::cout << "  deflate::Block                : " << sizeof( deflate::Block<> ) << "\n";  // 207616
+    std::cout << "  std::optional<deflate::Block> : " << sizeof( std::optional<deflate::Block<> >) << "\n";  // 217216
+    std::cout << "  Bzip2Chunk                    : " << sizeof( Bzip2Chunk<ChunkData> ) << "\n";
+    std::cout << "  GzipChunk                     : " << sizeof( GzipChunk<ChunkData> ) << "\n";
+    std::cout << "  GzipReader                    : " << sizeof( GzipReader ) << "\n";  // 208064
+    std::cout << "  GzipChunkFetcher              : " << sizeof( GzipChunkFetcher<FetchingStrategy::FetchMultiStream> )
+              << "\n";
+}
+
+
 int
 main( int    argc,
       char** argv )
@@ -924,6 +1032,8 @@ main( int    argc,
         std::cerr << "Expected at least the launch command as the first argument!\n";
         return 1;
     }
+
+    printClassSizes();
 
     const std::string binaryFilePath( argv[0] );
     std::string binaryFolder = ".";
@@ -942,6 +1052,8 @@ main( int    argc,
     testCachedChunkReuseAfterSplit();
 
     const auto tmpFolder = createTemporaryDirectory( "rapidgzip.testParallelGzipReader" );
+
+    testWindowPruning( tmpFolder );
 
     testPerformance( tmpFolder );
 
@@ -981,9 +1093,15 @@ main( int    argc,
         testParallelDecoder( rootFolder / ( "zeros" + extension ) );
     }
 
-    testParallelDecoder( rootFolder / "base64-256KiB.gz",
+    for ( const auto* const indexSuffix : { ".index", ".gztool.index", ".gztool.with-lines.index" } ) {
+        testParallelDecoder( rootFolder / "base64-256KiB.gz",
+                             rootFolder / "base64-256KiB",
+                             rootFolder / ( "base64-256KiB.gz"s + indexSuffix ) );
+    }
+
+    testParallelDecoder( rootFolder / "base64-256KiB.bgz",
                          rootFolder / "base64-256KiB",
-                         rootFolder / "base64-256KiB.gz.index" );
+                         rootFolder / "base64-256KiB.bgz.gzi" );
 
     /**
      * @todo add test with false pigz positive, e.g., pigz marker inside comment, extra, or file name field.

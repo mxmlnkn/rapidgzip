@@ -118,6 +118,15 @@ target_sources(benchmarkSequential2023 PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchma
 target_link_libraries(benchmarkSequential2023 PRIVATE librapidgzip)
 
 
+if(WITH_ISAL)
 add_executable(benchmarkCRC32)
 target_sources(benchmarkCRC32 PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkCRC32.cpp)
 target_link_libraries(benchmarkCRC32 PRIVATE librapidgzip isal_inflate)
+endif()
+
+add_executable(benchmarkIndexCompression)
+target_sources(benchmarkIndexCompression PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkIndexCompression.cpp)
+target_link_libraries(benchmarkIndexCompression PRIVATE librapidgzip)
+if(WITH_ISAL)
+target_link_libraries(benchmarkIndexCompression PRIVATE isal_inflate)
+endif()

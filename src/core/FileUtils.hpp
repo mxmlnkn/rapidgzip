@@ -14,7 +14,9 @@
 #include <string>
 #include <utility>
 
-#include <sys/stat.h>
+#ifdef __APPLE_CC__
+    #include <AvailabilityMacros.h>
+#endif
 
 #ifdef _MSC_VER
     #define NOMINMAX
@@ -32,8 +34,9 @@
     #include <fcntl.h>
     #include <limits.h>         // IOV_MAX
     #include <sys/stat.h>
-    #include <sys/poll.h>
-    #include <sys/uio.h>
+    #if defined(__linux__) || defined(__APPLE__)
+        #include <sys/uio.h>
+    #endif
     #include <unistd.h>
 
     //#if not defined( HAVE_VMSPLICE ) and defined( __linux__ ) and defined( F_GETPIPE_SZ )
@@ -182,6 +185,7 @@ struct unique_file_descriptor
     {
         if ( m_fd >= 0 ) {
             ::close( m_fd );
+            m_fd = -1;
         }
     }
 
@@ -202,11 +206,14 @@ using unique_file_ptr = std::unique_ptr<std::FILE, std::function<void ( std::FIL
 inline unique_file_ptr
 make_unique_file_ptr( std::FILE* file )
 {
-    return unique_file_ptr( file, [] ( auto* ownedFile ) {
-                                if ( ownedFile != nullptr ) {
-                                    std::fclose( ownedFile );
-                                }
-                            } );
+    return {
+        file,
+        [] ( auto* ownedFile ) {
+            if ( ownedFile != nullptr ) {
+                std::fclose( ownedFile );  // NOLINT
+            }
+        }
+    };
 }
 
 
@@ -214,7 +221,10 @@ inline unique_file_ptr
 make_unique_file_ptr( char const* const filePath,
                       char const* const mode )
 {
-    return make_unique_file_ptr( std::fopen( filePath, mode ) );
+    if ( ( filePath == nullptr ) || ( mode == nullptr ) || ( std::strlen( filePath ) == 0 ) ) {
+        return {};
+    }
+    return make_unique_file_ptr( std::fopen( filePath, mode ) );  // NOLINT
 }
 
 
@@ -274,7 +284,26 @@ fdFilePath( int fileDescriptor )
 }
 
 
-#ifndef __APPLE_CC__  // Missing std::filesytem::path support in wheels
+template<typename Container = std::vector<char> >
+[[nodiscard]] Container
+readFile( const std::string& fileName )
+{
+    Container contents( fileSize( fileName ) );
+    const auto file = throwingOpen( fileName, "rb" );
+    const auto nBytesRead = std::fread( contents.data(), sizeof( contents[0] ), contents.size(), file.get() );
+
+    if ( nBytesRead != contents.size() ) {
+        throw std::logic_error( "Did read less bytes than file is large!" );
+    }
+
+    return contents;
+}
+
+
+/* Missing std::filesytem::path support in wheels.
+ * https://opensource.apple.com/source/xnu/xnu-2050.7.9/EXTERNAL_HEADERS/AvailabilityMacros.h.auto.html */
+#if !defined(__APPLE_CC__ ) || ( defined(MAC_OS_X_VERSION_MIN_REQUIRED) \
+    && MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_15 )
 [[nodiscard]] inline std::string
 findParentFolderContaining( const std::string& folder,
                             const std::string& relativeFilePath )
@@ -294,6 +323,29 @@ findParentFolderContaining( const std::string& folder,
     }
 
     return {};
+}
+
+
+inline unique_file_ptr
+throwingOpen( const std::filesystem::path& filePath,
+              const char*                  mode )
+{
+    return throwingOpen( filePath.string(), mode );
+}
+
+
+inline size_t
+fileSize( const std::filesystem::path& filePath )
+{
+    return fileSize( filePath.string() );
+}
+
+
+template<typename Container = std::vector<char> >
+[[nodiscard]] Container
+readFile( const std::filesystem::path& filePath )
+{
+    return readFile<Container>( filePath.string() );
 }
 #endif
 
@@ -574,8 +626,7 @@ writeAllToFd( const int         outputFileDescriptor,
               const uint64_t    dataToWriteSize )
 {
     for ( uint64_t nTotalWritten = 0; nTotalWritten < dataToWriteSize; ) {
-        const auto currentBufferPosition =
-            reinterpret_cast<const void*>( reinterpret_cast<uintptr_t>( dataToWrite ) + nTotalWritten );
+        const auto* const currentBufferPosition = reinterpret_cast<const uint8_t*>( dataToWrite ) + nTotalWritten;
 
         const auto nBytesToWritePerCall =
             static_cast<unsigned int>(
@@ -601,12 +652,11 @@ pwriteAllToFd( const int         outputFileDescriptor,
                const uint64_t    fileOffset )
 {
     for ( uint64_t nTotalWritten = 0; nTotalWritten < dataToWriteSize; ) {
-        const auto currentBufferPosition =
-            reinterpret_cast<const void*>( reinterpret_cast<uintptr_t>( dataToWrite ) + nTotalWritten );
+        const auto* const currentBufferPosition = reinterpret_cast<const uint8_t*>( dataToWrite ) + nTotalWritten;
         const auto nBytesWritten = ::pwrite( outputFileDescriptor,
                                              currentBufferPosition,
                                              dataToWriteSize - nTotalWritten,
-                                             fileOffset + nTotalWritten );
+                                             fileOffset + nTotalWritten );  // NOLINT
         if ( nBytesWritten <= 0 ) {
             std::stringstream message;
             message << "Unable to write all data to the given file descriptor. Wrote " << nTotalWritten << " out of "
@@ -625,7 +675,7 @@ writeAllToFdVector( const int                   outputFileDescriptor,
 {
     for ( size_t i = 0; i < dataToWrite.size(); ) {
         const auto segmentCount = std::min( static_cast<size_t>( IOV_MAX ), dataToWrite.size() - i );
-        auto nBytesWritten = ::writev( outputFileDescriptor, &dataToWrite[i], segmentCount );
+        auto nBytesWritten = ::writev( outputFileDescriptor, &dataToWrite[i], segmentCount );  // NOLINT
 
         if ( nBytesWritten < 0 ) {
             return errno;
@@ -634,7 +684,7 @@ writeAllToFdVector( const int                   outputFileDescriptor,
         /* Skip over buffers that were written fully. */
         for ( ; ( i < dataToWrite.size() ) && ( dataToWrite[i].iov_len <= static_cast<size_t>( nBytesWritten ) );
               ++i ) {
-            nBytesWritten -= dataToWrite[i].iov_len;
+            nBytesWritten -= dataToWrite[i].iov_len;  // NOLINT
         }
 
         /* Write out last partially written buffer if necessary so that we can resume full vectorized writing
@@ -644,7 +694,7 @@ writeAllToFdVector( const int                   outputFileDescriptor,
 
             assert( iovBuffer.iov_len < static_cast<size_t>( nBytesWritten ) );
             const auto remainingSize = iovBuffer.iov_len - nBytesWritten;
-            const auto remainingData = reinterpret_cast<char*>( iovBuffer.iov_base ) + nBytesWritten;
+            auto* const remainingData = reinterpret_cast<char*>( iovBuffer.iov_base ) + nBytesWritten;
             const auto errorCode = writeAllToFd( outputFileDescriptor, remainingData, remainingSize );
             if ( errorCode != 0 ) {
                 return errorCode;
@@ -708,7 +758,7 @@ public:
                 /* Opening an existing file and overwriting its data can be much slower because posix_fallocate
                  * can be relatively slow compared to the decoding speed and memory bandwidth! Note that std::fopen
                  * would open a file with O_TRUNC, deallocating all its contents before it has to be reallocated. */
-                m_fileDescriptor = ::open( filePath.c_str(), O_WRONLY );
+                m_fileDescriptor = ::open( filePath.c_str(), O_WRONLY );  // NOLINT
                 m_ownedFd = unique_file_descriptor( m_fileDescriptor );
             }
         #endif
@@ -725,11 +775,11 @@ public:
     }
 
     void
-    truncate( size_t size )
+    truncate( size_t size )  // NOLINT
     {
     #ifndef _MSC_VER
         if ( ( m_fileDescriptor != -1 ) && ( size < m_oldOutputFileSize ) ) {
-            if ( ::ftruncate( m_fileDescriptor, size ) == -1 ) {
+            if ( ::ftruncate( m_fileDescriptor, size ) == -1 ) {  // NOLINT
                 std::cerr << "[Error] Failed to truncate file because of: " << strerror( errno )
                           << " (" << errno << ")\n";
             }
@@ -769,7 +819,7 @@ private:
 };
 
 
-[[nodiscard]] std::ios_base::seekdir
+[[nodiscard]] inline std::ios_base::seekdir
 toSeekdir( int origin )
 {
     switch ( origin )
@@ -788,7 +838,7 @@ toSeekdir( int origin )
 }
 
 
-[[nodiscard]] const char*
+[[nodiscard]] inline const char*
 originToString( int origin )
 {
     switch ( origin )
@@ -804,20 +854,4 @@ originToString( int origin )
     }
 
     throw std::invalid_argument( "Unknown origin" );
-}
-
-
-template<typename Container = std::vector<char> >
-[[nodiscard]] Container
-readFile( const std::string& fileName )
-{
-    Container contents( fileSize( fileName ) );
-    const auto file = throwingOpen( fileName, "rb" );
-    const auto nBytesRead = std::fread( contents.data(), sizeof( contents[0] ), contents.size(), file.get() );
-
-    if ( nBytesRead != contents.size() ) {
-        throw std::logic_error( "Did read less bytes than file is large!" );
-    }
-
-    return contents;
 }

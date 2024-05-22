@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iostream>
+#include <filesystem>
 #include <mutex>
 #include <optional>
 #include <stdexcept>
@@ -11,6 +12,10 @@
 #include <vector>
 
 #include "common.hpp"  // duration
+
+#ifdef __APPLE_CC__
+    #include <AvailabilityMacros.h>
+#endif
 
 
 int gnTests = 0;  // NOLINT
@@ -47,6 +52,14 @@ require( bool               condition,
 
 #define REQUIRE_EQUAL( a, b ) requireEqual( a, b, __LINE__ )  // NOLINT
 #define REQUIRE( condition ) require( condition, #condition, __LINE__ )  // NOLINT
+#define REQUIRE_THROWS( condition ) require( [] () { \
+    try { \
+        (void)condition; \
+    } catch ( const std::exception& ) { \
+        return true; \
+    } \
+    return false; \
+} (), #condition, __LINE__ )  // NOLINT
 
 
 template<
@@ -247,3 +260,60 @@ private:
     std::ostream& m_out;
     std::optional<std::basic_streambuf<char>*> m_rdbuf;
 };
+
+
+/* error: 'std::filesystem::path' is unavailable: introduced in macOS 10.15.
+ * Fortunately, this is only needed for the tests, so the incomplete std::filesystem support
+ * is not a problem for building the manylinux wheels on the pre 10.15 macOS kernel.
+ * https://opensource.apple.com/source/xnu/xnu-2050.7.9/EXTERNAL_HEADERS/AvailabilityMacros.h.auto.html */
+#if !defined(__APPLE_CC__ ) || ( defined(MAC_OS_X_VERSION_MIN_REQUIRED) \
+    && MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_15 )
+class TemporaryDirectory
+{
+public:
+    explicit
+    TemporaryDirectory( std::filesystem::path path ) :
+        m_path( std::move( path ) )
+    {}
+
+    TemporaryDirectory( TemporaryDirectory&& ) = default;
+
+    TemporaryDirectory( const TemporaryDirectory& ) = delete;
+
+    TemporaryDirectory&
+    operator=( TemporaryDirectory&& ) = default;
+
+    TemporaryDirectory&
+    operator=( const TemporaryDirectory& ) = delete;
+
+    ~TemporaryDirectory()
+    {
+        if ( !m_path.empty() ) {
+            std::filesystem::remove_all( m_path );
+        }
+    }
+
+    [[nodiscard]] operator std::filesystem::path() const
+    {
+        return m_path;
+    }
+
+    [[nodiscard]] const std::filesystem::path&
+    path() const
+    {
+        return m_path;
+    }
+
+private:
+    std::filesystem::path m_path;
+};
+
+
+[[nodiscard]] inline TemporaryDirectory
+createTemporaryDirectory( const std::string& title = "tmpTest" )
+{
+    const std::filesystem::path tmpFolderName = title + "." + std::to_string( unixTimeInNanoseconds() );
+    std::filesystem::create_directory( tmpFolderName );
+    return TemporaryDirectory( tmpFolderName );
+}
+#endif

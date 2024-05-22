@@ -55,8 +55,7 @@ public:
         m_blockSize100k( bzip2::readBzip2Header( bitReader ) )
     {}
 
-    virtual
-    ~BZ2BlockFetcher()
+    ~BZ2BlockFetcher() override
     {
         this->stopThreadPool();
     }
@@ -65,7 +64,7 @@ public:
     readBlockHeader( size_t blockOffset ) const
     {
         BitReader bitReader( m_bitReader );
-        bitReader.seek( blockOffset );
+        bitReader.seekTo( blockOffset );
         bzip2::Block block( bitReader );
 
         BlockHeaderData result;
@@ -87,7 +86,7 @@ private:
                  [[maybe_unused]] size_t nextBlockOffset ) const override
     {
         BitReader bitReader( m_bitReader );
-        bitReader.seek( blockOffset );
+        bitReader.seekTo( blockOffset );
         bzip2::Block block( bitReader );
 
         BlockData result;

@@ -61,8 +61,7 @@ public:
         this->m_buffer.assign( buffer, buffer + size );
     }
 
-    virtual
-    ~ParallelBitStringFinder() = default;
+    ~ParallelBitStringFinder() override = default;
 
     /**
      * @return the next match and the requested bytes or std::numeric_limits<size_t>::max() if at end of file.
@@ -217,7 +216,7 @@ ParallelBitStringFinder<bitStringSize>::find()
         }
 
         /* For very sub chunk sizes, it is more sensible to not parallelize them using threads! */
-        const auto minSubChunkSizeInBytes = std::max<size_t>( 8 * bitStringSize, 4096 );
+        const auto minSubChunkSizeInBytes = std::max<size_t>( 8UL * bitStringSize, 4096 );
         const auto subChunkStrideInBytes =
             std::max<size_t>( minSubChunkSizeInBytes, ceilDiv( this->m_buffer.size(), m_threadPool.capacity() ) );
 

@@ -28,18 +28,11 @@ class IsalInflateWrapper
 public:
     using CompressionType = deflate::CompressionType;
 
-    struct Footer
-    {
-        gzip::Footer gzipFooter;
-        zlib::Footer zlibFooter;
-        size_t footerEndEncodedOffset{ 0 };
-    };
-
 public:
     explicit
-    IsalInflateWrapper( BitReader    bitReader,
+    IsalInflateWrapper( BitReader    bitReader,  // NOLINT(performance-unnecessary-value-param)
                         const size_t untilOffset = std::numeric_limits<size_t>::max() ) :
-        m_bitReader( std::move( bitReader ) ),
+        m_bitReader( std::move( bitReader ) ),  // NOLINT(performance-move-const-arg)
         m_encodedStartOffset( m_bitReader.tell() ),
         m_encodedUntilOffset(
             [untilOffset] ( const auto& size ) {
@@ -70,8 +63,8 @@ public:
      * the gzip footer appearing after each deflate stream.
      */
     [[nodiscard]] std::pair<size_t, std::optional<Footer> >
-    readStream( uint8_t* const output,
-                size_t   const outputSize );
+    readStream( uint8_t* output,
+                size_t   outputSize );
 
     [[nodiscard]] size_t
     tellCompressed() const
@@ -121,6 +114,20 @@ public:
         m_fileType = fileType;
     }
 
+    /**
+     * For legacy reasons, this class is always intended to start decompression at deflate boundaries.
+     * The file type will only be used when the end of the deflate stream is reached and there is still data
+     * to decode. If there is a header at the beginning, you can call this method with argument "true".
+     */
+    void
+    setStartWithHeader( bool enable )
+    {
+        m_needToReadHeader = enable;
+    }
+
+    [[nodiscard]] static std::string_view
+    getErrorString( int errorCode ) noexcept;
+
 private:
     [[nodiscard]] size_t
     getUnusedBits() const
@@ -138,7 +145,7 @@ private:
     inflatePrime( size_t   nBitsToPrime,
                   uint64_t bits )
     {
-        m_stream.read_in |= bits << m_stream.read_in_length;
+        m_stream.read_in |= bits << static_cast<uint8_t>( m_stream.read_in_length );
         m_stream.read_in_length += static_cast<int32_t>( nBitsToPrime );
     }
 
@@ -184,12 +191,9 @@ private:
 
     template<typename Header,
              typename GetHeader>
-    inline bool
-    readIsalHeader( Header* const    header,
+    bool
+    readIsalHeader( Header*          header,
                     const GetHeader& getHeader );
-
-    [[nodiscard]] static std::string_view
-    getErrorString( int errorCode ) noexcept;
 
 private:
     BitReader m_bitReader;
@@ -200,7 +204,7 @@ private:
     inflate_state m_stream{};
     /* Loading the whole encoded data (multiple MiB) into memory first and then
      * decoding it in one go is 4x slower than processing it in chunks of 128 KiB! */
-    std::array<char, 128_Ki> m_buffer;
+    std::array<char, 128_Ki> m_buffer{};
 
     std::optional<StoppingPoint> m_currentPoint;
     bool m_needToReadHeader{ false };
@@ -246,7 +250,7 @@ IsalInflateWrapper::refillBuffer()
 }
 
 
-[[nodiscard]] inline std::pair<size_t, std::optional<IsalInflateWrapper::Footer> >
+[[nodiscard]] inline std::pair<size_t, std::optional<Footer> >
 IsalInflateWrapper::readStream( uint8_t* const output,
                                 size_t   const outputSize )
 {
@@ -385,7 +389,7 @@ template<size_t SIZE>
 std::array<std::byte, SIZE>
 IsalInflateWrapper::readBytes()
 {
-    const auto remainingBits = m_stream.read_in_length % BYTE_SIZE;
+    const auto remainingBits = static_cast<uint8_t>( m_stream.read_in_length % BYTE_SIZE );
     m_stream.read_in >>= remainingBits;
     m_stream.read_in_length -= remainingBits;
 
@@ -394,7 +398,7 @@ IsalInflateWrapper::readBytes()
         const auto footerSize = buffer.size() - stillToRemove;
         if ( m_stream.read_in_length > 0 ) {
             /* This should be ensured by making read_in_length % BYTE_SIZE == 0 prior. */
-            assert( m_stream.read_in_length >= BYTE_SIZE );
+            assert( m_stream.read_in_length >= static_cast<int>( BYTE_SIZE ) );
 
             buffer[footerSize] = static_cast<std::byte>( m_stream.read_in & 0xFFU );
             m_stream.read_in >>= BYTE_SIZE;
@@ -406,7 +410,9 @@ IsalInflateWrapper::readBytes()
             m_stream.next_in += stillToRemove;
             stillToRemove = 0;
         } else {
-            std::memcpy( buffer.data() + footerSize, m_stream.next_in, m_stream.avail_in );
+            if ( m_stream.avail_in > 0 ) {
+                std::memcpy( buffer.data() + footerSize, m_stream.next_in, m_stream.avail_in );
+            }
             stillToRemove -= m_stream.avail_in;
             m_stream.avail_in = 0;
             refillBuffer();
@@ -420,7 +426,7 @@ IsalInflateWrapper::readBytes()
 }
 
 
-inline IsalInflateWrapper::Footer
+inline Footer
 IsalInflateWrapper::readGzipFooter()
 {
     const auto footerBuffer = readBytes<8U>();
@@ -438,12 +444,13 @@ IsalInflateWrapper::readGzipFooter()
 
     Footer result;
     result.gzipFooter = footer;
-    result.footerEndEncodedOffset = tellCompressed();
+    result.blockBoundary.encodedOffset = tellCompressed();
+    result.blockBoundary.decodedOffset = 0;  // Should not be used by the caller.
     return result;
 }
 
 
-inline IsalInflateWrapper::Footer
+inline Footer
 IsalInflateWrapper::readZlibFooter()
 {
     const auto footerBuffer = readBytes<4U>();
@@ -457,7 +464,8 @@ IsalInflateWrapper::readZlibFooter()
 
     Footer result;
     result.zlibFooter = footer;
-    result.footerEndEncodedOffset = tellCompressed();
+    result.blockBoundary.encodedOffset = tellCompressed();
+    result.blockBoundary.decodedOffset = 0;  // Should not be used by the caller.
     return result;
 }
 
@@ -505,7 +513,7 @@ IsalInflateWrapper::readHeader()
         }
         if ( error != Error::NONE ) {
             std::stringstream message;
-            message << "Error reading zlib header: " << toString( error ) << "!";
+            message << "Error reading zlib header: " << toString( error );
             throw std::logic_error( std::move( message ).str() );
         }
         return true;
@@ -522,7 +530,7 @@ inline bool
 IsalInflateWrapper::readIsalHeader( Header* const    header,
                                     const GetHeader& getHeader )
 {
-    const auto oldNextOut = m_stream.next_out;
+    auto* const oldNextOut = m_stream.next_out;
 
     refillBuffer();
     if ( !hasInput() ) {
@@ -561,7 +569,7 @@ IsalInflateWrapper::getErrorString( int errorCode ) noexcept
     case ISAL_END_INPUT          /*  1 */ : return "End of input reached";
     case ISAL_OUT_OVERFLOW       /*  2 */ : return "End of output reached";
     case ISAL_NAME_OVERFLOW      /*  3 */ : return "End of gzip name buffer reached";
-    case ISAL_COMMENT_OVERFLOW   /*  4 */ : return "End of gzip name buffer reached";
+    case ISAL_COMMENT_OVERFLOW   /*  4 */ : return "End of gzip comment buffer reached";
     case ISAL_EXTRA_OVERFLOW     /*  5 */ : return "End of extra buffer reached";
     case ISAL_NEED_DICT          /*  6 */ : return "Stream needs a dictionary to continue";
     case ISAL_INVALID_BLOCK      /* -1 */ : return "Invalid deflate block found";
@@ -588,14 +596,14 @@ compressWithIsal( const VectorView<uint8_t> toCompress,
      * while the input is limited to BLOCK_SIZE. */
     ResultContainer compressed( toCompress.size() + 1000 );
 
-    isal_zstream stream;
+    isal_zstream stream{};
     isal_deflate_stateless_init( &stream );
 
     if ( !dictionary.empty() ) {
         isal_deflate_set_dict( &stream, const_cast<uint8_t*>( dictionary.data() ), dictionary.size() );
     }
     stream.level = 1;
-    std::array<uint8_t, ISAL_DEF_LVL1_DEFAULT /* 282624 */> compressionBuffer;
+    std::array<uint8_t, ISAL_DEF_LVL1_DEFAULT /* 282624 */> compressionBuffer{};
     stream.level_buf = compressionBuffer.data();
     stream.level_buf_size = compressionBuffer.size();
 
@@ -627,11 +635,12 @@ compressWithIsal( const VectorView<uint8_t> toCompress,
 template<typename Container>
 [[nodiscard]] Container
 inflateWithIsal( const Container& toDecompress,
-                 const size_t     decompressedSize )
+                 const size_t     decompressedSize,
+                 const FileType   fileType = FileType::GZIP )
 {
     Container decompressed( decompressedSize );
 
-    inflate_state stream;
+    inflate_state stream{};
     isal_inflate_init( &stream );
 
     stream.next_in = const_cast<uint8_t*>( reinterpret_cast<const uint8_t*>( toDecompress.data() ) );
@@ -639,12 +648,34 @@ inflateWithIsal( const Container& toDecompress,
     stream.next_out = const_cast<uint8_t*>( reinterpret_cast<const uint8_t*>( decompressed.data() ) );
     stream.avail_out = decompressed.size();
 
-    isal_gzip_header header;
-    isal_read_gzip_header( &stream, &header );
+    switch ( fileType )
+    {
+    case FileType::BGZF:
+    case FileType::GZIP:
+    {
+        isal_gzip_header header{};
+        isal_read_gzip_header( &stream, &header );
+        break;
+    }
+    case FileType::ZLIB:
+    {
+        isal_zlib_header header{};
+        isal_read_zlib_header( &stream, &header );
+        break;
+    }
+    case FileType::DEFLATE:
+        break;
+    default:
+        throw std::invalid_argument( std::string( "Unsupported file type for inflating with ISA-L: " )
+                                     + toString( fileType ) );
+    }
 
     const auto result = isal_inflate_stateless( &stream );
     if ( result != ISAL_DECOMP_OK ) {
-        throw std::runtime_error( "Decompression failed with error code: " + std::to_string( result ) );
+        std::stringstream message;
+        message << "Decompression of " << toDecompress.size() << "B sized vector failed with error code: "
+                << IsalInflateWrapper::getErrorString( result ) << " (" << std::to_string( result ) << ")";
+        throw std::runtime_error( std::move( message ).str() );
     }
     if ( stream.avail_out > 0 ) {
         std::stringstream message;

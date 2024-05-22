@@ -19,7 +19,8 @@ template<typename InflateWrapper,
 [[nodiscard]] Container
 inflateWithWrapper( const Container&            toDecompress,
                     const std::optional<size_t> decompressedSize,
-                    const VectorView<uint8_t>   dictionary = {} )
+                    const VectorView<uint8_t>   dictionary = {},
+                    const rapidgzip::FileType   fileType = rapidgzip::FileType::GZIP )
 {
     if ( ( decompressedSize && ( *decompressedSize == 0 ) ) || toDecompress.empty() ) {
         return {};
@@ -28,19 +29,33 @@ inflateWithWrapper( const Container&            toDecompress,
 #ifdef WITH_ISAL
     if constexpr ( std::is_same_v<InflateWrapper, rapidgzip::IsalInflateWrapper> ) {
         if ( decompressedSize && dictionary.empty() ) {
-            return rapidgzip::inflateWithIsal( toDecompress, *decompressedSize );
+            return rapidgzip::inflateWithIsal( toDecompress, *decompressedSize, fileType );
         }
     }
 #endif
 
     rapidgzip::BitReader bitReader(
         std::make_unique<BufferViewFileReader>( toDecompress.data(), toDecompress.size() ) );
-    /**
-     * @todo offer to different modes: read gzip header, zlib header, no header, automatic detection.
-     *       Need to add this feature anyway so that rapidgzip can handle multiple files! -> offer dedicated function.
-     */
-    rapidgzip::gzip::readHeader( bitReader );
+
     InflateWrapper inflateWrapper( std::move( bitReader ) );
+
+    using FileType = rapidgzip::FileType;
+
+    switch ( fileType )
+    {
+    case FileType::DEFLATE:
+        inflateWrapper.setFileType( fileType );
+        break;
+    case FileType::BGZF:
+    case FileType::GZIP:
+    case FileType::ZLIB:
+        inflateWrapper.setFileType( fileType );
+        inflateWrapper.setStartWithHeader( true );
+        break;
+    default:
+        throw std::invalid_argument( std::string( "Unsupported file type: " ) + toString( fileType ) );
+    }
+
     if ( !dictionary.empty() ) {
         inflateWrapper.setWindow( dictionary );
     }

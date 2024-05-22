@@ -46,7 +46,7 @@ seekToNonFinalUncompressedDeflateBlock( BitReader&   bitReader,
             static_cast<size_t>( BYTE_SIZE ),
             ceilDiv( startOffset + DEFLATE_MAGIC_BIT_COUNT, BYTE_SIZE ) * BYTE_SIZE );
         if ( startOffsetByte < untilOffsetSizeMember ) {
-            bitReader.seek( static_cast<long long int>( startOffsetByte ) );
+            bitReader.seekTo( startOffsetByte );
         }
 
         auto size = bitReader.read<3U * BYTE_SIZE>() << BYTE_SIZE;
@@ -57,19 +57,19 @@ seekToNonFinalUncompressedDeflateBlock( BitReader&   bitReader,
                 continue;
             }
 
-            const auto oldOffset = offset + 4U * BYTE_SIZE;
+            const auto oldOffset = offset + 4UL * BYTE_SIZE;
             assert( oldOffset == bitReader.tell() );
 
             /* This should happen rather rarely, at least for false positives. So, we can be a bit indulgent
              * and seek back possibly expensively to check the block header. Beware the bit order! They are
              * read and numbered from the lowest bits first, i.e., the three bits right before the size are
              * the three HIGHEST bits and the padding are the lower bits! */
-            bitReader.seek( static_cast<long long int>( offset - MAX_PRECEDING_BITS ) );
+            bitReader.seekTo( offset - MAX_PRECEDING_BITS );
             const auto previousBits = bitReader.peek<MAX_PRECEDING_BITS>();
 
             static constexpr auto MAGIC_BITS_MASK = 0b111ULL << ( MAX_PRECEDING_BITS - DEFLATE_MAGIC_BIT_COUNT );
             if ( LIKELY( ( previousBits & MAGIC_BITS_MASK ) != 0 ) ) [[likely]] {
-                bitReader.seek( oldOffset );
+                bitReader.seekTo( oldOffset );
                 continue;
             }
 
@@ -85,7 +85,7 @@ seekToNonFinalUncompressedDeflateBlock( BitReader&   bitReader,
                 return std::make_pair( offset - trailingZeros, offset - DEFLATE_MAGIC_BIT_COUNT );
             }
 
-            bitReader.seek( oldOffset );
+            bitReader.seekTo( oldOffset );
         }
     } catch ( const BitReader::EndOfFileReached& ) {
         /* This might happen when trying to read the 32 bits! */

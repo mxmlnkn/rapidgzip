@@ -46,7 +46,7 @@ public:
         m_rawBlockFinder( std::move( rawBlockFinder ) )
     {}
 
-    ~BlockFinder()
+    ~BlockFinder() override
     {
         std::scoped_lock lock( m_mutex );
         m_cancelThread = true;
@@ -209,7 +209,7 @@ private:
      * in the time it takes to decode one block! In general, the higher this number, the higher the
      * longer will be the initial CPU utilization.
      */
-    const size_t m_prefetchCount = 3 * std::thread::hardware_concurrency();
+    const size_t m_prefetchCount = 3ULL * std::thread::hardware_concurrency();
 
     std::unique_ptr<RawBlockFinder> m_rawBlockFinder;
     std::atomic<bool> m_cancelThread{ false };

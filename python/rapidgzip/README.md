@@ -231,6 +231,101 @@ time rapidgzip -d -c -P 0 sample.gz | wc -c
 time gzip -d -c sample.gz | wc -c
 ```
 
+<details>
+<summary>Help Output</summary>
+
+```
+A gzip decompressor tool based on the rapidgzip backend from ratarmount
+Usage:
+  rapidgzip [OPTION...] positional parameters
+
+ Actions options:
+  -d, --decompress        Force decompression. Only for compatibility. No
+                          compression supported anyways.
+      --import-index arg  Uses an existing gzip index.
+      --export-index arg  Write out a gzip index file.
+      --count             Prints the decompressed size.
+  -l, --count-lines       Prints the number of newline characters in the
+                          decompressed data.
+      --analyze           Print output about the internal file format
+                          structure like the block types.
+
+ Advanced options:
+      --chunk-size arg      The chunk size decoded by the parallel workers
+                            in KiB. (default: 4096)
+      --verify              Verify CRC32 checksum. Will slow down
+                            decompression and there are already some
+                            implicit and explicit checks like whether the
+                            end of the file could be reached and whether
+                            the stream size is correct.
+      --no-verify           Do not verify CRC32 checksum. Might speed up
+                            decompression and there are already some
+                            implicit and explicit checks like whether the
+                            end of the file could be reached and whether
+                            the stream size is correct.
+      --io-read-method arg  Option to force a certain I/O method for
+                            reading. By default, pread will be used when
+                            possible. Possible values: pread, sequential,
+                            locked-read (default: pread)
+      --index-format arg    Option to select an output index format.
+                            Possible values: gztool, gztool-with-lines,
+                            indexed_gzip. (default: indexed_gzip)
+
+ Decompression options:
+  -c, --stdout                  Output to standard output. This is the
+                                default, when reading from standard input.
+  -f, --force                   Force overwriting existing output files.
+                                Also forces decompression even when piped
+                                to /dev/null.
+  -o, --output arg              Output file. If none is given, use the
+                                input file name with '.gz' stripped or
+                                '<input file>.out'. If no input is read
+                                from standard input and not output file is
+                                given, then will write to standard output.
+  -k, --keep                    Keep (do not delete) input file. Only for
+                                compatibility. This tool will not delete
+                                anything automatically!
+  -P, --decoder-parallelism arg
+                                Use the parallel decoder. If an optional
+                                integer >= 1 is given, then that is the
+                                number of decoder threads to use. Note that
+                                there might be further threads being
+                                started with non-decoding work. If 0 is
+                                given, then the parallelism will be
+                                determined automatically. (default: 0)
+      --ranges arg              Decompress only the specified byte ranges.
+                                Example: 10@0,1KiB@15KiB,5L@20L to
+                                decompress the first 10 bytes, 1024 bytes
+                                at offset 15 KiB, as well as the 5 lines
+                                after skipping the first 20 lines.
+
+ Output options:
+  -h, --help                   Print this help message.
+  -q, --quiet                  Suppress noncritical error messages.
+  -v, --verbose                Print debug output and profiling statistics.
+  -V, --version                Display software version.
+      --oss-attributions       Display open-source software licenses.
+      --oss-attributions-yaml  Display open-source software licenses in
+                               YAML format for use with Conda.
+
+If no file names are given, rapidgzip decompresses from standard input to standard output.
+If the output is discarded by piping to /dev/null, then the actual decoding step might
+be omitted if neither -l nor -L nor --force are given.
+
+Examples:
+
+Decompress a file:
+  rapidgzip -d file.gz
+
+Decompress a file in parallel:
+  rapidgzip -d -P 0 file.gz
+
+List information about all gzip streams and deflate blocks:
+  rapidgzip --analyze file.gz
+```
+
+</details>
+
 
 ## Python Library
 

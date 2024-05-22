@@ -30,7 +30,7 @@
  *
  * This class is not thread-safe. It should be wrapped inside SharedFileReader to make it so.
  */
-class SinglePassFileReader :
+class SinglePassFileReader final :
     public FileReader
 {
 public:
@@ -111,7 +111,7 @@ public:
         m_fileno( m_file ? m_file->fileno() : -1 )
     {}
 
-    ~SinglePassFileReader()
+    ~SinglePassFileReader() override
     {
         close();
     }
@@ -228,6 +228,15 @@ public:
     {
         if ( m_underlyingFileEOF ) {
             return m_numberOfBytesRead;
+        }
+        if ( m_file ) {
+            const auto underlyingSize = m_file->size();
+            /* Unfortunately, StandardFileReader currently may simply return 0 instead of std::nullopt
+             * even for non-seekable stdin, therefore we also need to check for that! */
+            if ( underlyingSize && ( m_file->seekable() || ( *underlyingSize > 0 ) ) ) {
+                return *underlyingSize;
+            }
+            return m_fileno;
         }
         return std::nullopt;
     }

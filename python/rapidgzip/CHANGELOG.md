@@ -1,4 +1,45 @@
 
+# Version 0.14.0 built on 2024-05-21
+
+## Added
+
+ - Add support for reading and writing indexes created with gztool.
+ - Add `--ranges` option to output specified byte and line ranges.
+ - Add command line options `--sparse-windows` and `--no-sparse-windows` to explicitly control window sparsity.
+
+## Performance
+
+ - Avoid unnecessary windows being created during bzip2 decompression to reduce memory usage vastly
+   and also to increase decompression speed by ~10% from 344 MB/s to 388 MB/s.
+ - Do not store windows for BGZF files as they are not needed. This reduces memory usage from 32 KiB
+   down to ~16 B per seek point.
+ - Optimize reading many very small (several bytes) gzip streams to be on par with igzip: 0.5 - 7.0 MB/s.
+ - Use sparsity information of window to increase compression. This reduces memory size of the in-memory
+   index and also exported gztool indexes. For wikidata, the index size is reduced 3x smaller.
+ - Reduce memory footprint further by compressing the windows with in a zlib stream instead of gzip stream.
+ - Also compress and apply sparseness for windows at chunk borders to further reduce the memory footprint.
+ - Disable custom vector implementation that was meant to skip the overhead of initializing the contents
+   that is to be overwritten anyway because it lead to higher memory usage (peak RSS) for yet unknown reasons.
+
+## API
+
+ - Add `FileReader::seekTo` method to reduce narrowing warnings for the offset.
+ - Add option to configure the `BitReader` byte buffer size in the constructor.
+
+## Fixes
+
+ - Fix lots of style checker warnings and CI issues.
+ - Detection for seeking inside the `BitReader` byte buffer did only work for the first 12.5% because
+   of a missing byte to bit conversion.
+ - Seeking inside the `BitReader` byte buffer after reading directly from the underlying file did result
+   in a wrong seek position. This is very hard to trigger in earlier versions because of the above bug
+   and because this call combination was rarely done.
+ - Multiple exception were not actually thrown, only constructed. Found via clang-tidy after fixing all
+   the false positives that hid these actual bugs.
+ - Do not erroneously warn about useless index import when specifying an index export path and parallelization is 1.
+ - Specifying an empty file path did show a seeking error instead of a helpful message.
+
+
 # Version 0.13.3 built on 2024-04-27
 
 ## Fixes

@@ -12,3 +12,8 @@ target_link_libraries(rapidgzip PRIVATE cxxopts librapidgzip rpmalloc)
 if(WITH_RPMALLOC)
     target_compile_definitions(rapidgzip PRIVATE WITH_RPMALLOC)
 endif()
+
+if(RUN_CLANG_TIDY)
+    set_target_properties(ibzip2 PROPERTIES CXX_CLANG_TIDY "${CLANG_TIDY_COMMAND}")
+    set_target_properties(rapidgzip PROPERTIES CXX_CLANG_TIDY "${CLANG_TIDY_COMMAND}")
+endif()

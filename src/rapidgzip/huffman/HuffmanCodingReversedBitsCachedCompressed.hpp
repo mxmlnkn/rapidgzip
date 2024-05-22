@@ -89,10 +89,10 @@ public:
 
             const auto fillerBitCount = this->m_maxCodeLength - length;
             const auto maximumPaddedCode = static_cast<HuffmanCode>(
-                reversedCode | ( nLowestBitsSet<HuffmanCode>( fillerBitCount ) << length ) );
+                reversedCode | static_cast<HuffmanCode>( nLowestBitsSet<HuffmanCode>( fillerBitCount ) << length ) );
             assert( maximumPaddedCode < m_codeCache.size() );
             const auto increment = static_cast<HuffmanCode>( HuffmanCode( 1 ) << length );
-            const auto value = static_cast<Symbol>( symbol | ( length << LENGTH_SHIFT ) );
+            const auto value = static_cast<Symbol>( symbol | static_cast<Symbol>( length << LENGTH_SHIFT ) );
             assert( ( value >> LENGTH_SHIFT ) == length );
             assert( ( value & nLowestBitsSet<Symbol, LENGTH_SHIFT>() ) == symbol );
             for ( auto paddedCode = reversedCode; paddedCode <= maximumPaddedCode; paddedCode += increment ) {

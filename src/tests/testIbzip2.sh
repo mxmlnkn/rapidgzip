@@ -15,6 +15,15 @@ function commandExists() {
 }
 
 
+# Not using md5sum --quiet --check "$md5File" because that didn't work on Windows because of the line ending.
+function checkMd5() {
+    local realMd5=$( md5sum )
+    realMd5=${realMd5% *}
+    expectedMd5=$( sed 's| .*||' -- "$1" )
+    [[ "$realMd5" == "$expectedMd5" ]]
+}
+
+
 function checkBz2Md5()
 {
     local bz2File=$1
@@ -37,7 +46,9 @@ function checkBz2Md5()
             continue
         fi
 
-        if ! $tool --decompress --stdout "$bz2File" | md5sum --quiet --check "$md5File"; then
+        echo "Test $bz2File. Compare with: $md5File"
+        cat "$md5File"
+        if ! $tool --decompress --stdout "$bz2File" | checkMd5 "$md5File"; then
             echoerr -e "\n\e[31mTest with $tool on $bz2File failed.\e[0m\n"
             return 1
         fi
@@ -45,7 +56,7 @@ function checkBz2Md5()
 
     for parallelization in 1 2 8; do
         if ! python3 -c "import indexed_bzip2 as ibz2; import sys; sys.stdout.buffer.write( ibz2.IndexedBzip2File( sys.argv[1], parallelization=$parallelization ).read() )" "$bz2File" |
-               md5sum --quiet --check "$md5File"
+            checkMd5 "$md5File"
         then
             echoerr -e "\n\e[31mTest with indexed_bzip2 and parallelization=$parallelization on $bz2File failed.\e[0m\n"
             return 1

@@ -53,9 +53,7 @@
 #include "RFCTables.hpp"
 
 
-namespace rapidgzip
-{
-namespace deflate
+namespace rapidgzip::deflate
 {
 /**
  * @verbatim
@@ -351,6 +349,7 @@ createFixedHC()
 {
     std::array<uint8_t, MAX_LITERAL_OR_LENGTH_SYMBOLS + 2> encodedFixedHuffmanTree{};
     for ( size_t i = 0; i < encodedFixedHuffmanTree.size(); ++i ) {
+        // NOLINTBEGIN(bugprone-branch-clone)
         if ( i < 144 ) {
             encodedFixedHuffmanTree[i] = 8;
         } else if ( i < 256 ) {
@@ -360,6 +359,7 @@ createFixedHC()
         } else {
             encodedFixedHuffmanTree[i] = 8;
         }
+        // NOLINTEND(bugprone-branch-clone)
     }
 
     FixedHuffmanCoding result;
@@ -514,12 +514,16 @@ public:
  * with the last byte.
  */
 template<bool ENABLE_STATISTICS = false>
-class Block :
+class Block :  // NOLINT(cppcoreguidelines-pro-type-member-init)
     public BlockStatistics
 {
 public:
     using CompressionType = deflate::CompressionType;
-    using Backreference = std::pair<uint16_t, uint16_t>;
+
+    struct Backreference{
+        uint16_t distance{ 0 };
+        uint16_t length{ 0 };
+    };
 
 public:
     [[nodiscard]] bool
@@ -660,6 +664,41 @@ public:
         return m_backreferences;
     }
 
+    /**
+     * Reinitializes this block to behave basically as if default-constructed,
+     * This avoids a generic reinitialization, e.g., by copying a default-constructed Block to it
+     * because it might be more expensive than necessary for multi-stream gzips because it would zero the whole
+     * 128 KiB decode buffer and all the 64 KiB DistanceHuffmanCoding buffer even though that is unnecessary.
+     */
+    void
+    reset( const std::optional<VectorView<uint8_t> > initialWindow = {} )
+    {
+        m_uncompressedSize = 0;
+
+        m_atEndOfBlock = false;
+        m_atEndOfFile = false;
+
+        m_isLastBlock = false;
+        m_compressionType = CompressionType::RESERVED;
+        m_padding = 0;
+
+        m_windowPosition = 0;
+        m_containsMarkerBytes = true;
+        m_decodedBytes = 0;
+
+        m_distanceToLastMarkerByte = 0;
+
+        m_trackBackreferences = false;
+        m_decodedBytesAtBlockStart = 0;
+        m_backreferences.clear();
+
+        if ( initialWindow ) {
+            setInitialWindow( *initialWindow );
+        } else {
+            m_window16 = initializeMarkedWindowBuffer();
+        }
+    }
+
 private:
     template<typename Window>
     forceinline void
@@ -673,10 +712,10 @@ private:
 
     template<typename Window>
     forceinline void
-    resolveBackreference( Window&        window,
-                          const uint16_t distance,
-                          const uint16_t length,
-                          const size_t   nBytesRead );
+    resolveBackreference( Window&  window,
+                          uint16_t distance,
+                          uint16_t length,
+                          size_t   nBytesRead );
 
     template<typename Window>
     [[nodiscard]] std::pair<size_t, Error>
@@ -729,9 +768,9 @@ private:
              typename Symbol = typename Window::value_type,
              typename View = VectorView<Symbol> >
     [[nodiscard]] static std::array<View, 2>
-    lastBuffers( Window& window,
-                 size_t  position,
-                 size_t  size )
+    lastBuffers( const Window& window,
+                 size_t        position,
+                 size_t        size )
     {
         if ( size > window.size() ) {
             throw std::invalid_argument( "Requested more bytes than fit in the buffer. Data is missing!" );
@@ -763,6 +802,8 @@ private:
      * For the former we need twice the size!
      * @note The buffer size should probably be a power of two or else I observed a slowdown probably because the
      *       circular buffer index modulo operation cannot be executed by a simple bitwise 'and' anymore.
+     * @note 128 KiB is quite a lot of stack pressure. It actually leads to stack overflows on MacOS when creating
+     *       multiple Block objects in the function call hierarchy such as in getUsedWindowSymbols!
      */
     using PreDecodedBuffer = std::array<uint16_t, 2 * MAX_WINDOW_SIZE>;
     using DecodedBuffer = WeakArray<std::uint8_t, PreDecodedBuffer().size() * sizeof( uint16_t ) / sizeof( uint8_t )>;
@@ -777,20 +818,80 @@ private:
                    "Buffers should at least be able to fit the back-reference window plus the maximum match length." );
 
 private:
-    /* Note that making this constexpr or an immediately evaluated lambda expression to initialize the buffer,
-     * increases compile time from 14s to 64s with GCC 11! */
-    [[nodiscard]] static PreDecodedBuffer
+    /**
+     * @note Making this constexpr or an immediately evaluated lambda expression to initialize the buffer,
+     * increases release build compile time from 30s to 135s with GCC 11, and no measurable change (~80s) with
+     * Clang 15! But it is important to avoid frequent recomputations for streams of many small fixed huffman
+     * blocks, so use a function-local static variable, the best kind of static besides static constexpr where
+     * possible.
+     *
+     * E.g. create a test file with this:
+     * @verbatim
+     * echo foo | gzip > many-small-streams.gz
+     * for (( i=0; i < 1000; ++i )); do cat many-small-streams.gz >> 1000-24B-fixed-huffman-streams.gz; done
+     * for (( i=0; i < 1000; ++i )); do cat 1000-24B-fixed-huffman-streams.gz >> 1M-24B-fixed-huffman-streams.gz; done
+     * @endverbatim
+     *
+     * Comparison with default tools:
+     * @verbatim
+     * time igzip -d -c 1M-24B-fixed-huffman-streams.gz > /dev/null
+     *   -> 0.471s 0.526s 0.471s 0.482s 0.518s
+     * time gzip -d -c 1M-24B-fixed-huffman-streams.gz > /dev/null
+     *   -> 5.566s 5.409s 5.431s 5.514s 5.470s
+     * @endverbatim
+     *
+     * And benchmark with:
+     * @verbatim
+     * cmake -DWITH_ISAL=OFF .. && cmake --build -- rapidgzip
+     * for (( i=0; i < 5; ++i )); do
+     *     src/tools/rapidgzip -v -d -o /dev/null 1M-24B-fixed-huffman-streams.gz 2>&1 | grep "Decompressed"
+     * done
+     * @endverbatim
+     * Before:
+     * @verbatim
+     * Decompressed in total 4000000 B in:
+     *     8.06588 s -> 0.495916 MB/s
+     *     8.00692 s -> 0.499568 MB/s
+     *     8.17901 s -> 0.489057 MB/s
+     *     8.12103 s -> 0.492548 MB/s
+     *     8.13215 s -> 0.491875 MB/s
+     * @endverbatim
+     * After introducing the static function-local variable and returning a reference:
+     * @verbatim
+     * Decompressed in total 4000000 B in:
+     *     2.63232 s -> 1.51957 MB/s
+     *     2.66496 s -> 1.50096 MB/s
+     *     2.54554 s -> 1.57138 MB/s
+     *     2.60184 s -> 1.53737 MB/s
+     *     2.64525 s -> 1.51214 MB/s
+     * @endverbatim
+     * After avoiding unnecessary calls to this function during resetting of the block:
+     * @verbatim
+     * Decompressed in total 4000000 B in:
+     *     0.550918 s -> 7.2606 MB/s
+     *     0.561135 s -> 7.12841 MB/s
+     *     0.572299 s -> 6.98935 MB/s
+     *     0.592707 s -> 6.7487 MB/s
+     *     0.606601 s -> 6.59412 MB/s
+     * @endverbatim
+     */
+    [[nodiscard]] static const PreDecodedBuffer&
     initializeMarkedWindowBuffer()
     {
-        PreDecodedBuffer result{};
-        for ( size_t i = 0; i < MAX_WINDOW_SIZE; ++i ) {
-            result[result.size() - MAX_WINDOW_SIZE + i] = i + MAX_WINDOW_SIZE;
-        }
-        return result;
+        static const PreDecodedBuffer markers =
+            [] ()
+            {
+                PreDecodedBuffer result{};
+                for ( size_t i = 0; i < MAX_WINDOW_SIZE; ++i ) {
+                    result[result.size() - MAX_WINDOW_SIZE + i] = i + MAX_WINDOW_SIZE;
+                }
+                return result;
+            } ();
+        return markers;
     }
 
 private:
-    uint16_t m_uncompressedSize = 0;
+    uint16_t m_uncompressedSize{ 0 };
 
 private:
     /* These flags might get triggered by the read function. */
@@ -821,7 +922,7 @@ private:
 
     alignas( 64 ) PreDecodedBuffer m_window16{ initializeMarkedWindowBuffer() };
 
-    DecodedBuffer m_window{ reinterpret_cast<std::uint8_t*>( m_window16.data() ) };
+    const DecodedBuffer m_window{ reinterpret_cast<std::uint8_t*>( m_window16.data() ) };
 
     /**
      * Points to the index of the next code to be written in @ref m_window. I.e., can also be interpreted as
@@ -1252,7 +1353,10 @@ Block<ENABLE_STATISTICS>::resolveBackreference( Window&        window,
         }
         const auto decodedBytesInBlock = m_decodedBytes - m_decodedBytesAtBlockStart + nBytesRead;
         if ( distance > decodedBytesInBlock ) {
-            m_backreferences.emplace_back( distance - decodedBytesInBlock, length );
+            m_backreferences.emplace_back( Backreference{
+                static_cast<uint16_t>( distance - decodedBytesInBlock ),
+                std::min( length, distance )
+            } );
         }
     }
 
@@ -1383,7 +1487,7 @@ Block<ENABLE_STATISTICS>::readInternalUncompressed( BitReader& bitReader,
      * @endverbatim
      */
     uint32_t totalBytesRead{ 0 };
-    std::array<uint8_t, 64> buffer;
+    std::array<uint8_t, 64> buffer{};
     for ( ; totalBytesRead + buffer.size() <= m_uncompressedSize; totalBytesRead += buffer.size() ) {
         const auto nBytesRead = bitReader.read( reinterpret_cast<char*>( buffer.data() ), buffer.size() );
         for ( size_t i = 0; i < nBytesRead; ++i ) {
@@ -1501,7 +1605,7 @@ Block<ENABLE_STATISTICS>::readInternalCompressedMultiCached
             return { nBytesRead, Error::INVALID_HUFFMAN_CODE };
         }
 
-        for ( ; symbolCount > 0; symbolCount--, symbol >>= 8 ) {
+        for ( ; symbolCount > 0; symbolCount--, symbol >>= 8U ) {
             const auto code = static_cast<uint16_t>( symbol & 0xFFFFU );
 
             if ( ( code <= 255 ) || ( symbolCount > 1 ) ) {
@@ -1672,7 +1776,219 @@ Block<ENABLE_STATISTICS>::setInitialWindow( VectorView<uint8_t> const& initialWi
     m_windowPosition = 0;
 
     m_containsMarkerBytes = false;
-    return;
 }
-}  // namespace deflate
-}  // namespace rapidgzip
+
+
+[[nodiscard]] inline bool
+verifySparseWindow( BitReader&                bitReader,
+                    const std::vector<bool>&  windowByteIsRequired,
+                    const VectorView<uint8_t> expectedOutput )
+{
+    Block</* ENABLE_STATISTICS */ false> block;
+
+    /* Check that the created sparse window is correct by setting all sparse bytes to some arbitrary canary token.
+     * If not (should not happen), show a warning and fall back to a non-sparse window. */
+    std::vector<uint8_t> initialWindow( MAX_WINDOW_SIZE, 0 );
+    for ( size_t i = 0; i < windowByteIsRequired.size(); ++i ) {
+        if ( !windowByteIsRequired[i] ) {
+            initialWindow[i] = 1;
+        }
+    }
+    block.setInitialWindow( { initialWindow.data(), initialWindow.size() } );
+
+    for ( size_t nBytesRead = 0; nBytesRead < MAX_WINDOW_SIZE; ) {
+        const auto headerError = block.readHeader( bitReader );
+        if ( headerError == Error::END_OF_FILE ) {
+            break;
+        }
+        if ( headerError != Error::NONE ) {
+            throw std::invalid_argument( "Failed to decode the deflate block header! " + toString( headerError ) );
+        }
+
+        size_t nBytesReadFromBlock{ 0 };
+        while ( ( nBytesRead + nBytesReadFromBlock < MAX_WINDOW_SIZE ) && !block.eob() ) {
+            const auto [view, readError] = block.read( bitReader, MAX_WINDOW_SIZE - nBytesRead );
+            if ( readError != Error::NONE ) {
+                throw std::invalid_argument( "Failed to read deflate block data! " + toString( readError ) );
+            }
+
+            if ( view.dataWithMarkersSize() > 0 ) {
+                throw std::logic_error( "Result should not contain markers because we have set a window!" );
+            }
+            for ( const auto& buffer : view.data ) {
+                const auto sizeToCompare = std::min( expectedOutput.size() - ( nBytesRead + nBytesReadFromBlock ),
+                                                     buffer.size() );
+                if ( !std::equal( buffer.data(), buffer.data() + sizeToCompare,
+                                  expectedOutput.data() + nBytesRead + nBytesReadFromBlock ) )
+                {
+                    return false;
+                }
+                nBytesReadFromBlock += buffer.size();
+            }
+        }
+
+        nBytesRead += nBytesReadFromBlock;
+        if ( block.eos() ) {
+            break;
+        }
+    }
+
+    return true;
+}
+
+
+[[nodiscard]] inline std::vector<bool>
+getUsedWindowSymbols( BitReader& bitReader )
+{
+    std::vector<bool> window( MAX_WINDOW_SIZE, false );
+
+    static constexpr bool CHECK_CORRECTNESS{ true };
+    /* Store the decompressed data to check for sparsity correctness. Initialize to 0 for correctness and also
+     * in order to set a dummy window with only zeros so that we do not get any marker bytes! This simplifies
+     * the correctness check and assuming that the sparse bytes are cleared to 0, then using zeros for the
+     * dummy window is perfect because it will not give mismatches in the case some sparsity is wrong but the
+     * data to be sparsed out is 0 anyway! */
+    [[maybe_unused]] std::vector<uint8_t> decompressed;
+    [[maybe_unused]] const auto oldOffset = bitReader.tell();
+    size_t nBytesRead{ 0 };
+
+    /* Anonymous namespace to ensure that the 208kB deflate::Block is cleared from the stack before
+     * allocating another such block inside verifySparseWindow! */
+    {
+        /* Size of deflate::Block is 207616. Allocation on stack did result in a SIGBUS
+         * because of a stack overflow on MacOS:
+         * #0 rapidgzip::deflate::Block<false>::setInitialWindow
+         * #1 rapidgzip::deflate::getUsedWindowSymbols
+         * #2 rapidgzip::GzipChunk<rapidgzip::ChunkData>::determineUsedWindowSymbols
+         * #3 rapidgzip::GzipChunk<rapidgzip::ChunkData>::appendDeflateBlockBoundary
+         * #4 rapidgzip::GzipChunk<rapidgzip::ChunkData>::decodeChunkWithRapidgzip
+         * #5 rapidgzip::GzipChunk<rapidgzip::ChunkData>::decodeChunk
+         * #6 rapidgzip::GzipChunkFetcher<FetchingStrategy::FetchMultiStream, rapidgzip::ChunkData>::decodeBlock
+         * #7 rapidgzip::GzipChunkFetcher<FetchingStrategy::FetchMultiStream, rapidgzip::ChunkData>::decodeBlock
+         * #8 BlockFetcher<...>::decodeAndMeasureBlock
+         * #9 BlockFetcher<...>::submitOnDemandTask
+         * #10 decltype(std::declval<BlockFetcher<rapidgzip::GzipBlockFinder, rapidgzip::ChunkData, FetchingStrategy::FetchMultiStream>::submitOnDemandTask
+         * #11 std::__1::__packaged_task_func<BlockFetcher<rapidgzip::GzipBlockFinder, rapidgzip::ChunkData, FetchingStrategy::FetchMultiStream>::submitOnDemandTask
+         * #12 std::__1::__packaged_task_function<rapidgzip::ChunkData ()>::operator()() const future:1880
+         * #13 std::__1::packaged_task<rapidgzip::ChunkData ()>::operator()() future:1957
+         * #14 ThreadPool::PackagedTaskWrapper::SpecializedFunctor<...>::operator()()
+         * #15 ThreadPool::PackagedTaskWrapper::operator()()
+         * #16 ThreadPool::workerMain(unsigned long)
+         * [...]
+         * HOWEVER, allocation on the heap with std::make_unique leads to some weird memory leak with
+         * benchmarkIndexCompression. I cannot debug it with heaptrack because it shows only 1 GB memory usage,
+         * not the 50+ GB observerd. It seems that POSIX brk is used and this leads to some fragmentation for
+         * because it basically is only a linear allocator and can only free in LIFO order. Why exactly this
+         * happens, I have no idea. It may be a tiny memory leak or it may be some weird allocation ordering
+         * problem, especially with the heap-allocated return result ... The memory rises really fast with Clang 15,
+         * but also seems to leak, albeit much much slower, with GCC 11.
+         * It is made even harder to debug because this memory leak disappears, when enabling -fsanitize=leak, or
+         * -fsanitize=address, and even when using valgrind --tool=massif! Utter fucking garbage!
+         */
+        Block</* ENABLE_STATISTICS */ false> block;
+        block.setTrackBackreferences( true );
+
+        if constexpr ( CHECK_CORRECTNESS ) {
+            decompressed.assign( MAX_WINDOW_SIZE, 0 );
+            block.setInitialWindow( { decompressed.data(), decompressed.size() } );
+        }
+
+        for ( ; nBytesRead < MAX_WINDOW_SIZE; ) {
+            /* Block::readHeader also clears the backreferences. */
+            const auto headerError = block.readHeader( bitReader );
+            if ( headerError == Error::END_OF_FILE ) {
+                break;
+            }
+            if ( headerError != Error::NONE ) {
+                throw std::invalid_argument( "Failed to decode the deflate block header! " + toString( headerError ) );
+            }
+
+            size_t nBytesReadFromBlock{ 0 };
+            while ( ( nBytesRead + nBytesReadFromBlock < MAX_WINDOW_SIZE ) && !block.eob() ) {
+                const auto [view, readError] = block.read( bitReader, MAX_WINDOW_SIZE - nBytesRead );
+                if ( readError != Error::NONE ) {
+                    throw std::invalid_argument( "Failed to read deflate block data! " + toString( readError ) );
+                }
+
+                if constexpr ( CHECK_CORRECTNESS ) {
+                    if ( view.dataWithMarkersSize() > 0 ) {
+                        throw std::logic_error( "Result should not contain markers because we have set a window!" );
+                    }
+                    for ( const auto& buffer : view.data ) {
+                        const auto sizeToCopy = std::min( decompressed.size() - ( nBytesRead + nBytesReadFromBlock ),
+                                                          buffer.size() );
+                        if ( sizeToCopy == 0 ) {
+                            continue;
+                        }
+                        std::memcpy( decompressed.data() + nBytesRead + nBytesReadFromBlock, buffer.data(), sizeToCopy );
+                        nBytesReadFromBlock += sizeToCopy;
+                    }
+                } else {
+                    nBytesReadFromBlock += view.size();
+                }
+            }
+
+            const auto& backreferences = block.backreferences();
+            for ( const auto& reference : backreferences ) {
+                /* The back-references are relative to the current block, so we need to subtract nBytesRead
+                 * from the relative distance to get the distance relative to the first block start.
+                 * If the result would become negative, then nothing from the window is needed and we can skip it. */
+                if ( reference.distance < nBytesRead ) {
+                    continue;
+                }
+
+                const auto distanceFromEnd = reference.distance - nBytesRead;
+                if ( distanceFromEnd > window.size() ) {
+                    std::stringstream message;
+                    message << "The back-reference distance should not exceed MAX_WINDOW_SIZE ("
+                            << formatBytes( MAX_WINDOW_SIZE ) << ") but got: " << formatBytes( distanceFromEnd ) << "!";
+                    throw std::logic_error( std::move( message ).str() );
+                }
+                if ( reference.length == 0 ) {
+                    continue;
+                }
+                const auto startOffset = window.size() - distanceFromEnd;
+
+                for ( size_t i = 0; ( i < reference.length ) && ( startOffset + i < window.size() ); ++i ) {
+                    window[startOffset + i] = true;
+                }
+            }
+
+            nBytesRead += nBytesReadFromBlock;
+            if ( block.eos() ) {
+                break;
+            }
+        }
+    }
+
+    if constexpr ( CHECK_CORRECTNESS ) {
+        bitReader.seekTo( oldOffset );
+        if ( !verifySparseWindow( bitReader, window, { decompressed.data(), nBytesRead } ) ) {
+            std::stringstream message;
+            message << "[Warning] Sparse window detection failed at offset " << formatBits( oldOffset )
+                    << ". Will fall back to full window\n";
+            std::cerr << std::move( message ).str();
+            window.assign( MAX_WINDOW_SIZE, true );
+            return window;
+        }
+    }
+
+    return window;
+}
+
+
+template<typename Container>
+[[nodiscard]] std::vector<uint8_t>
+getSparseWindow( BitReader&       bitReader,
+                 const Container& window )
+{
+    const auto usedSymbols = getUsedWindowSymbols( bitReader );
+    std::vector<uint8_t> sparseWindow( std::min<size_t>( 32_Ki, window.size() ), 0 );
+    for ( size_t i = 0; i < sparseWindow.size(); ++i ) {
+        if ( usedSymbols[i + ( usedSymbols.size() - sparseWindow.size() )] ) {
+            sparseWindow[i] = window[i + ( window.size() - sparseWindow.size() )];
+        }
+    };
+    return sparseWindow;
+}
+}  // namespace rapidgzip::deflate

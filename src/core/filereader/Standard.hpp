@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdio>       // fread
+#include <filesystem>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -37,6 +38,14 @@ public:
         init();
     }
 
+#if !defined(__APPLE_CC__ ) || ( defined(MAC_OS_X_VERSION_MIN_REQUIRED) \
+    && MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_15 )
+    explicit
+    StandardFileReader( const std::filesystem::path& filePath ) :
+        StandardFileReader( filePath.string() )
+    {}
+#endif
+
     explicit
     StandardFileReader( int fileDescriptor ) :
         /* Use dup here so that the following fclose will not close the original file descriptor,
@@ -51,7 +60,7 @@ public:
         init();
     }
 
-    ~StandardFileReader()
+    ~StandardFileReader() override
     {
         StandardFileReader::close();
     }
@@ -95,7 +104,7 @@ public:
     [[nodiscard]] bool
     fail() const override
     {
-        return std::ferror( fp() );
+        return std::ferror( fp() ) != 0;
     }
 
     [[nodiscard]] int
@@ -139,7 +148,7 @@ public:
                 nBytesRead = std::min( nMaxBytesToRead, m_fileSizeBytes - m_currentPosition );
                 std::fseek( m_file.get(), static_cast<long int>( nBytesRead ), SEEK_CUR );
             } else {
-                std::array<char, 16_Ki> tmpBuffer;
+                std::array<char, 16_Ki> tmpBuffer{};
                 while ( nBytesRead < nMaxBytesToRead ) {
                     const auto nBytesReadPerCall =
                         std::fread( tmpBuffer.data(), /* element size */ 1, tmpBuffer.size(), m_file.get() );
@@ -256,7 +265,7 @@ private:
     [[nodiscard]] static size_t
     determineFileSize( int fileNumber )
     {
-        struct stat fileStats;
+        struct stat fileStats{};
         fstat( fileNumber, &fileStats );
         return fileStats.st_size;
     }
@@ -264,7 +273,7 @@ private:
     [[nodiscard]] static bool
     determineSeekable( int fileNumber )
     {
-        struct stat fileStats;
+        struct stat fileStats{};
         fstat( fileNumber, &fileStats );
         return !S_ISFIFO( fileStats.st_mode );
     }
@@ -283,7 +292,7 @@ protected:
     const int m_fileDescriptor;
     const std::string m_filePath;
 
-    std::fpos_t m_initialPosition;
+    std::fpos_t m_initialPosition{};
     const bool m_seekable;
     const size_t m_fileSizeBytes;
 

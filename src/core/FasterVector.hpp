@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #if !defined( WITH_RPMALLOC )
     #include <cstdlib>
 #endif
@@ -50,12 +51,12 @@ public:
 
     ~RpmallocThreadInit()
     {
-        rpmalloc_thread_finalize( /* release caches */ true );
+        rpmalloc_thread_finalize( /* release caches */ 1 );
     }
 };
 
 
-void*
+inline void*
 rpmalloc_ensuring_initialization( size_t nBytes = 0 )
 {
     static const thread_local RpmallocThreadInit rpmallocThreadInit{};
@@ -97,13 +98,13 @@ public:
      * Defining it to true type should be necessary because the default implementation of
      * is_always_equal == is_empty should also be true because this class does not have any members. */
     [[nodiscard]] bool
-    operator==( const RpmallocAllocator& ) const
+    operator==( const RpmallocAllocator& /* unused */ ) const
     {
         return true;
     }
 
     [[nodiscard]] bool
-    operator!=( const RpmallocAllocator& ) const
+    operator!=( const RpmallocAllocator& /* unused */ ) const
     {
         return false;
     }
@@ -114,6 +115,18 @@ static_assert( std::is_empty_v<RpmallocAllocator<char> > );
 
 #endif
 
+
+#if 1
+
+#ifdef WITH_RPMALLOC
+template<typename T>
+using FasterVector = std::vector<T, RpmallocAllocator<T> >;
+#else
+template<typename T>
+using FasterVector = std::vector<T>;
+#endif
+
+#else
 
 [[nodiscard]] constexpr bool
 isPowerOf2( size_t value )
@@ -129,6 +142,19 @@ using RequireInputIterator = typename std::enable_if<
 >::type;
 
 
+/**
+ * This was supposed to be a faster std::vector alternative that saves time by not initializing its contents
+ * on resize as introduced in 093805ab24c93b7150b56d16bde418e51c0dd970. However, it leads to almost double
+ * the memory usage with wikidata.json (12 GB -> 16 GB) even when disabling rounding to powers of 2 when
+ * reserving in @ref insert and when disabling alignment and disabling the shrink_to_fit check.
+ * @verbatim
+ * make rapidgzip
+ * /usr/bin/time -v src/tools/rapidgzip -v -P 24 --io-read-method sequential --export-index "$file"{.index,}
+ * With std::vector using rpmalloc allocator:
+ *     Maximum resident set size (kbytes): 11631884
+ * FasterVector:
+ *     Maximum resident set size (kbytes): 16360928
+ */
 template<typename T>
 class FasterVector
 {
@@ -156,7 +182,7 @@ public:
         insert( end(), inputBegin, inputEnd );
     }
 
-    FasterVector( FasterVector&& other ) :
+    FasterVector( FasterVector&& other ) noexcept :
         m_data( other.m_data ),
         m_capacity( other.m_capacity ),
         m_size( other.m_size )
@@ -167,7 +193,7 @@ public:
     }
 
     FasterVector&
-    operator=( FasterVector&& other )
+    operator=( FasterVector&& other ) noexcept
     {
         m_data = other.m_data;
         m_capacity = other.m_capacity;
@@ -212,7 +238,12 @@ public:
     }
 
     void clear() { m_size = 0; }
-    void shrink_to_fit() { reallocate( m_size ); }
+    void shrink_to_fit()
+    {
+        if ( m_size < static_cast<size_t>( 0.9 * m_capacity ) ) {
+            reallocate( m_size );
+        }
+    }
 
     [[nodiscard]] constexpr size_t capacity() const noexcept { return m_capacity; }
     [[nodiscard]] constexpr size_t size() const noexcept { return m_size; }
@@ -359,7 +390,7 @@ private:
         #endif
         #else
             /* > If ptr is a null pointer, the behavior is the same as calling std::malloc(new_size). */
-            m_data = static_cast<T*>( std::realloc( m_data, newCapacity * sizeof( T ) ) );
+            m_data = static_cast<T*>( std::realloc( m_data, newCapacity * sizeof( T ) ) );  // NOLINT
         #endif
         }
 
@@ -372,7 +403,7 @@ private:
     #ifdef WITH_RPMALLOC
         rpfree( m_data );
     #else
-        std::free( m_data );
+        std::free( m_data );  // NOLINT
     #endif
         m_data = nullptr;
     }
@@ -418,3 +449,4 @@ operator!=( const std::vector<T, Alloc>&  lhs,
 {
     return !std::equal( lhs.begin(), lhs.end(), rhs.begin(), rhs.end() );
 }
+#endif

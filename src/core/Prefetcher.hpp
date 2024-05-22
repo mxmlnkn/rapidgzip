@@ -104,7 +104,7 @@ public:
         }
     }
 
-    [[nodiscard]] virtual bool
+    [[nodiscard]] bool
     isSequential() const noexcept override
     {
         /* Returning true for the empty case and only one element or very few is desired behavior. */
@@ -126,7 +126,7 @@ public:
         const auto consecutiveRatio = saturationCount == 0
                                       ? 1.0
                                       : static_cast<double>( std::min( consecutiveValues, saturationCount ) )
-                                        / saturationCount;
+                                        / static_cast<double>( saturationCount );
         /** 1 <= maxAmountToPrefetch +- floating point errors */
         const auto amountToPrefetch = std::round( std::exp2( consecutiveRatio * std::log2( maxExtrapolation ) ) );
 

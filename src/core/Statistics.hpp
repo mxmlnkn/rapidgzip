@@ -147,9 +147,9 @@ class Histogram
 public:
     template<typename Container>
     explicit
-    Histogram( const Container&   container,
-               uint16_t           binCount,
-               const std::string& unit = {} ) :
+    Histogram( const Container& container,
+               uint16_t         binCount,
+               std::string      unit = {} ) :
         m_statistics( container ),
         m_bins( binCount, 0 ),
         m_unit( std::move( unit ) )
@@ -179,10 +179,10 @@ public:
         }
     }
 
-    Histogram( T                  min,
-               T                  max,
-               uint16_t           binCount,
-               const std::string& unit = {} ) :
+    Histogram( T           min,
+               T           max,
+               uint16_t    binCount,
+               std::string unit = {} ) :
         m_statistics( std::array<T, 2>{ min, max } ),
         m_bins( binCount, 0 ),
         m_unit( std::move( unit ) )
@@ -237,21 +237,21 @@ public:
     binStart( size_t binNumber ) const noexcept
     {
         return m_statistics.min + static_cast<double>( m_statistics.max - m_statistics.min )
-               / m_bins.size() * binNumber;
+               / static_cast<double>( m_bins.size() ) * static_cast<double>( binNumber);
     }
 
     [[nodiscard]] constexpr double
     binCenter( size_t binNumber ) const noexcept
     {
         return m_statistics.min + static_cast<double>( m_statistics.max - m_statistics.min )
-               / m_bins.size() * ( binNumber + 0.5 );
+               / static_cast<double>( m_bins.size() ) * ( static_cast<double>( binNumber ) + 0.5 );
     }
 
     [[nodiscard]] constexpr double
     binEnd( size_t binNumber ) const noexcept
     {
         return m_statistics.min + static_cast<double>( m_statistics.max - m_statistics.min )
-               / m_bins.size() * ( binNumber + 1 );
+               / static_cast<double>( m_bins.size() ) * ( static_cast<double>( binNumber ) + 1 );
     }
 
     [[nodiscard]] constexpr const auto&
@@ -263,7 +263,7 @@ public:
     [[nodiscard]] std::string
     plot() const
     {
-        if ( m_bins.size() < 1 ) {
+        if ( m_bins.empty() ) {
             return {};
         }
 
@@ -291,7 +291,9 @@ public:
 
             const auto binVisualSize = *maxBin == 0
                                        ? size_t( 0 )
-                                       : static_cast<size_t>( static_cast<double>( bin ) / *maxBin * m_barWidth );
+                                       : static_cast<size_t>( static_cast<double>( bin )
+                                         / static_cast<double>( *maxBin )
+                                         * static_cast<double>( m_barWidth ) );
             std::stringstream histogramBar;
             histogramBar << std::setw( m_barWidth ) << std::left << std::string( binVisualSize, '=' );
 
