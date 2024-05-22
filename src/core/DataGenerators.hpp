@@ -77,6 +77,28 @@ createRandomBase64( const std::string& filePath,
 }
 
 
+template<typename Container>
+void
+fillWithRandomNumbers( Container& container )
+{
+    constexpr std::string_view DIGITS = "0123456789";
+    for ( size_t i = 0; i < container.size(); ++i ) {
+        container[i] = static_cast<typename Container::value_type>(
+            ( i + 1 == container.size() ) || ( ( i + 1 ) % 77 == 0 )
+            ? '\n' : DIGITS[static_cast<size_t>( rand() ) % DIGITS.size()] );
+    }
+}
+
+
+[[nodiscard]] inline std::vector<char>
+createRandomNumbers( const size_t size )
+{
+    std::vector<char> result( size );
+    fillWithRandomNumbers( result );
+    return result;
+}
+
+
 inline void
 createRandomNumbers( const std::string& filePath,
                      const size_t       fileSize )

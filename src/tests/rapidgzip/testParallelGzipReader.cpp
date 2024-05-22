@@ -1024,6 +1024,62 @@ printClassSizes()
 }
 
 
+/**
+ * 1. Chunks are currently split on-the-fly after each chunk size.
+ * 2. Used window symbols are also computed on the fly including determining whether the window
+ *    can be dropped completely.
+ * 3. When a subchunk is too small, it is rejoined to the previous one.
+ * Check whether this rejoining works because there was a bug where empty windows were not reanalyzed for
+ * sparsity.
+ * This lead to a bug in this case:
+ * @verbatim
+ * small subchunk gets merged into previous subchunk
+ * The previous subchunk suddenly needs to store a non-empt window!
+ *                       v
+ * +-------- chunk 1 --------+------ chunk 2 -------+
+ * +----------------+--------+----------------------+
+ * |   non-random   | random | referencing previous |
+ * +----------------+--------+----------------------+
+ *       ^          ^        ^
+ *       |      window for   requires window!
+ *       | subchunk not required
+ *       +----------+
+ *      window sparsity is stored
+ *        in preceding subchunks
+ * @endverbatim
+ */
+void
+testChunkRemerging()
+{
+    std::vector<std::byte> toCompress;
+    static constexpr size_t DATA_SECTION_SIZE = 45_Ki;
+    static constexpr size_t DATA_SECTION_COUNT = 100;
+    toCompress.reserve( DATA_SECTION_COUNT * DATA_SECTION_SIZE );
+    std::mt19937_64 randomEngine;
+    std::vector<std::byte> dataSection( DATA_SECTION_SIZE );
+    for ( size_t i = 0; i < DATA_SECTION_COUNT; ++i ) {
+        if ( i % 2 == 0 ) {
+            for ( auto& x : dataSection ) {
+                x = static_cast<std::byte>( randomEngine() );
+            }
+        } else {
+            fillWithRandomNumbers( dataSection );
+        }
+        toCompress.insert( toCompress.end(), dataSection.begin(), dataSection.end() );
+    }
+
+    const auto compressed = compressWithZlib( toCompress );
+    rapidgzip::ParallelGzipReader<rapidgzip::ChunkData> reader(
+        std::make_unique<BufferViewFileReader>( compressed ), /* parallelization */ 1, /* chunk size */ 128_Ki );
+    reader.setStatisticsEnabled( true );
+    reader.setCRC32Enabled( true );
+    reader.setKeepIndex( true );  // Sparsity is only on when the index is kept!
+
+    /* Did throw an exception if the bug was encountered. */
+    REQUIRE_EQUAL( reader.read( -1, nullptr ), toCompress.size() );
+}
+
+
 int
 main( int    argc,
       char** argv )
@@ -1046,6 +1102,7 @@ main( int    argc,
             findParentFolderContaining( binaryFolder, "src/tests/data/base64-256KiB.bgz" )
         ) / "src" / "tests" / "data";
 
+    testChunkRemerging();
     testMultiThreadedUsage();
     testCRC32AndCleanUnmarkedData();
     testPrefetchingAfterSplit();

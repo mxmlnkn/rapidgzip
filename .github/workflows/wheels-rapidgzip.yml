@@ -11,8 +11,13 @@ jobs:
 
     strategy:
       matrix:
-        os: [macos-latest, windows-latest]
+        os: [macos-13, macos-14, windows-latest]
         archs: [auto64]
+        # Build with both x86-64 (macos-13) and ARM64 (macos-14) runners.
+        # For some reason, macos-14-latest seems to use macos-14-arm64, but when I try to specify macos-14-arm64
+        # directly, then the actions does not find any runner to run on and macos-14 also uses arm64...
+        # https://github.com/actions/runner-images/blob/main/images/macos/macos-14-Readme.md
+        #
         # manylinux1 is not supported anymore because it won't compile C++17 code
         # manylinux2010 runs into this problem https://github.com/pypa/cibuildwheel/issues/1001
         # MacOS and Windows ignore the manylinux-image version because they are not Linux.
