@@ -17,6 +17,7 @@ jobs:
         # For some reason, macos-14-latest seems to use macos-14-arm64, but when I try to specify macos-14-arm64
         # directly, then the actions does not find any runner to run on and macos-14 also uses arm64...
         # https://github.com/actions/runner-images/blob/main/images/macos/macos-14-Readme.md
+        #
         # manylinux1 is not supported anymore because it won't compile C++17 code
         # manylinux_2_24, which is newer than manylinux2014, is not supported because it comes with GCC 5.3,
         # which cannot compile C++17 code. Just why?
