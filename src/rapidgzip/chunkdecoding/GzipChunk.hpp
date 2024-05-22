@@ -93,7 +93,6 @@ public:
             subchunk.usedWindowSymbols = std::vector<bool>();  // Free memory!
             subchunk.window = std::make_shared<typename ChunkData::Window>();
         }
-
     }
 
     static void
@@ -149,6 +148,7 @@ public:
             subchunks.back().encodedSize += lastSubchunk.encodedSize;
             subchunks.back().decodedSize += lastSubchunk.decodedSize;
             subchunks.back().usedWindowSymbols.clear();
+            subchunks.back().window.reset();
         }
 
         finalizeWindowForLastSubchunk( chunk, subchunks, bitReader );
