@@ -236,7 +236,6 @@ public:
             if ( underlyingSize && ( m_file->seekable() || ( *underlyingSize > 0 ) ) ) {
                 return *underlyingSize;
             }
-            return m_fileno;
         }
         return std::nullopt;
     }
