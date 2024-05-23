@@ -254,9 +254,9 @@ rapidgzipCLI( int                  argc,
           "Note that there might be further threads being started with non-decoding work. "
           "If 0 is given, then the parallelism will be determined automatically.",
           cxxopts::value<unsigned int>()->default_value( "0" ) )
-        ( "ranges", "Decompress only the specified byte ranges. Example: 10@0,1KiB@15KiB,5L@20L to decompress the "
-                    "first 10 bytes, 1024 bytes at offset 15 KiB, as well as the 5 lines after skipping the first "
-                    "20 lines.",
+        ( "ranges", "Decompress only the specified byte ranges. Example: 10@0,1KiB@15KiB,5L@20L,inf@40L to decompress "
+                    "the first 10 bytes, 1024 bytes at offset 15 KiB, as well as the 5 lines after skipping the first "
+                    "20 lines, and lastly, everything after skipping the first 40.",
           cxxopts::value<std::string>() );
 
     options.add_options( "Advanced" )

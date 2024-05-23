@@ -117,6 +117,7 @@ parseFileRanges( const std::string_view expression )
 {
     constexpr char OFFSET_PREFIX{ '@' };
     constexpr char SEPARATOR{ ',' };
+    static constexpr std::string_view INFINITY_STRING{ "inf" };
 
     /**
      * Allowed state transitions:
@@ -156,7 +157,15 @@ parseFileRanges( const std::string_view expression )
             }
 
             range.size = 0;
-            current = readNumber( current, expressionEnd, range.size, range.sizeIsLine );
+            if ( startsWith( std::string_view( current,
+                                               static_cast<size_t>( std::distance( current, expressionEnd ) ) ),
+                             INFINITY_STRING ) )
+            {
+                range.size = std::numeric_limits<size_t>::max();
+                current += INFINITY_STRING.size();
+            } else {
+                current = readNumber( current, expressionEnd, range.size, range.sizeIsLine );
+            }
             state = State::SIZE_END;
             break;
 
