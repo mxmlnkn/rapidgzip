@@ -681,6 +681,14 @@ rapidgzipCLI( int                  argc,
         errorCode = decompressParallel<rapidgzip::ChunkData>(
             args, std::move( inputFile ), [&] ( const auto& reader ) {
                 if ( !fileRanges ) {
+                    if ( !hasOutputFiles && countLines && !reader->newlineOffsets().empty() ) {
+                        const auto& newlineOffset = reader->newlineOffsets().back();
+                        newlineCount = newlineOffset.lineOffset;
+                        totalBytesRead = reader->seekTo( newlineOffset.uncompressedOffsetInBytes );
+                        /* Strictly speaking, we should be able to return here, but in case the newline offset
+                         * semantics change or when only partial index should be loaded (not supported yet), then
+                         * the subsequent "read until file end" should cover these cases. */
+                    }
                     readRange( reader, std::numeric_limits<size_t>::max() );
                     return;
                 }
