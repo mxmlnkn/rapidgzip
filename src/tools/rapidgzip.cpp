@@ -602,7 +602,7 @@ rapidgzipCLI( int                  argc,
         args.crc32Enabled = false;
         errorCode = decompressParallel<rapidgzip::ChunkDataCounter>(
             args, std::move( inputFile ), [&totalBytesRead] ( const auto& reader ) {
-                totalBytesRead = reader->read( /* do nothing */ nullptr, std::numeric_limits<size_t>::max() );
+                totalBytesRead = reader->seek( 0, SEEK_END );
             } );
     } else {
         const auto readRange =
