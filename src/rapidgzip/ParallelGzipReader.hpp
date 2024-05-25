@@ -901,6 +901,9 @@ public:
             throw std::invalid_argument( "Index checkpoints must be sorted by uncompressed offsets!" );
         }
 
+        m_indexIsImported = true;
+        m_keepIndex = true;
+
         if ( index.hasLineOffsets ) {
             m_newlineFormat = index.newlineFormat;
             m_newlineOffsets.resize( index.checkpoints.size() );
@@ -992,7 +995,6 @@ public:
     void
     importIndex( UniqueFileReader indexFile )
     {
-        m_indexIsImported = true;
         const auto t0 = now();
         setBlockOffsets( readGzipIndex( std::move( indexFile ), m_sharedFileReader->clone(),
                                         m_fetcherParallelization ) );
