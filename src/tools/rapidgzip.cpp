@@ -262,13 +262,14 @@ rapidgzipCLI( int                  argc,
     options.add_options( "Advanced" )
         ( "chunk-size", "The chunk size decoded by the parallel workers in KiB.",
           cxxopts::value<unsigned int>()->default_value( "4096" ) )
-        ( "verify", "Verify CRC32 checksum. Will slow down decompression and there are already some implicit "
-                    "and explicit checks like whether the end of the file could be reached and whether the stream "
-                    "size is correct. ",
+        ( "verify", "Verify CRC32 checksum during decompression. Will slow down decompression and there are already "
+                    "some implicit and explicit checks like whether the end of the file could be reached and whether "
+                    "the stream size is correct. If no action is specified, this will do nothing. Use --test to "
+                    "force checksum verification.",
           cxxopts::value( args.crc32Enabled )->implicit_value( "true" ) )
-        ( "no-verify", "Do not verify CRC32 checksum. Might speed up decompression and there are already some implicit "
-                       "and explicit checks like whether the end of the file could be reached and whether the stream "
-                       "size is correct.",
+        ( "no-verify", "Do not verify CRC32 checksum during decompression. Might speed up decompression and there are "
+                       "already some implicit and explicit checks like whether the end of the file could be reached "
+                       "and whether the stream size is correct.",
           cxxopts::value( args.crc32Enabled )->implicit_value( "false" ) )
         ( "io-read-method", "Option to force a certain I/O method for reading. By default, pread will be used "
                             "when possible. Possible values: pread, sequential, locked-read",
@@ -301,7 +302,10 @@ rapidgzipCLI( int                  argc,
         ( "export-index" , "Write out a gzip index file.", cxxopts::value<std::string>() )
         ( "count"        , "Prints the decompressed size." )
         ( "l,count-lines", "Prints the number of newline characters in the decompressed data." )
-        ( "analyze"      , "Print output about the internal file format structure like the block types." );
+        ( "analyze"      , "Print output about the internal file format structure like the block types." )
+        ( "t,test"       , "Verify decompression and checksums, if not disabled with --no-verify. "
+                           "Note that this does not have any additional effect when combined with --decompress "
+                           "or --ranges because it is equivalent to --decompress -o /dev/null." );
 
     options.parse_positional( { "input" } );
 
@@ -409,8 +413,9 @@ rapidgzipCLI( int                  argc,
 
     const auto countBytes = parsedArgs.count( "count" ) > 0;
     const auto countLines = parsedArgs.count( "count-lines" ) > 0;
+    const auto doTest = parsedArgs.count( "test" ) > 0;
     const auto writeToStdOut = parsedArgs.count( "stdout" ) > 0;
-    const auto decompress = ( parsedArgs.count( "decompress" ) > 0 ) || ( parsedArgs.count( "ranges" ) > 0 );
+    const auto decompress = ( parsedArgs.count( "decompress" ) > 0 ) || ( parsedArgs.count( "ranges" ) > 0 ) || doTest;
 
     /* Parse ranges. */
     std::optional<std::vector<FileRange> > fileRanges;
@@ -450,7 +455,7 @@ rapidgzipCLI( int                  argc,
 
     auto outputFilePath = getFilePath( parsedArgs, "output" );
     /* Automatically determine output file path if none has been given and not writing to stdout. */
-    if ( ( parsedArgs.count( "stdout" ) == 0 ) && outputFilePath.empty() && !inputFilePath.empty() ) {
+    if ( outputFilePath.empty() && !inputFilePath.empty() && !doTest && !writeToStdOut ) {
         const std::string& suffix = ".gz";
         if ( endsWith( inputFilePath, suffix, /* case sensitive */ false ) ) {
             outputFilePath = std::string( inputFilePath.begin(),
@@ -521,9 +526,9 @@ rapidgzipCLI( int                  argc,
 
     /* Actually do things as requested. */
 
-    if ( decompress && args.verbose ) {
+    if ( decompress && !doTest && args.verbose ) {
         std::cerr << "Decompress " << ( inputFilePath.empty() ? "<stdin>" : inputFilePath.c_str() )
-                  << " -> " << ( outputFilePath.empty() ? "<stdout>" : outputFilePath.c_str() ) << "\n";
+                  << " -> " << ( writeToStdOut ? "<stdout>" : outputFilePath.c_str() ) << "\n";
     }
 
     if ( !inputFile ) {
@@ -590,11 +595,11 @@ rapidgzipCLI( int                  argc,
 
     auto errorCode = DecompressErrorCode::SUCCESS;
     const auto hasOutputFiles = ( outputFileDescriptor != -1 ) || ( stdoutFileDescriptor != -1 );
-    if ( args.indexSavePath.empty() && countBytes && !countLines && !decompress && !hasOutputFiles &&!args.crc32Enabled )
-    {
+    if ( args.indexSavePath.empty() && countBytes && !countLines && !decompress && !hasOutputFiles ) {
         /* Need to do nothing with the chunks because decompressParallel returns the decompressed size.
          * Note that we use rapidgzip::ChunkDataCounter to speed up decompression. Therefore an index
          * will not be created and there also will be no checksum verification! */
+        args.crc32Enabled = false;
         errorCode = decompressParallel<rapidgzip::ChunkDataCounter>(
             args, std::move( inputFile ), [&totalBytesRead] ( const auto& reader ) {
                 totalBytesRead = reader->read( /* do nothing */ nullptr, std::numeric_limits<size_t>::max() );
