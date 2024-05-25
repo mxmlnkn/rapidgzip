@@ -671,7 +671,7 @@ testPrefetchingAfterSplit()
     reader.setCRC32Enabled( true );
 
     /* Read everything. The data should contain sufficient chunks such that the first ones have been evicted. */
-    reader.read( -1, nullptr, std::numeric_limits<size_t>::max() );
+    REQUIRE_EQUAL( reader.read( -1, nullptr, std::numeric_limits<size_t>::max() ), 64_Mi );
     REQUIRE_EQUAL( reader.statistics().onDemandFetchCount, 1U );
     REQUIRE_EQUAL( reader.tell(), 64_Mi );
     REQUIRE_EQUAL( reader.tellCompressed(), compressedRandomDNA.size() * BYTE_SIZE );
@@ -692,7 +692,7 @@ testPrefetchingAfterSplit()
     std::cerr << "File was split into " << reader.blockOffsets().size() - 1 << " chunks\n";  // 70, subject to change
 
     reader2.read( -1, nullptr, std::numeric_limits<size_t>::max() );
-    REQUIRE_EQUAL( reader2.statistics().onDemandFetchCount, 1U );
+    REQUIRE_EQUAL( reader2.statistics().onDemandFetchCount, 0U );
 }
 
 
@@ -1089,6 +1089,8 @@ main( int    argc,
         return 1;
     }
 
+    using namespace std::string_literals;
+
     printClassSizes();
 
     const std::string binaryFilePath( argv[0] );
@@ -1107,14 +1109,12 @@ main( int    argc,
     testCRC32AndCleanUnmarkedData();
     testPrefetchingAfterSplit();
     testCachedChunkReuseAfterSplit();
+    testParallelDecoderNano();
 
     const auto tmpFolder = createTemporaryDirectory( "rapidgzip.testParallelGzipReader" );
 
     testWindowPruning( tmpFolder );
-
     testPerformance( tmpFolder );
-
-    testParallelDecoderNano();
 
     /* The second and last encoded offset should always be at the end of the file, i.e., equal the file size in bits. */
     testIndexCreation( rootFolder / "1B.bgz", { { 18 * 8, 0 }, { 60 * 8, 1 } } );
@@ -1125,8 +1125,6 @@ main( int    argc,
     testIndexCreation( rootFolder / "1B.pgzf", { { 32 * 8, 0 }, { 85 * 8, 1 } } );
     testIndexCreation( rootFolder / "1B.pigz", { { 13 * 8, 0 }, { 24 * 8, 1 } } );
     testIndexCreation( rootFolder / "1B.zlib", { { 2 * 8, 0 }, { 9 * 8, 1 } } );
-
-    using namespace std::string_literals;
 
     testChecksummedMultiStreamDecompression( rootFolder / "base64-32KiB.deflate",
                                              rootFolder / "base64-32KiB" );

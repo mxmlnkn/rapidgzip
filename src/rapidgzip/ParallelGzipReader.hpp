@@ -531,6 +531,10 @@ public:
                 nBytesDecoded += dataToWriteSize;
             };
 
+        if ( ( outputFileDescriptor == -1 ) && ( outputBuffer == nullptr ) ) {
+            /* An empty std::function gives that read method options to optimize, e.g., via seeking. */
+            return read( WriteFunctor{}, nBytesToRead );
+        }
         return read( writeFunctor, nBytesToRead );
     }
 
