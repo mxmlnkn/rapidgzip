@@ -409,8 +409,10 @@ rapidgzipCLI( int                  argc,
 
     const auto countBytes = parsedArgs.count( "count" ) > 0;
     const auto countLines = parsedArgs.count( "count-lines" ) > 0;
+    const auto writeToStdOut = parsedArgs.count( "stdout" ) > 0;
     const auto decompress = ( parsedArgs.count( "decompress" ) > 0 ) || ( parsedArgs.count( "ranges" ) > 0 );
 
+    /* Parse ranges. */
     std::optional<std::vector<FileRange> > fileRanges;
     if ( parsedArgs.count( "ranges" ) > 0 ) {
         fileRanges = parseFileRanges( parsedArgs["ranges"].as<std::string>() );
@@ -530,10 +532,17 @@ rapidgzipCLI( int                  argc,
     }
 
     std::unique_ptr<OutputFile> outputFile;
+    std::unique_ptr<OutputFile> stdoutFile;
     if ( decompress ) {
-        outputFile = std::make_unique<OutputFile>( outputFilePath );
+        if ( writeToStdOut ) {
+            stdoutFile = std::make_unique<OutputFile>( /* empty path implies stdout */ "" );
+        }
+        if ( !outputFilePath.empty() ) {
+            outputFile = std::make_unique<OutputFile>( outputFilePath );
+        }
     }
     const auto outputFileDescriptor = outputFile ? outputFile->fd() : -1;
+    const auto stdoutFileDescriptor = stdoutFile ? stdoutFile->fd() : -1;
 
     uint64_t newlineCount{ 0 };
 
@@ -541,21 +550,27 @@ rapidgzipCLI( int                  argc,
 
     size_t totalBytesRead{ 0 };
     const auto writeAndCount =
-        [outputFileDescriptor, countLines, &newlineCount, &totalBytesRead]
+        [outputFileDescriptor, stdoutFileDescriptor, countLines, &newlineCount, &totalBytesRead]
         ( const std::shared_ptr<rapidgzip::ChunkData>& chunkData,
           size_t const                                 offsetInChunk,
           size_t const                                 dataToWriteSize )
         {
-            const auto errorCode = writeAll( chunkData, outputFileDescriptor, offsetInChunk, dataToWriteSize );
-            if ( errorCode == EPIPE ) {
-                throw BrokenPipeException();
-            }
+            for ( const auto fileDescriptor : { stdoutFileDescriptor, outputFileDescriptor } ) {
+                if ( fileDescriptor == -1 ) {
+                    continue;
+                }
 
-            if ( errorCode != 0 ) {
-                std::stringstream message;
-                message << "Failed to write all bytes because of: " << strerror( errorCode )
-                        << " (" << errorCode << ")";
-                throw std::runtime_error( std::move( message ).str() );
+                const auto errorCode = writeAll( chunkData, fileDescriptor, offsetInChunk, dataToWriteSize );
+                if ( errorCode == EPIPE ) {
+                    throw BrokenPipeException();
+                }
+
+                if ( errorCode != 0 ) {
+                    std::stringstream message;
+                    message << "Failed to write all bytes because of: " << strerror( errorCode )
+                            << " (" << errorCode << ")";
+                    throw std::runtime_error( std::move( message ).str() );
+                }
             }
 
             totalBytesRead += dataToWriteSize;
@@ -574,8 +589,8 @@ rapidgzipCLI( int                  argc,
     args.chunkSize = parsedArgs["chunk-size"].as<unsigned int>() * 1_Ki;
 
     auto errorCode = DecompressErrorCode::SUCCESS;
-    if ( ( outputFileDescriptor == -1 ) && args.indexSavePath.empty() && countBytes && !countLines
-         && !args.crc32Enabled && !fileRanges )
+    const auto hasOutputFiles = ( outputFileDescriptor != -1 ) || ( stdoutFileDescriptor != -1 );
+    if ( args.indexSavePath.empty() && countBytes && !countLines && !decompress && !hasOutputFiles &&!args.crc32Enabled )
     {
         /* Need to do nothing with the chunks because decompressParallel returns the decompressed size.
          * Note that we use rapidgzip::ChunkDataCounter to speed up decompression. Therefore an index
@@ -586,12 +601,12 @@ rapidgzipCLI( int                  argc,
             } );
     } else {
         const auto readRange =
-            [&totalBytesRead, outputFileDescriptor, countLines, &writeAndCount]
+            [&totalBytesRead, hasOutputFiles, countLines, &writeAndCount]
             ( const auto&  reader,
               const size_t size )
             {
                 /* An empty functor will lead to decompression to be skipped if the index is finalized! */
-                if ( ( outputFileDescriptor != -1 ) || countLines ) {
+                if ( hasOutputFiles || countLines ) {
                     reader->read( writeAndCount, size );
                 } else {
                     totalBytesRead += reader->read( /* do nothing */ nullptr, size );
