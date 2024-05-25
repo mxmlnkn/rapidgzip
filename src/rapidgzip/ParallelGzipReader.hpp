@@ -646,6 +646,8 @@ public:
         const auto positiveOffset = effectiveOffset( offset, origin );
 
         if ( positiveOffset == tell() ) {
+            /* This extra check for EOF is necessary for empty files! */
+            m_atEndOfFile = m_blockMap->finalized() && ( m_currentPosition >= m_blockMap->back().second );
             return positiveOffset;
         }
 
@@ -672,8 +674,8 @@ public:
         }
 
         if ( blockInfo.contains( positiveOffset ) ) {
-            m_atEndOfFile = false;
             m_currentPosition = positiveOffset;
+            m_atEndOfFile = m_blockMap->finalized() && ( m_currentPosition >= m_blockMap->back().second );
             return tell();
         }
 
