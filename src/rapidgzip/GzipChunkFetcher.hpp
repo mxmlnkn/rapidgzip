@@ -446,8 +446,14 @@ private:
                 m_windowMap->emplace( windowOffset, chunkData->getWindowAt( lastWindow, nextDecodedWindowOffset ),
                                       chunkData->windowCompressionType() );
                 if ( BaseType::m_parallelization != 1 ) {
-                    std::cerr << "[Info] The subchunk window for offset " << formatBits( windowOffset )
-                              << " is not compressed yet. Compressing it now might slow down the program.\n";
+                    std::stringstream message;
+                    message << "[Info] The subchunk window for offset " << formatBits( windowOffset )
+                            << " is not compressed yet. Compressing it now might slow down the program.\n";
+                #ifdef RAPIDGZIP_FATAL_PERFORMANCE_WARNINGS
+                    throw std::logic_error( std::move( message ).str() );
+                #else
+                    std::cerr << std::move( message ).str();
+                #endif
                 }
             }
         }
@@ -616,14 +622,20 @@ private:
             if ( chunkData && !chunkData->matchesEncodedOffset( blockOffset ) && ( partitionOffset != blockOffset )
                  && ( m_statistics.preemptiveStopCount == 0 ) )
             {
-                std::cerr << "[Info] Detected a performance problem. Decoding might take longer than necessary. "
-                          << "Please consider opening a performance bug report with "
-                          << "a reproducing compressed file. Detailed information:\n"
-                          << "[Info] Found mismatching block. Need offset " << formatBits( blockOffset )
-                          << ". Look in partition offset: " << formatBits( partitionOffset )
-                          << ". Found possible range: ["
-                          << formatBits( chunkData->encodedOffsetInBits ) << ", "
-                          << formatBits( chunkData->maxEncodedOffsetInBits ) << "]\n";
+                std::stringstream message;
+                message << "[Info] Detected a performance problem. Decoding might take longer than necessary. "
+                        << "Please consider opening a performance bug report with "
+                        << "a reproducing compressed file. Detailed information:\n"
+                        << "[Info] Found mismatching block. Need offset " << formatBits( blockOffset )
+                        << ". Look in partition offset: " << formatBits( partitionOffset )
+                        << ". Found possible range: ["
+                        << formatBits( chunkData->encodedOffsetInBits ) << ", "
+                        << formatBits( chunkData->maxEncodedOffsetInBits ) << "]\n";
+            #ifdef RAPIDGZIP_FATAL_PERFORMANCE_WARNINGS
+                throw std::logic_error( std::move( message ).str() );
+            #else
+                std::cerr << std::move( message ).str();
+            #endif
             }
         }
 

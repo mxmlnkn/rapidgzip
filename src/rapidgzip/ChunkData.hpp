@@ -341,7 +341,13 @@ public:
         statistics.compressWindowDuration += duration( tWindowCompressionStart );
 
         if ( !hasBeenPostProcessed() ) {
-            std::cerr << "[Info] Chunk is not recognized as post-processed even though it has been!\n";
+            std::stringstream message;
+            message << "[Info] Chunk is not recognized as post-processed even though it has been!\n";
+        #ifdef RAPIDGZIP_FATAL_PERFORMANCE_WARNINGS
+            throw std::logic_error( std::move( message ).str() );
+        #else
+            std::cerr << std::move( message ).str();
+        #endif
         }
     }
 
@@ -699,7 +705,11 @@ ChunkData::split( [[maybe_unused]] const size_t spacing ) const
                 << "  encodedSizeInBits     : " << encodedSizeInBits      << "\n"
                 << "  subchunkDecodedSizeSum: " << subchunkDecodedSizeSum << "\n"
                 << "  decodedSizeInBytes    : " << decodedSizeInBytes     << "\n";
+    #ifdef RAPIDGZIP_FATAL_PERFORMANCE_WARNINGS
+        throw std::logic_error( std::move( message ).str() );
+    #else
         std::cerr << std::move( message ).str();
+    #endif
         return { wholeChunkAsSubchunk };  // fallback without any splitting done at all
     }
 
