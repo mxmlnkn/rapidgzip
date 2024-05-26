@@ -475,9 +475,6 @@ rapidgzipCLI( int                  argc,
     args.indexSavePath = parsedArgs.count( "export-index" ) > 0
                          ? parsedArgs["export-index"].as<std::string>()
                          : std::string();
-    if ( !args.indexLoadPath.empty() && !args.indexSavePath.empty() && !quiet ) {
-        std::cerr << "[Warning] Importing and exporting an index makes limited sense.\n";
-    }
     if ( !args.indexLoadPath.empty() && args.indexSavePath.empty() && ( args.decoderParallelism == 1 ) && !quiet ) {
         std::cerr << "[Warning] The index only has an effect for parallel decoding and index exporting.\n";
     }
