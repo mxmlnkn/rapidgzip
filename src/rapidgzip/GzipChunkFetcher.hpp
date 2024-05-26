@@ -445,8 +445,10 @@ private:
                 const auto nextDecodedWindowOffset = subchunk.decodedOffset + subchunk.decodedSize;
                 m_windowMap->emplace( windowOffset, chunkData->getWindowAt( lastWindow, nextDecodedWindowOffset ),
                                       chunkData->windowCompressionType() );
-                std::cerr << "[Info] The subchunk window for offset " << windowOffset << " is not compressed yet. "
-                          << "Compressing it now might slow down the program.\n";
+                if ( BaseType::m_parallelization != 1 ) {
+                    std::cerr << "[Info] The subchunk window for offset " << formatBits( windowOffset )
+                              << " is not compressed yet. Compressing it now might slow down the program.\n";
+                }
             }
         }
 
