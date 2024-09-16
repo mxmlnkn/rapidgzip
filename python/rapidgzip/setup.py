@@ -13,6 +13,9 @@ from setuptools import setup
 from setuptools.extension import Extension
 from setuptools.command.build_ext import build_ext
 
+# For nasm_extension, which is in the same folder as this setup.py during the build process.
+sys.path.append(os.path.dirname(__file__))
+
 # This fallback is only for jinja, which is used by conda to analyze this setup.py before any build environment
 # is set up.
 try:
