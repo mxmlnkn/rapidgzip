@@ -3,7 +3,7 @@ name: Build Wheels
 on:
   push:
     branches: 'master'
-    tags: 'rapidgzip-v*.*.*'
+    tags: 'v*.*.*'
 
 jobs:
   Build-Wheels:
