@@ -103,7 +103,7 @@ class Build(build_ext):
                     ext.extra_compile_args += ['-mmacosx-version-min=10.14']
                     ext.extra_link_args += ['-mmacosx-version-min=10.14']
 
-        super(Build, self).build_extensions()
+        super().build_extensions()
 
 
 setup(
