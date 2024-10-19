@@ -322,6 +322,7 @@ public:
         for ( auto& subchunk : m_subchunks ) {
             decodedOffsetInBlock += subchunk.decodedSize;
             if ( subchunk.window ) {
+                subchunk.usedWindowSymbols = std::vector<bool>();  // Free memory just to be sure!
                 continue;
             }
 
@@ -338,6 +339,16 @@ public:
             subchunk.window = std::make_shared<Window>( std::move( subchunkWindow ), windowCompressionType );
         }
         statistics.compressWindowDuration += duration( tWindowCompressionStart );
+
+        if ( !hasBeenPostProcessed() ) {
+            std::stringstream message;
+            message << "[Info] Chunk is not recognized as post-processed even though it has been!\n";
+        #ifdef RAPIDGZIP_FATAL_PERFORMANCE_WARNINGS
+            throw std::logic_error( std::move( message ).str() );
+        #else
+            std::cerr << std::move( message ).str();
+        #endif
+        }
     }
 
     [[nodiscard]] bool
@@ -437,7 +448,12 @@ public:
     [[nodiscard]] bool
     hasBeenPostProcessed() const
     {
-        return !m_subchunks.empty() && m_subchunks.front().window && !containsMarkers();
+        const auto subchunkHasBeenProcessed =
+            [] ( const auto& subchunk ) {
+                return static_cast<bool>( subchunk.window ) && subchunk.usedWindowSymbols.empty();
+            };
+        return !m_subchunks.empty() && !containsMarkers()
+               && std::all_of( m_subchunks.begin(), m_subchunks.end(), subchunkHasBeenProcessed );
     }
 
     [[nodiscard]] const std::vector<Subchunk>&
@@ -689,7 +705,11 @@ ChunkData::split( [[maybe_unused]] const size_t spacing ) const
                 << "  encodedSizeInBits     : " << encodedSizeInBits      << "\n"
                 << "  subchunkDecodedSizeSum: " << subchunkDecodedSizeSum << "\n"
                 << "  decodedSizeInBytes    : " << decodedSizeInBytes     << "\n";
+    #ifdef RAPIDGZIP_FATAL_PERFORMANCE_WARNINGS
+        throw std::logic_error( std::move( message ).str() );
+    #else
         std::cerr << std::move( message ).str();
+    #endif
         return { wholeChunkAsSubchunk };  // fallback without any splitting done at all
     }
 

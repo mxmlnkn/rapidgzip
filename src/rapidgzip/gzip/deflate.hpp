@@ -1967,7 +1967,11 @@ getUsedWindowSymbols( BitReader& bitReader )
             std::stringstream message;
             message << "[Warning] Sparse window detection failed at offset " << formatBits( oldOffset )
                     << ". Will fall back to full window\n";
+        #ifdef RAPIDGZIP_FATAL_PERFORMANCE_WARNINGS
+            throw std::logic_error( std::move( message ).str() );
+        #else
             std::cerr << std::move( message ).str();
+        #endif
             window.assign( MAX_WINDOW_SIZE, true );
             return window;
         }

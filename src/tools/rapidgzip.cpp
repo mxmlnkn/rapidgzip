@@ -475,10 +475,7 @@ rapidgzipCLI( int                  argc,
     args.indexSavePath = parsedArgs.count( "export-index" ) > 0
                          ? parsedArgs["export-index"].as<std::string>()
                          : std::string();
-    if ( !args.indexLoadPath.empty() && !args.indexSavePath.empty() ) {
-        std::cerr << "[Warning] Importing and exporting an index makes limited sense.\n";
-    }
-    if ( !args.indexLoadPath.empty() && args.indexSavePath.empty() && ( args.decoderParallelism == 1 ) ) {
+    if ( !args.indexLoadPath.empty() && args.indexSavePath.empty() && ( args.decoderParallelism == 1 ) && !quiet ) {
         std::cerr << "[Warning] The index only has an effect for parallel decoding and index exporting.\n";
     }
     if ( !args.indexLoadPath.empty() && !fileExists( args.indexLoadPath ) ) {
@@ -498,7 +495,7 @@ rapidgzipCLI( int                  argc,
             throw std::invalid_argument( "Invalid index format string: " + indexFormat );
         }
 
-        if ( args.indexSavePath.empty() ) {
+        if ( args.indexSavePath.empty() && !quiet ) {
             std::cerr << "[Warning] The index format has no effect without --export-index!\n";
         }
     }

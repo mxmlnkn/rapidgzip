@@ -72,8 +72,14 @@ compress( const VectorView<typename Container::value_type> toCompress,
         try {
             return rapidgzip::compressWithIsal<Container>( toCompress );
         } catch ( const std::runtime_error& exception ) {
-            std::cerr << "[Warning] Compression with ISA-L failed unexpectedly with: " << exception.what() << "\n";
-            std::cerr << "[Warning] Will use zlib as a fallback. Please report this bug anyway.\n";
+            std::stringstream message;
+            message << "[Warning] Compression with ISA-L failed unexpectedly with: " << exception.what() << "\n";
+            message << "[Warning] Will use zlib as a fallback. Please report this bug anyway.\n";
+        #ifdef RAPIDGZIP_FATAL_PERFORMANCE_WARNINGS
+            throw std::logic_error( std::move( message ).str() );
+        #else
+            std::cerr << std::move( message ).str();
+        #endif
             return rapidgzip::compressWithZlib<Container>( toCompress );
         }
     #else

@@ -646,6 +646,8 @@ public:
         const auto positiveOffset = effectiveOffset( offset, origin );
 
         if ( positiveOffset == tell() ) {
+            /* This extra check for EOF is necessary for empty files! */
+            m_atEndOfFile = m_blockMap->finalized() && ( m_currentPosition >= m_blockMap->back().second );
             return positiveOffset;
         }
 
@@ -672,8 +674,8 @@ public:
         }
 
         if ( blockInfo.contains( positiveOffset ) ) {
-            m_atEndOfFile = false;
             m_currentPosition = positiveOffset;
+            m_atEndOfFile = m_blockMap->finalized() && ( m_currentPosition >= m_blockMap->back().second );
             return tell();
         }
 
@@ -901,6 +903,9 @@ public:
             throw std::invalid_argument( "Index checkpoints must be sorted by uncompressed offsets!" );
         }
 
+        m_indexIsImported = true;
+        m_keepIndex = true;
+
         if ( index.hasLineOffsets ) {
             m_newlineFormat = index.newlineFormat;
             m_newlineOffsets.resize( index.checkpoints.size() );
@@ -992,7 +997,6 @@ public:
     void
     importIndex( UniqueFileReader indexFile )
     {
-        m_indexIsImported = true;
         const auto t0 = now();
         setBlockOffsets( readGzipIndex( std::move( indexFile ), m_sharedFileReader->clone(),
                                         m_fetcherParallelization ) );

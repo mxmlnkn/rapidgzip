@@ -1,4 +1,18 @@
 
+# Version 0.14.3 built on 2024-10-14
+
+## Fixes
+
+ - Some subchunks were post-processed on the main thread.
+ - Only show warning about possibly slower decompression for parallelized usage.
+ - Detect EOF when seeking forward to the end of the file.
+ - Do not complain about index not being kept after importing one.
+ - Apply `--quiet` to some non-fatal warnings.
+ - Warn when specifying multiple output file paths.
+ - Update dependencies: zlib: 1.3.0->1.3.1, rpmalloc: 1.4.5, cxxopts: 3.2.1.
+ - Remove warning about useless index import followed by export because it can convert now.
+
+
 # Version 0.14.2 built on 2024-05-22
 
 ## Fixes

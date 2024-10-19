@@ -3,5 +3,53 @@
 [build-system]
 # Use setuptools >= 43 because it automatically includes pyproject.toml in source distribution
 # Use setuptools >= 46.5 to use attr: package.__version__
+# Use setuptools >= 61 for pyproject.toml support
+# Use setuptools < 72 because of this: https://github.com/pypa/distutils/issues/283
 # https://setuptools.readthedocs.io/en/latest/history.html#id284
-requires = ["setuptools >= 46.4.0", "wheel", "cython >= 0.29.24"]
+requires = ["setuptools >= 61.2, < 72", "wheel", "cython >= 0.29.24"]
+
+[project]
+name = "indexed_bzip2"
+version = "1.6.0"
+description = "Fast random access to bzip2 files"
+authors = [{name = "Maximilian Knespel", email = "mxmlnkn@github.de"}]
+license = {text = "MIT"}
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "License :: OSI Approved :: MIT License",
+    "Development Status :: 5 - Production/Stable",
+    "Natural Language :: English",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX",
+    "Operating System :: Unix",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: C++",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Archiving",
+    "Topic :: System :: Archiving :: Compression",
+]
+urls = {Homepage = "https://github.com/mxmlnkn/indexed_bzip2"}
+requires-python = ">= 3.7"
+
+[project.readme]
+file = "README.md"
+content-type = "text/markdown"
+
+[project.scripts]
+ibzip2 = "indexed_bzip2:cli"
+
+[tool.setuptools]
+py-modules = ["indexed_bzip2"]
+license-files = [
+    "LICENSE-APACHE",
+    "LICENSE-MIT",
+]
