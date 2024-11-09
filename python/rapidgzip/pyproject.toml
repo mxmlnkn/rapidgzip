@@ -18,7 +18,7 @@ build-backend = "setuptools.build_meta"
 name = "rapidgzip"
 version = "0.14.3"
 description = "Parallel random access to gzip files"
-authors = [{name = "Maximilian Knespel", email = "mxmlnkn@github.de"}]
+authors = [{name = "Maximilian Knespel", email = "mxmlnknp@gmail.com"}]
 license = {text = "MIT"}
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
