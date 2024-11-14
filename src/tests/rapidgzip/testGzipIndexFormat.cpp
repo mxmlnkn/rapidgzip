@@ -66,7 +66,7 @@ testIndexReadWrite( const std::filesystem::path& compressedPath,
                  || endsWith( indexPath.string(), ".gztool.with-lines.index"s ) )
             {
                 gztool::writeGzipIndex( index, checkedWrite );
-            } else  {
+            } else {
                 indexed_gzip::writeGzipIndex( index, checkedWrite );
             }
         }

@@ -418,8 +418,8 @@ private:
 
 template<class T, class Alloc>
 [[nodiscard]] bool
-operator==( const FasterVector<T>& lhs,
-            const std::vector<T, Alloc>&  rhs )
+operator==( const FasterVector<T>&       lhs,
+            const std::vector<T, Alloc>& rhs )
 {
     return std::equal( lhs.begin(), lhs.end(), rhs.begin(), rhs.end() );
 }
@@ -427,8 +427,8 @@ operator==( const FasterVector<T>& lhs,
 
 template<class T, class Alloc>
 [[nodiscard]] bool
-operator==( const std::vector<T, Alloc>&  lhs,
-            const FasterVector<T>& rhs )
+operator==( const std::vector<T, Alloc>& lhs,
+            const FasterVector<T>&       rhs )
 {
     return std::equal( lhs.begin(), lhs.end(), rhs.begin(), rhs.end() );
 }
@@ -436,8 +436,8 @@ operator==( const std::vector<T, Alloc>&  lhs,
 
 template<class T, class Alloc>
 [[nodiscard]] bool
-operator!=( const FasterVector<T>& lhs,
-            const std::vector<T, Alloc>&  rhs )
+operator!=( const FasterVector<T>&       lhs,
+            const std::vector<T, Alloc>& rhs )
 {
     return !std::equal( lhs.begin(), lhs.end(), rhs.begin(), rhs.end() );
 }
@@ -445,8 +445,8 @@ operator!=( const FasterVector<T>& lhs,
 
 template<class T, class Alloc>
 [[nodiscard]] bool
-operator!=( const std::vector<T, Alloc>&  lhs,
-            const FasterVector<T>& rhs )
+operator!=( const std::vector<T, Alloc>& lhs,
+            const FasterVector<T>&       rhs )
 {
     return !std::equal( lhs.begin(), lhs.end(), rhs.begin(), rhs.end() );
 }

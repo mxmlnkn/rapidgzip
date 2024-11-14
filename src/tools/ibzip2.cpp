@@ -421,7 +421,7 @@ ibzip2CLI( int argc, char** argv )
             checkOffsets( inputFilePath, compressedOffsets );
 
             const auto readerSize = reader->size();
-            if ( !readerSize  ) {
+            if ( !readerSize ) {
                 throw std::logic_error( "Bzip2 reader size should be available at this point!" );
             }
             if ( nBytesWrittenTotal != *readerSize ) {

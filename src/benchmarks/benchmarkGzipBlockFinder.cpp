@@ -749,22 +749,23 @@ static const std::array<bool, ( 1U << ( CLS_TO_CHECK * rapidgzip::deflate::PRECO
     [] () {
         using CodeLengthsHistogram = std::array<uint8_t, 8>;
 
-        const auto checkHistogram = []( const CodeLengthsHistogram& bitLengthFrequencies )
-        {
-            /* Note that bitLengthFrequencies[0] must not be checked because multiple symbols may have code length
-             * 0 simply when they do not appear in the text at all! And this may very well happen because the
-             * order for the code lengths per symbol in the bit stream is fixed. */
-            bool invalidCodeLength{ false };
-            uint32_t unusedSymbolCount{ 2 };
-            constexpr auto MAX_LENGTH = ( 1U << rapidgzip::deflate::PRECODE_BITS );
-            for ( size_t bitLength = 1; bitLength < MAX_LENGTH; ++bitLength ) {
-                const auto frequency = bitLengthFrequencies[bitLength];
-                invalidCodeLength |= frequency > unusedSymbolCount;
-                unusedSymbolCount -= static_cast<uint32_t>( frequency );
-                unusedSymbolCount *= 2;  /* Because we go down one more level for all unused tree nodes! */
-            }
-            return !invalidCodeLength;
-        };
+        const auto checkHistogram =
+            [] ( const CodeLengthsHistogram& bitLengthFrequencies )
+            {
+                /* Note that bitLengthFrequencies[0] must not be checked because multiple symbols may have code length
+                 * 0 simply when they do not appear in the text at all! And this may very well happen because the
+                 * order for the code lengths per symbol in the bit stream is fixed. */
+                bool invalidCodeLength{ false };
+                uint32_t unusedSymbolCount{ 2 };
+                constexpr auto MAX_LENGTH = ( 1U << rapidgzip::deflate::PRECODE_BITS );
+                for ( size_t bitLength = 1; bitLength < MAX_LENGTH; ++bitLength ) {
+                    const auto frequency = bitLengthFrequencies[bitLength];
+                    invalidCodeLength |= frequency > unusedSymbolCount;
+                    unusedSymbolCount -= static_cast<uint32_t>( frequency );
+                    unusedSymbolCount *= 2;  /* Because we go down one more level for all unused tree nodes! */
+                }
+                return !invalidCodeLength;
+            };
 
         std::array<bool, ( 1U << ( CLS_TO_CHECK * rapidgzip::deflate::PRECODE_BITS ) )> result{};
 
@@ -774,7 +775,7 @@ static const std::array<bool, ( 1U << ( CLS_TO_CHECK * rapidgzip::deflate::PRECO
                 const auto cl = ( bits >> ( i * 3U ) ) & 0b111U;
                 histogram[cl]++;
             }
-            if ( checkHistogram( histogram ) ){
+            if ( checkHistogram( histogram ) ) {
                 result[bits] = true;
             }
         }
@@ -1619,7 +1620,8 @@ findDeflateBlocksRapidgzipLUTTwoPassWithPrecode( BufferedFileReader::AlignedBuff
                 } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_LUT ) {
                     precodeError = rapidgzip::PrecodeCheck::WalkTreeLUT::checkPrecode( next4Bits, next57Bits );
                 } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT ) {
-                    precodeError = rapidgzip::PrecodeCheck::WalkTreeCompressedLUT::checkPrecode( next4Bits, next57Bits );
+                    precodeError = rapidgzip::PrecodeCheck::WalkTreeCompressedLUT::checkPrecode( next4Bits,
+                                                                                                 next57Bits );
                 } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WITHOUT_LUT_USING_ARRAY ) {
                     precodeError = rapidgzip::PrecodeCheck::WithoutLUT::checkPrecodeUsingArray( next4Bits, next57Bits );
                 } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WITHOUT_LUT ) {
@@ -1907,7 +1909,8 @@ benchmarkGzip( const std::string& fileName )
     }
 
     /* Because final blocks are skipped, it won't find anything for BGZ files! */
-    const auto isBgzfFile = rapidgzip::blockfinder::Bgzf::isBgzfFile( std::make_unique<StandardFileReader>( fileName ) );
+    const auto isBgzfFile =
+        rapidgzip::blockfinder::Bgzf::isBgzfFile( std::make_unique<StandardFileReader>( fileName ) );
     if ( !isBgzfFile ) {
         const auto buffer = bufferFile( fileName, 256_Ki );
         const auto [blockCandidates, durations] = benchmarkFunction<10>(
@@ -2093,7 +2096,8 @@ benchmarkLUTSize( const BufferedFileReader::AlignedBuffer& buffer )
             } else if constexpr ( FIND_DEFLATE_METHOD == FindDeflateMethod::TWO_PASS ) {
                 return findDeflateBlocksRapidgzipLUTTwoPass<CACHED_BIT_COUNT, CHECK_PRECODE_METHOD>( buffer );
             } else if constexpr ( FIND_DEFLATE_METHOD == FindDeflateMethod::TWO_PASS_WITH_PRECODE ) {
-                return findDeflateBlocksRapidgzipLUTTwoPassWithPrecode<CACHED_BIT_COUNT, CHECK_PRECODE_METHOD>( buffer );
+                return findDeflateBlocksRapidgzipLUTTwoPassWithPrecode<CACHED_BIT_COUNT,
+                                                                       CHECK_PRECODE_METHOD>( buffer );
             }
         } );
 

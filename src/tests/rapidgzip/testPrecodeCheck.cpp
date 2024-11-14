@@ -718,7 +718,8 @@ analyzeMaxValidPrecodeFrequencies()
     std::unordered_set<uint64_t> alternativeValidHistograms;
     static constexpr auto HISTOGRAM_COUNT = 1ULL << ( FREQUENCY_BITS * FREQUENCY_COUNT );
     for ( uint64_t histogram = 0; histogram < HISTOGRAM_COUNT; ++histogram ) {
-        if ( rapidgzip::PrecodeCheck::BruteForceLUT::checkPrecodeFrequencies<FREQUENCY_BITS, FREQUENCY_COUNT>( histogram )
+        if ( rapidgzip::PrecodeCheck::BruteForceLUT::checkPrecodeFrequencies<FREQUENCY_BITS,
+                                                                             FREQUENCY_COUNT>( histogram )
              != rapidgzip::Error::NONE ) {
             continue;
         }

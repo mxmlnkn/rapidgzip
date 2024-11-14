@@ -157,4 +157,3 @@ createRandomWords( const std::string& filePath,
     }
 }
 }  // namespace rapidgzip
-

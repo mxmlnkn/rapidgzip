@@ -374,7 +374,9 @@ benchmarkChunkedParallelDecompression( const std::string& fileName )
 
     for ( size_t nBlocksToSkip : { 0, 1, 2, 4, 8, 16, 24, 32, 64, 128 } ) {
         const auto [sizeRapidgzipParallel, durationsRapidgzipParallel] = benchmarkFunction<3>(
-            [&fileName, nBlocksToSkip] () { return decompressWithRapidgzipParallelChunked( fileName, nBlocksToSkip ); } );
+            [&fileName, nBlocksToSkip] () {
+                return decompressWithRapidgzipParallelChunked( fileName, nBlocksToSkip );
+            } );
         if ( sizeRapidgzipParallel == expectedSize ) {
             std::cout << "Decompressed " << fileContents.size() << " B to " << sizeRapidgzipParallel << " B "
                       << "with rapidgzip (parallel, nBlocksToSkip=" << nBlocksToSkip << "):\n";

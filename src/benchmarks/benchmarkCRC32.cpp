@@ -178,9 +178,9 @@ computeCRC32ISAL( const std::vector<char>& buffer ) noexcept
 
 
 void
-benchmarkCRC32( const std::vector<char>&                                   data,
-                const std::function<uint32_t ( const std::vector<char>& )> crc32Function,
-                const std::string&                                         name )
+benchmarkCRC32( const std::vector<char>&                                  data,
+                const std::function<uint32_t( const std::vector<char>& )> crc32Function,
+                const std::string&                                        name )
 {
     const auto crc32 = crc32Function( data );
     std::stringstream message;

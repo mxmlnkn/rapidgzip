@@ -96,7 +96,7 @@ toString( Error error )
 
 
 inline std::ostream&
-operator<<( std::ostream&  out,
+operator<<( std::ostream&    out,
             rapidgzip::Error error )
 {
     out << toString( error );

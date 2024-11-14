@@ -344,10 +344,10 @@ public:
     {}
 
     explicit
-    ParallelGzipReader( PyObject*        pythonObject,
-                        size_t           parallelization,
-                        uint64_t         chunkSizeInBytes,
-                        IOReadMethod     ioReadMethod ) :
+    ParallelGzipReader( PyObject*    pythonObject,
+                        size_t       parallelization,
+                        uint64_t     chunkSizeInBytes,
+                        IOReadMethod ioReadMethod ) :
         ParallelGzipReader( wrapFileReader( std::make_unique<PythonFileReader>( pythonObject ), ioReadMethod ),
                             parallelization, chunkSizeInBytes )
     {}
@@ -402,7 +402,7 @@ public:
     [[nodiscard]] bool
     seekable() const override
     {
-        if ( !m_sharedFileReader ||  !m_sharedFileReader->seekable() ) {
+        if ( !m_sharedFileReader || !m_sharedFileReader->seekable() ) {
             return false;
         }
 

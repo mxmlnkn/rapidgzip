@@ -61,7 +61,7 @@ inflateWithWrapper( const Container&            toDecompress,
 
     static constexpr auto CHUNK_SIZE = 4_Ki;
     Container result;
-    while( true ) {
+    while ( true ) {
         const auto oldSize = result.size();
         if ( ( oldSize == 0 ) && decompressedSize && ( *decompressedSize > 0 ) ) {
             result.resize( *decompressedSize );

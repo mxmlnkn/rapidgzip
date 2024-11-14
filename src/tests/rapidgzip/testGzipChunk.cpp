@@ -77,7 +77,7 @@ testAutomaticMarkerResolution( const std::filesystem::path& filePath,
         std::transform( dataWithMarkers.begin(), dataWithMarkers.end(), markerBlockSizesFound.begin(),
                         [] ( const auto& buffer ) { return buffer.size(); } );
 
-        const auto& data= result.getData();
+        const auto& data = result.getData();
         std::vector<size_t> blockSizesFound( data.size() );
         std::transform( data.begin(), data.end(), blockSizesFound.begin(),
                         [] ( const auto& buffer ) { return buffer.size(); } );
@@ -695,7 +695,7 @@ compareBlockBoundaries( const std::vector<BlockBoundary>& blockBoundaries,
         return;
     }
 
-    for ( size_t i = 0; i < std::min( blockBoundaries.size(),expectedBlockBoundaries.size() ); ++i ) {
+    for ( size_t i = 0; i < std::min( blockBoundaries.size(), expectedBlockBoundaries.size() ); ++i ) {
         const auto a = blockBoundaries[i];
         const auto b = expectedBlockBoundaries[i];
         if ( ( a.encodedOffset != b.encodedOffset ) || ( a.decodedOffset != b.decodedOffset ) ) {

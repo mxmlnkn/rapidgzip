@@ -149,7 +149,7 @@ updateCRC32( const uint32_t    crc,
  */
 [[nodiscard]] constexpr uint32_t
 polynomialMultiplyModulo( const uint32_t a,
-                                uint32_t b,
+                          uint32_t       b,
                           const uint32_t p )
 {
     uint32_t result = 0;

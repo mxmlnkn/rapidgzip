@@ -533,7 +533,8 @@ benchmarkDynamicBlockFinderRapidgzipLUT()
         dataFile << data.size() << " " << time << "\n";
     }
 
-    std::cout << "[Dynamic block finder using skip LUT and rapidgzip] " << formatBandwidth( times, data.size() ) << "\n";
+    std::cout << "[Dynamic block finder using skip LUT and rapidgzip] "
+              << formatBandwidth( times, data.size() ) << "\n";
 }
 
 
