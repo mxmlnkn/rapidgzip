@@ -229,7 +229,7 @@ private:
          * for the requested number of bits, then refill the whole bit buffer with one unaligned memory read.
          * This makes the assumption that read2 is only ever called when all the current bit buffer bits are
          * not enough. */
-        if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST && ( ENDIAN == Endian::LITTLE ) ) {
+        if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST && ( ENDIAN != Endian::UNKNOWN ) ) {
             constexpr bit_count_t BYTES_WANTED = sizeof( BitBuffer );
             constexpr bit_count_t BITS_WANTED = sizeof( BitBuffer ) * CHAR_BIT;
 
@@ -395,7 +395,7 @@ private:
         assert( bitsWanted > 0 );
 
         if ( UNLIKELY( bitsWanted > bitBufferSize() ) ) [[unlikely]] {
-            if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST && ( ENDIAN == Endian::LITTLE ) ) {
+            if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST && ( ENDIAN != Endian::UNKNOWN ) ) {
                 if ( LIKELY( m_inputBufferPosition + sizeof( BitBuffer ) < m_inputBuffer.size() ) ) [[likely]] {
                     /* There is no way around this special case because of the damn undefined behavior when shifting! */
                     if ( bitBufferSize() == 0 ) {
@@ -429,7 +429,7 @@ private:
             try {
                 /* In the case of the shortcut for filling the bit buffer by reading 64-bit, don't inline
                  * the very rarely used fallback to keep this function rather small for inlining. */
-                if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST && ( ENDIAN == Endian::LITTLE ) ) {
+                if constexpr ( !MOST_SIGNIFICANT_BITS_FIRST && ( ENDIAN != Endian::UNKNOWN ) ) {
                     /* This point should only happen rarely, e.g., when the byte buffer needs to be refilled. */
                     refillBitBuffer();
                 } else {
