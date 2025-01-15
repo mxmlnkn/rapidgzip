@@ -540,6 +540,8 @@ enum class Endian
 constexpr Endian ENDIAN =
 #if defined( __BYTE_ORDER__ ) && defined( __ORDER_LITTLE_ENDIAN__ ) && ( __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ )
     Endian::LITTLE
+#elif defined( __BYTE_ORDER__ ) && defined( __ORDER_BIG_ENDIAN__ ) && ( __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__ )
+    Endian::BIG
 #else
     Endian::UNKNOWN
 #endif
@@ -556,7 +558,14 @@ template<typename T>
 loadUnaligned( const void* data )
 {
     T result{ 0 };
-    std::memcpy( &result, data, sizeof( result ) );
+    if constexpr ( ENDIAN == Endian::LITTLE ) {
+        std::memcpy( &result, data, sizeof( result ) );
+    } else {
+        const auto* bytes = static_cast<const uint8_t*>(data);
+        for (size_t i = 0; i < sizeof(T); ++i) {
+            result |= static_cast<T>(bytes[i]) << (i * 8);
+        }
+    }
     return result;
 }
 
