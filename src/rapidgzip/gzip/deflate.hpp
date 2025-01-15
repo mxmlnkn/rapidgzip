@@ -755,7 +755,7 @@ private:
 
 #endif
 
-    [[nodiscard]] std::pair<uint16_t, Error>
+    [[nodiscard]] forceinline std::pair<uint16_t, Error>
     getDistance( BitReader& bitReader ) const;
 
     /**
@@ -1155,6 +1155,7 @@ Block<ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& bitReader )
 
 
 template<bool ENABLE_STATISTICS>
+forceinline
 std::pair<uint16_t, Error>
 Block<ENABLE_STATISTICS>::getDistance( BitReader& bitReader ) const
 {
