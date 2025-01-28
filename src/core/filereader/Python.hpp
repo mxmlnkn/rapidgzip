@@ -14,7 +14,8 @@
 
 #include "FileReader.hpp"
 
-
+namespace rapidgzip
+{
 [[nodiscard]] bool
 pythonIsFinalizing()
 {
@@ -553,3 +554,4 @@ protected:
     size_t m_currentPosition{ 0 };  /**< Only necessary for unseekable files. */
     bool m_lastReadSuccessful{ true };
 };
+}  // namespace rapidgzip

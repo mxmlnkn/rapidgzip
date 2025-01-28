@@ -32,6 +32,9 @@
 #endif
 
 
+using namespace rapidgzip;
+
+
 constexpr size_t REPEAT_COUNT{ 10 };
 
 

@@ -83,7 +83,7 @@ public:
      */
     using ChunkFetcher = rapidgzip::GzipChunkFetcher<FetchingStrategy::FetchMultiStream, ChunkData>;
     using BlockFinder = typename ChunkFetcher::BlockFinder;
-    using BitReader = rapidgzip::BitReader;
+    using BitReader = gzip::BitReader;
     using WriteFunctor = std::function<void ( const std::shared_ptr<ChunkData>&, size_t, size_t )>;
     using Window = WindowMap::Window;
 

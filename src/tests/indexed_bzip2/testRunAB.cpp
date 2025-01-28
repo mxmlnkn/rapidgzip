@@ -8,6 +8,9 @@
 #include <TestHelpers.hpp>
 
 
+using namespace rapidgzip;
+
+
 const std::vector<std::string_view> ENCODE_TABLE = {
     "",
     "A",

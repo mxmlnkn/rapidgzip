@@ -4,6 +4,8 @@
 #include <stdexcept>
 #include <string>
 
+namespace rapidgzip
+{
 std::ostream&
 operator<<( std::ostream&           out,
             const std::set<size_t>& values )
@@ -15,6 +17,7 @@ operator<<( std::ostream&           out,
     out << "}";
     return out;
 }
+}  // namespace rapidgzip
 
 #include <common.hpp>
 #define WITHOUT_MAIN
@@ -22,7 +25,10 @@ operator<<( std::ostream&           out,
 #undef WITHOUT_MAIN
 #include <TestHelpers.hpp>
 
+
 using namespace std::string_literals;
+
+using namespace rapidgzip;
 
 
 [[nodiscard]] std::vector<char>

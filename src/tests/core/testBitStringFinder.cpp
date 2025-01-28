@@ -12,6 +12,9 @@
 #include <TestHelpers.hpp>
 
 
+using namespace rapidgzip;
+
+
 template<class TemplatedBitStringFinder>
 bool
 testBitStringFinder( TemplatedBitStringFinder&& bitStringFinder,

@@ -278,7 +278,7 @@ testTwoStagedDecoding( const std::string& encodedFilePath,
     using DeflateBlock = rapidgzip::deflate::Block</* CRC32 */ false>;
 
     /* Try reading, starting from second block. */
-    rapidgzip::BitReader bitReader{ std::make_unique<StandardFileReader>( encodedFilePath ) };
+    gzip::BitReader bitReader{ std::make_unique<StandardFileReader>( encodedFilePath ) };
     bitReader.seek( static_cast<long long int>( secondBlockOffset ) );
     DeflateBlock block;
 

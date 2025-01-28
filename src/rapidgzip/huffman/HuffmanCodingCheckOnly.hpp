@@ -40,7 +40,7 @@ public:
     }
 
     [[nodiscard]] forceinline std::optional<Symbol>
-    decode( [[maybe_unused]] BitReader& bitReader ) const
+    decode( [[maybe_unused]] gzip::BitReader& bitReader ) const
     {
         throw std::invalid_argument( "This class only checks the Huffman coding it does not decode!" );
     }

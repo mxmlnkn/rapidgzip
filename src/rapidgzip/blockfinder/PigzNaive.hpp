@@ -92,7 +92,7 @@ public:
             #else
 
             refillBuffer();
-            rapidgzip::BitReader bitReader(
+            gzip::BitReader bitReader(
                 std::make_unique<BufferedFileReader>(
                     BufferedFileReader::AlignedBuffer( m_buffer.data(), m_buffer.data() + m_bufferSize )
                 )

@@ -14,7 +14,8 @@
 
 #include "FileReader.hpp"
 
-
+namespace rapidgzip
+{
 class BufferedFileReader :
     public FileReader
 {
@@ -223,3 +224,4 @@ protected:
     AlignedBuffer m_buffer;
     size_t m_bufferPosition{ 0 };
 };
+}  // namespace rapidgzip

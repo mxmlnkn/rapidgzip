@@ -23,7 +23,8 @@
     #include "filereader/Python.hpp"
 #endif
 
-
+namespace rapidgzip
+{
 /**
  * Function evaluations can be given to a ThreadPool instance,
  * which assigns the evaluation to one of its threads to be evaluated in parallel.
@@ -244,3 +245,4 @@ private:
      */
     std::vector<JoiningThread> m_threads;
 };
+}  // namespace rapidgzip

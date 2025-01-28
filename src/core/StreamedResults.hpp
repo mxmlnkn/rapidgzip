@@ -16,7 +16,8 @@
 
 #include <BlockFinderInterface.hpp>
 
-
+namespace rapidgzip
+{
 /**
  * Stores results in the order they are pushed and also stores a flag signaling that nothing will be pushed anymore.
  * The blockfinder will push block offsets and other actors, e.g., the prefetcher, may wait for and read the offsets.
@@ -153,3 +154,4 @@ private:
     Values m_results;
     std::atomic<bool> m_finalized = false;
 };
+}  // namespace rapidgzip

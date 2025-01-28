@@ -102,7 +102,7 @@ public:
     }
 
     [[nodiscard]] forceinline std::optional<Symbol>
-    decode( BitReader& bitReader ) const
+    decode( gzip::BitReader& bitReader ) const
     {
         HuffmanCode code = bitReader.read( this->m_minCodeLength );
 

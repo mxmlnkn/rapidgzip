@@ -11,7 +11,8 @@
 #include <utility>
 #include <vector>
 
-
+namespace rapidgzip
+{
 namespace CacheStrategy
 {
 template<typename Index>
@@ -293,3 +294,4 @@ private:
     Statistics m_statistics;
     std::unordered_map<Key, size_t> m_accesses;
 };
+}  // namespace rapidgzip

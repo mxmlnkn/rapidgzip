@@ -41,7 +41,7 @@ template<typename HuffmanCoding>
 benchmarkHuffmanCoding( const std::vector<typename HuffmanCoding::BitCount>& codeLengths,
                         const BufferedFileReader::AlignedBuffer&             encoded )
 {
-    rapidgzip::BitReader bitReader( std::make_unique<BufferedFileReader>( encoded ) );
+    gzip::BitReader bitReader( std::make_unique<BufferedFileReader>( encoded ) );
 
     Result result;
     result.encodedSizeInBits = bitReader.size().value();
@@ -67,7 +67,7 @@ benchmarkHuffmanCoding( const std::vector<typename HuffmanCoding::BitCount>& cod
                     break;
                 }
                 ++count;
-            } catch ( const rapidgzip::BitReader::EndOfFileReached& ) {
+            } catch ( const gzip::BitReader::EndOfFileReached& ) {
                 break;
             }
         }

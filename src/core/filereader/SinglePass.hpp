@@ -18,7 +18,8 @@
 
 #include "FileReader.hpp"
 
-
+namespace rapidgzip
+{
 /**
  * This FileReader implementation acts like a buffered file reader with infinite buffer.
  * This file reader will only read sequentially from the given input file reader.
@@ -484,3 +485,4 @@ SinglePass                  readerThreadMain
     |--- increment m_untilOffset ->|
     |                              |
 */
+}  // namespace rapidgzip

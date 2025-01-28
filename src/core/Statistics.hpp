@@ -9,7 +9,8 @@
 #include <utility>
 #include <vector>
 
-
+namespace rapidgzip
+{
 template<typename T>
 struct Statistics
 {
@@ -329,3 +330,4 @@ private:
     const std::string m_unit;
     const uint16_t m_barWidth{ 20 };
 };
+}  // namespace rapidgzip

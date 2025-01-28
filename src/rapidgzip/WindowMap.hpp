@@ -13,7 +13,8 @@
 #include <FasterVector.hpp>
 #include <VectorView.hpp>
 
-
+namespace rapidgzip
+{
 class WindowMap
 {
 public:
@@ -182,3 +183,4 @@ private:
      */
     Windows m_windows;
 };
+}  // namespace rapdigzip

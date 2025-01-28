@@ -14,6 +14,9 @@
 #include <Statistics.hpp>
 
 
+using namespace rapidgzip;
+
+
 [[nodiscard]] std::string
 formatBandwidth( const std::vector<double>& times,
                  size_t                     byteCount )

@@ -123,8 +123,8 @@ class ZlibInflateWrapper
 {
 public:
     explicit
-    ZlibInflateWrapper( BitReader    bitReader,  // NOLINT(performance-unnecessary-value-param)
-                        const size_t untilOffset = std::numeric_limits<size_t>::max() ) :
+    ZlibInflateWrapper( gzip::BitReader bitReader,  // NOLINT(performance-unnecessary-value-param)
+                        const size_t    untilOffset = std::numeric_limits<size_t>::max() ) :
         m_bitReader( std::move( bitReader ) ),  // NOLINT(performance-move-const-arg)
         m_encodedStartOffset( m_bitReader.tell() ),
         m_encodedUntilOffset(
@@ -244,7 +244,7 @@ private:
     readHeader();
 
 private:
-    BitReader m_bitReader;
+    gzip::BitReader m_bitReader;
     const size_t m_encodedStartOffset;
     const size_t m_encodedUntilOffset;
     std::optional<size_t> m_setWindowSize;
@@ -449,7 +449,7 @@ ZlibInflateWrapper::readBytes()
             m_stream.avail_in = 0;
             refillBuffer();
             if ( m_stream.avail_in == 0 ) {
-                throw BitReader::EndOfFileReached();
+                throw gzip::BitReader::EndOfFileReached();
             }
         }
     }

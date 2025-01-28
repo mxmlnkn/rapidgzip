@@ -8,7 +8,8 @@
 
 #include "FileReader.hpp"
 
-
+namespace rapidgzip
+{
 class MemoryFileReader :
     public FileReader
 {
@@ -112,3 +113,4 @@ protected:
 
     size_t m_currentPosition{ 0 };  /**< Only necessary for unseekable files. */
 };
+}  // namespace rapidgzip

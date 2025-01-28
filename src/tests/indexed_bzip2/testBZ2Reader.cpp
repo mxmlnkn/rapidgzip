@@ -18,6 +18,10 @@
 #include <TestHelpers.hpp>
 
 
+using namespace rapidgzip;
+using namespace indexed_bzip2;
+
+
 void
 testSimpleOpenAndClose( const std::string& bz2File )
 {

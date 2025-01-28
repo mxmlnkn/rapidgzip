@@ -13,6 +13,9 @@
 #include <TestHelpers.hpp>
 
 
+using namespace rapidgzip;
+
+
 std::string
 fillFile( const std::string& fileName )
 {

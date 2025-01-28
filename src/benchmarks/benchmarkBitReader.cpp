@@ -20,6 +20,9 @@
 #include <Statistics.hpp>
 
 
+using namespace rapidgzip;
+
+
 template<bool MOST_SIGNIFICANT_BITS_FIRST,
          typename BitBuffer>
 [[nodiscard]] std::pair<double, uint64_t>

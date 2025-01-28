@@ -32,7 +32,8 @@
 #include "ThreadPool.hpp"
 #include "WindowMap.hpp"
 
-
+namespace rapidgzip
+{
 /**
  * File Format:
  * @see zran_export_index and zran_import_index functions in indexed_gzip https://github.com/pauldmccarthy/indexed_gzip
@@ -234,7 +235,7 @@ readBigEndianValue( FileReader* const file )
 namespace bgzip
 {
 [[nodiscard]] inline size_t
-countDecompressedBytes( rapidgzip::BitReader           bitReader,  // NOLINT(performance-unnecessary-value-param)
+countDecompressedBytes( gzip::BitReader                bitReader,  // NOLINT(performance-unnecessary-value-param)
                         VectorView<std::uint8_t> const initialWindow )
 {
     #ifdef WITH_ISAL
@@ -390,7 +391,7 @@ readGzipIndex( UniqueFileReader         indexFile,
     }
 
     try {
-        rapidgzip::BitReader bitReader( sharedArchiveFile->clone() );
+        gzip::BitReader bitReader( sharedArchiveFile->clone() );
         bitReader.seekTo( index.checkpoints.back().compressedOffsetInBits );
         index.uncompressedSizeInBytes = index.checkpoints.back().uncompressedOffsetInBytes
                                         // NOLINTNEXTLINE(performance-move-const-arg)
@@ -855,7 +856,7 @@ readGzipIndex( UniqueFileReader            indexFile,
 
             /** @todo Parallelize or avoid decompression just in order to find out the decompressed size.
              *        Simply defining a new more suitable format seems easier. */
-            rapidgzip::BitReader bitReader(
+            gzip::BitReader bitReader(
                 std::make_unique<BufferViewFileReader>( compressedWindow.data(), compressedWindow.size() ) );
 
         #ifdef WITH_ISAL
@@ -1056,3 +1057,4 @@ readGzipIndex( UniqueFileReader indexFile,
     /* Bgzip indexes have no magic bytes and simply start with the number of chunks. */
     return bgzip::readGzipIndex( std::move( indexFile ), std::move( archiveFile ), formatId );
 }
+}  // namespace rapidgzip

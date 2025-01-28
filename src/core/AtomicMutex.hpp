@@ -4,7 +4,8 @@
 #include <chrono>
 #include <thread>
 
-
+namespace rapidgzip
+{
 class AtomicMutex
 {
 public:
@@ -29,3 +30,4 @@ public:
 private:
     std::atomic<bool> m_flag{ false };
 };
+}  // namespace rapidgzip

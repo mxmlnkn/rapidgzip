@@ -3,7 +3,8 @@
 #include <thread>
 #include <utility>
 
-
+namespace rapidgzip
+{
 /**
  * Similar to the planned C++20 std::jthread, this class joins in the destructor.
  * Additionally, it ensures that all threads created with this interface correctly initialize rpmalloc!
@@ -55,3 +56,4 @@ public:
 private:
     std::thread m_thread;
 };
+}  // namespace rapidgzip

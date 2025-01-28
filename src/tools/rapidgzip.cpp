@@ -25,6 +25,9 @@
 #include "thirdparty.hpp"
 
 
+using namespace rapidgzip;
+
+
 class BrokenPipeException :
     public std::exception
 {};
@@ -782,7 +785,7 @@ main( int argc, char** argv )
     {
         return rapidgzipCLI( argc, argv );
     }
-    catch ( const rapidgzip::BitReader::EndOfFileReached& exception )
+    catch ( const gzip::BitReader::EndOfFileReached& exception )
     {
         std::cerr << "Unexpected end of file. Truncated or invalid gzip?\n";
         return 1;

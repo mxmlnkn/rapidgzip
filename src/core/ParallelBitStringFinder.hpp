@@ -22,7 +22,8 @@
 #include "common.hpp"
 #include "ThreadPool.hpp"
 
-
+namespace rapidgzip
+{
 /**
  * No matter the input, the data is read from an input buffer.
  * If a file is given, then that input buffer will be refilled when the input buffer empties.
@@ -262,3 +263,4 @@ ParallelBitStringFinder<bitStringSize>::find()
 
     return std::numeric_limits<size_t>::max();
 }
+}  // namespace rapidgzip

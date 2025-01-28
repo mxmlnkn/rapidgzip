@@ -22,7 +22,8 @@
 
 #include "FileReader.hpp"
 
-
+namespace rapidgzip
+{
 class StandardFileReader :
     public FileReader
 {
@@ -317,3 +318,4 @@ openFileOrStdin( const std::string& inputFilePath )
 
     return std::make_unique<StandardFileReader>( stdinHandle );
 }
+}  // namespace rapidgzip

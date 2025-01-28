@@ -209,8 +209,8 @@ static constexpr uint8_t OPTIMAL_NEXT_DEFLATE_LUT_SIZE = 14;
  */
 template<uint8_t CACHED_BIT_COUNT = OPTIMAL_NEXT_DEFLATE_LUT_SIZE>
 [[nodiscard]] size_t
-seekToNonFinalDynamicDeflateBlock( BitReader&   bitReader,
-                                   size_t const untilOffset = std::numeric_limits<size_t>::max() )
+seekToNonFinalDynamicDeflateBlock( gzip::BitReader& bitReader,
+                                   size_t const     untilOffset = std::numeric_limits<size_t>::max() )
 {
     const auto oldOffset = bitReader.tell();
 
@@ -230,7 +230,7 @@ seekToNonFinalDynamicDeflateBlock( BitReader&   bitReader,
         constexpr auto ALL_PRECODE_BITS = PRECODE_COUNT_BITS + MAX_PRECODE_COUNT * PRECODE_BITS;
         static_assert( ( ALL_PRECODE_BITS == 61 ) && ( ALL_PRECODE_BITS >= CACHED_BIT_COUNT )
                        && ( ALL_PRECODE_BITS <= std::numeric_limits<uint64_t>::digits )
-                       && ( ALL_PRECODE_BITS <= rapidgzip::BitReader::MAX_BIT_BUFFER_SIZE ),
+                       && ( ALL_PRECODE_BITS <= gzip::BitReader::MAX_BIT_BUFFER_SIZE ),
                        "It must fit into 64-bit and it also must fit the largest possible jump in the LUT." );
         auto bitBufferPrecodeBits = bitReader.read<ALL_PRECODE_BITS>();
 
@@ -342,7 +342,7 @@ seekToNonFinalDynamicDeflateBlock( BitReader&   bitReader,
 
             offset += nextPosition;
         }
-    } catch ( const BitReader::EndOfFileReached& ) {
+    } catch ( const gzip::BitReader::EndOfFileReached& ) {
         /* This might happen when calling readDynamicHuffmanCoding quite some bytes before the end! */
     }
 

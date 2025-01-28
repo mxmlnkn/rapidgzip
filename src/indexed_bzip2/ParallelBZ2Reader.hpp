@@ -31,7 +31,8 @@
     #include <filereader/Standard.hpp>
 #endif
 
-
+namespace indexed_bzip2
+{
 /**
  * @note Calls to this class are not thread-safe! Even though they use threads to evaluate them in parallel.
  */
@@ -39,7 +40,7 @@ class ParallelBZ2Reader final :
     public BZ2ReaderInterface
 {
 public:
-    using BlockFetcher = ::BZ2BlockFetcher<FetchingStrategy::FetchNextAdaptive>;
+    using BlockFetcher = BZ2BlockFetcher<rapidgzip::FetchingStrategy::FetchNextAdaptive>;
     using BlockFinder = typename BlockFetcher::BlockFinder;
     using BitReader = bzip2::BitReader;
 
@@ -47,15 +48,15 @@ public:
     /* Constructors */
 
     explicit
-    ParallelBZ2Reader( UniqueFileReader fileReader,
-                       size_t           parallelization = 0 ) :
+    ParallelBZ2Reader( rapidgzip::UniqueFileReader fileReader,
+                       size_t                      parallelization = 0 ) :
         m_sharedFileReader( ensureSharedFileReader( std::move( fileReader ) ) ),
-        m_fetcherParallelization( parallelization == 0 ? availableCores() : parallelization ),
+        m_fetcherParallelization( parallelization == 0 ? rapidgzip::availableCores() : parallelization ),
         m_startBlockFinder(
             [&] ()
             {
                 return std::make_shared<BlockFinder>(
-                    std::make_unique<ParallelBitStringFinder<bzip2::MAGIC_BITS_SIZE> >(
+                    std::make_unique<rapidgzip::ParallelBitStringFinder<bzip2::MAGIC_BITS_SIZE> >(
                         m_sharedFileReader->clone(),
                         bzip2::MAGIC_BITS_BLOCK,
                         m_finderParallelization
@@ -71,25 +72,25 @@ public:
     explicit
     ParallelBZ2Reader( int    fileDescriptor,
                        size_t parallelization = 0 ) :
-        ParallelBZ2Reader( std::make_unique<StandardFileReader>( fileDescriptor ), parallelization )
+        ParallelBZ2Reader( std::make_unique<rapidgzip::StandardFileReader>( fileDescriptor ), parallelization )
     {}
 
     explicit
     ParallelBZ2Reader( const std::string& filePath,
                        size_t             parallelization = 0 ) :
-        ParallelBZ2Reader( std::make_unique<StandardFileReader>( filePath ), parallelization )
+        ParallelBZ2Reader( std::make_unique<rapidgzip::StandardFileReader>( filePath ), parallelization )
     {}
 
     explicit
     ParallelBZ2Reader( PyObject* pythonObject,
                        size_t    parallelization = 0 ) :
-        ParallelBZ2Reader( std::make_unique<PythonFileReader>( pythonObject ), parallelization )
+        ParallelBZ2Reader( std::make_unique<rapidgzip::PythonFileReader>( pythonObject ), parallelization )
     {}
 #endif
 
     /* FileReader overrides */
 
-    [[nodiscard]] UniqueFileReader
+    [[nodiscard]] rapidgzip::UniqueFileReader
     clone() const override
     {
         throw std::logic_error( "Not implemented!" );
@@ -186,8 +187,8 @@ public:
             std::shared_ptr<BlockFetcher::BlockData> blockData;
 
         #ifdef WITH_PYTHON_SUPPORT
-            checkPythonSignalHandlers();
-            const ScopedGILUnlock unlockedGIL;
+            rapidgzip::checkPythonSignalHandlers();
+            const rapidgzip::ScopedGILUnlock unlockedGIL;
         #endif
 
             auto blockInfo = m_blockMap->findDataOffset( m_currentPosition );
@@ -481,7 +482,7 @@ private:
     // NOLINTEND(misc-no-recursion)
 
 private:
-    std::unique_ptr<SharedFileReader> m_sharedFileReader;
+    std::unique_ptr<rapidgzip::SharedFileReader> m_sharedFileReader;
     BitReader m_bitReader{ m_sharedFileReader->clone() };
 
     size_t m_currentPosition = 0;  /**< the current position as can only be modified with read or seek calls. */
@@ -490,14 +491,15 @@ private:
 private:
     size_t const m_fetcherParallelization;
     /** The block finder is much faster than the fetcher and therefore does not require es much parallelization! */
-    size_t const m_finderParallelization{ ceilDiv( m_fetcherParallelization, 64U ) };
+    size_t const m_finderParallelization{ rapidgzip::ceilDiv( m_fetcherParallelization, 64U ) };
 
     std::function<std::shared_ptr<BlockFinder>( void )> const m_startBlockFinder;
 
     /* These are the three larger "sub modules" of ParallelBZ2Reader */
 
     /** Necessary for prefetching decoded blocks in parallel. */
-    std::shared_ptr<BlockFinder>    m_blockFinder;
-    std::unique_ptr<BlockMap> const m_blockMap{ std::make_unique<BlockMap>() };
-    std::unique_ptr<BlockFetcher>   m_blockFetcher;
+    std::shared_ptr<BlockFinder>               m_blockFinder;
+    std::unique_ptr<rapidgzip::BlockMap> const m_blockMap{ std::make_unique<rapidgzip::BlockMap>() };
+    std::unique_ptr<BlockFetcher>              m_blockFetcher;
 };
+}  // namespace indexed_bzip2

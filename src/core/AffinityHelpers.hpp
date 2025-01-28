@@ -5,7 +5,8 @@
 
 #include <thread>
 
-
+namespace rapidgzip
+{
 inline void
 pinThreadToLogicalCore( int /* logicalCoreId */ )
 {
@@ -18,7 +19,7 @@ availableCores()
 {
     return std::thread::hardware_concurrency();
 }
-
+}  // namespace rapidgzip
 
 #else
 
@@ -32,7 +33,8 @@ availableCores()
 #endif
 #include <sched.h>
 
-
+namespace rapidgzip
+{
 [[nodiscard]] inline int
 getRequiredBitMaskSize()
 {
@@ -120,6 +122,6 @@ availableCores()
     CPU_FREE( pCpuSet );
     return static_cast<unsigned int>( coreCount );
 }
-
+}  // namespace rapidgzip
 
 #endif

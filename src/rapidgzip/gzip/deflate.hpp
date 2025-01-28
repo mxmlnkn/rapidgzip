@@ -387,7 +387,7 @@ namespace
  */
 [[nodiscard]] forceinline Error
 readDistanceAndLiteralCodeLengths( LiteralAndDistanceCLBuffer&              literalCL,
-                                   BitReader&                               bitReader,
+                                   gzip::BitReader&                         bitReader,
                                    const PrecodeHuffmanCoding&              precodeCoding,
                                    const size_t                             literalCLSize,
                                    const std::function<uint8_t( uint8_t )>& translateSymbol
@@ -569,8 +569,8 @@ public:
      *                     Check for @ref eob to test for the end of the block instead of testing the read byte count.
      */
     [[nodiscard]] std::pair<DecodedDataView, Error>
-    read( BitReader& bitReader,
-          size_t     nMaxToDecode = std::numeric_limits<size_t>::max() );
+    read( gzip::BitReader& bitReader,
+          size_t           nMaxToDecode = std::numeric_limits<size_t>::max() );
 
     /**
      * @tparam treatLastBlockAsError This parameter is intended when using readHeader for finding valid headers.
@@ -579,7 +579,7 @@ public:
      */
     template<bool treatLastBlockAsError = false>
     [[nodiscard]] Error
-    readHeader( BitReader& bitReader );
+    readHeader( gzip::BitReader& bitReader );
 
     /**
      * Reads the dynamic Huffman code. This is called by @ref readHeader after reading the first three header bits
@@ -587,7 +587,7 @@ public:
      * @note Normally, you want to call @ref readHeader instead. This is only for very specific edge use cases!
      */
     [[nodiscard]] Error
-    readDynamicHuffmanCoding( BitReader& bitReader );
+    readDynamicHuffmanCoding( gzip::BitReader& bitReader );
 
     [[nodiscard]] constexpr size_t
     uncompressedSize() const noexcept
@@ -719,19 +719,19 @@ private:
 
     template<typename Window>
     [[nodiscard]] std::pair<size_t, Error>
-    readInternal( BitReader& bitReader,
-                  size_t     nMaxToDecode,
-                  Window&    window );
+    readInternal( gzip::BitReader& bitReader,
+                  size_t           nMaxToDecode,
+                  Window&          window );
 
     template<typename Window>
     [[nodiscard]] std::pair<size_t, Error>
-    readInternalUncompressed( BitReader& bitReader,
-                              Window&    window );
+    readInternalUncompressed( gzip::BitReader& bitReader,
+                              Window&          window );
 
     template<typename Window,
              typename HuffmanCoding>
     [[nodiscard]] std::pair<size_t, Error>
-    readInternalCompressed( BitReader&           bitReader,
+    readInternalCompressed( gzip::BitReader&     bitReader,
                             size_t               nMaxToDecode,
                             Window&              window,
                             const HuffmanCoding& coding );
@@ -739,7 +739,7 @@ private:
 #if defined( WITH_ISAL ) || defined( WITH_MULTI_CACHED_HUFFMAN_DECODER )
     template<typename Window>
     [[nodiscard]] std::pair<size_t, Error>
-    readInternalCompressedMultiCached( BitReader&                          bitReader,
+    readInternalCompressedMultiCached( gzip::BitReader&                    bitReader,
                                        size_t                              nMaxToDecode,
                                        Window&                             window,
                                        const LiteralOrLengthHuffmanCoding& coding );
@@ -748,7 +748,7 @@ private:
 
     template<typename Window>
     [[nodiscard]] std::pair<size_t, Error>
-    readInternalCompressedSpecialized( BitReader&                          bitReader,
+    readInternalCompressedSpecialized( gzip::BitReader&                    bitReader,
                                        size_t                              nMaxToDecode,
                                        Window&                             window,
                                        const LiteralOrLengthHuffmanCoding& coding );
@@ -756,7 +756,7 @@ private:
 #endif
 
     [[nodiscard]] forceinline std::pair<uint16_t, Error>
-    getDistance( BitReader& bitReader ) const;
+    getDistance( gzip::BitReader& bitReader ) const;
 
     /**
      * @param position The position in the window where the next byte would be appended. Similar to std::end();
@@ -962,11 +962,11 @@ private:
 template<bool ENABLE_STATISTICS>
 template<bool treatLastBlockAsError>
 Error
-Block<ENABLE_STATISTICS>::readHeader( BitReader& bitReader )
+Block<ENABLE_STATISTICS>::readHeader( gzip::BitReader& bitReader )
 {
     try {
         m_isLastBlock = bitReader.read<1>();
-    } catch ( const BitReader::EndOfFileReached& ) {
+    } catch ( const gzip::BitReader::EndOfFileReached& ) {
         return Error::END_OF_FILE;
     }
 
@@ -1022,7 +1022,7 @@ Block<ENABLE_STATISTICS>::readHeader( BitReader& bitReader )
 
 template<bool ENABLE_STATISTICS>
 Error
-Block<ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& bitReader )
+Block<ENABLE_STATISTICS>::readDynamicHuffmanCoding( gzip::BitReader& bitReader )
 {
     if constexpr ( ENABLE_STATISTICS ) {
         times.readDynamicStart = now();
@@ -1157,7 +1157,7 @@ Block<ENABLE_STATISTICS>::readDynamicHuffmanCoding( BitReader& bitReader )
 template<bool ENABLE_STATISTICS>
 forceinline
 std::pair<uint16_t, Error>
-Block<ENABLE_STATISTICS>::getDistance( BitReader& bitReader ) const
+Block<ENABLE_STATISTICS>::getDistance( gzip::BitReader& bitReader ) const
 {
     uint16_t distance = 0;
     if ( m_compressionType == CompressionType::FIXED_HUFFMAN ) {
@@ -1189,8 +1189,8 @@ Block<ENABLE_STATISTICS>::getDistance( BitReader& bitReader ) const
 
 template<bool ENABLE_STATISTICS>
 std::pair<DecodedDataView, Error>
-Block<ENABLE_STATISTICS>::read( BitReader& bitReader,
-                                size_t     nMaxToDecode )
+Block<ENABLE_STATISTICS>::read( gzip::BitReader& bitReader,
+                                size_t           nMaxToDecode )
 {
     if ( eob() ) {
         return { {}, Error::NONE };
@@ -1422,9 +1422,9 @@ Block<ENABLE_STATISTICS>::resolveBackreference( Window&        window,
 template<bool ENABLE_STATISTICS>
 template<typename Window>
 std::pair<size_t, Error>
-Block<ENABLE_STATISTICS>::readInternal( BitReader& bitReader,
-                                        size_t     nMaxToDecode,
-                                        Window&    window )
+Block<ENABLE_STATISTICS>::readInternal( gzip::BitReader& bitReader,
+                                        size_t           nMaxToDecode,
+                                        Window&          window )
 {
     if ( m_compressionType == CompressionType::UNCOMPRESSED ) {
         /* This does not take into account nMaxToDecode to avoid additional state to keep track off. */
@@ -1464,8 +1464,8 @@ Block<ENABLE_STATISTICS>::readInternal( BitReader& bitReader,
 template<bool ENABLE_STATISTICS>
 template<typename Window>
 std::pair<size_t, Error>
-Block<ENABLE_STATISTICS>::readInternalUncompressed( BitReader& bitReader,
-                                                    Window&    window )
+Block<ENABLE_STATISTICS>::readInternalUncompressed( gzip::BitReader& bitReader,
+                                                    Window&          window )
 {
     /**
      * Because the non-compressed deflate block size is 16-bit, the uncompressed data is limited to 65535 B!
@@ -1508,7 +1508,7 @@ template<bool ENABLE_STATISTICS>
 template<typename Window,
          typename HuffmanCoding>
 std::pair<size_t, Error>
-Block<ENABLE_STATISTICS>::readInternalCompressed( BitReader&           bitReader,
+Block<ENABLE_STATISTICS>::readInternalCompressed( gzip::BitReader&     bitReader,
                                                   size_t               nMaxToDecode,
                                                   Window&              window,
                                                   const HuffmanCoding& coding )
@@ -1585,7 +1585,7 @@ template<typename Window>
 std::pair<size_t, Error>
 Block<ENABLE_STATISTICS>::readInternalCompressedMultiCached
 (
-    BitReader&                          bitReader,
+    gzip::BitReader&                    bitReader,
     size_t                              nMaxToDecode,
     Window&                             window,
     const LiteralOrLengthHuffmanCoding& coding )
@@ -1669,7 +1669,7 @@ template<typename Window>
 std::pair<size_t, Error>
 Block<ENABLE_STATISTICS>::readInternalCompressedSpecialized
 (
-    BitReader&                          bitReader,
+    gzip::BitReader&                    bitReader,
     size_t                              nMaxToDecode,
     Window&                             window,
     const LiteralOrLengthHuffmanCoding& coding )
@@ -1781,7 +1781,7 @@ Block<ENABLE_STATISTICS>::setInitialWindow( VectorView<uint8_t> const& initialWi
 
 
 [[nodiscard]] inline bool
-verifySparseWindow( BitReader&                bitReader,
+verifySparseWindow( gzip::BitReader&          bitReader,
                     const std::vector<bool>&  windowByteIsRequired,
                     const VectorView<uint8_t> expectedOutput )
 {
@@ -1839,7 +1839,7 @@ verifySparseWindow( BitReader&                bitReader,
 
 
 [[nodiscard]] inline std::vector<bool>
-getUsedWindowSymbols( BitReader& bitReader )
+getUsedWindowSymbols( gzip::BitReader& bitReader )
 {
     std::vector<bool> window( MAX_WINDOW_SIZE, false );
 
@@ -1984,7 +1984,7 @@ getUsedWindowSymbols( BitReader& bitReader )
 
 template<typename Container>
 [[nodiscard]] std::vector<uint8_t>
-getSparseWindow( BitReader&       bitReader,
+getSparseWindow( gzip::BitReader& bitReader,
                  const Container& window )
 {
     const auto usedSymbols = getUsedWindowSymbols( bitReader );

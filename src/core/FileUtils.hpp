@@ -60,13 +60,15 @@
 
 
 #if defined( HAVE_VMSPLICE )
+    #include <algorithm>
     #include <any>
     #include <deque>
 
     #include <AtomicMutex.hpp>
 #endif
 
-
+namespace rapidgzip
+{
 #ifdef _MSC_VER
 [[nodiscard]] inline bool
 stdinHasInput()
@@ -351,8 +353,6 @@ readFile( const std::filesystem::path& filePath )
 
 
 #if defined( HAVE_VMSPLICE )
-
-#include <algorithm>
 
 /**
  * Short overview of syscalls that optimize copies by instead copying full page pointers into the
@@ -855,3 +855,4 @@ originToString( int origin )
 
     throw std::invalid_argument( "Unknown origin" );
 }
+}  // namespace rapidgzip

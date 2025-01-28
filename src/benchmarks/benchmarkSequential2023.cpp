@@ -35,6 +35,9 @@
 #include <ThreadPool.hpp>
 
 
+using namespace rapidgzip;
+
+
 constexpr size_t REPEAT_COUNT{ 100 };
 constexpr size_t IOBUF_SIZE{ 128_Ki };
 
@@ -98,8 +101,7 @@ repeatBenchmarks( const BenchmarkFunction& toMeasure,
 benchmarkBitReader( const std::vector<char>& data,
                     const uint8_t            nBits )
 {
-    using rapidgzip::BitReader;
-    BitReader bitReader( std::make_unique<BufferViewFileReader>( data ) );
+    gzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( data ) );
 
     const auto t0 = now();  // NOLINT(clang-analyzer-deadcode.DeadStores)
 
@@ -110,7 +112,7 @@ benchmarkBitReader( const std::vector<char>& data,
         while ( true ) {
             sum += bitReader.read( nBits );
         }
-    } catch ( const typename BitReader::EndOfFileReached& ) {
+    } catch ( const typename gzip::BitReader::EndOfFileReached& ) {
         /* Ignore EOF exception. Checking for it in each loop is expensive! */
     }
 
@@ -150,7 +152,7 @@ benchmarkUncompressedBlockFinder( const std::vector<char>& data )
     const auto t0 = now();
 
     using rapidgzip::BitReader;
-    BitReader bitReader( std::make_unique<BufferViewFileReader>( data ) );
+    gzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( data ) );
 
     uint64_t count{ 0 };
     while ( true ) {
@@ -193,8 +195,7 @@ benchmarkDynamicBlockFinder( const std::vector<char>& data )
 {
     const auto t0 = now();
 
-    using rapidgzip::BitReader;
-    BitReader bitReader( std::make_unique<BufferViewFileReader>( data ) );
+    gzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( data ) );
 
     uint64_t count{ 0 };
     while ( true ) {
@@ -415,7 +416,7 @@ findDeflateBlocksRapidgzip( const std::vector<char>& buffer )
     using DeflateBlock = rapidgzip::deflate::Block<>;
 
     const auto nBitsToTest = buffer.size() * CHAR_BIT;
-    rapidgzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( buffer ) );
+    gzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( buffer ) );
 
     const auto t0 = now();
 
@@ -433,7 +434,7 @@ findDeflateBlocksRapidgzip( const std::vector<char>& buffer )
             }
 
             ++count;
-        } catch ( const rapidgzip::BitReader::EndOfFileReached& ) {
+        } catch ( const gzip::BitReader::EndOfFileReached& ) {
             break;
         }
     }
@@ -472,7 +473,7 @@ findDeflateBlocksRapidgzipLUT( const std::vector<char>& buffer )
 
     /* Testing a dozen positions less should not make a difference but avoid EOF exceptions. */
     const auto nBitsToTest = buffer.size() * CHAR_BIT - CACHED_BIT_COUNT;
-    rapidgzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( buffer ) );
+    gzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( buffer ) );
 
     const auto t0 = now();
 
@@ -504,7 +505,7 @@ findDeflateBlocksRapidgzipLUT( const std::vector<char>& buffer )
             }
 
             ++count;
-        } catch ( const rapidgzip::BitReader::EndOfFileReached& ) {
+        } catch ( const gzip::BitReader::EndOfFileReached& ) {
             break;
         }
 

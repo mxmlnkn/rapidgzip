@@ -7,6 +7,9 @@
 #include <filereader/Standard.hpp>
 
 
+using namespace rapidgzip;
+
+
 size_t
 benchmarkPipeRead( const UniqueFileReader& inputFile,
                    const bool              readIntoBuffer )

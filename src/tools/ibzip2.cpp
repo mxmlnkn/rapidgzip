@@ -29,6 +29,10 @@
 #include "thirdparty.hpp"
 
 
+using namespace rapidgzip;
+using namespace indexed_bzip2;
+
+
 /* Check whether the found offsets actually point to BZ2 magic bytes. */
 void
 checkOffsets( const std::string&         filePath,

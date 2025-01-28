@@ -258,7 +258,7 @@ analyze( UniqueFileReader inputFile,
 
     CRC32Calculator crc32Calculator;
 
-    rapidgzip::BitReader bitReader{ std::move( inputFile ) };
+    gzip::BitReader bitReader{ std::move( inputFile ) };
 
     while ( true ) {
         if ( bitReader.eof() ) {

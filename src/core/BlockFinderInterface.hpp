@@ -5,7 +5,8 @@
 #include <limits>
 #include <optional>
 
-
+namespace rapidgzip
+{
 class BlockFinderInterface
 {
 public:
@@ -41,3 +42,4 @@ public:
     [[nodiscard]] virtual size_t
     find( size_t encodedBlockOffsetInBits ) const = 0;
 };
+}  // namespace rapidgzip

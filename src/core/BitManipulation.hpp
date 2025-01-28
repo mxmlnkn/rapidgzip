@@ -6,7 +6,8 @@
 #include <limits>
 #include <type_traits>
 
-
+namespace rapidgzip
+{
 [[nodiscard]] inline bool
 isLittleEndian()
 {
@@ -288,3 +289,4 @@ requiredBits( const uint64_t stateCount )
     }
     return result;
 }
+}  // namespace rapidgzip

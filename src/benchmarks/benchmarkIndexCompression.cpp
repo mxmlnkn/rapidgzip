@@ -11,6 +11,9 @@
 #include <ParallelGzipReader.hpp>
 
 
+using namespace rapidgzip;
+
+
 template<typename ResultContainer = std::vector<uint8_t> >
 [[nodiscard]] ResultContainer
 compress( const VectorView<uint8_t> toCompress )
@@ -64,7 +67,7 @@ main( int    argc,
 
     std::array<uint8_t, 64_Ki> windowPatches;
 
-    rapidgzip::BitReader bitReader( file->clone() );
+    gzip::BitReader bitReader( file->clone() );
     WindowMap windows;
     for ( const auto& checkpoint : index.checkpoints ) {
         windowCount++;

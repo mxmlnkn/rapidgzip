@@ -12,6 +12,9 @@
 #include <FileUtils.hpp>
 
 
+using namespace rapidgzip;
+
+
 /* Create a temporary file for benchmarking that is cleaned up with RAII. */
 struct TemporaryFile
 {

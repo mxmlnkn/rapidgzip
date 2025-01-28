@@ -13,7 +13,8 @@
 
 #include <common.hpp>
 
-
+namespace rapidgzip
+{
 /**
  * Should get block offsets and decoded sizes and will do conversions between decoded and encoded offsets!
  *
@@ -292,3 +293,4 @@ private:
     size_t m_lastBlockEncodedSize{ 0 };  /**< Encoded block size of m_blockToDataOffsets.rbegin() */
     size_t m_lastBlockDecodedSize{ 0 };  /**< Decoded block size of m_blockToDataOffsets.rbegin() */
 };
+}  // namespace rapidgzip

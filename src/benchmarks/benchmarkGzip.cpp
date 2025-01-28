@@ -24,6 +24,9 @@
 #include <TestHelpers.hpp>
 
 
+using namespace rapidgzip;
+
+
 class GzipWrapper
 {
 public:

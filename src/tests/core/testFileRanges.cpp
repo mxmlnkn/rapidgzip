@@ -4,6 +4,8 @@
 #include <TestHelpers.hpp>
 
 
+using namespace rapidgzip;
+
 using FileRanges = std::vector<FileRange>;
 
 

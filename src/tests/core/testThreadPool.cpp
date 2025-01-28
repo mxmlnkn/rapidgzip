@@ -7,6 +7,9 @@
 #include <ThreadPool.hpp>
 
 
+using namespace rapidgzip;
+
+
 /**
  * Starts a thread pool with @p nThreads and submits @p nTasks tasks waiting for a fixed time.
  * The total time to finish is then compared to a prediction.

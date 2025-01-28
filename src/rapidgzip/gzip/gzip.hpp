@@ -153,13 +153,13 @@ struct Footer
 
 
 inline std::pair<Header, Error>
-readHeader( BitReader& bitReader )
+readHeader( gzip::BitReader& bitReader )
 {
     Header header;
 
     try {
         bitReader.peek<1>();
-    } catch ( const BitReader::EndOfFileReached& ) {
+    } catch ( const gzip::BitReader::EndOfFileReached& ) {
         return { header, Error::END_OF_FILE };
     }
 
@@ -223,7 +223,7 @@ readHeader( BitReader& bitReader )
         if ( ( flags & ( 1U << 1U ) ) != 0 ) {
             header.crc16 = bitReader.read<16>();
         }
-    } catch ( const BitReader::EndOfFileReached& ) {
+    } catch ( const gzip::BitReader::EndOfFileReached& ) {
         return { header, Error::INCOMPLETE_GZIP_HEADER };
     }
 
@@ -232,7 +232,7 @@ readHeader( BitReader& bitReader )
 
 
 inline Error
-checkHeader( BitReader& bitReader )
+checkHeader( gzip::BitReader& bitReader )
 {
     const auto readBytes = bitReader.read<3 * BYTE_SIZE>();
     if ( readBytes != MAGIC_BYTES_GZIP ) {
@@ -290,7 +290,7 @@ checkHeader( BitReader& bitReader )
 
 
 inline Footer
-readFooter( BitReader& bitReader )
+readFooter( gzip::BitReader& bitReader )
 {
     if ( bitReader.tell() % BYTE_SIZE != 0 ) {
         bitReader.read( BYTE_SIZE - ( bitReader.tell() % BYTE_SIZE ) );
@@ -383,7 +383,7 @@ readHeader( const std::function<uint64_t()>& readByte )
         }
 
         header.compressionLevel = static_cast<CompressionLevel>( ( flags >> 6U ) & 0b11U );
-    } catch ( const BitReader::EndOfFileReached& ) {
+    } catch ( const gzip::BitReader::EndOfFileReached& ) {
         return { header, readPartialHeader ? Error::INCOMPLETE_GZIP_HEADER : Error::END_OF_FILE };
     }
 
@@ -392,14 +392,14 @@ readHeader( const std::function<uint64_t()>& readByte )
 
 
 inline std::pair<Header, Error>
-readHeader( BitReader& bitReader )
+readHeader( gzip::BitReader& bitReader )
 {
     return readHeader( [&] () { return bitReader.read<BYTE_SIZE>(); } );
 }
 
 
 inline Footer
-readFooter( BitReader& bitReader )
+readFooter( gzip::BitReader& bitReader )
 {
     if ( bitReader.tell() % BYTE_SIZE != 0 ) {
         bitReader.read( BYTE_SIZE - ( bitReader.tell() % BYTE_SIZE ) );

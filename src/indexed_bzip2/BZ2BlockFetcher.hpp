@@ -13,7 +13,8 @@
 
 #include "bzip2.hpp"
 
-
+namespace indexed_bzip2
+{
 struct BlockHeaderData
 {
     size_t encodedOffsetInBits{ std::numeric_limits<size_t>::max() };
@@ -33,17 +34,17 @@ struct BlockData :
 };
 
 
-template<typename FetchingStrategy = FetchingStrategy::FetchNextAdaptive>
+template<typename FetchingStrategy = rapidgzip::FetchingStrategy::FetchNextAdaptive>
 class BZ2BlockFetcher :
-    public BlockFetcher<
-        ::BlockFinder<ParallelBitStringFinder<bzip2::MAGIC_BITS_SIZE> >,
+    public rapidgzip::BlockFetcher<
+        rapidgzip::BlockFinder<rapidgzip::ParallelBitStringFinder<bzip2::MAGIC_BITS_SIZE> >,
         BlockData,
         FetchingStrategy>
 {
 public:
-    using BaseType = BlockFetcher<::BlockFinder<ParallelBitStringFinder<bzip2::MAGIC_BITS_SIZE> >,
-                                  BlockData,
-                                  FetchingStrategy>;
+    using BaseType = rapidgzip::BlockFetcher<rapidgzip::BlockFinder<rapidgzip::ParallelBitStringFinder<bzip2::MAGIC_BITS_SIZE>>,
+                                             BlockData,
+                                             FetchingStrategy>;
     using BitReader = bzip2::BitReader;
 
 public:
@@ -141,3 +142,4 @@ private:
     const BitReader m_bitReader;
     uint8_t m_blockSize100k;
 };
+}  // namespace indexed_bzip2

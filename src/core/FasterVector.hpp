@@ -13,11 +13,13 @@
 
 #include "common.hpp"  // ceilDiv
 
-
 #ifdef WITH_RPMALLOC
     #include <rpmalloc.h>
+#endif
 
-
+namespace rapidgzip
+{
+#ifdef WITH_RPMALLOC
 class RpmallocInit
 {
 public:
@@ -114,7 +116,6 @@ public:
 static_assert( std::is_empty_v<RpmallocAllocator<char> > );
 
 #endif
-
 
 #if 1
 
@@ -450,3 +451,4 @@ operator!=( const std::vector<T, Alloc>&  lhs,
     return !std::equal( lhs.begin(), lhs.end(), rhs.begin(), rhs.end() );
 }
 #endif
+}  // namespace rapidgzip

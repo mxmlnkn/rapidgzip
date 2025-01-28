@@ -12,6 +12,9 @@
 #include <TestHelpers.hpp>
 
 
+using namespace rapidgzip;
+
+
 void
 testFileStream( const std::string& tmpFileContents,
                 std::istream&      fileStream )

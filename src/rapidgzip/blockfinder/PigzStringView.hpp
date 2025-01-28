@@ -134,13 +134,13 @@ private:
          * and file comment ...
          * @todo Make clone work here
          */
-        rapidgzip::BitReader bitReader( m_fileReader->clone() );
+        gzip::BitReader bitReader( m_fileReader->clone() );
 
         #else
 
         BufferedFileReader::AlignedBuffer buffer( BUFFER_SIZE );
         buffer.resize( m_fileReader->read( buffer.data(), buffer.size() ) );
-        rapidgzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( buffer ) ) );
+        gzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( buffer ) ) );
 
         #endif
 

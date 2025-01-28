@@ -10,7 +10,8 @@
 
 #include "FileReader.hpp"
 
-
+namespace rapidgzip
+{
 class BufferViewFileReader :
     public FileReader
 {
@@ -144,3 +145,4 @@ protected:
     const size_t m_size;
     size_t m_bufferPosition{ 0 };
 };
+}  // namespace rapidgzip

@@ -15,7 +15,8 @@
 #endif
 #include "zlib.hpp"
 
-
+namespace rapidgzip
+{
 enum class CompressionType : uint8_t
 {
     NONE      =  0,
@@ -178,8 +179,6 @@ public:
             using InflateWrapper = rapidgzip::ZlibInflateWrapper;
         #endif
 
-        using FileType = rapidgzip::FileType;
-
         const auto decompressWithWrapper =
             [this] ( FileType fileType ) {
                 return std::make_shared<Container>(
@@ -243,4 +242,4 @@ private:
     size_t m_decompressedSize{ 0 };
     std::shared_ptr<const Container> m_data;
 };
-
+}  // namespace rapidgzip

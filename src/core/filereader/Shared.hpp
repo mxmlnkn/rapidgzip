@@ -27,7 +27,8 @@
     #include "Standard.hpp"
 #endif
 
-
+namespace rapidgzip
+{
 class SharedFileReader final :
     public FileReader
 {
@@ -473,3 +474,4 @@ ensureSharedFileReader( UniqueFileReader&& fileReader )
 
     return std::make_unique<SharedFileReader>( std::move( fileReader ) );
 }
+}  // namespace rapidgzip

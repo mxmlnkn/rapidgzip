@@ -425,10 +425,10 @@ getFooterOffsets( const ChunkData& chunkData )
 }
 
 
-[[nodiscard]] rapidgzip::BitReader
+[[nodiscard]] gzip::BitReader
 initBitReaderAtDeflateStream( UniqueFileReader&& fileReader )
 {
-    rapidgzip::BitReader bitReader( std::move( fileReader ) );
+    gzip::BitReader bitReader( std::move( fileReader ) );
     rapidgzip::gzip::readHeader( bitReader );
     return bitReader;
 }
@@ -438,8 +438,8 @@ initBitReaderAtDeflateStream( UniqueFileReader&& fileReader )
 getDeflateStreamOffsetAndSharedFileReader( UniqueFileReader&& fileReader )
 {
     auto sharedFileReader = ensureSharedFileReader( std::move( fileReader ) );
-    rapidgzip::BitReader bitReader( sharedFileReader->clone() );
-    rapidgzip::gzip::readHeader( bitReader );
+    gzip::BitReader bitReader( sharedFileReader->clone() );
+    gzip::readHeader( bitReader );
     return { bitReader.tell(), std::move( sharedFileReader ) };
 }
 
@@ -720,7 +720,7 @@ testBlockBoundaries( const std::filesystem::path&      filePath,
         chunkDataConfiguration.fileType = FileType::GZIP;
         chunkDataConfiguration.encodedOffsetInBits = chunkOffset;
 
-        rapidgzip::BitReader bitReader{ sharedFileReader->clone() };
+        gzip::BitReader bitReader{ sharedFileReader->clone() };
         bitReader.seek( chunkOffset );
         /* decodeChunkWithInflateWrapper is not tested because it always returns 0 because chunk splitting and
          * such is not assumed to be necessary anymore for those decoding functions that are only called with a
@@ -831,7 +831,7 @@ getDecompressed( const ChunkData& chunkData,
 
 
 [[nodiscard]] deflate::DecodedVector
-getSparseWindowByBruteForce( rapidgzip::BitReader&         bitReader,
+getSparseWindowByBruteForce( gzip::BitReader&              bitReader,
                              const deflate::DecodedVector& window )
 {
     constexpr bool printUsage = false;
@@ -928,7 +928,7 @@ testUsedWindowSymbolsWithFile( const std::filesystem::path& filePath )
     chunkDataConfiguration.fileType = FileType::GZIP;
     chunkDataConfiguration.encodedOffsetInBits = getBlockOffset( filePath, 0 );  /* This skips the gzip header. */
 
-    rapidgzip::BitReader bitReader{ sharedFileReader->clone() };
+    gzip::BitReader bitReader{ sharedFileReader->clone() };
     bitReader.seek( chunkDataConfiguration.encodedOffsetInBits );
     /* decodeChunkWithInflateWrapper is not tested because it always returns 0 because chunk splitting and
      * such is not assumed to be necessary anymore for those decoding functions that are only called with a

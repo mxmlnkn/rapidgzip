@@ -13,7 +13,8 @@
 
 #include "common.hpp"
 
-
+namespace rapidgzip
+{
 struct FileRange
 {
     size_t offset{ 0 };
@@ -207,3 +208,4 @@ parseFileRanges( const std::string_view expression )
 
     return ranges;
 }
+}  // namespace rapidgzip

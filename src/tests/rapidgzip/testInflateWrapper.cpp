@@ -20,6 +20,7 @@
     #include <isal.hpp>
 #endif
 
+
 using namespace std::literals;
 
 using namespace rapidgzip;
@@ -55,7 +56,7 @@ testGettingFooter()
 
     auto fileReader = std::make_unique<SharedFileReader>(
         std::make_unique<BufferViewFileReader>( compressedRandomDNA ) );
-    rapidgzip::BitReader bitReader( std::move( fileReader ) );
+    gzip::BitReader bitReader( std::move( fileReader ) );
     bitReader.seek( 10 * CHAR_BIT );  // Deflate wrapper expects to start at deflate block
     InflateWrapper inflateWrapper( std::move( bitReader ) );
 
@@ -217,7 +218,7 @@ testMultiGzipStream()
 
     auto fileReader = std::make_unique<SharedFileReader>(
         std::make_unique<BufferViewFileReader>( compressedData ) );
-    rapidgzip::BitReader bitReader( std::move( fileReader ) );
+    gzip::BitReader bitReader( std::move( fileReader ) );
     bitReader.seek( 10 * CHAR_BIT );  // Deflate wrapper expects to start at deflate block
     InflateWrapper inflateWrapper( std::move( bitReader ) );
 
@@ -247,7 +248,7 @@ testSmallReads( const std::filesystem::path& compressedFilePath,
                 const std::filesystem::path& originalFilePath )
 {
     /* Set up inflat wrapper on compressed file */
-    rapidgzip::BitReader bitReader(
+    gzip::BitReader bitReader(
         std::make_unique<SharedFileReader>(
             std::make_unique<StandardFileReader>( compressedFilePath ) ) );
     rapidgzip::gzip::readHeader( bitReader );
@@ -312,7 +313,7 @@ getBlockOffsets( const std::filesystem::path& filePath )
     using namespace rapidgzip;
     using Block = rapidgzip::deflate::Block</* Statistics */ true>;
 
-    rapidgzip::BitReader bitReader{ std::make_unique<StandardFileReader>( filePath ) };
+    gzip::BitReader bitReader{ std::make_unique<StandardFileReader>( filePath ) };
 
     std::optional<gzip::Header> gzipHeader;
     Block block;
@@ -400,7 +401,7 @@ testSmallReadsUntilOffset( const std::filesystem::path& compressedFilePath,
     /* Collect all deflate block offsets. */
     const auto blockOffsets = getBlockOffsets( compressedFilePath );
 
-    rapidgzip::BitReader compressedBitReader(
+    gzip::BitReader compressedBitReader(
         std::make_unique<SharedFileReader>(
             std::make_unique<StandardFileReader>( compressedFilePath ) ) );
 
@@ -508,7 +509,7 @@ testSmallBuffers()
     {
         auto fileReader = std::make_unique<SharedFileReader>(
             std::make_unique<BufferViewFileReader>( compressedRandomDNA ) );
-        rapidgzip::BitReader bitReader( std::move( fileReader ) );
+        gzip::BitReader bitReader( std::move( fileReader ) );
         bitReader.seek( 10 * CHAR_BIT );  // Deflate wrapper expects to start at deflate block
         InflateWrapper inflateWrapper( std::move( bitReader ) );
 
@@ -576,7 +577,7 @@ testStoppingPoints()
     {
         auto fileReader = std::make_unique<SharedFileReader>(
             std::make_unique<BufferViewFileReader>( compressedRandomDNA ) );
-        rapidgzip::BitReader bitReader( std::move( fileReader ) );
+        gzip::BitReader bitReader( std::move( fileReader ) );
         bitReader.seek( 10 * CHAR_BIT );  // Deflate wrapper expects to start at deflate block
         IsalInflateWrapper inflateWrapper( std::move( bitReader ) );
 

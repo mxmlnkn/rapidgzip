@@ -253,6 +253,9 @@ make && time ./blockfinder /dev/shm/large.bz2
 #include <FileUtils.hpp>
 
 
+using namespace rapidgzip;
+
+
 std::vector<size_t>
 countBitPatterns( const std::string& filePath,
                   unsigned int       patternLength,

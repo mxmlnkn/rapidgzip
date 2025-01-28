@@ -9,7 +9,8 @@
 
 #include <common.hpp>
 
-
+namespace rapidgzip
+{
 class FileReader;
 
 using UniqueFileReader = std::unique_ptr<FileReader>;
@@ -113,3 +114,4 @@ public:
         return fileSize.has_value() ? std::min( positiveOffset, *fileSize ) : positiveOffset;
     }
 };
+}  // namespace rapidgzip

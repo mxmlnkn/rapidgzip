@@ -189,7 +189,7 @@ public:
                  *       important as for the multi-threaded version because decoding is the bottleneck for the
                  *       sequential version.
                  */
-                const auto errorCode = ::writeAll( outputFileDescriptor, currentBufferPosition, buffer, size );
+                const auto errorCode = writeAll( outputFileDescriptor, currentBufferPosition, buffer, size );
                 if ( errorCode != 0 ) {
                     std::stringstream message;
                     message << "Failed to write all bytes because of: " << strerror( errorCode )
@@ -353,7 +353,7 @@ private:
     }
 
 private:
-    rapidgzip::BitReader m_bitReader;
+    gzip::BitReader m_bitReader;
 
     size_t m_currentPosition{ 0 };  /** the current position as can only be modified with read or seek calls. */
     bool m_atEndOfFile{ false };

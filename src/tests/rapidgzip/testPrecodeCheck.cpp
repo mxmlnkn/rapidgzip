@@ -26,6 +26,9 @@
 #include <Error.hpp>
 
 
+using namespace rapidgzip;
+
+
 /**
  * Use like this: dummyPrintValue<uint32_t, 1234>() and then check for an unused warning:
  * @verbatim
@@ -886,7 +889,7 @@ testHuffmanCoding( HuffmanCoding&              coding,
                    const std::vector<char>&    encoded,
                    const std::vector<uint8_t>& decoded )
 {
-    rapidgzip::BitReader bitReader( std::make_unique<BufferedFileReader>( encoded ) );
+    gzip::BitReader bitReader( std::make_unique<BufferedFileReader>( encoded ) );
     for ( const auto expectedSymbol : decoded ) {
         const auto decodedSymbol = coding.decode( bitReader );
         REQUIRE( decodedSymbol.has_value() );
@@ -987,7 +990,7 @@ testCachedCodingFromPrecodes( const uint64_t              precodeBits,
 
     /* Check with Huffman coding. */
     {
-        rapidgzip::BitReader bitReader( std::make_unique<BufferedFileReader>( encoded ) );
+        gzip::BitReader bitReader( std::make_unique<BufferedFileReader>( encoded ) );
         for ( const auto expectedSymbol : decoded ) {
             const auto decodedSymbol = cachedCoding.decode( bitReader );
             REQUIRE( decodedSymbol.has_value() );

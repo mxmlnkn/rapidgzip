@@ -17,7 +17,8 @@
     #include <AvailabilityMacros.h>
 #endif
 
-
+namespace rapidgzip
+{
 int gnTests = 0;  // NOLINT
 int gnTestErrors = 0;  // NOLINT
 
@@ -317,3 +318,4 @@ createTemporaryDirectory( const std::string& title = "tmpTest" )
     return TemporaryDirectory( tmpFolderName );
 }
 #endif
+}  // namespace rapidgzip

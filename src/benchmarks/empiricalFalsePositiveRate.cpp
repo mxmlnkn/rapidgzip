@@ -26,6 +26,9 @@
 #include <ThreadPool.hpp>
 
 
+using namespace rapidgzip;
+
+
 namespace
 {
 /**
@@ -165,7 +168,7 @@ findNonCompressedFalsePositives()
     const auto countFalsePositives =
         [] () {
             const auto randomData = createRandomData<char>( testDataSize );
-            rapidgzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( randomData ) );
+            gzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( randomData ) );
             const auto bitReaderSize = bitReader.size().value();
 
             size_t matches{ 0 };
@@ -344,7 +347,7 @@ void
 AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>& data,
                                                         size_t                   nBitsToTest )
 {
-    rapidgzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( data ) );
+    gzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( data ) );
 
     static constexpr auto CACHED_BIT_COUNT = 14;
 
@@ -387,7 +390,7 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>&
             const auto next57Bits = bitReader.peek( rapidgzip::deflate::MAX_PRECODE_COUNT
                                                     * rapidgzip::deflate::PRECODE_BITS );
             static_assert( rapidgzip::deflate::MAX_PRECODE_COUNT * rapidgzip::deflate::PRECODE_BITS
-                           <= rapidgzip::BitReader::MAX_BIT_BUFFER_SIZE,
+                           <= gzip::BitReader::MAX_BIT_BUFFER_SIZE,
                            "This optimization requires a larger BitBuffer inside BitReader!" );
             /* Do not use a LUT because it cannot return specific errors. */
             using rapidgzip::PrecodeCheck::WithoutLUT::checkPrecode;
@@ -489,7 +492,7 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>&
             }
 
             ++foundOffsets;
-        } catch ( const rapidgzip::BitReader::EndOfFileReached& ) {
+        } catch ( const gzip::BitReader::EndOfFileReached& ) {
             throw std::logic_error( "EOF reached. Trailing buffer calculation must be wrong!" );
             break;
         }

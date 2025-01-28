@@ -23,7 +23,8 @@
 #include <filereader/FileReader.hpp>
 #include <filereader/Shared.hpp>
 
-
+namespace rapidgzip
+{
 /**
  * @todo Make BitReader access with copying and such work for input stream.
  *       This might need another abstraction layer which keeps chunks of data of the file until it has been read once!
@@ -988,3 +989,4 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::fullSeek( size_t offsetBits )
 
     return offsetBits;
 }
+}  // namespace rapidgzip

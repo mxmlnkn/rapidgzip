@@ -95,8 +95,8 @@ lengthLUT = createLengthLUT();
 
 
 [[nodiscard]] inline uint16_t
-getLength( uint16_t   code,
-           BitReader& bitReader )
+getLength( uint16_t         code,
+           gzip::BitReader& bitReader )
 {
     if ( code <= 264 ) {
         return code - 257U + 3U;
@@ -115,8 +115,8 @@ getLength( uint16_t   code,
 
 
 [[nodiscard]] inline uint8_t
-getLengthMinus3( uint16_t   code,
-                 BitReader& bitReader )
+getLengthMinus3( uint16_t         code,
+                 gzip::BitReader& bitReader )
 {
     /* The largest length is 258 and the smallest is 3, so length-3 fits into uint8_t. */
     return static_cast<uint8_t>( getLength( code, bitReader ) - 3U );
@@ -127,7 +127,7 @@ template<typename DistanceHuffmanCoding>
 inline std::pair<uint16_t, Error>
 getDistance( CompressionType              compressionType,
              const DistanceHuffmanCoding& distanceHC,
-             BitReader&                   bitReader )
+             gzip::BitReader&             bitReader )
 {
     uint16_t distance = 0;
     if ( compressionType == CompressionType::FIXED_HUFFMAN ) {

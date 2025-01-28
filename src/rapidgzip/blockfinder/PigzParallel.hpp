@@ -169,13 +169,13 @@ public:
              * @todo This requires the buffer to be larger than the first gzip header may be.
              * Theoretically, the user could store arbitrary amount of data in the zero-terminated file name
              * and file comment ... */
-            rapidgzip::BitReader bitReader( m_fileReader->clone() );
+            gzip::BitReader bitReader( m_fileReader->clone() );
 
             #else
 
             refillBuffer();
             distributeWork();
-            rapidgzip::BitReader bitReader( std::make_unique<BufferedFileReader>( m_buffer ) );
+            gzip::BitReader bitReader( std::make_unique<BufferedFileReader>( m_buffer ) );
             #endif
 
             auto error = rapidgzip::gzip::checkHeader( bitReader );

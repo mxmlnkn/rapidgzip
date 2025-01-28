@@ -13,7 +13,8 @@
     #include "isal.hpp"
 #endif
 
-
+namespace rapidgzip
+{
 template<typename InflateWrapper,
          typename Container>
 [[nodiscard]] Container
@@ -34,12 +35,10 @@ inflateWithWrapper( const Container&            toDecompress,
     }
 #endif
 
-    rapidgzip::BitReader bitReader(
+    gzip::BitReader bitReader(
         std::make_unique<BufferViewFileReader>( toDecompress.data(), toDecompress.size() ) );
 
     InflateWrapper inflateWrapper( std::move( bitReader ) );
-
-    using FileType = rapidgzip::FileType;
 
     switch ( fileType )
     {
@@ -78,3 +77,4 @@ inflateWithWrapper( const Container&            toDecompress,
     }
     return result;
 }
+}  // namespace rapidgzip

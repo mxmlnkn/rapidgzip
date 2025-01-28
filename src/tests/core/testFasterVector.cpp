@@ -4,6 +4,9 @@
 #include <TestHelpers.hpp>
 
 
+using namespace rapidgzip;
+
+
 template<typename Vector>
 void
 testVector()

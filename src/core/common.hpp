@@ -26,7 +26,6 @@
     #include <Python.h>
 #endif
 
-
 /* Platform dependent stuff */
 
 #ifdef _MSC_VER
@@ -45,6 +44,8 @@
     #define S_IFIFO _S_IFIFO
     #define S_IFMT _S_IFMT
 
+    namespace rapidgzip
+    {
     template<typename FileMode, typename FileType>
     [[nodiscard]] bool
     testFileType( FileMode fileMode,
@@ -52,6 +53,7 @@
     {
         return ( fileMode & S_IFMT ) == fileType;
     }
+    }  // namespace rapidgzip;
 
     #define S_ISFIFO( m ) testFileType( m, S_IFIFO )
 
@@ -70,6 +72,8 @@
     #define forceinline __attribute__(( always_inline )) inline
 #endif
 
+namespace rapidgzip
+{
 template<typename I1,
          typename I2,
          typename Enable = typename std::enable_if<
@@ -725,3 +729,4 @@ isBase64( std::basic_string_view<CharT> data )
 
     return data.find_first_not_of( base64Symbols ) == std::string_view::npos;
 }
+}  // namespace rapidgzip

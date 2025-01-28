@@ -27,7 +27,8 @@
     #include <filereader/Python.hpp>  // For unlocking the GIL in case the block fetch code uses PythonFileReader
 #endif
 
-
+namespace rapidgzip
+{
 /**
  * Manages block data access. Calls to members are not thread-safe!
  * Requested blocks are cached and accesses may trigger prefetches,
@@ -672,3 +673,4 @@ private:
     std::map</* block offset */ size_t, std::future<BlockData> > m_prefetching;
     ThreadPool m_threadPool;
 };
+}  // namespace rapidgzip

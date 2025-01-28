@@ -101,7 +101,7 @@ public:
     }
 
     [[nodiscard]] forceinline std::optional<Symbol>
-    decode( BitReader& bitReader ) const
+    decode( gzip::BitReader& bitReader ) const
     {
         try {
             const auto value = bitReader.peek( this->m_maxCodeLength );
@@ -117,7 +117,7 @@ public:
 
             bitReader.seekAfterPeek( length );
             return symbol;
-        } catch ( const BitReader::EndOfFileReached& ) {
+        } catch ( const gzip::BitReader::EndOfFileReached& ) {
             /* Should only happen at the end of the file and probably not even there
              * because the gzip footer should be longer than the peek length. */
             return BaseType::decode( bitReader );

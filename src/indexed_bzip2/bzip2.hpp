@@ -105,7 +105,7 @@ constexpr auto MAGIC_BITS_EOS = 0x177245385090ULL;  /* bcd(sqrt(pi)) */
 constexpr auto MAGIC_BITS_SIZE = 48;
 constexpr std::string_view MAGIC_BYTES_BZ2 = "BZh";
 
-using BitReader = ::BitReader<true, uint64_t>;
+using BitReader = rapidgzip::BitReader<true, uint64_t>;
 
 
 /**
@@ -303,9 +303,9 @@ public:
     read( const size_t nMaxBytesToDecode,
           char*        outputBuffer )
     {
-        const auto t0 = now();
+        const auto t0 = rapidgzip::now();
         const auto result = bwdata.decodeBlock( nMaxBytesToDecode, outputBuffer );
-        statistics.durations.decodeBlock += duration( t0 );
+        statistics.durations.decodeBlock += rapidgzip::duration( t0 );
         return result;
     }
 
@@ -348,16 +348,16 @@ private:
     void
     readBlockTrees()
     {
-        const auto tReadSymbolMaps = now();
+        const auto tReadSymbolMaps = rapidgzip::now();
         readSymbolMaps();
-        const auto tReadSelectors = now();
+        const auto tReadSelectors = rapidgzip::now();
         readSelectors();
-        const auto tReadTrees = now();
+        const auto tReadTrees = rapidgzip::now();
         readTrees();
 
-        statistics.durations.readSymbolMaps += duration( tReadSymbolMaps, tReadSelectors );
-        statistics.durations.readSelectors += duration( tReadSelectors, tReadTrees );
-        statistics.durations.readTrees += duration( tReadTrees );
+        statistics.durations.readSymbolMaps += rapidgzip::duration( tReadSymbolMaps, tReadSelectors );
+        statistics.durations.readSelectors += rapidgzip::duration( tReadSelectors, tReadTrees );
+        statistics.durations.readTrees += rapidgzip::duration( tReadTrees );
     }
 
     void
@@ -479,7 +479,7 @@ private:
 inline void
 Block::readBlockHeader()
 {
-    const auto tReadBlockHeader = now();
+    const auto tReadBlockHeader = rapidgzip::now();
 
     encodedOffsetInBits = bitReader().tell();
     encodedSizeInBits = 0;
@@ -502,7 +502,7 @@ Block::readBlockHeader()
     if ( magicBytes != MAGIC_BITS_BLOCK ) {
         std::stringstream msg;
         msg << "[BZip2 block header] invalid compressed magic 0x" << std::hex << magicBytes
-            << " at offset " << formatBits( encodedOffsetInBits );
+            << " at offset " << rapidgzip::formatBits( encodedOffsetInBits );
         throw std::domain_error( std::move( msg ).str() );
     }
 
@@ -519,7 +519,7 @@ Block::readBlockHeader()
     }
 
     readBlockTrees();
-    statistics.durations.readBlockHeader += duration( tReadBlockHeader );
+    statistics.durations.readBlockHeader += rapidgzip::duration( tReadBlockHeader );
 }
 
 
@@ -677,7 +677,7 @@ Block::readTrees()
             lengths[symbol] = static_cast<uint8_t>( hh );
         }
 
-        const auto error = huffmanCodings[j].initializeFromLengths( VectorView<uint8_t>( lengths.data(), symCount ) );
+        const auto error = huffmanCodings[j].initializeFromLengths( rapidgzip::VectorView<uint8_t>( lengths.data(), symCount ) );
         if ( error != rapidgzip::Error::NONE ) {
             throw std::domain_error( toString( error ) );
         }
@@ -698,7 +698,7 @@ Block::readBlockData()
     bwdata.byteCount.fill( 0 );
     std::iota( mtfSymbol.begin(), mtfSymbol.end(), 0 );
 
-    const auto t0 = now();
+    const auto t0 = rapidgzip::now();
     /** @note The loops inside this for-loop are all too short to be profiled.
      *        The overhead becomes disastrously large! It takes 190s to decode instead of 20s. */
     // Loop through compressed symbols.  This is the first "tight inner loop"
@@ -797,11 +797,11 @@ Block::readBlockData()
         throw std::domain_error( std::move( msg ).str() );
     }
 
-    statistics.durations.createHuffmanTable += duration( t0 );
+    statistics.durations.createHuffmanTable += rapidgzip::duration( t0 );
 
-    const auto tPrepareStart = now();
+    const auto tPrepareStart = rapidgzip::now();
     bwdata.prepare();
-    statistics.durations.burrowsWheelerPreparation += duration( tPrepareStart );
+    statistics.durations.burrowsWheelerPreparation += rapidgzip::duration( tPrepareStart );
 
     encodedSizeInBits = bitReader().tell() - encodedOffsetInBits;
 }

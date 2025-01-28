@@ -9,6 +9,9 @@
 #include <TestHelpers.hpp>
 
 
+using namespace rapidgzip;
+
+
 struct ChunkRange
 {
     size_t chunk;

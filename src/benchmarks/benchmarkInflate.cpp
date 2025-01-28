@@ -25,6 +25,9 @@
 #include <TestHelpers.hpp>
 
 
+using namespace rapidgzip;
+
+
 [[nodiscard]] size_t
 decompressWithRapidgzip( UniqueFileReader fileReader )
 {
@@ -125,7 +128,7 @@ compressWithZlib( const std::vector<std::byte>& toCompress,
         output.resize( output.size() + CHUNK_SIZE );
         stream.next_out = reinterpret_cast<Bytef*>( output.data() + output.size() - CHUNK_SIZE );
         stream.avail_out = CHUNK_SIZE;
-        status = deflate( &stream, Z_FINISH );
+        status = ::deflate( &stream, Z_FINISH );
     }
 
     deflateEnd( &stream );

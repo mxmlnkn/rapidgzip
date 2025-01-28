@@ -280,7 +280,7 @@ public:
     }
 
     [[nodiscard]] forceinline std::optional<Symbol>
-    decode( BitReader& bitReader ) const
+    decode( gzip::BitReader& bitReader ) const
     {
         if ( m_nextSymbol != NONE_SYMBOL ) {
             const auto result = m_nextSymbol;
@@ -303,7 +303,7 @@ public:
             symbol1 &= nLowestBitsSet<Symbol, LENGTH_SHIFT>();
 
             return symbol1;
-        } catch ( const BitReader::EndOfFileReached& ) {
+        } catch ( const gzip::BitReader::EndOfFileReached& ) {
             /* Should only happen at the end of the file and probably not even there
              * because the gzip footer should be longer than the peek length. */
             return BaseType::decode( bitReader );

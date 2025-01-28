@@ -39,7 +39,6 @@ public:
     using ChunkData = T_ChunkData;
     using ChunkConfiguration = typename ChunkData::Configuration;
     using BaseType = BlockFetcher<GzipBlockFinder, ChunkData, FetchingStrategy>;
-    using BitReader = rapidgzip::BitReader;
     using SharedWindow = WindowMap::SharedWindow;
     using SharedDecompressedWindow = std::shared_ptr<const FasterVector<uint8_t> >;
     using WindowView = VectorView<uint8_t>;
@@ -651,7 +650,7 @@ private:
                  * to directly call @ref decodeBlock with that offset. */
                 chunkData = BaseType::get( blockOffset, blockIndex, getPartitionOffsetFromOffset );
             }
-            catch ( const rapidgzip::BitReader::EndOfFileReached& exception )
+            catch ( const gzip::BitReader::EndOfFileReached& exception )
             {
                 std::cerr << "Unexpected end of file when getting block at " << formatBits( blockOffset )
                           << " (block index: " << blockIndex << ") on demand\n";

@@ -17,6 +17,8 @@
 #include <VectorView.hpp>
 
 
+using namespace rapidgzip;
+
 using namespace FetchingStrategy;
 
 

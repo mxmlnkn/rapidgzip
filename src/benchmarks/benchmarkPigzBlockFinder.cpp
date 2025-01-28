@@ -23,6 +23,9 @@
 #include <TestHelpers.hpp>
 
 
+using namespace rapidgzip;
+
+
 struct BenchmarkResults
 {
     double duration{ 0 };

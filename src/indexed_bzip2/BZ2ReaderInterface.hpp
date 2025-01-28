@@ -10,9 +10,10 @@
 
 using std::size_t;
 
-
+namespace indexed_bzip2
+{
 class BZ2ReaderInterface :
-    public FileReader
+    public rapidgzip::FileReader
 {
 public:
     using WriteFunctor = std::function<void ( const void*, uint64_t )>;
@@ -42,7 +43,7 @@ public:
               uint64_t    const size ) mutable
             {
                 auto* const currentBufferPosition = outputBuffer == nullptr ? nullptr : outputBuffer + nBytesDecoded;
-                const auto errorCode = writeAll( outputFileDescriptor, currentBufferPosition, buffer, size );
+                const auto errorCode = rapidgzip::writeAll( outputFileDescriptor, currentBufferPosition, buffer, size );
                 if ( errorCode != 0 ) {
                     std::stringstream message;
                     message << "Failed to write all bytes because of: " << strerror( errorCode )
@@ -100,3 +101,4 @@ public:
 protected:
     bool m_showProfileOnDestruction{ false };
 };
+}  // namespace indexed_bzip2

@@ -28,6 +28,10 @@
 
 //#define BENCHMARK
 
+
+using namespace rapidgzip;
+
+
 namespace
 {
 constexpr uint64_t bitStringToFind = 0x314159265359;  /* bcd(pi) */

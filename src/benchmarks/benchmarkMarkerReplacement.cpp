@@ -11,6 +11,9 @@
 #include <common.hpp>
 
 
+using namespace rapidgzip;
+
+
 void
 replaceInPlace( std::vector<std::uint16_t>&      buffer,
                 const std::vector<std::uint8_t>& window )

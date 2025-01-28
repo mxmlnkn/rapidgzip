@@ -6,7 +6,7 @@
 #include "FileReader.hpp"
 
 
-namespace
+namespace rapidgzip
 {
 [[nodiscard]] int
 toOrigin( std::ios_base::seekdir anchor )
@@ -18,7 +18,6 @@ toOrigin( std::ios_base::seekdir anchor )
     case std::ios_base::end: return SEEK_END;
     }
     return SEEK_SET;
-}
 }
 
 
@@ -216,3 +215,4 @@ public:
         m_file->close();
     }
 };
+}  // namespace rapidgzip

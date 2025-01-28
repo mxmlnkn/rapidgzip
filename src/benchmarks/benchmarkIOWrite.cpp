@@ -21,6 +21,9 @@
 #include <ThreadPool.hpp>
 
 
+using namespace rapidgzip;
+
+
 /* Alignment to the filesystem block size is necessary for direct I/O. */
 using DataBuffer = std::vector<char, AlignedAllocator<char, 4096> >;
 

@@ -5,7 +5,8 @@
 #include <type_traits>
 #include <vector>
 
-
+namespace rapidgzip
+{
 /**
  * Returns aligned pointers when allocations are requested.
  * Default alignment is 64B = 512b sufficient for AVX-512 and most cache line sizes.
@@ -79,3 +80,4 @@ public:
 
 template<typename T, std::size_t ALIGNMENT_IN_BYTES = 64>
 using AlignedVector = std::vector<T, AlignedAllocator<T, ALIGNMENT_IN_BYTES> >;
+}  // namespace rapidgzip

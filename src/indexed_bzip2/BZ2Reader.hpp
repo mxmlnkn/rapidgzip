@@ -24,7 +24,8 @@
     #include <filereader/Python.hpp>
 #endif
 
-
+namespace indexed_bzip2
+{
 class BZ2Reader final :
     public BZ2ReaderInterface
 {
@@ -37,7 +38,7 @@ public:
 
 public:
     explicit
-    BZ2Reader( UniqueFileReader fileReader ) :
+    BZ2Reader( rapidgzip::UniqueFileReader fileReader ) :
         /* Without this, the test_joining_archive test inside ratarmountcore's test_factory.py fails.
          * This is because tell() throws an exception because m_file.tell() is in an unexpected position.
          * I'm still not sure why but maybe some external caller resets the file position to 0.
@@ -50,17 +51,17 @@ public:
 #ifdef WITH_PYTHON_SUPPORT
     explicit
     BZ2Reader( const std::string& filePath ) :
-        BZ2Reader( std::make_unique<StandardFileReader>( filePath ) )
+        BZ2Reader( std::make_unique<rapidgzip::StandardFileReader>( filePath ) )
     {}
 
     explicit
     BZ2Reader( int fileDescriptor ) :
-        BZ2Reader( std::make_unique<StandardFileReader>( fileDescriptor ) )
+        BZ2Reader( std::make_unique<rapidgzip::StandardFileReader>( fileDescriptor ) )
     {}
 
     explicit
     BZ2Reader( PyObject* pythonObject ) :
-        BZ2Reader( std::make_unique<PythonFileReader>( pythonObject ) )
+        BZ2Reader( std::make_unique<rapidgzip::PythonFileReader>( pythonObject ) )
     {}
 #endif
 
@@ -95,7 +96,7 @@ public:
 
     /* FileReader overrides */
 
-    [[nodiscard]] UniqueFileReader
+    [[nodiscard]] rapidgzip::UniqueFileReader
     clone() const override
     {
         throw std::logic_error( "Not implemented!" );
@@ -261,7 +262,7 @@ public:
             nBytesDecoded += decodeStream( writeFunctor, nBytesToRead - nBytesDecoded );
 
         #ifdef WITH_PYTHON_SUPPORT
-            checkPythonSignalHandlers();
+            rapidgzip::checkPythonSignalHandlers();
         #endif
         }
         m_currentPosition += nBytesDecoded;
@@ -494,3 +495,4 @@ BZ2Reader::decodeStream( WriteFunctor const& writeFunctor,
 
     return nBytesDecoded;
 }
+}  // namespace indexed_bzip2

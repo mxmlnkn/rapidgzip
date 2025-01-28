@@ -95,7 +95,7 @@ void
 testUncompressedBlockFinder( const std::filesystem::path&                   path,
                              const std::vector<std::pair<size_t, size_t> >& expected )
 {
-    rapidgzip::BitReader bitReader( std::make_unique<StandardFileReader>( path.string() ) );
+    gzip::BitReader bitReader( std::make_unique<StandardFileReader>( path.string() ) );
 
     std::vector<std::pair<size_t, size_t> > foundRanges;
     while ( true ) {

@@ -19,8 +19,8 @@ namespace rapidgzip::blockfinder
  *         block start points. Returns std::numeric_limits<size_t>::max if nothing was found.
  */
 [[nodiscard]] inline std::pair<size_t, size_t>
-seekToNonFinalUncompressedDeflateBlock( BitReader&   bitReader,
-                                        size_t const untilOffset = std::numeric_limits<size_t>::max() )
+seekToNonFinalUncompressedDeflateBlock( gzip::BitReader& bitReader,
+                                        size_t const     untilOffset = std::numeric_limits<size_t>::max() )
 {
     static constexpr auto DEFLATE_MAGIC_BIT_COUNT = 3U;
 
@@ -87,7 +87,7 @@ seekToNonFinalUncompressedDeflateBlock( BitReader&   bitReader,
 
             bitReader.seekTo( oldOffset );
         }
-    } catch ( const BitReader::EndOfFileReached& ) {
+    } catch ( const gzip::BitReader::EndOfFileReached& ) {
         /* This might happen when trying to read the 32 bits! */
     }
 

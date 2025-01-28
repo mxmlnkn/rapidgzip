@@ -22,7 +22,8 @@
     #include <filereader/Python.hpp>
 #endif
 
-
+namespace rapidgzip
+{
 /**
  * This is a future-like wrapper around a given actual block finder, which is running asynchronously.
  * The results are not only computed in parallel but also prefetched up to a certain distance to allow full
@@ -216,3 +217,4 @@ private:
 
     std::unique_ptr<JoiningThread> m_blockFinder;
 };
+}  // namespace rapidgzip

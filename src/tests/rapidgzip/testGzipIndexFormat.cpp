@@ -10,6 +10,9 @@
 #include <TestHelpers.hpp>
 
 
+using namespace rapidgzip;
+
+
 GzipIndex
 testIndexRead( const std::filesystem::path& compressedPath,
                const std::filesystem::path& uncompressedPath,

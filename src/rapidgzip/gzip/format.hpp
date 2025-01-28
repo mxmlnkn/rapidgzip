@@ -23,7 +23,7 @@ determineFileTypeAndOffset( const UniqueFileReader& fileReader )
 
     /* The first deflate block offset is easily found by reading over the gzip header.
      * The correctness and existence of this first block is a required initial condition for the algorithm. */
-    BitReader bitReader{ fileReader->clone() };
+    gzip::BitReader bitReader{ fileReader->clone() };
     const auto [gzipHeader, gzipError] = gzip::readHeader( bitReader );
     if ( gzipError == Error::NONE ) {
         return std::make_pair( blockfinder::Bgzf::isBgzfFile( fileReader ) ? FileType::BGZF : FileType::GZIP,

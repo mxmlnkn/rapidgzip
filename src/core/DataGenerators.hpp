@@ -12,7 +12,8 @@
 
 #include "common.hpp"
 
-
+namespace rapidgzip
+{
 inline void
 createRandomTextFile( const std::string& path,
                       uint64_t           size )
@@ -155,4 +156,5 @@ createRandomWords( const std::string& filePath,
         i += words[iWord].size();
     }
 }
+}  // namespace rapidgzip
 

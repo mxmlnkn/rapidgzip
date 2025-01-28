@@ -1001,7 +1001,7 @@ void
 printClassSizes()
 {
     std::cout << "== Rapidgzip class sizes ==\n";
-    std::cout << "  BitReader                     : " << sizeof( rapidgzip::BitReader ) << "\n";  // 88
+    std::cout << "  BitReader                     : " << sizeof( gzip::BitReader ) << "\n";  // 88
     std::cout << "  WindowMap                     : " << sizeof( WindowMap ) << "\n";  // 88
     std::cout << "  deflate::DecodedDataView      : " << sizeof( deflate::DecodedDataView ) << "\n";  // 64
     std::cout << "  deflate::DecodedData          : " << sizeof( deflate::DecodedData ) << "\n";  // 96

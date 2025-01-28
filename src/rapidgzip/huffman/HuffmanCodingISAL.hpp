@@ -90,7 +90,7 @@ public:
     /* Decodes the next symbol symbol in in_buffer using the huff code defined by
      * huff_code and returns the value in next_lits and sym_count */
     [[nodiscard]] forceinline std::pair<uint32_t, uint32_t>
-    decode( BitReader& bitReader ) const
+    decode( gzip::BitReader& bitReader ) const
     {
         static constexpr auto LARGE_SHORT_SYM_LEN = 25U;
         static constexpr auto LARGE_SHORT_SYM_MASK = ( 1U << LARGE_SHORT_SYM_LEN ) - 1U;
@@ -116,7 +116,7 @@ public:
         try
         {
             nextBits = bitReader.peek<32>();
-        } catch ( const BitReader::EndOfFileReached& exception ) {
+        } catch ( const gzip::BitReader::EndOfFileReached& exception ) {
             /* This should only happen in the error case or for raw deflate streams because those don't have
              * any footer acting as a kind of buffer to ensure that peek always works. */
             const auto [availableBits, count] = bitReader.peekAvailable();

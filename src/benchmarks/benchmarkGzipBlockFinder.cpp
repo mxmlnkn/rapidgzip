@@ -52,6 +52,9 @@ https://www.ietf.org/rfc/rfc1952.txt
 #include <TestHelpers.hpp>
 
 
+using namespace rapidgzip;
+
+
 std::ostream&
 operator<<( std::ostream& out, std::vector<size_t> vector )
 {
@@ -431,7 +434,7 @@ findDeflateBlocksZlib( BufferedFileReader::AlignedBuffer buffer )
 [[nodiscard]] std::vector<size_t>
 findDeflateBlocksZlibOptimized( BufferedFileReader::AlignedBuffer buffer )
 {
-    rapidgzip::BitReader bitReader( std::make_unique<BufferedFileReader>( buffer ) );
+    gzip::BitReader bitReader( std::make_unique<BufferedFileReader>( buffer ) );
 
     /**
      * Deflate Block:
@@ -572,7 +575,7 @@ findDeflateBlocksRapidgzip( BufferedFileReader::AlignedBuffer buffer )
     using DeflateBlock = rapidgzip::deflate::Block<>;
 
     const auto nBitsToTest = buffer.size() * CHAR_BIT;
-    rapidgzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( buffer ) ) );
+    gzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( buffer ) ) );
 
     std::vector<size_t> bitOffsets;
 
@@ -621,7 +624,7 @@ findDeflateBlocksRapidgzip( BufferedFileReader::AlignedBuffer buffer )
              * decoded data if we do decide that it is a valid block. The number of checks during reading is also
              * pretty few because there almost are no wasted / invalid symbols. */
             bitOffsets.push_back( offset );
-        } catch ( const rapidgzip::BitReader::EndOfFileReached& ) {
+        } catch ( const gzip::BitReader::EndOfFileReached& ) {
             break;
         }
     }
@@ -634,7 +637,7 @@ template<uint8_t CACHED_BIT_COUNT>
 countDeflateBlocksPreselection( BufferedFileReader::AlignedBuffer data )
 {
     const size_t nBitsToTest = data.size() * CHAR_BIT;
-    rapidgzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( data ) ) );
+    gzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( data ) ) );
 
     uint64_t candidateCount{ 0 };
 
@@ -661,7 +664,7 @@ countDeflateBlocksPreselection( BufferedFileReader::AlignedBuffer data )
 
             ++candidateCount;
             ++offset;
-        } catch ( const rapidgzip::BitReader::EndOfFileReached& ) {
+        } catch ( const gzip::BitReader::EndOfFileReached& ) {
             /* This might happen when calling readDynamicHuffmanCoding quite some bytes before the end! */
             break;
         }
@@ -676,7 +679,7 @@ template<uint8_t CACHED_BIT_COUNT>
 countDeflateBlocksPreselectionManualSlidingBuffer( BufferedFileReader::AlignedBuffer data )
 {
     const size_t nBitsToTest = data.size() * CHAR_BIT;
-    rapidgzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( data ) ) );
+    gzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( data ) ) );
 
     uint64_t candidateCount{ 0 };
 
@@ -706,7 +709,7 @@ countDeflateBlocksPreselectionManualSlidingBuffer( BufferedFileReader::AlignedBu
                                << static_cast<uint8_t>( CACHED_BIT_COUNT - nextPosition );
             offset += nextPosition;
         }
-    } catch ( const rapidgzip::BitReader::EndOfFileReached& ) {
+    } catch ( const gzip::BitReader::EndOfFileReached& ) {
         /* This might happen when calling readDynamicHuffmanCoding quite some bytes before the end! */
     }
 
@@ -894,10 +897,10 @@ checkPrecode( const uint64_t next4Bits,
 /* Without "forceinline", I observed a ~10% performance degradation! */
 template<CheckPrecodeMethod CHECK_PRECODE_METHOD>
 [[nodiscard]] forceinline rapidgzip::Error
-checkDeflateBlock( const uint64_t        bitBufferForLUT,
-                   const uint64_t        bitBufferPrecodeBits,
-                   const size_t          offset,
-                   rapidgzip::BitReader& bitReader )
+checkDeflateBlock( const uint64_t   bitBufferForLUT,
+                   const uint64_t   bitBufferPrecodeBits,
+                   const size_t     offset,
+                   gzip::BitReader& bitReader )
 {
     using namespace rapidgzip;
     using namespace deflate;
@@ -1105,10 +1108,10 @@ checkAndGetValidHistogramID( const uint64_t precodeBits )
 
 template<>
 [[nodiscard]] forceinline rapidgzip::Error
-checkDeflateBlock<CheckPrecodeMethod::SINGLE_COMPRESSED_LUT>( const uint64_t        bitBufferForLUT,
-                                                              const uint64_t        bitBufferPrecodeBits,
-                                                              const size_t          offset,
-                                                              rapidgzip::BitReader& bitReader )
+checkDeflateBlock<CheckPrecodeMethod::SINGLE_COMPRESSED_LUT>( const uint64_t   bitBufferForLUT,
+                                                              const uint64_t   bitBufferPrecodeBits,
+                                                              const size_t     offset,
+                                                              gzip::BitReader& bitReader )
 {
     using namespace rapidgzip;
     using namespace deflate;
@@ -1189,7 +1192,7 @@ template<uint8_t            CACHED_BIT_COUNT,
 findDeflateBlocksRapidgzipLUT( BufferedFileReader::AlignedBuffer data )
 {
     const size_t nBitsToTest = data.size() * CHAR_BIT;
-    rapidgzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( data ) ) );
+    gzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( data ) ) );
 
     std::vector<size_t> bitOffsets;
 
@@ -1212,7 +1215,7 @@ findDeflateBlocksRapidgzipLUT( BufferedFileReader::AlignedBuffer data )
         constexpr auto ALL_PRECODE_BITS = PRECODE_COUNT_BITS + MAX_PRECODE_COUNT * PRECODE_BITS;
         static_assert( ( ALL_PRECODE_BITS == 61 ) && ( ALL_PRECODE_BITS >= CACHED_BIT_COUNT )
                        && ( ALL_PRECODE_BITS <= std::numeric_limits<uint64_t>::digits )
-                       && ( ALL_PRECODE_BITS <= rapidgzip::BitReader::MAX_BIT_BUFFER_SIZE ),
+                       && ( ALL_PRECODE_BITS <= gzip::BitReader::MAX_BIT_BUFFER_SIZE ),
                        "It must fit into 64-bit and it also must fit the largest possible jump in the LUT." );
         auto bitBufferPrecodeBits = bitReader.read<ALL_PRECODE_BITS>();
 
@@ -1260,7 +1263,7 @@ findDeflateBlocksRapidgzipLUT( BufferedFileReader::AlignedBuffer data )
 
             offset += nextPosition;
         }
-    } catch ( const rapidgzip::BitReader::EndOfFileReached& ) {
+    } catch ( const gzip::BitReader::EndOfFileReached& ) {
         /* This might happen when calling readDynamicHuffmanCoding quite some bytes before the end! */
     }
 
@@ -1272,7 +1275,7 @@ findDeflateBlocksRapidgzipLUT( BufferedFileReader::AlignedBuffer data )
 countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
 {
     const size_t nBitsToTest = data.size() * CHAR_BIT;
-    rapidgzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( data ) ) );
+    gzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( data ) ) );
 
     std::vector<size_t> bitOffsets;
 
@@ -1304,7 +1307,7 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
             const auto next57Bits = bitReader.peek( rapidgzip::deflate::MAX_PRECODE_COUNT
                                                     * rapidgzip::deflate::PRECODE_BITS );
             static_assert( rapidgzip::deflate::MAX_PRECODE_COUNT * rapidgzip::deflate::PRECODE_BITS
-                           <= rapidgzip::BitReader::MAX_BIT_BUFFER_SIZE,
+                           <= gzip::BitReader::MAX_BIT_BUFFER_SIZE,
                            "This optimization requires a larger BitBuffer inside BitReader!" );
             using rapidgzip::PrecodeCheck::WalkTreeLUT::checkPrecode;
             const auto precodeError = checkPrecode( next4Bits, next57Bits );
@@ -1331,7 +1334,7 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
 
             bitOffsets.push_back( offset );
             ++offset;
-        } catch ( const rapidgzip::BitReader::EndOfFileReached& ) {
+        } catch ( const gzip::BitReader::EndOfFileReached& ) {
             /* This might happen when calling readDynamicHuffmanCoding quite some bytes before the end! */
             break;
         }
@@ -1473,7 +1476,7 @@ findDeflateBlocksRapidgzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
                    "code length check, to avoid duplicate checks in the precode check!" );
 
     const size_t nBitsToTest = data.size() * CHAR_BIT;
-    rapidgzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( data ) ) );
+    gzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( data ) ) );
 
     std::vector<size_t> bitOffsetCandidates;
 
@@ -1492,7 +1495,7 @@ findDeflateBlocksRapidgzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
                 offset += nextPosition;
                 bitReader.seekAfterPeek( nextPosition );
             }
-        } catch ( const rapidgzip::BitReader::EndOfFileReached& ) {
+        } catch ( const gzip::BitReader::EndOfFileReached& ) {
             break;
         }
     }
@@ -1517,7 +1520,7 @@ findDeflateBlocksRapidgzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
                 const auto next57Bits = bitReader.peek( rapidgzip::deflate::MAX_PRECODE_COUNT
                                                         * rapidgzip::deflate::PRECODE_BITS );
                 static_assert( rapidgzip::deflate::MAX_PRECODE_COUNT * rapidgzip::deflate::PRECODE_BITS
-                               <= rapidgzip::BitReader::MAX_BIT_BUFFER_SIZE,
+                               <= gzip::BitReader::MAX_BIT_BUFFER_SIZE,
                                "This optimization requires a larger BitBuffer inside BitReader!" );
 
                 auto error = rapidgzip::Error::NONE;
@@ -1538,12 +1541,12 @@ findDeflateBlocksRapidgzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
                 if ( error != rapidgzip::Error::NONE ) {
                     return false;
                 }
-            } catch ( const rapidgzip::BitReader::EndOfFileReached& ) {}
+            } catch ( const gzip::BitReader::EndOfFileReached& ) {}
 
             try {
                 bitReader.seek( static_cast<long long int>( offset ) + 3 );
                 return block.readDynamicHuffmanCoding( bitReader ) == rapidgzip::Error::NONE;
-            } catch ( const rapidgzip::BitReader::EndOfFileReached& ) {}
+            } catch ( const gzip::BitReader::EndOfFileReached& ) {}
             return false;
         };
 
@@ -1573,7 +1576,7 @@ findDeflateBlocksRapidgzipLUTTwoPassWithPrecode( BufferedFileReader::AlignedBuff
                    "code length check, to avoid duplicate checks in the precode check!" );
 
     const size_t nBitsToTest = data.size() * CHAR_BIT;
-    rapidgzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( data ) ) );
+    gzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( data ) ) );
 
     std::vector<size_t> bitOffsetCandidates;
 
@@ -1594,7 +1597,7 @@ findDeflateBlocksRapidgzipLUTTwoPassWithPrecode( BufferedFileReader::AlignedBuff
     constexpr auto ALL_PRECODE_BITS = PRECODE_COUNT_BITS + MAX_PRECODE_COUNT * PRECODE_BITS;
     static_assert( ( ALL_PRECODE_BITS == 61 ) && ( ALL_PRECODE_BITS >= CACHED_BIT_COUNT )
                    && ( ALL_PRECODE_BITS <= std::numeric_limits<uint64_t>::digits )
-                   && ( ALL_PRECODE_BITS <= rapidgzip::BitReader::MAX_BIT_BUFFER_SIZE ),
+                   && ( ALL_PRECODE_BITS <= gzip::BitReader::MAX_BIT_BUFFER_SIZE ),
                    "It must fit into 64-bit and it also must fit the largest possible jump in the LUT." );
     auto bitBufferPrecodeBits = bitReader.read<ALL_PRECODE_BITS>();
 
@@ -1650,7 +1653,7 @@ findDeflateBlocksRapidgzipLUTTwoPassWithPrecode( BufferedFileReader::AlignedBuff
 
             offset += nextPosition;
         }
-    } catch ( const rapidgzip::BitReader::EndOfFileReached& ) {
+    } catch ( const gzip::BitReader::EndOfFileReached& ) {
         /* Might happen when testing close to the end. */
     }
 
@@ -1674,7 +1677,7 @@ findDeflateBlocksRapidgzipLUTTwoPassWithPrecode( BufferedFileReader::AlignedBuff
                 const auto next57Bits = bitReader.peek( rapidgzip::deflate::MAX_PRECODE_COUNT
                                                         * rapidgzip::deflate::PRECODE_BITS );
                 static_assert( rapidgzip::deflate::MAX_PRECODE_COUNT * rapidgzip::deflate::PRECODE_BITS
-                               <= rapidgzip::BitReader::MAX_BIT_BUFFER_SIZE,
+                               <= gzip::BitReader::MAX_BIT_BUFFER_SIZE,
                                "This optimization requires a larger BitBuffer inside BitReader!" );
 
                 using rapidgzip::PrecodeCheck::WalkTreeLUT::checkPrecode;
@@ -1683,12 +1686,12 @@ findDeflateBlocksRapidgzipLUTTwoPassWithPrecode( BufferedFileReader::AlignedBuff
                 if ( error != rapidgzip::Error::NONE ) {
                     return false;
                 }
-            } catch ( const rapidgzip::BitReader::EndOfFileReached& ) {}
+            } catch ( const gzip::BitReader::EndOfFileReached& ) {}
 
             try {
                 bitReader.seek( static_cast<long long int>( offset ) + 3 );
                 return block.readDynamicHuffmanCoding( bitReader ) == rapidgzip::Error::NONE;
-            } catch ( const rapidgzip::BitReader::EndOfFileReached& ) {}
+            } catch ( const gzip::BitReader::EndOfFileReached& ) {}
             return false;
         };
 

@@ -58,7 +58,7 @@ public:
 
     static void
     determineUsedWindowSymbolsForLastSubchunk( std::vector<Subchunk>& subchunks,
-                                               BitReader&             bitReader )
+                                               gzip::BitReader&       bitReader )
     {
         if ( subchunks.empty() || ( subchunks.back().encodedSize == 0 ) ) {
             return;
@@ -98,7 +98,7 @@ public:
     static void
     finalizeWindowForLastSubchunk( ChunkData&             chunk,
                                    std::vector<Subchunk>& subchunks,
-                                   BitReader&             bitReader )
+                                   gzip::BitReader&       bitReader )
     {
         if ( subchunks.empty() ) {
             return;
@@ -134,7 +134,7 @@ public:
     static void
     finalizeChunk( ChunkData&              chunk,
                    std::vector<Subchunk>&& subchunks,
-                   BitReader&              bitReader,
+                   gzip::BitReader&        bitReader,
                    const size_t            nextBlockOffset )
     {
         /* Finalize started subchunk. Merge with previous one if it is very small. */
@@ -160,7 +160,7 @@ public:
     static void
     appendDeflateBlockBoundary( ChunkData&             chunk,
                                 std::vector<Subchunk>& subchunks,
-                                BitReader&             bitReader,
+                                gzip::BitReader&       bitReader,
                                 const size_t           encodedOffset,
                                 const size_t           decodedOffset )
     {
@@ -198,7 +198,7 @@ public:
 
         ChunkData result{ chunkDataConfiguration };
 
-        BitReader bitReader( std::move( sharedFileReader ) );
+        gzip::BitReader bitReader( std::move( sharedFileReader ) );
         bitReader.seek( result.encodedOffsetInBits );
         InflateWrapper inflateWrapper( std::move( bitReader ), exactUntilOffset );
         inflateWrapper.setWindow( initialWindow );
@@ -276,10 +276,10 @@ public:
      *       points and deflate block properties as stop criterion.
      */
     [[nodiscard]] static ChunkData
-    finishDecodeChunkWithIsal( BitReader*        const bitReader,
-                               size_t            const untilOffset,
-                               WindowView        const initialWindow,
-                               size_t            const maxDecompressedChunkSize,
+    finishDecodeChunkWithIsal( gzip::BitReader* const  bitReader,
+                               size_t           const  untilOffset,
+                               WindowView       const  initialWindow,
+                               size_t           const  maxDecompressedChunkSize,
                                ChunkData&&             result,
                                std::vector<Subchunk>&& subchunks )
     {
@@ -409,10 +409,10 @@ public:
 
 
     [[nodiscard]] static ChunkData
-    decodeChunkWithRapidgzip( BitReader*                 const bitReader,
-                              size_t                     const untilOffset,
-                              std::optional<WindowView>  const initialWindow,
-                              size_t                     const maxDecompressedChunkSize,
+    decodeChunkWithRapidgzip( gzip::BitReader*          const bitReader,
+                              size_t                    const untilOffset,
+                              std::optional<WindowView> const initialWindow,
+                              size_t                    const maxDecompressedChunkSize,
                               ChunkConfiguration        const& chunkDataConfiguration )
     {
         if ( bitReader == nullptr ) {
@@ -695,7 +695,7 @@ public:
             return result;
         }
 
-        BitReader bitReader( std::move( sharedFileReader ) );
+        gzip::BitReader bitReader( std::move( sharedFileReader ) );
         if ( initialWindow ) {
             bitReader.seekTo( blockOffset );
             const auto window = initialWindow->decompress();

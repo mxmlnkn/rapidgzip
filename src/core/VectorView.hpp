@@ -7,7 +7,8 @@
 
 #include "FasterVector.hpp"
 
-
+namespace rapidgzip
+{
 /**
  * Views are by their name read-only. This represents a read-only non-owned memory chunk.
  */
@@ -384,3 +385,4 @@ private:
     T* const m_data;
     constexpr static size_t m_size = T_size;
 };
+}  // namespace rapidgzip

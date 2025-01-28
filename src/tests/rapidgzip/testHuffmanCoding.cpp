@@ -30,7 +30,7 @@ decodeHuffmanAndCompare( const std::vector<uint8_t>&                        code
 {
     BufferedFileReader::AlignedBuffer encodedChars( encoded.size() );
     std::transform( encoded.begin(), encoded.end(), encodedChars.begin(), [] ( const auto c ) { return c; } );
-    rapidgzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( encodedChars ) ) );
+    gzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( encodedChars ) ) );
 
     HuffmanCoding coding;
     const auto errorCode = coding.initializeFromLengths( codeLengths );
@@ -58,7 +58,7 @@ void
 testHuffmanCodingInvalidDetection()
 {
     const std::vector<char> encoded = { 0b0110'1110 };
-    rapidgzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( encoded ) );
+    gzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( encoded ) );
 
     HuffmanCoding coding;
     const std::vector<uint8_t> codeLengthsHalfBit = { 1 };
@@ -74,7 +74,7 @@ void
 testHuffmanCodingReuse( bool testOneSymbolCoding = true )
 {
     const std::vector<char> encoded = { 0b0110'1101 };
-    rapidgzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( encoded ) );
+    gzip::BitReader bitReader( std::make_unique<BufferViewFileReader>( encoded ) );
 
     const std::vector<uint8_t> codeLengths2Bit = { 2, 2, 2, 2 };
     HuffmanCoding coding;
