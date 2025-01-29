@@ -61,6 +61,12 @@ public:
     [[nodiscard]] virtual bool
     seekable() const = 0;
 
+    [[nodiscard]] virtual bool
+    constantTimeSeekable() const
+    {
+        return seekable();
+    }
+
     [[nodiscard]] virtual size_t
     read( char*  buffer,
           size_t nMaxBytesToRead ) = 0;

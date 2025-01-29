@@ -101,6 +101,12 @@ public:
         return !m_file || m_file->seekable();
     }
 
+    [[nodiscard]] bool
+    constantTimeSeekable() const override
+    {
+        return !m_file || m_file->constantTimeSeekable();
+    }
+
     [[nodiscard]] size_t
     read( char*  buffer,
           size_t nMaxBytesToRead ) override

@@ -171,6 +171,12 @@ public:
         return true;
     }
 
+    [[nodiscard]] bool
+    constantTimeSeekable() const override
+    {
+        return false;
+    }
+
     [[nodiscard]] size_t
     read( char*  buffer,
           size_t nMaxBytesToRead ) override

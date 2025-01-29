@@ -204,6 +204,13 @@ public:
         return true;
     }
 
+    [[nodiscard]] bool
+    constantTimeSeekable() const override
+    {
+        const auto lock = getLock();
+        return m_sharedFile->constantTimeSeekable();
+    }
+
     [[nodiscard]] std::optional<size_t>
     size() const override
     {
