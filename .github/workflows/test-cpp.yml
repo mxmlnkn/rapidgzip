@@ -149,7 +149,7 @@ jobs:
     - name: Install System Dependencies
       if: "startsWith(matrix.os , 'macos')"
       run: |
-        brew install ninja pigz zlib isa-l wget
+        brew install -q ninja pigz zlib isa-l wget
         wget 'https://github.com/samtools/htslib/releases/download/1.20/htslib-1.20.tar.bz2'
         tar -xf htslib-1.20.tar.bz2
         cd htslib* && ./configure && make install
@@ -215,7 +215,7 @@ jobs:
     - name: Install System Dependencies
       if: "startsWith(matrix.os , 'macos')"
       run: |
-        brew install ninja pigz zlib isa-l wget nasm
+        brew install -q ninja pigz zlib isa-l wget nasm
         wget 'https://github.com/samtools/htslib/releases/download/1.20/htslib-1.20.tar.bz2'
         tar -xf htslib-1.20.tar.bz2
         cd htslib* && ./configure && make install
@@ -269,7 +269,7 @@ jobs:
     - name: Install System Dependencies
       if: "startsWith(matrix.os , 'macos')"
       run: |
-        brew install ninja pigz zlib isa-l wget nasm
+        brew install -q ninja pigz zlib isa-l wget nasm
         wget 'https://github.com/samtools/htslib/releases/download/1.20/htslib-1.20.tar.bz2'
         tar -xf htslib-1.20.tar.bz2
         cd htslib* && ./configure && make install
@@ -322,7 +322,7 @@ jobs:
     - name: Install System Dependencies
       if: "startsWith(matrix.os , 'macos')"
       run: |
-        brew install ninja pigz zlib isa-l wget nasm gcc
+        brew install -q ninja pigz zlib isa-l wget nasm gcc
         wget 'https://github.com/samtools/htslib/releases/download/1.20/htslib-1.20.tar.bz2'
         tar -xf htslib-1.20.tar.bz2
         cd htslib* && ./configure && make install
@@ -447,7 +447,7 @@ jobs:
     - name: Install System Dependencies
       if: "startsWith(matrix.os , 'macos')"
       run: |
-        brew install ninja
+        brew install -q ninja
 
     - name: Install System Dependencies
       if: "startsWith(matrix.os , 'ubuntu')"
