@@ -464,12 +464,12 @@ cdef class _RapidgzipFile():
                 <string>file.encode(), <size_t>parallelization, <uint64_t>chunk_size, <IOReadMethod>io_read_method
             )
 
-        self.gzipReader.setStatisticsEnabled(verbose);
-        self.gzipReader.setShowProfileOnDestruction(verbose);
-
         if self.gzipReader == NULL:
             raise Exception("Expected file name string, file descriptor integer, "
                             "or file-like object for ParallelGzipReader!")
+
+        self.gzipReader.setStatisticsEnabled(verbose);
+        self.gzipReader.setShowProfileOnDestruction(verbose);
 
 
     def __init__(self, *args, **kwargs):
