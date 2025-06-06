@@ -138,7 +138,7 @@ jobs:
     - uses: actions/upload-artifact@v4
       with:
         name: Linux x86-64 CPython Wheels
-        path: "dist/*-cp31*manylinux_2_28_x86_64.whl"
+        path: "dist/*-cp31*manylinux*.whl"
 
     - name: Publish Tarball to PyPI
       # Only one out of the OS matrix needs to upload the tarball.
