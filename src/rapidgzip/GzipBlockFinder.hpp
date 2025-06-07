@@ -68,6 +68,19 @@ public:
         m_blockOffsets.push_back( detectedFormat->second );
     }
 
+    explicit
+    GzipBlockFinder( const GzipBlockFinder& other ) :
+        m_file( other.m_file->clone() ),
+        m_fileSizeInBits( other.m_fileSizeInBits ),
+        m_finalized( other.m_finalized ),
+        m_spacingInBits( other.m_spacingInBits ),
+        m_blockOffsets( other.m_blockOffsets ),
+        m_fileType( other.m_fileType ),
+        m_bgzfBlockFinder( other.m_bgzfBlockFinder
+                           ? std::make_unique<blockfinder::Bgzf>( *other.m_bgzfBlockFinder )
+                           : nullptr )
+    {}
+
     /**
      * @return number of block offsets. This number may increase as long as it is not finalized yet.
      */
