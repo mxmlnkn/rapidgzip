@@ -136,6 +136,12 @@ public:
         }
     }
 
+    explicit
+    Bgzf( const Bgzf& other ) :
+        m_fileReader( other.m_fileReader->clone() ),
+        m_currentBlockOffset( other.m_currentBlockOffset )
+    {}
+
     [[nodiscard]] static bool
     isBgzfFile( const UniqueFileReader& file )
     {

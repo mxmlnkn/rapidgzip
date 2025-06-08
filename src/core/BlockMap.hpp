@@ -7,7 +7,6 @@
 #include <mutex>
 #include <optional>
 #include <stdexcept>
-#include <thread>
 #include <utility>
 #include <vector>
 
@@ -61,6 +60,13 @@ public:
 
 public:
     BlockMap() = default;
+    BlockMap( const BlockMap& other ) :
+        m_blockToDataOffsets( other.m_blockToDataOffsets ),
+        m_eosBlocks( other.m_eosBlocks ),
+        m_finalized( other.m_finalized ),
+        m_lastBlockEncodedSize( other.m_lastBlockEncodedSize ),
+        m_lastBlockDecodedSize( other.m_lastBlockDecodedSize )
+    {}
 
     /**
      * @return decoded offset in bytes, i.e., the sum of all previously decoded block data.

@@ -11,7 +11,6 @@
 #include <sstream>
 #include <string>
 #include <string_view>
-#include <thread>
 #include <utility>
 #include <vector>
 
@@ -28,7 +27,6 @@
 
 #include "crc32.hpp"
 #include "GzipChunkFetcher.hpp"
-#include "GzipBlockFinder.hpp"
 #include "gzip.hpp"
 #include "IndexFileFormat.hpp"
 
@@ -321,6 +319,42 @@ public:
         }
     }
 
+    explicit
+    ParallelGzipReader( const ParallelGzipReader& other ) :
+        m_chunkSizeInBytes( other.m_chunkSizeInBytes ),
+        m_maxDecompressedChunkSize( other.m_maxDecompressedChunkSize ),
+        m_sharedFileReader( ensureSharedFileReader( other.m_sharedFileReader->clone() ) ),
+        m_currentPosition( other.m_currentPosition ),
+        m_atEndOfFile( other.m_atEndOfFile ),
+        m_statisticsEnabled( other.m_statisticsEnabled ),
+        m_showProfileOnDestruction( other.m_showProfileOnDestruction ),
+        m_writeOutputTime( other.m_writeOutputTime ),
+        m_crc32Time( other.m_crc32Time ),
+        m_verifiedCRC32Count( other.m_verifiedCRC32Count ),
+        m_fetcherParallelization( other.m_fetcherParallelization ),
+        m_startBlockFinder( other.m_startBlockFinder ),
+        m_blockFinder( other.m_blockFinder ?
+                       std::make_unique<BlockFinder>( *other.m_blockFinder ) :
+                       nullptr ),
+        m_blockMap( std::make_shared<BlockMap>( *other.m_blockMap ) ) ,
+        m_windowMap( std::make_shared<WindowMap>( *other.m_windowMap ) ),
+        m_keepIndex( other.m_keepIndex ),
+        m_windowSparsity( other.m_windowSparsity ),
+        m_windowCompressionType( other.m_windowCompressionType ),
+        m_chunkFetcher( other.m_chunkFetcher ?
+                        std::make_unique<ChunkFetcher>(
+                            ensureSharedFileReader( m_sharedFileReader->clone() ),
+                            m_blockFinder, m_blockMap, m_windowMap,
+                            m_fetcherParallelization ) :
+                        nullptr ),
+        m_newlineOffsets( other.m_newlineOffsets ),
+        m_newlineFormat( other.m_newlineFormat ),
+        m_crc32( other.m_crc32 ),
+        m_nextCRC32ChunkOffset( other.m_nextCRC32ChunkOffset ),
+        m_deflateStreamCRC32s( other.m_deflateStreamCRC32s ),
+        m_indexIsImported( other.m_indexIsImported )
+    {}
+
 #ifdef WITH_PYTHON_SUPPORT
     /* These constructor overloads are for easier construction in the Cython-interface.
      * For C++, the FileReader constructor would have been sufficient. */
@@ -396,7 +430,7 @@ public:
     [[nodiscard]] UniqueFileReader
     clone() const override
     {
-        throw std::logic_error( "Not implemented!" );
+        return std::make_unique<ParallelGzipReader>( *this );
     }
 
     [[nodiscard]] int

@@ -1079,6 +1079,24 @@ testChunkRemerging()
     REQUIRE_EQUAL( reader.read( -1, nullptr ), toCompress.size() );
 }
 
+void testCloning()
+{
+    constexpr size_t UNCOMPRESSED_SIZE = 1_Mi;
+    const auto uncompressedData = createRandomData( UNCOMPRESSED_SIZE, DNA_SYMBOLS );
+    auto compressedData = compressWithZlib( uncompressedData );
+    auto reader = std::make_unique<ParallelGzipReader<>>(
+        std::make_unique<BufferViewFileReader>( compressedData ), 1 );
+    auto clone = reader->clone();
+
+    std::vector<std::byte> decompressed( UNCOMPRESSED_SIZE );
+    REQUIRE_EQUAL( reader->read( reinterpret_cast<char*>( decompressed.data() ), UNCOMPRESSED_SIZE ),
+                   UNCOMPRESSED_SIZE );
+    REQUIRE( decompressed == uncompressedData );
+    // The clone should give us the exact same data
+    REQUIRE_EQUAL( clone->read( reinterpret_cast<char*>( decompressed.data() ), UNCOMPRESSED_SIZE ),
+                   UNCOMPRESSED_SIZE );
+    REQUIRE( decompressed == uncompressedData );
+}
 
 int
 main( int    argc,
@@ -1180,6 +1198,8 @@ main( int    argc,
     }
 
     testWithLargeFiles( tmpFolder );
+
+    testCloning();
 
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
 
