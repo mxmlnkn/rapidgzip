@@ -13,7 +13,7 @@
 
 static constexpr uint32_t RAPIDGZIP_VERSION_MAJOR{ 0 };
 static constexpr uint32_t RAPIDGZIP_VERSION_MINOR{ 14 };
-static constexpr uint32_t RAPIDGZIP_VERSION_PATCH{ 3 };
+static constexpr uint32_t RAPIDGZIP_VERSION_PATCH{ 4 };
 static constexpr uint32_t RAPIDGZIP_VERSION{
     RAPIDGZIP_VERSION_MAJOR * 0x10000UL + RAPIDGZIP_VERSION_MINOR * 0x100UL + RAPIDGZIP_VERSION_PATCH
 };

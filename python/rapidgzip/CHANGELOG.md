@@ -1,4 +1,13 @@
 
+# Version 0.14.4 built on 2025-07-02
+
+## Fixes
+
+ - Some input files resulted in wrong null-bytes appearing in the decompressed stream when using `RapidgzipFile`
+   for bzip2 files. `IndexedBzip2File` did not suffer from this bug.
+ - On Python 3.11+, recursively stacking `RapdigzipFile` did segfault because of wrong usage of the GIL.
+
+
 # Version 0.14.3 built on 2024-10-14
 
 ## Fixes
