@@ -51,7 +51,7 @@ jobs:
     - name: Install Python Modules
       run: |
         python3 -m pip install --upgrade pip
-        python3 -m pip install --upgrade-strategy eager --upgrade cibuildwheel cython twine numpy
+        python3 -m pip install --upgrade-strategy eager --upgrade cibuildwheel~=2.0 cython twine numpy
 
     - name: Install Python Modules (Windows)
       if: matrix.os == 'windows-latest'
