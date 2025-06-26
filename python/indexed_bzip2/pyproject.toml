@@ -6,7 +6,10 @@
 # Use setuptools >= 61 for pyproject.toml support
 # Use setuptools < 72 because of this: https://github.com/pypa/distutils/issues/283
 # https://setuptools.readthedocs.io/en/latest/history.html#id284
-requires = ["setuptools >= 61.2, < 72", "wheel", "cython >= 0.29.24"]
+# Pin Cython < 3.1.0 because of this errors on macos-14 runner (2025-06):
+#    indexed_bzip2.cpp:16328:29: error: use of undeclared identifier 'PyDescr_NewMember'
+#        descr = PyDescr_NewMember(type, memb);
+requires = ["setuptools >= 61.2, < 72", "wheel", "cython >= 0.29.24, < 3.1"]
 
 [project]
 name = "indexed_bzip2"
