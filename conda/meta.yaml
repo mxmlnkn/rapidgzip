@@ -12,16 +12,27 @@ source:
   url: src.tar
 
 build:
+  entry_points:
+    - ibzip2=indexed_bzip2:cli
+  script: {{ PYTHON }} -m pip install . -vv
   number: 0
 
 requirements:
   build:
-    - setuptools
     - cython
     - {{ compiler('cxx') }}
+    - cxxopts>=3,<4
+    - setuptools >=61.2
+    - wheel
   host:
     - python {{ python }}
+    - setuptools >=61.2
+    - wheel
     - cython
+    - pip
+    - cxxopts>=3,<4
+  run:
+    - {{ pin_compatible("libcxx", max_pin=None) }}  # [osx]
 
 about:
   home: {{ data.get('url') }}

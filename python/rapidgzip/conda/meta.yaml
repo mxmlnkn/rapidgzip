@@ -32,9 +32,9 @@ requirements:
   host:
     - libcxx {{ cxx_compiler_version }}  # [osx]
     - python
-    - setuptools >=46.4.0
+    - setuptools >=61.2
     - wheel
-    - cython >=0.29.24
+    - cython >=3
     - pip
     - cxxopts>=3,<4
   run:
