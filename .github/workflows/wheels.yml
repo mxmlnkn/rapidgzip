@@ -75,9 +75,6 @@ jobs:
       env:
         CIBW_ARCHS: ${{ matrix.archs }}
         CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux-image }}
-        # Skip Python 3.6 because it is EOL and because pyproject.toml requires setuptools > 61,
-        # which is only available for Python >= 3.7.
-        CIBW_SKIP: "*cp36-*"
       run: python -m cibuildwheel --output-dir dist python/indexed_bzip2
 
     - name: Check Wheels

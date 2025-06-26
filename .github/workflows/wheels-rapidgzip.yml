@@ -94,9 +94,6 @@ jobs:
         CIBW_BEFORE_ALL_LINUX: "uname -a; apk add nasm"
         CIBW_BUILD_VERBOSITY: 2
         CIBW_BUILD: "*musllinux*"
-        # Skip Python 3.6 because it is EOL and because pyproject.toml requires setuptools > 61,
-        # which is only available for Python >= 3.7.
-        CIBW_SKIP: "*cp36-*"
 
       run: python -m cibuildwheel --output-dir dist python/rapidgzip
 
@@ -110,9 +107,7 @@ jobs:
           brew install nasm;
           export PATH="$PATH:/usr/local/bin"
         CIBW_BUILD_VERBOSITY: 2
-        # Skip Python 3.6 because it is EOL and because pyproject.toml requires setuptools > 61,
-        # which is only available for Python >= 3.7.
-        CIBW_SKIP: "*{cp36-,musllinux}*"
+        CIBW_SKIP: "*musllinux*"
 
       run: python -m cibuildwheel --output-dir dist python/rapidgzip
 
