@@ -65,9 +65,14 @@ jobs:
         EOF
 
     - name: Build Conda Packages
+      # Bash shells do not use ~/.profile or ~/.bashrc so these shells need to be explicitely declared as shell:
+      # bash -l {0} on steps that need to be properly activated
+      shell: bash -l {0}
       working-directory: conda
       run: |
         conda install conda conda-build anaconda-client conda-verify packaging
+        conda config --add channels conda-forge
+        conda config --set report_errors false
         conda config --set anaconda_upload no
         python3 -m pip install build
         python3 -m build -o . --sdist ../python/indexed_bzip2
