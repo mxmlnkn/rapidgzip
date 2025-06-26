@@ -262,14 +262,26 @@ public:
     void
     readBlockData();
 
-    [[nodiscard]] bool
-    eos() const
+    /**
+     * @return True if this is a special enf-of-stream bzip2 block, which contains no data.
+     */
+    [[nodiscard]] constexpr bool
+    eos() const noexcept
     {
         return m_atEndOfStream;
     }
 
-    [[nodiscard]] bool
-    eof() const
+    /**
+     * @return True if all data has been read from this block.
+     */
+    [[nodiscard]] constexpr bool
+    eob() const noexcept
+    {
+        return eos() || !bwdata.hasData();
+    }
+
+    [[nodiscard]] constexpr bool
+    eof() const noexcept
     {
         return m_atEndOfFile;
     }
@@ -295,6 +307,25 @@ public:
         const auto result = bwdata.decodeBlock( nMaxBytesToDecode, outputBuffer );
         statistics.durations.decodeBlock += duration( t0 );
         return result;
+    }
+
+    /**
+     * @return The current CRC32 checksum of the decoded data. If all the data of this block has been decoded,
+     *         this should match header CRC.
+     */
+    [[nodiscard]] constexpr uint32_t
+    dataCRC() const noexcept
+    {
+        return bwdata.dataCRC;
+    }
+
+    /**
+     * @return The CRC32 checksum as stored in the bzip2 block header.
+     */
+    [[nodiscard]] constexpr uint32_t
+    headerCRC() const noexcept
+    {
+        return bwdata.headerCRC;
     }
 
 private:
@@ -343,10 +374,7 @@ public:
     {
         friend Block;
 
-    private:
-        void
-        prepare();
-
+    public:
         /**
          * Currently, the logic is limited and might write up to nMaxBytesToDecode + 255 characters
          * to the output buffer! Currently, the caller has to ensure that the output buffer is large enough.
@@ -355,7 +383,18 @@ public:
         decodeBlock( size_t nMaxBytesToDecode,
                      char*  outputBuffer );
 
-    public:
+        [[nodiscard]] constexpr bool
+        hasData() const noexcept
+        {
+            return ( writeCount > 0 ) || ( symbolRepeatCount > 0 );
+        }
+
+    private:
+        /** Must only be called after initializing the members from outside. */
+        void
+        prepare();
+
+    private:
         uint32_t origPtr = 0;
         std::array<uint32_t, 256> byteCount{};
 
@@ -364,6 +403,10 @@ public:
         int writeRun = 0;
         uint32_t writeCount = 0;
         int writeCurrent = 0;
+
+        /* This is for resuming run-length compression. */
+        uint8_t symbolToRepeat{ 0 };
+        uint8_t symbolRepeatCount{ 0 };
 
         uint32_t dataCRC = 0xFFFFFFFFL;  /* CRC of block as calculated by us */
         uint32_t headerCRC = 0;  /* what the block data CRC should be */
@@ -374,6 +417,12 @@ public:
     };
 
 public:
+    Statistics statistics;
+
+    size_t encodedOffsetInBits = 0;
+    size_t encodedSizeInBits = 0;
+
+private:
     uint64_t magicBytes{ 0 };
     bool isRandomized{ false };
 
@@ -406,12 +455,6 @@ public:
     /* Second pass decompression data (burrows-wheeler transform) */
     BurrowsWheelerTransformData bwdata;
 
-    size_t encodedOffsetInBits = 0;
-    size_t encodedSizeInBits = 0;
-
-    Statistics statistics;
-
-private:
     BitReader* m_bitReader = nullptr;
     bool m_atEndOfStream = false;
     bool m_atEndOfFile = false;
@@ -799,6 +842,8 @@ Block::BurrowsWheelerTransformData::prepare()
         writePos >>= 8U;
         writeRun = -1;
     }
+
+    symbolRepeatCount = 0;
 }
 
 
@@ -806,11 +851,23 @@ inline size_t
 Block::BurrowsWheelerTransformData::decodeBlock( const size_t nMaxBytesToDecode,
                                                  char*        outputBuffer )
 {
-    if ( ( writeCount == 0 ) || ( outputBuffer == nullptr ) ) {
+    if ( ( outputBuffer == nullptr ) || !hasData() ) {
         return 0;
     }
 
     size_t nBytesDecoded = 0;
+
+    const auto writeRepeatedSymbols =
+        [&, this] ()
+        {
+            while( ( symbolRepeatCount > 0 ) && ( nBytesDecoded < nMaxBytesToDecode ) ) {
+                --symbolRepeatCount;
+                outputBuffer[nBytesDecoded++] = static_cast<char>( symbolToRepeat );
+                dataCRC = updateCRC32( dataCRC, symbolToRepeat );
+            }
+        };
+
+    writeRepeatedSymbols();
 
     while ( ( writeCount > 0 ) && ( nBytesDecoded < nMaxBytesToDecode ) ) {
         writeCount--;
@@ -831,18 +888,16 @@ Block::BurrowsWheelerTransformData::decodeBlock( const size_t nMaxBytesToDecode,
                 ++writeRun;
             }
         } else {
-            int copies = writeCurrent;
-            while ( copies-- != 0 ) {
-                outputBuffer[nBytesDecoded++] = static_cast<char>( previous );
-                dataCRC = updateCRC32( dataCRC, previous );
-            }
+            symbolToRepeat = previous;
+            symbolRepeatCount = writeCurrent;
+            writeRepeatedSymbols();
             writeCurrent = -1;
             writeRun = 0;
         }
     }
 
     /* decompression of this block completed successfully */
-    if ( writeCount == 0 ) {
+    if ( ( writeCount == 0 ) && ( symbolRepeatCount == 0 ) ) {
         dataCRC = ~dataCRC;
         if ( dataCRC != headerCRC ) {
             std::stringstream msg;

@@ -17,6 +17,7 @@ import tempfile
 import threading
 import time
 import zlib
+from pathlib import Path
 
 if __name__ == '__main__' and __package__ is None:
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -206,7 +207,6 @@ def testDecompression(parameters):
                 sb = CompressedFileReader(compressedFile.name)
                 sb.read(seekPos)
                 print("    Char when doing naive seek:", sb.read(1).hex())
-                print("    index.size:", index.seek(0, io.SEEK_END))
 
                 storeFiles(rawFile, compressedFile, str(parameters), parameters.extension)
                 raise e
@@ -449,25 +449,55 @@ if __name__ == '__main__':
         print("  Test opening with indexed_bzip2.open and file object without fileno")
         test(lambda name: indexed_bzip2.open(openFileAsBytesIO(name), parallelization=parallelization))
 
-    def test(openIndexedFileFromName, closeUnderlyingFile=None):
+    def test(openIndexedFileFromName, encoder, closeUnderlyingFile=None):
         testPythonInterface(
             openIndexedFileFromName, compressionLevel=9, encoder="pygzip", closeUnderlyingFile=closeUnderlyingFile
         )
 
-    for parallelization in [1, 2, 3, 8]:
-        print("Test Python Interface of RapidgzipFile for parallelization = ", parallelization)
+    for encoder in ['pygzip', 'pybz2']:
+        for parallelization in [1, 2, 3, 8]:
+            print("Test Python Interface of RapidgzipFile for parallelization = ", parallelization)
 
-        print("  Test opening with RapidgzipFile")
-        test(lambda name: RapidgzipFile(name, parallelization=parallelization))
+            print("  Test opening with RapidgzipFile")
+            test(lambda name: RapidgzipFile(name, parallelization=parallelization), encoder)
 
-        print("  Test opening with rapidgzip.open")
-        test(lambda name: rapidgzip.open(name, parallelization=parallelization))
+            print("  Test opening with rapidgzip.open")
+            test(lambda name: rapidgzip.open(name, parallelization=parallelization), encoder)
 
-        print("  Test opening with rapidgzip.open and file object with fileno")
-        test(lambda name: openThroughGlobalFile(name, rapidgzip), lambda: openedFileForInterfaceTest.close())
+            print("  Test opening with rapidgzip.open and file object with fileno")
+            test(
+                lambda name: openThroughGlobalFile(name, rapidgzip), encoder, lambda: openedFileForInterfaceTest.close()
+            )
 
-        print("  Test opening with rapidgzip.open and file object without fileno")
-        test(lambda name: rapidgzip.open(openFileAsBytesIO(name), parallelization=parallelization))
+            print("  Test opening with rapidgzip.open and file object without fileno")
+            test(lambda name: rapidgzip.open(openFileAsBytesIO(name), parallelization=parallelization), encoder)
+
+    # Regression test for rapidgzip/issues/55
+    for size in [512 * 1024 + 2, 1, 2, 4, 128, 1000, 1024, 128 * 1024, 100_000, 200_000, 400_000, 1024 * 1024]:
+        original_data = b'A' * size
+        compressed_data = bz2.compress(original_data, compresslevel=1)
+        compressed_file = io.BytesIO(compressed_data)
+
+        with bz2.BZ2File(compressed_file) as file:
+            assert file.read() == b'A' * size
+
+        for openFile in [
+            lambda x: rapidgzip.IndexedBzip2File(x, parallelization=1),
+            lambda x: rapidgzip.IndexedBzip2File(x, parallelization=2),
+            rapidgzip.open,
+            lambda x: rapidgzip.RapidgzipFile(x, parallelization=1),
+            lambda x: rapidgzip.RapidgzipFile(x, parallelization=2),
+        ]:
+            with openFile(compressed_file) as file:
+                try:
+                    decompressed = file.read()
+                    assert len(decompressed) == size
+                    assert decompressed == original_data
+                except Exception:
+                    fname = f"broken-{size}-AAAs.bz2"
+                    Path(fname).write_bytes(compressed_data)
+                    print("Wrote broken file to:", fname)
+                    raise
 
     encoders = ['pybz2']
     if commandExists('bzip2'):
@@ -477,16 +507,20 @@ if __name__ == '__main__':
 
     bufferSizes = [-1, 128, 333, 500, 1024, 1024 * 1024, 64 * 1024 * 1024]
     parameters = [
-        TestParameters(size, encoder, compressionLevel, pattern, patternSize, bufferSizes, 1, 'bz2', IndexedBzip2File)
+        TestParameters(size, encoder, compressionLevel, pattern, patternSize, bufferSizes, 1, 'bz2', FileOpener)
+        for FileOpener in [RapidgzipFile, IndexedBzip2File]
         for size in [1, 2, 3, 4, 5, 10, 20, 30, 100, 1000, 10000, 100000, 200000, 0]
         for encoder in encoders
         for compressionLevel in range(1, 9 + 1)
         for pattern in ['random', 'sequences']
         for patternSize in ([None] if pattern == 'random' else [1, 2, 8, 123, 257, 2048, 100000])
     ]
+
+    encoders = ['pygzip']
     parameters += [
-        TestParameters(size, 'pygzip', compressionLevel, pattern, patternSize, bufferSizes, 1, 'gz', RapidgzipFile)
+        TestParameters(size, encoder, compressionLevel, pattern, patternSize, bufferSizes, 1, 'gz', RapidgzipFile)
         for size in [1, 2, 3, 4, 5, 10, 20, 30, 100, 1000, 10000, 100000, 200000, 0]
+        for encoder in encoders
         for compressionLevel in range(1, 9 + 1)
         for pattern in ['random', 'sequences']
         for patternSize in ([None] if pattern == 'random' else [1, 2, 8, 123, 257, 2048, 100000])
