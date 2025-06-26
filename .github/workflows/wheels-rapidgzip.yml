@@ -71,7 +71,7 @@ jobs:
     - name: Install Dependencies
       run: |
         python3 -m pip install --upgrade pip
-        python3 -m pip install --upgrade-strategy eager --upgrade cython twine cibuildwheel build requests
+        python3 -m pip install --upgrade-strategy eager --upgrade cython twine cibuildwheel~=2.0 build requests
 
     - name: Install NASM (Windows)
       if: matrix.os == 'windows-latest'

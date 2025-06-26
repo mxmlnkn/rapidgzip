@@ -63,7 +63,7 @@ jobs:
     - name: Install Dependencies
       run: |
         python3 -m pip install --upgrade pip
-        python3 -m pip install --upgrade-strategy eager --upgrade cython twine cibuildwheel build
+        python3 -m pip install --upgrade-strategy eager --upgrade cython twine cibuildwheel~=2.0 build
 
     - name: Build Tarball
       working-directory: python/indexed_bzip2
