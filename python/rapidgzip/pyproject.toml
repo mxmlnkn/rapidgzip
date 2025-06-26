@@ -11,7 +11,11 @@
 # https://github.com/pypa/setuptools/pull/3505
 # https://github.com/zhisong/pyoculus/issues/10
 # https://setuptools.readthedocs.io/en/latest/history.html#id284
-requires = ["setuptools >= 61.2, < 72", "wheel", "cython >= 0.29.24"]
+# Pin Cython >= 3 because of "cpdef enum class IndexFormat"
+# Pin Cython < 3.1.0 because of this errors on macos-14 runner (2025-06):
+#    indexed_bzip2.cpp:16328:29: error: use of undeclared identifier 'PyDescr_NewMember'
+#        descr = PyDescr_NewMember(type, memb);
+requires = ["setuptools >= 61.2, < 72", "wheel", "cython >= 3, < 3.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
