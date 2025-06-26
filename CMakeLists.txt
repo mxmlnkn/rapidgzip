@@ -3,12 +3,19 @@ cmake_minimum_required(VERSION 3.17)
 
 project("Indexed BZip2/Gzip Decoder" CXX)
 
-
 option(CODE_COVERAGE "Enable coverage reporting" OFF)
 option(USE_SYSTEM_ZLIB "Use the system-installed zlib library instead of compiling it from source" OFF)
 option(WITH_RPMALLOC "Compile with rpmalloc for faster memory allocations" ON)
 option(WITH_ISAL "Compile with ISA-l for more than twice as fast decompression than zlib" ON)
 option(RUN_CLANG_TIDY "Runs clang-tidy while building targets" OFF)
+
+if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm" OR ${CMAKE_SYSTEM_PROCESSOR} MATCHES "aarch")
+    set(IS_ARM ON)
+    # ARM compilation not yet implemented!
+    set(WITH_ISAL OFF)
+else()
+    set(IS_ARM OFF)
+endif()
 
 set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "" FORCE)
 
@@ -33,12 +40,16 @@ add_compile_options(
     # https://www.phoronix.com/news/GCC-fhardened-Hardening-Option
     # https://developers.redhat.com/blog/2018/03/21/compiler-and-linker-flags-gcc
     # I have not observed any performance impact for these.
-    "$<$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>:-fpie;-fstack-protector-strong;-fcf-protection=full>"
+    "$<$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>:-fpie;-fstack-protector-strong>"
     # -fstack-clash-protection crashes the MINGW compiler https://github.com/msys2/MINGW-packages/issues/5348
     "$<$<AND:$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>,$<NOT:$<PLATFORM_ID:Windows>>>:-fstack-clash-protection>"
     # Fix error with MINGW: Fatal error: can't write 94 bytes to section .text of testCLI.cpp.obj: 'file too big'
     "$<$<AND:$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>,$<PLATFORM_ID:Windows>>:-Wa,-mbig-obj>"
 )
+
+if(NOT ${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm" AND NOT ${CMAKE_SYSTEM_PROCESSOR} MATCHES "aarch")
+    add_compile_options("$<$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>:-fcf-protection=full>")
+endif()
 
 add_link_options(
     "$<$<AND:$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang,GNU>,$<BOOL:${CODE_COVERAGE}>>:--coverage>"

@@ -11,7 +11,7 @@ jobs:
 
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
+        os: [macos-latest, ubuntu-latest, ubuntu-24.04-arm, windows-latest]
 
     steps:
     - uses: actions/checkout@v4

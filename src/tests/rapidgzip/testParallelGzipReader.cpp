@@ -4,6 +4,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <set>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -390,16 +391,23 @@ testWithLargeFiles( const TemporaryDirectory& tmpFolder )
 #endif
 
     try {
+        std::set<std::tuple<std::string, std::string, std::string, std::string> > INSTALLED_ENCODERS;
         for ( const auto& [name, getVersion, command, extension] : TEST_ENCODERS ) {
             std::cout << "=== Get version for encoder: " << name << " ===\n\n";
             std::cout << "> " << getVersion << "\n";
-            [[maybe_unused]] const auto versionReturnCode = std::system( ( getVersion + " > out" ).c_str() );
+            const auto versionReturnCode = std::system( ( getVersion + " > out" ).c_str() );
+            if ( versionReturnCode == 0 ) {
+                INSTALLED_ENCODERS.emplace( std::make_tuple( name, getVersion, command, extension ) );
+            }
             std::cout << std::ifstream( "out" ).rdbuf();
             std::cout << "\n";
         }
 
         for ( const auto& fileName : filePaths ) {
             for ( const auto& [name, getVersion, command, extension] : TEST_ENCODERS ) {
+                if ( !INSTALLED_ENCODERS.count( std::make_tuple( name, getVersion, command, extension ) ) == 0 ) {
+                    continue;
+                }
                 const auto encodedFilePath = encodeTestFile( fileName, tmpFolder, command );
                 const auto newFileName = fileName + "." + extension;
                 std::filesystem::rename( encodedFilePath, newFileName );

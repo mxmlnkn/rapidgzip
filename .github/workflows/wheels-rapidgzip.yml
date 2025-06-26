@@ -31,6 +31,12 @@ jobs:
         - os: ubuntu-latest
           manylinux-image: manylinux_2_28
           archs: auto64
+        - os: ubuntu-24.04-arm
+          manylinux-image: manylinux2014
+          archs: auto64
+        - os: ubuntu-24.04-arm
+          manylinux-image: manylinux_2_28
+          archs: auto64
     env:
       # By default, both build (https://pypi.org/project/build/)
       # and cibuildwheel (https://pypi.org/project/cibuildwheel/) seem to try to compile for macOS 10.9
@@ -115,7 +121,7 @@ jobs:
       run: twine check dist/* python/rapidgzip/dist/*
 
     - name: Test Wheel
-      if: matrix.os == 'ubuntu-latest' && matrix.archs == 'auto64'
+      if: startsWith(matrix.os, 'ubuntu-latest') && matrix.archs == 'auto64'
       run: |
         PYTHON_VERSION=$( python3 --version | sed -nr 's|.* (3)[.]([0-9]+)[.].*|\1\2|p' )
         python -m pip install dist/*-cp${PYTHON_VERSION}-cp${PYTHON_VERSION}-manylinux*.whl
@@ -131,6 +137,7 @@ jobs:
         rapidgzip --oss-attributions | grep -i ISA-L
 
     - uses: actions/upload-artifact@v4
+      if: matrix.os == 'ubuntu-latest'
       with:
         name: Linux x86-64 CPython Wheels
         path: "dist/*-cp31*manylinux*.whl"
