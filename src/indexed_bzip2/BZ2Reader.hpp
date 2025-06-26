@@ -410,7 +410,7 @@ BZ2Reader::readBlockHeader( size_t offsetBits )
 
     if ( header.eos() ) {
         /* EOS block contains CRC for whole stream */
-        m_streamCRC = header.bwdata.headerCRC;
+        m_streamCRC = header.headerCRC();
 
         if ( !m_blockToDataOffsetsComplete && ( m_streamCRC != m_calculatedStreamCRC ) ) {
             std::stringstream msg;
@@ -462,7 +462,7 @@ BZ2Reader::decodeStream( WriteFunctor const& writeFunctor,
 
     while ( nBytesDecoded < nMaxBytesToDecode ) {
         /* If we need to refill dbuf, do it. Only won't be required for resuming interrupted decodations. */
-        if ( m_lastHeader.bwdata.writeCount == 0 ) {
+        if ( m_lastHeader.eob() ) {
             m_statistics.merge( m_lastHeader.statistics );
             m_lastHeader = readBlockHeader( m_bitReader.tell() );
             if ( m_lastHeader.eos() ) {
@@ -480,15 +480,12 @@ BZ2Reader::decodeStream( WriteFunctor const& writeFunctor,
                                       "file descriptor or buffer!" );
         }
 
-        /* the max bytes to decode does not account for copies caused by RLE!
-         * There can be at maximum 255 copies! */
-        assert( m_decodedBuffer.size() >= 255 );
-        const auto nBytesToDecode = std::min( m_decodedBuffer.size() - 255, nMaxBytesToDecode - nBytesDecoded );
+        const auto nBytesToDecode = std::min( m_decodedBuffer.size(), nMaxBytesToDecode - nBytesDecoded );
         m_decodedBufferPos = m_lastHeader.read( nBytesToDecode, m_decodedBuffer.data() );
 
-        if ( ( m_lastHeader.bwdata.writeCount == 0 ) && !m_blockToDataOffsetsComplete ) {
+        if ( m_lastHeader.eob() && !m_blockToDataOffsetsComplete ) {
             m_calculatedStreamCRC = ( ( m_calculatedStreamCRC << 1U ) | ( m_calculatedStreamCRC >> 31U ) )
-                                    ^ m_lastHeader.bwdata.dataCRC;
+                                    ^ m_lastHeader.dataCRC();
         }
 
         /* required for correct data offsets in readBlockHeader and for while condition of course */

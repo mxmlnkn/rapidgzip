@@ -71,7 +71,7 @@ public:
         result.encodedOffsetInBits = blockOffset;
         result.isEndOfStreamBlock = block.eos();
         result.isEndOfFile = block.eof();
-        result.expectedCRC = block.bwdata.headerCRC;
+        result.expectedCRC = block.headerCRC();
 
         if ( block.eos() ) {
             result.encodedSizeInBits = block.encodedSizeInBits;
@@ -93,7 +93,7 @@ private:
         result.encodedOffsetInBits = blockOffset;
         result.isEndOfStreamBlock = block.eos();
         result.isEndOfFile = block.eof();
-        result.expectedCRC = block.bwdata.headerCRC;
+        result.expectedCRC = block.headerCRC();
 
         /* Actually, this should never happen with the current implementation because only blocks found by the
          * block finder will be handled here and the block finder does not search for EOS magic bits. */
@@ -123,11 +123,11 @@ private:
                 reinterpret_cast<char*>( result.data.data() ) + decodedDataSize
             );
         }
-        while ( block.bwdata.writeCount > 0 );
+        while ( !block.eob() );
 
         result.data.resize( decodedDataSize );
         result.encodedSizeInBits = block.encodedSizeInBits;
-        result.calculatedCRC = block.bwdata.dataCRC;
+        result.calculatedCRC = block.dataCRC();
 
         /* The next block offset might be a farther out in case this is the last valid block in the stream! */
         assert( ( nextBlockOffset == std::numeric_limits<size_t>::max() )

@@ -159,13 +159,13 @@ public:
                 subchunk.resize( nBytesRead );
                 result.append( std::move( subchunk ) );
 
-                blockBytesRead += nBytesRead;
-                totalBytesRead += nBytesRead;
-                subchunks.back().decodedSize += nBytesRead;
-
                 if ( nBytesRead == 0 ) {
                     break;
                 }
+
+                blockBytesRead += nBytesRead;
+                totalBytesRead += nBytesRead;
+                subchunks.back().decodedSize += nBytesRead;
 
                 /**
                  * > Because of the first-stage RLE compression (see above), the maximum length of plaintext
