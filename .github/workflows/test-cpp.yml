@@ -20,6 +20,7 @@ jobs:
 
     - name: Install Dependencies
       run: |
+        sudo apt update
         sudo apt-get -y install bzip2 cppcheck clang clang-tidy g++ lcov ninja-build wget gzip tabix pigz gztool libarchive-dev zlib1g-dev isal nasm
         python3 -m pip install --upgrade pip
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
@@ -77,6 +78,7 @@ jobs:
 
     - name: Install Dependencies
       run: |
+        sudo apt update
         sudo apt-get -y install clang clang-tidy ninja-build libarchive-dev zlib1g-dev nasm
 
     - name: Run clang-tidy
@@ -104,6 +106,7 @@ jobs:
 
     - name: Install Dependencies
       run: |
+        sudo apt update
         sudo apt-get -y install g++ ninja-build gzip tabix pigz gztool libarchive-dev zlib1g-dev isal nasm
         python3 -m pip install --upgrade pip
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
@@ -157,6 +160,7 @@ jobs:
     - name: Install System Dependencies
       if: "startsWith(matrix.os , 'ubuntu')"
       run: |
+        sudo apt update
         sudo apt-get -y install g++ ninja-build gzip tabix pigz gztool libarchive-dev zlib1g-dev isal
 
     - name: Fix pip
@@ -223,6 +227,7 @@ jobs:
     - name: Install System Dependencies
       if: "startsWith(matrix.os , 'ubuntu')"
       run: |
+        sudo apt update
         sudo apt-get -y install clang g++ ninja-build gzip tabix pigz gztool libarchive-dev zlib1g-dev isal nasm
 
     - name: Fix pip
@@ -277,6 +282,7 @@ jobs:
     - name: Install System Dependencies
       if: "startsWith(matrix.os , 'ubuntu')"
       run: |
+        sudo apt update
         sudo apt-get -y install clang g++ ninja-build gzip tabix pigz gztool libarchive-dev zlib1g-dev isal nasm
 
     - name: Fix pip
@@ -330,6 +336,7 @@ jobs:
     - name: Install System Dependencies
       if: "startsWith(matrix.os , 'ubuntu')"
       run: |
+        sudo apt update
         sudo apt-get -y install clang g++ ninja-build gzip tabix pigz gztool libarchive-dev zlib1g-dev isal nasm
 
     - name: Fix pip
@@ -373,6 +380,7 @@ jobs:
 
     - name: Install Dependencies
       run: |
+        sudo apt update
         sudo apt-get -y install clang g++ ninja-build gzip tabix pigz gztool libarchive-dev zlib1g-dev isal nasm
         python3 -m pip install --upgrade pip
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
