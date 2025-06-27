@@ -293,6 +293,8 @@ class Build(build_ext):
                 '-D_LARGEFILE64_SOURCE=1',
                 '-D_GLIBCXX_ASSERTIONS',
             ]
+            if supportsFlag(self.compiler, '-flto'):
+                ext.extra_compile_args += ['-flto']
             if supportsFlag(self.compiler, '-D_FORTIFY_SOURCE=2'):
                 ext.extra_compile_args += ['-D_FORTIFY_SOURCE=2']
             if withRpmalloc != 'disable':

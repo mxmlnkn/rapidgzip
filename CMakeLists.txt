@@ -77,6 +77,30 @@ find_package(LibArchive QUIET)
 find_package(Threads REQUIRED)
 
 
+# Check for Interprocedural Optimization (IPO) / Linkt-Time Optimization (LTO)
+# With MSVC, I get this error in "Check without Sanitizer and without ISA-L (windows-latest)"
+#  - Microsoft Windows Server 2022, 10.0.20348
+# > C:\Windows\system32\cmd.exe /C "cd . && C:\mingw64\bin\c++.exe -g -flto=auto -fno-fat-lto-objects
+#   src/tests/core/CMakeFiles/testFileReader.dir/testFileReader.cpp.obj -o src\tests\core\testFileReader.exe
+#   -Wl,--out-implib,src\tests\core\libtestFileReader.dll.a -Wl,--major-image-version,0,--minor-image-version,0
+#   -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32 && cd ."
+# > C:/mingw64//x86_64-w64-mingw32/bin/ld.exe:
+#   src/tests/core/CMakeFiles/testFileReader.dir/testFileReader.cpp.obj: plugin needed to handle lto object
+# > C:/mingw64//x86_64-w64-mingw32/bin/ld.exe:
+#   C:/mingw64//x86_64-w64-mingw32/lib/libmingw32.a(lib64_libmingw32_a-crtexewin.o):crtexewin.c:(.text.startup+0xbd):
+#   undefined reference to `WinMain'
+if(NOT WIN32 AND (CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo"))
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT IPO_SUPPORTED OUTPUT IPO_ERROR)
+    if(IPO_SUPPORTED)
+        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+        message(STATUS "IPO / LTO enabled")
+    else()
+        message(STATUS "IPO / LTO not supported: ${IPO_ERROR}")
+    endif()
+endif()
+
+
 add_subdirectory(src)
 
 
