@@ -16,8 +16,6 @@
 #include <cstring>
 #include <functional>
 #include <limits>
-#include <map>
-#include <optional>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -48,7 +46,6 @@
 #include "DecodedDataView.hpp"
 #include "definitions.hpp"
 #include "Error.hpp"
-#include "gzip.hpp"
 #include "MarkerReplacement.hpp"
 #include "RFCTables.hpp"
 
@@ -526,6 +523,30 @@ public:
     };
 
 public:
+    Block() = default;
+    Block( const Block& other ) :
+        m_uncompressedSize( other.m_uncompressedSize ),
+        m_atEndOfBlock( other.m_atEndOfBlock ),
+        m_atEndOfFile( other.m_atEndOfFile ),
+        m_isLastBlock( other.m_isLastBlock ),
+        m_compressionType( other.m_compressionType ),
+        m_padding( other.m_padding ),
+        m_literalHC( other.m_literalHC ),
+        m_distanceHC( other.m_distanceHC ),
+        m_window16( other.m_window16 ),
+        m_window( reinterpret_cast<std::uint8_t*>( m_window16.data() ) ),
+        m_windowPosition( other.m_windowPosition ),
+        m_containsMarkerBytes( other.m_containsMarkerBytes ),
+        m_decodedBytes( other.m_decodedBytes ),
+        m_distanceToLastMarkerByte( other.m_distanceToLastMarkerByte ),
+        m_trackBackreferences( other.m_trackBackreferences ),
+        m_decodedBytesAtBlockStart( other.m_decodedBytesAtBlockStart ),
+        m_backreferences( other.m_backreferences ),
+        m_precodeCL( other.m_precodeCL ),
+        m_precodeHC( other.m_precodeHC ),
+        m_literalCL( other.m_literalCL )
+    {}
+
     [[nodiscard]] bool
     eob() const noexcept
     {
@@ -953,9 +974,9 @@ private:
     std::vector<Backreference> m_backreferences;
 
     /* Large buffers required only temporarily inside readHeader. */
-    alignas( 64 ) std::array<uint8_t, MAX_PRECODE_COUNT> m_precodeCL;
+    alignas( 64 ) std::array<uint8_t, MAX_PRECODE_COUNT> m_precodeCL {};
     alignas( 64 ) PrecodeHuffmanCoding m_precodeHC;
-    alignas( 64 ) LiteralAndDistanceCLBuffer m_literalCL;
+    alignas( 64 ) LiteralAndDistanceCLBuffer m_literalCL {};
 };
 
 
