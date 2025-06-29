@@ -101,6 +101,8 @@ jobs:
 
     - name: Test Python Packages
       run: |
+        python3 -m pip install pytest
+        python3 -X dev -u -m pytest src/tests/testGIL.py
         python3 -X dev -u src/tests/testPythonWrappers.py
 
     - name: Test rapidgzip Installation From Tarball
