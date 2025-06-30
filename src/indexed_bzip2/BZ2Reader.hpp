@@ -202,7 +202,7 @@ public:
 
     /**
      * Same as @ref blockOffsets but it won't force calculation of all blocks and simply returns
-     * what is availabe at call time.
+     * what is available at call time.
      * @return vectors of block data: offset in file, offset in decoded data
      *         (cumulative size of all prior decoded blocks).
      */
@@ -242,7 +242,7 @@ public:
         size_t nBytesDecoded = 0;
         while ( ( nBytesDecoded < nBytesToRead ) && !m_bitReader.eof() && !eof() ) {
             /* The input may be a concatenation of multiple BZip2 files (like produced by pbzip2).
-             * Therefore, iterate over those mutliple files and decode them to the specified output. */
+             * Therefore, iterate over those multiple files and decode them to the specified output. */
             if ( m_bitReader.tell() == 0 ) {
                 readBzip2Header();
             } else if ( m_lastHeader.eos() ) {

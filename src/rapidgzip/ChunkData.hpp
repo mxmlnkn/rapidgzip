@@ -272,7 +272,7 @@ public:
          *    simply be memcopied and even runs of 16-bit values could be processed in a loop.
          *    This kind of compression would also add overhead though and it proabably would be too difficult
          *    to do inside deflate::Block, so it should probably be applied in post in
-         *    ChunkData::append( DecodedDataViews ). This might be something that could be optimzied with SIMD,
+         *    ChunkData::append( DecodedDataViews ). This might be something that could be optimized with SIMD,
          *    the same applies to the equally necessary new ChunkData::applyWindow method.
          *    -> The count could be 7-bit so that the 8-th bit can be used to store the 8/16-bit value flag.
          *       In the worst case: interleaved 8-bit and 16-bit values, this would add an overhead of 25%:
@@ -526,7 +526,7 @@ public:
 
 protected:
     /**
-     * Takes ChunkData& as first argumenst instead of capturing this in order to avoid having to implement
+     * Takes ChunkData& as first argument instead of capturing this in order to avoid having to implement
      * custom move and copy constructors.
      */
     std::function<deflate::DecodedVector( const ChunkData&, WindowView const&, size_t )> m_getWindowAt;

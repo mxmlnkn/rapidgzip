@@ -81,7 +81,7 @@ testHuffmanCodingReuse( bool testOneSymbolCoding = true )
     REQUIRE_EQUAL( coding.initializeFromLengths( codeLengths2Bit ), rapidgzip::Error::NONE );
 
     /* Note that gzip Huffman decoding iterates over bits from the least significant first, meaning that the
-     * second symbol has bit squence 0b01 (reverse read 0b10 = 2). */
+     * second symbol has bit sequence 0b01 (reverse read 0b10 = 2). */
     REQUIRE_EQUAL( coding.decode( bitReader ).value(), 2 );
 
     const std::vector<uint8_t> codeLengths1Bit = { 1, 1 };

@@ -79,7 +79,7 @@ namespace rapidgzip::blockfinder
  *                                                                 missing time is spent waiting for decoding futures!
  *      real	0m1.020s                                        -> If the refilling was in the background, then it could
  *      user	0m7.970s                                           also overlap decompression and could effectively
- *      sys	0m0.627s                                               speed up a lot beause it is not the critical path!
+ *      sys	0m0.627s                                               speed up a lot because it is not the critical path!
  *
  */
 class PigzParallel final :

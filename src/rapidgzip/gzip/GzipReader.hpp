@@ -186,7 +186,7 @@ public:
                 /**
                  * @note We cannot splice easily here because we don't use std::shared_ptr for the data and therefore
                  *       cannot easily extend the lifetime of the spliced data as necessary. It also isn't as
-                 *       important as for the multi-threaded version because decoding is the bottlneck for the
+                 *       important as for the multi-threaded version because decoding is the bottleneck for the
                  *       sequential version.
                  */
                 const auto errorCode = ::writeAll( outputFileDescriptor, currentBufferPosition, buffer, size );

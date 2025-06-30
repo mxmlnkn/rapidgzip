@@ -125,7 +125,7 @@ benchmarkHuffmanCodings( const std::vector<uint8_t>&              codeLengths,
 {
     std::vector<Result> results;
 
-    /* Obiously very slow, especially for longer code lengths. It also has almost no sanity checks! */
+    /* Obviously very slow, especially for longer code lengths. It also has almost no sanity checks! */
     try {
         using HuffmanCoding = HuffmanCodingLinearSearch<HuffmanCode, Symbol>;
         results.emplace_back( benchmarkHuffmanCoding<HuffmanCoding>( codeLengths, encoded ) );
@@ -236,7 +236,7 @@ benchmarkHuffmanCodingsWithData( size_t encodedSize )
                   "Runtime StdDev;Construction Time Average;Construction Time StdDev;Decode Time Average;"
                   "Decode Time StdDev\n";
 
-    /* Set it to 15 no matter the benchmark because we want to test the deflate szenario. */
+    /* Set it to 15 no matter the benchmark because we want to test the deflate scenario. */
     static constexpr auto MAX_CODE_LENGTH = 15;
     static constexpr auto MAX_SYMBOL_COUNT = 512;
 

@@ -106,7 +106,7 @@ compress( const VectorView<typename Container::value_type> toCompress,
 
 /**
  * The methods by design are not called simply "data"/"size" to avoid it being used the wrong way
- * when replacing nomal containers for this one.
+ * when replacing normal containers for this one.
  */
 template<typename Container = FasterVector<uint8_t> >
 class CompressedVector

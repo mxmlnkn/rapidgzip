@@ -7,6 +7,23 @@ on:
   workflow_dispatch:
 
 jobs:
+  Codespell:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Lint With Codespell
+      run: |
+        python3 -m pip install --upgrade pip
+        python3 -m pip install codespell
+        codespell --ignore-words-list thirdparty,Ned $( git ls-tree -r --name-only HEAD | 'grep' -E '[.](py|md|txt|sh|yml|cpp|c|hpp|h)$' )
+
   Code-Coverage:
     name: Code Coverage
     runs-on: ubuntu-24.04

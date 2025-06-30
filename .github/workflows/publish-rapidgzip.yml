@@ -45,7 +45,7 @@ jobs:
       # This happens on the line: static constexpr FixedHuffmanCoding m_fixedHC = createFixedHC();
       # This is understandable because it is the most complex code but the wheels do build just fine though.
       if: matrix.os != 'windows-latest'
-      # Bash shells do not use ~/.profile or ~/.bashrc so these shells need to be explicitely declared as shell:
+      # Bash shells do not use ~/.profile or ~/.bashrc so these shells need to be explicitly declared as shell:
       # bash -l {0} on steps that need to be properly activated
       shell: bash -l {0}
       env:

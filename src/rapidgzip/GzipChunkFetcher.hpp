@@ -432,7 +432,7 @@ private:
             /* Compute offset of the window >provided< by this subchunk, not the window >required< by this subchunk. */
             const auto windowOffset = subchunk.encodedOffset + subchunk.encodedSize;
             /* Explicitly reinsert what we already emplaced in waitForReplacedMarkers when calling getLastWindow,
-             * but now the window shold be compressed with sparsity applied! Thanks to the WindowMap being locked
+             * but now the window should be compressed with sparsity applied! Thanks to the WindowMap being locked
              * and the windows being shared pointers, this should lead to no bugs, and the consistency check in
              * the WindowMap is also long gone, i.e., overwriting windows is allowed and now a required feature. */
             const auto existingWindow = m_windowMap->get( windowOffset );

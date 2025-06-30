@@ -23,7 +23,7 @@ toOrigin( std::ios_base::seekdir anchor )
 
 
 /**
- * This class implements the std::streambuf interface by fowarding calls to the appropriate FileReader methods.
+ * This class implements the std::streambuf interface by forwarding calls to the appropriate FileReader methods.
  *
  * It manages a buffer called "associated character sequence" buffering the access to the underlying FileReader,
  * called "controlled character sequence".
@@ -156,7 +156,7 @@ protected:
             return seekpos( m_file->tell() - ( egptr() - gptr() ) + offset, mode );
         }
 
-        /* Signal that an underflow is neccessary. */
+        /* Signal that an underflow is necessary. */
         clearGetArea();
         return static_cast<pos_type>( m_file->seek( offset, toOrigin( anchor ) ) );
     }
@@ -172,7 +172,7 @@ protected:
             throw std::runtime_error( "Writing is not supported!" );
         }
 
-        /* Signal that an underflow is neccessary. */
+        /* Signal that an underflow is necessary. */
         clearGetArea();
         return static_cast<pos_type>( m_file->seek( offset, SEEK_SET ) );
     }

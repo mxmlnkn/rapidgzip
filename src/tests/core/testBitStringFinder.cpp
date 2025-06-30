@@ -66,7 +66,7 @@ testBitStringFinder( uint64_t                          bitStringToFind,
          * > the file from the file system
          * @see https://en.cppreference.com/w/cpp/io/c/tmpfile
          * Also, use smallest sane value for fileBufferSizeBytes = sizeof( uint64_t ) in order to check that
-         * recognizing bit strings accross file buffer borders works correctly.
+         * recognizing bit strings across file buffer borders works correctly.
          */
         std::fflush( file.get() );
         BitStringFinder<bitStringSize> bitStringFinder(

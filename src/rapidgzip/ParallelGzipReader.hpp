@@ -75,7 +75,7 @@ public:
     using ChunkData = T_ChunkData;
     /**
      * The fetching strategy should support parallelization via prefetching for sequential accesses while
-     * avoiding a lot of useless prefetches for random or multi-stream sequential accesses like those occuring
+     * avoiding a lot of useless prefetches for random or multi-stream sequential accesses like those occurring
      * via ratarmount.
      * The fetching strategy does not have to and also should not account for backward and strided accesses
      * because the prefetch and cache units are very large and striding or backward accessing over multiple
@@ -128,7 +128,7 @@ public:
      * @endverbatim
      *
      * For higher chunk sizes, the bandwidths become very unstable,
-     * probably because even work division becomes a problem realtive to the file size.
+     * probably because even work division becomes a problem relative to the file size.
      * Furthermore, caching behavior might worsen for larger chunk sizes.
      *
      * @verbatim
@@ -797,7 +797,7 @@ public:
 
     /**
      * Same as @ref blockOffsets but it won't force calculation of all blocks and simply returns
-     * what is availabe at call time.
+     * what is available at call time.
      * @return vectors of block data: offset in file, offset in decoded data
      *         (cumulative size of all prior decoded blocks).
      */

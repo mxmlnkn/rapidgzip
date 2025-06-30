@@ -275,7 +275,7 @@ using FixedHuffmanCoding =
  *     Create distance HC       : 0.00916463 s
  *     Create literal HC        : 0.0444881 s
  * -> This sums up to 1.71898603 s < 2.01957 s. I can only surmise that the missing time is spend in the calls
- *    to now() and the increments for fialed counters and other statistics.
+ *    to now() and the increments for failed counters and other statistics.
  */
 // using PrecodeHuffmanCoding = HuffmanCodingReversedBitsCached<uint8_t, MAX_PRECODE_LENGTH, uint8_t, MAX_PRECODE_COUNT>;
 

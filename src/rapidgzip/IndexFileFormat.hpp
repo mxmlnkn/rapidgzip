@@ -206,7 +206,7 @@ template<typename T>
 [[nodiscard]] T
 readValue( FileReader* const file )
 {
-    /* Note that indexed_gzip itself does no endiannes check or conversion during writing,
+    /* Note that indexed_gzip itself does no endianness check or conversion during writing,
      * so this system-specific reading is as portable as it gets assuming that the indexes are
      * read on the same system they are written. */
     T value;
@@ -462,7 +462,7 @@ readGzipIndex( UniqueFileReader            indexFile,
         throw std::invalid_argument( std::move( message ).str() );
     }
 
-    /* However, a window size larger than 32 KiB makes no sense bacause the Lempel-Ziv back-references
+    /* However, a window size larger than 32 KiB makes no sense because the Lempel-Ziv back-references
      * in the deflate format are limited to 32 KiB! Smaller values might, however, be enforced by especially
      * memory-constrained encoders.
      * This basically means that we either check for this to be exactly 32 KiB or we simply throw away all
@@ -991,7 +991,7 @@ writeGzipIndex( const GzipIndex&                                              in
         } else {
             /* Recompress window to ZLIB. */
             /**
-             * @todo Reduce overhead from the usual gzip data by stripping of the gzip container and readding
+             * @todo Reduce overhead from the usual gzip data by stripping of the gzip container and re-adding
              *       a zlib container. This can keep the byte-aligned deflate stream but will require decompressing
              *       it in order to compute the Adler32 checksum for the zlib footer.
              */

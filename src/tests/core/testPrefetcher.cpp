@@ -984,7 +984,7 @@ benchmarkFetchNextAdaptive()
         REQUIRE_EQUAL( blockFetcher.cache().statistics().hits, size_t( 1 ) );
         REQUIRE( blockFetcher.prefetchCount() >= 1 );
 
-        /* At the latest after four consecutive acceses should it prefetch at full parallelization! */
+        /* At the latest after four consecutive accesses should it prefetch at full parallelization! */
         blockFetcher.get( 3 );
 
         std::cerr << "  After 3rd new consecutive access: " << printShortStats( blockFetcher ) << "\n";

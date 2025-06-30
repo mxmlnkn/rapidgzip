@@ -65,7 +65,7 @@ jobs:
         EOF
 
     - name: Build Conda Packages
-      # Bash shells do not use ~/.profile or ~/.bashrc so these shells need to be explicitely declared as shell:
+      # Bash shells do not use ~/.profile or ~/.bashrc so these shells need to be explicitly declared as shell:
       # bash -l {0} on steps that need to be properly activated
       shell: bash -l {0}
       working-directory: conda

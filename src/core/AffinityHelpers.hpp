@@ -56,7 +56,7 @@ getRequiredBitMaskSize()
 
         if ( ( result != 0 ) && ( errno != EINVAL ) ) {
             std::stringstream msg;
-            msg << "An unexpected error occured on schet_getaffinity: " << result << " with errno " << errno
+            msg << "An unexpected error occurred on schet_getaffinity: " << result << " with errno " << errno
                 << " (" << strerror( errno ) << ")";
             throw std::runtime_error( std::move( msg ).str() );
         }

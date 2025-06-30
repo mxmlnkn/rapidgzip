@@ -270,7 +270,7 @@
 
 ## Performance
 
- - Several miniscule performance improvements in `BitReader` and `HuffmanCodingISAL`: +10 %
+ - Several minuscule performance improvements in `BitReader` and `HuffmanCodingISAL`: +10 %
 
 ## Fixes
 
@@ -390,7 +390,7 @@
  - Stop looking for blocks after 512 KiB to avoid slower than single-core performance for BGZF-like files:
    100 -> 230 MB/s.
  - Use rpmalloc to increase multi-threaded malloc performance: 2.5 GB/s -> 3.1 GBs.
-   The performance benefits are less noticable for files larger than ~10 GB.
+   The performance benefits are less noticeable for files larger than ~10 GB.
  - Add `verbose` option to the Python interfaces `open` and `PragzipFile`.
  - Spawn threads only when needed instead of all at once at startup.
  - Reduce memory usage by not storing the decompressed result when using only `--count`.
@@ -514,7 +514,7 @@
  - The very last block was never prefetched.
  - Avoid cache eviction when key already exists and value can be replaced.
  - Prefetch more blocks while waiting for non-completed block.
- - Actively avoiding cache-spilling was disfunctional.
+ - Actively avoiding cache-spilling was dysfunctional.
 
 
 # Version 0.3.0 built on 2022-08-24

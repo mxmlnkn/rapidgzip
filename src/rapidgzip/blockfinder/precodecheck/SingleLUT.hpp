@@ -69,7 +69,7 @@ namespace rapidgzip::PrecodeCheck::SingleLUT
  *    - Addition in lowest bits: 0+0 -> 0, 0+1 -> 1, 1+0 -> 1, 1+1 -> 0 (+ carry bit)
  *                               <=> bitwise xor ^ (also sometimes called carryless addition)
  *    - If there is a carry-over (overflow) from a lower bit, then these results will be inverted.
- *      We can check for that with another xor, wich also acts as a bit-wise inequality comparison,
+ *      We can check for that with another xor, which also acts as a bit-wise inequality comparison,
  *      setting the resulting bit only to 1 if both source bits are different.
  *      This result needs to be masked to the bits of interest but that can be done last to reduce instructions.
  *
@@ -363,7 +363,7 @@ checkPrecode( const uint64_t next4Bits,
          *  - Addition in lowest bits: 0+0 -> 0, 0+1 -> 1, 1+0 -> 1, 1+1 -> 0 (+ carry bit)
          *                             <=> bitwise xor ^ (also sometimes called carryless addition)
          *  - If there is a carry-over (overflow) from a lower bit, then these results will be inverted.
-         *    We can check for that with another xor, wich also acts as a bit-wise inequality comparison,
+         *    We can check for that with another xor, which also acts as a bit-wise inequality comparison,
          *    setting the resulting bit only to 1 if both source bits are different.
          *    This result needs to be masked to the bits of interest but that can be done last to reduce instructions.
          */
@@ -591,5 +591,5 @@ getHistogramIdFromUniformlyPackedHistogram( const uint64_t& histogram5BitCounts 
         VariableLengthPackedHistogram::packUniformlyBitPackedHistogramUnsafe<5>( histogramWithoutZero );
     return getHistogramIdFromVLPHWithoutZero( packedHistogramWithoutZero );
 }
-}  // namspace ValidHistogramID
+}  // namespace ValidHistogramID
 }  // namespace rapidgzip::PrecodeCheck::SingleLUT

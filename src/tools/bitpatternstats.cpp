@@ -182,7 +182,7 @@ make && time ./bitpatternstats -n 16 -p large.bz2 > large-counts-2B.dat && ../re
     0x005fff -> 59721
     0x00fffa -> 60017
 
-  -> zeros still hapen much more often. Because they are filler in the last 7 bits for blocks, I would expect them to appear on average 3.5x as often as other values. but not 20x more oftehn than the morst rare ...
+  -> zeros still happen much more often. Because they are filler in the last 7 bits for blocks, I would expect them to appear on average 3.5x as often as other values. but not 20x more oftehn than the morst rare ...
 
 make && time ./bitpatternstats -n 24 -p large.bz2 > large-counts-3B.dat && ../results/plotBitPatternFrequencies.py large-counts-3B.dat
     real	1m7.979s
@@ -301,7 +301,7 @@ main( int    argc,
         ( "i,input", "Input file.",
           cxxopts::value<std::string>() )
         ( "n,pattern-bits",
-          "The returned table will contain 2^n entries holding the number of occurences per pattern.",
+          "The returned table will contain 2^n entries holding the number of occurrences per pattern.",
           cxxopts::value<unsigned int>()->default_value( "16" ) )
         ( "p,parallelism",
           "The number of parallel threads to use for processing the file.",

@@ -516,7 +516,7 @@ testParallelCRC32( const std::vector<std::byte>& uncompressed,
 
     /* Read everything. The data should contain sufficient chunks such that the first ones have been evicted. */
     std::vector<std::byte> decompressed( uncompressed.size() );
-    /* In the bugged version, which did not calcualte the CRC32 for data cleaned inside cleanUnmarkedData,
+    /* In the bugged version, which did not calculate the CRC32 for data cleaned inside cleanUnmarkedData,
      * this call would throw an exception because CRC32 verification failed. */
     reader.read( -1, reinterpret_cast<char*>( decompressed.data() ), std::numeric_limits<size_t>::max() );
     REQUIRE( decompressed == uncompressed );
@@ -941,7 +941,7 @@ testWindowPruningMultiGzipStreams( const size_t gzipStreamSize,
               << " deflate blocks\n";
 
     if ( blockBoundaryCount != expectedBlockCount ) {
-        throw std::runtime_error( "The compression routine does not fullfil the test precondition." );
+        throw std::runtime_error( "The compression routine does not fulfill the test precondition." );
     }
 
     /* Use some prime chunk number to avoid possible exact overlap with the gzip streams! */

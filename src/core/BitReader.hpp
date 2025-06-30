@@ -189,7 +189,7 @@ public:
     forceinline BitBuffer
     read( bit_count_t bitsWanted )
     {
-        /* Handling bitsWanted == 0 here would incure a 75% slowdown for the benchmark reading single bits!
+        /* Handling bitsWanted == 0 here would incur a 75% slowdown for the benchmark reading single bits!
          * Just let the caller handle that case. Performance comes first, especially at this steep price for safety. */
         assert( bitsWanted > 0 );
         /* Reading the whole buffer is not allowed because it would require another expensive rarely used branch! */
@@ -411,7 +411,7 @@ private:
                     const auto bitsToLoad  = MAX_BIT_BUFFER_SIZE - shrinkedBitBufferSize;
                     const auto bytesToLoad = bitsToLoad / CHAR_BIT;
 
-                    /* Load new bytes directly to the left if the (virtually) shrinked bit buffer.
+                    /* Load new bytes directly to the left of the (virtually) shrunk bit buffer.
                      * This is possibly because read but still "loaded" (m_originalBitBufferSize) bits are to the
                      * right. */
                     const auto bytesToAppend = loadUnaligned<BitBuffer>( &m_inputBuffer[m_inputBufferPosition] );
@@ -833,7 +833,7 @@ public:
     /**
      * Same time measurements as for @ref m_bitBufferSize. Storing m_bitBufferFree instead safes one subtractions
      * on every peekUnsafe! It was always: m_bitBuffer >> ( MAX_BIT_BUFFER_SIZE - m_bitBufferSize ) and not simply is:
-     * m_bitBuffer >> m_bitBufferFree. This anoter ~1 %:
+     * m_bitBuffer >> m_bitBufferFree. This another ~1 %:
      * @verbatim
      * m_bitBufferFree: 419.05 | 424.46 +- 0.07 | 427.36
      * m_bitBufferSize: 414.00 | 419.25 +- 0.05 | 422.02

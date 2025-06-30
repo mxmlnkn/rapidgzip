@@ -59,7 +59,7 @@ if withCxxopts == 'disable':
     print("[Warning] Cxxopts can not be disabled! Will enable it.")
     withCxxopts = 'enable'
 
-# ISA-l does not compile on 32-bit becaue it contains statements such as [bits 64].
+# ISA-l does not compile on 32-bit because it contains statements such as [bits 64].
 # It simply is not supported and I also don't see a reason. 32-bit should be long dead exactly
 # like almost all (96% according to Steam) PCs have AVX support.
 # On aarch64 macOS, ISA-L causes: ImportError: dlopen(python3.10/site-packages/rapidgzip.cpython-310-darwin.so, 0x0002):
@@ -259,7 +259,7 @@ class Build(build_ext):
                 # external/isa-l/igzip/igzip_decode_block_stateless_01.asm:3: fatal: unable to open include file
                 #   `igzip_decode_block_stateless.asm'
                 # error: command 'nasm' failed with exit status 1
-                # I even tried chaning -I<dir> to -I <dir> by overwriting nasmcompiler._setup_compile but to no avail.
+                # I even tried changing -I<dir> to -I <dir> by overwriting nasmcompiler._setup_compile but to no avail.
                 for path in isal_includes:
                     for fileName in os.listdir(path):
                         if fileName.endswith('.asm'):

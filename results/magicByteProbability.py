@@ -49,7 +49,7 @@ def transition_matrix_for_string_matching( string_to_find, letter_probabilities 
             if letter in lettersUsed:
                 continue
 
-            # Consider string_to_find = "ABCABD". Aftter having matched the substring "ABCAB",
+            # Consider string_to_find = "ABCABD". After having matched the substring "ABCAB",
             # the next letter might be a "D" to match "ABCABD", which would be the minor diagonal filled above.
             # But, it also might be a "C" resulting in the last 6 letters adding up to "ABCABC" and now the
             # longest matching substring becomes the latter half "ABC". So, we only go back to state k=3.

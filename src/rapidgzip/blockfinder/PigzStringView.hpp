@@ -96,7 +96,7 @@ private:
         static_assert( nBytesToRetain == 4, "Assuming bit string size of 35 for empty deflate block." );
         const auto checkBoundary = m_bufferSize > 0;
         /* We want to be able to find strings even if only their first byte is in the last buffer
-         * or even if only their last byte is in the next buffer and of course all cases inbetween. */
+         * or even if only their last byte is in the next buffer and of course all cases between. */
         std::array<char, 2 * nBytesToRetain> boundaryBuffer;
         std::size_t boundaryBufferSize = 0;
 

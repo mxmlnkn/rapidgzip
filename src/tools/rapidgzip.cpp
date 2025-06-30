@@ -435,7 +435,7 @@ rapidgzipCLI( int                  argc,
         /* Check whether some ranges are lines and enable line offset gathering in that case. */
         for ( const auto& range : *fileRanges ) {
             if ( ( range.size > 0 ) && ( range.offsetIsLine || range.sizeIsLine ) ) {
-                /* Because we cannot arbitrarly convert lines to offsets, we cannot easily determine whether
+                /* Because we cannot arbitrarily convert lines to offsets, we cannot easily determine whether
                  * backward seeking is necessary. Therefore keep the index if line offsets are used. */
                 args.keepIndex = true;
                 args.gatherLineOffsets = true;

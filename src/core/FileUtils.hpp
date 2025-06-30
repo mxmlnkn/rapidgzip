@@ -300,7 +300,7 @@ readFile( const std::string& fileName )
 }
 
 
-/* Missing std::filesytem::path support in wheels.
+/* Missing std::filesystem::path support in wheels.
  * https://opensource.apple.com/source/xnu/xnu-2050.7.9/EXTERNAL_HEADERS/AvailabilityMacros.h.auto.html */
 #if !defined(__APPLE_CC__ ) || ( defined(MAC_OS_X_VERSION_MIN_REQUIRED) \
     && MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_15 )

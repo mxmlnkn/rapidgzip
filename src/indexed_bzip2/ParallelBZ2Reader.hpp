@@ -356,7 +356,7 @@ public:
 
     /**
      * Same as @ref blockOffsets but it won't force calculation of all blocks and simply returns
-     * what is availabe at call time.
+     * what is available at call time.
      * @return vectors of block data: offset in file, offset in decoded data
      *         (cumulative size of all prior decoded blocks).
      */

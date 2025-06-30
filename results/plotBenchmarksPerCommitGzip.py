@@ -54,7 +54,7 @@ ax = fig.add_subplot(111, ylabel="Runtime in seconds", xlabel="Commits from newe
 for logFile in benchmarkLogs:
     label, commits, minTimes, avgTimes, maxTimes = loadData(logFile)
     ax.errorbar(
-        # Begin at 1 so that line numbersin .dat file, which begin at 1, corresspond to x value
+        # Begin at 1 so that line numbersin .dat file, which begin at 1, correspond to x value
         1 + np.arange(len(commits)),
         avgTimes,
         yerr=(avgTimes - minTimes, maxTimes - avgTimes),
@@ -135,7 +135,7 @@ lastFunctionCommitPerVersion = [
     # [ ] On Taurus, this worsened everything. I guess the shrink_to_fit resulted in a costly reallocation?
     #     Might not be an issue anymore with rpmalloc, which was introduced some time after this commit.
     ("02cabed2", ':', 0.325, "Avoid overallocation and reallocations"),
-    ("49052699", ':', 0.375, "Actively avoiding cache-spilling\nwas disfunctional"),
+    ("49052699", ':', 0.375, "Actively avoiding cache-spilling\nwas dysfunctional"),
     # On Taurus, this worsened base64
     ("87429392", ':', 0.425, "Decrease double-cached Huffman LUT\ncached bits to MAX_CODE_LENGTH"),
     ("62225149", ':', 0.475, "Only create Huffman LUT up to\nmax code length in block"),

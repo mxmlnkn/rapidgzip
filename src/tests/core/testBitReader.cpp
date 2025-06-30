@@ -526,7 +526,7 @@ testDirectFileReadingBitReaderBug( const std::filesystem::path& path )
     REQUIRE( bitReader.read( buffer.data(), buffer.size() ) > 0 );
     REQUIRE_EQUAL( bitReader.tell(), bitReader.size().value() );
 
-    /* The proble here was that the byte buffer did not get cleared. This resulted in a bug because the assumption /
+    /* The problem here was that the byte buffer did not get cleared. This resulted in a bug because the assumption /
      * assumed invariant was that the byte buffer offset in the file matches file offset - byte buffer size.
      * But, the direct reading of bytes forwarded the file offset without clearing the byte buffer, therefore
      * seeking back inside the byte buffer is now WRONG! */

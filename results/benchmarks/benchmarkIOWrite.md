@@ -225,7 +225,7 @@ cmake --build . -- benchmarkIOWrite && src/benchmarks/benchmarkIOWrite /dev/shm/
  3. fwrite needs at least write sizes >= 64 KiB, while write needs >= 16 KiB to reach the maximum speed.
  4. Using more threads for pwrite does NOT speed things up!
     And while the mean stays somewhat stable, the minimum tends lower for more threads, probably because of stragglers.
- 5. ftruncate + mmap DOES profit from more threads, reaching somehwat of a maximum at 8 threads,
+ 5. ftruncate + mmap DOES profit from more threads, reaching somewhat of a maximum at 8 threads,
     but it is still SLOWER than a simple single-core pwrite.
  6. Writing to 4 files from 4 threads doubles the write speed to ~8.7 GB/s!
     However, how can I make use of this when I want one result file?!
@@ -594,15 +594,15 @@ cmake --build . -- benchmarkIOWrite && src/benchmarks/benchmarkIOWrite /media/e/
     to reach the maximum speed.
  4. Similarly to /dev/shm, using more threads for pwrite does NOT speed things up!
     And while the mean stays somewhat stable, the minimum tends lower for more threads, probably because of stragglers.
- 5. Similarly to /dev/shm, ftruncate + mmap DOES profit from more threads, reaching somehwat of a maximum at 8 threads,
+ 5. Similarly to /dev/shm, ftruncate + mmap DOES profit from more threads, reaching somewhat of a maximum at 8 threads,
     but it is still SLOWER than a simple single-core ftruncate + write. Note that mmap already is preceded by ftruncate.
  6. Similarly to /dev/shm, Writing to 8 files from 8 threads more than doubles the write speed to ~7.7 GB/s!
- 7. Similary to /dev/shm, fwrite and write are equally fast except for 1 KiB chunks, for which write is SLOWER
+ 7. Similarly to /dev/shm, fwrite and write are equally fast except for 1 KiB chunks, for which write is SLOWER
     than fwrite maybe because fwrite is buffered?
  8. O_DIRECT slows preallocated pwrite done a lot on my SSD.
- 9. Similary to /dev/shm, fwrite and write are equally fast except for 1 KiB chunks, for which write is SLOWER
+ 9. Similarly to /dev/shm, fwrite and write are equally fast except for 1 KiB chunks, for which write is SLOWER
     than fwrite maybe because fwrite is buffered?
-10. Allocation is 100x faster than /dev/shm !? But only sometimes. Mabye ext4 has a buffer of reusable sectors?
+10. Allocation is 100x faster than /dev/shm !? But only sometimes. Maybe ext4 has a buffer of reusable sectors?
 
 
 # Test on HomePC with BTRFS striped into two files residing on /dev/shm

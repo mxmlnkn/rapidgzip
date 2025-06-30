@@ -19,7 +19,7 @@ namespace rapidgzip
  *   This avoids going over all elements all the time and also already implements usage of maximum-sized and
  *   manually managed memory chunks by using std::array to avoid heap allocations.
  * - During decoding, it reads the bits one by one and for each intermediary, checks whether
- *   there is a matching code, which is calcualted ad-hoc from m_minimumCodeValuesPerLevel.
+ *   there is a matching code, which is calculated ad-hoc from m_minimumCodeValuesPerLevel.
  *   If the code matches, it gets the symbol for current code length from the corresponding subarray.
  * Note that reading the bits one by one is also necessary to reverse the codes.
  */

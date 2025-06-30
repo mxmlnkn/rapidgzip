@@ -77,7 +77,7 @@ public:
          * 2 * m_minCodeLength + 1 allows the above **and** combinations of the next most frequent with the most-
          * frequent, which should still be pretty common.
          * 2 * m_minCodeLength + 2 probably has a bad performance because the accounted cases become increasingly
-         * rare, e.g., it inclues the case of two less common symbols, which are expected exponentially less than
+         * rare, e.g., it includes the case of two less common symbols, which are expected exponentially less than
          * a single one.
          * Furthermore, this optimum might change and maybe even become more stable, when implementing two-staged
          * lookup.

@@ -75,7 +75,7 @@ private:
  * consecutive accesses in the memory.
  * If all are consecutive, returns the specified amount to prefetch.
  * Else, if there are only random access in memory, then it will return nothing to prefetch to avoid wasted computation.
- * Inbetween, interpolate exponentially, i.e., for a memory size of 3 and 4 requested prefetch indexes:
+ * Between, interpolate exponentially, i.e., for a memory size of 3 and 4 requested prefetch indexes:
  *   1 consecutive pair -> 1
  *   2 consecutive pair -> 2
  *   3 consecutive pair -> 4
@@ -265,7 +265,7 @@ public:
                         const auto end )
             {
                 /* We only have the deduplicated and sorted indexes. We need to recheck with the real saved indexes
-                 * whether it is an increasing sequence, else a perfect backwar pattern might be detected as a forward
+                 * whether it is an increasing sequence, else a perfect backward pattern might be detected as a forward
                  * pattern because of the sorting. */
                 const auto highestValue = *std::prev( end );
                 size_t sequenceLength{ 0 };

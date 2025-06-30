@@ -192,7 +192,7 @@ This benchmarks compresses the enlarged Silesia TAR with different gzip implemen
 Rapidgzip is then used to decompress the resulting files with 128 cores.
 
 Rapidgzip can parallelize decompression for almost all tested cases.
-The only exception are files compressed with `igzip -0`, because these files conain only a single several gigabytes large deflate block.
+The only exception are files compressed with `igzip -0`, because these files contain only a single several gigabytes large deflate block.
 This is the only known tool to produce such a pathological deflate block.
 
 The decompression bandwidth for the other compressors, varies quite a lot.

@@ -195,7 +195,7 @@ public:
 
         for ( BitCount bitLength = m_minCodeLength; bitLength <= m_maxCodeLength; ++bitLength ) {
             /* Look up whether it is a huffman code.
-             * @todo faster lookup than simple linear search, e.g., binning by length and binary search inbetween.
+             * @todo faster lookup than simple linear search, e.g., binning by length and binary search between.
              *       -> then again binary search is not even necessary because the values in each bin are given
              *          sequentially. Might be possible to simply add the lookup value to the minimumValueCode or so! */
             for ( size_t j = 0; j < m_codeLengths.size(); ++j ) {

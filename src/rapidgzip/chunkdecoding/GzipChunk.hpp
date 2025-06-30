@@ -114,10 +114,10 @@ public:
                 subchunkRequiresWindow = false;
                 break;
             }
-            /* Footer are sorted ascending and we iterate in reverse order, so we can pre-emptively quit this
+            /* Footer are sorted ascending and we iterate in reverse order, so we can preemptively quit this
              * search when we find a smaller offset than wanted. This improves performance for many footers
              * as basically only the newly added ones since the last subchunk are checked, resulting in an
-             * overal O(n) complexity instead of O(n^2) where n is the number of footers. This is why std::find
+             * overall O(n) complexity instead of O(n^2) where n is the number of footers. This is why std::find
              * is not used. */
             if ( footer->blockBoundary.decodedOffset < nextWindowOffset ) {
                 break;

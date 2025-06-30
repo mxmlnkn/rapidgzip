@@ -148,7 +148,7 @@ public:
     /**
      * This is used to determine whether it is necessary to call applyWindow.
      * Testing for @ref dataWithMarkers.empty() is not sufficient because markers could be contained
-     * in other members for derived classes! In that case @ref containsMarkers will be overriden.
+     * in other members for derived classes! In that case @ref containsMarkers will be overridden.
      * @note Probably should not be called internally because it is allowed to be shadowed by a child class method.
      */
     [[nodiscard]] bool

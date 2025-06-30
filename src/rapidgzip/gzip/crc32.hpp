@@ -143,7 +143,7 @@ updateCRC32( const uint32_t    crc,
  * + 0 * ( 1101 << 2 )    |     0 * x^1 * ( 1*x^3 + 1*x^2 + 0*x^1 + 1*x^0 )
  * + 1 * ( 1101 << 3 )    |     1 * x^0 * ( 1*x^3 + 1*x^2 + 0*x^1 + 1*x^0 )
  * @endverbatim
- * This can be derived by expanding normal polynomial mulitiplication. The shift by n is congruent
+ * This can be derived by expanding normal polynomial multiplication. The shift by n is congruent
  * to multiplying the left factor with one of the x^n parts of the polynomial.
  * Note that, in contrast to the example, this function works on the reflected polynomial representation.
  */

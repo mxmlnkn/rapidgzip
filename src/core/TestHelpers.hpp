@@ -245,7 +245,7 @@ public:
     close()
     {
         if ( m_rdbuf.has_value() ) {
-            /* Expected to return this and therfore can be ignored. */
+            /* Expected to return this and therefore can be ignored. */
             m_out.rdbuf( *m_rdbuf );
             m_rdbuf.reset();
         }
