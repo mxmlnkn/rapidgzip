@@ -66,7 +66,13 @@ rapidgzip --help
 <details>
 <summary>Advanced Installations</summary>
 
-The latest unreleased development version can be tested out with:
+To build from source, these packages are necessary (Debian and derivates):
+
+```bash
+sudo apt install git gcc g++ python3 python3-dev python3-pip python3-build python3-venv nasm
+```
+
+Then, the latest unreleased development version can be built with:
 
 ```bash
 python3 -m pip install --force-reinstall 'git+https://github.com/mxmlnkn/indexed_bzip2.git@master#egginfo=rapidgzip&subdirectory=python/rapidgzip'
@@ -75,10 +81,11 @@ python3 -m pip install --force-reinstall 'git+https://github.com/mxmlnkn/indexed
 And to build locally, you can use `build` and install the wheel:
 
 ```bash
-cd python/rapidgzip
+git clone --recursive https://github.com/mxmlnkn/indexed_bzip2.git
+cd indexed_bzip2/python/rapidgzip/
 rm -rf dist
-python3 -m build .
-python3 -m pip install --force-reinstall --user dist/*.whl
+python3 -m build
+python3 -m pip install --force-reinstall --user --break-system-packages dist/rapidgzip-*.whl
 ```
 
 </details>
