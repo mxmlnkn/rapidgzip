@@ -1,13 +1,14 @@
 #pragma once
 
+#include <algorithm>
 #include <cstring>
 #include <iostream>
+#include <functional>
 #include <limits>
-#include <map>
+#include <memory>
 #include <optional>
 #include <sstream>
 #include <string>
-#include <string_view>
 #include <stdexcept>
 #include <utility>
 
@@ -17,11 +18,13 @@
 #include <deflate.hpp>
 #include <FileUtils.hpp>
 #include <filereader/FileReader.hpp>
-#include <filereader/Standard.hpp>
+#include <filereader/Shared.hpp>
+#include <format.hpp>
 #include <gzip.hpp>
 
 #ifdef WITH_PYTHON_SUPPORT
     #include <filereader/Python.hpp>
+    #include <filereader/Standard.hpp>
 #endif
 
 
@@ -41,23 +44,30 @@ public:
 public:
     explicit
     GzipReader( UniqueFileReader fileReader ) :
-        m_bitReader( std::move( fileReader ) )
+        m_fileReader( ensureSharedFileReader( std::move( fileReader ) ) ),
+        m_fileType( [this] () {
+            const auto result = determineFileTypeAndOffset( m_fileReader->clone() );
+            /* Simply assume GZIP if it cannot be determined to show a more useful error message
+             * when trying to read the header. */
+            return result.has_value() ? result->first : FileType::GZIP;
+        } () ),
+        m_bitReader( m_fileReader->clone() )
     {}
 
 #ifdef WITH_PYTHON_SUPPORT
     explicit
     GzipReader( const std::string& filePath ) :
-        m_bitReader( std::make_unique<StandardFileReader>( filePath ) )
+        GzipReader( std::make_unique<StandardFileReader>( filePath ) )
     {}
 
     explicit
     GzipReader( int fileDescriptor ) :
-        m_bitReader( std::make_unique<StandardFileReader>( fileDescriptor ) )
+        GzipReader( std::make_unique<StandardFileReader>( fileDescriptor ) )
     {}
 
     explicit
     GzipReader( PyObject* pythonObject ) :
-        m_bitReader( std::make_unique<PythonFileReader>( pythonObject ) )
+        GzipReader( std::make_unique<PythonFileReader>( pythonObject ) )
     {}
 #endif
 
@@ -207,7 +217,7 @@ public:
         /* This loop is basically a state machine over m_currentPoint and will process different things
          * depending on m_currentPoint and after each processing step it needs to recheck for EOF!
          * First read metadata so that even with nBytesToRead == 0, the position can be advanced over those. */
-        while ( !m_bitReader.eof() && !eof() ) {
+        while ( ( hasDataToFlush() || !m_bitReader.eof() ) && !eof() ) {
             if ( !m_currentPoint.has_value() || ( *m_currentPoint == StoppingPoint::END_OF_BLOCK_HEADER ) ) {
                 const auto nBytesDecodedInStep = readBlock( writeFunctor, nBytesToRead - nBytesDecoded );
 
@@ -236,13 +246,13 @@ public:
                 {
                 case StoppingPoint::NONE:
                 case StoppingPoint::END_OF_STREAM:
-                    readGzipHeader();
+                    readHeader();
                     break;
 
                 case StoppingPoint::END_OF_STREAM_HEADER:
                 case StoppingPoint::END_OF_BLOCK:
                     if ( m_currentDeflateBlock.has_value() && m_currentDeflateBlock->eos() ) {
-                        readGzipFooter();
+                        readFooter();
                     } else {
                         readBlockHeader();
                     }
@@ -269,7 +279,7 @@ public:
             }
         }
 
-        if ( m_bitReader.eof() ) {
+        if ( !hasDataToFlush() && m_bitReader.eof() ) {
             m_atEndOfFile = true;
         }
 
@@ -293,16 +303,24 @@ private:
     flushOutputBuffer( const WriteFunctor& writeFunctor,
                        size_t              maxBytesToFlush );
 
+    [[nodiscard]] bool
+    hasDataToFlush() const
+    {
+        return m_offsetInLastBuffers && m_currentDeflateBlock
+               && m_currentDeflateBlock->isValid()
+               && ( *m_offsetInLastBuffers < m_lastBlockData.size() );
+    }
+
     void
     readBlockHeader()
     {
         if ( !m_currentDeflateBlock.has_value() ) {
-            throw std::logic_error( "Call readGzipHeader before calling readBlockHeader!" );
+            throw std::logic_error( "Call readHeader before calling readBlockHeader!" );
         }
         const auto error = m_currentDeflateBlock->readHeader( m_bitReader );
-        if ( error != rapidgzip::Error::NONE ) {
+        if ( error != Error::NONE ) {
             std::stringstream message;
-            message << "Encountered error: " << rapidgzip::toString( error ) << " while trying to read deflate header!";
+            message << "Encountered error: " << toString( error ) << " while trying to read deflate header!";
             throw std::domain_error( std::move( message ).str() );
         }
         m_currentPoint = StoppingPoint::END_OF_BLOCK_HEADER;
@@ -317,16 +335,40 @@ private:
                size_t              nMaxBytesToDecode );
 
     void
-    readGzipHeader()
+    readHeader()
     {
-        auto [header, error] = rapidgzip::gzip::readHeader( m_bitReader );
-        if ( error != rapidgzip::Error::NONE ) {
-            std::stringstream message;
-            message << "Encountered error: " << rapidgzip::toString( error ) << " while trying to read gzip header!";
-            throw std::domain_error( std::move( message ).str() );
+        std::stringstream errorMessage;
+
+        switch ( m_fileType )
+        {
+        case FileType::NONE:
+        case FileType::BGZF:
+        case FileType::GZIP:
+        {
+            auto [header, error] = gzip::readHeader( m_bitReader );
+            if ( error != Error::NONE ) {
+                std::stringstream message;
+                message << "Encountered error: " << toString( error ) << " while trying to read gzip header!";
+                throw std::domain_error( std::move( message ).str() );
+            }
+            break;
+        }
+        case FileType::ZLIB:
+        {
+            auto [header, error] = zlib::readHeader( m_bitReader );
+            if ( error != Error::NONE ) {
+                std::stringstream message;
+                message << "Encountered error: " << toString( error ) << " while trying to read zlib header!";
+                throw std::domain_error( std::move( message ).str() );
+            }
+            break;
+        }
+        case FileType::DEFLATE:
+            break;
+        case FileType::BZIP2:
+            throw std::domain_error( "Bzip2 not supported by this class!" );
         }
 
-        m_lastGzipHeader = std::move( header );
         m_currentDeflateBlock.emplace();
         m_currentDeflateBlock->setInitialWindow();
         m_streamBytesCount = 0;
@@ -335,7 +377,7 @@ private:
     }
 
     void
-    readGzipFooter();
+    readFooter();
 
     [[nodiscard]] bool
     bufferHasBeenFlushed() const
@@ -351,12 +393,14 @@ private:
     }
 
 private:
+    const std::unique_ptr<SharedFileReader> m_fileReader;
+    const FileType m_fileType;
+
     gzip::BitReader m_bitReader;
 
     size_t m_currentPosition{ 0 };  /** the current position as can only be modified with read or seek calls. */
     bool m_atEndOfFile{ false };
 
-    rapidgzip::gzip::Header m_lastGzipHeader;
     /**
      * The deflate block will be reused during a gzip stream because each block depends on the last output
      * of the previous block. But after the gzip stream end, this optional will be cleared and in case of
@@ -445,7 +489,7 @@ GzipReader::readBlock( const WriteFunctor& writeFunctor,
     while ( true ) {
         if ( bufferHasBeenFlushed() ) {
             if ( !m_currentDeflateBlock.has_value() || !m_currentDeflateBlock->isValid() ) {
-                throw std::logic_error( "Call readGzipHeader and readBlockHeader before calling readBlock!" );
+                throw std::logic_error( "Call readHeader and readBlockHeader before calling readBlock!" );
             }
 
             if ( m_currentDeflateBlock->eob() ) {
@@ -457,9 +501,9 @@ GzipReader::readBlock( const WriteFunctor& writeFunctor,
             auto error = Error::NONE;
             std::tie( m_lastBlockData, error ) =
                 m_currentDeflateBlock->read( m_bitReader, std::numeric_limits<size_t>::max() );
-            if ( error != rapidgzip::Error::NONE ) {
+            if ( error != Error::NONE ) {
                 std::stringstream message;
-                message << "Encountered error: " << rapidgzip::toString( error ) << " while decompressing deflate block.";
+                message << "Encountered error: " << toString( error ) << " while decompressing deflate block.";
                 throw std::domain_error( std::move( message ).str() );
             }
 
@@ -489,23 +533,60 @@ GzipReader::readBlock( const WriteFunctor& writeFunctor,
 
 
 inline void
-GzipReader::readGzipFooter()
+GzipReader::readFooter()
 {
-    const auto footer = rapidgzip::gzip::readFooter( m_bitReader );
+    switch ( m_fileType )
+    {
+    case FileType::NONE:
+    case FileType::BGZF:
+    case FileType::GZIP:
+    {
+        const auto footer = gzip::readFooter( m_bitReader );
 
-    if ( static_cast<uint32_t>( m_streamBytesCount ) != footer.uncompressedSize ) {
-        std::stringstream message;
-        message << "Mismatching size (" << static_cast<uint32_t>( m_streamBytesCount ) << " <-> footer: "
-                << footer.uncompressedSize << ") for gzip stream!";
-        throw std::domain_error( std::move( message ).str() );
+        if ( static_cast<uint32_t>( m_streamBytesCount ) != footer.uncompressedSize ) {
+            std::stringstream message;
+            message << "Mismatching size (" << static_cast<uint32_t>( m_streamBytesCount ) << " <-> footer: "
+                    << footer.uncompressedSize << ") for gzip stream!";
+            throw std::domain_error( std::move( message ).str() );
+        }
+
+        if ( !m_currentDeflateBlock.has_value() || !m_currentDeflateBlock->isValid() ) {
+            /* A gzip stream should at least contain an end-of-stream block! */
+            throw std::logic_error( "Call readHeader and readBlockHeader before readFooter!" );
+        }
+
+        m_crc32Calculator.verify( footer.crc32 );
+        break;
     }
+    case FileType::ZLIB:
+    {
+        zlib::readFooter( m_bitReader );
 
-    if ( !m_currentDeflateBlock.has_value() || !m_currentDeflateBlock->isValid() ) {
-        /* A gzip stream should at least contain an end-of-stream block! */
-        throw std::logic_error( "Call readGzipHeader and readBlockHeader before readGzipFooter!" );
+        if ( !m_currentDeflateBlock.has_value() || !m_currentDeflateBlock->isValid() ) {
+            /* A gzip stream should at least contain an end-of-stream block! */
+            throw std::logic_error( "Call readHeader and readBlockHeader before readFooter!" );
+        }
+
+        break;
     }
-
-    m_crc32Calculator.verify( footer.crc32 );
+    case FileType::DEFLATE:
+    {
+        const auto remainder = m_bitReader.tell() % BYTE_SIZE;
+        if ( remainder != 0 ) {
+            /* Try to read the remaining bits and the start of the next byte to determine whether we should
+             * regard the remaining bits as end-of-file padding for the end of the raw deflate stream. */
+            try {
+                m_bitReader.peek<7>();
+            } catch ( const gzip::BitReader::EndOfFileReached& ) {
+                /* Skip the padding bits to get into correct EOF state. */
+                m_bitReader.read( BYTE_SIZE - remainder );
+            }
+        }
+        break;
+    }
+    case FileType::BZIP2:
+        throw std::domain_error( "Bzip2 not supported by this class!" );
+    }
 
     if ( m_bitReader.eof() ) {
         m_atEndOfFile = true;

@@ -75,7 +75,7 @@ testSerialDecoderNanoSample()
 
     std::vector<char> result( NANO_SAMPLE_DECODED.size() + 10, 0 );
     const auto nBytesDecoded = gzipReader.read( -1, result.data(), result.size() );
-    REQUIRE( nBytesDecoded == NANO_SAMPLE_DECODED.size() );
+    REQUIRE_EQUAL( nBytesDecoded, NANO_SAMPLE_DECODED.size() );
     REQUIRE( std::equal( NANO_SAMPLE_DECODED.begin(), NANO_SAMPLE_DECODED.end(), result.begin() ) );
 }
 
@@ -94,7 +94,7 @@ testSerialDecoderNanoSample( size_t multiples,
     while ( !gzipReader.eof() ) {
         const auto nBytesDecoded = gzipReader.read( -1, result.data(), result.size() );
         if ( nBytesDecoded < result.size() ) {
-            REQUIRE( nBytesDecoded == ( decoded.size() % bufferSize ) );
+            REQUIRE_EQUAL( nBytesDecoded, decoded.size() % bufferSize );
         }
         REQUIRE( std::equal( result.begin(), result.begin() + nBytesDecoded, decoded.begin() + totalBytesDecoded ) );
         totalBytesDecoded += nBytesDecoded;
@@ -134,13 +134,13 @@ testSerialDecoderNanoSampleStoppingPoints()
 
     {
         const auto [offsets, compressedOffsets] = collectStoppingPoints( StoppingPoint::NONE );
-        REQUIRE( offsets == std::vector<size_t>( { decoded.size() } ) );
+        REQUIRE_EQUAL( offsets, std::vector<size_t>( { decoded.size() } ) );
         REQUIRE( compressedOffsets == std::vector<size_t>( { encoded.size() * 8 } ) );
     }
 
     {
         const auto [offsets, compressedOffsets] = collectStoppingPoints( StoppingPoint::END_OF_STREAM );
-        REQUIRE( offsets == std::vector<size_t>( { NANO_SAMPLE_DECODED.size(), decoded.size() } ) );
+        REQUIRE_EQUAL( offsets, std::vector<size_t>( { NANO_SAMPLE_DECODED.size(), decoded.size() } ) );
         REQUIRE( compressedOffsets == std::vector<size_t>( { NANO_SAMPLE_GZIP.size() * 8, encoded.size() * 8 } ) );
     }
 
@@ -215,8 +215,8 @@ testSerialDecoder( std::filesystem::path const& decodedFilePath,
         totalBytesDecoded += buffer.size();
     }
 
-    REQUIRE( totalBytesDecoded == fileSize( decodedFilePath ) );
-    std::cerr << "Decoded " << decodedFilePath.filename() << " with buffer size " << bufferSize << "\n";
+    REQUIRE_EQUAL( totalBytesDecoded, fileSize( decodedFilePath ) );
+    std::cerr << "Decoded " << encodedFilePath.filename() << " with buffer size " << bufferSize << "\n";
 }
 
 
@@ -231,7 +231,11 @@ testTwoStagedDecoding( const std::string& encodedFilePath,
     const auto firstBlockSize = gzipReader.read( -1, decompressed.data(), decompressed.size(),
                                                  StoppingPoint::END_OF_BLOCK );
     decompressed.resize( firstBlockSize );
-    REQUIRE( gzipReader.currentPoint() == StoppingPoint::END_OF_BLOCK );
+    /* empty.migz and empty.pgzf are 0B and actually invalid gzip files, but except
+     * for this check everything works, so why not test with them. */
+    if ( fileSize( encodedFilePath ) > 0 ) {
+        REQUIRE( gzipReader.currentPoint() == StoppingPoint::END_OF_BLOCK );
+    }
 
     /* Save all information required for seeking directly to second block. */
     const auto secondBlockOffset = gzipReader.tellCompressed();
@@ -360,7 +364,9 @@ main( int    argc,
         }
 
         const auto extension = entry.path().extension().string();
-        const std::unordered_set<std::string> validExtensions = { ".gz", ".bgz", ".igz", ".pigz" };
+        const std::unordered_set<std::string> validExtensions = {
+            ".deflate", ".gz", ".bgz", ".igz", ".migz", ".pgzf", ".pigz", ".zlib",
+        };
         if ( validExtensions.find( extension ) == validExtensions.end() ) {
             continue;
         }

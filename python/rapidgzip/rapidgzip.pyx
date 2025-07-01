@@ -1,5 +1,5 @@
 """
-Cython wrapper for the GzipReader and ParallelGzipReader C++ classes.
+Cython wrapper for the ParallelGzipReader C++ class.
 """
 
 from libc.stdlib cimport malloc, free
