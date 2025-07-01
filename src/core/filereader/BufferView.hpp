@@ -41,6 +41,12 @@ public:
         m_size( buffer.size() )
     {}
 
+    [[nodiscard]] UniqueFileReader
+    cloneRaw() const override
+    {
+        return std::make_unique<BufferViewFileReader>( m_buffer, m_size );
+    }
+
     /* Copying is simply not allowed because that might interfere with the file position state, use SharedFileReader! */
 
     void

@@ -51,6 +51,15 @@ public:
         m_buffer( std::move( inMemoryFileContents ) )
     {}
 
+    [[nodiscard]] UniqueFileReader
+    cloneRaw() const override
+    {
+        if ( m_file ) {
+            return std::make_unique<BufferedFileReader>( m_file->clone() );
+        }
+        return std::make_unique<BufferedFileReader>( m_buffer, m_maxBufferSize );
+    }
+
     /* Copying is simply not allowed because that might interfere with the file position state, use SharedFileReader! */
 
     void
