@@ -51,13 +51,6 @@ public:
         m_buffer( std::move( inMemoryFileContents ) )
     {}
 
-    [[nodiscard]] UniqueFileReader
-    clone() const override
-    {
-        throw std::invalid_argument( "Cloning this file reader is not allowed because the internal file position "
-                                     "should not be modified by multiple owners!" );
-    }
-
     /* Copying is simply not allowed because that might interfere with the file position state, use SharedFileReader! */
 
     void

@@ -63,12 +63,6 @@ public:
 
     /* FileReader finals */
 
-    [[nodiscard]] UniqueFileReader
-    clone() const final
-    {
-        throw std::logic_error( "Not implemented!" );
-    }
-
     [[nodiscard]] int
     fileno() const final
     {

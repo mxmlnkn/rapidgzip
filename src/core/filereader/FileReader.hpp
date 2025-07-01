@@ -41,8 +41,19 @@ public:
     FileReader&
     operator=( FileReader&& ) = delete;
 
-    [[nodiscard]] virtual UniqueFileReader
-    clone() const = 0;
+    /**
+     * @return A std::unique_ptr to a copy of this FileReader. The copied file reader should have the same
+     *         file position if possible, i.e., if not closed.
+     */
+    [[nodiscard]] UniqueFileReader
+    clone() const
+    {
+        auto fileReader = cloneRaw();
+        if ( !fileReader->closed() && ( fileReader->tell() != tell() ) ) {
+            fileReader->seekTo( tell() );
+        }
+        return fileReader;
+    }
 
     virtual void
     close() = 0;
@@ -87,6 +98,18 @@ public:
 
     virtual void
     clearerr() = 0;
+
+protected:
+    /**
+     * Derived classes only need to construct a usable copy. Ideally, the state should be the same as the original.
+     * The real @ref clone will call this and will ensure that the file position is transferred to the new object
+     * if not already done.
+     */
+    [[nodiscard]] virtual UniqueFileReader
+    cloneRaw() const
+    {
+        throw std::logic_error( "Not implemented!" );
+    }
 
     [[nodiscard]] size_t
     effectiveOffset( long long int offset,

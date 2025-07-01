@@ -393,12 +393,6 @@ public:
 
     /* FileReader overrides */
 
-    [[nodiscard]] UniqueFileReader
-    clone() const override
-    {
-        throw std::logic_error( "Not implemented!" );
-    }
-
     [[nodiscard]] int
     fileno() const override
     {

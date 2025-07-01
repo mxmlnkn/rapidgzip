@@ -115,8 +115,9 @@ public:
      * Creates a shallow copy of this file reader with an independent file position to access the underlying file.
      */
     [[nodiscard]] UniqueFileReader
-    clone() const override
+    cloneRaw() const override
     {
+        /* Cannot use std::make_unique because the copy constructor is private! */
         return UniqueFileReader( new SharedFileReader( *this ) );
     }
 

@@ -352,7 +352,7 @@ public:
     }
 
     [[nodiscard]] UniqueFileReader
-    clone() const override
+    cloneRaw() const override
     {
         throw std::invalid_argument( "Cloning file path reader not allowed because the internal file position "
                                      "should not be modified by multiple owners!" );
