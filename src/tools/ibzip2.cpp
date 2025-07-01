@@ -319,11 +319,6 @@ ibzip2CLI( int argc, char** argv )
         }
     }
 
-    if ( ( outputFilePath != "/dev/null" ) && fileExists( outputFilePath ) && !force ) {
-        std::cerr << "Output file '" << outputFilePath << "' already exists! Use --force to overwrite.\n";
-        return 1;
-    }
-
     /* Parse other arguments. */
 
     const auto listOffsets = parsedArgs.count( "list-offsets" ) > 0;
