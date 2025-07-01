@@ -655,10 +655,14 @@ testInflateWrapper( const std::filesystem::path& rootFolder )
         "zeros",
     };
 
-    for ( const auto& extension : { ".gz"s, ".bgz"s, ".igz"s, ".pigz"s } ) {
+    for ( const auto& extension : { ".bgz"s, ".gz"s, ".igz"s, ".migz"s, ".pgzf"s, ".pigz"s } ) {
         for ( const auto* const fileName : GZIP_FILE_NAMES ) {
             std::cerr << "Testing with " << fileName + extension << "\n";
             const auto compressedFilePath = rootFolder / ( fileName + extension );
+            if ( fileSize( compressedFilePath ) == 0 ) {
+                continue;
+            }
+
             testSmallReads<InflateWrapper>( compressedFilePath, rootFolder / fileName );
             testSmallReadsUntilOffset<InflateWrapper>( compressedFilePath, rootFolder / fileName );
             testGetBlockOffsets( compressedFilePath );
@@ -700,8 +704,10 @@ main( int    argc,
     testGzipHeaderSkip();
 
 #ifdef WITH_ISAL
+    std::cerr << "\n== Testing IsalInflateWrapper ==\n";
     testInflateWrapper<IsalInflateWrapper>( rootFolder );
 #endif
+    std::cerr << "\n== Testing ZlibInflateWrapper ==\n";
     testInflateWrapper<ZlibInflateWrapper>( rootFolder );
 
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";

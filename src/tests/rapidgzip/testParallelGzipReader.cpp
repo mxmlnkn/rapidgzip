@@ -139,6 +139,11 @@ testParallelDecoder( const std::filesystem::path& encoded,
                      const std::filesystem::path& decoded = {},
                      const std::filesystem::path& index = {} )
 {
+    /* Happens for empty.migz and empty.pgzf */
+    if ( fileSize( encoded ) == 0 ) {
+        return;
+    }
+
     auto decodedFilePath = decoded;
     if ( decodedFilePath.empty() ) {
         decodedFilePath = encoded;
@@ -1125,6 +1130,7 @@ main( int    argc,
     testPerformance( tmpFolder );
 
     /* The second and last encoded offset should always be at the end of the file, i.e., equal the file size in bits. */
+    testIndexCreation( rootFolder / "1B.bz2", { { 4 * 8, 0 }, { 37 * 8, 1 } } );
     testIndexCreation( rootFolder / "1B.bgz", { { 18 * 8, 0 }, { 60 * 8, 1 } } );
     testIndexCreation( rootFolder / "1B.deflate", { { 0, 0 }, { 3 * 8, 1 } } );
     testIndexCreation( rootFolder / "1B.gz", { { 13 * 8, 0 }, { 24 * 8, 1 } } );
@@ -1137,12 +1143,14 @@ main( int    argc,
     testChecksummedMultiStreamDecompression( rootFolder / "base64-32KiB.deflate",
                                              rootFolder / "base64-32KiB" );
 
-    for ( const auto& extension : { ".gz"s, ".bgz"s, ".igz"s, ".pigz"s, ".zlib"s, ".deflate"s } ) {
-        testMultiStreamDecompression( rootFolder / ( "base64-32KiB" + extension ),
-                                      rootFolder / "base64-32KiB" );
+    const std::vector<std::string> extensions{
+        ".bz2"s, ".gz"s, ".bgz"s, ".igz"s, ".migz"s, ".pgzf"s, ".pigz"s, ".zlib"s, ".deflate"s,
+    };
+    for ( const auto& extension : extensions ) {
+        testMultiStreamDecompression( rootFolder / ( "base64-32KiB" + extension ), rootFolder / "base64-32KiB" );
     }
 
-    for ( const auto& extension : { ".gz"s, ".bgz"s, ".igz"s, ".pigz"s, ".zlib"s, ".deflate"s } ) {
+    for ( const auto& extension : extensions ) {
         testParallelDecoder( rootFolder / ( "empty" + extension ) );
         testParallelDecoder( rootFolder / ( "1B" + extension ) );
         testParallelDecoder( rootFolder / ( "256B-extended-ASCII-table-in-utf8-dynamic-Huffman" + extension ) );

@@ -402,6 +402,9 @@ getFooterOffsetsWithGzipReader( UniqueFileReader&& fileReader )
         if ( ( nBytesRead == 0 ) && gzipReader.eof() ) {
             break;
         }
+        if ( nBytesRead == 0 ) {
+            throw std::logic_error( "Made no progress!" );
+        }
         blockOffsets.emplace_back( gzipReader.tellCompressed(), gzipReader.tell() );
     }
     if ( blockOffsets.empty() || ( gzipReader.tellCompressed() != blockOffsets.back().first ) ) {
@@ -666,10 +669,14 @@ void
 testDecodeBlockWithInflateWrapperWithFiles( const std::filesystem::path& testFolder )
 {
     using namespace std::literals::string_literals;
-    for ( const auto& extension : { ".gz"s, ".bgz"s, ".igz"s, ".pigz"s } ) {
+    for ( const auto& extension : { ".gz"s, ".bgz"s, ".igz"s, ".migz"s, ".pgzf"s, ".pigz"s } ) {
         for ( const auto* const fileName : GZIP_FILE_NAMES ) {
             std::cerr << "Testing decodeChunkWithInflateWrapper with " << fileName + extension << "\n";
             const auto filePath = ( testFolder / ( fileName + extension ) ).string();
+            if ( fileSize( filePath ) == 0 ) {
+                continue;
+            }
+
             testGettingBoundaries( std::make_unique<StandardFileReader>( filePath ) );
             testGettingFooters( std::make_unique<StandardFileReader>( filePath ) );
         }
@@ -1057,15 +1064,10 @@ testUsedWindowSymbolsWithFile( const std::filesystem::path& filePath )
 void
 testUsedWindowSymbols( const std::filesystem::path& testFolder )
 {
-    testUsedWindowSymbolsWithFile( testFolder / "base64-256KiB.gz" );
-    testUsedWindowSymbolsWithFile( testFolder / "base64-256KiB.bgz" );
-    testUsedWindowSymbolsWithFile( testFolder / "base64-256KiB.igz" );
-    testUsedWindowSymbolsWithFile( testFolder / "base64-256KiB.pigz" );
-
-    testUsedWindowSymbolsWithFile( testFolder / "random-128KiB.gz" );
-    testUsedWindowSymbolsWithFile( testFolder / "random-128KiB.bgz" );
-    testUsedWindowSymbolsWithFile( testFolder / "random-128KiB.igz" );
-    testUsedWindowSymbolsWithFile( testFolder / "random-128KiB.pigz" );
+    for ( const auto& extension : { ".gz", ".bgz", ".igz", ".migz", ".pgzf", ".pigz" } ) {
+        testUsedWindowSymbolsWithFile( testFolder / ( std::string( "base64-256KiB" ) + extension ) );
+        testUsedWindowSymbolsWithFile( testFolder / ( std::string( "random-128KiB" ) + extension ) );
+    }
 }
 
 
