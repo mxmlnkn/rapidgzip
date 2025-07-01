@@ -370,6 +370,23 @@ with rapidgzip.open("example.gz", parallelization=os.cpu_count()) as file:
 The creation of the list of gzip blocks can take a while because it has to decode the gzip file completely.
 To avoid this setup when opening a gzip file, the block offset list can be exported and imported.
 
+```python3
+import os
+import rapidgzip
+
+index_path = "example.gz.gzindex"
+
+with rapidgzip.open("example.gz", parallelization=os.cpu_count()) as file:
+    file.seek(123)
+    data = file.read(100)
+    file.export_index(index_path)
+
+with rapidgzip.open("example.gz", parallelization=os.cpu_count()) as file:
+    file.import_index(index_path)
+    file.seek(123)
+    data = file.read(100)
+```
+
 
 ### Open a pure Python file-like object for indexed reading
 
