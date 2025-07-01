@@ -14,6 +14,8 @@ sys.stdout.buffer.write( o.flush() )
 function allgzip()
 {
     local file=$1
+    test -f "${file}.bz2" || bzip2 -c -- "$file" > "${file}.bz2"
+    test -f "${file}.lz4" || lz4 -c -- "$file" > "${file}.lz4"
     test -f "${file}.gz" || gzip -c -- "$file" > "${file}.gz"
     test -f "${file}.igz" || igzip -c -- "$file" > "${file}.igz"
     test -f "${file}.pigz" || pigz -c -- "$file" > "${file}.pigz"
