@@ -8,7 +8,7 @@
 #include <vector>
 
 #include <ParallelBitStringFinder.hpp>
-#include <filereader/Memory.hpp>
+#include <filereader/Buffered.hpp>
 #include <filereader/Standard.hpp>
 #include <FileUtils.hpp>
 #include <common.hpp>
@@ -138,7 +138,7 @@ testSingleBitAtFileBufferBoundary()
     for ( const auto bitPosition : bitPositions ) {
         std::vector<char> buffer( 4'000'000, '\0' );
         reinterpret_cast<uint8_t&>( buffer[bitPosition / CHAR_BIT] ) = 1U << ( 7 - ( bitPosition % CHAR_BIT ) );
-        BitStringFinder<1> bitStringFinder( std::make_unique<MemoryFileReader>( buffer ), 0x01, 8 );
+        BitStringFinder<1> bitStringFinder( std::make_unique<BufferedFileReader>( buffer ), 0x01, 8 );
         if ( !testBitStringFinder( std::move( bitStringFinder ), { bitPosition } ) ) {
             std::cerr << "ParallelBitStringFinder failed for buffer sized " << buffer.size() << " with single bit "
                       << "at offset " << bitPosition << " b!\n";
@@ -162,7 +162,7 @@ testSingleByteAtFileBufferBoundary()
     for ( const auto bytePosition : bytePositions ) {
         std::vector<char> buffer( 4'000'000, '\0' );
         reinterpret_cast<uint8_t&>( buffer[bytePosition] ) = 0xFFU;
-        ParallelBitStringFinder<CHAR_BIT> bitStringFinder( std::make_unique<MemoryFileReader>( buffer ), 0xFF, 8 );
+        ParallelBitStringFinder<CHAR_BIT> bitStringFinder( std::make_unique<BufferedFileReader>( buffer ), 0xFF, 8 );
         if ( !testBitStringFinder( std::move( bitStringFinder ), { bytePosition * CHAR_BIT } ) ) {
             std::cerr << "ParallelBitStringFinder failed for buffer sized " << buffer.size() << " with single bit "
                       << "at offset " << bytePosition << " b!\n";
