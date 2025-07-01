@@ -22,7 +22,7 @@ set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "" FORCE)
 # https://stackoverflow.com/questions/71797349/is-it-possible-to-ignore-a-header-with-clang-tidy
 # Clang-tidy has no negative matching, so painstakingly list all except for the "external" folder.
 # Not listing the "benchmark" and "test" folders also shouldn't hurt.
-set(CLANG_TIDY_COMMAND "clang-tidy;--config-file;${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy;--header-filter=/src/\(core\|huffman\|indexed_bzip2\|rapidgzip\|tools\)")
+set(CLANG_TIDY_COMMAND "clang-tidy;--config-file;${CMAKE_CURRENT_SOURCE_DIR}/src/.clang-tidy;--header-filter=/src/\(core\|huffman\|indexed_bzip2\|rapidgzip\|tools\)")
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Chile the build type: Debug, Release, RelWithDebInfo" FORCE)
