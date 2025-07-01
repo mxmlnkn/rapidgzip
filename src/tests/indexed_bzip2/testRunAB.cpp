@@ -3,8 +3,6 @@
 #include <string_view>
 #include <vector>
 
-#include <BitManipulation.hpp>
-#include <common.hpp>
 #include <TestHelpers.hpp>
 
 

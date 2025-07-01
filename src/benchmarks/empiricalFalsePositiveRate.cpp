@@ -17,11 +17,10 @@
 #include <common.hpp>
 #include <BitManipulation.hpp>
 #include <BitReader.hpp>
-#include <blockfinder/DynamicHuffman.hpp>
 #include <blockfinder/Uncompressed.hpp>
 #include <blockfinder/precodecheck/WithoutLUT.hpp>
-#include <definitions.hpp>
 #include <filereader/BufferView.hpp>
+#include <gzip/definitions.hpp>
 #include <Statistics.hpp>
 #include <ThreadPool.hpp>
 

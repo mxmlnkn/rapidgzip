@@ -4,9 +4,9 @@
 #include <cstdint>
 #include <utility>
 
-#include <common.hpp>           // forceinline
-#include <definitions.hpp>      // BitReader
+#include <common.hpp>            // forceinline
 #include <Error.hpp>
+#include <gzip/definitions.hpp>  // BitReader
 #include <VectorView.hpp>
 
 #include <igzip_lib.h>

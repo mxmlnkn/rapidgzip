@@ -5,7 +5,6 @@
 #include <vector>
 
 #include <common.hpp>
-#include <BitManipulation.hpp>
 #include <BitReader.hpp>
 #include <filereader/Buffered.hpp>
 #include <filereader/Standard.hpp>

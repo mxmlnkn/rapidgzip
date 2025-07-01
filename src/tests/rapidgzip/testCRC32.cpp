@@ -2,7 +2,7 @@
 #include <iostream>
 #include <string_view>
 
-#include <crc32.hpp>
+#include <gzip/crc32.hpp>
 #include <TestHelpers.hpp>
 
 

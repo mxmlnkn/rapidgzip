@@ -1,15 +1,14 @@
 #include <algorithm>
 #include <cstdint>
 #include <iostream>
-#include <limits>
 #include <memory>
 #include <utility>
 #include <vector>
 
 #include <common.hpp>
-#include <definitions.hpp>
-#include <deflate.hpp>
 #include <filereader/Buffered.hpp>
+#include <gzip/definitions.hpp>
+#include <gzip/deflate.hpp>
 #include <TestHelpers.hpp>
 
 

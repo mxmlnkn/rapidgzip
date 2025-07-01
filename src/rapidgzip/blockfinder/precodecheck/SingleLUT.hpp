@@ -14,7 +14,7 @@
 #include <stdexcept>
 
 #include <BitManipulation.hpp>
-#include <precode.hpp>
+#include <gzip/precode.hpp>
 
 
 namespace rapidgzip::PrecodeCheck::SingleLUT

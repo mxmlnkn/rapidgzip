@@ -5,7 +5,7 @@
 #include <utility>
 
 #include <common.hpp>           // forceinline
-#include <definitions.hpp>      // BitReader
+#include <gzip/definitions.hpp> // BitReader
 #include <Error.hpp>
 #include <VectorView.hpp>
 

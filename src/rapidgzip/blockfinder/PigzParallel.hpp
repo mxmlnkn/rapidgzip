@@ -1,19 +1,22 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <deque>
+#include <future>
 #include <limits>
 #include <memory>
 #include <stdexcept>
 #include <utility>
-#include <vector>
 
 #include <common.hpp>
 #include <filereader/Buffered.hpp>
 #include <filereader/FileReader.hpp>
+#include <gzip/definitions.hpp>
+#include <gzip/deflate.hpp>
+#include <gzip/gzip.hpp>
 #include <ThreadPool.hpp>
 
-#include "../rapidgzip.hpp"
 #include "Interface.hpp"
 
 

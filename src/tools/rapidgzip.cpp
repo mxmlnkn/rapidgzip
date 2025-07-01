@@ -2,7 +2,6 @@
 #include <iostream>
 #include <functional>
 #include <iterator>
-#include <map>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -17,7 +16,7 @@
 #include <filereader/Standard.hpp>
 #include <FileRanges.hpp>
 #include <FileUtils.hpp>
-#include <GzipAnalyzer.hpp>
+#include <gzip/GzipAnalyzer.hpp>
 #include <rapidgzip.hpp>
 #include <Statistics.hpp>
 

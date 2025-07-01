@@ -24,7 +24,7 @@
 #endif
 
 #include <common.hpp>
-#include <crc32.hpp>
+#include <gzip/crc32.hpp>
 #include <Statistics.hpp>
 
 #ifdef WITH_ISAL

@@ -21,7 +21,6 @@
 #include <vector>
 
 #include <AffinityHelpers.hpp>
-#include <BitReader.hpp>
 #include <blockfinder/DynamicHuffman.hpp>
 #include <blockfinder/Uncompressed.hpp>
 #include <common.hpp>

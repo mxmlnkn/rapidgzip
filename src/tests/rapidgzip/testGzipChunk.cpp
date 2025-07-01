@@ -6,7 +6,6 @@
 #include <memory>
 #include <optional>
 #include <random>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -15,12 +14,11 @@
 #include <common.hpp>
 #include <ChunkData.hpp>
 #include <chunkdecoding/GzipChunk.hpp>
-#include <definitions.hpp>
 #include <filereader/Buffered.hpp>
 #include <filereader/Standard.hpp>
 #include <FileUtils.hpp>
-#include <GzipReader.hpp>
-#include <Prefetcher.hpp>
+#include <gzip/definitions.hpp>
+#include <gzip/GzipReader.hpp>
 #include <TestHelpers.hpp>
 
 

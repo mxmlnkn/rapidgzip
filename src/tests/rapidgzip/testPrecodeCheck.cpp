@@ -21,7 +21,7 @@
 #include <blockfinder/precodecheck/WalkTreeLUT.hpp>
 #include <blockfinder/precodecheck/WithoutLUT.hpp>
 #include <filereader/Buffered.hpp>
-#include <precode.hpp>
+#include <gzip/precode.hpp>
 #include <TestHelpers.hpp>
 #include <Error.hpp>
 

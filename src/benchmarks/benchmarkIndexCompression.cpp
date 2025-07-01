@@ -8,7 +8,11 @@
 
 #include <common.hpp>
 #include <filereader/Standard.hpp>
-#include <ParallelGzipReader.hpp>
+#include <gzip/deflate.hpp>
+#ifdef WITH_ISAL
+    #include <gzip/isal.hpp>
+#endif
+#include <IndexFileFormat.hpp>
 
 
 using namespace rapidgzip;

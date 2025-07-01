@@ -1,5 +1,4 @@
 #include <iostream>
-#include <optional>
 
 #include <Cache.hpp>
 #include <TestHelpers.hpp>

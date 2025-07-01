@@ -16,7 +16,7 @@
 #include <common.hpp>
 #include <filereader/Buffered.hpp>
 #include <filereader/Standard.hpp>
-#include <GzipReader.hpp>
+#include <gzip/GzipReader.hpp>
 #include <rapidgzip.hpp>
 #include <TestHelpers.hpp>
 

@@ -6,9 +6,9 @@
 #include <fstream>
 #include <vector>
 
-#include <BitReader.hpp>
 #include <common.hpp>
 #include <filereader/Buffered.hpp>
+#include <gzip/definitions.hpp>
 #include <huffman/HuffmanCodingDoubleLiteralCached.hpp>
 #include <huffman/HuffmanCodingLinearSearch.hpp>
 #include <huffman/HuffmanCodingReversedBitsCached.hpp>
@@ -17,6 +17,7 @@
 #include <huffman/HuffmanCodingReversedCodesPerLength.hpp>
 #include <huffman/HuffmanCodingShortBitsCached.hpp>
 #include <huffman/HuffmanCodingSymbolsPerLength.hpp>
+#include <Statistics.hpp>
 
 
 using namespace rapidgzip;

@@ -1,6 +1,5 @@
 add_library(libchunkdecoding INTERFACE)
 add_library(rapidgzip::chunkdecoding ALIAS libchunkdecoding)
-target_include_directories(libchunkdecoding INTERFACE ${CMAKE_CURRENT_LIST_DIR})
 target_include_directories(libchunkdecoding INTERFACE ${CMAKE_CURRENT_LIST_DIR}/..)
 target_sources(libchunkdecoding INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/Bzip2Chunk.hpp

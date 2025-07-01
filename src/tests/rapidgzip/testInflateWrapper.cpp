@@ -8,17 +8,17 @@
 #include <vector>
 
 #include <common.hpp>
-#include <crc32.hpp>
-#include <deflate.hpp>
 #include <filereader/BufferView.hpp>
 #include <filereader/Shared.hpp>
 #include <filereader/Standard.hpp>
-#include <GzipReader.hpp>
-#include <TestHelpers.hpp>
-#include <zlib.hpp>
+#include <gzip/crc32.hpp>
+#include <gzip/deflate.hpp>
+#include <gzip/GzipReader.hpp>
+#include <gzip/zlib.hpp>
 #ifdef WITH_ISAL
-    #include <isal.hpp>
+    #include <gzip/isal.hpp>
 #endif
+#include <TestHelpers.hpp>
 
 
 using namespace std::literals;

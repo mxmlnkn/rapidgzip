@@ -5,7 +5,6 @@
 #include <string>
 #include <vector>
 
-#include <common.hpp>
 #include <filereader/Buffered.hpp>
 #include <filereader/FileReader.hpp>
 #include <filereader/Standard.hpp>

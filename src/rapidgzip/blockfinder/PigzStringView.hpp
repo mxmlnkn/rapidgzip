@@ -1,11 +1,12 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
+#include <climits>
 #include <cstdint>
 #include <limits>
 #include <memory>
 #include <optional>
-#include <stdexcept>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -13,7 +14,8 @@
 #include <common.hpp>
 #include <filereader/Buffered.hpp>
 #include <filereader/FileReader.hpp>
-#include <gzip.hpp>
+#include <gzip/definitions.hpp>
+#include <gzip/gzip.hpp>
 
 #include "Interface.hpp"
 

@@ -16,16 +16,14 @@
 #include <cstring>
 #include <functional>
 #include <limits>
-#include <map>
 #include <optional>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
-#include <BitReader.hpp>
 //#include <huffman/HuffmanCodingLinearSearch.hpp>
-#include <huffman/HuffmanCodingSymbolsPerLength.hpp>
+//#include <huffman/HuffmanCodingSymbolsPerLength.hpp>
 #include <huffman/HuffmanCodingReversedBitsCachedCompressed.hpp>
 #include <huffman/HuffmanCodingReversedBitsCached.hpp>
 //#include <huffman/HuffmanCodingReversedCodesPerLength.hpp>
@@ -48,7 +46,6 @@
 #include "DecodedDataView.hpp"
 #include "definitions.hpp"
 #include "Error.hpp"
-#include "gzip.hpp"
 #include "MarkerReplacement.hpp"
 #include "RFCTables.hpp"
 

@@ -24,7 +24,6 @@ https://www.ietf.org/rfc/rfc1952.txt
 #include <numeric>
 #include <stdexcept>
 #include <string>
-#include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <unordered_map>
@@ -34,7 +33,6 @@ https://www.ietf.org/rfc/rfc1952.txt
 #include <zlib.h>
 
 #include <BitManipulation.hpp>
-#include <BitReader.hpp>
 #include <blockfinder/Bgzf.hpp>
 #include <blockfinder/DynamicHuffman.hpp>
 #include <blockfinder/precodecheck/SingleCompressedLUT.hpp>
@@ -46,8 +44,9 @@ https://www.ietf.org/rfc/rfc1952.txt
 #include <DataGenerators.hpp>
 #include <filereader/Buffered.hpp>
 #include <filereader/Standard.hpp>
+#include <gzip/definitions.hpp>
+#include <gzip/precode.hpp>
 #include <huffman/HuffmanCodingCheckOnly.hpp>
-#include <precode.hpp>
 #include <Statistics.hpp>
 #include <TestHelpers.hpp>
 

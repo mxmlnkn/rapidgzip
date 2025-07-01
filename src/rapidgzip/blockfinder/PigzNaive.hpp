@@ -1,17 +1,18 @@
 #pragma once
 
 #include <array>
+#include <climits>
 #include <cstdint>
 #include <limits>
 #include <memory>
-#include <optional>
 #include <stdexcept>
 #include <utility>
 
 #include <common.hpp>
 #include <filereader/Buffered.hpp>
 #include <filereader/FileReader.hpp>
-#include <gzip.hpp>
+#include <gzip/definitions.hpp>
+#include <gzip/gzip.hpp>
 
 #include "Interface.hpp"
 

@@ -4,8 +4,8 @@
 #include <cstdint>
 
 #include <BitManipulation.hpp>
-#include <deflate.hpp>
 #include <Error.hpp>
+#include <gzip/deflate.hpp>
 
 
 namespace rapidgzip::PrecodeCheck::WithoutLUT

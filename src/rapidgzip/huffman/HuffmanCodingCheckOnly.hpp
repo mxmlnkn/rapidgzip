@@ -3,7 +3,7 @@
 #include <optional>
 #include <stdexcept>
 
-#include <definitions.hpp>
+#include <gzip/definitions.hpp>
 #include <huffman/HuffmanCodingBase.hpp>
 
 

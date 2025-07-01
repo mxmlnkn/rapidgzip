@@ -14,11 +14,11 @@
 #include <filereader/Buffered.hpp>
 #include <filereader/BufferView.hpp>
 #include <filereader/Standard.hpp>
+#include <gzip/zlib.hpp>
 #include <DataGenerators.hpp>
 #include <ParallelGzipReader.hpp>
 #include <rapidgzip.hpp>
 #include <TestHelpers.hpp>
-#include <zlib.hpp>
 
 
 using namespace rapidgzip;

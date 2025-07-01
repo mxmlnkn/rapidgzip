@@ -24,10 +24,10 @@
 #include <filereader/FileReader.hpp>
 #include <FileUtils.hpp>
 #ifdef WITH_ISAL
-    #include <isal.hpp>
+    #include <gzip/isal.hpp>
 #endif
+#include <gzip/zlib.hpp>
 #include <VectorView.hpp>
-#include <zlib.hpp>
 
 #include "ThreadPool.hpp"
 #include "WindowMap.hpp"

@@ -1,13 +1,13 @@
 #pragma once
 
 #include <algorithm>
+#include <cassert>
 #include <limits>
 #include <utility>
 
 #include <BitManipulation.hpp>
-#include <BitReader.hpp>
 #include <common.hpp>
-#include <definitions.hpp>
+#include <gzip/definitions.hpp>
 
 
 namespace rapidgzip::blockfinder

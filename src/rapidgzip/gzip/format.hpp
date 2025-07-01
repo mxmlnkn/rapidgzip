@@ -7,7 +7,8 @@
 #include <bzip2.hpp>
 #include <filereader/FileReader.hpp>
 #include <filereader/Shared.hpp>
-#include <gzip.hpp>
+#include <gzip/deflate.hpp>
+#include <gzip/gzip.hpp>
 
 #include "blockfinder/Bgzf.hpp"
 

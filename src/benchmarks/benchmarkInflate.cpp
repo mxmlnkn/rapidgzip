@@ -4,11 +4,9 @@
  */
 
 #include <algorithm>
-#include <cstdio>
 #include <iostream>
 #include <memory>
 #include <random>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -18,9 +16,7 @@
 
 #include <common.hpp>
 #include <filereader/BufferView.hpp>
-#include <filereader/Standard.hpp>
-#include <FileUtils.hpp>
-#include <GzipReader.hpp>
+#include <gzip/GzipReader.hpp>
 #include <Statistics.hpp>
 #include <TestHelpers.hpp>
 

@@ -9,11 +9,11 @@
 #include <FasterVector.hpp>
 #include <VectorView.hpp>
 
-#include "InflateWrapper.hpp"
+#include "gzip/InflateWrapper.hpp"
 #ifdef WITH_ISAL
-    #include "isal.hpp"
+    #include "gzip/isal.hpp"
 #endif
-#include "zlib.hpp"
+#include "gzip/zlib.hpp"
 
 namespace rapidgzip
 {

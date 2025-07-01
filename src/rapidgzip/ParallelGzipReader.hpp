@@ -26,10 +26,10 @@
     #include <filereader/Standard.hpp>
 #endif
 
-#include "crc32.hpp"
+#include "gzip/crc32.hpp"
+#include "gzip/gzip.hpp"
 #include "GzipChunkFetcher.hpp"
 #include "GzipBlockFinder.hpp"
-#include "gzip.hpp"
 #include "IndexFileFormat.hpp"
 
 

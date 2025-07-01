@@ -3,11 +3,17 @@
 #include <array>
 #include <cstdint>
 #include <limits>
+#ifndef NDEBUG
+    #include <iostream>
+    #include <stdexcept>
+#endif
 
-#include <BitReader.hpp>
+#include <BitManipulation.hpp>
+#include <common.hpp>
+#include <gzip/definitions.hpp>
+#include <gzip/deflate.hpp>
 #include <huffman/HuffmanCodingCheckOnly.hpp>
 
-#include "deflate.hpp"
 #include "Error.hpp"
 #include "precodecheck/WalkTreeLUT.hpp"
 

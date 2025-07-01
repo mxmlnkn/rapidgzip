@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cstring>
-#include <iostream>
 #include <functional>
 #include <limits>
 #include <memory>
@@ -12,15 +11,15 @@
 #include <stdexcept>
 #include <utility>
 
-#include <crc32.hpp>
 #include <DecodedDataView.hpp>
-#include <definitions.hpp>
-#include <deflate.hpp>
 #include <FileUtils.hpp>
 #include <filereader/FileReader.hpp>
 #include <filereader/Shared.hpp>
-#include <format.hpp>
-#include <gzip.hpp>
+#include <gzip/crc32.hpp>
+#include <gzip/definitions.hpp>
+#include <gzip/deflate.hpp>
+#include <gzip/format.hpp>
+#include <gzip/gzip.hpp>
 
 #ifdef WITH_PYTHON_SUPPORT
     #include <filereader/Python.hpp>

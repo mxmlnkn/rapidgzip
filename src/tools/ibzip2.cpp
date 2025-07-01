@@ -2,7 +2,6 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
 #include <iostream>
 #include <limits>
 #include <map>
@@ -16,7 +15,6 @@
 
 #include <AffinityHelpers.hpp>
 #include <bzip2.hpp>
-#include <BitReader.hpp>
 #include <BitStringFinder.hpp>
 #include <BZ2Reader.hpp>
 #include <common.hpp>

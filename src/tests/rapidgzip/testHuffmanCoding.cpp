@@ -6,10 +6,10 @@
 #include <utility>
 #include <vector>
 
-#include <BitReader.hpp>
 #include <common.hpp>
 #include <filereader/Buffered.hpp>
 #include <filereader/BufferView.hpp>
+#include <gzip/definitions.hpp>
 #include <huffman/HuffmanCodingDoubleLiteralCached.hpp>
 #include <huffman/HuffmanCodingLinearSearch.hpp>
 #include <huffman/HuffmanCodingReversedBitsCached.hpp>

@@ -11,7 +11,9 @@
 #include <BitStringFinder.hpp>
 #include <bzip2.hpp>
 #include <ChunkData.hpp>
-#include <DecompressionError.hpp>
+#include <gzip/definitions.hpp>
+
+#include "DecompressionError.hpp"
 
 
 namespace rapidgzip

@@ -6,9 +6,9 @@
 #include <limits>
 #include <stdexcept>
 
-#include <definitions.hpp>
 #include <BitManipulation.hpp>
 #include <Error.hpp>
+#include <gzip/definitions.hpp>
 
 
 namespace rapidgzip::PrecodeCheck::WalkTreeLUT

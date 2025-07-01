@@ -6,7 +6,6 @@
  *       of all implementations to check for errors.
  */
 
-#include <cstdio>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -18,7 +17,7 @@
 #include <common.hpp>
 #include <filereader/Standard.hpp>
 #include <FileUtils.hpp>
-#include <GzipReader.hpp>
+#include <gzip/GzipReader.hpp>
 #include <ParallelGzipReader.hpp>
 #include <Statistics.hpp>
 #include <TestHelpers.hpp>

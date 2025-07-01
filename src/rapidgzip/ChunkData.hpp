@@ -9,10 +9,10 @@
 #include <vector>
 
 #include <CompressedVector.hpp>
-#include <crc32.hpp>
 #include <DecodedData.hpp>
 #include <FasterVector.hpp>
-#include <gzip.hpp>
+#include <gzip/crc32.hpp>
+#include <gzip/gzip.hpp>
 
 
 namespace rapidgzip

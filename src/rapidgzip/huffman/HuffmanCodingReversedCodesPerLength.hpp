@@ -1,14 +1,12 @@
 #pragma once
 
 #include <array>
+#include <cassert>
 #include <cstdint>
 #include <limits>
 #include <optional>
-#include <stdexcept>
-#include <type_traits>
-#include <vector>
 
-#include <definitions.hpp>
+#include <gzip/definitions.hpp>
 #include <huffman/HuffmanCodingBase.hpp>
 
 

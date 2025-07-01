@@ -14,7 +14,7 @@
 #include <VectorView.hpp>
 
 #include "DecodedDataView.hpp"
-#include "definitions.hpp"
+#include "gzip/definitions.hpp"
 #include "MarkerReplacement.hpp"
 
 

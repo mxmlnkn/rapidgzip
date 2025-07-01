@@ -1,16 +1,16 @@
 #pragma once
 
-#include <array>
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
-#include <iostream>
 #include <limits>
 #include <memory>
-#include <mutex>
-#include <unordered_map>
+#include <optional>
+#include <sstream>
+#include <stdexcept>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -20,6 +20,7 @@
 #include <blockfinder/Uncompressed.hpp>
 #include <ChunkData.hpp>
 #include <common.hpp>
+#include <gzip/definitions.hpp>
 #include <gzip/deflate.hpp>
 #include <gzip/gzip.hpp>
 #ifdef WITH_ISAL

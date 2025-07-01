@@ -7,7 +7,7 @@
 #include <iostream>
 #include <limits>
 #include <map>
-#include <memory>
+#include <numeric>
 #include <optional>
 #include <stdexcept>
 #include <string_view>
@@ -15,7 +15,7 @@
 #include <utility>
 #include <vector>
 
-#include <BitReader.hpp>
+#include <common.hpp>
 #include <filereader/FileReader.hpp>
 #include <Statistics.hpp>
 
@@ -24,7 +24,9 @@
 #endif
 
 #include "crc32.hpp"
+#include "definitions.hpp"
 #include "deflate.hpp"
+#include "gzip.hpp"
 #include "Error.hpp"
 #include "format.hpp"
 

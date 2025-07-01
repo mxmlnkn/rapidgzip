@@ -8,7 +8,7 @@
 #include <stdexcept>
 #include <utility>
 
-#include <definitions.hpp>
+#include <gzip/definitions.hpp>
 #include <huffman/HuffmanCodingReversedCodesPerLength.hpp>
 
 

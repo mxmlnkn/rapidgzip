@@ -4,9 +4,9 @@
 #include <cstdint>
 #include <string>
 
-#include "deflate.hpp"
-#include "gzip.hpp"
-#include "GzipReader.hpp"
+#include "gzip/deflate.hpp"
+#include "gzip/gzip.hpp"
+#include "gzip/GzipReader.hpp"
 #include "IndexFileFormat.hpp"
 #include "ParallelGzipReader.hpp"
 

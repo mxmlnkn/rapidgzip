@@ -7,7 +7,6 @@
 
 #include <common.hpp>
 #include <filereader/BufferView.hpp>
-#include <filereader/FileReader.hpp>
 #include <filereader/StreamAdapter.hpp>
 #include <TestHelpers.hpp>
 
