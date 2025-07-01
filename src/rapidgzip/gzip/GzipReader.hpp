@@ -275,6 +275,10 @@ public:
             }
         }
 
+        if ( m_bitReader.eof() ) {
+            m_atEndOfFile = true;
+        }
+
         m_currentPosition += nBytesDecoded;
         return nBytesDecoded;
     }
