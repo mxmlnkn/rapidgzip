@@ -245,7 +245,10 @@ ibzip2CLI( int argc, char** argv )
         for ( auto const* const path : { "input", "output", "list-compressed-offsets", "list-offsets" } ) {
             std::string value = "<none>";
             try {
-                value = parsedArgs[path].as<std::string>();
+                value = getFilePath( parsedArgs, path );
+                if ( value.empty() && ( parsedArgs.count( path ) > 0 ) ) {
+                    value = "<stdout>";
+                }
             } catch ( ... ) {}
             std::cerr << "file path for " << path << ": " << value << "\n";
         }
@@ -321,6 +324,7 @@ ibzip2CLI( int argc, char** argv )
 
     /* Parse other arguments. */
 
+    const auto listCompressedOffsets = parsedArgs.count( "list-compressed-offsets" ) > 0;
     const auto listOffsets = parsedArgs.count( "list-offsets" ) > 0;
     const auto decompress = parsedArgs.count( "decompress" ) > 0;
 
@@ -422,10 +426,9 @@ ibzip2CLI( int argc, char** argv )
             }
         }
 
-        if ( parsedArgs.count( "list-offsets" ) > 0 ) {
-            const auto filePath = parsedArgs["list-offsets"].as<std::string>();
-            if ( !filePath.empty() ) {
-                std::ofstream file( filePath );
+        if ( listOffsets ) {
+            if ( !offsetsFilePath.empty() ) {
+                std::ofstream file( offsetsFilePath );
                 dumpOffsets( file, offsets );
             } else if ( outputFilePath.empty() ) {
                 dumpOffsets( std::cerr, offsets );
@@ -434,10 +437,9 @@ ibzip2CLI( int argc, char** argv )
             }
         }
 
-        if ( parsedArgs.count( "list-compressed-offsets" ) > 0 ) {
-            const auto filePath = parsedArgs["list-compressed-offsets"].as<std::string>();
-            if ( !filePath.empty() ) {
-                std::ofstream file( filePath );
+        if ( listCompressedOffsets ) {
+            if ( !compressedOffsetsFilePath.empty() ) {
+                std::ofstream file( compressedOffsetsFilePath );
                 dumpOffsets( file, compressedOffsets );
             } else if ( outputFilePath.empty() ) {
                 dumpOffsets( std::cerr, compressedOffsets );
@@ -449,14 +451,14 @@ ibzip2CLI( int argc, char** argv )
         return 0;
     }
 
-    if ( parsedArgs.count( "list-compressed-offsets" ) > 0 ) {
+    if ( listCompressedOffsets ) {
         if ( verbose ) {
             std::cerr << "Find block offsets\n";
         }
 
         /* If effectively only the compressed offsets are requested, then we can use the blockfinder directly! */
         findCompressedBlocks( inputFilePath,
-                              parsedArgs["list-compressed-offsets"].as<std::string>(),
+                              compressedOffsetsFilePath,
                               blockFinderParallelism,
                               bufferSize > 0 ? bufferSize : 32_Ki,
                               test,
