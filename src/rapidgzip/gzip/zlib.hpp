@@ -28,7 +28,7 @@ enum class CompressionStrategy : int
 };
 
 
-[[nodiscard]] inline std::string_view
+[[nodiscard]] constexpr std::string_view
 toString( const CompressionStrategy compressionStrategy )
 {
     using namespace std::literals;
