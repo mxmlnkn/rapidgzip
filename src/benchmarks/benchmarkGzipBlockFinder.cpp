@@ -1864,21 +1864,21 @@ benchmarkGzip( const std::string& fileName )
     /* In general, all solutions should return all blocks except for the final block, uncompressed blocks
      * and fixed Huffman encoded blocks. */
     const auto verifyCandidates =
-        [&blockOffsets = blockOffsets]
+        [&blockOffsets2 = blockOffsets]
         ( const std::vector<size_t>& blockCandidates,
           const size_t               nBytesToTest )
         {
-            for ( size_t i = 0; i + 1 < blockOffsets.size(); ++i ) {
+            for ( size_t i = 0; i + 1 < blockOffsets2.size(); ++i ) {
                 /* Pigz produces a lot of very small fixed Huffman blocks, probably because of a "flush".
                  * But the block finder don't have to find fixed Huffman blocks */
-                const auto size = blockOffsets[i + 1] - blockOffsets[i];
+                const auto size = blockOffsets2[i + 1] - blockOffsets2[i];
                 if ( size < 1000 ) {
                     continue;
                 }
 
                 /* Especially for the naive zlib finder up to one deflate block might be missing,
                  * i.e., up to ~64 KiB! */
-                const auto offset = blockOffsets[i];
+                const auto offset = blockOffsets2[i];
                 if ( offset >= nBytesToTest * CHAR_BIT - 128_Ki * CHAR_BIT ) {
                     break;
                 }
@@ -1890,7 +1890,7 @@ benchmarkGzip( const std::string& fileName )
                 }
             }
 
-            if ( blockCandidates.size() > 2 * blockOffsets.size() + 10 ) {
+            if ( blockCandidates.size() > 2 * blockOffsets2.size() + 10 ) {
                 throw std::logic_error( "Too many false positives found!" );
             }
         };

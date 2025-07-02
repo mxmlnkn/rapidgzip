@@ -136,7 +136,7 @@ public:
         m_data( std::make_shared<Container>( compress<Container>( toCompress, compressionType ) ) )
     {}
 
-    [[deprecated]] explicit
+    explicit
     CompressedVector( Container&&           compressedData,
                       const size_t          decompressedSize,
                       const CompressionType compressionType ) :

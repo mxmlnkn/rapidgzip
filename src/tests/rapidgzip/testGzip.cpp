@@ -109,20 +109,20 @@ testSerialDecoderNanoSampleStoppingPoints()
     const auto [encoded, decoded] = duplicateNanoStream( multiples );
 
     const auto collectStoppingPoints =
-        [&encoded = encoded, &decoded = decoded] ( StoppingPoint stoppingPoint )
+        [&encoded2 = encoded, &decoded2 = decoded] ( StoppingPoint stoppingPoint )
         {
             std::vector<size_t> offsets;
             std::vector<size_t> compressedOffsets;
 
-            GzipReader gzipReader( std::make_unique<BufferedFileReader>( encoded ) );
+            GzipReader gzipReader( std::make_unique<BufferedFileReader>( encoded2 ) );
             gzipReader.setCRC32Enabled( true );
 
-            std::vector<char> result( decoded.size(), 0 );
+            std::vector<char> result( decoded2.size(), 0 );
             size_t totalBytesDecoded = 0;
             while ( !gzipReader.eof() ) {
                 const auto nBytesDecoded = gzipReader.read( -1, result.data(), result.size(), stoppingPoint );
                 REQUIRE( std::equal( result.begin(), result.begin() + nBytesDecoded,
-                                     decoded.begin() + totalBytesDecoded ) );
+                                     decoded2.begin() + totalBytesDecoded ) );
                 totalBytesDecoded += nBytesDecoded;
 
                 offsets.emplace_back( gzipReader.tell() );
