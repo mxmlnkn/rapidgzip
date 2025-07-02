@@ -11,8 +11,9 @@ jobs:
 
     strategy:
       matrix:
-        os: [macos-13, macos-14, windows-latest]
+        os: [macos-13, macos-14, ubuntu-24.04-arm, ubuntu-latest, windows-latest]
         archs: [auto64]
+        manylinux-image: [manylinux_2_28]
         # Build with both x86-64 (macos-13) and ARM64 (macos-14) runners.
         # For some reason, macos-14-latest seems to use macos-14-arm64, but when I try to specify macos-14-arm64
         # directly, then the actions does not find any runner to run on and macos-14 also uses arm64...
@@ -27,20 +28,8 @@ jobs:
         # MacOS and Windows ignore the manylinux-image version because they are not Linux.
         include:
         - os: ubuntu-latest
-          manylinux-image: manylinux2014
-          archs: auto64
-        - os: ubuntu-latest
-          manylinux-image: manylinux2014
+          manylinux-image: manylinux_2_28
           archs: auto32
-        - os: ubuntu-latest
-          manylinux-image: manylinux_2_28
-          archs: auto64
-        - os: ubuntu-24.04-arm
-          manylinux-image: manylinux2014
-          archs: auto64
-        - os: ubuntu-24.04-arm
-          manylinux-image: manylinux_2_28
-          archs: auto64
 
     env:
       MACOSX_DEPLOYMENT_TARGET: "10.15"
@@ -73,8 +62,6 @@ jobs:
 
     - name: Build Tarball
       working-directory: python/indexed_bzip2
-      # Only one out of the OS matrix needs to upload the tarball.
-      if: matrix.manylinux-image == 'manylinux2014' && matrix.os == 'ubuntu-latest'
       run: python3 -m build --sdist
 
     - name: Build Wheels
@@ -88,7 +75,7 @@ jobs:
 
     - name: Publish Tarball to PyPI
       # Only one out of the OS matrix needs to upload the tarball.
-      if: startsWith(github.ref, 'refs/tags/') && matrix.manylinux-image == 'manylinux2014' && matrix.os == 'ubuntu-latest'
+      if: startsWith(github.ref, 'refs/tags/') && matrix.os == 'ubuntu-latest' && matrix.archs == 'auto64' && matrix.manylinux-image == 'manylinux_2_28'
       env:
         TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
       working-directory: python/indexed_bzip2
