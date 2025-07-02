@@ -887,6 +887,12 @@ private:
         return markers;
     }
 
+    [[nodiscard]] constexpr DecodedBuffer
+    getWindow() noexcept
+    {
+        return DecodedBuffer{ reinterpret_cast<std::uint8_t*>( m_window16.data() ) };
+    }
+
 private:
     uint16_t m_uncompressedSize{ 0 };
 
@@ -919,17 +925,16 @@ private:
 
     alignas( 64 ) PreDecodedBuffer m_window16{ initializeMarkedWindowBuffer() };
 
-    const DecodedBuffer m_window{ reinterpret_cast<std::uint8_t*>( m_window16.data() ) };
-
+public:
     /**
-     * Points to the index of the next code to be written in @ref m_window. I.e., can also be interpreted as
-     * the size of m_window (in the beginning as long as it does not wrap).
+     * Points to the index of the next code to be written in @ref getWindow. I.e., can also be interpreted as
+     * the size of getWindow (in the beginning as long as it does not wrap).
      */
     size_t m_windowPosition{ 0 };
     /**
-     * If true, then @ref m_window16 should be used, else @ref m_window!
+     * If true, then @ref m_window16 should be used, else @ref getWindow!
      * When @ref m_distanceToLastMarkerByte reaches a sufficient threshold, @ref m_window16 will be converted
-     * to @ref m_window and this variable will be set to true.
+     * to @ref getWindow and this variable will be set to true.
      */
     bool m_containsMarkerBytes{ true };
     /**
@@ -950,9 +955,9 @@ private:
     std::vector<Backreference> m_backreferences;
 
     /* Large buffers required only temporarily inside readHeader. */
-    alignas( 64 ) std::array<uint8_t, MAX_PRECODE_COUNT> m_precodeCL;
-    alignas( 64 ) PrecodeHuffmanCoding m_precodeHC;
-    alignas( 64 ) LiteralAndDistanceCLBuffer m_literalCL;
+    alignas( 64 ) std::array<uint8_t, MAX_PRECODE_COUNT> m_precodeCL{};
+    alignas( 64 ) PrecodeHuffmanCoding m_precodeHC{};
+    alignas( 64 ) LiteralAndDistanceCLBuffer m_literalCL{};
 };
 
 
@@ -1202,6 +1207,7 @@ Block<ENABLE_STATISTICS>::read( gzip::BitReader& bitReader,
     }
 
     DecodedDataView result;
+    const auto window = getWindow();
 
     if ( m_compressionType == CompressionType::UNCOMPRESSED ) {
         std::optional<size_t> nBytesRead;
@@ -1210,7 +1216,7 @@ Block<ENABLE_STATISTICS>::read( gzip::BitReader& bitReader,
              * Because, in this case, we can simply copy the uncompressed block to the beginning of the window
              * without worrying about wrap-around and also now we know that there are no markers remaining! */
             m_windowPosition = m_uncompressedSize;
-            nBytesRead = bitReader.read( reinterpret_cast<char*>( m_window.data() ), m_uncompressedSize );
+            nBytesRead = bitReader.read( reinterpret_cast<char*>( window.data() ), m_uncompressedSize );
         } else if ( m_containsMarkerBytes && ( m_distanceToLastMarkerByte + m_uncompressedSize >= MAX_WINDOW_SIZE ) ) {
             /* Special case for when the new uncompressed data plus some fully-decoded data from the window buffer
              * together exceed the maximum backreference distance. */
@@ -1231,18 +1237,18 @@ Block<ENABLE_STATISTICS>::read( gzip::BitReader& bitReader,
 
             m_windowPosition = MAX_WINDOW_SIZE;
 
-            std::memcpy( m_window.data(), remainingData.data(), remainingData.size() );
-            nBytesRead = bitReader.read( reinterpret_cast<char*>( m_window.data() + remainingData.size() ),
+            std::memcpy( window.data(), remainingData.data(), remainingData.size() );
+            nBytesRead = bitReader.read( reinterpret_cast<char*>( window.data() + remainingData.size() ),
                                          m_uncompressedSize );
         } else if ( !m_containsMarkerBytes ) {
             /* When there are no markers, it means we can simply memcpy into the uint8_t window.
              * This speeds things up from ~400 MB/s to ~ 6 GB/s compared to calling appendToWindow for each byte!
              * We can use @ref lastBuffers, which are also returned, to determine where to copy to. */
-            m_windowPosition = ( m_windowPosition + m_uncompressedSize ) % m_window.size();
+            m_windowPosition = ( m_windowPosition + m_uncompressedSize ) % window.size();
             size_t totalBytesRead{ 0 };
             auto buffers =
                 lastBuffers<DecodedBuffer, uint8_t, WeakVector<uint8_t> >(
-                    m_window, m_windowPosition, m_uncompressedSize );
+                    window, m_windowPosition, m_uncompressedSize );
             for ( auto& buffer : buffers ) {
                 totalBytesRead += bitReader.read( reinterpret_cast<char*>( buffer.data() ), buffer.size() );
             }
@@ -1254,7 +1260,7 @@ Block<ENABLE_STATISTICS>::read( gzip::BitReader& bitReader,
             m_atEndOfBlock = true;
             m_decodedBytes += *nBytesRead;
 
-            result.data = lastBuffers( m_window, m_windowPosition, *nBytesRead );
+            result.data = lastBuffers( window, m_windowPosition, *nBytesRead );
 
             if constexpr ( ENABLE_STATISTICS ) {
                 durations.readData += duration( times.readDataStart );
@@ -1277,13 +1283,13 @@ Block<ENABLE_STATISTICS>::read( gzip::BitReader& bitReader,
              || ( ( m_distanceToLastMarkerByte >= MAX_WINDOW_SIZE )
                   && ( m_distanceToLastMarkerByte == m_decodedBytes ) ) ) {
             setInitialWindow();
-            result.data = lastBuffers( m_window, m_windowPosition, nBytesRead );
+            result.data = lastBuffers( window, m_windowPosition, nBytesRead );
         } else {
             result.dataWithMarkers = lastBuffers( m_window16, m_windowPosition, nBytesRead );
         }
     } else {
-        std::tie( nBytesRead, error ) = readInternal( bitReader, nMaxToDecode, m_window );
-        result.data = lastBuffers( m_window, m_windowPosition, nBytesRead );
+        std::tie( nBytesRead, error ) = readInternal( bitReader, nMaxToDecode, window );
+        result.data = lastBuffers( window, m_windowPosition, nBytesRead );
     }
 
     if constexpr ( ENABLE_STATISTICS ) {
@@ -1739,10 +1745,12 @@ Block<ENABLE_STATISTICS>::setInitialWindow( VectorView<uint8_t> const& initialWi
         return;
     }
 
+    const auto window = getWindow();
+
     /* Set an initial window before decoding has started. */
     if ( ( m_decodedBytes == 0 ) && ( m_windowPosition == 0 ) ) {
         if ( !initialWindow.empty() ) {
-            std::memcpy( m_window.data(), initialWindow.data(), initialWindow.size() );
+            std::memcpy( window.data(), initialWindow.data(), initialWindow.size() );
             m_windowPosition = initialWindow.size();
             m_decodedBytes = initialWindow.size();
         }
@@ -1767,7 +1775,7 @@ Block<ENABLE_STATISTICS>::setInitialWindow( VectorView<uint8_t> const& initialWi
         conflatedBuffer[i] = m_window16[( i + m_windowPosition ) % m_window16.size()];
     }
 
-    std::memcpy( m_window.data() + ( m_window.size() - conflatedBuffer.size() ),
+    std::memcpy( window.data() + ( window.size() - conflatedBuffer.size() ),
                  conflatedBuffer.data(),
                  conflatedBuffer.size() );
 
