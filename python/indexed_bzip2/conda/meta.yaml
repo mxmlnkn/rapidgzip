@@ -1,8 +1,9 @@
-{% set data = load_setup_py_data() %}
+{% set data = load_file_data("pyproject.toml") %}
 
 package:
   name: indexed_bzip2
-  version: {{ data.get('version') }}
+  version: 1.6.0
+  #version: {{ data.get('version') }}  # Broken -.-
 
 # 'git_url' has the problem that I cannot specify a subfolder for the setup.py.
 # 'path' fails to work because the relative symlinks in python/indexed_bzip2 are copied as is rendering them unusable.
