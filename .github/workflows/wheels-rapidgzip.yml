@@ -1,4 +1,4 @@
-name: Build Wheels for rapidgzip
+name: Build (and Publish) Wheels for rapidgzip
 
 on:
   push:
@@ -6,13 +6,49 @@ on:
     tags: 'rapidgzip-v*.*.*'
 
 jobs:
-  Build-Wheels:
-    runs-on: ${{ matrix.os }}
+  Tarball:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
 
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Install Dependencies
+      run: |
+        python3 -m pip install --upgrade pip
+        python3 -m pip install --upgrade-strategy eager --upgrade twine build
+
+    - name: Build Tarball
+      working-directory: python/rapidgzip
+      run: python3 -m build --sdist
+
+    - name: Check Wheels
+      run: twine check python/rapidgzip/dist/*
+
+    - name: Publish Tarball to PyPI
+      if: startsWith(github.ref, 'refs/tags/')
+      env:
+        TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD_RAPIDGZIP }}
+      working-directory: python/rapidgzip
+      run: twine upload --skip-existing -u __token__ dist/*
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: rapidgzip-tarball
+        path: "python/rapidgzip/dist/*.tar.gz"
+
+  Wheels:
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [macos-13, macos-14, ubuntu-24.04-arm, ubuntu-latest, windows-latest]
         archs: [auto64]
+        manylinux-image: [manylinux_2_28]
         # Build with both x86-64 (macos-13) and ARM64 (macos-14) runners.
         # For some reason, macos-14-latest seems to use macos-14-arm64, but when I try to specify macos-14-arm64
         # directly, then the actions does not find any runner to run on and macos-14 also uses arm64...
@@ -130,14 +166,6 @@ jobs:
         name: wheels-${{ matrix.os }}-${{ matrix.manylinux-image }}-${{ matrix.archs }}
         path: "dist/*-cp31*manylinux*.whl"
 
-    - name: Publish Tarball to PyPI
-      # Only one out of the OS matrix needs to upload the tarball.
-      if: startsWith(github.ref, 'refs/tags/') && matrix.os == 'ubuntu-latest' && matrix.archs == 'auto64' && matrix.manylinux-image == 'manylinux_2_28'
-      env:
-        TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD_RAPIDGZIP }}
-      working-directory: python/rapidgzip
-      run: twine upload --skip-existing -u __token__ dist/*
-
     - name: Publish Wheels to PyPI
       if: startsWith(github.ref, 'refs/tags/')
       env:
@@ -146,10 +174,11 @@ jobs:
 
   Deploy-AUR:
     if: startsWith(github.ref, 'refs/tags/')
-    needs: Build-Wheels
+    needs: Tarball
     runs-on: ubuntu-latest
     container:
       image: archlinux
+
     steps:
     - name: Set Up Non-Root User  # Because makepkg is an ass and forbids root from using it
       run: |
