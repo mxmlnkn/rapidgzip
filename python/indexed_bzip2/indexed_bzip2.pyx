@@ -30,7 +30,6 @@ cdef extern from "indexed_bzip2/BZ2Reader.hpp":
         BZ2Reader(PyObject*) except +
 
         bool eof() except +
-        int fileno() except +
         bool seekable() except +
         void close() except +
         bool closed() except +
@@ -52,7 +51,6 @@ cdef extern from "indexed_bzip2/ParallelBZ2Reader.hpp":
         ParallelBZ2Reader(PyObject*, size_t) except +
 
         bool eof() except +
-        int fileno() except +
         bool seekable() except +
         void close() except +
         bool closed() except +
@@ -123,11 +121,6 @@ cdef class _IndexedBzip2File():
 
     def closed(self):
         return self.bz2reader == NULL or self.bz2reader.closed()
-
-    def fileno(self):
-        if not self.bz2reader:
-            raise Exception("Invalid file object!")
-        return self.bz2reader.fileno()
 
     def seekable(self):
         return self.bz2reader != NULL and self.bz2reader.seekable()
@@ -229,11 +222,6 @@ cdef class _IndexedBzip2FileParallel():
     def closed(self):
         return self.bz2reader == NULL or self.bz2reader.closed()
 
-    def fileno(self):
-        if not self.bz2reader:
-            raise Exception("Invalid file object!")
-        return self.bz2reader.fileno()
-
     def seekable(self):
         if not self.bz2reader:
             raise Exception("Invalid file object!")
@@ -318,12 +306,6 @@ class IndexedBzip2FileRaw(io.RawIOBase):
             self.join_threads = self.bz2reader.join_threads
 
         # IOBase provides sane default implementations for read, readline, readlines, readall, ...
-
-    def fileno(self):
-        try:
-            return self.bz2reader.fileno()
-        except Exception as exception:
-            raise io.UnsupportedOperation() from exception
 
     def close(self):
         if self.closed:

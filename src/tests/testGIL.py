@@ -273,14 +273,7 @@ def test_issue_51(tmp_path, inner_parallelization, outer_parallelization):
         file.write(gzip.compress(data))
 
     with path.open('rb') as zfd:
-        print("fileno:", zfd.fileno())
         unpacked_once = rapidgzip.open(zfd, parallelization=outer_parallelization)
-        print("\nunpacked once fileno:", unpacked_once.fileno())
-        # ToDo: Rapidgzip misbehavior. It should probably not return a valid fileno
-        #       because it is the >underlying< fileno! And rapidgzip.open tries to be
-        #       smart and improve performance by checking for fobj.fileno() and uses
-        #       that as input if it is available!
-        unpacked_once.fileno = None
         unpacked = rapidgzip.open(unpacked_once, parallelization=inner_parallelization)
 
         assert unpacked.read() == data
@@ -297,14 +290,7 @@ def test_issue_51_bzip2(tmp_path, inner_parallelization, outer_parallelization):
         file.write(bz2.compress(b"Hello World!"))
 
     with path.open('rb') as zfd:
-        print("fileno:", zfd.fileno())
         unpacked_once = rapidgzip.IndexedBzip2File(zfd, parallelization=outer_parallelization)
-        print("\nunpacked once fileno:", unpacked_once.fileno())
-        # ToDo: Rapidgzip misbehavior. It should probably not return a valid fileno
-        #       because it is the >underlying< fileno! And rapidgzip.open tries to be
-        #       smart and improve performance by checking for fobj.fileno() and uses
-        #       that as input if it is available!
-        unpacked_once.fileno = None
         unpacked = rapidgzip.IndexedBzip2File(unpacked_once, parallelization=inner_parallelization)
 
         assert unpacked.read() == data

@@ -93,7 +93,7 @@ public:
     [[nodiscard]] int
     fileno() const override
     {
-        return m_bitReader.fileno();
+        throw std::logic_error( "This is a virtual file object, which has no corresponding file descriptor!" );
     }
 
     [[nodiscard]] bool

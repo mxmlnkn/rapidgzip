@@ -396,10 +396,7 @@ public:
     [[nodiscard]] int
     fileno() const override
     {
-        if ( UNLIKELY( !m_sharedFileReader ) ) [[unlikely]] {
-            throw std::invalid_argument( "The file is not open!" );
-        }
-        return m_sharedFileReader->fileno();
+        throw std::logic_error( "This is a virtual file object, which has no corresponding file descriptor!" );
     }
 
     [[nodiscard]] bool
