@@ -19,6 +19,7 @@ import enum
 import io
 import os
 import sys
+from typing import IO
 
 ctypedef (unsigned long long int) size_t
 ctypedef (long long int) lli
@@ -108,11 +109,15 @@ cdef class _IndexedBzip2File():
             self.bz2reader = new BZ2Reader(<int>file.fileno())
         elif _isFileObject(file):
             self.bz2reader = new BZ2Reader(<PyObject*>file)
-        elif isinstance(file, basestring) and hasattr(file, 'encode'):
-            # Note that BytesIO also is an instance of basestring but fortunately has no encode method!
+        elif isinstance(file, bytes):
+            self.bz2reader = new BZ2Reader(<string>file)
+        elif isinstance(file, str) and hasattr(file, 'encode'):
+            # Note that BytesIO also is an instance of str but fortunately has no encode method!
             self.bz2reader = new BZ2Reader(<string>file.encode())
+        elif isinstance(file, os.PathLike):
+            self.bz2reader = new BZ2Reader(<string>bytes(file))
         else:
-            raise Exception("Expected file name string, file descriptor integer, or file-like object for BZ2Reader!")
+            raise ValueError("Expected file name string, file descriptor integer, or file-like object!")
 
     def __del__(self):
         if not self.closed():
@@ -206,13 +211,15 @@ cdef class _IndexedBzip2FileParallel():
             self.bz2reader = new ParallelBZ2Reader(<int>file.fileno(), <int>parallelization)
         elif _isFileObject(file):
             self.bz2reader = new ParallelBZ2Reader(<PyObject*>file, <int>parallelization)
-        elif isinstance(file, basestring) and hasattr(file, 'encode'):
-            # Note that BytesIO also is an instance of basestring but fortunately has no encode method!
+        elif isinstance(file, bytes):
+            self.bz2reader = new ParallelBZ2Reader(<string>file, <int>parallelization)
+        elif isinstance(file, str) and hasattr(file, 'encode'):
+            # Note that BytesIO also is an instance of str but fortunately has no encode method!
             self.bz2reader = new ParallelBZ2Reader(<string>file.encode(), <int>parallelization)
+        elif isinstance(file, os.PathLike):
+            self.bz2reader = new ParallelBZ2Reader(<string>bytes(file), <int>parallelization)
         else:
-            raise Exception("Expected file name string, file descriptor integer, "
-                            "or file-like object for ParallelBZ2Reader!")
-
+            raise ValueError("Expected file name string, file descriptor integer, or file-like object!")
 
     def __init__(self, *args, **kwargs):
         pass
@@ -439,15 +446,22 @@ cdef class _RapidgzipFile():
             self.gzipReader = new ParallelGzipReader[RapidgzipChunkData](
                 <PyObject*>file, <size_t>parallelization, <uint64_t>chunk_size, <IOReadMethod>io_read_method
             )
-        elif isinstance(file, basestring) and hasattr(file, 'encode'):
-            # Note that BytesIO also is an instance of basestring but fortunately has no encode method!
+        elif isinstance(file, bytes):
+            self.gzipReader = new ParallelGzipReader[RapidgzipChunkData](
+                <string>file, <size_t>parallelization, <uint64_t>chunk_size, <IOReadMethod>io_read_method
+            )
+        elif isinstance(file, str) and hasattr(file, 'encode'):
+            # Note that BytesIO also is an instance of str but fortunately has no encode method!
             self.gzipReader = new ParallelGzipReader[RapidgzipChunkData](
                 <string>file.encode(), <size_t>parallelization, <uint64_t>chunk_size, <IOReadMethod>io_read_method
             )
+        elif isinstance(file, os.PathLike):
+            self.gzipReader = new ParallelGzipReader[RapidgzipChunkData](
+                <string>bytes(file), <size_t>parallelization, <uint64_t>chunk_size, <IOReadMethod>io_read_method
+            )
 
         if self.gzipReader == NULL:
-            raise Exception("Expected file name string, file descriptor integer, "
-                            "or file-like object for ParallelGzipReader!")
+            raise ValueError("Expected file name string, file descriptor integer, or file-like object!")
 
         self.gzipReader.setStatisticsEnabled(verbose);
         self.gzipReader.setShowProfileOnDestruction(verbose);
@@ -634,11 +648,13 @@ def open(filename, parallelization = 0, verbose = False):
     return RapidgzipFile(filename, parallelization=parallelization, verbose=verbose)
 
 
-def determineFileType(fileOrPath):
-    if isinstance(fileOrPath, int) or isinstance(fileOrPath, str):
+def determineFileType(fileOrPath: Union[int, bytes, str, os.PathLike, IO[bytes]]):
+    if isinstance(fileOrPath, (int, bytes, str, os.PathLike)):
         with builtins.open(fileOrPath, "rb") as file:
             return determineFileTypeAsString(<PyObject*>file).decode()
-    return determineFileTypeAsString(<PyObject*>fileOrPath).decode()
+    if _isFileObject(fileOrPath):
+        return determineFileTypeAsString(<PyObject*>fileOrPath).decode()
+    raise ValueError("Expected file name string, file descriptor integer, or file-like object!")
 
 
 def cli():
