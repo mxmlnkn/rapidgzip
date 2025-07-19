@@ -33,7 +33,7 @@ public:
         m_fileDescriptor( ::fileno( fp() ) ),
         m_filePath( std::move( filePath ) ),
         m_seekable( determineSeekable( m_fileDescriptor ) ),
-        m_fileSizeBytes( determineFileSize( m_fileDescriptor ) )
+        m_fileSizeBytes( std::filesystem::file_size( m_filePath ) )
     {
         init();
     }
@@ -55,7 +55,7 @@ public:
         m_fileDescriptor( ::fileno( fp() ) ),
         m_filePath( fdFilePath( m_fileDescriptor ) ),
         m_seekable( determineSeekable( m_fileDescriptor ) ),
-        m_fileSizeBytes( determineFileSize( m_fileDescriptor ) )
+        m_fileSizeBytes( fileSize( m_fileDescriptor ) )
     {
         init();
     }
@@ -260,14 +260,6 @@ private:
         if ( m_seekable ) {
             StandardFileReader::seek( 0, SEEK_SET );
         }
-    }
-
-    [[nodiscard]] static size_t
-    determineFileSize( int fileNumber )
-    {
-        struct stat fileStats{};
-        fstat( fileNumber, &fileStats );
-        return fileStats.st_size;
     }
 
     [[nodiscard]] static bool
