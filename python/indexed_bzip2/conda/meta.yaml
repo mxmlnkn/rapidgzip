@@ -2,7 +2,7 @@
 
 package:
   name: indexed_bzip2
-  version: 1.6.0
+  version: 1.7.0
   #version: {{ data.get('version') }}  # Broken -.-
 
 # 'git_url' has the problem that I cannot specify a subfolder for the setup.py.

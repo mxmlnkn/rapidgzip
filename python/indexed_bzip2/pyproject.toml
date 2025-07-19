@@ -13,7 +13,7 @@ requires = ["setuptools >= 61.2, < 72", "wheel", "cython >= 0.29.24, < 3.1"]
 
 [project]
 name = "indexed_bzip2"
-version = "1.6.0"
+version = "1.7.0"
 description = "Fast random access to bzip2 files"
 authors = [{name = "Maximilian Knespel", email = "mxmlnknp@gmail.com"}]
 license = {text = "MIT"}

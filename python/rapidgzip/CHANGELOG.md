@@ -135,7 +135,7 @@
  - Avoid segfault when exporting the index for an empty, invalid gzip file.
  - Use `isatty` instead of poll with 100ms timeout to determine whether rapidgzip is piped to.
  - Fix build error on macOS when no wheel are available.
- - Many smaller adjustmenst to the profiling output with `--verbose`.
+ - Many smaller adjustments to the profiling output with `--verbose`.
  - Do not terminate with an error when trying to unlock the GIL during Python finalization
 
 
