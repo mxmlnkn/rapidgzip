@@ -147,7 +147,7 @@ public:
         if ( buffer == nullptr ) {
             if ( seekable() ) {
                 nBytesRead = std::min( nMaxBytesToRead, m_fileSizeBytes - m_currentPosition );
-                std::fseek( m_file.get(), static_cast<long int>( nBytesRead ), SEEK_CUR );
+                fileSeek( m_file.get(), static_cast<long long int>( nBytesRead ), SEEK_CUR );
             } else {
                 std::array<char, 16_Ki> tmpBuffer{};
                 while ( nBytesRead < nMaxBytesToRead ) {
@@ -207,17 +207,7 @@ public:
             throw std::invalid_argument( "Invalid or file can't be seeked!" );
         }
 
-        if ( offset > static_cast<long long int>( std::numeric_limits<long int>::max() ) ) {
-            throw std::out_of_range( "std::fseek only takes long int, try compiling for 64 bit." );
-        }
-
-        const auto returnCode = std::fseek( m_file.get(), static_cast<long int>( offset ), origin );
-        if ( returnCode != 0 ) {
-            std::stringstream message;
-            message << "Seeking to " << offset << " from origin " << originToString( origin ) << " failed with code: "
-                    << returnCode << ", " << std::strerror( errno ) << "!";
-            throw std::runtime_error( std::move( message ).str() );
-        }
+        fileSeek( m_file.get(), offset, origin );
 
         if ( origin == SEEK_SET ) {
             m_currentPosition = static_cast<size_t>( std::max( 0LL, offset ) );

@@ -110,6 +110,44 @@ stdoutIsDevNull()
 #endif
 
 
+[[nodiscard]] inline std::ios_base::seekdir
+toSeekdir( int origin )
+{
+    switch ( origin )
+    {
+    case SEEK_SET:
+        return std::ios_base::beg;
+    case SEEK_CUR:
+        return std::ios_base::cur;
+    case SEEK_END:
+        return std::ios_base::end;
+    default:
+        break;
+    }
+
+    throw std::invalid_argument( "Unknown origin" );
+}
+
+
+[[nodiscard]] inline const char*
+originToString( int origin )
+{
+    switch ( origin )
+    {
+    case SEEK_SET:
+        return "SEEK_SET";
+    case SEEK_CUR:
+        return "SEEK_CUR";
+    case SEEK_END:
+        return "SEEK_END";
+    default:
+        break;
+    }
+
+    throw std::invalid_argument( "Unknown origin" );
+}
+
+
 inline bool
 fileExists( const std::string& filePath )
 {
@@ -120,24 +158,56 @@ fileExists( const std::string& filePath )
 inline size_t
 fileSize( const std::string& filePath )
 {
-    std::ifstream file( filePath );
-    file.seekg( 0, std::ios_base::end );
-    const auto result = file.tellg();
-    if ( result < 0 ) {
-        throw std::invalid_argument( "Could not get size of specified file!" );
-    }
-    return static_cast<size_t>( result );
+    return std::filesystem::file_size( filePath );
 }
 
 
 inline size_t
 filePosition( std::FILE* file )
 {
+    if ( file == nullptr ) {
+        throw std::runtime_error( "File pointer to call tell on must not be null!" );
+    }
+
+#if defined(_MSC_VER)
+    /* On Windows, std::ftell STILL (2025!) cannot handle files > 4 GiB because 'long int' is 32-bit! */
+    const auto offset = _ftelli64( file );
+#else
     const auto offset = std::ftell( file );
+#endif
     if ( offset < 0 ) {
         throw std::runtime_error( "Could not get the file position!" );
     }
     return static_cast<size_t>( offset );
+}
+
+
+inline void
+fileSeek( std::FILE*    file,
+          long long int offset,
+          int           origin )
+{
+    if ( file == nullptr ) {
+        throw std::runtime_error( "File pointer to call seek on must not be null!" );
+    }
+
+#if defined(_MSC_VER)
+    /* On Windows, std::fseek STILL (2025!) cannot handle files > 4 GiB because 'long int' is 32-bit! */
+    const auto returnCode = _fseeki64( file, offset, origin );
+#else
+    if ( offset > static_cast<long long int>( std::numeric_limits<long int>::max() ) ) {
+        throw std::out_of_range( "std::fseek only takes long int, try compiling for 64 bit." );
+    }
+
+    const auto returnCode = std::fseek( file, static_cast<long int>( offset ), origin );
+#endif
+
+    if ( returnCode != 0 ) {
+        std::stringstream message;
+        message << "Seeking to " << offset << " from origin " << originToString( origin ) << " failed with code: "
+                << returnCode << ", " << std::strerror( errno ) << "!";
+        throw std::runtime_error( std::move( message ).str() );
+    }
 }
 
 
@@ -350,7 +420,6 @@ readFile( const std::filesystem::path& filePath )
     return readFile<Container>( filePath.string() );
 }
 #endif
-
 
 
 inline size_t
@@ -839,42 +908,4 @@ private:
     unique_file_descriptor m_ownedFd;  // This should not be used, it is only for automatic closing!
 #endif
 };
-
-
-[[nodiscard]] inline std::ios_base::seekdir
-toSeekdir( int origin )
-{
-    switch ( origin )
-    {
-    case SEEK_SET:
-        return std::ios_base::beg;
-    case SEEK_CUR:
-        return std::ios_base::cur;
-    case SEEK_END:
-        return std::ios_base::end;
-    default:
-        break;
-    }
-
-    throw std::invalid_argument( "Unknown origin" );
-}
-
-
-[[nodiscard]] inline const char*
-originToString( int origin )
-{
-    switch ( origin )
-    {
-    case SEEK_SET:
-        return "SEEK_SET";
-    case SEEK_CUR:
-        return "SEEK_CUR";
-    case SEEK_END:
-        return "SEEK_END";
-    default:
-        break;
-    }
-
-    throw std::invalid_argument( "Unknown origin" );
-}
 }  // namespace rapidgzip

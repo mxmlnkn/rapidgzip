@@ -49,7 +49,7 @@ testUniqueFilePointer( const std::string& tmpFileName,
     /* Read second time after seeking to start without clearing EOF */
     {
         readData.assign( 2 * tmpFileContents.size(), '\0' );
-        std::fseek( file1.get(), 0, SEEK_SET );
+        fileSeek( file1.get(), 0, SEEK_SET );
         const auto nBytesRead = std::fread( readData.data(), 1 /* element size */, readData.size(), file1.get() );
         REQUIRE( nBytesRead == tmpFileContents.size() );
         REQUIRE( std::equal( tmpFileContents.begin(), tmpFileContents.end(), readData.begin() ) );
