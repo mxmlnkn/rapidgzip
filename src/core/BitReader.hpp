@@ -952,7 +952,7 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::fullSeek( size_t offsetBits )
     }
 
     const auto bytesToSeek = offsetBits >> 3U;
-    const auto subBitsToSeek = offsetBits & 7U;
+    const auto subBitsToSeek = static_cast<bit_count_t>( offsetBits & 7U );
 
     clearBitBuffer();
 

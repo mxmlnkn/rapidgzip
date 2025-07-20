@@ -128,7 +128,7 @@ private:
                 code = HuffmanCode( code << 1U ) | bitReader.template read<1>();
             }
         } else {
-            code = bitReader.read( m_bitsToReadAtOnce );
+            code = static_cast<HuffmanCode>( bitReader.read( m_bitsToReadAtOnce ) );
         }
 
         for ( BitCount k = m_bitsToReadAtOnce - this->m_minCodeLength;

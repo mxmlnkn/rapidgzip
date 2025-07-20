@@ -95,7 +95,7 @@ static constexpr std::array<T, 256U> N_LOWEST_BITS_SET_LUT =
     {
         std::array<T, 256U> result{};
         for ( size_t i = 0; i < result.size(); ++i ) {
-            result[i] = nLowestBitsSet<T>( i );
+            result[i] = nLowestBitsSet<T>( static_cast<uint8_t>( i ) );
         }
         return result;
     }();
