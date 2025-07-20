@@ -62,7 +62,7 @@ cdef extern from "indexed_bzip2/BZ2Reader.hpp":
         optional[size_t] size() except +
 
         size_t tellCompressed() except +
-        int read(int, char*, size_t) except +
+        size_t read(int, char*, size_t) except +
         bool blockOffsetsComplete() except +
         map[size_t, size_t] blockOffsets() except +
         map[size_t, size_t] availableBlockOffsets() except +
@@ -84,7 +84,7 @@ cdef extern from "indexed_bzip2/ParallelBZ2Reader.hpp":
         optional[size_t] size() except +
 
         size_t tellCompressed() except +
-        int read(int, char*, size_t) except +
+        size_t read(int, char*, size_t) except +
         bool blockOffsetsComplete() except +
         map[size_t, size_t] blockOffsets() except +
         map[size_t, size_t] availableBlockOffsets() except +
@@ -393,7 +393,7 @@ cdef extern from "rapidgzip/ParallelGzipReader.hpp" namespace "rapidgzip":
         optional[size_t] size() except +
 
         size_t tellCompressed() except +
-        int read(int, char*, size_t) except +
+        size_t read(int, char*, size_t) except +
         bool blockOffsetsComplete() except +
         map[size_t, size_t] blockOffsets() except +
         map[size_t, size_t] availableBlockOffsets() except +
