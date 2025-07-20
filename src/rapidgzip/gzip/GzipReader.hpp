@@ -57,6 +57,24 @@ public:
         m_bitReader( m_fileReader->clone() )
     {}
 
+    explicit
+    GzipReader( const GzipReader& other ) :
+        m_fileReader( ensureSharedFileReader( other.m_fileReader->clone() ) ),
+        m_fileType( other.m_fileType ),
+        m_bitReader( other.m_bitReader ),
+        m_currentPosition( other.m_currentPosition ),
+        m_atEndOfFile( other.m_atEndOfFile ),
+        m_currentDeflateBlock( other.m_currentDeflateBlock ),
+        m_lastBlockData( other.m_lastBlockData ),
+        m_currentPoint( other.m_currentPoint ),
+        m_streamBytesCount( other.m_streamBytesCount ),
+        m_offsetInLastBuffers( other.m_offsetInLastBuffers ),
+        m_crc32Calculator( other.m_crc32Calculator ),
+        m_blockMap( other.m_blockMap ),
+        m_windowMap( other.m_windowMap ),
+        m_didReadHeader( other.m_didReadHeader )
+    {}
+
 #ifdef WITH_PYTHON_SUPPORT
     explicit
     GzipReader( const std::string& filePath ) :
@@ -356,6 +374,12 @@ public:
     }
 
 private:
+    [[nodiscard]] UniqueFileReader
+    cloneRaw() const override
+    {
+        return std::make_unique<GzipReader>( *this );
+    }
+
     /**
      * @note Only to be used by readBlock!
      * @return The number of actually flushed bytes, which might be hindered,

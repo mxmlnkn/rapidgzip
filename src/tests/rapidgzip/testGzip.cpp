@@ -1,3 +1,4 @@
+#include "FileReader.hpp"
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -373,6 +374,27 @@ testSeekingWithIndex( const std::string& encodedFilePath,
     REQUIRE_EQUAL( decompressed, decoded );
 }
 
+void
+testCloning( const std::string& encodedFilePath )
+{
+    GzipReader gzipReader{ std::make_unique<StandardFileReader>( encodedFilePath ) };
+
+    std::vector<char> decompressed( 128_Ki );
+    auto decompressedSize = gzipReader.read( decompressed.data(), decompressed.size() );
+    REQUIRE_EQUAL( decompressedSize, 128_Ki );
+
+    UniqueFileReader clone = gzipReader.clone();
+    REQUIRE_EQUAL( gzipReader.tell(), clone->tell() );
+    std::vector<char> cloneDecompressed( 128_Ki );
+    auto cloneDecompressedSize = clone->read( cloneDecompressed.data(), cloneDecompressed.size() );
+    REQUIRE_EQUAL( cloneDecompressedSize, 128_Ki );
+
+    decompressedSize = gzipReader.read( decompressed.data(), decompressed.size() );
+    REQUIRE_EQUAL( decompressedSize, 128_Ki );
+
+    REQUIRE_EQUAL( decompressed, cloneDecompressed );
+}
+
 int
 main( int    argc,
       char** argv )
@@ -439,6 +461,7 @@ main( int    argc,
         }
 
         testSeekingWithIndex( encodedFilePath, gzipIndexPath, decodedFilePath );
+        testCloning( encodedFilePath );
     }
 
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
