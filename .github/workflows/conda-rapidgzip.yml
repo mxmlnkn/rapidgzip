@@ -5,6 +5,7 @@ on:
     branches: 'master'
     tags:
       - 'rapidgzip-v*.*.*'
+  workflow_dispatch:
 
 jobs:
   Build-Conda:

@@ -8,6 +8,7 @@ on:
     branches: [ "code-scanning" ]
     paths:
     - "**/*pp"
+  workflow_dispatch:
 
 jobs:
   analyze:
