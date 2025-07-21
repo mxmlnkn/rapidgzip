@@ -1,4 +1,11 @@
 
+# Version 0.14.5 built on 2025-07-21
+
+## Fixes
+
+ - Fix problems for files larger than 2 GiB on native Windows.
+
+
 # Version 0.14.4 built on 2025-07-02
 
 ## Fixes
