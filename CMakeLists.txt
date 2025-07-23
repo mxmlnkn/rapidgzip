@@ -13,6 +13,9 @@ if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm" OR ${CMAKE_SYSTEM_PROCESSOR} MATCHES 
     set(IS_ARM ON)
     # ARM compilation not yet implemented!
     set(WITH_ISAL OFF)
+elseif(${CMAKE_SYSTEM_PROCESSOR} MATCHES "riscv64")
+    set(WITH_ISAL OFF)
+    set(WITH_RPMALLOC OFF)
 else()
     set(IS_ARM OFF)
 endif()
@@ -47,7 +50,7 @@ add_compile_options(
     "$<$<AND:$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>,$<PLATFORM_ID:Windows>>:-Wa,-mbig-obj>"
 )
 
-if(NOT ${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm" AND NOT ${CMAKE_SYSTEM_PROCESSOR} MATCHES "aarch")
+if(NOT ${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm" AND NOT ${CMAKE_SYSTEM_PROCESSOR} MATCHES "aarch" AND NOT ${CMAKE_SYSTEM_PROCESSOR} MATCHES "riscv64")
     add_compile_options("$<$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>:-fcf-protection=full>")
 endif()
 
