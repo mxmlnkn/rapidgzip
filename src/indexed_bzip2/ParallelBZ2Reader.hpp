@@ -389,7 +389,7 @@ public:
         if ( blockInfo.contains( m_currentPosition ) ) {
             return blockInfo.encodedOffsetInBits;
         }
-        return 0;
+        return m_blockMap->back().first;
     }
 
     /**
