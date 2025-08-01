@@ -9,15 +9,9 @@ option(WITH_RPMALLOC "Compile with rpmalloc for faster memory allocations" ON)
 option(WITH_ISAL "Compile with ISA-l for more than twice as fast decompression than zlib" ON)
 option(RUN_CLANG_TIDY "Runs clang-tidy while building targets" OFF)
 
-if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm" OR ${CMAKE_SYSTEM_PROCESSOR} MATCHES "aarch")
-    set(IS_ARM ON)
-    # ARM compilation not yet implemented!
-    set(WITH_ISAL OFF)
-elseif(${CMAKE_SYSTEM_PROCESSOR} MATCHES "riscv64")
+if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "riscv64")
     set(WITH_ISAL OFF)
     set(WITH_RPMALLOC OFF)
-else()
-    set(IS_ARM OFF)
 endif()
 
 set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "" FORCE)

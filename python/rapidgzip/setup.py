@@ -69,10 +69,12 @@ if withCxxopts == 'disable':
 # -> I need to migrate the ARM build settings to CMake. ISA-L has aarch64 subfolders with assembly files.
 architecture = None
 canBuildIsal = False
-canBuildIsal = shutil.which("nasm") is not None and platform.machine() in ['x86_64', 'AMD64']
 if platform.machine() in ['x86_64', 'AMD64']:
     architecture = 'x86_64'
     canBuildIsal = shutil.which("nasm") is not None
+if platform.machine() in ['aarch64', 'arm64']:
+    architecture = 'aarch64'
+    canBuildIsal = True  # Use GCC as assembler
 if not canBuildIsal:
     withIsal = 'disable'
 
@@ -154,6 +156,38 @@ if architecture == 'x86_64':
         "crc/crc32_gzip_refl_by8_02.asm",
         "crc/crc32_gzip_refl_by8.asm",
     ]
+elif architecture == 'aarch64':
+    isal_sources += [
+        "crc/aarch64/crc_aarch64_dispatcher.c",
+        "igzip/proc_heap_base.c",
+
+        "igzip/aarch64/encode_df.S",
+        "igzip/aarch64/gen_icf_map.S",
+        "igzip/aarch64/igzip_decode_huffman_code_block_aarch64.S",
+        "igzip/aarch64/igzip_deflate_body_aarch64.S",
+        "igzip/aarch64/igzip_deflate_finish_aarch64.S",
+        "igzip/aarch64/igzip_deflate_hash_aarch64.S",
+        "igzip/aarch64/igzip_inflate_multibinary_arm64.S",
+        "igzip/aarch64/igzip_isal_adler32_neon.S",
+        "igzip/aarch64/igzip_multibinary_aarch64_dispatcher.c",
+        "igzip/aarch64/igzip_multibinary_arm64.S",
+        "igzip/aarch64/igzip_set_long_icf_fg.S",
+        "igzip/aarch64/isal_deflate_icf_body_hash_hist.S",
+        "igzip/aarch64/isal_deflate_icf_finish_hash_hist.S",
+        "igzip/aarch64/isal_update_histogram.S",
+
+        "crc/aarch64/crc_multibinary_arm.S",
+        #"crc/aarch64/crc32_common_crc_ext_cortex_a72.S",
+        #"crc/aarch64/crc32_common_mix_neoverse_n1.S",
+        "crc/aarch64/crc32_gzip_refl_3crc_fold.S",
+        "crc/aarch64/crc32_gzip_refl_crc_ext.S",
+        "crc/aarch64/crc32_gzip_refl_pmull.S",
+        #"crc/aarch64/crc32_mix_default.S",
+        #"crc/aarch64/crc32_mix_default_common.S",
+        #"crc/aarch64/crc32_mix_neoverse_n1.S",
+        #"crc/aarch64/crc32c_mix_default.S",
+        #"crc/aarch64/crc32c_mix_neoverse_n1.S",
+    ]
 isal_sources = ['external/isa-l/' + source for source in isal_sources] if withIsal == 'enable' else []
 
 include_dirs = [
@@ -166,7 +200,7 @@ include_dirs = [
     'rapidgzip/gzip',
     'indexed_bzip2',
 ]
-isal_includes = ['external/isa-l/include', 'external/isa-l/igzip']
+isal_includes = ['external/isa-l/include', 'external/isa-l/igzip', 'external/isa-l']
 if withIsal == 'enable':
     include_dirs += isal_includes
 if withZlib == 'enable':
@@ -226,7 +260,7 @@ class Build(build_ext):
         # it even that.
         oldCompile = self.compiler.compile
 
-        if withIsal == 'disable':
+        if withIsal == 'disable' or architecture != 'x86_64':
             nasmCompiler = None
         elif sys.platform == "win32":
             from nasm_extension.winnasmcompiler import WinNasmCompiler
@@ -239,11 +273,29 @@ class Build(build_ext):
 
         def newCompile(sources, *args, **kwargs):
             cSources = [source for source in sources if source.endswith('.c')]
-            asmSources = [source for source in sources if source.endswith('.asm')]
-            cppSources = [source for source in sources if not source.endswith('.c') and not source.endswith('.asm')]
+            asmSources = [source for source in sources if source.endswith('.S')]
+            nasmSources = [source for source in sources if source.endswith('.asm')]
+            cppSources = [source for source in sources if '.' in source and source.rsplit('.', maxsplit=1)[1] not in ('c', 'S', 'asm')]
 
             objects = []
-            if asmSources and nasmCompiler:
+
+            if cppSources:
+                objects.extend(oldCompile(cppSources, *args, **kwargs))
+
+            # Filter out C++ options.
+            cppCompileArgs = [
+                '-fconstexpr-ops-limit=99000100',
+                '-fconstexpr-steps=99000100',
+                '-std=c++17',
+                '/std:c++17',
+            ]
+            if 'extra_postargs' in kwargs:
+                kwargs['extra_postargs'] = [x for x in kwargs['extra_postargs'] if x not in cppCompileArgs]
+
+            if cSources:
+                objects.extend(oldCompile(cSources, *args, **kwargs))
+
+            if nasmSources and nasmCompiler:
                 nasm_kwargs = copy.deepcopy(kwargs)
                 nasm_kwargs['extra_postargs'] = []
                 nasm_kwargs['include_dirs'] = isal_includes
@@ -268,25 +320,22 @@ class Build(build_ext):
                     for fileName in os.listdir(path):
                         if fileName.endswith('.asm'):
                             shutil.copy(os.path.join(path, fileName), ".")
-                objects.extend(nasmCompiler.compile(asmSources, *args, **nasm_kwargs))
+                objects.extend(nasmCompiler.compile(nasmSources, *args, **nasm_kwargs))
 
-            if cppSources:
-                objects.extend(oldCompile(cppSources, *args, **kwargs))
-
-            if cSources:
-                cppCompileArgs = [
-                    '-fconstexpr-ops-limit=99000100',
-                    '-fconstexpr-steps=99000100',
-                    '-std=c++17',
-                    '/std:c++17',
-                ]
-                if 'extra_postargs' in kwargs:
-                    kwargs['extra_postargs'] = [x for x in kwargs['extra_postargs'] if x not in cppCompileArgs]
-                objects.extend(oldCompile(cSources, *args, **kwargs))
+            if asmSources:
+                extraArgs = ['-D__ASSEMBLY__', '-march=armv8-a']
+                for path in kwargs.get('include_dirs', []):
+                    extraArgs.extend(['-I', path])
+                for src in asmSources:
+                    obj = self.compiler.object_filenames([src])[0]
+                    self.compiler.spawn([self.compiler.compiler_so[0], '-c', src, '-o', obj, *extraArgs])
+                    objects.append(obj)
 
             return objects
 
         self.compiler.compile = newCompile
+        if '.S' not in self.compiler.src_extensions:
+            self.compiler.src_extensions.append('.S')
 
         for ext in self.extensions:
             ext.extra_compile_args = [
@@ -300,8 +349,10 @@ class Build(build_ext):
 
             if supportsFlag(self.compiler, '-flto=auto'):
                 ext.extra_compile_args += ['-flto=auto']
+                ext.extra_link_args += ['-flto=auto']
             elif supportsFlag(self.compiler, '-flto'):
                 ext.extra_compile_args += ['-flto']
+                ext.extra_link_args += ['-flto']
 
             if supportsFlag(self.compiler, '-D_FORTIFY_SOURCE=2'):
                 ext.extra_compile_args += ['-D_FORTIFY_SOURCE=2']

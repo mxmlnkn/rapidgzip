@@ -86,6 +86,10 @@ if(WITH_ISAL)
     project(isal_inflate LANGUAGES C)
 
     set(ISAL_HOME "${CMAKE_CURRENT_SOURCE_DIR}/external/isa-l")
+
+    # I think I tried to build with a subset of all files in order to package it easier for PyPI.
+    # But the MANIFEST.in globs anything by extension anyway. So I am not sure anymore. I also simply do not need
+    # much of the stuff, e.g., for compression, which could reduce binary size.
     add_library(isal_inflate STATIC
         # Files suffixed with _test, _perf, _example can be ignored!
         ${ISAL_HOME}/include/igzip_lib.h
@@ -98,7 +102,7 @@ if(WITH_ISAL)
         ${ISAL_HOME}/igzip/static_inflate.h
 
         # Compression
-        #${ISAL_HOME}/igzip/igzip_base_aliases.c
+        ${ISAL_HOME}/igzip/igzip_base_aliases.c
         ${ISAL_HOME}/igzip/encode_df.c
         ${ISAL_HOME}/igzip/igzip_icf_base.c
         ${ISAL_HOME}/igzip/igzip_icf_body.c
@@ -109,13 +113,66 @@ if(WITH_ISAL)
         #${ISAL_HOME}/igzip/generate_custom_hufftables.c
         #${ISAL_HOME}/igzip/generate_static_inflate.c
         ${ISAL_HOME}/igzip/huff_codes.c
-        #${ISAL_HOME}/igzip/proc_heap_base.c
+        ${ISAL_HOME}/igzip/proc_heap_base.c
 
         ${ISAL_HOME}/crc/crc_base.c
         #${ISAL_HOME}/crc/crc_base_aliases.c
     )
 
-    if(NOT ${CMAKE_SYSTEM_PROCESSOR} MATCHES "aarch64" AND NOT ${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm64")
+    if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "aarch64" OR ${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm64")
+        enable_language("ASM")
+        # On aarch64, use the C compiler for assembly instead of NASM.
+        set(CMAKE_ASM_COMPILER ${CMAKE_C_COMPILER})
+        set(CMAKE_ASM_FLAGS "-D__ASSEMBLY__")
+
+        target_sources(isal_inflate PRIVATE
+            ${ISAL_HOME}/include/aarch64_multibinary.h
+            ${ISAL_HOME}/include/aarch64_label.h
+            ${ISAL_HOME}/crc/aarch64/crc_aarch64_dispatcher.c
+            ${ISAL_HOME}/igzip/aarch64/igzip_multibinary_aarch64_dispatcher.c
+        )
+
+        set(CMAKE_ASM_NASM_SOURCE_FILE_EXTENSIONS "asm;nasm;S")
+
+        target_sources(isal_inflate PRIVATE
+            ${ISAL_HOME}/igzip/aarch64/bitbuf2_aarch64.h
+            ${ISAL_HOME}/igzip/aarch64/data_struct_aarch64.h
+            ${ISAL_HOME}/igzip/aarch64/encode_df.S
+            ${ISAL_HOME}/igzip/aarch64/gen_icf_map.S
+            ${ISAL_HOME}/igzip/aarch64/huffman_aarch64.h
+            ${ISAL_HOME}/igzip/aarch64/igzip_decode_huffman_code_block_aarch64.S
+            ${ISAL_HOME}/igzip/aarch64/igzip_deflate_body_aarch64.S
+            ${ISAL_HOME}/igzip/aarch64/igzip_deflate_finish_aarch64.S
+            ${ISAL_HOME}/igzip/aarch64/igzip_deflate_hash_aarch64.S
+            ${ISAL_HOME}/igzip/aarch64/igzip_inflate_multibinary_arm64.S
+            ${ISAL_HOME}/igzip/aarch64/igzip_isal_adler32_neon.S
+            ${ISAL_HOME}/igzip/aarch64/igzip_multibinary_aarch64_dispatcher.c
+            ${ISAL_HOME}/igzip/aarch64/igzip_multibinary_arm64.S
+            ${ISAL_HOME}/igzip/aarch64/igzip_set_long_icf_fg.S
+            ${ISAL_HOME}/igzip/aarch64/isal_deflate_icf_body_hash_hist.S
+            ${ISAL_HOME}/igzip/aarch64/isal_deflate_icf_finish_hash_hist.S
+            ${ISAL_HOME}/igzip/aarch64/isal_update_histogram.S
+            ${ISAL_HOME}/igzip/aarch64/lz0a_const_aarch64.h
+            ${ISAL_HOME}/igzip/aarch64/options_aarch64.h
+            ${ISAL_HOME}/igzip/aarch64/stdmac_aarch64.h
+
+            ${ISAL_HOME}/crc/aarch64/crc_multibinary_arm.S
+            #${ISAL_HOME}/crc/aarch64/crc32_aarch64_common.h
+            #${ISAL_HOME}/crc/aarch64/crc32_common_crc_ext_cortex_a72.S
+            #${ISAL_HOME}/crc/aarch64/crc32_common_mix_neoverse_n1.S
+            ${ISAL_HOME}/crc/aarch64/crc32_gzip_refl_3crc_fold.S
+            ${ISAL_HOME}/crc/aarch64/crc32_gzip_refl_crc_ext.S
+            ${ISAL_HOME}/crc/aarch64/crc32_gzip_refl_pmull.S
+            ${ISAL_HOME}/crc/aarch64/crc32_gzip_refl_pmull.h
+            #${ISAL_HOME}/crc/aarch64/crc32_mix_default.S
+            #${ISAL_HOME}/crc/aarch64/crc32_mix_default_common.S
+            #${ISAL_HOME}/crc/aarch64/crc32_mix_neoverse_n1.S
+            #${ISAL_HOME}/crc/aarch64/crc32_norm_common_pmull.h
+            #${ISAL_HOME}/crc/aarch64/crc32_refl_common_pmull.h
+            #${ISAL_HOME}/crc/aarch64/crc32c_mix_default.S
+            #${ISAL_HOME}/crc/aarch64/crc32c_mix_neoverse_n1.S
+        )
+    else()
         enable_language("ASM_NASM")
         target_sources(isal_inflate PRIVATE
             # Files suffixed with _test, _perf, _example can be ignored!
@@ -174,6 +231,7 @@ if(WITH_ISAL)
         PUBLIC
             ${ISAL_HOME}/include
         PRIVATE
+            ${ISAL_HOME}
             ${ISAL_HOME}/igzip
     )
-endif()
+endif(WITH_ISAL)

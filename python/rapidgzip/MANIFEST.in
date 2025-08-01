@@ -40,6 +40,18 @@ include external/zlib/zlib.h
 recursive-include external/isa-l *.h
 recursive-include external/isa-l *.c
 recursive-include external/isa-l *.asm
+recursive-include external/isa-l *.S
+recursive-exclude external/isa-l *crc16*
+recursive-exclude external/isa-l *crc64*
+recursive-exclude external/isa-l *_example.c
+recursive-exclude external/isa-l *_perf.c
+recursive-exclude external/isa-l *_test.c
+prune external/isa-l/erasure_code
+prune external/isa-l/examples
+prune external/isa-l/mem
+prune external/isa-l/programs
+prune external/isa-l/raid
+prune external/isa-l/tests
 include external/isa-l/LICENSE
 include nasm_extension/winnasmcompiler.py
 include nasm_extension/nasmcompiler.py
