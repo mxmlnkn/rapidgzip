@@ -67,7 +67,12 @@ if withCxxopts == 'disable':
 # On aarch64 linux, ISA-L causes:
 #   /bin/ld: external/isa-l/igzip/igzip_decode_block_stateless_01.obj: error adding symbols: file in wrong format
 # -> I need to migrate the ARM build settings to CMake. ISA-L has aarch64 subfolders with assembly files.
+architecture = None
+canBuildIsal = False
 canBuildIsal = shutil.which("nasm") is not None and platform.machine() in ['x86_64', 'AMD64']
+if platform.machine() in ['x86_64', 'AMD64']:
+    architecture = 'x86_64'
+    canBuildIsal = shutil.which("nasm") is not None
 if not canBuildIsal:
     withIsal = 'disable'
 
@@ -83,73 +88,72 @@ if withZlib == 'enable':
     zlib_sources = ['external/zlib/' + source for source in zlib_sources]
 
 isal_sources = [
-    # "include/igzip_lib.h",
-    # "include/unaligned.h",
-    "include/reg_sizes.asm",
-    "include/multibinary.asm",
     "igzip/igzip_inflate.c",
     "igzip/igzip.c",
     "igzip/hufftables_c.c",
-    # "igzip/igzip_checksums.h",
-    "igzip/igzip_inflate_multibinary.asm",
-    "igzip/igzip_decode_block_stateless_01.asm",
-    "igzip/igzip_decode_block_stateless_04.asm",
-    "igzip/rfc1951_lookup.asm",
-    # "igzip/igzip_wrapper.h",
-    # "igzip/static_inflate.h",
-    "igzip/stdmac.asm",
+
     # Compression
     # "igzip/igzip_base_aliases.c",
     "igzip/encode_df.c",
-    "igzip/igzip_deflate_hash.asm",
     "igzip/igzip_icf_base.c",
     "igzip/igzip_icf_body.c",
     "igzip/igzip_base.c",
-    "igzip/igzip_body.asm",
-    "igzip/igzip_multibinary.asm",
-    "igzip/igzip_update_histogram_01.asm",
-    "igzip/igzip_update_histogram_04.asm",
-    # "igzip/igzip_update_histogram.asm",
-    # "igzip/bitbuf2.asm",
-    # "igzip/data_struct2.asm",
-    "igzip/encode_df_04.asm",
-    "igzip/encode_df_06.asm",
-    # "igzip/heap_macros.asm",
-    # "igzip/huffman.asm",
-    # "igzip/igzip_compare_types.asm",
-    "igzip/igzip_finish.asm",
-    "igzip/igzip_gen_icf_map_lh1_04.asm",
-    "igzip/igzip_gen_icf_map_lh1_06.asm",
-    "igzip/igzip_icf_body_h1_gr_bt.asm",
-    "igzip/igzip_icf_finish.asm",
-    "igzip/igzip_set_long_icf_fg_04.asm",
-    "igzip/igzip_set_long_icf_fg_06.asm",
-    # "igzip/inflate_data_structs.asm",
-    # "igzip/lz0a_const.asm",
-    # "igzip/options.asm",
-    "igzip/proc_heap.asm",
-    # "igzip/rfc1951_lookup.asm",
-    "igzip/adler32_avx2_4.asm",
-    "igzip/adler32_sse.asm",
     "igzip/adler32_base.c",
-    # "igzip/encode_df.c",
     "igzip/flatten_ll.c",
     # "igzip/generate_custom_hufftables.c",
     # "igzip/generate_static_inflate.c",
     "igzip/huff_codes.c",
     # "igzip/hufftables_c.c",
-    # "igzip/igzip_base_aliases.c",
-    # "igzip/igzip_base.c",
-    # "igzip/igzip_icf_base.c",
-    # "igzip/igzip_icf_body.c",
     # "igzip/proc_heap_base.c",
-    "crc/crc_multibinary.asm",
-    "crc/crc32_gzip_refl_by16_10.asm",
-    "crc/crc32_gzip_refl_by8_02.asm",
-    "crc/crc32_gzip_refl_by8.asm",
     "crc/crc_base.c",
     # "crc/crc_base_aliases.c",
 ]
+if architecture == 'x86_64':
+    isal_sources += [
+        "include/reg_sizes.asm",
+        "include/multibinary.asm",
+        "igzip/igzip_inflate_multibinary.asm",
+        "igzip/igzip_decode_block_stateless_01.asm",
+        "igzip/igzip_decode_block_stateless_04.asm",
+        # "igzip/igzip_decode_block_stateless.asm"
+        "igzip/rfc1951_lookup.asm",
+        "igzip/stdmac.asm",
+
+        # Compression
+        "igzip/igzip_deflate_hash.asm",
+        "igzip/igzip_body.asm",
+        "igzip/igzip_multibinary.asm",
+        "igzip/igzip_update_histogram_01.asm",
+        "igzip/igzip_update_histogram_04.asm",
+        # "igzip/igzip_update_histogram.asm",
+
+        # "igzip/bitbuf2.asm",
+        # "igzip/data_struct2.asm",
+        "igzip/encode_df_04.asm",
+        "igzip/encode_df_06.asm",
+        # "igzip/heap_macros.asm",
+        # "igzip/huffman.asm",
+        # "igzip/igzip_compare_types.asm",
+        "igzip/igzip_finish.asm",
+        "igzip/igzip_gen_icf_map_lh1_04.asm",
+        "igzip/igzip_gen_icf_map_lh1_06.asm",
+        "igzip/igzip_icf_body_h1_gr_bt.asm",
+        "igzip/igzip_icf_finish.asm",
+        "igzip/igzip_set_long_icf_fg_04.asm",
+        "igzip/igzip_set_long_icf_fg_06.asm",
+        # "igzip/inflate_data_structs.asm",
+        # "igzip/lz0a_const.asm",
+        # "igzip/options.asm",
+        "igzip/proc_heap.asm",
+        # "igzip/rfc1951_lookup.asm",
+        "igzip/adler32_avx2_4.asm",
+        "igzip/adler32_sse.asm",
+
+        "crc/crc_multibinary.asm",
+        "crc/crc32_gzip_refl_by16_10.asm",
+        "crc/crc32_gzip_refl_by8_02.asm",
+        "crc/crc32_gzip_refl_by8.asm",
+    ]
 isal_sources = ['external/isa-l/' + source for source in isal_sources] if withIsal == 'enable' else []
 
 include_dirs = [
