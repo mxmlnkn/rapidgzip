@@ -20,7 +20,7 @@ jobs:
 
     - name: Lint With Codespell
       run: |
-        python3 -m pip install --upgrade pip
+        python3 -m pip install --upgrade pip || true  # Fails on macOS because of homebrew
         python3 -m pip install codespell
         codespell --ignore-words-list thirdparty,Ned $( git ls-tree -r --name-only HEAD | 'grep' -E '[.](py|md|txt|sh|yml|cpp|c|hpp|h)$' )
 
@@ -39,7 +39,7 @@ jobs:
       run: |
         sudo apt update
         sudo apt-get -y install bzip2 cppcheck clang clang-tidy g++ lcov ninja-build wget gzip tabix pigz gztool libarchive-dev zlib1g-dev isal nasm
-        python3 -m pip install --upgrade pip
+        python3 -m pip install --upgrade pip || true  # Fails on macOS because of homebrew
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
 
     - name: System Information
@@ -125,7 +125,7 @@ jobs:
       run: |
         sudo apt update
         sudo apt-get -y install g++ ninja-build gzip tabix pigz gztool libarchive-dev zlib1g-dev isal nasm
-        python3 -m pip install --upgrade pip
+        python3 -m pip install --upgrade pip || true  # Fails on macOS because of homebrew
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
 
     - name: Run Tests With Sanitizers
@@ -143,7 +143,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-13, windows-latest]
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-13, macos-14, windows-latest]
 
     env:
       MACOSX_DEPLOYMENT_TARGET: "10.15"
@@ -172,7 +172,8 @@ jobs:
         brew install -q ninja pigz zlib isa-l wget
         wget 'https://github.com/samtools/htslib/releases/download/1.20/htslib-1.20.tar.bz2'
         tar -xf htslib-1.20.tar.bz2
-        cd htslib* && ./configure && make install
+        cd htslib* && ./configure --prefix="$PWD/installed" && make install
+        echo PATH="$PWD/installed/bin:$PATH" >> "${GITHUB_ENV}"
 
     - name: Install System Dependencies
       if: "startsWith(matrix.os , 'ubuntu')"
@@ -195,7 +196,7 @@ jobs:
 
     - name: Install Python Dependencies
       run: |
-        python3 -m pip install --upgrade pip
+        python3 -m pip install --upgrade pip || true  # Fails on macOS because of homebrew
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
 
     - name: Run Tests With Sanitizers
@@ -226,7 +227,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-13]
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-13, macos-14]
 
     steps:
     - uses: actions/checkout@v4
@@ -239,7 +240,8 @@ jobs:
         brew install -q ninja pigz zlib isa-l wget nasm
         wget 'https://github.com/samtools/htslib/releases/download/1.20/htslib-1.20.tar.bz2'
         tar -xf htslib-1.20.tar.bz2
-        cd htslib* && ./configure && make install
+        cd htslib* && ./configure --prefix="$PWD/installed" && make install
+        echo PATH="$PWD/installed/bin:$PATH" >> "${GITHUB_ENV}"
 
     - name: Install System Dependencies
       if: "startsWith(matrix.os , 'ubuntu')"
@@ -253,7 +255,7 @@ jobs:
 
     - name: Install Python Dependencies
       run: |
-        python3 -m pip install --upgrade pip
+        python3 -m pip install --upgrade pip || true  # Fails on macOS because of homebrew
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
 
     - name: Run Tests With Sanitizers
@@ -281,7 +283,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-13]
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-13, macos-14]
 
     steps:
     - uses: actions/checkout@v4
@@ -294,7 +296,8 @@ jobs:
         brew install -q ninja pigz zlib isa-l wget nasm
         wget 'https://github.com/samtools/htslib/releases/download/1.20/htslib-1.20.tar.bz2'
         tar -xf htslib-1.20.tar.bz2
-        cd htslib* && ./configure && make install
+        cd htslib* && ./configure --prefix="$PWD/installed" && make install
+        echo PATH="$PWD/installed/bin:$PATH" >> "${GITHUB_ENV}"
 
     - name: Install System Dependencies
       if: "startsWith(matrix.os , 'ubuntu')"
@@ -308,7 +311,7 @@ jobs:
 
     - name: Install Python Dependencies
       run: |
-        python3 -m pip install --upgrade pip
+        python3 -m pip install --upgrade pip || true  # Fails on macOS because of homebrew
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
 
     - name: Run Tests With Sanitizers
@@ -335,7 +338,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-13]
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-13, macos-14]
 
     steps:
     - uses: actions/checkout@v4
@@ -348,7 +351,8 @@ jobs:
         brew install -q ninja pigz zlib isa-l wget nasm gcc
         wget 'https://github.com/samtools/htslib/releases/download/1.20/htslib-1.20.tar.bz2'
         tar -xf htslib-1.20.tar.bz2
-        cd htslib* && ./configure && make install
+        cd htslib* && ./configure --prefix="$PWD/installed" && make install
+        echo PATH="$PWD/installed/bin:$PATH" >> "${GITHUB_ENV}"
 
     - name: Install System Dependencies
       if: "startsWith(matrix.os , 'ubuntu')"
@@ -362,7 +366,7 @@ jobs:
 
     - name: Install Python Dependencies
       run: |
-        python3 -m pip install --upgrade pip
+        python3 -m pip install --upgrade pip || true  # Fails on macOS because of homebrew
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
 
     - name: Run Tests With Sanitizers
@@ -399,7 +403,7 @@ jobs:
       run: |
         sudo apt update
         sudo apt-get -y install clang g++ ninja-build gzip tabix pigz gztool libarchive-dev zlib1g-dev isal nasm
-        python3 -m pip install --upgrade pip
+        python3 -m pip install --upgrade pip || true  # Fails on macOS because of homebrew
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
 
     - name: Run Tests With Thread Sanitizer
@@ -494,7 +498,7 @@ jobs:
 
     - name: Install Python Dependencies
       run: |
-        python3 -m pip install --upgrade pip
+        python3 -m pip install --upgrade pip || true  # Fails on macOS because of homebrew
         python3 -m pip install build
 
     - name: Install indexed_bzip2
