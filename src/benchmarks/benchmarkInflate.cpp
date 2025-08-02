@@ -296,4 +296,12 @@ Compressed 128 MiB data with random backreferences to 5 MiB 736 KiB 719 B, compr
   compression strategy: Default, compression bandwidth: 41.651 MB/s
     Runtime / s: 0.3004 <= 0.3016 +- 0.0012 <= 0.3028
     Bandwidth on Decoded Data / (MB/s): 443.2 <= 445.0 +- 1.8 <= 446.9
+
+| Data Type                     | Bandwidth (MB/s) WITH_ISAL=OFF | Bandwidth (MB/s) WITH_ISAL=ON |
+|-------------------------------|--------------------------------|-------------------------------|
+| Zeros                         | 643.2 +- 2.6                   | 1142   +- 11                  |
+| Random                        | 685   +- 10                    | 1240   +- 40                  |
+| Random Base64                 | 121   +- 3                     |  167.3 +- 0.7                 |
+| Random Base64 (Fixed Huffman) | 111   +- 3                     |  121   +- 4                   |
+| Random Backreferences         | 445.0 +- 1.8                   |  600   +- 70                  |
 */
