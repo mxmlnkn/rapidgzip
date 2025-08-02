@@ -372,9 +372,9 @@ private:
                               const std::vector<typename ChunkData::Subchunk>& subchunks,
                               const FasterVector<uint8_t>&                     lastWindow )
     {
-        for ( const auto& boundary : subchunks ) {
-            m_blockMap->push( boundary.encodedOffset, boundary.encodedSize, boundary.decodedSize );
-            m_blockFinder->insert( boundary.encodedOffset + boundary.encodedSize );
+        for ( const auto& subchunk : subchunks ) {
+            m_blockMap->push( subchunk.encodedOffset, subchunk.encodedSize, subchunk.decodedSize );
+            m_blockFinder->insert( subchunk.encodedOffset + subchunk.encodedSize );
         }
 
         if ( subchunks.size() > 1 ) {
@@ -386,10 +386,10 @@ private:
             const auto lookupKey = !BaseType::test( chunkOffset ) && BaseType::test( partitionOffset )
                                    ? partitionOffset
                                    : chunkOffset;
-            for ( const auto& boundary : subchunks ) {
+            for ( const auto& subchunk : subchunks ) {
                 /* This condition could be removed but makes the map slightly smaller. */
-                if ( boundary.encodedOffset != chunkOffset ) {
-                    m_unsplitBlocks.emplace( boundary.encodedOffset, lookupKey );
+                if ( subchunk.encodedOffset != chunkOffset ) {
+                    m_unsplitBlocks.emplace( subchunk.encodedOffset, lookupKey );
                 }
             }
         }
