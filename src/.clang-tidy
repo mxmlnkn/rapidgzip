@@ -2,6 +2,9 @@ Checks: |
     bugprone-*,
     -bugprone-exception-escape,
     -bugprone-easily-swappable-parameters,
+    -bugprone-empty-catch,
+    # Too many false positives. Cannot handle early exits and of course not long-range logic.
+    -bugprone-unchecked-optional-access,
 
     clang-analyzer-*,
     clang-diagnostic-*,
@@ -9,7 +12,12 @@ Checks: |
     -clang-diagnostic-comment,
 
     cppcoreguidelines-*,
+    # Why the fuck are you recommending constness, but not for members?! I don't need move constructors for these.
+    -cppcoreguidelines-avoid-const-or-ref-data-members,
+    -cppcoreguidelines-avoid-do-while,
     -cppcoreguidelines-avoid-magic-numbers,
+    # Explicitly capturing 'this' only works with C++20!
+    -cppcoreguidelines-misleading-capture-default-by-value.
     -cppcoreguidelines-pro-bounds-pointer-arithmetic,
     -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
     -cppcoreguidelines-pro-bounds-constant-array-index,
@@ -29,17 +37,29 @@ Checks: |
     -modernize-deprecated-headers,
 
     performance-*,
+    # If output to std::cout and std::cerr causes performance issues, you have other issues than std::endl!
+    -performance-avoid-endl,
+    # Most of the time a dumb optimization. Recommends uint8_t for everything. Makes no sense for future-proofness.
+    -performance-enum-size,
     -performance-inefficient-string-concatenation,
     -performance-move-const-arg,
 
     readability-*,
+    -readability-avoid-unconditional-preprocessor-if,
     -readability-function-cognitive-complexity,
     -readability-identifier-length,
     -readability-magic-numbers,
+    # Why?! _KiB makes perfect sense, or "_s" for seconds, and so on.
+    -readability-uppercase-literal-suffix,
     -readability-use-anyofallof,
-    -readability-redundant-access-specifiers
+    -readability-redundant-access-specifiers,
+    # It is NOT fucking redundant! It enables partial object initialization without warnings (SubChunk{ 0, 0 }).
+    -readability-redundant-member-init
 
 CheckOptions:
+  # Does not work sufficiently, especially for rapidgzip.hpp, which should be used instead of direct includes.
+  - key:   misc-include-cleaner.IgnoreHeaders
+    value: '.*'
   - key:   misc-non-private-member-variables-in-classes.IgnoreClassesWithAllMemberVariablesBeingPublic
     value: '1'
   - key:   hicpp-signed-bitwise.IgnorePositiveIntegerLiterals

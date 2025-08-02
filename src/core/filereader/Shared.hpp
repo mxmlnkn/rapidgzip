@@ -90,8 +90,7 @@ public:
     {
         if ( m_statistics && m_statistics->showProfileOnDestruction && ( m_statistics.use_count() == 1 ) ) {
             const auto nTimesRead = m_fileSizeBytes
-                                    ? static_cast<double>( m_statistics->read.sum )
-                                      / static_cast<double>( *m_fileSizeBytes )
+                                    ? m_statistics->read.sum / static_cast<double>( *m_fileSizeBytes )
                                     : 0;
 
             std::cerr << ( ThreadSafeOutput()

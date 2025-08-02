@@ -678,7 +678,7 @@ private:
         private:
             BitBuffer& m_bitBuffer;
             const uint8_t& m_originalBitBufferSize;
-        } shiftBackOnExit( m_bitBuffer, m_originalBitBufferSize );
+        } const shiftBackOnExit( m_bitBuffer, m_originalBitBufferSize );
 
         /* Refill buffer one byte at a time to enforce endianness and avoid unaligned access. */
         for ( ; m_originalBitBufferSize + CHAR_BIT <= MAX_BIT_BUFFER_SIZE;
@@ -976,7 +976,7 @@ BitReader<MOST_SIGNIFICANT_BITS_FIRST, BitBuffer>::fullSeek( size_t offsetBits )
                 << ", newPosition: " << newPosition;
             throw std::invalid_argument( std::move( msg ).str() );
         }
-    } else if ( static_cast<size_t>( offsetBits ) < tell() ) {
+    } else if ( offsetBits < tell() ) {
         throw std::logic_error( "Can not emulate backward seeking on non-seekable file!" );
     } else {
         /* Emulate forward seeking on non-seekable file by reading. */

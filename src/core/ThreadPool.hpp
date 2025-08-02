@@ -223,7 +223,7 @@ private:
     void
     spawnThread()
     {
-        m_threads.emplace_back( JoiningThread( [this, i = m_threads.size()] () { workerMain( i ); } ) );
+        m_threads.emplace_back( [this, i = m_threads.size()] () { workerMain( i ); } );
     }
 
 private:

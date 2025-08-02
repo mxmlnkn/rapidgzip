@@ -235,7 +235,7 @@ public:
             /* Unfortunately, StandardFileReader currently may simply return 0 instead of std::nullopt
              * even for non-seekable stdin, therefore we also need to check for that! */
             if ( underlyingSize && ( m_file->seekable() || ( *underlyingSize > 0 ) ) ) {
-                return *underlyingSize;
+                return underlyingSize;
             }
         }
         return std::nullopt;

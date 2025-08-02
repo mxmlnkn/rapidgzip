@@ -66,7 +66,7 @@ public:
     {
         BitReader bitReader( m_bitReader );
         bitReader.seekTo( blockOffset );
-        bzip2::Block block( bitReader );
+        const bzip2::Block block( bitReader );
 
         BlockHeaderData result;
         result.encodedOffsetInBits = blockOffset;

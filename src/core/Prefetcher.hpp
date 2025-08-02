@@ -13,9 +13,7 @@
 
 #include <common.hpp>       // interleave
 
-namespace rapidgzip
-{
-namespace FetchingStrategy
+namespace rapidgzip::FetchingStrategy
 {
 class FetchingStrategy
 {
@@ -328,5 +326,4 @@ public:
 private:
     const size_t m_memorySizePerStream;
 };
-}  // namespace FetchingStrategy
-}  // namespace rapidgzip
+}  // namespace rapidgzip::FetchingStrategy

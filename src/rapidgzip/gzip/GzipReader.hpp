@@ -423,8 +423,6 @@ private:
     void
     readHeader()
     {
-        std::stringstream errorMessage;
-
         switch ( m_fileType )
         {
         case FileType::NONE:

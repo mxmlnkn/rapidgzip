@@ -109,6 +109,7 @@ getOperatingSystemName( uint8_t code ) noexcept
     case  11: return "NTFS filesystem (NT)";
     case  12: return "QDOS";
     case  13: return "Acorn RISCOS";
+    default:
     case 255: return "unknown";
     }
     return std::string( "undefined (" ) + std::to_string( code ) + ")";
@@ -123,6 +124,7 @@ getExtraFlagsDescription( uint8_t code ) noexcept
     case   0: return "none";
     case   2: return "compressor used maximum compression, slowest algorithm";
     case   4: return "compressor used fastest algorithm";
+    default: break;
     }
     return std::string( "undefined (" ) + std::to_string( code ) + ")";
 }

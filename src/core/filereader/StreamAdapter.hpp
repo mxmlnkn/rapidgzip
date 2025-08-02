@@ -16,6 +16,7 @@ toOrigin( std::ios_base::seekdir anchor )
     case std::ios_base::beg: return SEEK_SET;
     case std::ios_base::cur: return SEEK_CUR;
     case std::ios_base::end: return SEEK_END;
+    default: break;
     }
     return SEEK_SET;
 }

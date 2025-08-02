@@ -485,7 +485,6 @@ private:
         const auto t0 = now();
 
         /* Not ready or not yet queued, so queue it and use the wait time to queue more marker replacements. */
-        std::optional<std::future<void> > queuedFuture;
         if ( markerReplaceFuture == m_markersBeingReplaced.end() ) {
             /* First, we need to emplace the last window or else we cannot queue further blocks. */
             markerReplaceFuture = queueChunkForPostProcessing( chunkData, lastWindow );

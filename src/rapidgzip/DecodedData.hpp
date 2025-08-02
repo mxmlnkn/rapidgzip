@@ -112,7 +112,7 @@ public:
         if ( !toAppend.empty() ) {
             dataBuffers.emplace_back( std::move( toAppend ) );
             dataBuffers.back().shrink_to_fit();
-            data.emplace_back( VectorView<uint8_t>( dataBuffers.back().data(), dataBuffers.back().size() ) );
+            data.emplace_back( dataBuffers.back().data(), dataBuffers.back().size() );
         }
     }
 
@@ -285,7 +285,7 @@ DecodedData::append( DecodedDataView const& buffers )
         for ( const auto& buffer : buffers.data ) {
             copied.insert( copied.end(), buffer.begin(), buffer.end() );
         }
-        data.emplace_back( VectorView<uint8_t>( copied.data(), copied.size() ) );
+        data.emplace_back( copied.data(), copied.size() );
     }
 }
 
@@ -382,7 +382,7 @@ DecodedData::applyWindow( WindowView const& window )
          *       it would be undefined behavior, e.g., trying to reuse a vector of uint32_t as uint16_t!
          * @see https://en.cppreference.com/w/cpp/language/reinterpret_cast#Type_aliasing
          */
-        dataViews.emplace_back( VectorView<uint8_t>( reinterpret_cast<uint8_t*>( chunk.data() ), chunk.size() ) );
+        dataViews.emplace_back( reinterpret_cast<uint8_t*>( chunk.data() ), chunk.size() );
     }
     std::move( data.begin(), data.end(), std::back_inserter( dataViews ) );
     std::swap( data, dataViews );

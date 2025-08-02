@@ -127,6 +127,8 @@ protected:
                     return saturatingAddition( static_cast<long long int>( *fileSize ), offset );
                 }
                 throw std::logic_error( "File size is not available to seek from end!" );
+            default:
+                break;
             }
             throw std::invalid_argument( "Invalid seek origin supplied: " + std::to_string( origin ) );
         } ();

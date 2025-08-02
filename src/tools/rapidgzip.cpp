@@ -1,7 +1,11 @@
+#include <climits>
+#include <cstdint>
 #include <cstdio>
 #include <iostream>
+#include <exception>
 #include <functional>
 #include <iterator>
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>

@@ -76,10 +76,7 @@ namespace rapidgzip
 {
 template<typename I1,
          typename I2,
-         typename Enable = typename std::enable_if<
-             std::is_integral<I1>::value &&
-             std::is_integral<I2>::value
-         >::type>
+         typename Enable = typename std::enable_if_t<std::is_integral_v<I1> && std::is_integral_v<I2>> >
 [[nodiscard]] constexpr I1
 ceilDiv( I1 dividend,
          I2 divisor ) noexcept

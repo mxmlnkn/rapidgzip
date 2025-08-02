@@ -386,8 +386,8 @@ analyze( UniqueFileReader inputFile,
         const auto blockDataOffset = bitReader.tell();
 
         size_t uncompressedBlockSize = 0;
-        size_t uncompressedBlockOffset = totalBytesRead;
-        size_t uncompressedBlockOffsetInStream = streamBytesRead;
+        const auto uncompressedBlockOffset = totalBytesRead;
+        const auto uncompressedBlockOffsetInStream = streamBytesRead;
 
         block.symbolTypes.literal = 0;
         block.symbolTypes.backreference = 0;

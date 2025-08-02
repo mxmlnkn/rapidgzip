@@ -1,12 +1,16 @@
 #include <algorithm>
 #include <cassert>
+#include <climits>
 #include <cstdint>
 #include <cstdio>
+#include <exception>
+#include <fstream>
 #include <iostream>
 #include <limits>
 #include <map>
+#include <memory>
 #include <set>
-#include <stdexcept>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>

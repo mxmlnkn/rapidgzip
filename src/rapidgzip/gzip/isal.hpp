@@ -578,6 +578,7 @@ IsalInflateWrapper::getErrorString( int errorCode ) noexcept
     case ISAL_INVALID_WRAPPER    /* -4 */ : return "Invalid gzip/zlib wrapper found";
     case ISAL_UNSUPPORTED_METHOD /* -5 */ : return "Gzip/zlib wrapper specifies unsupported compress method";
     case ISAL_INCORRECT_CHECKSUM /* -6 */ : return "Incorrect checksum found";
+    default: break;
     }
     return "Unknown Error";
 }

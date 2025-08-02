@@ -210,13 +210,13 @@ private:
     fileSize()
     {
         if ( m_fileSizeInBits ) {
-            return *m_fileSizeInBits;
+            return m_fileSizeInBits;
         }
 
         const auto fileSize = m_file->size();
         if ( fileSize ) {
             m_fileSizeInBits = *fileSize * CHAR_BIT;
-            return *m_fileSizeInBits;
+            return m_fileSizeInBits;
         }
 
         return std::nullopt;

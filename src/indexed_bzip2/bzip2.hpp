@@ -778,7 +778,7 @@ Block::readBlockData()
             msg << "[BZip2 block data] dbufCount " << dbufCount << " > " << bwdata.dbuf.size() << " dbufSize";
             throw std::domain_error( std::move( msg ).str() );
         }
-        int ii = nextSym - 1;
+        const int ii = nextSym - 1;
         auto uc = mtfSymbol[ii];
         std::memmove( mtfSymbol.data() + 1, mtfSymbol.data(), ii );
         mtfSymbol[0] = uc;
