@@ -115,7 +115,7 @@ public:
     stop()
     {
         {
-            std::lock_guard lock( m_mutex );
+            const std::lock_guard lock( m_mutex );
             m_threadPoolRunning = false;
             m_pingWorkers.notify_all();
         }
@@ -141,7 +141,7 @@ public:
     submit( T_Functor&& task,
             int         priority = 0 )
     {
-        std::lock_guard lock( m_mutex );
+        const std::lock_guard lock( m_mutex );
 
         if ( m_threadCount == 0 ) {
             return std::async( std::launch::deferred, std::forward<T_Functor>( task ) );
@@ -171,7 +171,7 @@ public:
     [[nodiscard]] size_t
     unprocessedTasksCount( const std::optional<int> priority = {} ) const
     {
-        std::lock_guard lock( m_mutex );
+        const std::lock_guard lock( m_mutex );
         if ( priority ) {
             const auto tasks = m_tasks.find( *priority );
             return tasks == m_tasks.end() ? 0 : tasks->second.size();

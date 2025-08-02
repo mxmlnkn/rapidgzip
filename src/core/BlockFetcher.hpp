@@ -357,7 +357,7 @@ private:
     [[nodiscard]] bool
     isFailedPrefetch( const size_t blockOffset ) const
     {
-        std::scoped_lock lock( m_failedPrefetchCacheMutex );
+        const std::scoped_lock lock( m_failedPrefetchCacheMutex );
         return m_failedPrefetchCache.test( blockOffset );
     }
 
@@ -427,7 +427,7 @@ private:
                 } catch ( ... ) {
                     /* Prefetching failed, ignore result and error. If the error was a real one, then it will
                      * will be rethrown when the task is requested directly and run directly. */
-                    std::scoped_lock lock( m_failedPrefetchCacheMutex );
+                    const std::scoped_lock lock( m_failedPrefetchCacheMutex );
                     m_failedPrefetchCache.insert( prefetchedBlockOffset, /* value does not matter */ true );
                 }
                 it = m_prefetching.erase( it );

@@ -63,7 +63,7 @@ public:
     [[nodiscard]] size_t
     size() const
     {
-        std::scoped_lock lock( m_mutex );
+        const std::scoped_lock lock( m_mutex );
         return m_results.size();
     }
 
@@ -97,7 +97,7 @@ public:
     void
     push( Value value )
     {
-        std::scoped_lock lock( m_mutex );
+        const std::scoped_lock lock( m_mutex );
 
         if ( m_finalized ) {
             throw std::invalid_argument( "You may not push to finalized StreamedResults!" );
@@ -110,7 +110,7 @@ public:
     void
     finalize( std::optional<size_t> resultsCount = {} )
     {
-        std::scoped_lock lock( m_mutex );
+        const std::scoped_lock lock( m_mutex );
 
         if ( resultsCount ) {
             if ( *resultsCount > m_results.size() ) {
@@ -140,7 +140,7 @@ public:
     void
     setResults( Values results )
     {
-        std::scoped_lock lock( m_mutex );
+        const std::scoped_lock lock( m_mutex );
 
         m_results = std::move( results );
         m_finalized = true;

@@ -49,7 +49,7 @@ public:
 
     ~BlockFinder() override
     {
-        std::scoped_lock lock( m_mutex );
+        const std::scoped_lock lock( m_mutex );
         m_cancelThread = true;
         m_changed.notify_all();
     }
@@ -71,7 +71,7 @@ public:
     stopThreads()
     {
         {
-            std::scoped_lock lock( m_mutex );
+            const std::scoped_lock lock( m_mutex );
             m_cancelThread = true;
             m_changed.notify_all();
         }
@@ -122,7 +122,7 @@ public:
         }
 
         {
-            std::scoped_lock lock( m_mutex );
+            const std::scoped_lock lock( m_mutex );
             m_highestRequestedBlockNumber = std::max( m_highestRequestedBlockNumber, blockNumber );
             m_changed.notify_all();
         }
@@ -134,7 +134,7 @@ public:
     [[nodiscard]] size_t
     find( size_t encodedBlockOffsetInBits ) const override
     {
-        std::scoped_lock lock( m_mutex );
+        const std::scoped_lock lock( m_mutex );
 
         /* m_blockOffsets is effectively double-locked but that's the price of abstraction. */
         const auto lockedOffsets = m_blockOffsets.results();

@@ -51,7 +51,7 @@ public:
             return;
         }
 
-        std::scoped_lock lock( m_mutex );
+        const std::scoped_lock lock( m_mutex );
 
         if ( m_windows.empty() ) {
             m_windows.emplace( encodedBlockOffset, std::move( sharedWindow ) );
@@ -81,7 +81,7 @@ public:
         /* Note that insertions might invalidate iterators but not references to values and especially not the
          * internal pointers of the vectors we are storing in the values. Meaning, it is safe to simply return
          * a WindowView without a corresponding lock. */
-        std::scoped_lock lock( m_mutex );
+        const std::scoped_lock lock( m_mutex );
         if ( const auto match = m_windows.find( encodedOffsetInBits ); match != m_windows.end() ) {
             return match->second;
         }
@@ -91,14 +91,14 @@ public:
     [[nodiscard]] bool
     empty() const
     {
-        std::scoped_lock lock( m_mutex );
+        const std::scoped_lock lock( m_mutex );
         return m_windows.empty();
     }
 
     void
     releaseUpTo( size_t encodedOffset )
     {
-        std::scoped_lock lock( m_mutex );
+        const std::scoped_lock lock( m_mutex );
         auto start = m_windows.begin();
         auto end = start;
         while ( ( end != m_windows.end() ) && ( end->first < encodedOffset ) ) {
@@ -122,14 +122,14 @@ public:
     [[nodiscard]] size_t
     size() const
     {
-        std::scoped_lock lock( m_mutex );
+        const std::scoped_lock lock( m_mutex );
         return m_windows.size();
     }
 
     [[nodiscard]] bool
     operator==( const WindowMap& other ) const
     {
-        std::scoped_lock lock( m_mutex, other.m_mutex );
+        const std::scoped_lock lock( m_mutex, other.m_mutex );
 
         if ( m_windows.size() != other.m_windows.size() ) {
             return false;

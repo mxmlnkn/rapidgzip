@@ -74,21 +74,21 @@ public:
     [[nodiscard]] size_t
     size() const override
     {
-        std::scoped_lock lock( m_mutex );
+        const std::scoped_lock lock( m_mutex );
         return m_blockOffsets.size();
     }
 
     void
     finalize()
     {
-        std::scoped_lock lock( m_mutex );
+        const std::scoped_lock lock( m_mutex );
         m_finalized = true;
     }
 
     [[nodiscard]] bool
     finalized() const override
     {
-        std::scoped_lock lock( m_mutex );
+        const std::scoped_lock lock( m_mutex );
         return m_finalized;
     }
 
@@ -105,7 +105,7 @@ public:
     void
     insert( size_t blockOffset )
     {
-        std::scoped_lock lock( m_mutex );
+        const std::scoped_lock lock( m_mutex );
         insertUnsafe( blockOffset );
     }
 

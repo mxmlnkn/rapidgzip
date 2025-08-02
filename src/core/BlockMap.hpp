@@ -71,7 +71,7 @@ public:
           size_t encodedSize,
           size_t decodedSize )
     {
-        std::scoped_lock lock( m_mutex );
+        const std::scoped_lock lock( m_mutex );
 
         if ( m_finalized ) {
             throw std::invalid_argument( "May not insert into finalized block map!" );
@@ -125,7 +125,7 @@ public:
     [[nodiscard]] BlockInfo
     findDataOffset( size_t dataOffset ) const
     {
-        std::scoped_lock lock( m_mutex );
+        const std::scoped_lock lock( m_mutex );
 
         /* find offset from map (key and values should be sorted in ascending order, so we can bisect!) */
         const auto blockOffset = std::lower_bound(
@@ -146,7 +146,7 @@ public:
     [[nodiscard]] std::optional<BlockInfo>
     getEncodedOffset( size_t encodedOffsetInBits ) const
     {
-        std::scoped_lock lock( m_mutex );
+        const std::scoped_lock lock( m_mutex );
 
         /* find offset from map (key and values should be sorted in ascending order, so we can bisect!) */
         const auto blockOffset = std::lower_bound(
@@ -167,14 +167,14 @@ public:
     [[nodiscard]] size_t
     dataBlockCount() const
     {
-        std::scoped_lock lock( m_mutex );
+        const std::scoped_lock lock( m_mutex );
         return m_blockToDataOffsets.size() - m_eosBlocks.size();
     }
 
     void
     finalize()
     {
-        std::scoped_lock lock( m_mutex );
+        const std::scoped_lock lock( m_mutex );
 
         if ( m_finalized ) {
             return;
@@ -200,14 +200,14 @@ public:
     [[nodiscard]] bool
     finalized() const
     {
-        std::scoped_lock lock( m_mutex );
+        const std::scoped_lock lock( m_mutex );
         return m_finalized;
     }
 
     void
     setBlockOffsets( std::map<size_t, size_t> const& blockOffsets )
     {
-        std::scoped_lock lock( m_mutex );
+        const std::scoped_lock lock( m_mutex );
 
         m_blockToDataOffsets.assign( blockOffsets.begin(), blockOffsets.end() );
         m_lastBlockEncodedSize = 0;
@@ -232,7 +232,7 @@ public:
     [[nodiscard]] std::map<size_t, size_t>
     blockOffsets() const
     {
-        std::scoped_lock lock( m_mutex );
+        const std::scoped_lock lock( m_mutex );
 
         return { m_blockToDataOffsets.begin(), m_blockToDataOffsets.end() };
     }
@@ -240,7 +240,7 @@ public:
     [[nodiscard]] std::pair<size_t, size_t>
     back() const
     {
-        std::scoped_lock lock( m_mutex );
+        const std::scoped_lock lock( m_mutex );
 
         if ( m_blockToDataOffsets.empty() ) {
             throw std::out_of_range( "Can not return last element of empty block map!" );
