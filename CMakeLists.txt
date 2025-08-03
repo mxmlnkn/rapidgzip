@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.17)
 
 project("Indexed BZip2/Gzip Decoder" CXX)
 
-option(LIBRAPIDARCHIVE_BUILD_TESTING "Build tests and benchmarks" ON)
+option(LIBRAPIDARCHIVE_BUILD_TESTS "Build tests and benchmarks" ON)
 option(LIBRAPIDARCHIVE_BUILD_TOOLS "Build tools" ON)
 option(LIBRAPIDARCHIVE_CODE_COVERAGE "Enable coverage reporting" OFF)
 option(LIBRAPIDARCHIVE_USE_SYSTEM_ZLIB "Use the system-installed zlib library instead of compiling it from source" OFF)
@@ -69,7 +69,9 @@ endif()
 
 # This command should be in the source directory root because ctest expects
 # to find a test file in the build directory root.
-include(CTest)
+if (LIBRAPIDARCHIVE_BUILD_TESTS)
+    include(CTest)
+endif()
 
 if(LIBRAPIDARCHIVE_USE_SYSTEM_ZLIB)
     # Previously, I was looking for a static library, maybe to not introduce confusion about the zlibstatic alias.
@@ -113,19 +115,21 @@ add_subdirectory(src)
 
 # Add convenience custom targets
 
-include(ProcessorCount)
-ProcessorCount(coreCount)
+if (LIBRAPIDARCHIVE_BUILD_TESTS)
+    include(ProcessorCount)
+    ProcessorCount(coreCount)
 
-add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} -j ${coreCount} --extra-verbose)
+    add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} -j ${coreCount} --extra-verbose)
 
-add_custom_target(check-memcheck
-    COMMAND ${CMAKE_CTEST_COMMAND} -j ${coreCount} --extra-verbose --force-new-ctest-process --test-action memcheck
-    COMMAND cat "${CMAKE_BINARY_DIR}/Testing/Temporary/MemoryChecker.*.log"
-    WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
-)
+    add_custom_target(check-memcheck
+        COMMAND ${CMAKE_CTEST_COMMAND} -j ${coreCount} --extra-verbose --force-new-ctest-process --test-action memcheck
+        COMMAND cat "${CMAKE_BINARY_DIR}/Testing/Temporary/MemoryChecker.*.log"
+        WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+    )
 
-add_dependencies(check all_tests)
-add_dependencies(check-memcheck all_tests)
+    add_dependencies(check all_tests)
+    add_dependencies(check-memcheck all_tests)
+endif()
 
 
 # Add beautify target

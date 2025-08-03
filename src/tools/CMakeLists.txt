@@ -1,3 +1,4 @@
+if(LIBRAPIDARCHIVE_BUILD_TOOLS)
 add_executable(ibzip2)
 target_sources(ibzip2 PRIVATE ${CMAKE_CURRENT_LIST_DIR}/ibzip2.cpp)
 target_link_libraries(ibzip2 PRIVATE cxxopts indexed_bzip2_parallel)
@@ -17,4 +18,6 @@ endif()
 if(LIBRAPIDARCHIVE_RUN_CLANG_TIDY)
     set_target_properties(ibzip2 PROPERTIES CXX_CLANG_TIDY "${CLANG_TIDY_COMMAND}")
     set_target_properties(rapidgzip PROPERTIES CXX_CLANG_TIDY "${CLANG_TIDY_COMMAND}")
+endif()
+
 endif()

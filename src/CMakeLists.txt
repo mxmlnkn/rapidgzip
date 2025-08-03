@@ -89,10 +89,13 @@ if(LIBRAPIDARCHIVE_WITH_ISAL)
 endif()
 
 
-add_subdirectory(benchmarks)
 add_subdirectory(core)
 add_subdirectory(huffman)
 add_subdirectory(indexed_bzip2)
 add_subdirectory(rapidgzip)
 add_subdirectory(tools)
-add_subdirectory(tests)
+
+if (LIBRAPIDARCHIVE_BUILD_TESTS)
+    add_subdirectory(benchmarks)
+    add_subdirectory(tests)
+endif()
