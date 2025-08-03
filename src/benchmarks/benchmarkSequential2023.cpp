@@ -320,7 +320,7 @@ public:
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
         m_stream.next_in = const_cast<unsigned char*>( compressed ) + byteOffset;
 
-        const auto outputPreviouslyAvailable = std::min( 8_Ki, m_outputBuffer.size() );
+        const auto outputPreviouslyAvailable = std::min( static_cast<size_t>( 8_Ki ), m_outputBuffer.size() );
         m_stream.avail_out = outputPreviouslyAvailable;
         m_stream.next_out = m_outputBuffer.data();
 
