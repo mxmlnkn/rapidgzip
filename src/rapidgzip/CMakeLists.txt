@@ -5,6 +5,7 @@ add_subdirectory(chunkdecoding)
 
 
 add_library(librapidgzip INTERFACE)
+add_library(rapidgzip::rapidgzip ALIAS librapidgzip)
 target_include_directories(librapidgzip INTERFACE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(librapidgzip INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/ChunkData.hpp
@@ -21,7 +22,6 @@ target_sources(librapidgzip INTERFACE
 )
 target_link_libraries(librapidgzip INTERFACE
     core
-    indexed_bzip2
     rapidgzip::chunkdecoding
 )
 target_compile_features(librapidgzip INTERFACE cxx_std_17)
