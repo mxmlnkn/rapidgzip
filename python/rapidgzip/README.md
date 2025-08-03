@@ -428,13 +428,68 @@ time dd if=mounted/sample bs=$(( 1024 * 1024 )) \
 
 # C++ library
 
-Because it is written in C++, it can of course also be used as a C++ library.
-In order to make heavy use of templates and to simplify compiling with Python `setuptools`, it is mostly header-only so that integration it into another project should be easy.
+Because it is written in C++, it can of course also be used as a C++ library. `rapidgzip` supports streaming of uncompressed data with a predefined buffer size, although small buffer sizes decrease performance.
+
+In order to make heavy use of templates and to simplify compiling with Python `setuptools`, it is **header-only**.
 The license is also permissive enough for most use cases.
 
-I currently did not yet test integrating it into other projects other than simply manually copying the source in `src/core`, `src/rapidgzip`, and if integrated zlib is desired also `src/external/zlib`.
-If you have suggestions and wishes like support with CMake or Conan, please open an issue.
+rapidgzip can be added to an existing CMake project using FetchContent
+```cmake
+# cmake_minimum_required should be greater than 3.14 to use this approach
+include(FetchContent)
 
+FetchContent_Declare(
+    rapidgzip
+    GIT_REPOSITORY "https://github.com/mxmlnkn/rapidgzip"
+    GIT_TAG        "master"
+    #SOURCE_DIR "/path/to/rapidgzip" # you can also use a local path
+)
+# all options are prefixed with IBZIP2
+set(IBZIP2_BUILD_TESTING OFF) # don't build benchmarks and tests
+set(IBZIP2_BUILD_TOOLS OFF)   # don't build tools
+
+FetchContent_MakeAvailable(rapidgzip)
+
+add_executable(YourTarget main.cpp)
+target_link_libraries(YourTarget PRIVATE rapidgzip::rapidgzip)
+```
+*This has been tested using CMake 3.31.6 with Clang 17.0 on macOS. Please create an issue if you were unable to get it working.*
+
+<details>
+<summary>Basic example of reading a compressed file and writing decompressed output to stdout</summary>
+
+```cpp
+#include <iostream>
+#include <memory>
+#include <unistd.h>
+#include <string>
+
+#include <filereader/Standard.hpp>
+#include <rapidgzip/ParallelGzipReader.hpp>
+
+int main() {
+    // Create a file reader for the gzipped file
+    auto fileReader = std::make_unique<rapidgzip::StandardFileReader>(std::string("path/to/gzipped/file.gz"));
+
+    // Create the rapidgzip reader with parallelization (0 = auto, use all cores)
+    rapidgzip::ParallelGzipReader reader(std::move(fileReader), 0);
+
+    // Buffer for reading chunks
+    std::vector<char> buffer(4 * 1024 * 1024); // 4 MB buffer
+
+    // Read and write chunks until EOF
+    while (true) {
+        size_t bytesRead = reader.read(buffer.data(), buffer.size());
+        if (bytesRead == 0) break; // EOF
+
+        // Write to stdout
+        std::cout.write(buffer.data(), bytesRead);
+    }
+
+    return 0;
+}
+```
+</details> <br>
 
 # Citation
 
