@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
-#if !defined( WITH_RPMALLOC )
+#if !defined( LIBRAPIDARCHIVE_WITH_RPMALLOC )
     #include <cstdlib>
 #endif
 #include <iterator>
@@ -13,13 +13,13 @@
 
 #include "common.hpp"  // ceilDiv
 
-#ifdef WITH_RPMALLOC
+#ifdef LIBRAPIDARCHIVE_WITH_RPMALLOC
     #include <rpmalloc.h>
 #endif
 
 namespace rapidgzip
 {
-#ifdef WITH_RPMALLOC
+#ifdef LIBRAPIDARCHIVE_WITH_RPMALLOC
 class RpmallocInit
 {
 public:
@@ -119,7 +119,7 @@ static_assert( std::is_empty_v<RpmallocAllocator<char> > );
 
 #if 1
 
-#ifdef WITH_RPMALLOC
+#ifdef LIBRAPIDARCHIVE_WITH_RPMALLOC
 template<typename T>
 using FasterVector = std::vector<T, RpmallocAllocator<T> >;
 #else
@@ -373,7 +373,7 @@ private:
         if ( newCapacity == 0 ) {
             free();
         } else {
-        #ifdef WITH_RPMALLOC
+        #ifdef LIBRAPIDARCHIVE_WITH_RPMALLOC
         #if 1
             if ( m_data == nullptr ) {
                 rpmalloc_ensuring_initialization();
@@ -401,7 +401,7 @@ private:
     void
     free()
     {
-    #ifdef WITH_RPMALLOC
+    #ifdef LIBRAPIDARCHIVE_WITH_RPMALLOC
         rpfree( m_data );
     #else
         std::free( m_data );  // NOLINT

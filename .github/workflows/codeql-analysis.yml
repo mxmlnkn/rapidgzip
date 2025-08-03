@@ -43,7 +43,7 @@ jobs:
 
     - name: Build Project
       run: |
-        cmake -DUSE_SYSTEM_ZLIB=ON .
+        cmake -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=ON .
         cmake --build .
 
     - name: Perform CodeQL Analysis

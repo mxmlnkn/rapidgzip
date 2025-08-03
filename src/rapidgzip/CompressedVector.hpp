@@ -10,7 +10,7 @@
 #include <VectorView.hpp>
 
 #include "gzip/InflateWrapper.hpp"
-#ifdef WITH_ISAL
+#ifdef LIBRAPIDARCHIVE_WITH_ISAL
     #include "gzip/isal.hpp"
 #endif
 #include "gzip/zlib.hpp"
@@ -69,7 +69,7 @@ compress( const VectorView<typename Container::value_type> toCompress,
     switch ( compressionType )
     {
     case CompressionType::GZIP:
-    #ifdef WITH_ISAL
+    #ifdef LIBRAPIDARCHIVE_WITH_ISAL
         try {
             return rapidgzip::compressWithIsal<Container>( toCompress );
         } catch ( const std::runtime_error& exception ) {
@@ -173,7 +173,7 @@ public:
             return std::make_shared<Container>();
         }
 
-        #ifdef WITH_ISAL
+        #ifdef LIBRAPIDARCHIVE_WITH_ISAL
             using InflateWrapper = rapidgzip::IsalInflateWrapper;
         #else
             using InflateWrapper = rapidgzip::ZlibInflateWrapper;

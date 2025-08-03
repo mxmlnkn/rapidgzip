@@ -234,7 +234,7 @@ Compressed 128 MiB data with random backreferences to 5 MiB 736 KiB 719 B, compr
 uname -a
     Linux raspberrypi5 6.8.0-1028-raspi #32-Ubuntu SMP PREEMPT_DYNAMIC aarch64 aarch64 aarch64 GNU/Linux
 cmake --build . -- benchmarkInflate && src/benchmarks/benchmarkInflate
-WITH_ISAL=ON
+LIBRAPIDARCHIVE_WITH_ISAL=ON
 
 Compressed 128 MiB zeros to 127 KiB 430 B, compression ratio: 1028.66,
   compression strategy: Default, compression bandwidth: 154.11 MB/s
@@ -266,7 +266,7 @@ Compressed 128 MiB data with random backreferences to 5 MiB 736 KiB 719 B, compr
     Bandwidth on Decoded Data / (MB/s): 520 <= 600 +- 70 <= 650
 
 
-WITH_ISAL=OFF
+LIBRAPIDARCHIVE_WITH_ISAL=OFF
 
 Compressed 128 MiB zeros to 127 KiB 430 B, compression ratio: 1028.66,
   compression strategy: Default, compression bandwidth: 164.403 MB/s

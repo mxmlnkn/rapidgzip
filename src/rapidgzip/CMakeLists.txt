@@ -25,6 +25,6 @@ target_link_libraries(librapidgzip INTERFACE
     rapidgzip::chunkdecoding
 )
 target_compile_features(librapidgzip INTERFACE cxx_std_17)
-if(WITH_ISAL)
-    target_compile_definitions(librapidgzip INTERFACE WITH_ISAL)
+if(LIBRAPIDARCHIVE_WITH_ISAL)
+    target_compile_definitions(librapidgzip INTERFACE LIBRAPIDARCHIVE_WITH_ISAL)
 endif()

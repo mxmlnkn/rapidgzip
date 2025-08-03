@@ -1014,7 +1014,7 @@ printClassSizes()
     std::cout << "  ChunkDataCounter              : " << sizeof( ChunkDataCounter ) << "\n";  // 392
     std::cout << "  CompressedVector              : " << sizeof( CompressedVector<> ) << "\n";  // 32
     std::cout << "  ZlibInflateWrapper            : " << sizeof( ZlibInflateWrapper ) << "\n";  // 131320
-#ifdef WITH_ISAL
+#ifdef LIBRAPIDARCHIVE_WITH_ISAL
     std::cout << "  IsalInflateWrapper            : " << sizeof( IsalInflateWrapper ) << "\n";  // 218592
     std::cout << "  HuffmanCodingISAL             : " << sizeof( HuffmanCodingISAL ) << "\n";  // 18916
 #endif

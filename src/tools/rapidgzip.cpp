@@ -359,12 +359,12 @@ rapidgzipCLI( int                  argc,
             << "# " << thirdparty::cxxopts::name << "\n\n"
             << thirdparty::cxxopts::url << "\n\n"
             << thirdparty::cxxopts::license << "\n\n"
-        #ifdef WITH_ISAL
+        #ifdef LIBRAPIDARCHIVE_WITH_ISAL
             << "# " << thirdparty::isal::name << "\n\n"
             << thirdparty::isal::url << "\n\n"
             << thirdparty::isal::license << "\n\n"
         #endif
-        #ifdef WITH_RPMALLOC
+        #ifdef LIBRAPIDARCHIVE_WITH_RPMALLOC
             << "# " << thirdparty::rpmalloc::name << "\n\n"
             << thirdparty::rpmalloc::url << "\n\n"
             << thirdparty::rpmalloc::fullLicense << "\n\n"
@@ -388,7 +388,7 @@ rapidgzipCLI( int                  argc,
             << "    licenses:\n"
             << "      - license: Unlicense\n"
             << "        text: " << toYamlString( thirdparty::cxxopts::license ) << "\n"
-        #ifdef WITH_ISAL
+        #ifdef LIBRAPIDARCHIVE_WITH_ISAL
             << "  - package_name: " << thirdparty::isal::name << "\n"
             << "    package_version: 2.30.0\n"
             << "    license: BSD-3\n"
@@ -396,7 +396,7 @@ rapidgzipCLI( int                  argc,
             << "      - license: BSD-3\n"
             << "        text: " << toYamlString( thirdparty::isal::license ) << "\n"
         #endif
-        #ifdef WITH_RPMALLOC
+        #ifdef LIBRAPIDARCHIVE_WITH_RPMALLOC
             << "  - package_name: " << thirdparty::rpmalloc::name << "\n"
             << "    package_version: 1.4.4\n"
             << "    license: Unlicense/MIT\n"

@@ -41,7 +41,7 @@ endif()
 
 #add_subdirectory(external/zlib)
 
-if(NOT USE_SYSTEM_ZLIB)
+if(NOT LIBRAPIDARCHIVE_USE_SYSTEM_ZLIB)
     project(zlibstatic C)
     add_library(zlibstatic STATIC)
     set(ZLIB_HOME "${CMAKE_CURRENT_SOURCE_DIR}/external/zlib")
@@ -73,7 +73,7 @@ endif()
 
 # ISA-l
 
-if(WITH_ISAL)
+if(LIBRAPIDARCHIVE_WITH_ISAL)
     include(FetchContent)
 
     FetchContent_Declare(isal_project SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/isa-l)
@@ -86,7 +86,7 @@ if(WITH_ISAL)
     # I am not using the guarded <isa-l/igzip_lib.h> includes because it would not work in the current setup.py :(.
     # The guarded includes are also not necessary or possible with FetchContent, only with ExternalProject_Add!
     add_library(ISAL::isal ALIAS isal)
-endif(WITH_ISAL)
+endif()
 
 
 add_subdirectory(benchmarks)

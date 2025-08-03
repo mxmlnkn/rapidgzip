@@ -9,7 +9,7 @@
 #include <common.hpp>
 #include <filereader/Standard.hpp>
 #include <gzip/deflate.hpp>
-#ifdef WITH_ISAL
+#ifdef LIBRAPIDARCHIVE_WITH_ISAL
     #include <gzip/isal.hpp>
 #endif
 #include <IndexFileFormat.hpp>
@@ -22,7 +22,7 @@ template<typename ResultContainer = std::vector<uint8_t> >
 [[nodiscard]] ResultContainer
 compress( const VectorView<uint8_t> toCompress )
 {
-#ifdef WITH_ISAL
+#ifdef LIBRAPIDARCHIVE_WITH_ISAL
     return rapidgzip::compressWithIsal( toCompress );
 #else
     return rapidgzip::compressWithZlib( toCompress );

@@ -129,7 +129,7 @@ testAutomaticMarkerResolution( const std::filesystem::path& testFolder )
     test( "base64-32KiB.pigz", 0, {}, { 16796, 15972 } );
     test( "base64-32KiB.pigz", 1, { 15793 }, { 179 } );
 
-#ifdef WITH_ISAL
+#ifdef LIBRAPIDARCHIVE_WITH_ISAL
     /* When decodeChunk is able to delegate ISA-l, then the resulting chunks will be sized 128 KiB
      * to improve allocator behavior. All in all, testing the exact chunk sizes it not the most stable
      * unit test as it might be subject to further changes :/. For example, when decoding with rapidgzip
@@ -532,7 +532,7 @@ testGettingFooters( UniqueFileReader&& fileReader )
     compareBlockOffsets( footers, getFooterOffsets( decodeWithDecodeBlockWithRapidgzip( sharedFileReader->clone() ) ) );
     const auto zlibChunk = decodeWithDecodeBlockWithInflateWrapper<ZlibInflateWrapper>( sharedFileReader->clone() );
     compareBlockOffsets( footers, getFooterOffsets( zlibChunk ) );
-#ifdef WITH_ISAL
+#ifdef LIBRAPIDARCHIVE_WITH_ISAL
     const auto isalChunk = decodeWithDecodeBlockWithInflateWrapper<IsalInflateWrapper>( sharedFileReader->clone() );
     compareBlockOffsets( footers, getFooterOffsets( isalChunk ) );
 #endif
@@ -1095,7 +1095,7 @@ main( int    argc,
         ) / "src" / "tests" / "data";
 
     testWikidataException<ZlibInflateWrapper>( testFolder );
-#ifdef WITH_ISAL
+#ifdef LIBRAPIDARCHIVE_WITH_ISAL
     testWikidataException<IsalInflateWrapper>( testFolder );
 #endif
 

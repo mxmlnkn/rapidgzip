@@ -23,7 +23,7 @@
 #include <gzip/definitions.hpp>
 #include <gzip/deflate.hpp>
 #include <gzip/gzip.hpp>
-#ifdef WITH_ISAL
+#ifdef LIBRAPIDARCHIVE_WITH_ISAL
     #include <gzip/isal.hpp>
 #endif
 #include <gzip/zlib.hpp>
@@ -266,7 +266,7 @@ public:
     }
 
 
-    #ifdef WITH_ISAL
+    #ifdef LIBRAPIDARCHIVE_WITH_ISAL
     /**
      * This is called from @ref decodeChunkWithRapidgzip in case the window has been fully resolved so that
      * normal decompression instead of two-staged one becomes possible.
@@ -406,7 +406,7 @@ public:
          */
         return std::move( result );
     }
-    #endif  // ifdef WITH_ISAL
+    #endif  // ifdef LIBRAPIDARCHIVE_WITH_ISAL
 
 
     [[nodiscard]] static ChunkData
@@ -428,7 +428,7 @@ public:
         std::vector<Subchunk> subchunks;
         startNewSubchunk( subchunks, result.encodedOffsetInBits );
 
-    #ifdef WITH_ISAL
+    #ifdef LIBRAPIDARCHIVE_WITH_ISAL
         if ( initialWindow ) {
             return finishDecodeChunkWithIsal( bitReader, untilOffset, *initialWindow, maxDecompressedChunkSize,
                                               std::move( result ), std::move( subchunks ) );
@@ -453,7 +453,7 @@ public:
          * something very similar because GzipReader only works with fully decodable streams but we
          * might want to return buffer with placeholders in case we don't know the initial window, yet! */
         size_t nextBlockOffset{ 0 };
-    #ifdef WITH_ISAL
+    #ifdef LIBRAPIDARCHIVE_WITH_ISAL
         size_t cleanDataCount{ 0 };
     #endif
         while ( true )
@@ -489,7 +489,7 @@ public:
                     throw std::domain_error( std::move( message ).str() );
                 }
 
-            #ifdef WITH_ISAL
+            #ifdef LIBRAPIDARCHIVE_WITH_ISAL
                 return finishDecodeChunkWithIsal( bitReader, untilOffset, /* initialWindow */ {},
                                                   maxDecompressedChunkSize, std::move( result ),
                                                   std::move( subchunks ) );
@@ -508,7 +508,7 @@ public:
                 break;
             }
 
-        #ifdef WITH_ISAL
+        #ifdef LIBRAPIDARCHIVE_WITH_ISAL
             if ( cleanDataCount >= deflate::MAX_WINDOW_SIZE ) {
                 return finishDecodeChunkWithIsal( bitReader, untilOffset, result.getLastWindow( {} ),
                                                   maxDecompressedChunkSize, std::move( result ),
@@ -564,7 +564,7 @@ public:
                     throw std::domain_error( std::move( message ).str() );
                 }
 
-            #ifdef WITH_ISAL
+            #ifdef LIBRAPIDARCHIVE_WITH_ISAL
                 cleanDataCount += bufferViews.dataSize();
             #endif
 
@@ -661,7 +661,7 @@ public:
                  bool                               const untilOffsetIsExact = false )
     {
         if ( initialWindow && untilOffsetIsExact ) {
-        #ifdef WITH_ISAL
+        #ifdef LIBRAPIDARCHIVE_WITH_ISAL
             using InflateWrapper = IsalInflateWrapper;
         #else
             using InflateWrapper = ZlibInflateWrapper;

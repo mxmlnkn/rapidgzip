@@ -23,7 +23,7 @@
 #include <common.hpp>                   // _Ki literals
 #include <filereader/FileReader.hpp>
 #include <FileUtils.hpp>
-#ifdef WITH_ISAL
+#ifdef LIBRAPIDARCHIVE_WITH_ISAL
     #include <gzip/isal.hpp>
 #endif
 #include <gzip/zlib.hpp>
@@ -238,7 +238,7 @@ namespace bgzip
 countDecompressedBytes( gzip::BitReader                bitReader,  // NOLINT(performance-unnecessary-value-param)
                         VectorView<std::uint8_t> const initialWindow )
 {
-    #ifdef WITH_ISAL
+    #ifdef LIBRAPIDARCHIVE_WITH_ISAL
         using InflateWrapper = rapidgzip::IsalInflateWrapper;
     #else
         using InflateWrapper = rapidgzip::ZlibInflateWrapper;
@@ -859,7 +859,7 @@ readGzipIndex( UniqueFileReader            indexFile,
             gzip::BitReader bitReader(
                 std::make_unique<BufferViewFileReader>( compressedWindow.data(), compressedWindow.size() ) );
 
-        #ifdef WITH_ISAL
+        #ifdef LIBRAPIDARCHIVE_WITH_ISAL
             using InflateWrapper = rapidgzip::IsalInflateWrapper;
         #else
             using InflateWrapper = rapidgzip::ZlibInflateWrapper;

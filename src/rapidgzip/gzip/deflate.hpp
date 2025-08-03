@@ -31,7 +31,7 @@
 //#define WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER
 //#define WITH_MULTI_CACHED_HUFFMAN_DECODER
 
-#ifdef WITH_ISAL
+#ifdef LIBRAPIDARCHIVE_WITH_ISAL
     //#include <huffman/HuffmanCodingDistanceISAL.hpp>
     #include <huffman/HuffmanCodingISAL.hpp>
 #elif defined( WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER )
@@ -69,7 +69,7 @@ namespace rapidgzip::deflate
  * }
  *
  * Decompressed in total 4239155200 B from 20xsilesia.tar.gz in MB/s:
- *     HuffmanCodingISAL with WITH_ISAL=ON                 : 4810 | 5024 +- 10 | 5127
+ *     HuffmanCodingISAL with LIBRAPIDARCHIVE_WITH_ISAL=ON : 4810 | 5024 +- 10 | 5127
  *     HuffmanCodingDoubleLiteralCached                    : 3072 | 3123 +-  4 | 3178
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=8  : 3425 | 3505 +-  4 | 3564
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=10 : 3849 | 3953 +-  6 | 4025
@@ -77,7 +77,7 @@ namespace rapidgzip::deflate
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=12 : 3736 | 3880 +-  6 | 3953
  *
  * Decompressed in total 3618153020 B from 10xSRR22403185_2.fastq.gz in MB/s:
- *     HuffmanCodingISAL with WITH_ISAL=ON                 : 2701 | 2871 +- 10 | 3056
+ *     HuffmanCodingISAL with LIBRAPIDARCHIVE_WITH_ISAL=ON : 2701 | 2871 +- 10 | 3056
  *     HuffmanCodingDoubleLiteralCached                    : 2431 | 2600 +- 10 | 2719
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=8  : 2719 | 2815 +-  8 | 3000
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=10 : 2742 | 2868 +-  7 | 2945
@@ -85,7 +85,7 @@ namespace rapidgzip::deflate
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=12 : 2734 | 2803 +-  5 | 2888
  *
  * Decompressed in total 4294967296 B from 4GiB-base64.gz in MB/s:
- *     HuffmanCodingISAL with WITH_ISAL=ON                 : 6794 | 6973 +- 9 | 7081
+ *     HuffmanCodingISAL with LIBRAPIDARCHIVE_WITH_ISAL=ON : 6794 | 6973 +- 9 | 7081
  *     HuffmanCodingDoubleLiteralCached                    : 3537 | 3591 +- 3 | 3650
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=8  : 3977 | 4038 +- 4 | 4096
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=10 : 3876 | 3964 +- 6 | 4065
@@ -135,7 +135,7 @@ namespace rapidgzip::deflate
  * }
  *
  * Decompressed in total  B from silesia.tar.gz in MB/s:
- *     HuffmanCodingISAL with WITH_ISAL=ON                 : 703.8 | 720.5 +- 1.8 | 770.6
+ *     HuffmanCodingISAL with LIBRAPIDARCHIVE_WITH_ISAL=ON : 703.8 | 720.5 +- 1.8 | 770.6
  *     HuffmanCodingDoubleLiteralCached                    : 247.34 | 252.48 +- 0.19 | 254.12
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=8  : 269.2 | 273.2 +- 0.3 | 280.9
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=10 : 322.3 | 330.4 +- 0.4 | 335.9
@@ -145,7 +145,7 @@ namespace rapidgzip::deflate
  *     HuffmanCodingShortBitsMultiCached with 11 Bits      : 329.3 | 337.3 +- 0.8 | 356.5
  *
  * Decompressed in total  B from 10xSRR22403185_2.fastq.gz in MB/s:
- *     HuffmanCodingISAL with WITH_ISAL=ON                 : 857.8 | 879.1 +- 1.2 | 896.5
+ *     HuffmanCodingISAL with LIBRAPIDARCHIVE_WITH_ISAL=ON : 857.8 | 879.1 +- 1.2 | 896.5
  *     HuffmanCodingDoubleLiteralCached                    : 334.3 | 342.3 +- 0.4 | 351.0
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=8  : 350.67 | 356.18 +- 0.27 | 361.27
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=10 : 358.3 | 366.5 +- 0.4 | 371.2
@@ -155,7 +155,7 @@ namespace rapidgzip::deflate
  *     HuffmanCodingShortBitsMultiCached with 11 Bits      : 363.9 | 376.3 +- 0.9 | 393.2
  *
  * Decompressed in total  B from 4GiB-base64.gz in MB/s:
- *     HuffmanCodingISAL with WITH_ISAL=ON                 : 527.2 | 538.8 +- 0.7 | 545.6
+ *     HuffmanCodingISAL with LIBRAPIDARCHIVE_WITH_ISAL=ON : 527.2 | 538.8 +- 0.7 | 545.6
  *     HuffmanCodingDoubleLiteralCached                    : 252.9 | 254.95 +- 0.19 | 258.83
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=8  : 219.4 | 244.4 +- 1.9 | 272.6
  *     HuffmanCodingShortBitsCached with LUT_BITS_COUNT=10 : 210.4 | 234.6 +- 1.7 | 264.9
@@ -171,7 +171,7 @@ namespace rapidgzip::deflate
  * threads, probably because the LUT becomes too large for the caches when two hardware threads use
  * the same core.
  */
-#ifdef WITH_ISAL
+#ifdef LIBRAPIDARCHIVE_WITH_ISAL
 using LiteralOrLengthHuffmanCoding = HuffmanCodingISAL;
 #elif defined( WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER )
 using LiteralOrLengthHuffmanCoding = HuffmanCodingShortBitsCachedDeflate</* LUT_BITS_COUNT */ 11>;
@@ -733,7 +733,7 @@ private:
                             Window&              window,
                             const HuffmanCoding& coding );
 
-#if defined( WITH_ISAL ) || defined( WITH_MULTI_CACHED_HUFFMAN_DECODER )
+#if defined( LIBRAPIDARCHIVE_WITH_ISAL ) || defined( WITH_MULTI_CACHED_HUFFMAN_DECODER )
     template<typename Window>
     [[nodiscard]] std::pair<size_t, Error>
     readInternalCompressedMultiCached( gzip::BitReader&                    bitReader,
@@ -839,7 +839,7 @@ private:
      *
      * And benchmark with:
      * @verbatim
-     * cmake -DWITH_ISAL=OFF .. && cmake --build -- rapidgzip
+     * cmake -DLIBRAPIDARCHIVE_WITH_ISAL=OFF .. && cmake --build -- rapidgzip
      * for (( i=0; i < 5; ++i )); do
      *     src/tools/rapidgzip -v -d -o /dev/null 1M-24B-fixed-huffman-streams.gz 2>&1 | grep "Decompressed"
      * done
@@ -1448,7 +1448,7 @@ Block<ENABLE_STATISTICS>::readInternal( gzip::BitReader& bitReader,
     #endif
     }
 
-#ifdef WITH_ISAL
+#ifdef LIBRAPIDARCHIVE_WITH_ISAL
     if constexpr ( std::is_same_v<LiteralOrLengthHuffmanCoding, HuffmanCodingISAL> ) {
         return readInternalCompressedMultiCached( bitReader, nMaxToDecode, window, m_literalHC );
     } else {
@@ -1582,7 +1582,7 @@ Block<ENABLE_STATISTICS>::readInternalCompressed( gzip::BitReader&     bitReader
 }
 
 
-#if defined( WITH_ISAL ) || defined( WITH_MULTI_CACHED_HUFFMAN_DECODER )
+#if defined( LIBRAPIDARCHIVE_WITH_ISAL ) || defined( WITH_MULTI_CACHED_HUFFMAN_DECODER )
 template<bool ENABLE_STATISTICS>
 template<typename Window>
 std::pair<size_t, Error>
@@ -1734,7 +1734,7 @@ Block<ENABLE_STATISTICS>::readInternalCompressedSpecialized
     m_decodedBytes += nBytesRead;
     return { nBytesRead, Error::NONE };
 }
-#endif  // ifdef WITH_ISAL
+#endif  // ifdef LIBRAPIDARCHIVE_WITH_ISAL
 
 
 template<bool ENABLE_STATISTICS>

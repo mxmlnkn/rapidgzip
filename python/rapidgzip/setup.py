@@ -365,9 +365,9 @@ class Build(build_ext):
             if supportsFlag(self.compiler, '-D_FORTIFY_SOURCE=2'):
                 ext.extra_compile_args += ['-D_FORTIFY_SOURCE=2']
             if withRpmalloc != 'disable':
-                ext.extra_compile_args.append('-DWITH_RPMALLOC')
+                ext.extra_compile_args.append('-DLIBRAPIDARCHIVE_WITH_RPMALLOC')
             if withIsal != 'disable':
-                ext.extra_compile_args.append('-DWITH_ISAL')
+                ext.extra_compile_args.append('-DLIBRAPIDARCHIVE_WITH_ISAL')
 
             # https://github.com/cython/cython/issues/2670#issuecomment-432212671
             # https://github.com/cython/cython/issues/3405#issuecomment-596975159
@@ -394,9 +394,9 @@ class Build(build_ext):
                     '/constexpr:steps99000100',
                 ]
                 if withRpmalloc != 'disable':
-                    ext.extra_compile_args.append('/DWITH_RPMALLOC')
+                    ext.extra_compile_args.append('/DLIBRAPIDARCHIVE_WITH_RPMALLOC')
                 if withIsal != 'disable':
-                    ext.extra_compile_args.append('/DWITH_ISAL')
+                    ext.extra_compile_args.append('/DLIBRAPIDARCHIVE_WITH_ISAL')
                 if withRpmalloc != 'disable':
                     # This list is from rpmalloc/build/ninja/msvc.py
                     ext.libraries = ['kernel32', 'user32', 'shell32', 'advapi32']

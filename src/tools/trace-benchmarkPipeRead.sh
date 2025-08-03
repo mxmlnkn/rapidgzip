@@ -48,7 +48,7 @@ function buildWithScoreP()
             -I../src/external/rpmalloc/rpmalloc \
             -march=native -O3 -DNDEBUG \
             -Wall -Wextra -Wshadow -Wunused -Werror=return-type -Wno-attributes -Wsuggest-override \
-            -DWITH_RPMALLOC \
+            -DLIBRAPIDARCHIVE_WITH_RPMALLOC \
             -o benchmarkPipeRead.cpp.scorep.o \
             -c ../src/benchmarks/benchmarkPipeRead.cpp
     scorep --thread=pthread \

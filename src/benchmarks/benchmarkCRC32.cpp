@@ -27,7 +27,7 @@
 #include <gzip/crc32.hpp>
 #include <Statistics.hpp>
 
-#ifdef WITH_ISAL
+#ifdef LIBRAPIDARCHIVE_WITH_ISAL
     #include <crc.h>
 #endif
 
@@ -168,13 +168,13 @@ computeCRC32LUT( const std::vector<char>& buffer ) noexcept
 }
 
 
-#ifdef WITH_ISAL
+#ifdef LIBRAPIDARCHIVE_WITH_ISAL
 [[nodiscard]] uint32_t
 computeCRC32ISAL( const std::vector<char>& buffer ) noexcept
 {
     return crc32_gzip_refl( uint32_t( 0 ), reinterpret_cast<const uint8_t*>( buffer.data() ), buffer.size() );
 }
-#endif  // ifdef WITH_ISAL
+#endif  // ifdef LIBRAPIDARCHIVE_WITH_ISAL
 
 
 void
@@ -232,7 +232,7 @@ main()
     benchmarkCRC32( data, computeCRC32SSE4u64, "_mm_crc32_u64" );
 #endif
 
-#ifdef WITH_ISAL
+#ifdef LIBRAPIDARCHIVE_WITH_ISAL
     benchmarkCRC32( data, computeCRC32ISAL, "ISA-L" );
 #endif
 

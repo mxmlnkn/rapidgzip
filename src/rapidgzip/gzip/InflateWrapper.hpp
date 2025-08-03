@@ -9,7 +9,7 @@
 
 #include "definitions.hpp"
 #include "gzip.hpp"
-#ifdef WITH_ISAL
+#ifdef LIBRAPIDARCHIVE_WITH_ISAL
     #include "isal.hpp"
 #endif
 
@@ -27,7 +27,7 @@ inflateWithWrapper( const Container&            toDecompress,
         return {};
     }
 
-#ifdef WITH_ISAL
+#ifdef LIBRAPIDARCHIVE_WITH_ISAL
     if constexpr ( std::is_same_v<InflateWrapper, rapidgzip::IsalInflateWrapper> ) {
         if ( decompressedSize && dictionary.empty() ) {
             return rapidgzip::inflateWithIsal( toDecompress, *decompressedSize, fileType );

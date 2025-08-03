@@ -50,7 +50,7 @@ jobs:
         # the coverage report, e.g., I had: "version 'A85*', prefer 'B12*'".
         # It is possible to specify a different gcov version to lcov using, e.g., lcov --gcov-tool gcov-8.
         # For me it compiled with g++-8 but used gcov-11 by default!
-        CXX=g++ CC=gcc cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCODE_COVERAGE=ON -DCMAKE_CXX_FLAGS="-DSHORT_TESTS" ..
+        CXX=g++ CC=gcc cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLIBRAPIDARCHIVE_CODE_COVERAGE=ON -DCMAKE_CXX_FLAGS="-DSHORT_TESTS" ..
         cmake --build . -- check
         lcov --capture --directory . --base-directory "$( cd .. && pwd  )" --no-external --output-file coverage.info
         lcov --list coverage.info
@@ -92,7 +92,7 @@ jobs:
 
     - name: Run clang-tidy
       run: |
-        CC=clang CXX=clang++ cmake -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DUSE_SYSTEM_ZLIB=ON -DRUN_CLANG_TIDY=ON .
+        CC=clang CXX=clang++ cmake -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=ON -DRUN_CLANG_TIDY=ON .
         cmake --build build
 
   Check:
@@ -151,16 +151,16 @@ jobs:
 
     - name: Run Tests With Sanitizers (GCC)
       env:
-        USE_SYSTEM_ZLIB: ${{ matrix.use_system_zlib }}
+        LIBRAPIDARCHIVE_USE_SYSTEM_ZLIB: ${{ matrix.use_system_zlib }}
       run: |
-        CXX=g++ CC=gcc cmake -B build-gcc -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWITH_ISAL=ON -DUSE_SYSTEM_ZLIB=$USE_SYSTEM_ZLIB .
+        CXX=g++ CC=gcc cmake -B build-gcc -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLIBRAPIDARCHIVE_WITH_ISAL=ON -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=$LIBRAPIDARCHIVE_USE_SYSTEM_ZLIB .
         cmake --build build-gcc -v -- check
 
     - name: Run Tests With Sanitizers (Clang)
       env:
         USE_SYSTEM_ZLIB: ${{ matrix.use_system_zlib }}
       run: |
-        CXX=clang++ CC=clang cmake -B build-clang -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWITH_ISAL=ON -DUSE_SYSTEM_ZLIB=$USE_SYSTEM_ZLIB .
+        CXX=clang++ CC=clang cmake -B build-clang -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLIBRAPIDARCHIVE_ISAL=ON -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=$LIBRAPIDARCHIVE_USE_SYSTEM_ZLIB .
         cmake --build build-clang -v -- check
 
   Check-Without-Isal:
@@ -230,7 +230,7 @@ jobs:
       if: "startsWith(matrix.os , 'ubuntu')"
       run: |
         mkdir -p "build" && cd -- "$_"
-        cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWITH_ISAL=OFF -DUSE_SYSTEM_ZLIB=OFF ..
+        cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLIBRAPIDARCHIVE_WITH_ISAL=OFF -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=OFF ..
         cmake --build . -- check
 
     - name: Run Tests With Sanitizers
@@ -238,14 +238,14 @@ jobs:
       run: |
         # For some reason MacOS ARM is much slower and runs into a timeout without -DSHORT_TESTS :/
         mkdir -p "build" && cd -- "$_"
-        cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWITH_ISAL=OFF -DUSE_SYSTEM_ZLIB=OFF -DCMAKE_CXX_FLAGS="-DSHORT_TESTS" ..
+        cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLIBRAPIDARCHIVE_WITH_ISAL=OFF -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=OFF -DCMAKE_CXX_FLAGS="-DSHORT_TESTS" ..
         cmake --build . -- check
 
     - name: Run Tests With Sanitizers
       if: "startsWith(matrix.os , 'windows')"
       run: |
         mkdir -p "build" && cd -- "build"
-        cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWITH_ISAL=OFF ..
+        cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLIBRAPIDARCHIVE_WITH_ISAL=OFF ..
         cmake --build . -- check
 
   Asan:
@@ -290,7 +290,7 @@ jobs:
       run: |
         sanitizer=address
         mkdir -p "build-sanitized-$sanitizer" && cd -- "$_"
-        cmake -G Ninja -DWITH_ISAL=OFF -DUSE_SYSTEM_ZLIB=OFF -DCMAKE_BUILD_TYPE=Debug \
+        cmake -G Ninja -DLIBRAPIDARCHIVE_WITH_ISAL=OFF -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=OFF -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_CXX_FLAGS="-fsanitize=$sanitizer -DSHORT_TESTS" ..
         cmake --build . -- check
 
@@ -346,7 +346,7 @@ jobs:
       run: |
         sanitizer=undefined
         mkdir -p "build-sanitized-$sanitizer" && cd -- "$_"
-        cmake -G Ninja -DWITH_ISAL=OFF -DUSE_SYSTEM_ZLIB=OFF -DCMAKE_BUILD_TYPE=Debug \
+        cmake -G Ninja -DLIBRAPIDARCHIVE_WITH_ISAL=OFF -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=OFF -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_CXX_FLAGS="-fsanitize=$sanitizer -DSHORT_TESTS" ..
         cmake --build . -- testParallelGzipReader
         src/tests/rapidgzip/testParallelGzipReader
@@ -401,7 +401,7 @@ jobs:
       run: |
         sanitizer=address
         mkdir -p "build-sanitized-$sanitizer" && cd -- "$_"
-        CXX=g++ CC=gcc cmake -G Ninja -DWITH_ISAL=OFF -DUSE_SYSTEM_ZLIB=OFF -DCMAKE_BUILD_TYPE=Debug \
+        CXX=g++ CC=gcc cmake -G Ninja -DLIBRAPIDARCHIVE_WITH_ISAL=OFF -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=OFF -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_CXX_FLAGS="-fsanitize=$sanitizer -DSHORT_TESTS" ..
         cmake --build . -- testParallelGzipReader
         src/tests/rapidgzip/testParallelGzipReader
@@ -542,7 +542,7 @@ jobs:
       # At this step, indexed_bzip2 should be installed.
       run: |
         mkdir -p build-ibzip2 && cd -- "$_"
-        cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWITH_ISAL=OFF ..
+        cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLIBRAPIDARCHIVE_WITH_ISAL=OFF ..
         cmake --build . -- ibzip2
         set -o pipefail
         bash ../src/tests/testIbzip2.sh | tee run-standard-tests.log

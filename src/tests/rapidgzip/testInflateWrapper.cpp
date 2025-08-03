@@ -15,7 +15,7 @@
 #include <gzip/deflate.hpp>
 #include <gzip/GzipReader.hpp>
 #include <gzip/zlib.hpp>
-#ifdef WITH_ISAL
+#ifdef LIBRAPIDARCHIVE_WITH_ISAL
     #include <gzip/isal.hpp>
 #endif
 #include <TestHelpers.hpp>
@@ -528,7 +528,7 @@ testSmallBuffers()
 void
 testStoppingPoints()
 {
-#ifdef WITH_ISAL
+#ifdef LIBRAPIDARCHIVE_WITH_ISAL
     /* As there are 4 symbols, 2 bits per symbol should suffice and as the data is random, almost no backreferences
      * should be viable. This leads to a compression ratio of ~4, which is large enough for splitting and benign
      * enough to have multiple chunks with fairly little uncompressed data. */
@@ -696,14 +696,14 @@ main( int    argc,
 
     testStoppingPoints();
 
-#ifdef WITH_ISAL
+#ifdef LIBRAPIDARCHIVE_WITH_ISAL
     testSmallBuffers<IsalInflateWrapper>();
 #endif
     testSmallBuffers<ZlibInflateWrapper>();
 
     testGzipHeaderSkip();
 
-#ifdef WITH_ISAL
+#ifdef LIBRAPIDARCHIVE_WITH_ISAL
     std::cerr << "\n== Testing IsalInflateWrapper ==\n";
     testInflateWrapper<IsalInflateWrapper>( rootFolder );
 #endif
