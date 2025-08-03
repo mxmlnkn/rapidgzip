@@ -26,7 +26,7 @@ This repository contains the command line tool `rapidgzip`, which can be used fo
 The Python module provides a `RapidgzipFile` class, which can be used to seek inside gzip files without having to decompress them first.
 Alternatively, you can use this simply as a **parallelized** gzip decoder as a replacement for Python's builtin `gzip` module in order to fully utilize all your cores.
 
-The random seeking support is the same as provided by [indexed_gzip](https://github.com/pauldmccarthy/indexed_gzip) but further speedups are realized at the cost of higher memory usage thanks to a least-recently-used cache in combination with a parallelized prefetcher.
+The random seeking support is the same as provided by [indexed_gzip](https://github.com/pauldmccarthy/indexed_gzip), but further speedups are realized at the cost of higher memory usage thanks to a least-recently-used cache in combination with a parallelized prefetcher.
 
 [This](https://github.com/mxmlnkn/rapidgzip) repository is a light-weight fork of the [indexed_bzip2](https://github.com/mxmlnkn/indexed_bzip2) repository, in which the main development takes place.
 This repository was created for visibility reasons and in order to keep indexed_bzip2 and rapidgzip releases separate.
@@ -66,7 +66,7 @@ rapidgzip --help
 <details>
 <summary>Advanced Installations</summary>
 
-To build from source, these packages are necessary (Debian and derivates):
+To build from source, these packages are necessary (Debian and derivatives):
 
 ```bash
 sudo apt install git gcc g++ python3 python3-dev python3-pip python3-build python3-venv nasm
@@ -100,7 +100,7 @@ Rapidgzip is generally faster when given an index with `--import-index` because 
 Furthermore, decompression can be parallelized more evenly and more effectively when an index exists because the serializing window propagation step is not necessary.
 
 The violin plots show 20 repeated measurements as a single "blob".
-Thin blobs signal very reproducible timings while thick blobs signal a large variance.
+Thin blobs signal very reproducible timings, while thick blobs signal a large variance.
 
 
 ## Scaling Benchmarks on 2xAMD EPYC CPU 7702 (2x64 cores)
@@ -115,7 +115,7 @@ That's why the TAR file is repeated as often as there are number of cores in the
 
 Rapidgzip achieves up to 24 GB/s with an index and 12 GB/s without.
 
-Pugz is not shown as comparison because it is not able to decompress the Silesia dataset because it contains binary data, which it cannot handle.
+Pugz is not shown as a comparison because it is not able to decompress the Silesia dataset because it contains binary data, which it cannot handle.
 
 
 <details>
@@ -125,7 +125,7 @@ Pugz is not shown as comparison because it is not able to decompress the Silesia
 
 ![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/rapidgzip-0.9.0-scaling-benchmarks-2023-08-30/plots/result-parallel-decompression-base64-dev-null-bandwidths-number-of-threads.png)
 
-This benchmarks uses random data, that has been base64 encoded and then gzip-compressed.
+This benchmark uses random data, that has been base64 encoded and then gzip-compressed.
 This is the next best case for rapidgzip after the trivial case of purely random data, which cannot be compressed and therefore can be decompressed with a simple memory copy.
 This next best case results in mostly Huffman-coding compressed data with only very few LZ77 back-references.
 Without LZ77 back-references, parallel decompression can be done more independently and therefore faster than in the case of many LZ77 back-references.
@@ -139,16 +139,16 @@ This benchmarks uses gzip-compressed [FASTQ data](http://ftp.sra.ebi.ac.uk/vol1/
 That's why the TAR file is repeated as often as there are number of cores in the benchmark to hold the decompression times roughly constant in order to make the benchmark over this large a range feasible.
 This is almost the worst case for rapidgzip because it contains many LZ77 back-references over very long ranges.
 This means that a fallback to ISA-L is not possible and it means that the costly two-staged decoding has to be done for almost all the data.
-This is also the reason why if fails to scale above 64 cores, i.e, to the second CPU socket.
+This is also the reason why it fails to scale above 64 cores, i.e, to the second CPU socket.
 The first and second decompression stages are completely independently submitted to a thread pool, which on this NUMA architecture means, that data needs to be costly transferred from one processor socket to the other if the second step for a chunk is not done on the same processor as the first.
 This should be fixable by making the ThreadPool NUMA-aware.
 
-These three scaling plots were created with rapidgzip 0.9.0 while the ones in the [paper](<results/paper/Knespel, Brunst - 2023 - Rapidgzip - Parallel Decompression and Seeking in Gzip Files Using Cache Prefetching.pdf>) were created with 0.5.0.
+These three scaling plots were created with rapidgzip 0.9.0, while the ones in the [paper](<results/paper/Knespel, Brunst - 2023 - Rapidgzip - Parallel Decompression and Seeking in Gzip Files Using Cache Prefetching.pdf>) were created with 0.5.0.
 
 
 ## Scaling Benchmarks on Ryzen 3900X
 
-These benchmarks on my local workstation with a Ryzen 3900X only has 12 cores (24 virtual cores) but the base frequency is much higher than the 2xAMD EPYC CPU 7702.
+These benchmarks on my local workstation with a Ryzen 3900X that only has 12 cores (24 virtual cores), but the base frequency is much higher than the 2xAMD EPYC 7702 CPU.
 
 ### Decompression With Existing Index
 
@@ -188,15 +188,15 @@ These benchmarks on my local workstation with a Ryzen 3900X only has 12 cores (2
 
 ![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/rapidgzip-comparison-benchmarks-2023-09-05T20-45-10/rapidgzip-compressor-comparison.png)
 
-This benchmarks compresses the enlarged Silesia TAR with different gzip implementations, each with different compression levels.
+This benchmark compresses the enlarged Silesia TAR with different gzip implementations, each with different compression levels.
 Rapidgzip is then used to decompress the resulting files with 128 cores.
 
 Rapidgzip can parallelize decompression for almost all tested cases.
-The only exception are files compressed with `igzip -0`, because these files contain only a single several gigabytes large deflate block.
+The only exception is files compressed with `igzip -0`, because these files contain only a single several gigabytes large deflate block.
 This is the only known tool to produce such a pathological deflate block.
 
 The decompression bandwidth for the other compressors, varies quite a lot.
-The fastest decompression is reached with 22 GB/s for bgzip-compressed files because the bgzip format is directly supported, which enabled rapidgzip to avoid the two-staged decompression method and also enables rapidgzip to offload all of the work to ISA-L.
+The fastest decompression is reached with 22 GB/s for bgzip-compressed files because the bgzip format is directly supported, which enables rapidgzip to avoid the two-stage decompression method and also enables rapidgzip to offload all of the work to ISA-L.
 Files compressed with `bgzip -l 0` decompress slightly slower with "only" 18 GB/s, because it creates a fully non-compressed gzip stream and therefore is more I/O bound than the other bgzip-generated files.
 
 Decompression of pigz-generated files is the slowest with 6 GB/s as opposed to 10-14 GB/s for gzip and igzip.
@@ -210,12 +210,12 @@ The values in this chart are higher than in table 3 in the [paper](#citation) be
 
 ![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/rapidgzip-comparison-benchmarks-2023-09-05T20-45-10/rapidgzip-compression-format-comparison.png)
 
-This benchmarks uses different compressors and different decompressors to show multiple things:
+These benchmarks use different compressors and different decompressors to show multiple things:
 
  - Single-core decompression of rapidgzip is close to `igzip` and roughly twice as fast as `bgzip`, which uses zlib.
  - Decompression bandwidth with ISA-L can somewhat compete with zstd and is only 25% slower.
- - Both, `bgzip` and `pzstd` can only parallelize decompression of files compressed with `bgzip` / `pzstd`.
-   This especially means, that files compressed with the standard `zstd` tool cannot be decompressed in parallel and tops out at ~800 MB/s.
+ - Both `bgzip` and `pzstd` can only parallelize decompression of files compressed with `bgzip` / `pzstd`.
+   This especially means that files compressed with the standard `zstd` tool cannot be decompressed in parallel and tops out at ~800 MB/s.
  - Even for bgzip-compressed files, rapidgzip is always faster than `bgzip` for decompression, thanks to ISA-L and better multi-threading.
  - Rapidgzip scales higher than pzstd for decompression with many cores, and can be more than twice as fast when an index exists: 24.3 GB/s vs. 9.5 GB/s.
 
@@ -350,7 +350,7 @@ file.close()
 ```
 
 The first call to seek will ensure that the block offset list is complete and therefore might create them first.
-Because of this the first call to seek might take a while.
+Because of this, the first call to seek might take a while.
 
 
 ### Use with context manager

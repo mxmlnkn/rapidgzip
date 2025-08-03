@@ -32,7 +32,7 @@ This module provides:
  - a `rapidgzip` command line tool for parallel decompression of gzip files with a similar command line interface to `gzip` so that it can be used as a replacement.
  - a `rapidgzip.open` Python method for reading and seeking inside gzip files using multiple threads for a speedup of **21** over the built-in gzip module using a 12-core processor.
 
-The random seeking support is similar to the one provided by [indexed_gzip](https://github.com/pauldmccarthy/indexed_gzip) and the parallel capabilities are effectively a working version of [pugz](https://github.com/Piezoid/pugz), which is only a concept and only works with a limited subset of file contents, namely non-binary (ASCII characters 0 to 127) compressed files.
+The random seeking support is similar to the one provided by [indexed_gzip](https://github.com/pauldmccarthy/indexed_gzip), and the parallel capabilities are effectively a working version of [pugz](https://github.com/Piezoid/pugz), which is only a concept and only works with a limited subset of file contents, namely non-binary (ASCII characters 0 to 127) compressed files.
 
 | Module                              | Bandwidth / (MB/s) | Speedup |
 |-------------------------------------|--------------------|---------|
@@ -46,7 +46,7 @@ The random seeking support is similar to the one provided by [indexed_gzip](http
 
 There also exists a dedicated repository for rapidgzip [here](https://github.com/mxmlnkn/rapidgzip).
 It was created for visibility reasons and in order to keep indexed_bzip2 and rapidgzip releases separate.
-The main development will take place in [this](https://github.com/mxmlnkn/indexed_bzip2) repository while the rapidgzip repository will be updated at least for each release.
+The main development will take place in [this](https://github.com/mxmlnkn/indexed_bzip2) repository, while the rapidgzip repository will be updated at least for each release.
 Issues regarding rapidgzip should be opened at [its repository](https://github.com/mxmlnkn/rapidgzip/issues).
 
 A paper describing the implementation details and showing the scaling behavior with up to 128 cores has been submitted to and [accepted](https://www.hpdc.org/2023/program/technical-sessions/) in [ACM HPDC'23](https://www.hpdc.org/2023/), The 32nd International Symposium on High-Performance Parallel and Distributed Computing.
