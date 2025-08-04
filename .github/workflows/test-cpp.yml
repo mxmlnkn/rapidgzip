@@ -100,12 +100,11 @@ jobs:
 
     - name: Run clang-tidy
       run: |
-        mkdir -p build-compile-commands && cd -- "$_"
-        CC=clang CXX=clang++ cmake -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DUSE_SYSTEM_ZLIB=ON -DRUN_CLANG_TIDY=ON ..
-        cmake --build .
+        CC=clang CXX=clang++ cmake -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DUSE_SYSTEM_ZLIB=ON -DRUN_CLANG_TIDY=ON .
+        cmake --build build
 
   Check:
-    name: Check without Sanitizer
+    name: Check without Sanitizer and with ISA-L
     # And especially without -DSHORT_TESTS, which makes it non redundant to the sanitizer checks!
     runs-on: ubuntu-24.04
     strategy:
@@ -128,13 +127,19 @@ jobs:
         python3 -m pip install --upgrade pip || true  # Fails on macOS because of homebrew
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
 
-    - name: Run Tests With Sanitizers
+    - name: Run Tests With Sanitizers (GCC)
       env:
         USE_SYSTEM_ZLIB: ${{ matrix.use_system_zlib }}
       run: |
-        mkdir -p "build" && cd -- "$_"
-        CXX=g++ CC=gcc cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWITH_ISAL=ON -DUSE_SYSTEM_ZLIB=$USE_SYSTEM_ZLIB ..
-        cmake --build . -- check
+        CXX=g++ CC=gcc cmake -B build-gcc -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWITH_ISAL=ON -DUSE_SYSTEM_ZLIB=$USE_SYSTEM_ZLIB .
+        cmake --build build-gcc -v -- check
+
+    - name: Run Tests With Sanitizers (Clang)
+      env:
+        USE_SYSTEM_ZLIB: ${{ matrix.use_system_zlib }}
+      run: |
+        CXX=clang++ CC=clang cmake -B build-clang -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWITH_ISAL=ON -DUSE_SYSTEM_ZLIB=$USE_SYSTEM_ZLIB .
+        cmake --build build-clang -v -- check
 
   Check-Without-Isal:
     name: Check without Sanitizer and without ISA-L

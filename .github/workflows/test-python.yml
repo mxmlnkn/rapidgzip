@@ -40,9 +40,10 @@ jobs:
         python-version: ${{ matrix.python-version }}
 
     - name: Install Dependencies
-      if: matrix.os == 'ubuntu-latest'
+      if: "startsWith(matrix.os, 'ubuntu')"
       run: |
-        sudo apt-get -y install bzip2 pbzip2 lbzip2 g++ zlib1g-dev
+        sudo apt update
+        sudo apt-get -y install bzip2 pbzip2 lbzip2 g++ zlib1g-dev nasm
 
     - name: Fix pip
       run: |
@@ -54,7 +55,7 @@ jobs:
         python3 -m pip install --upgrade-strategy eager --upgrade cibuildwheel~=2.0 cython twine numpy
 
     - name: Install Python Modules (Windows)
-      if: matrix.os == 'windows-latest'
+      if: "startsWith(matrix.os, 'windows')"
       run: |
         # https://github.com/pypa/build/issues/253#issuecomment-793906474
         # https://bugs.python.org/issue43749
@@ -62,7 +63,7 @@ jobs:
         python3 -m pip install --upgrade build[virtualenv]
 
     - name: Install Python Modules (Non-Windows)
-      if: matrix.os != 'windows-latest'
+      if: "! startsWith(matrix.os, 'windows')"
       run: |
         python3 -m pip install --upgrade build
 
@@ -88,7 +89,7 @@ jobs:
         rapidgzip --version
 
     - name: Test Simple Usage rapidgzip
-      if: matrix.os == 'ubuntu-latest'
+      if: "startsWith(matrix.os , 'ubuntu')"
       run: |
         head -c 1024 /dev/urandom | base64 | gzip > base64-1KiB.gz
         cat base64-1KiB.gz | rapidgzip -d -c
