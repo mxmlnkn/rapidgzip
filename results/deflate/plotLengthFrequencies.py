@@ -26,8 +26,10 @@ def plotLengths(ax, lengths, data):
         cumsum += data[i]
         if cumsum >= thresholds[threshold] * sum / 100:
             ax.axvline(
-                lengths[i], label=f"{thresholds[threshold]}th percentile at {lengths[i]}",
-                color=colors[threshold + 1], linestyle=':',
+                lengths[i],
+                label=f"{thresholds[threshold]}th percentile at {lengths[i]}",
+                color=colors[threshold + 1],
+                linestyle=':',
             )
             threshold += 1
 

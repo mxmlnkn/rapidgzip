@@ -5,7 +5,7 @@ import zipfile
 
 import requests
 
-os.makedirs("nasm", exist_ok = True)
+os.makedirs("nasm", exist_ok=True)
 
 url = "https://www.nasm.us/pub/nasm/releasebuilds/2.16.01/win64/nasm-2.16.01-win64.zip"
 response = requests.get(url)

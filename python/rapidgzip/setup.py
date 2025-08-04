@@ -88,7 +88,7 @@ isal_sources = [
     "igzip/igzip_inflate.c",
     "igzip/igzip.c",
     "igzip/hufftables_c.c",
-
+    #
     # Compression
     # "igzip/igzip_base_aliases.c",
     "igzip/encode_df.c",
@@ -115,7 +115,7 @@ if architecture == 'x86_64':
         # "igzip/igzip_decode_block_stateless.asm"
         "igzip/rfc1951_lookup.asm",
         "igzip/stdmac.asm",
-
+        #
         # Compression
         "igzip/igzip_deflate_hash.asm",
         "igzip/igzip_body.asm",
@@ -123,7 +123,7 @@ if architecture == 'x86_64':
         "igzip/igzip_update_histogram_01.asm",
         "igzip/igzip_update_histogram_04.asm",
         # "igzip/igzip_update_histogram.asm",
-
+        #
         # "igzip/bitbuf2.asm",
         # "igzip/data_struct2.asm",
         "igzip/encode_df_04.asm",
@@ -145,7 +145,7 @@ if architecture == 'x86_64':
         # "igzip/rfc1951_lookup.asm",
         "igzip/adler32_avx2_4.asm",
         "igzip/adler32_sse.asm",
-
+        #
         "crc/crc_multibinary.asm",
         "crc/crc32_gzip_refl_by16_10.asm",
         "crc/crc32_gzip_refl_by8_02.asm",
@@ -155,7 +155,7 @@ elif architecture == 'aarch64':
     isal_sources += [
         "crc/aarch64/crc_aarch64_dispatcher.c",
         "igzip/proc_heap_base.c",
-
+        #
         "igzip/aarch64/encode_df.S",
         "igzip/aarch64/gen_icf_map.S",
         "igzip/aarch64/igzip_decode_huffman_code_block_aarch64.S",
@@ -170,18 +170,18 @@ elif architecture == 'aarch64':
         "igzip/aarch64/isal_deflate_icf_body_hash_hist.S",
         "igzip/aarch64/isal_deflate_icf_finish_hash_hist.S",
         "igzip/aarch64/isal_update_histogram.S",
-
+        #
         "crc/aarch64/crc_multibinary_arm.S",
-        #"crc/aarch64/crc32_common_crc_ext_cortex_a72.S",
-        #"crc/aarch64/crc32_common_mix_neoverse_n1.S",
+        # "crc/aarch64/crc32_common_crc_ext_cortex_a72.S",
+        # "crc/aarch64/crc32_common_mix_neoverse_n1.S",
         "crc/aarch64/crc32_gzip_refl_3crc_fold.S",
         "crc/aarch64/crc32_gzip_refl_crc_ext.S",
         "crc/aarch64/crc32_gzip_refl_pmull.S",
-        #"crc/aarch64/crc32_mix_default.S",
-        #"crc/aarch64/crc32_mix_default_common.S",
-        #"crc/aarch64/crc32_mix_neoverse_n1.S",
-        #"crc/aarch64/crc32c_mix_default.S",
-        #"crc/aarch64/crc32c_mix_neoverse_n1.S",
+        # "crc/aarch64/crc32_mix_default.S",
+        # "crc/aarch64/crc32_mix_default_common.S",
+        # "crc/aarch64/crc32_mix_neoverse_n1.S",
+        # "crc/aarch64/crc32c_mix_default.S",
+        # "crc/aarch64/crc32c_mix_neoverse_n1.S",
     ]
 isal_sources = ['external/isa-l/' + source for source in isal_sources] if withIsal == 'enable' else []
 
@@ -270,7 +270,11 @@ class Build(build_ext):
             cSources = [source for source in sources if source.endswith('.c')]
             asmSources = [source for source in sources if source.endswith('.S')]
             nasmSources = [source for source in sources if source.endswith('.asm')]
-            cppSources = [source for source in sources if '.' in source and source.rsplit('.', maxsplit=1)[1] not in ('c', 'S', 'asm')]
+            cppSources = [
+                source
+                for source in sources
+                if '.' in source and source.rsplit('.', maxsplit=1)[1] not in ('c', 'S', 'asm')
+            ]
 
             objects = []
 

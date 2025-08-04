@@ -376,6 +376,7 @@ def testDeadlock(encoder):
         task.join()
         sys.exit(1)
 
+
 def readAndPrintFirstBytes(file):
     print(file.read(8))
 

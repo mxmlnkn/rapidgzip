@@ -46,6 +46,7 @@ def loadData(filePath):
 
     return label, commits, np.array(minTimes), np.array(avgTimes), np.array(maxTimes)
 
+
 yMin = float('+inf')
 yMax = float('-inf')
 
@@ -78,6 +79,7 @@ ax.set_xlim([0, len(commits) + 2])
 #    echo "$tag"
 #    git log --oneline "$tag" | grep '[[]\(feature\|refactor\|fix\|performance\)[]]' | sed 's| .*||' | head -1
 # done
+# fmt: off
 lastFunctionCommitPerVersion = [
     ("fd119582", '-', 0.675, "v0.12.1"),
     ("93716212", '-', 0.700, "v0.12.0"),
@@ -161,6 +163,7 @@ lastFunctionCommitPerVersion = [
     ("5aa05120", ':', 0.650, "Alternatingly look for dynamic and\nuncompressed deflate blocks in chunks"),
     ("1001e4b0", ':', 0.675, "Also look for uncompressed deflate blocks"),
 ]
+# fmt: on
 
 transform = ax.get_xaxis_transform()
 
@@ -171,8 +174,16 @@ for commit, linestyle, position, label in lastFunctionCommitPerVersion:
     try:
         x = 1 + shortCommits.index(commit)
         ax.axvline(x, color='k', linestyle=linestyle)
-        ax.text(x, position, label, transform=transform, wrap=True, linespacing=0.9, verticalalignment='top',
-                horizontalalignment='left' if x < shortCommits.index('dd678c7c') else 'right')
+        ax.text(
+            x,
+            position,
+            label,
+            transform=transform,
+            wrap=True,
+            linespacing=0.9,
+            verticalalignment='top',
+            horizontalalignment='left' if x < shortCommits.index('dd678c7c') else 'right',
+        )
 
     except ValueError:
         pass

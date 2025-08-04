@@ -11,7 +11,7 @@ gzipFilePath = sys.argv[1]
 # Determine uncompressed file size
 fileSize = 0
 with gzip.open(gzipFilePath) as file:
-    while result := file.read(4*1024*1024):
+    while result := file.read(4 * 1024 * 1024):
         fileSize += len(result)
 
 
@@ -19,7 +19,7 @@ with gzip.open(gzipFilePath) as file:
 print(f"\n== Benchmark decompression with Python's gzip module ==\n")
 with gzip.open(gzipFilePath) as file:
     t0 = time.time()
-    while file.read(512*1024):
+    while file.read(512 * 1024):
         pass
     gzipDuration = time.time() - t0
     print(f"Decompression time: {gzipDuration:.2f}s, Bandwidth: {fileSize / gzipDuration / 1e6:.0f} MB/s")
@@ -37,15 +37,17 @@ if not os.path.exists(gzipFilePath + ".index"):
 for withIndex in [True, False]:
     print(f"\n== Benchmark decompression with rapidgzip {'with' if withIndex else 'without'} an existing index ==\n")
     for parallelization in [0, 1, 2, 6, 12, 24, 32]:
-        with rapidgzip.RapidgzipFile(gzipFilePath, parallelization = parallelization) as file:
+        with rapidgzip.RapidgzipFile(gzipFilePath, parallelization=parallelization) as file:
             if withIndex:
                 file.import_index(open(gzipFilePath + ".index", 'rb'))
 
             t0 = time.time()
             # Unfortunately, the chunk size is very performance critical! It might depend on the cache size.
-            while file.read(512*1024):
+            while file.read(512 * 1024):
                 pass
             rapidgzipDuration = time.time() - t0
-            print(f"Parallelization: {parallelization}, Decompression time: {rapidgzipDuration:.2f}s"
-                  f", Bandwidth: {fileSize / rapidgzipDuration / 1e6:.0f} MB/s"
-                  f", Speedup: {gzipDuration / rapidgzipDuration:.1f}")
+            print(
+                f"Parallelization: {parallelization}, Decompression time: {rapidgzipDuration:.2f}s"
+                f", Bandwidth: {fileSize / rapidgzipDuration / 1e6:.0f} MB/s"
+                f", Speedup: {gzipDuration / rapidgzipDuration:.1f}"
+            )
