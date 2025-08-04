@@ -12,7 +12,7 @@ jobs:
 
     strategy:
       matrix:
-        os: [macos-13, macos-14, ubuntu-24.04-arm, ubuntu-latest, windows-latest]
+        os: [macos-13, macos-14, macos-15, ubuntu-24.04-arm, ubuntu-latest, windows-latest]
         archs: [auto64]
         manylinux-image: [manylinux_2_28]
         # Build with both x86-64 (macos-13) and ARM64 (macos-14) runners.
