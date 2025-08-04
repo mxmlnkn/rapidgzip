@@ -150,7 +150,7 @@ jobs:
       run: python3 -m pip install --no-index --find-links dist rapidgzip
 
     - name: Test Wheel ISA-L support
-      if: ${{ matrix.archs != 'auto32' }}
+      if: ${{ matrix.archs != 'auto32' && !startsWith(matrix.os, 'macos') }}
       shell: bash
       run: "rapidgzip --oss-attributions | grep -i ISA-L"
 

@@ -70,6 +70,12 @@ if platform.machine() in ['x86_64', 'AMD64']:
 elif platform.machine() in ['aarch64', 'arm64']:
     architecture = 'aarch64'
     canBuildIsal = True  # Use GCC as assembler
+# macOS is not supported because multiarch fat binaries are a pain in the ass to build with setuptools.
+# Furthermore, there seem to be Bus Errors on macos-13 (x86) runners! No idea why.
+# See https://github.com/mxmlnkn/indexed_bzip2/pull/22#issuecomment-3156326658
+# Help from macOS users in the form of a PR fixing the linked issue would be very welcome!
+if platform.system() == 'Darwin':
+    canBuildIsal = False
 if not canBuildIsal:
     withIsal = 'disable'
 

@@ -27,7 +27,7 @@ jobs:
         python-version: ['3.8', '3.13']
         # 2024-04-27: macos-latest, which points to macos-14-arm64, does not work anymore because of error 134 close
         #             towards the end when testing with parallelization=8. Could be a problem with compiling for ARM.
-        os: [macos-13, ubuntu-latest, ubuntu-24.04-arm, windows-latest]
+        os: [macos-13, macos-14, macos-15, ubuntu-latest, ubuntu-24.04-arm, windows-latest]
 
     steps:
     - uses: actions/checkout@v4
@@ -44,6 +44,11 @@ jobs:
       run: |
         sudo apt update
         sudo apt-get -y install bzip2 pbzip2 lbzip2 g++ zlib1g-dev nasm lldb
+
+    - name: Install System Dependencies
+      if: "startsWith(matrix.os , 'macos')"
+      run: |
+        brew install -q nasm
 
     - name: Fix pip
       run: |
