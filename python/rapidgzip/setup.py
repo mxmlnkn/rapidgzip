@@ -67,7 +67,7 @@ canBuildIsal = False
 if platform.machine() in ['x86_64', 'AMD64']:
     architecture = 'x86_64'
     canBuildIsal = shutil.which("nasm") is not None
-if platform.machine() in ['aarch64', 'arm64']:
+elif platform.machine() in ['aarch64', 'arm64']:
     architecture = 'aarch64'
     canBuildIsal = True  # Use GCC as assembler
 if not canBuildIsal:
@@ -105,8 +105,8 @@ isal_sources = [
     "crc/crc_base.c",
     # "crc/crc_base_aliases.c",
 ]
-if architecture == 'x86_64':
-    isal_sources += [
+isal_sources_by_architecture = {
+    'x86_64': [
         "include/reg_sizes.asm",
         "include/multibinary.asm",
         "igzip/igzip_inflate_multibinary.asm",
@@ -150,9 +150,8 @@ if architecture == 'x86_64':
         "crc/crc32_gzip_refl_by16_10.asm",
         "crc/crc32_gzip_refl_by8_02.asm",
         "crc/crc32_gzip_refl_by8.asm",
-    ]
-elif architecture == 'aarch64':
-    isal_sources += [
+    ],
+    'aarch64': [
         "crc/aarch64/crc_aarch64_dispatcher.c",
         "igzip/proc_heap_base.c",
         #
@@ -182,8 +181,12 @@ elif architecture == 'aarch64':
         # "crc/aarch64/crc32_mix_neoverse_n1.S",
         # "crc/aarch64/crc32c_mix_default.S",
         # "crc/aarch64/crc32c_mix_neoverse_n1.S",
-    ]
-isal_sources = ['external/isa-l/' + source for source in isal_sources] if withIsal == 'enable' else []
+    ],
+}
+for sources_architecture, sources in isal_sources_by_architecture.items():
+    if architecture == sources_architecture:
+        isal_sources += sources
+isal_sources = ['external/isa-l/' + source for source in set(isal_sources)] if withIsal == 'enable' else []
 
 include_dirs = [
     '.',
@@ -281,7 +284,7 @@ class Build(build_ext):
             if cppSources:
                 objects.extend(oldCompile(cppSources, *args, **kwargs))
 
-            # Filter out C++ options.
+            # Filter out C++ options for C compilation
             cppCompileArgs = [
                 '-fconstexpr-ops-limit=99000100',
                 '-fconstexpr-steps=99000100',
