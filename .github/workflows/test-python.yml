@@ -43,7 +43,7 @@ jobs:
       if: "startsWith(matrix.os, 'ubuntu')"
       run: |
         sudo apt update
-        sudo apt-get -y install bzip2 pbzip2 lbzip2 g++ zlib1g-dev nasm
+        sudo apt-get -y install bzip2 pbzip2 lbzip2 g++ zlib1g-dev nasm lldb
 
     - name: Fix pip
       run: |
@@ -52,7 +52,7 @@ jobs:
     - name: Install Python Modules
       run: |
         python3 -m pip install --upgrade pip
-        python3 -m pip install --upgrade-strategy eager --upgrade cibuildwheel~=2.0 cython twine numpy
+        python3 -m pip install --upgrade-strategy eager --upgrade cibuildwheel~=2.0 cython twine numpy pytest
 
     - name: Install Python Modules (Windows)
       if: "startsWith(matrix.os, 'windows')"
@@ -101,8 +101,17 @@ jobs:
         ibzip2 --version
 
     - name: Test Python Packages
+      if: "! startsWith(matrix.os , 'windows')"
+      shell: bash
       run: |
-        python3 -m pip install pytest
+        printf 'bt all\nquit 1\n' > btall.batch
+        lldb --batch -o "run" --source-on-crash btall.batch -- python3 -X dev -u -m pytest src/tests/testGIL.py
+        lldb --batch -o "run" --source-on-crash btall.batch -- python3 -X dev -u src/tests/testPythonWrappers.py
+
+    - name: Test Python Packages
+      if: "startsWith(matrix.os , 'windows')"
+      shell: bash
+      run: |
         python3 -X dev -u -m pytest src/tests/testGIL.py
         python3 -X dev -u src/tests/testPythonWrappers.py
 

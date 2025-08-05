@@ -10,8 +10,14 @@ option(WITH_ISAL "Compile with ISA-l for more than twice as fast decompression t
 option(RUN_CLANG_TIDY "Runs clang-tidy while building targets" OFF)
 
 if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "riscv64")
-    set(WITH_ISAL OFF)
     set(WITH_RPMALLOC OFF)
+endif()
+
+# There are too many bugs on macOS and I don't have a local test system.
+# See https://github.com/mxmlnkn/indexed_bzip2/pull/22#issuecomment-3156326658
+# Help from macOS users in the form of a PR fixing the linked issue would be very welcome!
+if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    set(WITH_ISAL OFF)
 endif()
 
 set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "" FORCE)
@@ -64,10 +70,12 @@ endif()
 include(CTest)
 
 if(USE_SYSTEM_ZLIB)
-    set(OLD_CMAKE_FIND_LIBRARY_SUFFIXES "${CMAKE_FIND_LIBRARY_SUFFIXES}")
-    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+    # Previously, I was looking for a static library, maybe to not introduce confusion about the zlibstatic alias.
+    # However, I do not see why that is necessary. I guess the best way forward would be yet another option, something
+    # like USE_STATIC_SYSTEM_ZLIB, and then use the CMake 3.24+ feature set(ZLIB_USE_STATIC_LIBS "ON") for find_package.
+    # It would have to be guarded with if(CMAKE_VERSION VERSION_LESS "3.24.0").
+    # Maybe ZLIB_USE_STATIC_LIBS could or already is exposed with -DZLIB_USE_STATIC_LIBS, so all of that is unnecessary?
     find_package(ZLIB REQUIRED)
-    set(CMAKE_FIND_LIBRARY_SUFFIXES "${OLD_CMAKE_FIND_LIBRARY_SUFFIXES}")
     add_library(zlibstatic ALIAS ZLIB::ZLIB)
 endif()
 find_package(LibArchive QUIET)

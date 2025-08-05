@@ -42,14 +42,6 @@ jobs:
         python3 -m pip install --upgrade pip || true  # Fails on macOS because of homebrew
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
 
-    - name: System Information
-      run: |
-        nproc
-        cmake --version
-        g++ --version
-        clang++ --version
-        cppcheck --version
-
     - name: Code Coverage
       run: |
         mkdir -p build-codeov && cd -- "$_"
@@ -106,26 +98,56 @@ jobs:
   Check:
     name: Check without Sanitizer and with ISA-L
     # And especially without -DSHORT_TESTS, which makes it non redundant to the sanitizer checks!
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        use_system_zlib: [ON, OFF]
+        # ISA-L currently not supported on macOS. macos-xx would simply build without ISA-L and waste precious CI time.
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+        use_system_zlib: ['ON', 'OFF']
 
     steps:
     - uses: actions/checkout@v4
       with:
         submodules: recursive
 
+    - name: Install System Dependencies
+      if: "startsWith(matrix.os , 'macos')"
+      run: |
+        brew install -q ninja pigz zlib isa-l wget nasm
+        wget 'https://github.com/samtools/htslib/releases/download/1.20/htslib-1.20.tar.bz2'
+        tar -xf htslib-1.20.tar.bz2
+        cd htslib* && ./configure --prefix="$PWD/installed" && make install
+        echo PATH="$PWD/installed/bin:$PATH" >> "${GITHUB_ENV}"
+
+    - name: Install System Dependencies
+      if: "startsWith(matrix.os , 'ubuntu')"
+      run: |
+        sudo apt update
+        sudo apt-get -y install clang g++ ninja-build gzip tabix pigz gztool libarchive-dev zlib1g-dev isal nasm
+
+    - name: Fix pip
+      if: "startsWith(matrix.os , 'macos')"
+      run: |
+        mkdir -p "$HOME/Library/Application Support/pip"
+        cat <<EOF >> "$HOME/Library/Application Support/pip/pip.conf"
+        [global]
+        break-system-packages = true
+        EOF
+
     - name: Fix pip
       run: |
         echo "PIP_BREAK_SYSTEM_PACKAGES=1" >> "${GITHUB_ENV}"
 
-    - name: Install Dependencies
+    - name: Install Python Dependencies
       run: |
-        sudo apt update
-        sudo apt-get -y install g++ ninja-build gzip tabix pigz gztool libarchive-dev zlib1g-dev isal nasm
         python3 -m pip install --upgrade pip || true  # Fails on macOS because of homebrew
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
+
+    - name: System Information
+      run: |
+        cmake --version
+        g++ --version
+        clang --version
 
     - name: Run Tests With Sanitizers (GCC)
       env:
@@ -450,6 +472,7 @@ jobs:
 
     - name: Install Dependencies
       run: |
+        sudo apt update
         sudo apt-get -y install ninja-build wget nasm cmake clang
         # Install infer
         VERSION=1.1.0
@@ -486,6 +509,7 @@ jobs:
     - name: Install System Dependencies
       if: "startsWith(matrix.os , 'ubuntu')"
       run: |
+        sudo apt update
         sudo apt-get -y install g++ ninja-build
 
     - name: Fix pip
