@@ -405,9 +405,9 @@ class Build(build_ext):
                 if sys.platform == 'linux':
                     ext.extra_compile_args += ['-D_GNU_SOURCE']
 
-                if sys.platform.startswith('darwin') and supportsFlag(self.compiler, '-mmacosx-version-min=10.15'):
-                    ext.extra_compile_args += ['-mmacosx-version-min=10.15']
-                    ext.extra_link_args += ['-mmacosx-version-min=10.15']
+                if sys.platform.startswith('darwin') and supportsFlag(self.compiler, '-mmacosx-version-min=13.0'):
+                    ext.extra_compile_args += ['-mmacosx-version-min=13.0']
+                    ext.extra_link_args += ['-mmacosx-version-min=13.0']
 
                 # Add some hardening. See e.g.:
                 # https://www.phoronix.com/news/GCC-fhardened-Hardening-Option

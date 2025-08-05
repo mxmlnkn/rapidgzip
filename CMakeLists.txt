@@ -20,7 +20,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(WITH_ISAL OFF)
 endif()
 
-set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "" FORCE)
+set(CMAKE_OSX_DEPLOYMENT_TARGET "13.0" CACHE STRING "" FORCE)
 
 # https://stackoverflow.com/questions/71797349/is-it-possible-to-ignore-a-header-with-clang-tidy
 # Clang-tidy has no negative matching, so painstakingly list all except for the "external" folder.

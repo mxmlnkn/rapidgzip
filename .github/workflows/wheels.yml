@@ -33,7 +33,7 @@ jobs:
           archs: auto32
 
     env:
-      MACOSX_DEPLOYMENT_TARGET: "10.15"
+      MACOSX_DEPLOYMENT_TARGET: "13.0"
 
     steps:
     - name: System Information

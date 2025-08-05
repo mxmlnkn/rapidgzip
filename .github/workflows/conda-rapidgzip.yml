@@ -20,7 +20,7 @@ jobs:
         os: [ubuntu-latest]
 
     env:
-      MACOSX_DEPLOYMENT_TARGET: "10.15"
+      MACOSX_DEPLOYMENT_TARGET: "13.0"
 
     steps:
     - uses: actions/checkout@v4

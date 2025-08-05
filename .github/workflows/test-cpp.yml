@@ -173,7 +173,7 @@ jobs:
         os: [ubuntu-24.04, ubuntu-24.04-arm, macos-13, macos-14, macos-15, windows-latest]
 
     env:
-      MACOSX_DEPLOYMENT_TARGET: "10.15"
+      MACOSX_DEPLOYMENT_TARGET: "13.0"
 
     steps:
     - name: System Information

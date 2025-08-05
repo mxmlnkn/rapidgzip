@@ -105,9 +105,9 @@ class Build(build_ext):
                 if supportsFlag(self.compiler, '-fcf-protection=full'):
                     ext.extra_compile_args += ['-fcf-protection=full']
 
-                if sys.platform.startswith('darwin') and supportsFlag(self.compiler, '-mmacosx-version-min=10.15'):
-                    ext.extra_compile_args += ['-mmacosx-version-min=10.15']
-                    ext.extra_link_args += ['-mmacosx-version-min=10.15']
+                if sys.platform.startswith('darwin') and supportsFlag(self.compiler, '-mmacosx-version-min=13.0'):
+                    ext.extra_compile_args += ['-mmacosx-version-min=13.0']
+                    ext.extra_link_args += ['-mmacosx-version-min=13.0']
 
         super().build_extensions()
 
