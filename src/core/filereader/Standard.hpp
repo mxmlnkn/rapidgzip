@@ -45,6 +45,13 @@ public:
     StandardFileReader( const std::filesystem::path& filePath ) :
         StandardFileReader( filePath.string() )
     {}
+
+    /* Add this to avoid ambiguity for const char*, which would otherwise be the case with only
+     * std::string and std::filesystem::path constructors. */
+    explicit
+    StandardFileReader( const char* filePath ) :
+        StandardFileReader( std::string( filePath ) )
+    {}
 #endif
 
     explicit
