@@ -14,11 +14,11 @@
 #include <fcntl.h>          // posix_fallocate
 #include <sys/mman.h>
 
-#include <AlignedAllocator.hpp>
-#include <common.hpp>
-#include <FileUtils.hpp>
-#include <Statistics.hpp>
-#include <ThreadPool.hpp>
+#include <core/AlignedAllocator.hpp>
+#include <core/common.hpp>
+#include <core/FileUtils.hpp>
+#include <core/Statistics.hpp>
+#include <core/ThreadPool.hpp>
 
 
 using namespace rapidgzip;

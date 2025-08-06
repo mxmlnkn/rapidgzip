@@ -19,18 +19,19 @@
 #include <utility>
 #include <vector>
 
-#include <blockfinder/Bgzf.hpp>
-#include <common.hpp>                   // _Ki literals
+#include <core/common.hpp>                   // _Ki literals
+#include <core/FileUtils.hpp>
+#include <core/ThreadPool.hpp>
+#include <core/VectorView.hpp>
 #include <filereader/FileReader.hpp>
-#include <FileUtils.hpp>
+#include <rapidgzip/blockfinder/Bgzf.hpp>
 #ifdef LIBRAPIDARCHIVE_WITH_ISAL
-    #include <gzip/isal.hpp>
+    #include <rapidgzip/gzip/isal.hpp>
 #endif
-#include <gzip/zlib.hpp>
-#include <VectorView.hpp>
+#include <rapidgzip/gzip/zlib.hpp>
 
-#include "ThreadPool.hpp"
 #include "WindowMap.hpp"
+
 
 namespace rapidgzip
 {

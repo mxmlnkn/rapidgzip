@@ -14,13 +14,13 @@
 #include <archive.h>
 #include <zlib.h>
 
-#include <common.hpp>
+#include <core/common.hpp>
+#include <core/FileUtils.hpp>
+#include <core/Statistics.hpp>
+#include <core/TestHelpers.hpp>
 #include <filereader/Standard.hpp>
-#include <FileUtils.hpp>
-#include <gzip/GzipReader.hpp>
-#include <ParallelGzipReader.hpp>
-#include <Statistics.hpp>
-#include <TestHelpers.hpp>
+#include <rapidgzip/gzip/GzipReader.hpp>
+#include <rapidgzip/ParallelGzipReader.hpp>
 
 
 using namespace rapidgzip;

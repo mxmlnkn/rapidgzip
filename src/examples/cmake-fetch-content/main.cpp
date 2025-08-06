@@ -1,7 +1,7 @@
 #include <iostream>
 #include <memory>
 
-#include <rapidgzip.hpp>
+#include <rapidgzip/rapidgzip.hpp>
 
 using namespace rapidgzip;
 

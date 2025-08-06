@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <utility>
 
+#include <core/BitManipulation.hpp>
 #include <huffman/HuffmanCodingSymbolsPerLength.hpp>
 
 

@@ -12,11 +12,12 @@
 #include <stdexcept>
 #include <utility>
 
-#include <common.hpp>
-#include <FasterVector.hpp>
-#include <JoiningThread.hpp>
+#include <core/common.hpp>
+#include <core/FasterVector.hpp>
+#include <core/JoiningThread.hpp>
 
 #include "FileReader.hpp"
+
 
 namespace rapidgzip
 {

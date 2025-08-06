@@ -3,9 +3,9 @@
 #include <array>
 #include <cstdint>
 
-#include <BitManipulation.hpp>
-#include <Error.hpp>
-#include <gzip/deflate.hpp>
+#include <core/BitManipulation.hpp>
+#include <core/Error.hpp>
+#include <rapidgzip/gzip/deflate.hpp>
 
 
 namespace rapidgzip::PrecodeCheck::WithoutLUT

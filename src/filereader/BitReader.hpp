@@ -18,10 +18,11 @@
 
 #include <sys/stat.h>
 
-#include <BitManipulation.hpp>
-#include <common.hpp>
+#include <core/BitManipulation.hpp>
+#include <core/common.hpp>
 #include <filereader/FileReader.hpp>
 #include <filereader/Shared.hpp>
+
 
 namespace rapidgzip
 {

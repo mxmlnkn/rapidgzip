@@ -1,7 +1,7 @@
 #include <iostream>
 
-#include <Cache.hpp>
-#include <TestHelpers.hpp>
+#include <core/Cache.hpp>
+#include <core/TestHelpers.hpp>
 
 
 using namespace rapidgzip;

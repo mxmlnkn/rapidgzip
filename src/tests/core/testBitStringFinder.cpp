@@ -6,10 +6,10 @@
 #include <utility>
 #include <vector>
 
-#include <BitStringFinder.hpp>
-#include <common.hpp>
+#include <core/BitStringFinder.hpp>
+#include <core/common.hpp>
+#include <core/TestHelpers.hpp>
 #include <filereader/Standard.hpp>
-#include <TestHelpers.hpp>
 
 
 using namespace rapidgzip;

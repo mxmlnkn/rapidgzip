@@ -7,8 +7,8 @@
 #include <stdexcept>
 #include <type_traits>
 
-#include <Error.hpp>
-#include <VectorView.hpp>
+#include <core/Error.hpp>
+#include <core/VectorView.hpp>
 
 
 namespace rapidgzip

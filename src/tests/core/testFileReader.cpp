@@ -5,11 +5,11 @@
 #include <string>
 #include <vector>
 
+#include <core/FileUtils.hpp>
+#include <core/TestHelpers.hpp>
 #include <filereader/Buffered.hpp>
 #include <filereader/FileReader.hpp>
 #include <filereader/Standard.hpp>
-#include <FileUtils.hpp>
-#include <TestHelpers.hpp>
 
 
 using namespace rapidgzip;

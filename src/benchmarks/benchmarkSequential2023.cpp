@@ -20,18 +20,18 @@
 #include <utility>
 #include <vector>
 
-#include <AffinityHelpers.hpp>
-#include <blockfinder/DynamicHuffman.hpp>
-#include <blockfinder/Uncompressed.hpp>
-#include <common.hpp>
-#include <DecodedData.hpp>
+#include <core/AffinityHelpers.hpp>
+#include <core/common.hpp>
+#include <core/FileUtils.hpp>
+#include <core/Statistics.hpp>
+#include <core/TestHelpers.hpp>
+#include <core/ThreadPool.hpp>
 #include <filereader/BufferView.hpp>
 #include <filereader/Standard.hpp>
-#include <FileUtils.hpp>
-#include <rapidgzip.hpp>
-#include <Statistics.hpp>
-#include <TestHelpers.hpp>
-#include <ThreadPool.hpp>
+#include <rapidgzip/blockfinder/DynamicHuffman.hpp>
+#include <rapidgzip/blockfinder/Uncompressed.hpp>
+#include <rapidgzip/DecodedData.hpp>
+#include <rapidgzip/rapidgzip.hpp>
 
 
 using namespace rapidgzip;

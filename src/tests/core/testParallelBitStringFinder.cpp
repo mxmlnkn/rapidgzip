@@ -7,12 +7,12 @@
 #include <utility>
 #include <vector>
 
-#include <ParallelBitStringFinder.hpp>
+#include <core/ParallelBitStringFinder.hpp>
+#include <core/FileUtils.hpp>
+#include <core/common.hpp>
+#include <core/TestHelpers.hpp>
 #include <filereader/Buffered.hpp>
 #include <filereader/Standard.hpp>
-#include <FileUtils.hpp>
-#include <common.hpp>
-#include <TestHelpers.hpp>
 
 
 using namespace rapidgzip;

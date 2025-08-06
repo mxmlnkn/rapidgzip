@@ -14,15 +14,15 @@
 #include <utility>
 #include <vector>
 
-#include <common.hpp>
-#include <BitManipulation.hpp>
-#include <BitReader.hpp>
-#include <blockfinder/Uncompressed.hpp>
-#include <blockfinder/precodecheck/WithoutLUT.hpp>
+#include <core/common.hpp>
+#include <core/BitManipulation.hpp>
+#include <core/Statistics.hpp>
+#include <core/ThreadPool.hpp>
+#include <filereader/BitReader.hpp>
 #include <filereader/BufferView.hpp>
-#include <gzip/definitions.hpp>
-#include <Statistics.hpp>
-#include <ThreadPool.hpp>
+#include <rapidgzip/blockfinder/Uncompressed.hpp>
+#include <rapidgzip/blockfinder/precodecheck/WithoutLUT.hpp>
+#include <rapidgzip/gzip/definitions.hpp>
 
 
 using namespace rapidgzip;

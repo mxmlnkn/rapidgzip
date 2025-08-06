@@ -5,10 +5,10 @@
 #include <string>
 #include <vector>
 
-#include <common.hpp>
+#include <core/common.hpp>
+#include <core/TestHelpers.hpp>
 #include <filereader/BufferView.hpp>
 #include <filereader/StreamAdapter.hpp>
-#include <TestHelpers.hpp>
 
 
 using namespace rapidgzip;

@@ -14,13 +14,13 @@
 #include <utility>
 #include <vector>
 
-#include <blockfinder/PigzParallel.hpp>
-#include <blockfinder/PigzNaive.hpp>
-#include <blockfinder/PigzStringView.hpp>
-#include <DataGenerators.hpp>
+#include <core/DataGenerators.hpp>
+#include <core/FileUtils.hpp>
+#include <core/TestHelpers.hpp>
 #include <filereader/Buffered.hpp>
-#include <FileUtils.hpp>
-#include <TestHelpers.hpp>
+#include <rapidgzip/blockfinder/PigzParallel.hpp>
+#include <rapidgzip/blockfinder/PigzNaive.hpp>
+#include <rapidgzip/blockfinder/PigzStringView.hpp>
 
 
 using namespace rapidgzip;

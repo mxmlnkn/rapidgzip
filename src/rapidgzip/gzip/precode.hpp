@@ -4,8 +4,9 @@
 #include <array>
 #include <cstdint>
 
+#include <rapidgzip/huffman/HuffmanCodingReversedBitsCachedCompressed.hpp>
+
 #include "definitions.hpp"
-#include "huffman/HuffmanCodingReversedBitsCachedCompressed.hpp"
 
 
 namespace rapidgzip::deflate::precode

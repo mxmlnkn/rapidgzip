@@ -10,9 +10,9 @@
 #include <cstdint>
 #include <limits>
 
-#include <BitManipulation.hpp>
-#include <common.hpp>
-#include <Error.hpp>
+#include <core/BitManipulation.hpp>
+#include <core/common.hpp>
+#include <core/Error.hpp>
 
 
 namespace rapidgzip::PrecodeCheck::BruteForceLUT

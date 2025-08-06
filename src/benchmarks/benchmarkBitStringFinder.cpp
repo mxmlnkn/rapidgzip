@@ -16,14 +16,14 @@
 #include <utility>
 #include <vector>
 
-#include <BitManipulation.hpp>
-#include <BitStringFinder.hpp>
-#include <bzip2.hpp>
+#include <core/BitManipulation.hpp>
+#include <core/BitStringFinder.hpp>
+#include <core/ParallelBitStringFinder.hpp>
+#include <core/Statistics.hpp>
+#include <core/common.hpp>
+#include <indexed_bzip2/bzip2.hpp>
 #include <filereader/BufferView.hpp>
 #include <filereader/Standard.hpp>
-#include <ParallelBitStringFinder.hpp>
-#include <Statistics.hpp>
-#include <common.hpp>
 
 //#define BENCHMARK
 

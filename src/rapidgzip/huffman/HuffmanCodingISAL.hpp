@@ -4,10 +4,10 @@
 #include <cstdint>
 #include <utility>
 
-#include <common.hpp>           // forceinline
-#include <gzip/definitions.hpp> // BitReader
-#include <Error.hpp>
-#include <VectorView.hpp>
+#include <core/common.hpp>                  // forceinline
+#include <core/Error.hpp>
+#include <core/VectorView.hpp>
+#include <rapidgzip/gzip/definitions.hpp>   // BitReader
 
 #include <igzip_lib.h>
 

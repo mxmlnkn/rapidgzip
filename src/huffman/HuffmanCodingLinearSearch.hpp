@@ -10,9 +10,9 @@
 #include <utility>
 #include <vector>
 
-#include <common.hpp>
-#include <Error.hpp>
-#include <VectorView.hpp>
+#include <core/common.hpp>
+#include <core/Error.hpp>
+#include <core/VectorView.hpp>
 
 
 namespace rapidgzip

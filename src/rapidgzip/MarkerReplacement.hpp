@@ -6,8 +6,8 @@
 #include <limits>
 #include <stdexcept>
 
-#include <gzip/definitions.hpp>         // MAX_WINDOW_SIZE
-#include <VectorView.hpp>
+#include <core/VectorView.hpp>
+#include <rapidgzip/gzip/definitions.hpp>         // MAX_WINDOW_SIZE
 
 
 namespace rapidgzip::deflate

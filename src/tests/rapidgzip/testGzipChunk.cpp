@@ -11,15 +11,15 @@
 
 #define TEST_DECODED_DATA
 
-#include <common.hpp>
-#include <ChunkData.hpp>
-#include <chunkdecoding/GzipChunk.hpp>
+#include <core/common.hpp>
+#include <core/FileUtils.hpp>
+#include <core/TestHelpers.hpp>
 #include <filereader/Buffered.hpp>
 #include <filereader/Standard.hpp>
-#include <FileUtils.hpp>
-#include <gzip/definitions.hpp>
-#include <gzip/GzipReader.hpp>
-#include <TestHelpers.hpp>
+#include <rapidgzip/chunkdecoding/GzipChunk.hpp>
+#include <rapidgzip/gzip/definitions.hpp>
+#include <rapidgzip/gzip/GzipReader.hpp>
+#include <rapidgzip/ChunkData.hpp>
 
 
 using namespace rapidgzip;

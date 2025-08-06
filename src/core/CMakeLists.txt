@@ -1,13 +1,10 @@
-add_subdirectory(filereader)
-
 add_library(core INTERFACE)
-target_include_directories(core INTERFACE ${CMAKE_CURRENT_LIST_DIR})
+target_include_directories(core INTERFACE ${CMAKE_CURRENT_LIST_DIR}/..)
 target_sources(core INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/AffinityHelpers.hpp
     ${CMAKE_CURRENT_LIST_DIR}/AlignedAllocator.hpp
     ${CMAKE_CURRENT_LIST_DIR}/AtomicMutex.hpp
     ${CMAKE_CURRENT_LIST_DIR}/BitManipulation.hpp
-    ${CMAKE_CURRENT_LIST_DIR}/BitReader.hpp
     ${CMAKE_CURRENT_LIST_DIR}/BitStringFinder.hpp
     ${CMAKE_CURRENT_LIST_DIR}/BlockFetcher.hpp
     ${CMAKE_CURRENT_LIST_DIR}/BlockFinder.hpp
@@ -18,10 +15,12 @@ target_sources(core INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/DataGenerators.hpp
     ${CMAKE_CURRENT_LIST_DIR}/Error.hpp
     ${CMAKE_CURRENT_LIST_DIR}/FasterVector.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/FileRanges.hpp
     ${CMAKE_CURRENT_LIST_DIR}/FileUtils.hpp
     ${CMAKE_CURRENT_LIST_DIR}/JoiningThread.hpp
     ${CMAKE_CURRENT_LIST_DIR}/ParallelBitStringFinder.hpp
     ${CMAKE_CURRENT_LIST_DIR}/Prefetcher.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/ScopedGIL.hpp
     ${CMAKE_CURRENT_LIST_DIR}/Statistics.hpp
     ${CMAKE_CURRENT_LIST_DIR}/StreamedResults.hpp
     ${CMAKE_CURRENT_LIST_DIR}/TestHelpers.hpp

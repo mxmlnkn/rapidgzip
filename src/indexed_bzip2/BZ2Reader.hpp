@@ -13,8 +13,8 @@
 #include <utility>
 #include <vector>
 
-#include <common.hpp>
-#include <BitReader.hpp>
+#include <core/common.hpp>
+#include <filereader/BitReader.hpp>
 #include <filereader/FileReader.hpp>
 
 #include "bzip2.hpp"
@@ -23,6 +23,7 @@
 #ifdef WITH_PYTHON_SUPPORT
     #include <filereader/Python.hpp>
 #endif
+
 
 namespace indexed_bzip2
 {

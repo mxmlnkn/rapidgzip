@@ -3,7 +3,7 @@
 #include <string_view>
 #include <vector>
 
-#include <TestHelpers.hpp>
+#include <core/TestHelpers.hpp>
 
 
 using namespace rapidgzip;

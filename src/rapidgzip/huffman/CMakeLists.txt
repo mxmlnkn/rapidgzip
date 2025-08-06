@@ -1,7 +1,7 @@
 add_library(libhuffmangzip INTERFACE)
 add_library(rapidgzip::gzip::huffman ALIAS libhuffmangzip)
 # In order to make the decoders includable with <huffman/...hpp>
-target_include_directories(libhuffmangzip INTERFACE ${CMAKE_CURRENT_LIST_DIR}/..)
+target_include_directories(libhuffmangzip INTERFACE ${CMAKE_CURRENT_LIST_DIR}/../..)
 target_sources(libhuffmangzip INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/HuffmanCodingDoubleLiteralCached.hpp
     ${CMAKE_CURRENT_LIST_DIR}/HuffmanCodingReversedBitsCached.hpp

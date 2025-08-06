@@ -9,13 +9,13 @@
 #include <utility>
 #include <vector>
 
-#include <BitManipulation.hpp>
-#include <blockfinder/DynamicHuffman.hpp>
-#include <blockfinder/Uncompressed.hpp>
-#include <common.hpp>
+#include <core/BitManipulation.hpp>
+#include <core/common.hpp>
+#include <core/FileUtils.hpp>
+#include <core/TestHelpers.hpp>
 #include <filereader/Standard.hpp>
-#include <FileUtils.hpp>
-#include <TestHelpers.hpp>
+#include <rapidgzip/blockfinder/DynamicHuffman.hpp>
+#include <rapidgzip/blockfinder/Uncompressed.hpp>
 
 
 using namespace rapidgzip;

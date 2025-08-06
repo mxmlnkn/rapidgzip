@@ -17,10 +17,10 @@
 #include <utility>
 #include <vector>
 
-#include <common.hpp>
-#include <BitManipulation.hpp>
+#include <core/common.hpp>
+#include <core/BitManipulation.hpp>
 #include <filereader/FileReader.hpp>
-#include <filereader/Standard.hpp>
+
 
 namespace rapidgzip
 {

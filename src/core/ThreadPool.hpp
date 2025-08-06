@@ -20,8 +20,9 @@
 #include "JoiningThread.hpp"
 
 #ifdef WITH_PYTHON_SUPPORT
-    #include "filereader/Python.hpp"
+    #include "ScopedGIL.hpp"
 #endif
+
 
 namespace rapidgzip
 {

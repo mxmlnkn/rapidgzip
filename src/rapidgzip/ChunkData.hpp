@@ -8,11 +8,11 @@
 #include <type_traits>
 #include <vector>
 
-#include <CompressedVector.hpp>
-#include <DecodedData.hpp>
-#include <FasterVector.hpp>
-#include <gzip/crc32.hpp>
-#include <gzip/gzip.hpp>
+#include <core/FasterVector.hpp>
+#include <rapidgzip/CompressedVector.hpp>
+#include <rapidgzip/DecodedData.hpp>
+#include <rapidgzip/gzip/crc32.hpp>
+#include <rapidgzip/gzip/gzip.hpp>
 
 
 namespace rapidgzip

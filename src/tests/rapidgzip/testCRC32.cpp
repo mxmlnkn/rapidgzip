@@ -2,8 +2,8 @@
 #include <iostream>
 #include <string_view>
 
-#include <gzip/crc32.hpp>
-#include <TestHelpers.hpp>
+#include <core/TestHelpers.hpp>
+#include <rapidgzip/gzip/crc32.hpp>
 
 
 using namespace std::string_view_literals;

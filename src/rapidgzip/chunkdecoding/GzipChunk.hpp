@@ -16,17 +16,17 @@
 
 #include <zlib.h>
 
-#include <blockfinder/DynamicHuffman.hpp>
-#include <blockfinder/Uncompressed.hpp>
-#include <ChunkData.hpp>
-#include <common.hpp>
-#include <gzip/definitions.hpp>
-#include <gzip/deflate.hpp>
-#include <gzip/gzip.hpp>
+#include <core/common.hpp>
+#include <rapidgzip/blockfinder/DynamicHuffman.hpp>
+#include <rapidgzip/blockfinder/Uncompressed.hpp>
+#include <rapidgzip/ChunkData.hpp>
+#include <rapidgzip/gzip/definitions.hpp>
+#include <rapidgzip/gzip/deflate.hpp>
+#include <rapidgzip/gzip/gzip.hpp>
 #ifdef LIBRAPIDARCHIVE_WITH_ISAL
-    #include <gzip/isal.hpp>
+    #include <rapidgzip/gzip/isal.hpp>
 #endif
-#include <gzip/zlib.hpp>
+#include <rapidgzip/gzip/zlib.hpp>
 
 #include "DecompressionError.hpp"
 

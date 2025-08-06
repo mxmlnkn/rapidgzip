@@ -8,13 +8,13 @@
     #include <stdexcept>
 #endif
 
-#include <BitManipulation.hpp>
-#include <common.hpp>
-#include <gzip/definitions.hpp>
-#include <gzip/deflate.hpp>
-#include <huffman/HuffmanCodingCheckOnly.hpp>
+#include <core/BitManipulation.hpp>
+#include <core/common.hpp>
+#include <core/Error.hpp>
+#include <rapidgzip/gzip/definitions.hpp>
+#include <rapidgzip/gzip/deflate.hpp>
+#include <rapidgzip/huffman/HuffmanCodingCheckOnly.hpp>
 
-#include "Error.hpp"
 #include "precodecheck/WalkTreeLUT.hpp"
 
 

@@ -1,7 +1,7 @@
 #include <iostream>
 
-#include <FileRanges.hpp>
-#include <TestHelpers.hpp>
+#include <core/FileRanges.hpp>
+#include <core/TestHelpers.hpp>
 
 
 using namespace rapidgzip;

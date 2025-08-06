@@ -14,16 +14,16 @@
 #include <utility>
 #include <vector>
 
-#include <blockfinder/precodecheck/BruteForceLUT.hpp>
-#include <blockfinder/precodecheck/SingleCompressedLUT.hpp>
-#include <blockfinder/precodecheck/SingleLUT.hpp>
-#include <blockfinder/precodecheck/WalkTreeCompressedLUT.hpp>
-#include <blockfinder/precodecheck/WalkTreeLUT.hpp>
-#include <blockfinder/precodecheck/WithoutLUT.hpp>
+#include <core/TestHelpers.hpp>
+#include <core/Error.hpp>
 #include <filereader/Buffered.hpp>
-#include <gzip/precode.hpp>
-#include <TestHelpers.hpp>
-#include <Error.hpp>
+#include <rapidgzip/blockfinder/precodecheck/BruteForceLUT.hpp>
+#include <rapidgzip/blockfinder/precodecheck/SingleCompressedLUT.hpp>
+#include <rapidgzip/blockfinder/precodecheck/SingleLUT.hpp>
+#include <rapidgzip/blockfinder/precodecheck/WalkTreeCompressedLUT.hpp>
+#include <rapidgzip/blockfinder/precodecheck/WalkTreeLUT.hpp>
+#include <rapidgzip/blockfinder/precodecheck/WithoutLUT.hpp>
+#include <rapidgzip/gzip/precode.hpp>
 
 
 using namespace rapidgzip;

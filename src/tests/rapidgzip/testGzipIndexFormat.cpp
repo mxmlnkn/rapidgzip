@@ -4,10 +4,10 @@
 #include <stdexcept>
 #include <string>
 
-#include <common.hpp>
-#include <IndexFileFormat.hpp>
+#include <core/common.hpp>
+#include <core/TestHelpers.hpp>
 #include <filereader/Standard.hpp>
-#include <TestHelpers.hpp>
+#include <rapidgzip/IndexFileFormat.hpp>
 
 
 using namespace rapidgzip;

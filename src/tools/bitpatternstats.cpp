@@ -247,10 +247,10 @@ make && time ./blockfinder /dev/shm/large.bz2
 
 #include <cxxopts.hpp>
 
-#include <BitReader.hpp>
-#include <common.hpp>
+#include <core/common.hpp>
+#include <core/FileUtils.hpp>
+#include <filereader/BitReader.hpp>
 #include <filereader/Standard.hpp>
-#include <FileUtils.hpp>
 
 
 using namespace rapidgzip;

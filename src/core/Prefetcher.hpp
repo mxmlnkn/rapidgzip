@@ -11,7 +11,8 @@
 #include <set>
 #include <vector>
 
-#include <common.hpp>       // interleave
+#include <core/common.hpp>       // interleave
+
 
 namespace rapidgzip::FetchingStrategy
 {

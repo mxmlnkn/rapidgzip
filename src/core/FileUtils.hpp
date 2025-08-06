@@ -64,8 +64,9 @@
     #include <any>
     #include <deque>
 
-    #include <AtomicMutex.hpp>
+    #include "AtomicMutex.hpp"
 #endif
+
 
 namespace rapidgzip
 {

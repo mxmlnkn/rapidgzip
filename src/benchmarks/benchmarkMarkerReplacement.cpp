@@ -8,7 +8,7 @@
 #include <stdexcept>
 #include <vector>
 
-#include <common.hpp>
+#include <core/common.hpp>
 
 
 using namespace rapidgzip;

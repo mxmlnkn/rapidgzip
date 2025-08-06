@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+
 namespace rapidgzip
 {
 template<typename T>

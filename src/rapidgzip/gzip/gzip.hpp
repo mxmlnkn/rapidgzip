@@ -10,10 +10,10 @@
 #include <utility>
 #include <vector>
 
-#include <BitManipulation.hpp>
+#include <core/BitManipulation.hpp>
+#include <core/Error.hpp>
 
 #include "definitions.hpp"
-#include "Error.hpp"
 
 
 namespace rapidgzip

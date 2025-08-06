@@ -14,13 +14,13 @@
 #include <thread>
 #include <utility>
 
-#include <AffinityHelpers.hpp>
-#include <BlockFinder.hpp>
-#include <BlockMap.hpp>
-#include <common.hpp>
+#include <core/AffinityHelpers.hpp>
+#include <core/BlockFinder.hpp>
+#include <core/BlockMap.hpp>
+#include <core/common.hpp>
+#include <core/ParallelBitStringFinder.hpp>
 #include <filereader/FileReader.hpp>
 #include <filereader/Shared.hpp>
-#include <ParallelBitStringFinder.hpp>
 
 #include "BZ2BlockFetcher.hpp"
 #include "BZ2ReaderInterface.hpp"
@@ -30,6 +30,7 @@
     #include <filereader/Python.hpp>
     #include <filereader/Standard.hpp>
 #endif
+
 
 namespace indexed_bzip2
 {

@@ -8,12 +8,12 @@
 #include <string>
 #include <vector>
 
-#include <common.hpp>
-#include <DataGenerators.hpp>
+#include <core/common.hpp>
+#include <core/DataGenerators.hpp>
+#include <core/FileUtils.hpp>
+#include <core/TestHelpers.hpp>
 #include <filereader/Standard.hpp>
-#include <FileUtils.hpp>
-#include <ParallelBZ2Reader.hpp>
-#include <TestHelpers.hpp>
+#include <indexed_bzip2/ParallelBZ2Reader.hpp>
 
 
 using namespace rapidgzip;

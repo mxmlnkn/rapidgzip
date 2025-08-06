@@ -4,11 +4,11 @@
 #include <memory>
 #include <vector>
 
-#include <common.hpp>
-#include <BitReader.hpp>
+#include <core/common.hpp>
+#include <core/TestHelpers.hpp>
+#include <filereader/BitReader.hpp>
 #include <filereader/Buffered.hpp>
 #include <filereader/Standard.hpp>
-#include <TestHelpers.hpp>
 
 
 using namespace rapidgzip;

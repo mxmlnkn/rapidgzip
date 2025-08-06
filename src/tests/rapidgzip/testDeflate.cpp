@@ -5,11 +5,11 @@
 #include <utility>
 #include <vector>
 
-#include <common.hpp>
+#include <core/common.hpp>
+#include <core/TestHelpers.hpp>
 #include <filereader/Buffered.hpp>
-#include <gzip/definitions.hpp>
-#include <gzip/deflate.hpp>
-#include <TestHelpers.hpp>
+#include <rapidgzip/gzip/definitions.hpp>
+#include <rapidgzip/gzip/deflate.hpp>
 
 
 using namespace rapidgzip;

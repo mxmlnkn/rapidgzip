@@ -1,7 +1,7 @@
 #include <iostream>
 
-#include <FasterVector.hpp>
-#include <TestHelpers.hpp>
+#include <core/FasterVector.hpp>
+#include <core/TestHelpers.hpp>
 
 
 using namespace rapidgzip;

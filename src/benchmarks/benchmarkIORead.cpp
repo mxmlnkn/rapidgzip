@@ -7,8 +7,8 @@
 #include <string>
 #include <vector>
 
-#include <common.hpp>
-#include <FileUtils.hpp>
+#include <core/common.hpp>
+#include <core/FileUtils.hpp>
 
 
 using namespace rapidgzip;

@@ -7,9 +7,9 @@
 #include <utility>
 #include <vector>
 
-#include <BlockFetcher.hpp>
-#include <BlockFinder.hpp>
-#include <ParallelBitStringFinder.hpp>
+#include <core/BlockFetcher.hpp>
+#include <core/BlockFinder.hpp>
+#include <core/ParallelBitStringFinder.hpp>
 
 #include "bzip2.hpp"
 

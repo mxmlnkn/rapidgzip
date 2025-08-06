@@ -22,6 +22,7 @@
 #include "common.hpp"
 #include "ThreadPool.hpp"
 
+
 namespace rapidgzip
 {
 /**

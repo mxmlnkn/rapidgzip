@@ -7,6 +7,7 @@
 
 #include "FasterVector.hpp"
 
+
 namespace rapidgzip
 {
 /**

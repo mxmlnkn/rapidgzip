@@ -1,4 +1,3 @@
-
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -6,18 +5,18 @@
 #include <fstream>
 #include <vector>
 
-#include <common.hpp>
+#include <core/common.hpp>
+#include <core/Statistics.hpp>
 #include <filereader/Buffered.hpp>
-#include <gzip/definitions.hpp>
-#include <huffman/HuffmanCodingDoubleLiteralCached.hpp>
 #include <huffman/HuffmanCodingLinearSearch.hpp>
-#include <huffman/HuffmanCodingReversedBitsCached.hpp>
-#include <huffman/HuffmanCodingReversedBitsCachedCompressed.hpp>
-#include <huffman/HuffmanCodingReversedBitsCachedSeparateLengths.hpp>
-#include <huffman/HuffmanCodingReversedCodesPerLength.hpp>
 #include <huffman/HuffmanCodingShortBitsCached.hpp>
 #include <huffman/HuffmanCodingSymbolsPerLength.hpp>
-#include <Statistics.hpp>
+#include <rapidgzip/gzip/definitions.hpp>
+#include <rapidgzip/huffman/HuffmanCodingDoubleLiteralCached.hpp>
+#include <rapidgzip/huffman/HuffmanCodingReversedBitsCached.hpp>
+#include <rapidgzip/huffman/HuffmanCodingReversedBitsCachedCompressed.hpp>
+#include <rapidgzip/huffman/HuffmanCodingReversedBitsCachedSeparateLengths.hpp>
+#include <rapidgzip/huffman/HuffmanCodingReversedCodesPerLength.hpp>
 
 
 using namespace rapidgzip;

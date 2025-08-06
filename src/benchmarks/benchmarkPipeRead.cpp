@@ -6,7 +6,7 @@
 #include <utility>
 #include <vector>
 
-#include <common.hpp>
+#include <core/common.hpp>
 #include <filereader/Shared.hpp>
 #include <filereader/SinglePass.hpp>
 #include <filereader/Standard.hpp>

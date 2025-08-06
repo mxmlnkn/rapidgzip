@@ -6,13 +6,13 @@
 #include <utility>
 #include <vector>
 
-#include <common.hpp>
+#include <core/common.hpp>
 #include <filereader/Standard.hpp>
-#include <gzip/deflate.hpp>
+#include <rapidgzip/gzip/deflate.hpp>
 #ifdef LIBRAPIDARCHIVE_WITH_ISAL
-    #include <gzip/isal.hpp>
+    #include <rapidgzip/gzip/isal.hpp>
 #endif
-#include <IndexFileFormat.hpp>
+#include <rapidgzip/IndexFileFormat.hpp>
 
 
 using namespace rapidgzip;

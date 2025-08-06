@@ -10,6 +10,7 @@
 
 #include "FileReader.hpp"
 
+
 namespace rapidgzip
 {
 class BufferViewFileReader :

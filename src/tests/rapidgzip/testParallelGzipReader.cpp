@@ -10,15 +10,15 @@
 #include <utility>
 #include <vector>
 
-#include <common.hpp>
+#include <core/common.hpp>
+#include <core/DataGenerators.hpp>
+#include <core/TestHelpers.hpp>
 #include <filereader/Buffered.hpp>
 #include <filereader/BufferView.hpp>
 #include <filereader/Standard.hpp>
-#include <gzip/zlib.hpp>
-#include <DataGenerators.hpp>
-#include <ParallelGzipReader.hpp>
-#include <rapidgzip.hpp>
-#include <TestHelpers.hpp>
+#include <rapidgzip/gzip/zlib.hpp>
+#include <rapidgzip/ParallelGzipReader.hpp>
+#include <rapidgzip/rapidgzip.hpp>
 
 
 using namespace rapidgzip;

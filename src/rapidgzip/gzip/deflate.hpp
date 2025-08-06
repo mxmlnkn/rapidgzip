@@ -22,31 +22,31 @@
 #include <utility>
 #include <vector>
 
+#include <core/Error.hpp>
+#include <rapidgzip/DecodedDataView.hpp>
+#include <rapidgzip/MarkerReplacement.hpp>
 //#include <huffman/HuffmanCodingLinearSearch.hpp>
 //#include <huffman/HuffmanCodingSymbolsPerLength.hpp>
-#include <huffman/HuffmanCodingReversedBitsCachedCompressed.hpp>
-#include <huffman/HuffmanCodingReversedBitsCached.hpp>
-//#include <huffman/HuffmanCodingReversedCodesPerLength.hpp>
+#include <rapidgzip/huffman/HuffmanCodingReversedBitsCachedCompressed.hpp>
+#include <rapidgzip/huffman/HuffmanCodingReversedBitsCached.hpp>
+//#include <rapidgzip/huffman/HuffmanCodingReversedCodesPerLength.hpp>
 
 //#define WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER
 //#define WITH_MULTI_CACHED_HUFFMAN_DECODER
 
 #ifdef LIBRAPIDARCHIVE_WITH_ISAL
-    //#include <huffman/HuffmanCodingDistanceISAL.hpp>
-    #include <huffman/HuffmanCodingISAL.hpp>
+    //#include <rapidgzip/huffman/HuffmanCodingDistanceISAL.hpp>
+    #include <rapidgzip/huffman/HuffmanCodingISAL.hpp>
 #elif defined( WITH_DEFLATE_SPECIFIC_HUFFMAN_DECODER )
-    #include <huffman/HuffmanCodingShortBitsCachedDeflate.hpp>
+    #include <rapidgzip/huffman/HuffmanCodingShortBitsCachedDeflate.hpp>
 #elif defined( WITH_MULTI_CACHED_HUFFMAN_DECODER )
-    #include <huffman/HuffmanCodingShortBitsMultiCached.hpp>
+    #include <rapidgzip/huffman/HuffmanCodingShortBitsMultiCached.hpp>
 #else
-    //#include <huffman/HuffmanCodingDoubleLiteralCached.hpp>
+    //#include <rapidgzip/huffman/HuffmanCodingDoubleLiteralCached.hpp>
     #include <huffman/HuffmanCodingShortBitsCached.hpp>
 #endif
 
-#include "DecodedDataView.hpp"
 #include "definitions.hpp"
-#include "Error.hpp"
-#include "MarkerReplacement.hpp"
 #include "RFCTables.hpp"
 
 

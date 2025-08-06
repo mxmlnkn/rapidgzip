@@ -14,7 +14,7 @@
 #include <tuple>
 #include <vector>
 
-#include <BitManipulation.hpp>
+#include <core/BitManipulation.hpp>
 
 #include "SingleLUT.hpp"
 

@@ -23,9 +23,9 @@
     #include <nmmintrin.h>
 #endif
 
-#include <common.hpp>
-#include <gzip/crc32.hpp>
-#include <Statistics.hpp>
+#include <core/common.hpp>
+#include <core/Statistics.hpp>
+#include <rapidgzip/gzip/crc32.hpp>
 
 #ifdef LIBRAPIDARCHIVE_WITH_ISAL
     #include <crc.h>

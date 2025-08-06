@@ -6,17 +6,17 @@
 #include <utility>
 #include <vector>
 
-#include <common.hpp>
+#include <core/common.hpp>
+#include <core/TestHelpers.hpp>
 #include <filereader/Buffered.hpp>
 #include <filereader/BufferView.hpp>
-#include <gzip/definitions.hpp>
-#include <huffman/HuffmanCodingDoubleLiteralCached.hpp>
+#include <rapidgzip/gzip/definitions.hpp>
 #include <huffman/HuffmanCodingLinearSearch.hpp>
-#include <huffman/HuffmanCodingReversedBitsCached.hpp>
-#include <huffman/HuffmanCodingReversedBitsCachedCompressed.hpp>
-#include <huffman/HuffmanCodingReversedCodesPerLength.hpp>
 #include <huffman/HuffmanCodingSymbolsPerLength.hpp>
-#include <TestHelpers.hpp>
+#include <rapidgzip/huffman/HuffmanCodingDoubleLiteralCached.hpp>
+#include <rapidgzip/huffman/HuffmanCodingReversedBitsCached.hpp>
+#include <rapidgzip/huffman/HuffmanCodingReversedBitsCachedCompressed.hpp>
+#include <rapidgzip/huffman/HuffmanCodingReversedCodesPerLength.hpp>
 
 
 using namespace rapidgzip;

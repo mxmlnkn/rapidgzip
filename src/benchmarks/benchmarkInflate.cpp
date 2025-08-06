@@ -12,12 +12,12 @@
 #include <utility>
 #include <vector>
 
-#include <common.hpp>
+#include <core/common.hpp>
+#include <core/Statistics.hpp>
+#include <core/TestHelpers.hpp>
 #include <filereader/BufferView.hpp>
-#include <gzip/GzipReader.hpp>
-#include <gzip/zlib.hpp>
-#include <Statistics.hpp>
-#include <TestHelpers.hpp>
+#include <rapidgzip/gzip/GzipReader.hpp>
+#include <rapidgzip/gzip/zlib.hpp>
 
 
 using namespace rapidgzip;

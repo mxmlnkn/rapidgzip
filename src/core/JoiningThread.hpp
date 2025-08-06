@@ -3,6 +3,7 @@
 #include <thread>
 #include <utility>
 
+
 namespace rapidgzip
 {
 /**

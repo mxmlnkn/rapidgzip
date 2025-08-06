@@ -11,7 +11,8 @@
 #include <utility>
 #include <vector>
 
-#include <common.hpp>
+#include <core/common.hpp>
+
 
 namespace rapidgzip
 {

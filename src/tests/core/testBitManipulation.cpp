@@ -2,8 +2,8 @@
 #include <cstdio>
 #include <iostream>
 
-#include <BitManipulation.hpp>
-#include <TestHelpers.hpp>
+#include <core/BitManipulation.hpp>
+#include <core/TestHelpers.hpp>
 
 
 using namespace rapidgzip;

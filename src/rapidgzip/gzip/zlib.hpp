@@ -10,7 +10,7 @@
 
 #include <zlib.h>
 
-#include <VectorView.hpp>
+#include <core/VectorView.hpp>
 
 #include "definitions.hpp"
 #include "gzip.hpp"

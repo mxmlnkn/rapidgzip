@@ -7,7 +7,8 @@
 #include <stdexcept>
 #include <string>
 
-#include <common.hpp>
+#include <core/common.hpp>
+
 
 namespace rapidgzip
 {

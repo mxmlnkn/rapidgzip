@@ -4,55 +4,56 @@ include README.md
 include rapidgzip.svg
 include CHANGELOG.md
 include rapidgzip.pyx
-recursive-include core *.hpp
-recursive-include huffman *.hpp
-recursive-include indexed_bzip2 *.hpp
-recursive-include rapidgzip *.hpp
-recursive-include tools *.hpp
-include tools/ibzip2.cpp
-include tools/rapidgzip.cpp
-include external/cxxopts/LICENSE
-include external/cxxopts/include/cxxopts.hpp
-include external/rpmalloc/LICENSE
-include external/rpmalloc/rpmalloc/rpmalloc.c
-include external/rpmalloc/rpmalloc/rpmalloc.h
-include external/rpmalloc/rpmalloc/rpnew.h
-include external/zlib/LICENSE
-include external/zlib/inflate.c
-include external/zlib/inflate.h
-include external/zlib/crc32.c
-include external/zlib/crc32.h
-include external/zlib/adler32.c
-include external/zlib/deflate.c
-include external/zlib/deflate.h
-include external/zlib/inffast.c
-include external/zlib/inffast.h
-include external/zlib/inffixed.h
-include external/zlib/inftrees.c
-include external/zlib/inftrees.h
-include external/zlib/gzguts.h
-include external/zlib/trees.c
-include external/zlib/trees.h
-include external/zlib/zconf.h
-include external/zlib/zutil.c
-include external/zlib/zutil.h
-include external/zlib/zlib.h
-recursive-include external/isa-l *.h
-recursive-include external/isa-l *.c
-recursive-include external/isa-l *.asm
-recursive-include external/isa-l *.S
-recursive-exclude external/isa-l *crc16*
-recursive-exclude external/isa-l *crc64*
-recursive-exclude external/isa-l *_example.c
-recursive-exclude external/isa-l *_perf.c
-recursive-exclude external/isa-l *_test.c
-prune external/isa-l/erasure_code
-prune external/isa-l/examples
-prune external/isa-l/mem
-prune external/isa-l/programs
-prune external/isa-l/raid
-prune external/isa-l/tests
-include external/isa-l/LICENSE
+recursive-include src/core *.hpp
+recursive-include src/filereader *.hpp
+recursive-include src/huffman *.hpp
+recursive-include src/indexed_bzip2 *.hpp
+recursive-include src/rapidgzip *.hpp
+recursive-include src/tools *.hpp
+include src/tools/ibzip2.cpp
+include src/tools/rapidgzip.cpp
+include src/external/cxxopts/LICENSE
+include src/external/cxxopts/include/cxxopts.hpp
+include src/external/rpmalloc/LICENSE
+include src/external/rpmalloc/rpmalloc/rpmalloc.c
+include src/external/rpmalloc/rpmalloc/rpmalloc.h
+include src/external/rpmalloc/rpmalloc/rpnew.h
+include src/external/zlib/LICENSE
+include src/external/zlib/inflate.c
+include src/external/zlib/inflate.h
+include src/external/zlib/crc32.c
+include src/external/zlib/crc32.h
+include src/external/zlib/adler32.c
+include src/external/zlib/deflate.c
+include src/external/zlib/deflate.h
+include src/external/zlib/inffast.c
+include src/external/zlib/inffast.h
+include src/external/zlib/inffixed.h
+include src/external/zlib/inftrees.c
+include src/external/zlib/inftrees.h
+include src/external/zlib/gzguts.h
+include src/external/zlib/trees.c
+include src/external/zlib/trees.h
+include src/external/zlib/zconf.h
+include src/external/zlib/zutil.c
+include src/external/zlib/zutil.h
+include src/external/zlib/zlib.h
+recursive-include src/external/isa-l *.h
+recursive-include src/external/isa-l *.c
+recursive-include src/external/isa-l *.asm
+recursive-include src/external/isa-l *.S
+recursive-exclude src/external/isa-l *crc16*
+recursive-exclude src/external/isa-l *crc64*
+recursive-exclude src/external/isa-l *_example.c
+recursive-exclude src/external/isa-l *_perf.c
+recursive-exclude src/external/isa-l *_test.c
+prune src/external/isa-l/erasure_code
+prune src/external/isa-l/examples
+prune src/external/isa-l/mem
+prune src/external/isa-l/programs
+prune src/external/isa-l/raid
+prune src/external/isa-l/tests
+include src/external/isa-l/LICENSE
 include nasm_extension/winnasmcompiler.py
 include nasm_extension/nasmcompiler.py
 include nasm_extension/LICENSE

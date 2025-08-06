@@ -9,9 +9,8 @@
 #include <utility>
 
 #include <huffman/HuffmanCodingSymbolsPerLength.hpp>
-
-#include "definitions.hpp"
-#include "RFCTables.hpp"
+#include <rapidgzip/gzip/definitions.hpp>
+#include <rapidgzip/gzip/RFCTables.hpp>
 
 
 namespace rapidgzip::deflate

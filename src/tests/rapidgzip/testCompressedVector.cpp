@@ -1,7 +1,7 @@
 #include <iostream>
 
-#include <CompressedVector.hpp>
-#include <TestHelpers.hpp>
+#include <core/TestHelpers.hpp>
+#include <rapidgzip/CompressedVector.hpp>
 
 
 using namespace rapidgzip;

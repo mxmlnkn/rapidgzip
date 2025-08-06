@@ -14,7 +14,8 @@
 #include <utility>
 #include <vector>
 
-#include <BlockFinderInterface.hpp>
+#include "BlockFinderInterface.hpp"
+
 
 namespace rapidgzip
 {

@@ -8,10 +8,11 @@
 #include <utility>
 #include <vector>
 
-#include <CompressedVector.hpp>
-#include <DecodedData.hpp>
-#include <FasterVector.hpp>
-#include <VectorView.hpp>
+#include <core/FasterVector.hpp>
+#include <core/VectorView.hpp>
+#include <rapidgzip/CompressedVector.hpp>
+#include <rapidgzip/DecodedData.hpp>
+
 
 namespace rapidgzip
 {

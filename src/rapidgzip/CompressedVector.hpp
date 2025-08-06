@@ -6,14 +6,15 @@
 #include <utility>
 #include <vector>
 
-#include <FasterVector.hpp>
-#include <VectorView.hpp>
+#include <core/FasterVector.hpp>
+#include <core/VectorView.hpp>
 
 #include "gzip/InflateWrapper.hpp"
 #ifdef LIBRAPIDARCHIVE_WITH_ISAL
     #include "gzip/isal.hpp"
 #endif
 #include "gzip/zlib.hpp"
+
 
 namespace rapidgzip
 {

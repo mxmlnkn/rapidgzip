@@ -13,11 +13,11 @@
 #include <utility>
 #include <vector>
 
-#include <BitManipulation.hpp>
-#include <BitReader.hpp>
-#include <common.hpp>
+#include <core/BitManipulation.hpp>
+#include <core/common.hpp>
+#include <core/Statistics.hpp>
+#include <filereader/BitReader.hpp>
 #include <filereader/BufferView.hpp>
-#include <Statistics.hpp>
 
 
 using namespace rapidgzip;

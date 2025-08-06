@@ -5,7 +5,7 @@
 #include <limits>
 #include <string>
 
-#include <BitReader.hpp>
+#include <filereader/BitReader.hpp>
 
 
 namespace rapidgzip

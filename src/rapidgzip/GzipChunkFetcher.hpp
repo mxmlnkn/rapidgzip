@@ -15,13 +15,13 @@
 
 #include <zlib.h>
 
-#include <BlockFetcher.hpp>
-#include <BlockMap.hpp>
-#include <chunkdecoding/Bzip2Chunk.hpp>
-#include <chunkdecoding/GzipChunk.hpp>
-#include <common.hpp>
-#include <FasterVector.hpp>
+#include <core/BlockFetcher.hpp>
+#include <core/BlockMap.hpp>
+#include <core/common.hpp>
+#include <core/FasterVector.hpp>
 
+#include "chunkdecoding/Bzip2Chunk.hpp"
+#include "chunkdecoding/GzipChunk.hpp"
 #include "ChunkData.hpp"
 #include "GzipBlockFinder.hpp"
 #include "WindowMap.hpp"

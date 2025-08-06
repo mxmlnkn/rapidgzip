@@ -18,9 +18,9 @@
 #include <utility>
 #include <vector>
 
-#include <BitReader.hpp>
+#include <core/VectorView.hpp>
+#include <filereader/BitReader.hpp>
 #include <huffman/HuffmanCodingShortBitsCached.hpp>
-#include <VectorView.hpp>
 
 
 /**

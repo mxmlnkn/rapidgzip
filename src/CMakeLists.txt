@@ -90,6 +90,7 @@ endif()
 
 
 add_subdirectory(core)
+add_subdirectory(filereader)
 add_subdirectory(huffman)
 add_subdirectory(indexed_bzip2)
 add_subdirectory(rapidgzip)

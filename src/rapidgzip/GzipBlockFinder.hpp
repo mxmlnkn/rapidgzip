@@ -10,9 +10,9 @@
 #include <utility>
 #include <vector>
 
-#include <BlockFinderInterface.hpp>
-#include <bzip2.hpp>
-#include <common.hpp>
+#include <core/BlockFinderInterface.hpp>
+#include <core/common.hpp>
+#include <indexed_bzip2/bzip2.hpp>
 
 #include "blockfinder/Bgzf.hpp"
 #include "gzip/deflate.hpp"

@@ -7,18 +7,18 @@
 #include <utility>
 #include <vector>
 
-#include <common.hpp>
+#include <core/common.hpp>
+#include <core/TestHelpers.hpp>
 #include <filereader/BufferView.hpp>
 #include <filereader/Shared.hpp>
 #include <filereader/Standard.hpp>
-#include <gzip/crc32.hpp>
-#include <gzip/deflate.hpp>
-#include <gzip/GzipReader.hpp>
-#include <gzip/zlib.hpp>
+#include <rapidgzip/gzip/crc32.hpp>
+#include <rapidgzip/gzip/deflate.hpp>
+#include <rapidgzip/gzip/GzipReader.hpp>
+#include <rapidgzip/gzip/zlib.hpp>
 #ifdef LIBRAPIDARCHIVE_WITH_ISAL
-    #include <gzip/isal.hpp>
+    #include <rapidgzip/gzip/isal.hpp>
 #endif
-#include <TestHelpers.hpp>
 
 
 using namespace std::literals;

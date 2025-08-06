@@ -9,13 +9,13 @@
 #include <stdexcept>
 #include <utility>
 
-#include <common.hpp>
+#include <core/common.hpp>
+#include <core/ThreadPool.hpp>
 #include <filereader/Buffered.hpp>
 #include <filereader/FileReader.hpp>
-#include <gzip/definitions.hpp>
-#include <gzip/deflate.hpp>
-#include <gzip/gzip.hpp>
-#include <ThreadPool.hpp>
+#include <rapidgzip/gzip/definitions.hpp>
+#include <rapidgzip/gzip/deflate.hpp>
+#include <rapidgzip/gzip/gzip.hpp>
 
 #include "Interface.hpp"
 

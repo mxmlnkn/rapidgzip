@@ -16,16 +16,17 @@
 #include <type_traits>
 #include <utility>
 
-#include <AffinityHelpers.hpp>
-#include <BlockFinderInterface.hpp>
-#include <Cache.hpp>
-#include <common.hpp>
-#include <Prefetcher.hpp>
-#include <ThreadPool.hpp>
+#include <core/AffinityHelpers.hpp>
+#include <core/BlockFinderInterface.hpp>
+#include <core/Cache.hpp>
+#include <core/common.hpp>
+#include <core/Prefetcher.hpp>
+#include <core/ThreadPool.hpp>
 
 #ifdef WITH_PYTHON_SUPPORT
-    #include <filereader/Python.hpp>  // For unlocking the GIL in case the block fetch code uses PythonFileReader
+    #include <core/ScopedGIL.hpp>  // For unlocking the GIL in case the block fetch code uses PythonFileReader
 #endif
+
 
 namespace rapidgzip
 {

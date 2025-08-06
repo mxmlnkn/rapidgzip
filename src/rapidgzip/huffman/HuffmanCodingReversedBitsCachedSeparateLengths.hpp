@@ -7,8 +7,8 @@
 #include <stdexcept>
 #include <utility>
 
-#include <gzip/definitions.hpp>
 #include <huffman/HuffmanCodingSymbolsPerLength.hpp>
+#include <rapidgzip/gzip/definitions.hpp>
 
 
 namespace rapidgzip

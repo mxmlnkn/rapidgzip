@@ -3,8 +3,8 @@
 #include <thread>
 #include <vector>
 
-#include <common.hpp>
-#include <ThreadPool.hpp>
+#include <core/common.hpp>
+#include <core/ThreadPool.hpp>
 
 
 using namespace rapidgzip;

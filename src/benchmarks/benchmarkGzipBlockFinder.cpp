@@ -32,23 +32,23 @@ https://www.ietf.org/rfc/rfc1952.txt
 
 #include <zlib.h>
 
-#include <BitManipulation.hpp>
-#include <blockfinder/Bgzf.hpp>
-#include <blockfinder/DynamicHuffman.hpp>
-#include <blockfinder/precodecheck/SingleCompressedLUT.hpp>
-#include <blockfinder/precodecheck/SingleLUT.hpp>
-#include <blockfinder/precodecheck/WalkTreeCompressedLUT.hpp>
-#include <blockfinder/precodecheck/WalkTreeLUT.hpp>
-#include <blockfinder/precodecheck/WithoutLUT.hpp>
-#include <common.hpp>
-#include <DataGenerators.hpp>
+#include <core/BitManipulation.hpp>
+#include <core/common.hpp>
+#include <core/DataGenerators.hpp>
+#include <core/Statistics.hpp>
+#include <core/TestHelpers.hpp>
 #include <filereader/Buffered.hpp>
 #include <filereader/Standard.hpp>
-#include <gzip/definitions.hpp>
-#include <gzip/precode.hpp>
-#include <huffman/HuffmanCodingCheckOnly.hpp>
-#include <Statistics.hpp>
-#include <TestHelpers.hpp>
+#include <rapidgzip/blockfinder/Bgzf.hpp>
+#include <rapidgzip/blockfinder/DynamicHuffman.hpp>
+#include <rapidgzip/blockfinder/precodecheck/SingleCompressedLUT.hpp>
+#include <rapidgzip/blockfinder/precodecheck/SingleLUT.hpp>
+#include <rapidgzip/blockfinder/precodecheck/WalkTreeCompressedLUT.hpp>
+#include <rapidgzip/blockfinder/precodecheck/WalkTreeLUT.hpp>
+#include <rapidgzip/blockfinder/precodecheck/WithoutLUT.hpp>
+#include <rapidgzip/gzip/definitions.hpp>
+#include <rapidgzip/gzip/precode.hpp>
+#include <rapidgzip/huffman/HuffmanCodingCheckOnly.hpp>
 
 
 using namespace rapidgzip;

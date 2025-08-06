@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <string>
 
+
 namespace rapidgzip
 {
 std::ostream&
@@ -19,11 +20,11 @@ operator<<( std::ostream&           out,
 }
 }  // namespace rapidgzip
 
-#include <common.hpp>
+#include <core/common.hpp>
+#include <core/TestHelpers.hpp>
 #define WITHOUT_MAIN
 #include <rapidgzip.cpp>
 #undef WITHOUT_MAIN
-#include <TestHelpers.hpp>
 
 
 using namespace std::string_literals;

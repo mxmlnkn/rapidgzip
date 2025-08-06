@@ -13,8 +13,8 @@
     #include <unistd.h>
 #endif
 
-#include <common.hpp>
-#include <Statistics.hpp>
+#include <core/common.hpp>
+#include <core/Statistics.hpp>
 
 #include "FileReader.hpp"
 #include "SinglePass.hpp"
@@ -26,6 +26,7 @@
 #ifndef _MSC_VER
     #include "Standard.hpp"
 #endif
+
 
 namespace rapidgzip
 {

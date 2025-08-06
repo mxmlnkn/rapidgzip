@@ -1,4 +1,3 @@
-#include "FileReader.hpp"
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -14,12 +13,12 @@
 #include <utility>
 #include <vector>
 
-#include <common.hpp>
+#include <core/common.hpp>
+#include <core/TestHelpers.hpp>
 #include <filereader/Buffered.hpp>
 #include <filereader/Standard.hpp>
-#include <gzip/GzipReader.hpp>
-#include <rapidgzip.hpp>
-#include <TestHelpers.hpp>
+#include <rapidgzip/gzip/GzipReader.hpp>
+#include <rapidgzip/rapidgzip.hpp>
 
 
 using namespace rapidgzip;

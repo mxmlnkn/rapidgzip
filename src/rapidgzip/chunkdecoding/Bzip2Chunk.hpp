@@ -8,10 +8,10 @@
 #include <stdexcept>
 #include <utility>
 
-#include <BitStringFinder.hpp>
-#include <bzip2.hpp>
-#include <ChunkData.hpp>
-#include <gzip/definitions.hpp>
+#include <core/BitStringFinder.hpp>
+#include <indexed_bzip2/bzip2.hpp>
+#include <rapidgzip/ChunkData.hpp>
+#include <rapidgzip/gzip/definitions.hpp>
 
 #include "DecompressionError.hpp"
 

@@ -5,8 +5,8 @@
 
 #define TEST_DECODED_DATA
 
-#include <DecodedData.hpp>
-#include <TestHelpers.hpp>
+#include <core/TestHelpers.hpp>
+#include <rapidgzip/DecodedData.hpp>
 
 
 using namespace rapidgzip;

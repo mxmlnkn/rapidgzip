@@ -15,9 +15,9 @@
 #include <utility>
 #include <vector>
 
-#include <AffinityHelpers.hpp>
-#include <BlockMap.hpp>
-#include <common.hpp>
+#include <core/AffinityHelpers.hpp>
+#include <core/BlockMap.hpp>
+#include <core/common.hpp>
 #include <filereader/FileReader.hpp>
 #include <filereader/Shared.hpp>
 

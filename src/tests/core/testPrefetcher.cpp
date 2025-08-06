@@ -10,11 +10,11 @@
 #include <unordered_map>
 #include <vector>
 
-#include <Cache.hpp>
-#include <common.hpp>
-#include <Prefetcher.hpp>
-#include <TestHelpers.hpp>
-#include <VectorView.hpp>
+#include <core/Cache.hpp>
+#include <core/common.hpp>
+#include <core/Prefetcher.hpp>
+#include <core/TestHelpers.hpp>
+#include <core/VectorView.hpp>
 
 
 using namespace rapidgzip;

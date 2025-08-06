@@ -8,8 +8,8 @@
 #include <stdexcept>
 #include <utility>
 
-#include <gzip/definitions.hpp>
-#include <huffman/HuffmanCodingReversedCodesPerLength.hpp>
+#include <rapidgzip/gzip/definitions.hpp>
+#include <rapidgzip/huffman/HuffmanCodingReversedCodesPerLength.hpp>
 
 
 namespace rapidgzip

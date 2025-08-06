@@ -17,6 +17,7 @@
     #include <AvailabilityMacros.h>
 #endif
 
+
 namespace rapidgzip
 {
 int gnTests = 0;  // NOLINT

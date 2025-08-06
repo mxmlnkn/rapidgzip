@@ -8,11 +8,12 @@
 #include <utility>
 #include <vector>
 
-#include <AlignedAllocator.hpp>
-#include <common.hpp>
-#include <VectorView.hpp>
+#include <core/AlignedAllocator.hpp>
+#include <core/common.hpp>
+#include <core/VectorView.hpp>
 
 #include "FileReader.hpp"
+
 
 namespace rapidgzip
 {

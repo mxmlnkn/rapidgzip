@@ -17,15 +17,15 @@
 
 #include <cxxopts.hpp>
 
-#include <AffinityHelpers.hpp>
-#include <bzip2.hpp>
-#include <BitStringFinder.hpp>
-#include <BZ2Reader.hpp>
-#include <common.hpp>
+#include <core/AffinityHelpers.hpp>
+#include <core/BitStringFinder.hpp>
+#include <core/common.hpp>
+#include <core/FileUtils.hpp>
+#include <core/ParallelBitStringFinder.hpp>
 #include <filereader/Standard.hpp>
-#include <FileUtils.hpp>
-#include <ParallelBZ2Reader.hpp>
-#include <ParallelBitStringFinder.hpp>
+#include <indexed_bzip2/bzip2.hpp>
+#include <indexed_bzip2/BZ2Reader.hpp>
+#include <indexed_bzip2/ParallelBZ2Reader.hpp>
 
 #include "CLIHelper.hpp"
 #include "thirdparty.hpp"

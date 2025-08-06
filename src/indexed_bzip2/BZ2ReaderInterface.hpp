@@ -5,10 +5,11 @@
 #include <limits>
 #include <map>
 
+#include <core/FileUtils.hpp>                    // writeAll
 #include <filereader/FileReader.hpp>
-#include <FileUtils.hpp>                    // writeAll
 
 using std::size_t;
+
 
 namespace indexed_bzip2
 {

@@ -4,8 +4,8 @@
 #include <optional>
 #include <utility>
 
+#include <core/VectorView.hpp>
 #include <filereader/BufferView.hpp>
-#include <VectorView.hpp>
 
 #include "definitions.hpp"
 #include "gzip.hpp"

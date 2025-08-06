@@ -15,14 +15,14 @@
 
 #include <cxxopts.hpp>
 
-#include <AffinityHelpers.hpp>
-#include <common.hpp>
+#include <core/AffinityHelpers.hpp>
+#include <core/common.hpp>
+#include <core/FileRanges.hpp>
+#include <core/FileUtils.hpp>
+#include <core/Statistics.hpp>
 #include <filereader/Standard.hpp>
-#include <FileRanges.hpp>
-#include <FileUtils.hpp>
-#include <gzip/GzipAnalyzer.hpp>
-#include <rapidgzip.hpp>
-#include <Statistics.hpp>
+#include <rapidgzip/gzip/GzipAnalyzer.hpp>
+#include <rapidgzip/rapidgzip.hpp>
 
 #include "CLIHelper.hpp"
 #include "thirdparty.hpp"

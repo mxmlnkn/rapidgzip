@@ -10,8 +10,8 @@
 #include <utility>
 #include <vector>
 
-#include <FasterVector.hpp>
-#include <VectorView.hpp>
+#include <core/FasterVector.hpp>
+#include <core/VectorView.hpp>
 
 #include "DecodedDataView.hpp"
 #include "gzip/definitions.hpp"

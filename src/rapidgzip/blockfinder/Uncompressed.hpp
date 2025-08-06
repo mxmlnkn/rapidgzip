@@ -5,9 +5,9 @@
 #include <limits>
 #include <utility>
 
-#include <BitManipulation.hpp>
-#include <common.hpp>
-#include <gzip/definitions.hpp>
+#include <core/BitManipulation.hpp>
+#include <core/common.hpp>
+#include <rapidgzip/gzip/definitions.hpp>
 
 
 namespace rapidgzip::blockfinder

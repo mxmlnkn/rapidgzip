@@ -11,19 +11,19 @@
 #include <stdexcept>
 #include <utility>
 
-#include <AffinityHelpers.hpp>
-#include <BlockMap.hpp>
-#include <DecodedDataView.hpp>
-#include <FileUtils.hpp>
+#include <core/AffinityHelpers.hpp>
+#include <core/BlockMap.hpp>
+#include <core/FileUtils.hpp>
 #include <filereader/FileReader.hpp>
 #include <filereader/Shared.hpp>
-#include <gzip/crc32.hpp>
-#include <gzip/definitions.hpp>
-#include <gzip/deflate.hpp>
-#include <gzip/format.hpp>
-#include <gzip/gzip.hpp>
-#include <IndexFileFormat.hpp>
-#include <WindowMap.hpp>
+#include <rapidgzip/DecodedDataView.hpp>
+#include <rapidgzip/gzip/crc32.hpp>
+#include <rapidgzip/gzip/definitions.hpp>
+#include <rapidgzip/gzip/deflate.hpp>
+#include <rapidgzip/gzip/format.hpp>
+#include <rapidgzip/gzip/gzip.hpp>
+#include <rapidgzip/IndexFileFormat.hpp>
+#include <rapidgzip/WindowMap.hpp>
 
 #ifdef WITH_PYTHON_SUPPORT
     #include <filereader/Python.hpp>

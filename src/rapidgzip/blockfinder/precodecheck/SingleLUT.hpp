@@ -13,8 +13,8 @@
 #include <limits>
 #include <stdexcept>
 
-#include <BitManipulation.hpp>
-#include <gzip/precode.hpp>
+#include <core/BitManipulation.hpp>
+#include <rapidgzip/gzip/precode.hpp>
 
 
 namespace rapidgzip::PrecodeCheck::SingleLUT

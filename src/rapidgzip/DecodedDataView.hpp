@@ -3,7 +3,7 @@
 #include <array>
 #include <cstdint>
 
-#include <VectorView.hpp>
+#include <core/VectorView.hpp>
 
 
 namespace rapidgzip::deflate

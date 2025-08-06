@@ -6,10 +6,10 @@
 #include <utility>
 #include <vector>
 
-#include <common.hpp>  // countNewlines
-#include <DataGenerators.hpp>
-#include <TestHelpers.hpp>
-#include <Statistics.hpp>
+#include <core/common.hpp>  // countNewlines
+#include <core/DataGenerators.hpp>
+#include <core/TestHelpers.hpp>
+#include <core/Statistics.hpp>
 
 
 using namespace rapidgzip;

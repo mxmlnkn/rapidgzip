@@ -13,14 +13,13 @@
 #include <thread>
 #include <utility>
 
-#include <BlockFinderInterface.hpp>
-#include <filereader/FileReader.hpp>
-#include <JoiningThread.hpp>
-#include <StreamedResults.hpp>
-
+#include <core/BlockFinderInterface.hpp>
+#include <core/JoiningThread.hpp>
+#include <core/StreamedResults.hpp>
 #ifdef WITH_PYTHON_SUPPORT
-    #include <filereader/Python.hpp>
+    #include <core/ScopedGIL.hpp>
 #endif
+
 
 namespace rapidgzip
 {

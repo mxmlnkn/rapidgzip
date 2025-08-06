@@ -3,10 +3,11 @@ include LICENSE-MIT
 include README.md
 include CHANGELOG.md
 include indexed_bzip2.pyx
-recursive-include indexed_bzip2 *.hpp
-recursive-include core *.hpp
-recursive-include huffman *.hpp
-recursive-include tools *.hpp
-include tools/ibzip2.cpp
-include external/cxxopts/LICENSE
-include external/cxxopts/include/cxxopts.hpp
+recursive-include src/core *.hpp
+recursive-include src/filereader *.hpp
+recursive-include src/huffman *.hpp
+recursive-include src/indexed_bzip2 *.hpp
+recursive-include src/tools *.hpp
+include src/tools/ibzip2.cpp
+include src/external/cxxopts/LICENSE
+include src/external/cxxopts/include/cxxopts.hpp

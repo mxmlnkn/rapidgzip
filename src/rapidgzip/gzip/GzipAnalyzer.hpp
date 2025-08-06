@@ -15,9 +15,10 @@
 #include <utility>
 #include <vector>
 
-#include <common.hpp>
+#include <core/common.hpp>
+#include <core/Error.hpp>
+#include <core/Statistics.hpp>
 #include <filereader/FileReader.hpp>
-#include <Statistics.hpp>
 
 #ifdef WITH_PYTHON_SUPPORT
     #include <filereader/Python.hpp>
@@ -27,7 +28,6 @@
 #include "definitions.hpp"
 #include "deflate.hpp"
 #include "gzip.hpp"
-#include "Error.hpp"
 #include "format.hpp"
 
 

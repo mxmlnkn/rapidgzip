@@ -23,7 +23,7 @@ extensions = [
         # fmt: off
         name         = 'indexed_bzip2',
         sources      = ['indexed_bzip2.pyx'],
-        include_dirs = ['.', 'core', 'huffman', 'indexed_bzip2', 'external/cxxopts/include'],
+        include_dirs = ['src', 'src/external/cxxopts/include'],
         language     = 'c++',
         # fmt: on
     ),

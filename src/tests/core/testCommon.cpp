@@ -2,8 +2,8 @@
 #include <iostream>
 #include <vector>
 
-#include <common.hpp>
-#include <TestHelpers.hpp>
+#include <core/common.hpp>
+#include <core/TestHelpers.hpp>
 
 
 using namespace rapidgzip;

@@ -88,7 +88,7 @@ print(f"  cxxopts: {withCxxopts}")
 zlib_sources = []
 if withZlib == 'enable':
     zlib_sources = ['deflate.c', 'inflate.c', 'crc32.c', 'adler32.c', 'inftrees.c', 'inffast.c', 'trees.c', 'zutil.c']
-    zlib_sources = ['external/zlib/' + source for source in zlib_sources]
+    zlib_sources = ['src/external/zlib/' + source for source in zlib_sources]
 
 isal_sources = [
     "igzip/igzip_inflate.c",
@@ -192,29 +192,20 @@ isal_sources_by_architecture = {
 for sources_architecture, sources in isal_sources_by_architecture.items():
     if architecture == sources_architecture:
         isal_sources += sources
-isal_sources = ['external/isa-l/' + source for source in set(isal_sources)] if withIsal == 'enable' else []
+isal_sources = ['src/external/isa-l/' + source for source in set(isal_sources)] if withIsal == 'enable' else []
 
-include_dirs = [
-    '.',
-    'core',
-    'huffman',
-    'rapidgzip',
-    'rapidgzip/chunkdecoding',
-    'rapidgzip/huffman',
-    'rapidgzip/gzip',
-    'indexed_bzip2',
-]
-isal_includes = ['external/isa-l/include', 'external/isa-l/igzip', 'external/isa-l']
+include_dirs = ['src']
+isal_includes = ['src/external/isa-l/include', 'src/external/isa-l/igzip', 'src/external/isa-l']
 if withIsal == 'enable':
     include_dirs += isal_includes
 if withZlib == 'enable':
-    include_dirs += ['external/zlib']
+    include_dirs += ['src/external/zlib']
 if withRpmalloc == 'enable':
-    include_dirs += ['external/rpmalloc/rpmalloc']
+    include_dirs += ['src/external/rpmalloc/rpmalloc']
 if withCxxopts == 'enable':
-    include_dirs += ['external/cxxopts/include']
+    include_dirs += ['src/external/cxxopts/include']
 
-rpmalloc_sources = ['external/rpmalloc/rpmalloc/rpmalloc.c'] if withRpmalloc == 'enable' else []
+rpmalloc_sources = ['src/external/rpmalloc/rpmalloc/rpmalloc.c'] if withRpmalloc == 'enable' else []
 
 extensions = [
     Extension(
