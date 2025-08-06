@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="800"
+   height="130"
+   viewBox="0 0 800 130"
+   version="1.1"
+   id="rapidgzip-logo"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <style
+     id="style2">
+:root {
+    --color-ratar: #aa00cc;
+    --color-mount: #009900;
+}
+
+#ratar { stroke: var(--color-ratar); }
+#stop-ratar { stop-color: var(--color-ratar); }
+#mount { stroke: var(--color-mount); }
+#stop-mount { stop-color: var(--color-mount); }
+
+/* On hover does not work for this SVG when inlined into the rendered Github Readme.md. */
+.gloweffect:hover { filter: url(#glow); }
+/* .gloweffect { filter: url(#glow); } */
+    </style>
+    <defs id="definitions">
+        <linearGradient
+           xlink:href="#linearGradientStops"
+           id="linearGradient1"
+           gradientUnits="userSpaceOnUse"
+           x1="190" y1="0" x2="320" y2="0"/>
+        <linearGradient id="linearGradientStops">
+            <stop offset="0" id="stop-ratar" style="stop-color: #aa00cc"/>
+            <stop offset="1" id="stop-mount" style="stop-color: #009900"/>
+        </linearGradient>
+        <filter id="animated-glow">
+            <feGaussianBlur stdDeviation="1" result="blur1">
+                <animate attributeName="stdDeviation" calcMode="linear" keyTimes="0.0; 0.96; 0.98; 1.0"
+                         values="0; 0; 1; 0" dur="20s" repeatCount="indefinite"/>
+            </feGaussianBlur>
+            <feGaussianBlur stdDeviation="2" result="blur2">
+                <animate attributeName="stdDeviation" calcMode="linear" keyTimes="0.0; 0.96; 0.98; 1.0"
+                         values="0; 0; 2; 0" dur="20s" repeatCount="indefinite"/>
+            </feGaussianBlur>
+            <feGaussianBlur stdDeviation="4" result="blur3">
+                <animate attributeName="stdDeviation" calcMode="linear" keyTimes="0.0; 0.96; 0.98; 1.0"
+                         values="0; 0; 4; 0" dur="20s" repeatCount="indefinite"/>
+            </feGaussianBlur>
+            <feColorMatrix in="SourceGraphic" type="saturate" values="2" result="luminescence">
+                <animate attributeName="values" calcMode="linear" keyTimes="0.0; 0.94; 0.98; 1.0"
+                         values="1; 1; 2; 1" dur="20s" repeatCount="indefinite"/>
+            </feColorMatrix>
+            <feMerge>
+                <feMergeNode in="blur1"/>
+                <feMergeNode in="blur2"/>
+                <feMergeNode in="blur3"/>
+                <feMergeNode in="SourceGraphic"/>
+                <feMergeNode in="luminescence"/>
+            </feMerge>
+        </filter>
+        <filter id="glow">
+            <feGaussianBlur stdDeviation="1" result="blur1"/>
+            <feGaussianBlur stdDeviation="2" result="blur2"/>
+            <feGaussianBlur stdDeviation="4" result="blur3"/>
+            <feColorMatrix in="SourceGraphic" type="saturate" values="2" result="luminescence"/>
+            <feMerge>
+                <feMergeNode in="blur1"/>
+                <feMergeNode in="blur2"/>
+                <feMergeNode in="blur3"/>
+                <feMergeNode in="SourceGraphic"/>
+                <feMergeNode in="luminescence"/>
+            </feMerge>
+        </filter>
+    </defs>
+    <g id="rapidgzip" class="gloweffect" transform="translate(0,30)" style="
+        fill: none;
+        stroke-width: 10;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-miterlimit: 4;
+        stroke-dasharray: none;
+        stroke-opacity: 1;">
+        <g id="rapidar" transform="translate(0,10)" style="stroke: #009900">
+            <g id="r" transform="translate(5,0)">
+                <path d="m 35,50 c -11,0 -20,-9 -20,-20 v -55"/>
+            </g>
+            <g id="i" transform="translate(60,0)">
+                <path id="i-stroke" d="m 0,0 v 50"/>
+                <path id="i-dot" d="m 0,-20 v 0"/>
+            </g>
+            <g id="b" transform="translate(80,0)">
+                <circle id="b-ring" cx="25" cy="25" r="25"/>
+                <path id="b-stroke" d="M 0,25 v -50"/>
+            </g>
+        </g>
+        <g id="rapid" transform="translate(130,10)" style="stroke: #aa00cc">
+            <g id="r" transform="translate(5,0)">
+                <path d="m 35,0 c -11,0 -20,9 -20,20 v 30"/>
+            </g>
+            <g id="a" transform="translate(55,0)">
+                <circle id="a-ring" cx="25" cy="25" r="25"/>
+                <path id="a-tail" d="m 50,25 v 25"/>
+            </g>
+            <g id="p" transform="translate(125,0)">
+                <circle id="p-ring" cx="25" cy="25" r="25"/>
+                <path id="p-stroke" d="M 0,25 v 50"/>
+            </g>
+            <g id="i" transform="translate(195,0)">
+                <path id="i-stroke" d="m 0,0 v 50"/>
+                <path id="i-dot" d="m 0,-20 v 0"/>
+            </g>
+            <g id="d" transform="translate(215,0)">
+                <circle id="d-ring" cx="25" cy="25" r="25"/>
+                <path id="d-stroke" d="M 50,25 v -50"/>
+            </g>
+        </g>
+        <!--
+        Unsure whether to color this as rapid or as chive for the nice symmetric "rapidar" or for the semantic "archive"
+        -->
+        <g id="ar" transform="translate(130,10)" style="stroke: #aa00cc">
+            <g id="mirrored-a" transform="translate(285,0)">
+                <circle id="mirrored-a-ring" cx="25" cy="25" r="25"/>
+                <path d="m 0,25 0,25" id="mirrored-a-tail"/>
+            </g>
+            <g id="mirrored-r" transform="translate(350,0)">
+                <path d="m 0,0 c 11,0 20,9 20,20 v 30"/>
+            </g>
+        </g>
+        <g id="chive" transform="translate(520,10)" style="stroke:#009900">
+            <g id="c" transform="translate(0)">
+                <path id="g-ring" d="m 38.3 50 h -13.3 c-13.8 0 -25 -11.2 -25 -25 s 11.2-25 25 -25 h 14.1"/>
+            </g>
+            <g id="h" transform="translate(60,0)">
+                <path d="m0 25 c 0 -15 10 -25 25 -25 s 25 10 25 25 v 25"/>
+                <path d="m0 50 v -75"/>
+            </g>
+            <g id="v" transform="translate(150)">
+                <path d="m0 0 22.5 50 22.5 -50"/>
+            </g>
+            <g id="i" transform="translate(130,0)">
+                <path id="i-stroke" d="m 0,0 v 50"/>
+                <path id="i-dot" d="m 0,-20 v 0"/>
+            </g>
+            <g id="e" transform="translate(215)">
+                <path d="m 38.9 40.5 c -5.17 6.44 -11.3 9.54 -21.9 9.54 -13.8 0 -25 -11.2 -25 -25 s 11.2 -25 25 -25 25 11.2 25 25 h -50"/>
+            </g>
+        </g>
+    </g>
+</svg>
