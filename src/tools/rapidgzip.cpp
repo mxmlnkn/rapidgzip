@@ -48,6 +48,7 @@ struct Arguments
     bool windowSparsity{ true };
     bool gatherLineOffsets{ false };
     IndexFormat indexFormat{ IndexFormat::INDEXED_GZIP };
+    std::optional<std::vector<FileRange> > fileRanges{};
 };
 
 
@@ -424,14 +425,13 @@ rapidgzipCLI( int                  argc,
     const auto decompress = ( parsedArgs.count( "decompress" ) > 0 ) || ( parsedArgs.count( "ranges" ) > 0 ) || doTest;
 
     /* Parse ranges. */
-    std::optional<std::vector<FileRange> > fileRanges;
     if ( parsedArgs.count( "ranges" ) > 0 ) {
-        fileRanges = parseFileRanges( parsedArgs["ranges"].as<std::string>() );
+        args.fileRanges = parseFileRanges( parsedArgs["ranges"].as<std::string>() );
 
         /* Check whether the index needs to be kept because the ranges do not traverse the file in order. */
-        if ( fileRanges->size() > 1 ) {
-            for ( size_t i = 0; i + 1 < fileRanges->size(); ++i ) {
-                if ( fileRanges->at( i ).offset + fileRanges->at( i ).size > fileRanges->at( i + 1 ).offset ) {
+        if ( args.fileRanges->size() > 1 ) {
+            for ( size_t i = 0; i + 1 < args.fileRanges->size(); ++i ) {
+                if ( args.fileRanges->at( i ).offset + args.fileRanges->at( i ).size > args.fileRanges->at( i + 1 ).offset ) {
                     args.keepIndex = true;
                     break;
                 }
@@ -439,7 +439,7 @@ rapidgzipCLI( int                  argc,
         }
 
         /* Check whether some ranges are lines and enable line offset gathering in that case. */
-        for ( const auto& range : *fileRanges ) {
+        for ( const auto& range : *args.fileRanges ) {
             if ( ( range.size > 0 ) && ( range.offsetIsLine || range.sizeIsLine ) ) {
                 /* Because we cannot arbitrarily convert lines to offsets, we cannot easily determine whether
                  * backward seeking is necessary. Therefore keep the index if line offsets are used. */
@@ -683,7 +683,7 @@ rapidgzipCLI( int                  argc,
 
         errorCode = decompressParallel<rapidgzip::ChunkData>(
             args, std::move( inputFile ), [&] ( const auto& reader ) {
-                if ( !fileRanges ) {
+                if ( !args.fileRanges ) {
                     if ( !hasOutputFiles && countLines && !reader->newlineOffsets().empty() ) {
                         const auto& newlineOffset = reader->newlineOffsets().back();
                         newlineCount = newlineOffset.lineOffset;
@@ -696,7 +696,7 @@ rapidgzipCLI( int                  argc,
                     return;
                 }
 
-                for ( const auto& range : *fileRanges ) {
+                for ( const auto& range : *args.fileRanges ) {
                     if ( range.size == 0 ) {
                         continue;
                     }
