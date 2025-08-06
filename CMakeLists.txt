@@ -37,9 +37,6 @@ add_compile_options(
     "$<$<OR:$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang>,$<COMPILE_LANG_AND_ID:C,AppleClang,Clang>>:-Wall;-Wextra;-Wshadow;-Werror=return-type;-Wno-unknown-attributes>"
     "$<$<OR:$<COMPILE_LANG_AND_ID:CXX,GNU>,$<COMPILE_LANG_AND_ID:C,GNU>>:-Wall;-Wextra;-Wshadow;-Wunused;-Werror=return-type;-Wno-attributes>"
     "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-Wsuggest-override>"
-    # The default limit is ~33 M (1<<25) and 99 M seem to be enough currently to compile.
-    "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-fconstexpr-ops-limit=199000100>"
-    "$<$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang>:-fconstexpr-steps=199000100>"
     "$<$<AND:$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang,GNU>,$<BOOL:${LIBRAPIDARCHIVE_CODE_COVERAGE}>>:-O0;-g;--coverage>"
     # Add some hardening. See e.g.:
     # https://www.phoronix.com/news/GCC-fhardened-Hardening-Option

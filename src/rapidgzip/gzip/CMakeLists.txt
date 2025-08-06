@@ -17,6 +17,11 @@ target_sources(librapidgzipgzip INTERFACE
 )
 target_link_libraries(librapidgzipgzip INTERFACE core rapidgzip::gzip::huffman zlibstatic)
 if(LIBRAPIDARCHIVE_WITH_ISAL)
-    target_link_libraries(librapidgzipgzip INTERFACE core rapidgzip::gzip::huffman ISAL::isal zlibstatic)
+    target_link_libraries(librapidgzipgzip INTERFACE
+        core
+        rapidgzip::gzip::huffman
+        rapidgzip::libblockfinder
+        ISAL::isal
+        zlibstatic)
 endif()
 target_compile_features(librapidgzipgzip INTERFACE cxx_std_17)

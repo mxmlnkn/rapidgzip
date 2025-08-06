@@ -6,5 +6,5 @@ target_sources(libchunkdecoding INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/GzipChunk.hpp
     ${CMAKE_CURRENT_LIST_DIR}/DecompressionError.hpp
 )
-target_link_libraries(libchunkdecoding INTERFACE core rapidgzip::gzip indexed_bzip2)
+target_link_libraries(libchunkdecoding INTERFACE core rapidgzip::gzip rapidgzip::libblockfinder indexed_bzip2)
 target_compile_features(libchunkdecoding INTERFACE cxx_std_17)
