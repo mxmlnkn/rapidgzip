@@ -143,7 +143,7 @@ This is also the reason why it fails to scale above 64 cores, i.e, to the second
 The first and second decompression stages are completely independently submitted to a thread pool, which on this NUMA architecture means, that data needs to be costly transferred from one processor socket to the other if the second step for a chunk is not done on the same processor as the first.
 This should be fixable by making the ThreadPool NUMA-aware.
 
-These three scaling plots were created with rapidgzip 0.9.0, while the ones in the [paper](<results/paper/Knespel, Brunst - 2023 - Rapidgzip - Parallel Decompression and Seeking in Gzip Files Using Cache Prefetching.pdf>) were created with 0.5.0.
+These three scaling plots were created with rapidgzip 0.9.0, while the ones in the [paper](https://github.com/mxmlnkn/indexed_bzip2/blob/master/results/paper/Knespel%2C%20Brunst%20-%202023%20-%20Rapidgzip%20-%20Parallel%20Decompression%20and%20Seeking%20in%20Gzip%20Files%20Using%20Cache%20Prefetching.pdf) were created with 0.5.0.
 
 
 ## Scaling Benchmarks on Ryzen 3900X
@@ -433,69 +433,16 @@ Because it is written in C++, it can of course also be used as a C++ library. `r
 In order to make heavy use of templates and to simplify compiling with Python `setuptools`, it is **header-only**.
 The license is also permissive enough for most use cases.
 
-rapidgzip can be added to an existing CMake project using FetchContent
-```cmake
-# cmake_minimum_required should be greater than 3.14 to use this approach
-include(FetchContent)
+Rapidgzip can be added to an existing CMake project using [`FetchContent`](https://cmake.org/cmake/help/latest/module/FetchContent.html), or directly via [`add_subdirectory`](https://cmake.org/cmake/help/latest/command/add_subdirectory.html)
 
-FetchContent_Declare(
-    rapidgzip
-    GIT_REPOSITORY "https://github.com/mxmlnkn/rapidgzip"
-    GIT_TAG        "master"
-    #SOURCE_DIR "/path/to/rapidgzip" # you can also use a local path
-)
-# all options are prefixed with IBZIP2
-set(IBZIP2_BUILD_TESTING OFF) # don't build benchmarks and tests
-set(IBZIP2_BUILD_TOOLS OFF)   # don't build tools
+An example CMake build using `FetchContent` can be found [here](https://github.com/mxmlnkn/indexed_bzip2/blob/mars-master/src/examples/cmake-fetch-content/CMakeLists.txt).
 
-FetchContent_MakeAvailable(rapidgzip)
-
-add_executable(YourTarget main.cpp)
-target_link_libraries(YourTarget PRIVATE rapidgzip::rapidgzip)
-```
-*This has been tested using CMake 3.31.6 with Clang 17.0 on macOS. Please create an issue if you were unable to get it working.*
-
-<details>
-<summary>Basic example of reading a compressed file and writing decompressed output to stdout</summary>
-
-```cpp
-#include <iostream>
-#include <memory>
-#include <unistd.h>
-#include <string>
-
-#include <filereader/Standard.hpp>
-#include <rapidgzip/ParallelGzipReader.hpp>
-
-int main() {
-    // Create a file reader for the gzipped file
-    auto fileReader = std::make_unique<rapidgzip::StandardFileReader>(std::string("path/to/gzipped/file.gz"));
-
-    // Create the rapidgzip reader with parallelization (0 = auto, use all cores)
-    rapidgzip::ParallelGzipReader reader(std::move(fileReader), 0);
-
-    // Buffer for reading chunks
-    std::vector<char> buffer(4 * 1024 * 1024); // 4 MB buffer
-
-    // Read and write chunks until EOF
-    while (true) {
-        size_t bytesRead = reader.read(buffer.data(), buffer.size());
-        if (bytesRead == 0) break; // EOF
-
-        // Write to stdout
-        std::cout.write(buffer.data(), bytesRead);
-    }
-
-    return 0;
-}
-```
-</details> <br>
 
 # Citation
 
 A paper describing the implementation details and showing the scaling behavior with up to 128 cores has been submitted to and [accepted](https://www.hpdc.org/2023/program/technical-sessions/) in [ACM HPDC'23](https://www.hpdc.org/2023/), The 32nd International Symposium on High-Performance Parallel and Distributed Computing.
 The paper can also be accessed [on ACM DL](https://doi.org/10.1145/3588195.3592992) or [Arxiv](https://arxiv.org/abs/2308.08955).
-The accompanying presentation can be found [here](results/Presentation-2023-06-22.pdf).
+The accompanying presentation can be found [here](https://github.com/mxmlnkn/indexed_bzip2/blob/master/results/Presentation-2023-06-22.pdf).
 
 If you use this software for your scientific publication, please cite it as:
 
@@ -526,7 +473,7 @@ After writing the bzip2 backend for [ratarmount](https://github.com/mxmlnkn/inde
 And, while random access to gzip files did exist with [indexed_gzip](https://github.com/pauldmccarthy/indexed_gzip), it did not support parallel decompression neither for the index creation nor when the index already exists.
 The latter of which is trivial, when ignoring load balancing issues, but parallelizing even the index creation is vastly more complicated because decompressing data requires the previous 32 KiB of decompressed data to be known.
 
-After implementing a production-ready version by improving upon the algorithm used by [pugz](https://github.com/Piezoid/pugz), I submitted a [paper](Citation).
+After implementing a production-ready version by improving upon the algorithm used by [pugz](https://github.com/Piezoid/pugz), I submitted a [paper](#citation).
 The review process was double-blind and I was unsure whether to pseudonymize Pragzip because it has already been uploaded to Github.
 In the end, I used "rapidgzip" during the review process and because I was not sure, which form fields should be filled with the pseudonymized title, I simply stuck with it.
 Rapidgzip was chosen for similar reason to pragzip, namely the P and RA are acronyms for Parallel and Random Access.

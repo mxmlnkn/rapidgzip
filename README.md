@@ -42,7 +42,7 @@ The random seeking support is similar to the one provided by [indexed_gzip](http
 | rapidgzip with parallelization = 12 | 4463               | 17.7    |
 | rapidgzip with parallelization = 24 | 5240               | 20.8    |
 
-[See here for the extended Readme.](python/rapidgzip)
+[**See here for the extended Readme.**](python/rapidgzip#readme)
 
 There also exists a dedicated repository for rapidgzip [here](https://github.com/mxmlnkn/rapidgzip).
 It was created for visibility reasons and in order to keep indexed_bzip2 and rapidgzip releases separate.
@@ -83,7 +83,7 @@ The parallel decompression capabilities are similar to [lbzip2](https://lbzip2.o
 | indexed_bzip2 with parallelization = 12 |  64         | 31.4               | 6.1     |
 | indexed_bzip2 with parallelization = 24 |  63         | 31.8               | 6.1     |
 
-[See here for the extended Readme.](python/indexed_bzip2)
+[**See here for the extended Readme.**](python/indexed_bzip2#readme)
 
 
 # License

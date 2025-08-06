@@ -226,6 +226,12 @@ jobs:
         python3 -m pip install --upgrade pip || true  # Fails on macOS because of homebrew
         python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
 
+    - name: Build Examples
+      working-directory: src/examples/cmake-fetch-content
+      run: |
+        cmake -G Ninja -B build -DLIBRAPIDARCHIVE_WITH_ISAL=OFF -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=OFF .
+        cmake --build build
+
     - name: Run Tests With Sanitizers
       if: "startsWith(matrix.os , 'ubuntu')"
       run: |
