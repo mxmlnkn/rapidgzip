@@ -118,6 +118,12 @@ struct ChunkData :
                         || ( *window == *other.window ) );
         }
 
+        [[nodiscard]] bool
+        hasBeenPostProcessed() const
+        {
+            return static_cast<bool>( window ) && usedWindowSymbols.empty();
+        }
+
     public:
         size_t encodedOffset{ 0 };
         size_t decodedOffset{ 0 };
@@ -321,28 +327,37 @@ public:
         size_t decodedOffsetInBlock{ 0 };
         for ( auto& subchunk : m_subchunks ) {
             decodedOffsetInBlock += subchunk.decodedSize;
-            if ( subchunk.window ) {
-                subchunk.usedWindowSymbols = std::vector<bool>();  // Free memory just to be sure!
-                continue;
-            }
 
-            auto subchunkWindow = getWindowAt( window, decodedOffsetInBlock );
-            /* Set unused symbols to 0 to increase compressibility. */
-            if ( subchunkWindow.size() == subchunk.usedWindowSymbols.size() ) {
-                for ( size_t i = 0; i < subchunkWindow.size(); ++i ) {
-                    if ( !subchunk.usedWindowSymbols[i] ) {
-                        subchunkWindow[i] = 0;
+            if ( !subchunk.window ) {
+                auto subchunkWindow = getWindowAt( window, decodedOffsetInBlock );
+                /* Set unused symbols to 0 to increase compressibility. */
+                if ( subchunkWindow.size() == subchunk.usedWindowSymbols.size() ) {
+                    for ( size_t i = 0; i < subchunkWindow.size(); ++i ) {
+                        if ( !subchunk.usedWindowSymbols[i] ) {
+                            subchunkWindow[i] = 0;
+                        }
                     }
                 }
+                subchunk.window = std::make_shared<Window>( std::move( subchunkWindow ), windowCompressionType );
             }
             subchunk.usedWindowSymbols = std::vector<bool>();  // Free memory!
-            subchunk.window = std::make_shared<Window>( std::move( subchunkWindow ), windowCompressionType );
         }
         statistics.compressWindowDuration += duration( tWindowCompressionStart );
 
+        /* Check that it counts as fully post-processed from here on. */
         if ( !hasBeenPostProcessed() ) {
             std::stringstream message;
-            message << "[Info] Chunk is not recognized as post-processed even though it has been!\n";
+            message << "[Info] Chunk is not recognized as post-processed even though it has been!\n"
+                    << "[Info]    Subchunks : " << m_subchunks.size() << "\n"
+                    << "[Info]    Contains markers : " << containsMarkers() << "\n";
+            for ( auto& subchunk : m_subchunks ) {
+                if ( subchunk.hasBeenPostProcessed() ) {
+                    continue;
+                }
+                message << "[Info] Subchunk is not recognized as post-processed even though it has been!\n"
+                        << "[Info]    Has window : " << static_cast<bool>( subchunk.window ) << "\n"
+                        << "[Info]    Used window symbols empty : " << subchunk.usedWindowSymbols.empty() << "\n";
+            }
         #ifdef RAPIDGZIP_FATAL_PERFORMANCE_WARNINGS
             throw std::logic_error( std::move( message ).str() );
         #else
@@ -445,15 +460,17 @@ public:
         }
     }
 
+    /**
+     * @return When true is returned, @ref GzipChunkFetcher will queue the call to @ref applyWindow in the thread pool.
+     *         After the call to @ref applyWindow, this function must return true!
+     */
     [[nodiscard]] bool
     hasBeenPostProcessed() const
     {
-        const auto subchunkHasBeenProcessed =
-            [] ( const auto& subchunk ) {
-                return static_cast<bool>( subchunk.window ) && subchunk.usedWindowSymbols.empty();
-            };
         return !m_subchunks.empty() && !containsMarkers()
-               && std::all_of( m_subchunks.begin(), m_subchunks.end(), subchunkHasBeenProcessed );
+               && std::all_of( m_subchunks.begin(), m_subchunks.end(), [this] ( const auto& subchunk ) {
+                      return subchunk.hasBeenPostProcessed();
+                  } );
     }
 
     [[nodiscard]] const std::vector<Subchunk>&
