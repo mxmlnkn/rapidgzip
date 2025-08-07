@@ -190,6 +190,7 @@ public:
     template<typename InflateWrapper>
     [[nodiscard]] static ChunkData
     decodeChunkWithInflateWrapper( UniqueFileReader          && sharedFileReader,
+                                   size_t                 const encodedOffsetInBits,
                                    size_t                 const exactUntilOffset,
                                    WindowView             const initialWindow,
                                    std::optional<size_t>  const decodedSize,
@@ -198,6 +199,7 @@ public:
         const auto tStart = now();
 
         ChunkData result{ chunkDataConfiguration };
+        result.encodedOffsetInBits = encodedOffsetInBits;
 
         gzip::BitReader bitReader( std::move( sharedFileReader ) );
         bitReader.seek( result.encodedOffsetInBits );
@@ -668,15 +670,13 @@ public:
 
             const auto fileSize = sharedFileReader->size();
             const auto window = initialWindow->decompress();
-
-            auto configuration = chunkDataConfiguration;
-            configuration.encodedOffsetInBits = blockOffset;
             auto result = decodeChunkWithInflateWrapper<InflateWrapper>(
                 std::move( sharedFileReader ),
+                blockOffset,
                 fileSize ? std::min( untilOffset, *fileSize * BYTE_SIZE ) : untilOffset,
                 *window,
                 decodedSize,
-                configuration );
+                chunkDataConfiguration );
 
             if ( decodedSize && ( result.decodedSizeInBytes != *decodedSize ) ) {
                 std::stringstream message;

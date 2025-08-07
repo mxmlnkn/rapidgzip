@@ -345,7 +345,6 @@ testWikidataException( const std::filesystem::path& rootFolder )
     ChunkData::Configuration chunkDataConfiguration;
     chunkDataConfiguration.crc32Enabled = true;
     chunkDataConfiguration.fileType = FileType::GZIP;
-    chunkDataConfiguration.encodedOffsetInBits = startOffset;
 
     /* This did throw because it checks whether the exactUntilOffset has been reached. However, when a decoded size
      * is specified, it is used as a stop criterium. This means that for ISA-L the very last symbol, the end-of-block
@@ -354,7 +353,8 @@ testWikidataException( const std::filesystem::path& rootFolder )
      * is also given the exactUntilOffset and does not move more bits than that to the ISA-L input buffers. */
     const auto chunk =
         GzipChunk<ChunkData>::decodeChunkWithInflateWrapper<InflateWrapper>(
-            std::move( sharedFileReader ), exactUntilOffset, initialWindow, decodedSize, chunkDataConfiguration );
+            std::move( sharedFileReader ), startOffset, exactUntilOffset, initialWindow, decodedSize,
+            chunkDataConfiguration );
 
     REQUIRE_EQUAL( chunk.encodedSizeInBits, exactUntilOffset );
     REQUIRE_EQUAL( chunk.decodedSizeInBytes, decodedSize );
@@ -491,12 +491,12 @@ decodeWithDecodeBlockWithInflateWrapper( UniqueFileReader&& fileReader )
 
     ChunkData::Configuration chunkDataConfiguration;
     chunkDataConfiguration.crc32Enabled = true;
-    chunkDataConfiguration.encodedOffsetInBits = streamOffset;
     chunkDataConfiguration.fileType = FileType::GZIP;
 
     const auto exactUntilOffset = sharedFileReader->size().value() * BYTE_SIZE;
     return GzipChunk<ChunkData>::decodeChunkWithInflateWrapper<InflateWrapper>(
         std::move( sharedFileReader ),
+        streamOffset,
         exactUntilOffset,
         /* window */ {},
         /* decodedSize */ std::nullopt,
@@ -722,7 +722,6 @@ testBlockBoundaries( const std::filesystem::path&      filePath,
         ChunkData::Configuration chunkDataConfiguration;
         chunkDataConfiguration.crc32Enabled = false;
         chunkDataConfiguration.fileType = FileType::GZIP;
-        chunkDataConfiguration.encodedOffsetInBits = chunkOffset;
 
         gzip::BitReader bitReader{ sharedFileReader->clone() };
         bitReader.seek( chunkOffset );
@@ -840,7 +839,7 @@ getSparseWindowByBruteForce( gzip::BitReader&              bitReader,
     ChunkData::Configuration chunkDataConfiguration;
     chunkDataConfiguration.crc32Enabled = false;
     chunkDataConfiguration.fileType = FileType::GZIP;
-    chunkDataConfiguration.encodedOffsetInBits = bitReader.tell();
+    const auto encodedOffsetInBits = bitReader.tell();
 
     const auto chunkData = GzipChunk<ChunkData>::decodeChunkWithRapidgzip(
         &bitReader, /* untilOffset */ std::numeric_limits<size_t>::max(), window, chunkDataConfiguration );
@@ -850,7 +849,7 @@ getSparseWindowByBruteForce( gzip::BitReader&              bitReader,
     for ( size_t i = 0; i < window.size(); ++i ) {
         sparseWindow[i] = 0;
 
-        bitReader.seek( chunkDataConfiguration.encodedOffsetInBits );
+        bitReader.seek( encodedOffsetInBits );
         const auto sparseChunkData = GzipChunk<ChunkData>::decodeChunkWithRapidgzip(
             &bitReader, /* untilOffset */ std::numeric_limits<size_t>::max(), sparseWindow, chunkDataConfiguration );
 
@@ -923,10 +922,9 @@ testUsedWindowSymbolsWithFile( const std::filesystem::path& filePath )
     ChunkData::Configuration chunkDataConfiguration;
     chunkDataConfiguration.crc32Enabled = false;
     chunkDataConfiguration.fileType = FileType::GZIP;
-    chunkDataConfiguration.encodedOffsetInBits = getBlockOffset( filePath, 0 );  /* This skips the gzip header. */
 
     gzip::BitReader bitReader{ sharedFileReader->clone() };
-    bitReader.seek( chunkDataConfiguration.encodedOffsetInBits );
+    bitReader.seek( getBlockOffset( filePath, 0 ) /* This skips the gzip header. */ );
     /* decodeChunkWithInflateWrapper is not tested because it always returns 0 because chunk splitting and
      * such is not assumed to be necessary anymore for those decoding functions that are only called with a
      * window and an exact until offset. */
@@ -938,8 +936,7 @@ testUsedWindowSymbolsWithFile( const std::filesystem::path& filePath )
 
     /* Try decoding from each block boundary with full windows. */
     for ( const auto boundary : chunkData.blockBoundaries ) {
-        chunkDataConfiguration.encodedOffsetInBits = boundary.encodedOffset;
-        bitReader.seek( chunkDataConfiguration.encodedOffsetInBits );
+        bitReader.seek( boundary.encodedOffset );
 
         const auto window = chunkData.getWindowAt( {}, boundary.decodedOffset );
         const auto partialChunkData = GzipChunk<ChunkData>::decodeChunkWithRapidgzip(
@@ -955,12 +952,11 @@ testUsedWindowSymbolsWithFile( const std::filesystem::path& filePath )
 
     /* Try decoding from each block boundary with sparse windows. */
     for ( const auto boundary : chunkData.blockBoundaries ) {
-        chunkDataConfiguration.encodedOffsetInBits = boundary.encodedOffset;
-        bitReader.seek( chunkDataConfiguration.encodedOffsetInBits );
+        bitReader.seek( boundary.encodedOffset );
         const auto window = chunkData.getWindowAt( {}, boundary.decodedOffset );
         const auto sparseWindow = deflate::getSparseWindow( bitReader, window );
 
-        bitReader.seek( chunkDataConfiguration.encodedOffsetInBits );
+        bitReader.seek( boundary.encodedOffset );
         const auto partialChunkData = GzipChunk<ChunkData>::decodeChunkWithRapidgzip(
             &bitReader, /* untilOffset */ std::numeric_limits<size_t>::max(), sparseWindow, chunkDataConfiguration );
 
@@ -977,16 +973,15 @@ testUsedWindowSymbolsWithFile( const std::filesystem::path& filePath )
     for ( const auto boundary : chunkData.blockBoundaries ) {
         std::cerr << "    Test sparse window at block offset " << boundary.encodedOffset << "\n";
 
-        chunkDataConfiguration.encodedOffsetInBits = boundary.encodedOffset;
         auto window = chunkData.getWindowAt( {}, boundary.decodedOffset );
 
-        bitReader.seek( chunkDataConfiguration.encodedOffsetInBits );
+        bitReader.seek( boundary.encodedOffset );
         const auto usedWindowSymbols = deflate::getUsedWindowSymbols( bitReader );
 
     #if 0
         /* This is really time-consuming. Therefore do not run it continuously. */
 
-        bitReader.seek( chunkDataConfiguration.encodedOffsetInBits );
+        bitReader.seek( boundary.encodedOffset );
         const auto bruteSparseWindow = getSparseWindowByBruteForce( bitReader, window );
 
         const auto windowUsedRanges = findRanges( usedWindowSymbols, [] ( auto value ) { return value; } );
@@ -1023,7 +1018,7 @@ testUsedWindowSymbolsWithFile( const std::filesystem::path& filePath )
         std::cerr << message.str();
     #endif
 
-        bitReader.seek( chunkDataConfiguration.encodedOffsetInBits );
+        bitReader.seek( boundary.encodedOffset );
         const auto partialChunkData = GzipChunk<ChunkData>::decodeChunkWithRapidgzip(
             &bitReader, /* untilOffset */ std::numeric_limits<size_t>::max(), window, chunkDataConfiguration );
 

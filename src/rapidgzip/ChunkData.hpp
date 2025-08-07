@@ -96,7 +96,6 @@ struct ChunkData :
 
     struct Configuration
     {
-        size_t encodedOffsetInBits{ std::numeric_limits<size_t>::max() };
         size_t splitChunkSize{ std::numeric_limits<size_t>::max() };
         FileType fileType{ FileType::NONE };
         bool crc32Enabled{ true };
@@ -178,7 +177,6 @@ struct ChunkData :
 public:
     explicit
     ChunkData( const Configuration& configuration ) :
-        encodedOffsetInBits( configuration.encodedOffsetInBits ),
         fileType( configuration.fileType ),
         splitChunkSize( configuration.splitChunkSize ),
         windowSparsity( configuration.windowSparsity ),
