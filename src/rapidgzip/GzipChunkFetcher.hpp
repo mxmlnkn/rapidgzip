@@ -103,11 +103,6 @@ public:
             }
             m_windowMap->emplace( *firstBlockInStream, {}, CompressionType::NONE );
         }
-
-        /* Choose default value for CRC32 enable flag. Can still be overwritten by the setter. */
-        if ( hasCRC32( m_blockFinder->fileType() ) ) {
-            m_crc32Enabled = false;
-        }
     }
 
     ~GzipChunkFetcher() override
@@ -195,13 +190,7 @@ public:
             out << "        Total Real Decode Duration    : " << decodeDuration << " s\n";
             out << "        Theoretical Optimal Duration  : " << optimalDecodeDuration << " s\n";
             out << "        Pool Efficiency (Fill Factor) : " << poolEfficiency * 100 << " %\n";
-
-            out << "    CRC32 enabled      : " << m_crc32Enabled.load() << "\n";
             out << "    BGZF file          : " << m_isBgzfFile << "\n";
-            out << "    Window compression : " << ( m_windowCompressionType
-                                                    ? toString( *m_windowCompressionType )
-                                                    : std::string( "Default" ) ) << "\n";
-            out << "    Window sparsity    : " << m_windowSparsity << "\n";
 
             std::cerr << std::move( out ).str();
         }
@@ -234,30 +223,16 @@ public:
         return std::make_pair( blockInfo.decodedOffsetInBytes, chunkData );
     }
 
+    /**
+     * Sets a default ChunkData::Configuration to be used for initializing the argument given to the static
+     * @ref decodeBlock implementation. Many members will not have an effect and will be overwritten though:
+     * crc32Enabled, encodedOffsetInBits, splitChunkSize (might make sense to not change this),
+     */
     void
-    setCRC32Enabled( bool enabled )
+    setChunkConfiguration( const ChunkConfiguration configuration )
     {
-        m_crc32Enabled = enabled;
-    }
-
-    void
-    setMaxDecompressedChunkSize( size_t maxDecompressedChunkSize )
-    {
-        m_maxDecompressedChunkSize = maxDecompressedChunkSize;
-    }
-
-    [[nodiscard]] size_t
-    maxDecompressedChunkSize() const
-    {
-        return m_maxDecompressedChunkSize;
-    }
-
-    void
-    setWindowCompressionType( std::optional<CompressionType> windowCompressionType,
-                              bool                           useSparseWindows )
-    {
-        m_windowCompressionType = windowCompressionType;
-        m_windowSparsity = useSparseWindows;
+        const std::scoped_lock lock{ m_chunkConfigurationMutex };
+        m_chunkConfiguration = configuration;
     }
 
     /**
@@ -722,12 +697,12 @@ private:
         const auto blockInfo = m_blockMap->getEncodedOffset( blockOffset );
 
         ChunkConfiguration chunkDataConfiguration;
-        chunkDataConfiguration.crc32Enabled = m_crc32Enabled;
+        {
+            const std::scoped_lock lock{ m_chunkConfigurationMutex };
+            chunkDataConfiguration = m_chunkConfiguration;
+        }
         chunkDataConfiguration.fileType = m_blockFinder->fileType();
         chunkDataConfiguration.splitChunkSize = m_blockFinder->spacingInBits() / 8U;
-        chunkDataConfiguration.windowCompressionType = m_windowCompressionType;
-        chunkDataConfiguration.windowSparsity = m_windowSparsity;
-        chunkDataConfiguration.maxDecompressedChunkSize = m_maxDecompressedChunkSize;
 
         /* If we are a BGZF file and we have not imported an index, then we can assume the
          * window to be empty because we should only get offsets at gzip stream starts.
@@ -785,7 +760,6 @@ private:
     mutable Statistics m_statistics;
 
     std::atomic<bool> m_cancelThreads{ false };
-    std::atomic<bool> m_crc32Enabled{ true };
 
     /* Variables required by decodeBlock and which therefore should be either const or locked. */
     const UniqueSharedFileReader m_sharedFileReader;
@@ -794,7 +768,9 @@ private:
     std::shared_ptr<WindowMap> const m_windowMap;
 
     const bool m_isBgzfFile;
-    std::atomic<size_t> m_maxDecompressedChunkSize{ std::numeric_limits<size_t>::max() };
+
+    mutable std::mutex m_chunkConfigurationMutex;
+    ChunkConfiguration m_chunkConfiguration;
 
     /* This is the highest found block inside BlockFinder we ever processed and put into the BlockMap.
      * After the BlockMap has been finalized, this isn't needed anymore. */
@@ -804,8 +780,6 @@ private:
     std::unordered_map</* block offset */ size_t, /* block offset of unsplit "parent" chunk */ size_t> m_unsplitBlocks;
 
     PostProcessingFutures m_markersBeingReplaced;
-    std::optional<CompressionType> m_windowCompressionType;
-    bool m_windowSparsity{ true };
 
     std::list<ProcessChunk> m_indexFirstSeenChunkCallbacks;
 };

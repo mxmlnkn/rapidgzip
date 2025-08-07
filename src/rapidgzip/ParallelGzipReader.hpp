@@ -73,6 +73,7 @@ class ParallelGzipReader final :
 {
 public:
     using ChunkData = T_ChunkData;
+    using ChunkConfiguration = typename ChunkData::Configuration;
     /**
      * The fetching strategy should support parallelization via prefetching for sequential accesses while
      * avoiding a lot of useless prefetches for random or multi-stream sequential accesses like those occurring
@@ -278,7 +279,6 @@ public:
                         size_t           parallelization = 0,
                         uint64_t         chunkSizeInBytes = 4_Mi ) :
         m_chunkSizeInBytes( std::max( 8_Ki, chunkSizeInBytes ) ),
-        m_maxDecompressedChunkSize( 20U * m_chunkSizeInBytes ),
         m_sharedFileReader( ensureSharedFileReader( std::move( fileReader ) ) ),
         m_fetcherParallelization( parallelization == 0 ? availableCores() : parallelization ),
         m_startBlockFinder(
@@ -289,6 +289,8 @@ public:
             }
         )
     {
+        setMaxDecompressedChunkSize( 20U * m_chunkSizeInBytes );
+
         const auto fileSize = m_sharedFileReader->size();
         if ( fileSize && ( m_chunkSizeInBytes * 2U * parallelization > *fileSize ) ) {
             /* Use roughly as many chunks as there is parallelization.
@@ -356,10 +358,18 @@ public:
     ~ParallelGzipReader() override
     {
         if ( m_showProfileOnDestruction && m_statisticsEnabled ) {
-            std::cerr << "[ParallelGzipReader] Time spent:";
-            std::cerr << "\n    Writing to output         : " << m_writeOutputTime << " s";
-            std::cerr << "\n    Computing CRC32           : " << m_crc32Time << " s";
-            std::cerr << "\n    Number of verified CRC32s : " << m_verifiedCRC32Count;
+            std::stringstream out;
+            out << std::boolalpha;
+            out << "[ParallelGzipReader] Time spent:\n";
+            out << "    Writing to output         : " << m_writeOutputTime << " s\n";
+            out << "    Computing CRC32           : " << m_crc32Time << " s\n";
+            out << "    Number of verified CRC32s : " << m_verifiedCRC32Count << "\n";
+            out << "\nChunk Configuration:\n";
+            out << "    CRC32 enabled      : " << m_crc32.enabled() << "\n";
+            out << "    Window compression : " << ( m_windowCompressionType
+                                                    ? toString( *m_windowCompressionType )
+                                                    : std::string( "Default" ) ) << "\n";
+            out << "    Window sparsity    : " << m_windowSparsity << "\n";
             std::cerr << std::endl;
         }
     }
@@ -823,9 +833,7 @@ public:
         }
 
         m_crc32.setEnabled( enabled && ( tell() == 0 ) );
-        if ( m_chunkFetcher ) {
-            m_chunkFetcher->setCRC32Enabled( m_crc32.enabled() );
-        }
+        applyChunkDataConfiguration();
     }
 
     void
@@ -833,16 +841,14 @@ public:
     {
         /* Anything smaller than the chunk size doesn't make much sense. Even that would be questionable.
          * as it would lead to slow downs in almost every case. */
-        m_maxDecompressedChunkSize = std::max( m_chunkSizeInBytes, maxDecompressedChunkSize );
-        if ( m_chunkFetcher ) {
-            m_chunkFetcher->setMaxDecompressedChunkSize( m_maxDecompressedChunkSize );
-        }
+        m_chunkConfiguration.maxDecompressedChunkSize = std::max( m_chunkSizeInBytes, maxDecompressedChunkSize );
+        applyChunkDataConfiguration();
     }
 
     [[nodiscard]] uint64_t
     maxDecompressedChunkSize() const noexcept
     {
-        return m_maxDecompressedChunkSize;
+        return m_chunkConfiguration.maxDecompressedChunkSize;
     }
 
     [[nodiscard]] const std::optional<NewlineFormat>&
@@ -1197,21 +1203,21 @@ public:
     setKeepIndex( bool keep )
     {
         m_keepIndex = keep;
-        updateWindowCompression();
+        applyChunkDataConfiguration();
     }
 
     void
     setWindowSparsity( bool useSparseWindows )
     {
         m_windowSparsity = useSparseWindows;
-        updateWindowCompression();
+        applyChunkDataConfiguration();
     }
 
     void
     setWindowCompressionType( CompressionType windowCompressionType )
     {
         m_windowCompressionType = windowCompressionType;
-        updateWindowCompression();
+        applyChunkDataConfiguration();
     }
 
     [[nodiscard]] std::string
@@ -1235,13 +1241,19 @@ public:
 
 private:
     void
-    updateWindowCompression()
+    applyChunkDataConfiguration()
     {
-        if ( m_chunkFetcher ) {
-            m_chunkFetcher->setWindowCompressionType(
-                m_keepIndex ? m_windowCompressionType : std::make_optional( CompressionType::NONE ),
-                m_keepIndex && m_windowSparsity /* Window sparsity only makes sense when keeping the index. */ );
+        if ( !m_chunkFetcher ) {
+            return;
         }
+
+        m_chunkConfiguration.crc32Enabled = m_crc32.enabled();
+        m_chunkConfiguration.windowCompressionType =
+            m_keepIndex ? m_windowCompressionType : std::make_optional( CompressionType::NONE );
+        /* Window sparsity only makes sense when keeping the index. */
+        m_chunkConfiguration.windowSparsity = m_keepIndex && m_windowSparsity;
+
+        m_chunkFetcher->setChunkConfiguration( m_chunkConfiguration );
     }
 
     BlockFinder&
@@ -1281,16 +1293,13 @@ private:
         m_chunkFetcher = std::make_unique<ChunkFetcher>( ensureSharedFileReader( m_sharedFileReader->clone() ),
                                                          m_blockFinder, m_blockMap, m_windowMap,
                                                          m_fetcherParallelization );
-
         if ( !m_chunkFetcher ) {
             throw std::logic_error( "Block fetcher should have been initialized!" );
         }
 
-        m_chunkFetcher->setCRC32Enabled( m_crc32.enabled() );
-        m_chunkFetcher->setMaxDecompressedChunkSize( m_maxDecompressedChunkSize );
         m_chunkFetcher->setShowProfileOnDestruction( m_showProfileOnDestruction );
         m_chunkFetcher->setStatisticsEnabled( m_statisticsEnabled );
-        updateWindowCompression();
+        applyChunkDataConfiguration();
 
         return *m_chunkFetcher;
     }
@@ -1370,7 +1379,7 @@ private:
 
 private:
     uint64_t m_chunkSizeInBytes{ 4_Mi };
-    uint64_t m_maxDecompressedChunkSize{ std::numeric_limits<size_t>::max() };
+    ChunkConfiguration m_chunkConfiguration;
 
     std::unique_ptr<SharedFileReader> m_sharedFileReader;
 
