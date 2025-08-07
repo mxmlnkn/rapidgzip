@@ -109,6 +109,7 @@ struct ChunkData :
          * dynamic checks for stopping decompression preemptively, e.g., if the decompressed data is known to be wrong.
          */
         size_t maxDecompressedChunkSize{ std::numeric_limits<size_t>::max() };
+        std::optional<char> newlineCharacter{};
     };
 
     struct Subchunk
@@ -120,15 +121,17 @@ struct ChunkData :
                    && ( decodedOffset == other.decodedOffset )
                    && ( encodedSize == other.encodedSize )
                    && ( decodedSize == other.decodedSize )
+                   && ( newlineCount == other.newlineCount )
                    && ( static_cast<bool>( window ) == static_cast<bool>( other.window ) )
                    && ( !static_cast<bool>( window ) || !static_cast<bool>( other.window )
                         || ( *window == *other.window ) );
         }
 
         [[nodiscard]] bool
-        hasBeenPostProcessed() const
+        hasBeenPostProcessed( const bool requireNewlineCount ) const
         {
-            return static_cast<bool>( window ) && usedWindowSymbols.empty();
+            return static_cast<bool>( window ) && usedWindowSymbols.empty()
+                   && ( newlineCount.has_value() || !requireNewlineCount );
         }
 
     public:
@@ -136,6 +139,7 @@ struct ChunkData :
         size_t decodedOffset{ 0 };
         size_t encodedSize{ 0 };
         size_t decodedSize{ 0 };
+        std::optional<size_t> newlineCount{};
         SharedWindow window{};
         std::vector<bool> usedWindowSymbols{};
     };
@@ -344,6 +348,21 @@ public:
                 subchunk.window = std::make_shared<Window>( std::move( subchunkWindow ), windowCompressionType );
             }
             subchunk.usedWindowSymbols = std::vector<bool>();  // Free memory!
+
+            /* Count lines if requested. */
+            if ( configuration.newlineCharacter && !subchunk.newlineCount ) {
+                size_t newlineCount = 0;
+                using rapidgzip::deflate::DecodedData;
+                for ( auto it = DecodedData::Iterator( *this, subchunk.decodedOffset, subchunk.decodedSize );
+                      static_cast<bool>( it ); ++it )
+                {
+                    const auto& [buffer, size] = *it;
+                    newlineCount += std::count( reinterpret_cast<const char*>( buffer ),
+                                                reinterpret_cast<const char*>( buffer ) + size,
+                                                configuration.newlineCharacter.value() );
+                }
+                subchunk.newlineCount = newlineCount;
+            }
         }
         statistics.compressWindowDuration += duration( tWindowCompressionStart );
 
@@ -354,12 +373,17 @@ public:
                     << "[Info]    Subchunks : " << m_subchunks.size() << "\n"
                     << "[Info]    Contains markers : " << containsMarkers() << "\n";
             for ( auto& subchunk : m_subchunks ) {
-                if ( subchunk.hasBeenPostProcessed() ) {
+                if ( subchunk.hasBeenPostProcessed( configuration.newlineCharacter.has_value() ) ) {
                     continue;
                 }
                 message << "[Info] Subchunk is not recognized as post-processed even though it has been!\n"
                         << "[Info]    Has window : " << static_cast<bool>( subchunk.window ) << "\n"
-                        << "[Info]    Used window symbols empty : " << subchunk.usedWindowSymbols.empty() << "\n";
+                        << "[Info]    Used window symbols empty : " << subchunk.usedWindowSymbols.empty() << "\n"
+                        << "[Info]    Has newline count : " << subchunk.newlineCount.has_value() << "\n";
+                if ( configuration.newlineCharacter.has_value() ) {
+                    message << "[Info]    Newline character : " << static_cast<int>( subchunk.newlineCount.value() )
+                            << "\n";
+                }
             }
         #ifdef RAPIDGZIP_FATAL_PERFORMANCE_WARNINGS
             throw std::logic_error( std::move( message ).str() );
@@ -473,7 +497,7 @@ public:
     {
         return !m_subchunks.empty() && !containsMarkers()
                && std::all_of( m_subchunks.begin(), m_subchunks.end(), [this] ( const auto& subchunk ) {
-                      return subchunk.hasBeenPostProcessed();
+                      return subchunk.hasBeenPostProcessed( configuration.newlineCharacter.has_value() );
                   } );
     }
 

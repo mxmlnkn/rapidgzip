@@ -123,6 +123,20 @@ printIndexAnalytics( const Reader& reader )
                   << "    Total Compressed Window Size: " << formatBytes( compressedWindowSize ) << "\n"
                   << "    Total Decompressed Window Size: " << formatBytes( decompressedWindowSize ) << "\n";
     }
+
+    const auto& newlineOffsets = reader->newlineOffsets();
+    if ( !newlineOffsets.empty() ) {
+        /* The newline offsets in the index must be sorted! This is a sanity check for debugging. */
+        const auto lessLineOffset = [] ( const auto& a, const auto& b ) { return a.lineOffset < b.lineOffset; };
+        const auto sorted = std::is_sorted( newlineOffsets.begin(), newlineOffsets.end(), lessLineOffset );
+        std::cerr << "    Newline Offsets Sorted: " << std::boolalpha << sorted << "\n";
+
+        const auto maxLineOffset = std::accumulate(
+            newlineOffsets.begin(), newlineOffsets.end(), uint64_t( 0 ), [] ( auto a, auto offset ) {
+                return std::max( a, offset.lineOffset );
+            } );
+        std::cerr << "    Largest Newline Offset: " << maxLineOffset << "\n";
+    }
 }
 
 
@@ -143,11 +157,16 @@ decompressParallel( const Arguments&   args,
     using Reader = rapidgzip::ParallelGzipReader<ChunkData>;
     auto reader = std::make_unique<Reader>( std::move( inputFile ), args.decoderParallelism, args.chunkSize );
 
+    const auto gatherLineOffsets =
+        args.gatherLineOffsets
+        || ( !args.indexSavePath.empty() && ( args.indexFormat == IndexFormat::GZTOOL_WITH_LINES ) );
+
     reader->setStatisticsEnabled( args.verbose );
     reader->setShowProfileOnDestruction( args.verbose );
     reader->setCRC32Enabled( args.crc32Enabled );
     reader->setKeepIndex( !args.indexSavePath.empty() || !args.indexLoadPath.empty() || args.keepIndex );
     reader->setWindowSparsity( args.windowSparsity );
+    reader->setNewlineCharacter( gatherLineOffsets ? std::make_optional( '\n' ) : std::nullopt );
     if ( ( args.indexFormat == IndexFormat::GZTOOL ) || ( args.indexFormat == IndexFormat::GZTOOL_WITH_LINES ) ) {
         /* Compress with zlib instead of gzip to avoid recompressions when exporting the index. */
         reader->setWindowCompressionType( CompressionType::ZLIB );
@@ -161,9 +180,10 @@ decompressParallel( const Arguments&   args,
         }
     }
 
-    if ( args.gatherLineOffsets
-         || ( !args.indexSavePath.empty() && ( args.indexFormat == IndexFormat::GZTOOL_WITH_LINES ) ) )
-    {
+    /* If we have file ranges referencing newlines we have to gather newlines before calling readFunctor. */
+    const auto hasNewlineRange = args.fileRanges && std::any_of( args.fileRanges->begin(), args.fileRanges->end(),
+        [] ( const auto& range ) { return ( range.size > 0 ) && ( range.offsetIsLine || range.sizeIsLine ); } );
+    if ( gatherLineOffsets && hasNewlineRange ) {
         reader->gatherLineOffsets();
     }
 
@@ -171,6 +191,11 @@ decompressParallel( const Arguments&   args,
         readFunctor( reader );
     } catch ( const BrokenPipeException& ) {
         return DecompressErrorCode::BROKEN_PIPE;
+    }
+
+    /* Ensure that we have the line offsets because the readFunctor is not required to read the whole file. */
+    if ( gatherLineOffsets ) {
+        reader->gatherLineOffsets();
     }
 
     if ( !args.indexSavePath.empty() ) {
@@ -627,7 +652,7 @@ rapidgzipCLI( int                  argc,
                   const auto&  writeFunctor )
             {
                 size_t lastLineOffset = reader->tell();
-                const auto newlineCharacter = reader->newlineFormat() == NewlineFormat::LINE_FEED ? '\n' : '\r';
+                const auto newlineCharacter = reader->newlineCharacter().value_or( '\n' );
                 auto remainingLineCount = lineCount;
 
                 const auto forwardLineWrites =
@@ -702,10 +727,9 @@ rapidgzipCLI( int                  argc,
                     }
 
                     if ( ( ( range.offsetIsLine && ( range.offset > 0 ) ) || range.sizeIsLine )
-                         && !reader->newlineFormat() )
+                         && reader->newlineOffsets().empty() )
                     {
-                        throw std::invalid_argument( "Currently, seeking and reading lines only works when "
-                                                     "importing gztool indexes created with -x or -X!" );
+                        throw std::logic_error( "There should be newline offset information at this point!" );
                     }
 
                     /* Seek to line or byte offset. Note that line 0 starts at byte 0 by definition. */

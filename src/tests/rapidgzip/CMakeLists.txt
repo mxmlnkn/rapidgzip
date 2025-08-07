@@ -5,6 +5,14 @@ function(addRapidgzipTest name)
     target_compile_definitions(${name} PRIVATE RAPIDGZIP_FATAL_PERFORMANCE_WARNINGS)
     add_test(NAME ${name} COMMAND ${name})
     add_dependencies(all_tests ${name})
+
+    # macos-13 ASAN is very slow!
+    # 24/28 Test #19: testGzipChunk ....................   Passed  127.72 sec
+    # 25/28 Test #21: testPrecodeCheck .................   Passed  460.81 sec
+    # 26/28 Test #26: testGzip .........................   Passed  758.07 sec
+    # 27/28 Test #27: testParallelGzipReader ...........***Timeout 1500.55 sec
+    # 28/28 Test #28: testCLI ..........................   Passed  1434.14 sec
+    set_tests_properties(${name} PROPERTIES TIMEOUT 3000)
 endfunction()
 
 

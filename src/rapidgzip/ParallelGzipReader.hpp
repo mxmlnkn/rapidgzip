@@ -753,11 +753,24 @@ public:
         index.windowSizeInBytes = 32_Ki;
 
         if ( withLineOffsets ) {
-            if ( !m_newlineFormat ) {
+            if ( !m_newlineCharacter ) {
                 throw std::runtime_error( "Cannot add line offsets to index when they were not gathered!" );
             }
             index.hasLineOffsets = true;
-            index.newlineFormat = m_newlineFormat.value();
+
+            switch ( m_newlineCharacter.value() )
+            {
+            case '\n':
+                index.newlineFormat = NewlineFormat::LINE_FEED;
+                break;
+            case '\r':
+                index.newlineFormat = NewlineFormat::CARRIAGE_RETURN;
+                break;
+            default:
+                throw std::runtime_error(
+                    "Cannot add line offsets to index when the gathered line offsets gathered are something "
+                    "other than newline or carriage return!" );
+            }
         }
 
         /* Heuristically determine a checkpoint spacing from the existing checkpoints. */
@@ -851,10 +864,31 @@ public:
         return m_chunkConfiguration.maxDecompressedChunkSize;
     }
 
-    [[nodiscard]] const std::optional<NewlineFormat>&
-    newlineFormat() const noexcept
+    /**
+     * Must only be changed before doing any read call! Else, some of the chunks will already have been processed
+     * with the existing newline format.
+     *
+     * @param newlineCharacter If nullopt, newline counting will be disabled.
+     */
+    void
+    setNewlineCharacter( const std::optional<char>& newlineCharacter )
     {
-        return m_newlineFormat;
+        if ( newlineCharacter == m_newlineCharacter ) {
+            return;
+        }
+
+        /* The check could be improved here, e.g., check for queued futures. */
+        if ( !m_newlineOffsets.empty() || ( m_blockMap && !m_blockMap->empty() ) ) {
+            throw std::invalid_argument( "May not change newline counting behavior after some chunks have been read!" );
+        }
+        m_newlineCharacter = newlineCharacter;
+        applyChunkDataConfiguration();
+    }
+
+    [[nodiscard]] std::optional<char>
+    newlineCharacter() const noexcept
+    {
+        return m_newlineCharacter;
     }
 
     [[nodiscard]] const std::vector<NewlineOffset>&
@@ -915,8 +949,19 @@ public:
         m_indexIsImported = true;
         m_keepIndex = true;
 
-        if ( index.hasLineOffsets ) {
-            m_newlineFormat = index.newlineFormat;
+        std::optional<char> newlineCharacter;
+        switch ( index.newlineFormat )
+        {
+        case NewlineFormat::LINE_FEED:
+            newlineCharacter = '\n';
+            break;
+        case NewlineFormat::CARRIAGE_RETURN:
+            newlineCharacter = '\r';
+            break;
+        }
+
+        if ( index.hasLineOffsets && newlineCharacter ) {
+            m_newlineCharacter = newlineCharacter;
             m_newlineOffsets.resize( index.checkpoints.size() );
             std::transform( index.checkpoints.begin(), index.checkpoints.end(), m_newlineOffsets.begin(),
                             [] ( const auto& checkpoint ) {
@@ -926,7 +971,7 @@ public:
                 return newlineOffset;
             } );
 
-            /* Checkpoints should already be sorted and therefore also the newline offsets, but just to be sure.
+            /* Checkpoints should already be sorted and therefore also the newline offsets. Check just to be sure.
              * We are not sorting here because it may be impossible to sort by line offsets and uncompressed offsets
              * for inconsistent index data! */
             const auto lessLineOffset = [] ( const auto& a, const auto& b ) { return a.lineOffset < b.lineOffset; };
@@ -1067,32 +1112,43 @@ public:
 #endif
 
     void
-    gatherLineOffsets( NewlineFormat newlineFormat = NewlineFormat::LINE_FEED )
+    gatherLineOffsets()
     {
         /* Check whether the newline information has already been collected from an imported index or earlier call. */
-        if ( m_newlineFormat && !m_newlineOffsets.empty() ) {
+        if ( !m_newlineCharacter ) {
             return;
         }
 
         const Finally restorePosition{ [this, oldOffset = tell()] () { seek( oldOffset ); } };
-        seekTo( 0 );
 
-        m_newlineFormat = newlineFormat;
+        /* If it was already toggled on, simply read until the end to gather all offsets. */
+        if ( !blockOffsetsComplete() ) {
+            read();
+            return;
+        }
+
+        /* Block offset is complete, check if line offsets are complete by checking the last one. */
+        uint64_t processedBytes{ m_newlineOffsets.empty() ? 0 : m_newlineOffsets.back().uncompressedOffsetInBytes };
+        if ( const auto fileSize = size(); fileSize && !m_newlineOffsets.empty() && ( processedBytes >= fileSize ) ) {
+            return;
+        }
+
+        /* This may be necessary when the block map has been finalized because an index without line information
+         * has been imported! In that case, we need to gather line information manually like a user would. */
 
         /* Collect line offsets until the next chunk offset has been added to the map. Then, we can look for the
          * line number at that exact chunk offset and insert it and clear our temporary results. */
-        uint64_t processedLines{ 0 };
+        uint64_t processedLines{ m_newlineOffsets.empty() ? 0 : m_newlineOffsets.back().lineOffset };
         /** Index i stores the byte offset for the (processedLines + i)-th line. */
         std::vector<uint64_t> newlineOffsets;
-        uint64_t processedBytes{ 0 };
-        const auto newlineCharacter = newlineFormat == NewlineFormat::LINE_FEED ? '\n' : '\r';
 
         const auto collectLineOffsets =
-            [this, &processedLines, &newlineOffsets, &processedBytes, newlineCharacter]
+            [this, &processedLines, &newlineOffsets, &processedBytes, newlineCharacter = m_newlineCharacter.value()]
             ( const std::shared_ptr<rapidgzip::ChunkData>& chunkData,
               const size_t                                 offsetInChunk,
               const size_t                                 dataToWriteSize )
             {
+                /* Iterate over the requested data range of the chunk and collect byte offsets for every newline. */
                 using rapidgzip::deflate::DecodedData;
                 for ( auto it = DecodedData::Iterator( *chunkData, offsetInChunk, dataToWriteSize );
                       static_cast<bool>( it ); ++it )
@@ -1110,12 +1166,14 @@ public:
                     processedBytes += size;
                 }
 
+                /* Iterate over all found newline offsets and start inserting an actual byte->newline offset pair
+                 * but only once per chunk to reduce the index size. */
                 auto it = newlineOffsets.begin();
                 while ( it != newlineOffsets.end() ) {
                     const auto chunkInfo = m_blockMap->findDataOffset( *it );
                     if ( !chunkInfo.contains( *it ) ) {
                         /* I don't think this can happen. It happens when the currently processed chunk
-                         * is not yet registered in the chunk map. */
+-                        * is not yet registered in the chunk map. */
                         std::cerr << "[Warning] Offset in processed chunk was not found in chunk map!\n";
                         break;
                     }
@@ -1127,9 +1185,15 @@ public:
                         newlineOffset.uncompressedOffsetInBytes = chunkInfo.decodedOffsetInBytes;
 
                         if ( !m_newlineOffsets.empty() ) {
-                            if ( m_newlineOffsets.back().uncompressedOffsetInBytes > *it ) {
-                                throw std::logic_error( "Got earlier chunk offset than the last processed one!" );
+                            if ( m_newlineOffsets.back().uncompressedOffsetInBytes >= *it ) {
+                                std::stringstream message;
+                                message << "Got earlier or equal chunk offset than the last processed one! "
+                                        << "Last newline byte offset: "
+                                        << m_newlineOffsets.back().uncompressedOffsetInBytes
+                                        << ", found newline byte offset: " << *it;
+                                throw std::logic_error( std::move( message ).str() );
                             }
+
                             if ( m_newlineOffsets.back().lineOffset > newlineOffset.lineOffset ) {
                                 throw std::logic_error( "Got earlier line offset than the last processed one!" );
                             }
@@ -1148,6 +1212,7 @@ public:
                 newlineOffsets.erase( newlineOffsets.begin(), it );
             };
 
+        seekTo( processedBytes );
         read( collectLineOffsets );
 
         /* Insert information for the end-of-file offset. */
@@ -1252,6 +1317,7 @@ private:
             m_keepIndex ? m_windowCompressionType : std::make_optional( CompressionType::NONE );
         /* Window sparsity only makes sense when keeping the index. */
         m_chunkConfiguration.windowSparsity = m_keepIndex && m_windowSparsity;
+        m_chunkConfiguration.newlineCharacter = m_newlineCharacter;
 
         m_chunkFetcher->setChunkConfiguration( m_chunkConfiguration );
     }
@@ -1299,9 +1365,56 @@ private:
 
         m_chunkFetcher->setShowProfileOnDestruction( m_showProfileOnDestruction );
         m_chunkFetcher->setStatisticsEnabled( m_statisticsEnabled );
+        m_chunkFetcher->addChunkIndexingCallback( [this] ( const auto& chunk, auto ) { gatherLineOffsets( chunk ); } );
         applyChunkDataConfiguration();
 
         return *m_chunkFetcher;
+    }
+
+    void
+    gatherLineOffsets( const std::shared_ptr<const ChunkData>& chunk )
+    {
+        if ( !m_newlineCharacter.has_value() ) {
+            return;
+        }
+
+        if ( !chunk ) {
+            throw std::logic_error( "ParallelGzipReader::gatherLineOffsets should only be called with valid chunk!" );
+        }
+
+        for ( const auto& subchunk : chunk->subchunks() ) {
+            if ( !subchunk.newlineCount ) {
+                throw std::logic_error( "Newline count in subchunk is missing!" );
+            }
+            if ( chunk->configuration.newlineCharacter != m_newlineCharacter ) {
+                throw std::logic_error( "Newline character in subchunk does not match the configured one!" );
+            }
+
+            const auto blockInfo = m_blockMap->getEncodedOffset( subchunk.encodedOffset );
+            if ( !blockInfo ) {
+                std::stringstream message;
+                message << "Failed to find subchunk offset: " << formatBits( subchunk.encodedOffset )
+                        << "even though it should have been inserted at the top of this method!";
+                throw std::logic_error( std::move( message ).str() );
+            }
+
+            if ( m_newlineOffsets.empty() ) {
+                m_newlineOffsets.emplace_back( NewlineOffset{ 0, 0 } );
+            }
+
+            const auto& lastLineCount = m_newlineOffsets.back();
+            if ( lastLineCount.uncompressedOffsetInBytes != blockInfo->decodedOffsetInBytes ) {
+                std::stringstream message;
+                message << "Did not find line count for preceding decompressed offset: "
+                        << formatBytes( blockInfo->decodedOffsetInBytes );
+                throw std::logic_error( std::move( message ).str() );
+            }
+
+            m_newlineOffsets.emplace_back( NewlineOffset{
+                lastLineCount.lineOffset + subchunk.newlineCount.value(),
+                blockInfo->decodedOffsetInBytes + subchunk.decodedSize
+            } );
+        }
     }
 
     void
@@ -1421,7 +1534,7 @@ private:
      * need to start reading from the next smaller one and skip over as many newline characters as necessary.
      */
     std::vector<NewlineOffset> m_newlineOffsets;
-    std::optional<NewlineFormat> m_newlineFormat;
+    std::optional<char> m_newlineCharacter;
 
     CRC32Calculator m_crc32;
     uint64_t m_nextCRC32ChunkOffset{ 0 };

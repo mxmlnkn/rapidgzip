@@ -88,6 +88,7 @@ testParallelDecoder( UniqueFileReader         encoded,
 
     ParallelGzipReader reader( std::move( encoded ), /* parallelization */ 0, nBlocksToSkip * 32_Ki );
     reader.setCRC32Enabled( true );
+    reader.setNewlineCharacter( '\n' );
     if ( index ) {
         reader.setBlockOffsets( std::move( *index ) );
         REQUIRE( reader.blockOffsetsComplete() );
@@ -129,6 +130,26 @@ testParallelDecoder( UniqueFileReader         encoded,
                           << (int)result[i] << " != " << (int)decodedBuffer[i] << ")\n";
                 break;
             }
+        }
+    }
+
+    if ( decodedSize > 0 ) {
+        if ( index && !index->hasLineOffsets ) {
+            /* We don't want ParalellGzipReader to be too smart for its own good. Even a call to newlineOffsets
+             * should arguably not trigger line offset gathering. The user is forced to call gatherLineOffsets
+             * for correctness! */
+            REQUIRE( reader.newlineOffsets().empty() );
+            reader.gatherLineOffsets();
+            REQUIRE( !reader.newlineOffsets().empty() );
+        }
+
+        const auto newlineCount = std::count( decodedBuffer.begin(), decodedBuffer.end(), '\n' );
+        const auto& newlineOffsets = reader.newlineOffsets();
+
+        REQUIRE( !newlineOffsets.empty() );
+        if ( !newlineOffsets.empty() ) {
+            REQUIRE( newlineOffsets.back().uncompressedOffsetInBytes == decodedSize );
+            REQUIRE( newlineOffsets.back().lineOffset == static_cast<size_t>( newlineCount ) );
         }
     }
 }
