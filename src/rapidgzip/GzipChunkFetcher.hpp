@@ -5,8 +5,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <iostream>
 #include <limits>
+#include <list>
 #include <memory>
 #include <mutex>
 #include <unordered_map>
@@ -45,6 +47,8 @@ public:
     using BlockFinder = typename BaseType::BlockFinder;
     using PostProcessingFutures = std::map</* block offset */ size_t, std::future<void> >;
     using UniqueSharedFileReader = std::unique_ptr<SharedFileReader>;
+    using ProcessChunk = std::function<void( const std::shared_ptr<const ChunkData>& /* chunk */,
+                                             FasterVector<uint8_t>                   /* lastWindow */ )>;
 
     static constexpr bool REPLACE_MARKERS_IN_PARALLEL = true;
 
@@ -256,6 +260,20 @@ public:
         m_windowSparsity = useSparseWindows;
     }
 
+    /**
+     * Add a callback which will be called for first seen chunks after they have been fully post-processed.
+     * At this point of the algorithm, the offsets and windows of this chunk were added to the indexes.
+     * As this is run on the orchestrator thread, it should not be compute-intensive. Compute-intensive stuff
+     * should be processed inside ChunkData::applyWindow, which can be used as generic post-processing after
+     * adjusting ChunkData::hasBeenPostProcessed. The results computed in parallel inside applyWindow and stored
+     * inside ChunkData members can then be moved out into an index with an indexing callback added here.
+     */
+    void
+    addChunkIndexingCallback( ProcessChunk processChunk )
+    {
+        m_indexFirstSeenChunkCallbacks.emplace_back( std::move( processChunk ) );
+    }
+
 private:
     [[nodiscard]] std::pair</* decoded offset */ size_t, std::shared_ptr<ChunkData> >
     getIndexedChunk( const size_t               offset,
@@ -368,16 +386,23 @@ private:
     }
 
     void
-    appendSubchunksToIndexes( const std::shared_ptr<ChunkData>&                chunkData,
+    appendSubchunksToIndexes( const std::shared_ptr<const ChunkData>&          chunkData,
                               const std::vector<typename ChunkData::Subchunk>& subchunks,
                               const FasterVector<uint8_t>&                     lastWindow )
     {
+        const auto t0 = now();
+
+        /* Add chunk offsets to block map and block finder indexes. */
         for ( const auto& subchunk : subchunks ) {
             m_blockMap->push( subchunk.encodedOffset, subchunk.encodedSize, subchunk.decodedSize );
             m_blockFinder->insert( subchunk.encodedOffset + subchunk.encodedSize );
         }
 
+        /* Point offsets of subchunks to large parent chunk so that it can be reused for seeking.
+         * @note It might be cleaner to actually split the subchunks into chunks and insert those into the cache,
+         *       but this might lead to cache spills! */
         if ( subchunks.size() > 1 ) {
+            /* Notify the FetchingStrategy of the chunk splitting so that it correctly tracks index accesses. */
             BaseType::m_fetchingStrategy.splitIndex( m_nextUnprocessedBlockIndex, subchunks.size() );
 
             /* Get actual key in cache, which might be the partition offset! */
@@ -398,6 +423,7 @@ private:
          * points across the gzip footer and next header to the next deflate block. */
         const auto blockOffsetAfterNext = chunkData->encodedOffsetInBits + chunkData->encodedSizeInBits;
 
+        /* Check for EOF again, but with blockOffsetAfterNext instead of nextBlockOffset. */
         if ( const auto inputFileSize = m_sharedFileReader->size();
              inputFileSize && ( *inputFileSize > 0 ) && ( blockOffsetAfterNext >= *inputFileSize * BYTE_SIZE ) )
         {
@@ -423,8 +449,6 @@ private:
             message << " but expected " << blockOffsetAfterNext;
             throw std::logic_error( std::move( message ).str() );
         }
-
-        const auto t0 = now();
 
         /* Emplace provided windows for subchunks into window map. */
         for ( const auto& subchunk : subchunks ) {
@@ -455,6 +479,10 @@ private:
                 #endif
                 }
             }
+        }
+
+        for ( const auto& callback : m_indexFirstSeenChunkCallbacks ) {
+            callback( chunkData, lastWindow );
         }
 
         m_statistics.queuePostProcessingDuration += duration( t0 );
@@ -775,5 +803,7 @@ private:
     PostProcessingFutures m_markersBeingReplaced;
     std::optional<CompressionType> m_windowCompressionType;
     bool m_windowSparsity{ true };
+
+    std::list<ProcessChunk> m_indexFirstSeenChunkCallbacks;
 };
 }  // namespace rapidgzip
