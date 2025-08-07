@@ -710,6 +710,9 @@ private:
         return chunkData;
     }
 
+    /**
+     * This is called in a threaded context! All member accesses must be thread-safe or locked!
+     */
     [[nodiscard]] ChunkData
     decodeBlock( size_t blockOffset,
                  size_t nextBlockOffset ) const override
@@ -724,6 +727,7 @@ private:
         chunkDataConfiguration.splitChunkSize = m_blockFinder->spacingInBits() / 8U;
         chunkDataConfiguration.windowCompressionType = m_windowCompressionType;
         chunkDataConfiguration.windowSparsity = m_windowSparsity;
+        chunkDataConfiguration.maxDecompressedChunkSize = m_maxDecompressedChunkSize;
 
         /* If we are a BGZF file and we have not imported an index, then we can assume the
          * window to be empty because we should only get offsets at gzip stream starts.
@@ -745,12 +749,13 @@ private:
             /* decodedSize */ blockInfo ? blockInfo->decodedSizeInBytes : std::optional<size_t>{},
             m_cancelThreads,
             chunkDataConfiguration,
-            m_maxDecompressedChunkSize,
             /* untilOffsetIsExact */ m_isBgzfFile || blockInfo );
     }
 
 public:
     /**
+     * This is a static method with mostly non-ref/pointer arguments in order to be thread-safe!
+     *
      * @param untilOffset Decode to excluding at least this compressed offset. It can be the offset of the next
      *                    deflate block or next gzip stream but it can also be the starting guess for the block finder
      *                    to find the next deflate block or gzip stream.
@@ -764,18 +769,16 @@ public:
                  SharedWindow                    initialWindow,
                  std::optional<size_t>     const decodedSize,
                  std::atomic<bool>        const& cancelThreads,
-                 ChunkConfiguration       const& chunkDataConfiguration,
-                 size_t                    const maxDecompressedChunkSize = std::numeric_limits<size_t>::max(),
+                 ChunkConfiguration        const chunkDataConfiguration,
                  bool                      const untilOffsetIsExact = false )
     {
         if ( chunkDataConfiguration.fileType == FileType::BZIP2 ) {
             return Bzip2Chunk<ChunkData>::decodeChunk(
-                std::move( sharedFileReader ), blockOffset, untilOffset, cancelThreads,
-                chunkDataConfiguration, maxDecompressedChunkSize );
+                std::move( sharedFileReader ), blockOffset, untilOffset, cancelThreads, chunkDataConfiguration );
         }
         return GzipChunk<ChunkData>::decodeChunk(
             std::move( sharedFileReader ), blockOffset, untilOffset, std::move( initialWindow ),
-            decodedSize, cancelThreads, chunkDataConfiguration, maxDecompressedChunkSize, untilOffsetIsExact );
+            decodedSize, cancelThreads, chunkDataConfiguration, untilOffsetIsExact );
     }
 
 private:

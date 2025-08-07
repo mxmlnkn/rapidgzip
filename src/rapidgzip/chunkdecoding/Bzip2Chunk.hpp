@@ -35,8 +35,7 @@ public:
     decodeUnknownBzip2Chunk( bzip2::BitReader*      const bitReader,
                              size_t                 const untilOffset,
                              std::optional<size_t>  const decodedSize,
-                             ChunkConfiguration    const& chunkDataConfiguration,
-                             size_t                 const maxDecompressedChunkSize )
+                             ChunkConfiguration    const& chunkDataConfiguration )
     {
         if ( bitReader == nullptr ) {
             throw std::invalid_argument( "BitReader must be non-null!" );
@@ -86,7 +85,7 @@ public:
 
             /** @todo does this work when quitting on an empty block, i.e., if the next block is an end-of-stream one?
              *        test decodeUnknownBzip2Chunk with all block offsets */
-            if ( totalBytesRead >= maxDecompressedChunkSize ) {
+            if ( totalBytesRead >= chunkDataConfiguration.maxDecompressedChunkSize ) {
                 result.stoppedPreemptively = true;
                 break;
             }
@@ -214,8 +213,7 @@ public:
                  size_t              const chunkOffset,
                  size_t              const untilOffset,
                  std::atomic<bool>  const& cancelThreads,
-                 ChunkConfiguration const& chunkDataConfiguration,
-                 size_t              const maxDecompressedChunkSize )
+                 ChunkConfiguration const& chunkDataConfiguration )
     {
         bzip2::BitReader bitReader( sharedFileReader->clone() );
 
@@ -225,7 +223,7 @@ public:
                 try {
                     bitReader.seekTo( offset );
                     auto result = decodeUnknownBzip2Chunk( &bitReader, untilOffset, /* decodedSize */ std::nullopt,
-                                                           chunkDataConfiguration, maxDecompressedChunkSize );
+                                                           chunkDataConfiguration );
                     return result;
                 } catch ( const std::exception& ) {
                     /* Ignore errors and try next block candidate. This is very likely to happen if @ref blockOffset

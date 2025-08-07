@@ -310,6 +310,7 @@ testIsalBug()
     ChunkData::Configuration chunkDataConfiguration;
     chunkDataConfiguration.crc32Enabled = false;
     chunkDataConfiguration.fileType = FileType::GZIP;
+    chunkDataConfiguration.maxDecompressedChunkSize = 4_Mi;
 
     std::atomic<bool> cancel{ false };
     std::vector<uint8_t> window( 32_Ki, 0 );
@@ -323,7 +324,6 @@ testIsalBug()
         /* decodedSize */ 4171816,
         cancel,
         chunkDataConfiguration,
-        /* maxDecompressedChunkSize */ 4_Mi,
         /* isBgzfFile */ true );
 }
 
@@ -458,7 +458,6 @@ decodeWithDecodeBlockWithRapidgzip( UniqueFileReader&& fileReader )
         &bitReader,
         /* untilOffset */ std::numeric_limits<size_t>::max(),
         /* window */ std::nullopt,
-        /* maxDecompressedChunkSize */ std::numeric_limits<size_t>::max(),
         chunkDataConfiguration );
 }
 
@@ -731,10 +730,7 @@ testBlockBoundaries( const std::filesystem::path&      filePath,
          * such is not assumed to be necessary anymore for those decoding functions that are only called with a
          * window and an exact until offset. */
         const auto result = GzipChunk<ChunkData>::decodeChunkWithRapidgzip(
-            &bitReader,
-            /* untilOffset */ std::numeric_limits<size_t>::max(),
-            /* initialWindow */ {},
-            /* maxDecompressedChunkSize */ std::numeric_limits<size_t>::max(),
+            &bitReader, /* untilOffset */ std::numeric_limits<size_t>::max(), /* initialWindow */ {},
             chunkDataConfiguration );
         compareBlockBoundaries( result.blockBoundaries, blockBoundaries, "rapidgzip with " + filePath.string() );
     } catch ( const std::exception& exception ) {
@@ -847,9 +843,7 @@ getSparseWindowByBruteForce( gzip::BitReader&              bitReader,
     chunkDataConfiguration.encodedOffsetInBits = bitReader.tell();
 
     const auto chunkData = GzipChunk<ChunkData>::decodeChunkWithRapidgzip(
-        &bitReader, /* untilOffset */ std::numeric_limits<size_t>::max(),
-        window, /* maxDecompressedChunkSize */ std::numeric_limits<size_t>::max(),
-        chunkDataConfiguration );
+        &bitReader, /* untilOffset */ std::numeric_limits<size_t>::max(), window, chunkDataConfiguration );
     const auto expected = getDecompressed( chunkData, 0 );
 
     deflate::DecodedVector sparseWindow( window.data(), window.data() + window.size() );
@@ -858,9 +852,7 @@ getSparseWindowByBruteForce( gzip::BitReader&              bitReader,
 
         bitReader.seek( chunkDataConfiguration.encodedOffsetInBits );
         const auto sparseChunkData = GzipChunk<ChunkData>::decodeChunkWithRapidgzip(
-            &bitReader, /* untilOffset */ std::numeric_limits<size_t>::max(),
-            sparseWindow, /* maxDecompressedChunkSize */ std::numeric_limits<size_t>::max(),
-            chunkDataConfiguration );
+            &bitReader, /* untilOffset */ std::numeric_limits<size_t>::max(), sparseWindow, chunkDataConfiguration );
 
         const auto decoded = getDecompressed( sparseChunkData, 0 );
         if ( decoded.size() != expected.size() ) {
@@ -942,7 +934,6 @@ testUsedWindowSymbolsWithFile( const std::filesystem::path& filePath )
         &bitReader,
         /* untilOffset */ std::numeric_limits<size_t>::max(),
         /* initialWindow */ {},
-        /* maxDecompressedChunkSize */ std::numeric_limits<size_t>::max(),
         chunkDataConfiguration );
 
     /* Try decoding from each block boundary with full windows. */
@@ -952,9 +943,7 @@ testUsedWindowSymbolsWithFile( const std::filesystem::path& filePath )
 
         const auto window = chunkData.getWindowAt( {}, boundary.decodedOffset );
         const auto partialChunkData = GzipChunk<ChunkData>::decodeChunkWithRapidgzip(
-            &bitReader, /* untilOffset */ std::numeric_limits<size_t>::max(),
-            window, /* maxDecompressedChunkSize */ std::numeric_limits<size_t>::max(),
-            chunkDataConfiguration );
+            &bitReader, /* untilOffset */ std::numeric_limits<size_t>::max(), window, chunkDataConfiguration );
 
         const auto expected = getDecompressed( chunkData, boundary.decodedOffset );
         const auto result = getDecompressed( partialChunkData, 0 );
@@ -973,9 +962,7 @@ testUsedWindowSymbolsWithFile( const std::filesystem::path& filePath )
 
         bitReader.seek( chunkDataConfiguration.encodedOffsetInBits );
         const auto partialChunkData = GzipChunk<ChunkData>::decodeChunkWithRapidgzip(
-            &bitReader, /* untilOffset */ std::numeric_limits<size_t>::max(),
-            sparseWindow, /* maxDecompressedChunkSize */ std::numeric_limits<size_t>::max(),
-            chunkDataConfiguration );
+            &bitReader, /* untilOffset */ std::numeric_limits<size_t>::max(), sparseWindow, chunkDataConfiguration );
 
         const auto expected = getDecompressed( chunkData, boundary.decodedOffset );
         const auto result = getDecompressed( partialChunkData, 0 );
@@ -1038,9 +1025,7 @@ testUsedWindowSymbolsWithFile( const std::filesystem::path& filePath )
 
         bitReader.seek( chunkDataConfiguration.encodedOffsetInBits );
         const auto partialChunkData = GzipChunk<ChunkData>::decodeChunkWithRapidgzip(
-            &bitReader, /* untilOffset */ std::numeric_limits<size_t>::max(),
-            window, /* maxDecompressedChunkSize */ std::numeric_limits<size_t>::max(),
-            chunkDataConfiguration );
+            &bitReader, /* untilOffset */ std::numeric_limits<size_t>::max(), window, chunkDataConfiguration );
 
         const auto expected = getDecompressed( chunkData, boundary.decodedOffset );
         const auto result = getDecompressed( partialChunkData, 0 );

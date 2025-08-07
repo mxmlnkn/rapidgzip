@@ -413,13 +413,13 @@ public:
     decodeChunkWithRapidgzip( gzip::BitReader*          const bitReader,
                               size_t                    const untilOffset,
                               std::optional<WindowView> const initialWindow,
-                              size_t                    const maxDecompressedChunkSize,
-                              ChunkConfiguration        const& chunkDataConfiguration )
+                              ChunkConfiguration       const& chunkDataConfiguration )
     {
         if ( bitReader == nullptr ) {
             throw std::invalid_argument( "BitReader must be non-null!" );
         }
 
+        const auto maxDecompressedChunkSize = chunkDataConfiguration.maxDecompressedChunkSize;
         ChunkData result{ chunkDataConfiguration };
         result.encodedOffsetInBits = bitReader->tell();
 
@@ -657,7 +657,6 @@ public:
                  std::optional<size_t>              const decodedSize,
                  std::atomic<bool>                 const& cancelThreads,
                  ChunkConfiguration                const& chunkDataConfiguration,
-                 size_t                             const maxDecompressedChunkSize = std::numeric_limits<size_t>::max(),
                  bool                               const untilOffsetIsExact = false )
     {
         if ( initialWindow && untilOffsetIsExact ) {
@@ -700,8 +699,7 @@ public:
         if ( initialWindow ) {
             bitReader.seekTo( blockOffset );
             const auto window = initialWindow->decompress();
-            return decodeChunkWithRapidgzip( &bitReader, untilOffset, *window, maxDecompressedChunkSize,
-                                             chunkDataConfiguration );
+            return decodeChunkWithRapidgzip( &bitReader, untilOffset, *window, chunkDataConfiguration );
         }
 
         const auto tryToDecode =
@@ -712,8 +710,7 @@ public:
                      * matter a lot for interpreting and correcting the encodedSizeInBits in GzipBlockFetcer::get! */
                     bitReader.seekTo( offset.second );
                     auto result = decodeChunkWithRapidgzip(
-                        &bitReader, untilOffset, /* initialWindow */ std::nullopt,
-                        maxDecompressedChunkSize, chunkDataConfiguration );
+                        &bitReader, untilOffset, /* initialWindow */ std::nullopt, chunkDataConfiguration );
                     result.encodedOffsetInBits = offset.first;
                     result.maxEncodedOffsetInBits = offset.second;
                     result.encodedSizeInBits = result.encodedEndOffsetInBits - result.encodedOffsetInBits;

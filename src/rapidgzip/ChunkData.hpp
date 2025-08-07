@@ -102,6 +102,13 @@ struct ChunkData :
         bool crc32Enabled{ true };
         std::optional<CompressionType> windowCompressionType;
         bool windowSparsity{ true };
+        /**
+         * This is used by the chunk decoding implementations, but it feels more correct to have this stored here,
+         * because it affects the chunk configuration and in the future it might be cleaner to check for a maximum
+         * size inside ChunkData::append instead, or offer a getter, which could be overwritten / replaced with
+         * dynamic checks for stopping decompression preemptively, e.g., if the decompressed data is known to be wrong.
+         */
+        size_t maxDecompressedChunkSize{ std::numeric_limits<size_t>::max() };
     };
 
     struct Subchunk
