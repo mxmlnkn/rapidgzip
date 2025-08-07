@@ -770,6 +770,14 @@ public:
                     ++lineOffset;
                 }
 
+                if ( lineOffset == m_newlineOffsets.end() ) {
+                    std::stringstream message;
+                    message << "Failed to find line offset for uncompressed offset: "
+                            << formatBytes( uncompressedOffsetInBytes ) << ", number of line offsets to stored: "
+                            << m_newlineOffsets.size();
+                    throw std::runtime_error( std::move( message ).str() );
+                }
+
                 if ( lineOffset->uncompressedOffsetInBytes != uncompressedOffsetInBytes ) {
                     throw std::logic_error( "Line offset not found for uncompressed offset "
                                             + std::to_string( uncompressedOffsetInBytes ) + "!" );
