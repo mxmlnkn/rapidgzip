@@ -203,7 +203,7 @@ splitChunk( const size_t                      dataSize,
     chunk.append( toAppend );
 
     chunk.blockBoundaries = blockBoundaries;
-    chunk.splitChunkSize = splitChunkSize;
+    chunk.configuration.splitChunkSize = splitChunkSize;
     chunk.finalize( encodedEndOffsetInBits );
     return chunk.subchunks();
 }
@@ -216,7 +216,7 @@ testBlockSplit()
         [] ( ChunkData&   chunk,
              const size_t splitChunkSize )
         {
-            chunk.splitChunkSize = splitChunkSize;
+            chunk.configuration.splitChunkSize = splitChunkSize;
             chunk.finalize( chunk.encodedEndOffsetInBits );
             return chunk.subchunks();
         };

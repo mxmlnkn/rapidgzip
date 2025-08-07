@@ -1370,7 +1370,7 @@ private:
                  externalCRC32 != m_deflateStreamCRC32s.end() )
             {
                 m_crc32.verify( m_crc32.crc32() );
-            } else if ( hasCRC32( chunkData->fileType ) && m_crc32.verify( footer.gzipFooter.crc32 ) ) {
+            } else if ( hasCRC32( chunkData->configuration.fileType ) && m_crc32.verify( footer.gzipFooter.crc32 ) ) {
                 m_verifiedCRC32Count++;
             }
             m_crc32 = chunkData->crc32s.at( i + 1 );

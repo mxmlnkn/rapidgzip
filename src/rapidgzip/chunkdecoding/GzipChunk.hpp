@@ -127,7 +127,7 @@ public:
 
         if ( !subchunkRequiresWindow ) {
             subchunks.back().window = std::make_shared<typename ChunkData::Window>();
-        } else if ( chunk.windowSparsity ) {
+        } else if ( chunk.configuration.windowSparsity ) {
             determineUsedWindowSymbolsForLastSubchunk( subchunks, bitReader );
         }
     }
@@ -175,7 +175,7 @@ public:
         }
 
         /* Do on-the-fly chunk splitting. */
-        if ( subchunks.back().decodedSize >= chunk.splitChunkSize ) {
+        if ( subchunks.back().decodedSize >= chunk.configuration.splitChunkSize ) {
             subchunks.back().encodedSize = encodedOffset - subchunks.back().encodedOffset;
             finalizeWindowForLastSubchunk( chunk, subchunks, bitReader );
             startNewSubchunk( subchunks, encodedOffset );
@@ -205,7 +205,7 @@ public:
         bitReader.seek( result.encodedOffsetInBits );
         InflateWrapper inflateWrapper( std::move( bitReader ), exactUntilOffset );
         inflateWrapper.setWindow( initialWindow );
-        inflateWrapper.setFileType( result.fileType );
+        inflateWrapper.setFileType( result.configuration.fileType );
 
         size_t alreadyDecoded{ 0 };
         while ( true ) {
@@ -300,7 +300,7 @@ public:
         }
 
         IsalInflateWrapper inflateWrapper{ BitReader( *bitReader ) };
-        inflateWrapper.setFileType( result.fileType );
+        inflateWrapper.setFileType( result.configuration.fileType );
         inflateWrapper.setWindow( initialWindow );
         inflateWrapper.setStoppingPoints( static_cast<StoppingPoint>( StoppingPoint::END_OF_BLOCK |
                                                                       StoppingPoint::END_OF_BLOCK_HEADER |
@@ -464,7 +464,7 @@ public:
                 const auto headerOffset = bitReader->tell();
                 auto error = Error::NONE;
 
-                switch ( result.fileType )
+                switch ( result.configuration.fileType )
                 {
                 case FileType::NONE:
                 case FileType::BZIP2:
@@ -595,7 +595,7 @@ public:
             if ( block->isLastBlock() ) {
                 Footer footer;
 
-                switch ( result.fileType )
+                switch ( result.configuration.fileType )
                 {
                 case FileType::NONE:
                 case FileType::BZIP2:

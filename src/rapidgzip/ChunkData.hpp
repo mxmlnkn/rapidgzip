@@ -97,6 +97,7 @@ struct ChunkData :
     struct Configuration
     {
         size_t splitChunkSize{ std::numeric_limits<size_t>::max() };
+        /** This should be used to decide what kind of footer to expect and what to do after the footer. */
         FileType fileType{ FileType::NONE };
         bool crc32Enabled{ true };
         std::optional<CompressionType> windowCompressionType;
@@ -176,13 +177,10 @@ struct ChunkData :
 
 public:
     explicit
-    ChunkData( const Configuration& configuration ) :
-        fileType( configuration.fileType ),
-        splitChunkSize( configuration.splitChunkSize ),
-        windowSparsity( configuration.windowSparsity ),
-        m_windowCompressionType( configuration.windowCompressionType )
+    ChunkData( const Configuration& configurationToUse ) :
+        configuration( configurationToUse )
     {
-        setCRC32Enabled( configuration.crc32Enabled );
+        setCRC32Enabled( configurationToUse.crc32Enabled );
     }
 
     ~ChunkData() = default;
@@ -195,11 +193,11 @@ public:
     [[nodiscard]] CompressionType
     windowCompressionType() const
     {
-        if ( m_windowCompressionType ) {
-            return *m_windowCompressionType;
+        if ( configuration.windowCompressionType ) {
+            return *configuration.windowCompressionType;
         }
         /* Only bother with overhead-introducing compression for large chunk compression ratios. */
-        return windowSparsity || ( decodedSizeInBytes * 8 > 2 * encodedSizeInBits )
+        return configuration.windowSparsity || ( decodedSizeInBytes * 8 > 2 * encodedSizeInBits )
                ? CompressionType::ZLIB
                : CompressionType::NONE;
     }
@@ -422,7 +420,7 @@ public:
         decodedSizeInBytes = BaseType::size();
 
         if ( m_subchunks.empty() ) {
-            m_subchunks = split( splitChunkSize );
+            m_subchunks = split( configuration.splitChunkSize );
         }
     }
 
@@ -460,6 +458,7 @@ public:
     void
     setCRC32Enabled( bool enabled )
     {
+        configuration.crc32Enabled = enabled;
         for ( auto& calculator : crc32s ) {
             calculator.setEnabled( enabled );
         }
@@ -487,12 +486,12 @@ public:
     /**
      * Chunks smaller than the returned value should not be created. In practice, this currently means that
      * such small chunks are appended to the previous one. This means however that some chunks can grow
-     * larger than splitChunkSize.
+     * larger than configuration.splitChunkSize.
      */
     [[nodiscard]] constexpr size_t
     minimumSplitChunkSize() const
     {
-        return splitChunkSize / 4U;
+        return configuration.splitChunkSize / 4U;
     }
 
     /**
@@ -516,9 +515,6 @@ public:
     size_t encodedOffsetInBits{ std::numeric_limits<size_t>::max() };
     size_t encodedSizeInBits{ 0 };
 
-    /** This should be used to decide what kind of footer to expect and what to do after the footer. */
-    FileType fileType{ FileType::NONE };
-
     /* This should only be evaluated when it is unequal std::numeric_limits<size_t>::max() and unequal
      * Base::encodedOffsetInBits. Then, [Base::encodedOffsetInBits, maxEncodedOffsetInBits] specifies a valid range
      * for the block offset. Such a range might happen for finding uncompressed deflate blocks because of the
@@ -531,6 +527,8 @@ public:
      * @ref encodedSizeInBits. */
     size_t encodedEndOffsetInBits{ std::numeric_limits<size_t>::max() };
 
+    Configuration configuration;
+
     /* Decoded offsets are relative to the decoded offset of this ChunkData because that might not be known
      * during first-pass decompression. */
     std::vector<BlockBoundary> blockBoundaries;
@@ -538,13 +536,9 @@ public:
     /* There will be ( footers.size() + 1 ) CRC32 calculators. */
     std::vector<CRC32Calculator> crc32s{ std::vector<CRC32Calculator>( 1 ) };
 
-    size_t splitChunkSize{ std::numeric_limits<size_t>::max() };
-
     Statistics statistics{};
 
     bool stoppedPreemptively{ false };
-
-    bool windowSparsity{ true };
 
 protected:
     /**
@@ -553,9 +547,6 @@ protected:
      */
     std::function<deflate::DecodedVector( const ChunkData&, WindowView const&, size_t )> m_getWindowAt;
     std::vector<Subchunk> m_subchunks;
-
-private:
-    std::optional<CompressionType> m_windowCompressionType;
 };
 
 
@@ -817,8 +808,8 @@ struct ChunkDataCounter final :
     public ChunkData
 {
     explicit
-    ChunkDataCounter( const Configuration& configuration ) :
-        ChunkData( configuration )
+    ChunkDataCounter( const Configuration& configurationToUse ) :
+        ChunkData( configurationToUse )
     {
         /**
          * The internal index will only contain the offsets and empty windows.
@@ -863,7 +854,7 @@ struct ChunkDataCounter final :
         /* Do not overwrite decodedSizeInBytes like is done in the base class
          * because DecodedData::size() would return 0! Instead, it is updated inside append. */
 
-        m_subchunks = split( splitChunkSize );
+        m_subchunks = split( configuration.splitChunkSize );
     }
 
     /**

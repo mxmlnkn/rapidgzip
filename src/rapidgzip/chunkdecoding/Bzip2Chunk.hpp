@@ -72,7 +72,7 @@ public:
             nextBlockOffset = bitReader->tell();
 
             /* Do on-the-fly chunk splitting. */
-            if ( subchunks.back().decodedSize >= result.splitChunkSize ) {
+            if ( subchunks.back().decodedSize >= result.configuration.splitChunkSize ) {
                 subchunks.back().encodedSize = nextBlockOffset - subchunks.back().encodedOffset;
 
                 const auto nextdecodedOffset = subchunks.back().decodedOffset + subchunks.back().decodedSize;
