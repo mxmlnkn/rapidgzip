@@ -57,9 +57,13 @@ jobs:
         python-version: '3.13'
 
     - name: Install Dependencies
+      # cibuildwheel-2.23.3 fails with:
+      # Building cp38-macosx_arm64 wheel
+      # Download https://github.com/pypa/get-virtualenv/blob/20.30.0/public/virtualenv.pyz?raw=true
+      #  -> fails because it is 404 now :( This means I have to drop Python 3.8 support.
       run: |
         python3 -m pip install --upgrade pip
-        python3 -m pip install --upgrade-strategy eager --upgrade cython twine cibuildwheel~=2.0 build
+        python3 -m pip install --upgrade-strategy eager --upgrade cython twine cibuildwheel~=3.0 build
 
     - name: Build Tarball
       working-directory: python/indexed_bzip2
@@ -69,6 +73,10 @@ jobs:
       env:
         CIBW_ARCHS: ${{ matrix.archs }}
         CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux-image }}
+        CIBW_ENABLE: "pypy"
+        # Skip cp14 because it is not time yet to release wheels and because cp14t has problems:
+        # https://github.com/pypa/cibuildwheel/issues/2531#issuecomment-3168087550
+        CIBW_SKIP: "*cp31[4-9]*"
       run: python -m cibuildwheel --output-dir dist python/indexed_bzip2
 
     - name: Check Wheels

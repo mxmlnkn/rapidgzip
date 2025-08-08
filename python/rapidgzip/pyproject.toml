@@ -15,7 +15,11 @@
 # Pin Cython < 3.1.0 because of this errors on macos-14 runner (2025-06):
 #    indexed_bzip2.cpp:16328:29: error: use of undeclared identifier 'PyDescr_NewMember'
 #        descr = PyDescr_NewMember(type, memb);
-requires = ["setuptools >= 61.2, < 72", "wheel", "cython >= 3, < 3.1"]
+# -> https://github.com/cython/cython/issues/7006
+# CPython 3.14t requires Cython:
+#   Cyton >= 3, <3.1 resulted in this on macos-14: unknown type name '__pyx_vectorcallfunc'
+#   https://github.com/cython/cython/issues/6443
+requires = ["setuptools >= 61.2, < 72", "wheel", "cython ~= 3.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -49,7 +53,7 @@ classifiers = [
     "Topic :: System :: Archiving :: Compression",
 ]
 urls = {Homepage = "https://github.com/mxmlnkn/rapidgzip"}
-requires-python = ">= 3.7"
+requires-python = ">= 3.9"
 
 [project.readme]
 file = "README.md"

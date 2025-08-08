@@ -42,7 +42,7 @@ classifiers = [
     "Topic :: System :: Archiving :: Compression",
 ]
 urls = {Homepage = "https://github.com/mxmlnkn/indexed_bzip2"}
-requires-python = ">= 3.7"
+requires-python = ">= 3.9"
 
 [project.readme]
 file = "README.md"

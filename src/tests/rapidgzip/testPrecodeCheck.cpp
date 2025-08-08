@@ -486,7 +486,7 @@ analyzeValidPrecodes()
                   << " %\n";
 
         std::multimap<uint64_t, rapidgzip::Error, std::greater<> > sortedErrorTypes;
-        for ( const auto [error, count] : errorCounts ) {
+        for ( const auto& [error, count] : errorCounts ) {
             sortedErrorTypes.emplace( count, error );
         }
         std::cerr << "Encountered errors:\n";
