@@ -26,6 +26,111 @@
 using namespace rapidgzip;
 
 
+/* Unfortunately, this is yet another performance-critical parameter, which is not directly related to the
+ * decompression algorithm implementation :(. There is trade-off between staying in cache, I think, and the
+ * number of decompression calls. Some tests with:
+ *   cmake -DLIBRAPIDARCHIVE_WITH_ISAL=OFF -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=ON
+ *   cmake --build . -- benchmarkGzip && src/benchmarks/benchmarkGzip silesia-20x.tar.gz
+ *
+ * Decompressed 1364784177 B to 4239155200 B with libarchive:
+ *   512 MiB : 394.4 <= 395.6 +- 1.2 <= 396.8
+ *   256 MiB : 402.5 <= 404.8 +- 2.2 <= 407.0
+ *   128 MiB : 408.3 <= 410.7 +- 2.5 <= 413.3
+ *    64 MiB : 406   <= 412   +- 5   <= 416    <- Local top, but the 1-sigma error bounds overlap its neighbors.
+ *    32 MiB : 403   <= 408   +- 4   <= 411
+ *    16 MiB : 403   <= 408   +- 5   <= 414
+ *     4 MiB : 418   <= 421   +- 3   <= 424
+ *     1 MiB : 415   <= 420   +- 6   <= 426    <- Multiple local top, but only 1-sigma.
+ *   256 KiB : 409   <= 418   +- 8   <= 423
+ *    64 KiB : 422.5 <= 425.4 +- 2.7 <= 427.8
+ *     8 KiB : 417.9 <= 420.9 +- 2.9 <= 423.7  <- Multiple local top, but only 1-sigma.
+ *     1 KiB : 414   <= 417   +- 5   <= 422
+ *   128   B : 413   <= 417   +- 5   <= 422
+ *     8   B : 319   <= 323   +- 4   <= 327    <- FINALLY some actual slowdown!
+ *     2   B : 192.1 <= 194.5 +- 2.6 <= 197.2  <- How has this actually usable speeds?!
+ * -> It is eerie how few fluctations there are over these magnitudes of output buffer sizes.
+ *    Debug output for the number of bytes returned by archive_read_data show that it is indeed always
+ *    decoding one full buffer per call! It seems that there simply is a lot of inlining going on
+ *    so that the call overhead is almost negligible.
+ *
+ * These benchmarks used the default chunk size of 4 MiB for ParallelGzipReader.
+ *
+ * Decompressed 1364784177 B to 4239155200 B with rapidgzip (serial):
+ *   512 MiB : 325.4 <= 327.0 +- 2.2 <= 329.6
+ *   256 MiB : 327.7 <= 330.2 +- 2.4 <= 332.5
+ *   128 MiB : 332.0 <= 335.2 +- 3.0 <= 337.9
+ *    64 MiB : 338.3 <= 340.8 +- 2.6 <= 343.5
+ *    32 MiB : 338.6 <= 340.5 +- 2.4 <= 343.2
+ *    16 MiB : 335.0 <= 337.7 +- 2.4 <= 339.3
+ *     8 MiB : 324   <= 331   +- 9   <= 341
+ *     4 MiB : 336.7 <= 338.7 +- 2.7 <= 341.8
+ *     1 MiB : 340.3 <= 340.9 +- 1.1 <= 342.2
+ *   256 KiB : 335   <= 342   +- 6   <= 346
+ *   128 KiB : 323   <= 331   +- 7   <= 335
+ *    64 KiB : 344.9 <= 346.8 +- 1.7 <= 348.2 <- local top, but only barely.
+ *    32 KiB : 334.6 <= 337.4 +- 2.6 <= 339.7
+ *     8 KiB : 334   <= 338   +- 5   <= 343
+ *     1 KiB : 330.8 <= 331.6 +- 0.7 <= 332.1
+ *  -> Also stable along a very large range! Unfortunately, not exposted via Python any longer.
+ *
+ * Decompressed 1364784177 B to 4239155200 B with rapidgzip (parallel: 1 cores):
+ *   512 MiB : 280   <= 284   +- 4   <= 288
+ *   256 MiB : 297.0 <= 299.6 +- 2.3 <= 301.4
+ *   128 MiB : 302.0 <= 302.6 +- 0.8 <= 303.6
+ *    64 MiB : 299.8 <= 300.8 +- 1.1 <= 302.0
+ *    32 MiB : 302   <= 305   +- 3   <= 308
+ *    16 MiB : 301.8 <= 304.6 +- 2.6 <= 307.0
+ *     8 MiB : 302.1 <= 302.6 +- 0.5 <= 302.9
+ *     4 MiB : 303.2 <= 305.1 +- 2.7 <= 308.1
+ *     1 MiB : 310.8 <= 312.2 +- 1.2 <= 313.2  <- local tops
+ *   256 KiB : 312.5 <= 313.4 +- 0.8 <= 313.9  <- local tops
+ *   128 KiB : 304.7 <= 307.4 +- 2.3 <= 308.8
+ *    64 KiB : 312.5 <= 314.1 +- 1.8 <= 316.0  <- local tops
+ *    32 KiB : 299.2 <= 302.6 +- 3.0 <= 304.8
+ *     8 KiB : 297   <= 303   +- 5   <= 306
+ *     1 KiB : 279.2 <= 281.3 +- 1.9 <= 282.4
+ * -> 10% slower than GzipReader for some reason!? Just because of the ChunkMap lookup, std::launch(std::deferred),
+ *    and std::future evaluation?! But, I guess it is still quite a good result for the much more complex architecture.
+ *
+ * Decompressed 1364784177 B to 4239155200 B with rapidgzip (parallel: 24 cores):
+ *   512 MiB : 1890 <= 2010 +- 130 <= 2150
+ *   256 MiB : 2337 <= 2353 +- 17 <= 2372
+ *   128 MiB : 2412 <= 2437 +- 24 <= 2460  <- local top
+ *    64 MiB : 2370 <= 2420 +- 50 <= 2470  <- local top
+ *    32 MiB : 2390 <= 2440 +- 40 <= 2480  <- local top
+ *    16 MiB : 2432 <= 2452 +- 23 <= 2478  <- local top
+ *     8 MiB : 2287 <= 2308 +- 19 <= 2324
+ *     4 MiB : 2060 <= 2069 +- 10 <= 2079
+ *     1 MiB : 2010 <= 2070 +- 50 <= 2110
+ *   256 KiB : 2024 <= 2038 +- 12 <= 2046
+ *   128 KiB : 1900 <= 1960 +- 60 <= 2010
+ *    64 KiB : 1920 <= 1940 +- 30 <= 1980
+ *    32 KiB : 1740 <= 1780 +- 40 <= 1810
+ *     8 KiB :  860 <=  878 +- 16 <=  893
+ *     1 KiB : 136.5 <= 137.6 +- 1.4 <= 139.2
+ *  -> This is more according to my expectations. It cannot inline these calls and the call overhead,
+ *     especially for finding the chunk and possibly waiting on mutexes, is expected to be expensive
+ *     and degrades performance!
+ *
+ * Decompressed 1364784177 B to 4239155200 B with rapidgzip (parallel + index):
+ *   512 MiB : 2390 <= 2420 +-  30 <= 2450
+ *   256 MiB : 3360 <= 3420 +-  50 <= 3470
+ *   128 MiB : 3550 <= 3660 +-  90 <= 3720
+ *    64 MiB : 3734 <= 3745 +-  18 <= 3765
+ *    32 MiB : 3870 <= 3920 +-  50 <= 3960
+ *    16 MiB : 3890 <= 3920 +-  40 <= 3960
+ *     8 MiB : 4040 <= 4170 +- 120 <= 4260
+ *     4 MiB : 4990 <= 5070 +- 120 <= 5200
+ *     1 MiB : 4980 <= 5020 +-  70 <= 5100
+ *   256 KiB : 4940 <= 5150 +- 190 <= 5310
+ *   128 KiB : 4710 <= 4820 +- 130 <= 4950
+ *    64 KiB : 3350 <= 3400 +-  50 <= 3440
+ *    32 KiB : 2198 <= 2216 +-  23 <= 2242
+ *     8 KiB :  628 <= 655  +-  27 <= 683
+ *     1 KiB : 93.7 <= 94.4 +- 0.6 <= 94.7
+ */
+constexpr size_t DECOMPRESSION_BUFFER_SIZE = 128_Ki;
+
 class GzipWrapper
 {
 public:
@@ -149,7 +254,7 @@ private:
     const Format m_format;
     z_stream m_stream{};
     std::vector<unsigned char> m_window = std::vector<unsigned char>( 32_Ki, '\0' );
-    std::vector<unsigned char> m_outputBuffer = std::vector<unsigned char>( 64_Mi );
+    std::vector<unsigned char> m_outputBuffer = std::vector<unsigned char>( DECOMPRESSION_BUFFER_SIZE );
 };
 
 
@@ -191,7 +296,7 @@ decompressWithLibArchive( const std::vector<uint8_t>& compressedData )
         throw std::runtime_error( "Could not read header with libarchive!" );
     }
 
-    std::vector<uint8_t> outputBuffer( 64_Mi );
+    std::vector<uint8_t> outputBuffer( DECOMPRESSION_BUFFER_SIZE );
     size_t totalDecodedBytes = 0;
     while ( true )
     {
@@ -219,7 +324,7 @@ decompressWithRapidgzip( const std::string& fileName )
     size_t blockCount = 0;
 
     GzipReader gzipReader( std::make_unique<StandardFileReader>( fileName ) );
-    std::vector<uint8_t> outputBuffer( 64_Mi );
+    std::vector<uint8_t> outputBuffer( DECOMPRESSION_BUFFER_SIZE );
     while ( true ) {
         const auto nBytesRead = gzipReader.read( -1,
                                                  reinterpret_cast<char*>( outputBuffer.data() ),
@@ -251,7 +356,7 @@ decompressWithParallelGzipReader( const std::string& fileName,
 
     rapidgzip::ParallelGzipReader gzipReader(
         std::make_unique<StandardFileReader>( fileName ), parallelization, chunkSizeInBytes );
-    std::vector<uint8_t> outputBuffer( 64_Mi );
+    std::vector<uint8_t> outputBuffer( DECOMPRESSION_BUFFER_SIZE );
     while ( true ) {
         const auto nBytesRead = gzipReader.read( -1,
                                                  reinterpret_cast<char*>( outputBuffer.data() ),
@@ -298,7 +403,7 @@ decompressWithRapidgzipParallelIndex( const std::pair<std::string, GzipIndex>& f
 
     rapidgzip::ParallelGzipReader gzipReader( std::make_unique<StandardFileReader>( fileName ) );
     gzipReader.setBlockOffsets( index );
-    std::vector<uint8_t> outputBuffer( 64_Mi );
+    std::vector<uint8_t> outputBuffer( DECOMPRESSION_BUFFER_SIZE );
     while ( true ) {
         const auto nBytesRead = gzipReader.read( -1,
                                                  reinterpret_cast<char*>( outputBuffer.data() ),

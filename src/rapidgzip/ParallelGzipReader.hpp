@@ -481,6 +481,17 @@ public:
         throw std::invalid_argument( "Not fully tested!" );
     }
 
+    /**
+     * @param nBytesToRead This parameter can be performance-critical! Very small calls must be avoided because
+     *        lots of checks such as for closed() can become expensive as they might require locking mutexes!
+     *        Optimal inclusive ranges for number of bytes per call on Ryzen 3900X 12-core:
+     *        - parallelization=1            : [8 KiB, 256 MiB]  no threading and therefore any value is alright!
+     *        - parallelization=24           : [16 MiB, 256 MiB] smaller 32 KiB becomes unusably slow!
+     *        - parallelization=24 with index: [256 KiB, 4 MiB]  smaller 32 KiB becomes unusably slow!
+     *        Therefore, my recommendation would be to simply use 4 MiB,
+     *        but [128 KiB, 256 MiB] is generally fine if you can live with ~20 % slowdowns.
+     *        See also the comment for DECOMPRESSION_BUFFER_SIZE in benchmarkGzip.cpp!
+     */
     [[nodiscard]] size_t
     read( char*  outputBuffer,
           size_t nBytesToRead ) override
