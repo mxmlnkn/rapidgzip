@@ -19,26 +19,13 @@ include src/external/rpmalloc/rpmalloc/malloc.c
 include src/external/rpmalloc/rpmalloc/rpmalloc.c
 include src/external/rpmalloc/rpmalloc/rpmalloc.h
 include src/external/rpmalloc/rpmalloc/rpnew.h
-include src/external/zlib/LICENSE
-include src/external/zlib/inflate.c
-include src/external/zlib/inflate.h
-include src/external/zlib/crc32.c
-include src/external/zlib/crc32.h
-include src/external/zlib/adler32.c
-include src/external/zlib/deflate.c
-include src/external/zlib/deflate.h
-include src/external/zlib/inffast.c
-include src/external/zlib/inffast.h
-include src/external/zlib/inffixed.h
-include src/external/zlib/inftrees.c
-include src/external/zlib/inftrees.h
-include src/external/zlib/gzguts.h
-include src/external/zlib/trees.c
-include src/external/zlib/trees.h
-include src/external/zlib/zconf.h
-include src/external/zlib/zutil.c
-include src/external/zlib/zutil.h
-include src/external/zlib/zlib.h
+include src/external/zlib-ng/LICENSE*
+include src/external/zlib-ng/*.c
+include src/external/zlib-ng/*.h
+include src/external/zlib-ng/*.in
+include src/external/zlib-ng/*.empty
+include src/external/zlib-ng/arch/generic/*.c
+include src/external/zlib-ng/arch/generic/*.h
 recursive-include src/external/isa-l *.h
 recursive-include src/external/isa-l *.c
 recursive-include src/external/isa-l *.asm

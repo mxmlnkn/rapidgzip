@@ -268,7 +268,6 @@ public:
     }
 
 
-    #ifdef LIBRAPIDARCHIVE_WITH_ISAL
     /**
      * This is called from @ref decodeChunkWithRapidgzip in case the window has been fully resolved so that
      * normal decompression instead of two-staged one becomes possible.
@@ -278,13 +277,14 @@ public:
      * @note This code is copy-pasted from decodeChunkWithInflateWrapper and adjusted to use the stopping
      *       points and deflate block properties as stop criterion.
      */
+    template<typename InflateWrapper>
     [[nodiscard]] static ChunkData
-    finishDecodeChunkWithIsal( gzip::BitReader* const  bitReader,
-                               size_t           const  untilOffset,
-                               WindowView       const  initialWindow,
-                               size_t           const  maxDecompressedChunkSize,
-                               ChunkData&&             result,
-                               std::vector<Subchunk>&& subchunks )
+    finishDecodeChunkWithInexactOffset( gzip::BitReader* const  bitReader,
+                                        size_t           const  untilOffset,
+                                        WindowView       const  initialWindow,
+                                        size_t           const  maxDecompressedChunkSize,
+                                        ChunkData&&             result,
+                                        std::vector<Subchunk>&& subchunks )
     {
         if ( bitReader == nullptr ) {
             throw std::invalid_argument( "BitReader may not be nullptr!" );
@@ -299,7 +299,7 @@ public:
             appendDeflateBlockBoundary( result, subchunks, *bitReader, nextBlockOffset, alreadyDecoded );
         }
 
-        IsalInflateWrapper inflateWrapper{ BitReader( *bitReader ) };
+        InflateWrapper inflateWrapper{ BitReader( *bitReader ) };
         inflateWrapper.setFileType( result.configuration.fileType );
         inflateWrapper.setWindow( initialWindow );
         inflateWrapper.setStoppingPoints( static_cast<StoppingPoint>( StoppingPoint::END_OF_BLOCK |
@@ -408,7 +408,6 @@ public:
          */
         return std::move( result );
     }
-    #endif  // ifdef LIBRAPIDARCHIVE_WITH_ISAL
 
 
     [[nodiscard]] static ChunkData
@@ -431,9 +430,17 @@ public:
         startNewSubchunk( subchunks, result.encodedOffsetInBits );
 
     #ifdef LIBRAPIDARCHIVE_WITH_ISAL
+        /** @todo ZlibInflateWrapper is missing the API methods setStoppingPoints, stoppedAt, isFinalBlock, and
+         *        and compressionType. If we had that, we could improve performance for -P 1 without ISA-L, by
+         *        using zlib-ng! See zlib's inflate's flush parameter:
+         *        > The flush parameter of inflate() can be Z_NO_FLUSH, Z_SYNC_FLUSH, Z_FINISH, Z_BLOCK, or Z_TREES.
+         * Implementing compressedType would be another beast because we would have to parse the block type ourselves
+         * as there seems to be no API. Should be doable though, especially as we need to store the bit offset anyway.
+         */
         if ( initialWindow ) {
-            return finishDecodeChunkWithIsal( bitReader, untilOffset, *initialWindow, maxDecompressedChunkSize,
-                                              std::move( result ), std::move( subchunks ) );
+            return finishDecodeChunkWithInexactOffset<IsalInflateWrapper>(
+                bitReader, untilOffset, *initialWindow, maxDecompressedChunkSize,
+                std::move( result ), std::move( subchunks ) );
         }
     #endif
 
@@ -492,9 +499,9 @@ public:
                 }
 
             #ifdef LIBRAPIDARCHIVE_WITH_ISAL
-                return finishDecodeChunkWithIsal( bitReader, untilOffset, /* initialWindow */ {},
-                                                  maxDecompressedChunkSize, std::move( result ),
-                                                  std::move( subchunks ) );
+                return finishDecodeChunkWithInexactOffset<IsalInflateWrapper>(
+                    bitReader, untilOffset, /* initialWindow */ {}, maxDecompressedChunkSize, std::move( result ),
+                    std::move( subchunks ) );
             #endif
 
                 didReadHeader = true;
@@ -512,9 +519,9 @@ public:
 
         #ifdef LIBRAPIDARCHIVE_WITH_ISAL
             if ( cleanDataCount >= deflate::MAX_WINDOW_SIZE ) {
-                return finishDecodeChunkWithIsal( bitReader, untilOffset, result.getLastWindow( {} ),
-                                                  maxDecompressedChunkSize, std::move( result ),
-                                                  std::move( subchunks ) );
+                return finishDecodeChunkWithInexactOffset<IsalInflateWrapper>(
+                    bitReader, untilOffset, result.getLastWindow( {} ), maxDecompressedChunkSize, std::move( result ),
+                    std::move( subchunks ) );
             }
         #endif
 

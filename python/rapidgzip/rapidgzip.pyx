@@ -24,6 +24,11 @@ from typing import IO
 ctypedef (unsigned long long int) size_t
 ctypedef (long long int) lli
 
+# We need to ensure that zlib.h is the very first import, or else ZLIB_SYMBOL_PREFIX will wreak havoc because
+# the defines for 'crc32' will also replace stuff such as footer.crc32 but not the declaration!
+cdef extern from "zlib.h":
+    pass
+
 
 def _isFileObject(file):
     return (

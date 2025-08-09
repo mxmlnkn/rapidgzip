@@ -53,7 +53,7 @@ def getDependencyOption(key):
 withCxxopts = getDependencyOption('CXXOPTS')
 withIsal = getDependencyOption('ISAL')
 withRpmalloc = getDependencyOption('RPMALLOC')
-withZlib = getDependencyOption('ZLIB')
+withZlibng = getDependencyOption('ZLIB')
 
 if withCxxopts == 'disable':
     print("[Warning] Cxxopts can not be disabled! Will enable it.")
@@ -81,14 +81,46 @@ if not canBuildIsal:
 
 print("Final rapidgzip build configuration:")
 print(f"  isal: {withIsal}")
-print(f"  zlib: {withZlib}")
+print(f"  zlib-ng: {withZlibng}")
 print(f"  rpmalloc: {withRpmalloc}")
 print(f"  cxxopts: {withCxxopts}")
 
 zlib_sources = []
-if withZlib == 'enable':
-    zlib_sources = ['deflate.c', 'inflate.c', 'crc32.c', 'adler32.c', 'inftrees.c', 'inffast.c', 'trees.c', 'zutil.c']
-    zlib_sources = ['src/external/zlib/' + source for source in zlib_sources]
+if withZlibng == 'enable':
+    zlib_sources = [
+        "cpu_features.c",
+        "inflate.c",
+        "adler32.c",
+        "crc32.c",
+        "crc32_braid_comb.c",
+        "functable.c",
+        "inftrees.c",
+        "zutil.c",
+        "deflate.c",
+        "deflate_fast.c",
+        "deflate_huff.c",
+        "deflate_medium.c",
+        "deflate_quick.c",
+        "deflate_rle.c",
+        "deflate_slow.c",
+        "deflate_stored.c",
+        "insert_string.c",
+        "insert_string_roll.c",
+        "trees.c",
+        "arch/generic/adler32_c.c",
+        "arch/generic/adler32_fold_c.c",
+        "arch/generic/chunkset_c.c",
+        "arch/generic/compare256_c.c",
+        "arch/generic/crc32_braid_c.c",
+        "arch/generic/crc32_fold_c.c",
+        "arch/generic/slide_hash_c.c",
+    ]
+    zlib_sources = ["src/external/zlib-ng/" + source for source in zlib_sources]
+    for name in ["zlib_name_mangling.h", "zlib.h", "zconf.h"]:
+        with open(f"src/external/zlib-ng/{name}.in", 'rb') as file, open(
+            f"src/external/zlib-ng/{name}", 'wb'
+        ) as out_file:
+            out_file.write(file.read().replace(b"@ZLIB_SYMBOL_PREFIX@", b"LIBRAPIDARCHIVE_"))
 
 isal_sources = [
     "igzip/igzip_inflate.c",
@@ -198,8 +230,8 @@ include_dirs = ['src']
 isal_includes = ['src/external/isa-l/include', 'src/external/isa-l/igzip', 'src/external/isa-l']
 if withIsal == 'enable':
     include_dirs += isal_includes
-if withZlib == 'enable':
-    include_dirs += ['src/external/zlib']
+if withZlibng == 'enable':
+    include_dirs += ['src/external/zlib-ng']
 if withRpmalloc == 'enable':
     include_dirs += ['src/external/rpmalloc/rpmalloc']
 if withCxxopts == 'enable':
@@ -350,16 +382,23 @@ class Build(build_ext):
         if '.S' not in self.compiler.src_extensions:
             self.compiler.src_extensions.append('.S')
 
+        defines = {
+            "NDEBUG": None,
+            # https://github.com/mjansson/rpmalloc/issues/297#issuecomment-3171952804
+            "ENABLE_OVERRIDE": "0",
+            "WITH_PYTHON_SUPPORT": "0",
+            "ZLIB_SYMBOL_PREFIX": "LIBRAPIDARCHIVE_",
+        }
+        if withZlibng:
+            defines["ZLIB_COMPAT"] = None
+
         for ext in self.extensions:
             ext.extra_compile_args = [
-                '-std=c++17',
-                '-O3',
-                '-DNDEBUG',
-                # https://github.com/mjansson/rpmalloc/issues/297#issuecomment-3171952804
-                '-DENABLE_OVERRIDE=0',
-                '-DWITH_PYTHON_SUPPORT',
-                '-D_LARGEFILE64_SOURCE=1',
-                '-D_GLIBCXX_ASSERTIONS',
+                "-std=c++17",
+                "-O3",
+                "-D_LARGEFILE64_SOURCE=1",
+                "-D_GLIBCXX_ASSERTIONS",
+                *[f"-D{define}" + ("" if value is None else "=" + value) for define, value in defines.items()],
             ]
 
             if supportsFlag(self.compiler, '-flto=auto'):
@@ -397,11 +436,8 @@ class Build(build_ext):
                     '/std:c++17',
                     '/experimental:c11atomics',
                     '/O2',
-                    '/DNDEBUG',
-                    # https://github.com/mjansson/rpmalloc/issues/297#issuecomment-3171952804
-                    '/DENABLE_OVERRIDE=0',
-                    '/DWITH_PYTHON_SUPPORT',
                     '/constexpr:steps99000100',
+                    *[f"/D{define}" + ("" if value is None else "=" + value) for define, value in defines.items()],
                 ]
                 if withRpmalloc != 'disable':
                     ext.extra_compile_args.append('/DLIBRAPIDARCHIVE_WITH_RPMALLOC')

@@ -397,7 +397,10 @@ rapidgzipCLI( int                  argc,
         #endif
             << "# " << thirdparty::zlib::name << "\n\n"
             << thirdparty::zlib::url << "\n\n"
-            << thirdparty::zlib::license;
+            << thirdparty::zlib::license
+            << "# " << thirdparty::zlib_ng::name << "\n\n"
+            << thirdparty::zlib_ng::url << "\n\n"
+            << thirdparty::zlib_ng::license;
         return 0;
     }
 

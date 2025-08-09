@@ -7,6 +7,8 @@ option(LIBRAPIDARCHIVE_BUILD_TESTS "Build tests and benchmarks" ON)
 option(LIBRAPIDARCHIVE_BUILD_TOOLS "Build tools" ON)
 option(LIBRAPIDARCHIVE_CODE_COVERAGE "Enable coverage reporting" OFF)
 option(LIBRAPIDARCHIVE_USE_SYSTEM_ZLIB "Use the system-installed zlib library instead of compiling it from source" OFF)
+option(LIBRAPIDARCHIVE_USE_ZLIB_NG
+       "Statically compile with zlib-ng instead of zlib. Will be ignored if LIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=ON." ON)
 option(LIBRAPIDARCHIVE_WITH_RPMALLOC "Compile with rpmalloc for faster memory allocations" ON)
 option(LIBRAPIDARCHIVE_WITH_ISAL "Compile with ISA-l for more than twice as fast decompression than zlib" ON)
 option(LIBRAPIDARCHIVE_RUN_CLANG_TIDY "Runs clang-tidy while building targets" OFF)

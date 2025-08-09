@@ -13,3 +13,6 @@
 [submodule "src/external/isa-l"]
 	path = src/external/isa-l
 	url = https://github.com/mxmlnkn/isa-l
+[submodule "src/external/zlib-ng"]
+	path = src/external/zlib-ng
+	url = https://github.com/zlib-ng/zlib-ng.git

@@ -148,7 +148,7 @@ using namespace rapidgzip;
  *    it is unclear where the remaining 80 % is spent.
  *    8 B takes too long to take timings. So probably slower than 10 MB/s!
  */
-constexpr size_t DECOMPRESSION_BUFFER_SIZE = 64_Mi;
+constexpr size_t DECOMPRESSION_BUFFER_SIZE = 8_Mi;
 
 class GzipWrapper
 {
@@ -957,32 +957,210 @@ cmake --build . -- benchmarkGzip && src/benchmarks/benchmarkGzip 4GiB-base64.pig
      upfront cost for the double-symbol cached Huffman-decoder becomes expensive.
 
 
+# Benchmark with DECOMPRESSION_BUFFER_SIZE = 8_Mi:
+
+## With ISA-L
+
+zlib should not matter for rapidgzip if ISA-L is available. It matters for the libarchive benchmark though!
+
 for (( i=0; i<20; ++i )); do cat test-files/silesia/silesia.tar; done | gzip > silesia-20x.tar.gz
+cmake -DLIBRAPIDARCHIVE_WITH_ISAL=ON \
+      -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=ON \
+      -DLIBRAPIDARCHIVE_USE_ZLIB_NG=OFF .. &&
 cmake --build . -- benchmarkGzip && src/benchmarks/benchmarkGzip silesia-20x.tar.gz
 
     Decompressed 1364776140 B to 4239155200 B with libarchive:
-        Runtime / s: 10.09 <= 10.11 +- 0.04 <= 10.16
-        Bandwidth on Encoded Data / (MB/s): 134.3 <= 134.9 +- 0.5 <= 135.3
-        Bandwidth on Decoded Data / (MB/s): 417.3 <= 419.1 +- 1.6 <= 420.1
+        Runtime / s: 10.00 <= 10.09 +- 0.08 <= 10.15
+        Bandwidth on Encoded Data / (MB/s): 134.4 <= 135.3 +- 1.0 <= 136.4
+        Bandwidth on Decoded Data / (MB/s): 417 <= 420 +- 3 <= 424
     Decompressed 1364776140 B to 4239155200 B with zlib:
-        Runtime / s: 10.110 <= 10.123 +- 0.021 <= 10.148
-        Bandwidth on Encoded Data / (MB/s): 134.49 <= 134.81 +- 0.28 <= 134.99
-        Bandwidth on Decoded Data / (MB/s): 417.7 <= 418.8 +- 0.9 <= 419.3
+        Runtime / s: 10.42 <= 10.45 +- 0.04 <= 10.49
+        Bandwidth on Encoded Data / (MB/s): 130.1 <= 130.6 +- 0.5 <= 131.0
+        Bandwidth on Decoded Data / (MB/s): 404.0 <= 405.8 +- 1.6 <= 406.9
     Decoded 66040 deflate blocks
     Decoded 66040 deflate blocks
     Decoded 66040 deflate blocks
     Decompressed 1364776140 B to 4239155200 B with rapidgzip (serial):
-        Runtime / s: 11.71 <= 11.88 +- 0.16 <= 12.02
-        Bandwidth on Encoded Data / (MB/s): 113.5 <= 114.9 +- 1.6 <= 116.6
-        Bandwidth on Decoded Data / (MB/s): 353 <= 357 +- 5 <= 362
-    Decompressed 1364776140 B to 4239155200 B with rapidgzip (parallel):
-        Runtime / s: 1.38 <= 1.42 +- 0.05 <= 1.47
-        Bandwidth on Encoded Data / (MB/s): 930 <= 960 +- 30 <= 990
-        Bandwidth on Decoded Data / (MB/s): 2880 <= 2990 +- 100 <= 3070
+        Runtime / s: 9.62 <= 9.75 +- 0.13 <= 9.89
+        Bandwidth on Encoded Data / (MB/s): 138.1 <= 140.1 +- 1.9 <= 141.8
+        Bandwidth on Decoded Data / (MB/s): 429 <= 435 +- 6 <= 440
+    Decompressed 1364776140 B to 4239155200 B with rapidgzip (parallel: 1 cores):
+        Runtime / s: 6.88 <= 6.97 +- 0.09 <= 7.07
+        Bandwidth on Encoded Data / (MB/s): 193.1 <= 195.7 +- 2.6 <= 198.4
+        Bandwidth on Decoded Data / (MB/s): 600 <= 608 +- 8 <= 616
+    Decompressed 1364776140 B to 4239155200 B with rapidgzip (parallel: 24 cores):
+        Runtime / s: 1.687 <= 1.699 +- 0.018 <= 1.719
+        Bandwidth on Encoded Data / (MB/s): 794 <= 803 +- 8 <= 809
+        Bandwidth on Decoded Data / (MB/s): 2466 <= 2495 +- 26 <= 2513
     Decompressed 1364776140 B to 4239155200 B with rapidgzip (parallel + index):
-        Runtime / s: 0.960 <= 0.966 +- 0.006 <= 0.972
-        Bandwidth on Encoded Data / (MB/s): 1405 <= 1412 +- 9 <= 1422
-        Bandwidth on Decoded Data / (MB/s): 4363 <= 4387 +- 27 <= 4416
+        Runtime / s: 0.921 <= 0.934 +- 0.018 <= 0.954
+        Bandwidth on Encoded Data / (MB/s): 1430 <= 1461 +- 27 <= 1481
+        Bandwidth on Decoded Data / (MB/s): 4440 <= 4540 +- 80 <= 4600
+
+  -> rapidgzip (parallel: 1 cores) is faster than rapidgzip (serial) because GzipReader does not fall back to ISA-L!
+
+## Without ISA-L (System Zlib)
+
+cmake -DLIBRAPIDARCHIVE_WITH_ISAL=OFF \
+      -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=ON \
+      -DLIBRAPIDARCHIVE_USE_ZLIB_NG=OFF .. &&
+cmake --build . -- benchmarkGzip && src/benchmarks/benchmarkGzip silesia-20x.tar.gz
+
+    Decompressed 1364776140 B to 4239155200 B with libarchive:
+        Runtime / s: 10.08 <= 10.18 +- 0.10 <= 10.27
+        Bandwidth on Encoded Data / (MB/s): 132.9 <= 134.1 +- 1.3 <= 135.4
+        Bandwidth on Decoded Data / (MB/s): 413 <= 416 +- 4 <= 421
+    Decompressed 1364776140 B to 4239155200 B with zlib:
+        Runtime / s: 10.58 <= 10.67 +- 0.09 <= 10.76
+        Bandwidth on Encoded Data / (MB/s): 126.8 <= 127.9 +- 1.1 <= 129.0
+        Bandwidth on Decoded Data / (MB/s): 394 <= 397 +- 3 <= 401
+    Decoded 66040 deflate blocks
+    Decoded 66040 deflate blocks
+    Decoded 66040 deflate blocks
+    Decompressed 1364776140 B to 4239155200 B with rapidgzip (serial):
+        Runtime / s: 12.57 <= 12.69 +- 0.14 <= 12.84
+        Bandwidth on Encoded Data / (MB/s): 106.3 <= 107.6 +- 1.2 <= 108.5
+        Bandwidth on Decoded Data / (MB/s): 330 <= 334 +- 4 <= 337
+    Decompressed 1364776140 B to 4239155200 B with rapidgzip (parallel: 1 cores):
+        Runtime / s: 13.69 <= 13.77 +- 0.08 <= 13.86
+        Bandwidth on Encoded Data / (MB/s): 98.5 <= 99.1 +- 0.6 <= 99.7
+        Bandwidth on Decoded Data / (MB/s): 305.9 <= 307.9 +- 1.9 <= 309.7
+    Decompressed 1364776140 B to 4239155200 B with rapidgzip (parallel: 24 cores):
+        Runtime / s: 1.767 <= 1.787 +- 0.021 <= 1.809
+        Bandwidth on Encoded Data / (MB/s): 755 <= 764 +- 9 <= 772
+        Bandwidth on Decoded Data / (MB/s): 2344 <= 2372 +- 28 <= 2399
+    Decompressed 1364776140 B to 4239155200 B with rapidgzip (parallel + index):
+        Runtime / s: 0.888 <= 0.898 +- 0.008 <= 0.904
+        Bandwidth on Encoded Data / (MB/s): 1510 <= 1520 +- 14 <= 1536
+        Bandwidth on Decoded Data / (MB/s): 4690 <= 4720 +- 40 <= 4770
+
+  -> rapidgzip (parallel: 1 cores) is 10% slower than rapidgzip (serial). This is because it does not use zlib
+     but our custom-written decompressor! ZlibInflateWrapper is missing the StoppingPoint API, that's why. See below.
+
+## Without ISA-L (Static zlib)
+
+cmake -DLIBRAPIDARCHIVE_WITH_ISAL=OFF \
+      -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=OFF \
+      -DLIBRAPIDARCHIVE_USE_ZLIB_NG=OFF .. &&
+cmake --build . -- benchmarkGzip && src/benchmarks/benchmarkGzip silesia-20x.tar.gz
+
+    Decompressed 1364776140 B to 4239155200 B with libarchive:
+        Runtime / s: 10.14 <= 10.25 +- 0.10 <= 10.31
+        Bandwidth on Encoded Data / (MB/s): 132.4 <= 133.1 +- 1.3 <= 134.6
+        Bandwidth on Decoded Data / (MB/s): 411 <= 414 +- 4 <= 418
+    Decompressed 1364776140 B to 4239155200 B with zlib:
+        Runtime / s: 10.26 <= 10.31 +- 0.05 <= 10.37
+        Bandwidth on Encoded Data / (MB/s): 131.6 <= 132.3 +- 0.7 <= 133.1
+        Bandwidth on Decoded Data / (MB/s): 408.9 <= 411.1 +- 2.2 <= 413.3
+    Decoded 66040 deflate blocks
+    Decoded 66040 deflate blocks
+    Decoded 66040 deflate blocks
+    Decompressed 1364776140 B to 4239155200 B with rapidgzip (serial):
+        Runtime / s: 12.55 <= 12.67 +- 0.14 <= 12.82
+        Bandwidth on Encoded Data / (MB/s): 106.5 <= 107.7 +- 1.2 <= 108.7
+        Bandwidth on Decoded Data / (MB/s): 331 <= 335 +- 4 <= 338
+    Decompressed 1364776140 B to 4239155200 B with rapidgzip (parallel: 1 cores):
+        Runtime / s: 13.90 <= 14.04 +- 0.12 <= 14.14
+        Bandwidth on Encoded Data / (MB/s): 96.5 <= 97.2 +- 0.8 <= 98.2
+        Bandwidth on Decoded Data / (MB/s): 299.8 <= 301.9 +- 2.6 <= 304.9
+    Decompressed 1364776140 B to 4239155200 B with rapidgzip (parallel: 24 cores):
+        Runtime / s: 1.85 <= 1.89 +- 0.06 <= 1.95
+        Bandwidth on Encoded Data / (MB/s): 698 <= 724 +- 22 <= 738
+        Bandwidth on Decoded Data / (MB/s): 2170 <= 2250 +- 70 <= 2290
+    Decompressed 1364776140 B to 4239155200 B with rapidgzip (parallel + index):
+        Runtime / s: 0.9707 <= 0.9724 +- 0.0015 <= 0.9736
+        Bandwidth on Encoded Data / (MB/s): 1401.8 <= 1403.5 +- 2.2 <= 1405.9
+        Bandwidth on Decoded Data / (MB/s): 4354 <= 4359 +- 7 <= 4367
+
+ -> Not much different from system zlib, except maybe the parallel versions being ~5% slower but that could be random.
+
+
+## Without ISA-L (Static zlib-ng)
+
+cmake -DLIBRAPIDARCHIVE_WITH_ISAL=OFF \
+      -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=OFF \
+      -DLIBRAPIDARCHIVE_USE_ZLIB_NG=ON .. &&
+cmake --build . -- benchmarkGzip && src/benchmarks/benchmarkGzip silesia-20x.tar.gz
+
+    Decompressed 1364776140 B to 4239155200 B with libarchive:
+        Runtime / s: 6.89 <= 6.94 +- 0.04 <= 6.97
+        Bandwidth on Encoded Data / (MB/s): 195.8 <= 196.7 +- 1.2 <= 198.0
+        Bandwidth on Decoded Data / (MB/s): 608 <= 611 +- 4 <= 615
+    Decompressed 1364776140 B to 4239155200 B with zlib:
+        Runtime / s: 6.957 <= 6.972 +- 0.025 <= 7.001
+        Bandwidth on Encoded Data / (MB/s): 194.9 <= 195.7 +- 0.7 <= 196.2
+        Bandwidth on Decoded Data / (MB/s): 605.5 <= 608.0 +- 2.2 <= 609.4
+    Decoded 66040 deflate blocks
+    Decoded 66040 deflate blocks
+    Decoded 66040 deflate blocks
+    Decompressed 1364776140 B to 4239155200 B with rapidgzip (serial):
+        Runtime / s: 12.06 <= 12.08 +- 0.03 <= 12.11
+        Bandwidth on Encoded Data / (MB/s): 112.67 <= 112.99 +- 0.28 <= 113.20
+        Bandwidth on Decoded Data / (MB/s): 350.0 <= 351.0 +- 0.9 <= 351.6
+    Decompressed 1364776140 B to 4239155200 B with rapidgzip (parallel: 1 cores):
+        Runtime / s: 13.35 <= 13.64 +- 0.29 <= 13.92
+        Bandwidth on Encoded Data / (MB/s): 98.1 <= 100.1 +- 2.1 <= 102.3
+        Bandwidth on Decoded Data / (MB/s): 305 <= 311 +- 7 <= 318
+    Decompressed 1364776140 B to 4239155200 B with rapidgzip (parallel: 24 cores):
+        Runtime / s: 1.803 <= 1.817 +- 0.015 <= 1.833
+        Bandwidth on Encoded Data / (MB/s): 744 <= 751 +- 6 <= 757
+        Bandwidth on Decoded Data / (MB/s): 2312 <= 2333 +- 19 <= 2351
+    Decompressed 1364776140 B to 4239155200 B with rapidgzip (parallel + index):
+        Runtime / s: 0.896 <= 0.900 +- 0.003 <= 0.903
+        Bandwidth on Encoded Data / (MB/s): 1512 <= 1517 +- 5 <= 1523
+        Bandwidth on Decoded Data / (MB/s): 4696 <= 4712 +- 17 <= 4730
+
+ -> The zlib and even the libarchive decompressions are 50% faster!
+ -> The decompression with index is actually faster ~5% faster than ISA-L!
+ -> "rapidgzip (parallel: 1 cores)" does not profit at all because the until the untilOffset not being exactly
+    known makes it not use decodeChunkWithInflateWrapper. finishDecodeChunkWithInexactOffset is used because
+    the window is known, but it does not work with ZlibInflateWrapper because the StoppingPoint API is not implemented.
+    src/tools/rapidgzip --count -v silesia-20x.tar.gz
+        Time spent decoding with custom inflate  : 18.4073 s
+        Time spent decoding with inflate wrapper : 0 s
+        Time spent decoding with ISA-L           : 0 s
+ -> Parallel decompression without index is ~5 % slower than ISA-L but ~10 % faster than zlib! Very nice!
+
+## Without ISA-L (Static zlib-ng and with name mangling)
+
+In CMakeLists.txt added set(ZLIB_SYMBOL_PREFIX LIBRAPIDARCHIVE_) before configuring.
+
+    Decompressed 1364776140 B to 4239155200 B with libarchive:
+        Runtime / s: 10.14 <= 10.21 +- 0.09 <= 10.32
+        Bandwidth on Encoded Data / (MB/s): 132.3 <= 133.7 +- 1.2 <= 134.6
+        Bandwidth on Decoded Data / (MB/s): 411 <= 415 +- 4 <= 418
+    Decompressed 1364776140 B to 4239155200 B with zlib:
+        Runtime / s: 7.08 <= 7.17 +- 0.08 <= 7.22
+        Bandwidth on Encoded Data / (MB/s): 189.0 <= 190.4 +- 2.1 <= 192.8
+        Bandwidth on Decoded Data / (MB/s): 587 <= 591 +- 6 <= 599
+    Decoded 66040 deflate blocks
+    Decoded 66040 deflate blocks
+    Decoded 66040 deflate blocks
+    Decompressed 1364776140 B to 4239155200 B with rapidgzip (serial):
+        Runtime / s: 12.20 <= 12.45 +- 0.29 <= 12.77
+        Bandwidth on Encoded Data / (MB/s): 106.9 <= 109.7 +- 2.5 <= 111.8
+        Bandwidth on Decoded Data / (MB/s): 332 <= 341 +- 8 <= 347
+    Decompressed 1364776140 B to 4239155200 B with rapidgzip (parallel: 1 cores):
+        Runtime / s: 13.38 <= 13.50 +- 0.15 <= 13.67
+        Bandwidth on Encoded Data / (MB/s): 99.8 <= 101.1 +- 1.1 <= 102.0
+        Bandwidth on Decoded Data / (MB/s): 310 <= 314 +- 3 <= 317
+    Decompressed 1364776140 B to 4239155200 B with rapidgzip (parallel: 24 cores):
+        Runtime / s: 1.70 <= 1.73 +- 0.03 <= 1.76
+        Bandwidth on Encoded Data / (MB/s): 777 <= 789 +- 14 <= 804
+        Bandwidth on Decoded Data / (MB/s): 2410 <= 2450 +- 40 <= 2500
+    Decompressed 1364776140 B to 4239155200 B with rapidgzip (parallel + index):
+        Runtime / s: 0.883 <= 0.888 +- 0.005 <= 0.893
+        Bandwidth on Encoded Data / (MB/s): 1528 <= 1538 +- 9 <= 1545
+        Bandwidth on Decoded Data / (MB/s): 4745 <= 4777 +- 28 <= 4800
+
+ -> Libarchive, which is used as a shared library, now keeps using the system ZLIB, instead of effectively
+    being preloaded by our own statically built zlib-version thanks to the ZLIB_SYMBOL_PREFIX!
+    I think this should be much safer, especially for the CPython shared library!
+    Else, we could be accidentally replacing zlib calls, which may or may not lead to errors!
+ -> Everything else uses the statically built zlib-ng. For good measure, I also set Z_PREFIX to ZLIB_SYMBOL_PREFIX
+    in case the included zlib.h is the system one instead of the zlib-ng one. This also avoids problems with
+    include precedence! This results in our usages of zlib, such as 'inflate' actually being defines that replaced
+    with 'LIBRAPARCHIVE_inflate' and so on.
 */
 
 /**
