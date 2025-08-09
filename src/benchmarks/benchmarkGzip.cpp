@@ -29,7 +29,7 @@ using namespace rapidgzip;
 /* Unfortunately, this is yet another performance-critical parameter, which is not directly related to the
  * decompression algorithm implementation :(. There is trade-off between staying in cache, I think, and the
  * number of decompression calls. Some tests with:
- *   cmake -DLIBRAPIDARCHIVE_WITH_ISAL=OFF -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=ON
+ *   cmake -DLIBRAPIDARCHIVE_WITH_ISAL=OFF -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=ON ..
  *   cmake --build . -- benchmarkGzip && src/benchmarks/benchmarkGzip silesia-20x.tar.gz
  *
  * Decompressed 1364784177 B to 4239155200 B with libarchive:
@@ -56,80 +56,99 @@ using namespace rapidgzip;
  * These benchmarks used the default chunk size of 4 MiB for ParallelGzipReader.
  *
  * Decompressed 1364784177 B to 4239155200 B with rapidgzip (serial):
- *   512 MiB : 325.4 <= 327.0 +- 2.2 <= 329.6
- *   256 MiB : 327.7 <= 330.2 +- 2.4 <= 332.5
- *   128 MiB : 332.0 <= 335.2 +- 3.0 <= 337.9
- *    64 MiB : 338.3 <= 340.8 +- 2.6 <= 343.5
- *    32 MiB : 338.6 <= 340.5 +- 2.4 <= 343.2
- *    16 MiB : 335.0 <= 337.7 +- 2.4 <= 339.3
- *     8 MiB : 324   <= 331   +- 9   <= 341
- *     4 MiB : 336.7 <= 338.7 +- 2.7 <= 341.8
- *     1 MiB : 340.3 <= 340.9 +- 1.1 <= 342.2
- *   256 KiB : 335   <= 342   +- 6   <= 346
- *   128 KiB : 323   <= 331   +- 7   <= 335
- *    64 KiB : 344.9 <= 346.8 +- 1.7 <= 348.2 <- local top, but only barely.
- *    32 KiB : 334.6 <= 337.4 +- 2.6 <= 339.7
- *     8 KiB : 334   <= 338   +- 5   <= 343
- *     1 KiB : 330.8 <= 331.6 +- 0.7 <= 332.1
+ *   512 MiB : 326.9 <= 329.0 +- 1.8 <= 330.0
+ *   256 MiB : 327.8 <= 328.3 +- 0.4 <= 328.5
+ *   128 MiB : 332   <= 336   +- 4   <= 339
+ *    64 MiB : 327.1 <= 329.2 +- 1.9 <= 330.9
+ *    32 MiB : 326   <= 336   +- 9   <= 344
+ *    16 MiB : 330.2 <= 331.7 +- 2.3 <= 334.4
+ *     8 MiB : 327.7 <= 330.7 +- 2.6 <= 332.5
+ *     4 MiB : 327.5 <= 330.4 +- 3.0 <= 333.5
+ *     1 MiB : 340.3 <= 340.9 +- 1.1 <= 342.2  <- local top
+ *   256 KiB : 335   <= 342   +- 6   <= 346    <- local top
+ *   128 KiB : 336.4 <= 338.3 +- 1.9 <= 340.1
+ *    64 KiB : 344.9 <= 346.8 +- 1.7 <= 348.2  <- local top, but only barely.
+ *    32 KiB : 346.3 <= 347.8 +- 1.5 <= 349.3
+ *     8 KiB : 338.9 <= 339.7 +- 1.4 <= 341.4
+ *     1 KiB : 334.5 <= 335.3 +- 0.7 <= 336.0
+ *   128   B : 310.9 <= 313.5 +- 2.4 <= 315.6
+ *     8   B : 128.8 <= 131.0 +- 1.9 <= 132.3
  *  -> Also stable along a very large range! Unfortunately, not exposted via Python any longer.
  *
  * Decompressed 1364784177 B to 4239155200 B with rapidgzip (parallel: 1 cores):
- *   512 MiB : 280   <= 284   +- 4   <= 288
- *   256 MiB : 297.0 <= 299.6 +- 2.3 <= 301.4
- *   128 MiB : 302.0 <= 302.6 +- 0.8 <= 303.6
- *    64 MiB : 299.8 <= 300.8 +- 1.1 <= 302.0
- *    32 MiB : 302   <= 305   +- 3   <= 308
- *    16 MiB : 301.8 <= 304.6 +- 2.6 <= 307.0
- *     8 MiB : 302.1 <= 302.6 +- 0.5 <= 302.9
- *     4 MiB : 303.2 <= 305.1 +- 2.7 <= 308.1
- *     1 MiB : 310.8 <= 312.2 +- 1.2 <= 313.2  <- local tops
- *   256 KiB : 312.5 <= 313.4 +- 0.8 <= 313.9  <- local tops
- *   128 KiB : 304.7 <= 307.4 +- 2.3 <= 308.8
- *    64 KiB : 312.5 <= 314.1 +- 1.8 <= 316.0  <- local tops
- *    32 KiB : 299.2 <= 302.6 +- 3.0 <= 304.8
- *     8 KiB : 297   <= 303   +- 5   <= 306
- *     1 KiB : 279.2 <= 281.3 +- 1.9 <= 282.4
+ *   512 MiB : 295   <= 298   +- 3   <= 301
+ *   256 MiB : 286   <= 291   +- 5   <= 295
+ *   128 MiB : 295.3 <= 296.7 +- 1.5 <= 298.4
+ *    64 MiB : 298.8 <= 300.1 +- 2.0 <= 302.4
+ *    32 MiB : 295   <= 298   +- 4   <= 302
+ *    16 MiB : 300.3 <= 303.3 +- 2.7 <= 305.5
+ *     8 MiB : 298   <= 302   +- 4   <= 306
+ *     4 MiB : 297.6 <= 300.5 +- 2.5 <= 302.1
+ *     1 MiB : 307.9 <= 309.3 +- 2.0 <= 311.6
+ *   256 KiB : 311.0 <= 312.5 +- 1.4 <= 313.5  <- local top
+ *   128 KiB : 304   <= 309   +- 5   <= 314
+ *    64 KiB : 304.5 <= 306.6 +- 1.9 <= 307.7
+ *    32 KiB : 298   <= 305   +- 7   <= 312
+ *     8 KiB : 307.9 <= 311.0 +- 2.7 <= 313.0
+ *     1 KiB : 283.8 <= 285.5 +- 1.6 <= 287.0
+ *   128   B : 173.0 <= 173.4 +- 0.5 <= 174.0
+ *    32   B :  70.4 <=  70.9 +- 0.5 <=  71.3
  * -> 10% slower than GzipReader for some reason!? Just because of the ChunkMap lookup, std::launch(std::deferred),
  *    and std::future evaluation?! But, I guess it is still quite a good result for the much more complex architecture.
  *
  * Decompressed 1364784177 B to 4239155200 B with rapidgzip (parallel: 24 cores):
- *   512 MiB : 1890 <= 2010 +- 130 <= 2150
- *   256 MiB : 2337 <= 2353 +- 17 <= 2372
- *   128 MiB : 2412 <= 2437 +- 24 <= 2460  <- local top
- *    64 MiB : 2370 <= 2420 +- 50 <= 2470  <- local top
- *    32 MiB : 2390 <= 2440 +- 40 <= 2480  <- local top
- *    16 MiB : 2432 <= 2452 +- 23 <= 2478  <- local top
- *     8 MiB : 2287 <= 2308 +- 19 <= 2324
- *     4 MiB : 2060 <= 2069 +- 10 <= 2079
- *     1 MiB : 2010 <= 2070 +- 50 <= 2110
- *   256 KiB : 2024 <= 2038 +- 12 <= 2046
- *   128 KiB : 1900 <= 1960 +- 60 <= 2010
- *    64 KiB : 1920 <= 1940 +- 30 <= 1980
- *    32 KiB : 1740 <= 1780 +- 40 <= 1810
- *     8 KiB :  860 <=  878 +- 16 <=  893
- *     1 KiB : 136.5 <= 137.6 +- 1.4 <= 139.2
+ *   512 MiB : 1980 <= 1996 +-  27 <= 2027
+ *   256 MiB : 2030 <= 2130 +- 110 <= 2250  <- still fine range
+ *   128 MiB : 2337 <= 2343 +-   6 <= 2350  <- still fine range
+ *    64 MiB : 2290 <= 2330 +-  30 <= 2360  <- still fine range
+ *    32 MiB : 2409 <= 2429 +-  25 <= 2458  <- ideal range
+ *    16 MiB : 2393 <= 2415 +-  20 <= 2431  <- ideal range
+ *     8 MiB : 2350 <= 2390 +-  30 <= 2410  <- ideal range
+ *     4 MiB : 1993 <= 2016 +-  21 <= 2034  <- begins to slow
+ *     1 MiB : 1950 <= 2000 +-  40 <= 2030  <- begins to slow
+ *   256 KiB : 1970 <= 2040 +-  60 <= 2070  <- begins to slow
+ *   128 KiB : 1980 <= 2010 +-  40 <= 2050  <- begins to slow
+ *    64 KiB : 1906 <= 1932 +-  25 <= 1954  <- begins to slow
+ *    32 KiB : 1977 <= 1997 +-  17 <= 2010  <- begins to slow
+ *     8 KiB : 1926 <= 1939 +-  21 <= 1963  <- begins to slow
+ *     1 KiB : 1475 <= 1493 +-  17 <= 1510
+ *   128   B :  348 <= 350  +-   3 <=  354
+ *    32   B : 90.4 <= 90.7 +- 0.4 <= 91.2
  *  -> This is more according to my expectations. It cannot inline these calls and the call overhead,
  *     especially for finding the chunk and possibly waiting on mutexes, is expected to be expensive
  *     and degrades performance!
  *
  * Decompressed 1364784177 B to 4239155200 B with rapidgzip (parallel + index):
- *   512 MiB : 2390 <= 2420 +-  30 <= 2450
- *   256 MiB : 3360 <= 3420 +-  50 <= 3470
- *   128 MiB : 3550 <= 3660 +-  90 <= 3720
- *    64 MiB : 3734 <= 3745 +-  18 <= 3765
- *    32 MiB : 3870 <= 3920 +-  50 <= 3960
- *    16 MiB : 3890 <= 3920 +-  40 <= 3960
- *     8 MiB : 4040 <= 4170 +- 120 <= 4260
- *     4 MiB : 4990 <= 5070 +- 120 <= 5200
- *     1 MiB : 4980 <= 5020 +-  70 <= 5100
- *   256 KiB : 4940 <= 5150 +- 190 <= 5310
- *   128 KiB : 4710 <= 4820 +- 130 <= 4950
- *    64 KiB : 3350 <= 3400 +-  50 <= 3440
- *    32 KiB : 2198 <= 2216 +-  23 <= 2242
- *     8 KiB :  628 <= 655  +-  27 <= 683
- *     1 KiB : 93.7 <= 94.4 +- 0.6 <= 94.7
+ *   512 MiB : 2830 <= 2880 +-  60 <= 2950  <- only half speed
+ *   256 MiB : 3357 <= 3369 +-  11 <= 3378  <- begins to slow
+ *   128 MiB : 3614 <= 3643 +-  25 <= 3659  <- begins to slow
+ *    64 MiB : 3710 <= 3830 +- 170 <= 4020  <- begins to slow
+ *    32 MiB : 3890 <= 3990 +- 100 <= 4100  <- begins to slow
+ *    16 MiB : 4157 <= 4168 + - 11 <= 4177  <- begins to slow
+ *     8 MiB : 4740 <= 4790 +-  60 <= 4850  <- still fine range
+ *     4 MiB : 4710 <= 4900 +- 170 <= 5030  <- ideal range
+ *     1 MiB : 4870 <= 5060 +- 160 <= 5190  <- ideal range
+ *   256 KiB : 5130 <= 5210 +-  80 <= 5290  <- ideal range
+ *   128 KiB : 4980 <= 5050 +- 100 <= 5170  <- ideal range
+ *    64 KiB : 4930 <= 5050 +- 110 <= 5150  <- ideal range
+ *    32 KiB : 4850 <= 5020 +- 150 <= 5120  <- ideal range
+ *     8 KiB : 4570 <= 4630 +-  60 <= 4690  <- still fine range
+ *     1 KiB : 1880 <= 1920 +-  40 <= 1950  <- only half speed
+ *   128   B :  381 <=  386 +-   5 <=  391
+ *    32   B : 95.0 <= 95.4 +- 0.4 <= 95.7
+ * -> It is interesting to see the 128 B case being equally fast no matter the cores.
+ *    This shows that the bottleneck is probably the 'read'-method call overhead, not the decompression.
+ *    Perf record shows most of the time as being spent in: deflate::Block::read, so not very helpful.
+ * -> For 8 B, perf shows most of the time (21 %) spent in
+ *      rapidgzip::ParallelGzipReader<rapidgzip::ChunkData>::read(
+ *          int, char*, unsigned long)::{
+ *              lambda(std::shared_ptr<rapidgzip::ChunkData> const&, unsigned long, unsigned long)#1
+ *          }::operator()(std::shared_ptr<rapidgzip::ChunkData> const&, unsigned long, unsigned long)
+ *    So, the time is spent inside the 'writeFunctor' and probably function calling overhead because
+ *    it is unclear where the remaining 80 % is spent.
+ *    8 B takes too long to take timings. So probably slower than 10 MB/s!
  */
-constexpr size_t DECOMPRESSION_BUFFER_SIZE = 128_Ki;
+constexpr size_t DECOMPRESSION_BUFFER_SIZE = 64_Mi;
 
 class GzipWrapper
 {

@@ -276,6 +276,7 @@ public:
             queuedResult = submitOnDemandTask( blockOffset, nextBlockOffset );
         }
 
+        const auto lastFetchedIndex = m_fetchingStrategy.lastFetched();
         m_fetchingStrategy.fetch( validDataBlockIndex );
 
         const auto resultIsReady =
@@ -285,7 +286,17 @@ public:
                        ( queuedResult.valid() && ( queuedResult.wait_for( 0s ) == std::future_status::ready ) );
             };
 
-        prefetchNewBlocks( getPartitionOffsetFromOffset, resultIsReady );
+        /* The prefetch below only is called when the result future times out. When all futures are ready,
+         * this prefetch call would only be called when trying to access the next non-prefetched block.
+         * This would introduce a large latency, which is not necessary. This call here is necessary to avoid
+         * that. This prefetch results in pipelined behavior, i.e., the next block will be prefetched, when
+         * the earliest block can get removed from the cache, e.g., during sequential access!
+         * However, prefetchNewBlocks is very expensive for some reason, therefore only call it when the
+         * accessed block index actually has changed. This yields orders of magnitudes speedups when
+         * ParallelGzipReader::read is called with nBytesToRead < 32 KiB. */
+        if ( !lastFetchedIndex || ( lastFetchedIndex.value() != validDataBlockIndex ) ) {
+            prefetchNewBlocks( getPartitionOffsetFromOffset, resultIsReady );
+        }
 
         /* Return result */
         if ( cachedResult.has_value() ) {

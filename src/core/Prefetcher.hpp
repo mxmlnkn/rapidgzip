@@ -22,8 +22,20 @@ public:
     virtual
     ~FetchingStrategy() = default;
 
+    /**
+     * Overriding methods must call this base method!
+     */
     virtual void
-    fetch( size_t index ) = 0;
+    fetch( size_t index )
+    {
+        m_lastFetched = index;
+    }
+
+    [[nodiscard]] std::optional<size_t>
+    lastFetched() const
+    {
+        return m_lastFetched;
+    }
 
     /**
      * @return true if all of the memorized last access were sequential. On true, more optimizations may be enabled.
@@ -36,6 +48,9 @@ public:
 
     [[nodiscard]] virtual std::vector<size_t>
     prefetch( size_t maxAmountToPrefetch ) const = 0;
+
+private:
+    std::optional<size_t> m_lastFetched;
 };
 
 
@@ -46,27 +61,17 @@ class FetchNextFixed :
     public FetchingStrategy
 {
 public:
-    void
-    fetch( size_t index ) override
-    {
-        m_lastFetched = index;
-    }
-
     [[nodiscard]] std::vector<size_t>
     prefetch( size_t maxAmountToPrefetch ) const override
     {
-        if ( !m_lastFetched ) {
+        if ( !lastFetched() ) {
             return {};
         }
 
         std::vector<size_t> toPrefetch( maxAmountToPrefetch );
-        std::iota( toPrefetch.begin(), toPrefetch.end(), *m_lastFetched + 1 );
+        std::iota( toPrefetch.begin(), toPrefetch.end(), *lastFetched() + 1 );
         return toPrefetch;
     }
-
-private:
-    static constexpr size_t MEMORY_SIZE = 3;
-    std::optional<size_t> m_lastFetched;
 };
 
 
@@ -92,6 +97,8 @@ public:
     void
     fetch( size_t index ) override
     {
+        FetchingStrategy::fetch( index );
+
         /* Ignore duplicate accesses, which in the case of bzip2 blocks most likely means
          * that the caller reads only small parts from the block per call. */
         if ( !m_previousIndexes.empty() && ( m_previousIndexes.front() == index ) ) {
