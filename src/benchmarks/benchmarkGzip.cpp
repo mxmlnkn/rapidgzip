@@ -243,35 +243,14 @@ decompressWithRapidgzip( const std::string& fileName )
 
 
 [[nodiscard]] size_t
-decompressWithRapidgzipParallel( const std::string& fileName )
+decompressWithParallelGzipReader( const std::string& fileName,
+                                  const size_t       parallelization = 0,
+                                  uint64_t           chunkSizeInBytes = 4_Mi )
 {
     size_t totalDecodedBytes = 0;
 
-    rapidgzip::ParallelGzipReader gzipReader( std::make_unique<StandardFileReader>( fileName ) );
-    std::vector<uint8_t> outputBuffer( 64_Mi );
-    while ( true ) {
-        const auto nBytesRead = gzipReader.read( -1,
-                                                 reinterpret_cast<char*>( outputBuffer.data() ),
-                                                 outputBuffer.size() );
-        if ( ( nBytesRead == 0 ) && gzipReader.eof() ) {
-            break;
-        }
-
-        totalDecodedBytes += nBytesRead;
-    }
-
-    return totalDecodedBytes;
-}
-
-
-[[nodiscard]] size_t
-decompressWithRapidgzipParallelChunked( const std::string& fileName,
-                                        const size_t       nBlocksToSkip )
-{
-    size_t totalDecodedBytes = 0;
-
-    const auto spacing = ( nBlocksToSkip + 1 ) * 32_Ki;
-    rapidgzip::ParallelGzipReader gzipReader( std::make_unique<StandardFileReader>( fileName ), 0, spacing );
+    rapidgzip::ParallelGzipReader gzipReader(
+        std::make_unique<StandardFileReader>( fileName ), parallelization, chunkSizeInBytes );
     std::vector<uint8_t> outputBuffer( 64_Mi );
     while ( true ) {
         const auto nBytesRead = gzipReader.read( -1,
@@ -375,7 +354,7 @@ benchmarkChunkedParallelDecompression( const std::string& fileName )
     for ( size_t nBlocksToSkip : { 0, 1, 2, 4, 8, 16, 24, 32, 64, 128 } ) {
         const auto [sizeRapidgzipParallel, durationsRapidgzipParallel] = benchmarkFunction<3>(
             [&fileName, nBlocksToSkip] () {
-                return decompressWithRapidgzipParallelChunked( fileName, nBlocksToSkip );
+                return decompressWithParallelGzipReader( fileName, nBlocksToSkip );
             } );
         if ( sizeRapidgzipParallel == expectedSize ) {
             std::cout << "Decompressed " << fileContents.size() << " B to " << sizeRapidgzipParallel << " B "
@@ -423,16 +402,20 @@ benchmarkDecompression( const std::string& fileName )
         std::cerr << "Decompressing with rapidgzip (serial) decoded a different amount than libarchive!\n";
     }
 
-    const auto [sizeRapidgzipParallel, durationsRapidgzipParallel] = benchmarkFunction<3>(
-        [&fileName] () { return decompressWithRapidgzipParallel( fileName ); } );
-    if ( sizeRapidgzipParallel == expectedSize ) {
-        std::cout << "Decompressed " << fileContents.size() << " B to " << sizeRapidgzipParallel << " B "
-                  << "with rapidgzip (parallel):\n";
-        printBandwidths( durationsRapidgzipParallel, fileContents.size(), sizeRapidgzipParallel );
-    } else {
-        throw std::logic_error( "Decompressing with rapidgzip (parallel) decoded a different amount ("
-                                + std::to_string( sizeRapidgzipParallel ) + ") than libarchive ("
-                                + std::to_string( expectedSize ) + ")!" );
+    const std::vector<size_t> parallelizations = { 1, availableCores() };
+    for ( const auto parallelization : parallelizations ) {
+        const auto [sizeRapidgzipParallel, durationsRapidgzipParallel] = benchmarkFunction<3>(
+            [&fileName, parallelization = parallelization] () {
+                return decompressWithParallelGzipReader( fileName, parallelization ); } );
+        if ( sizeRapidgzipParallel == expectedSize ) {
+            std::cout << "Decompressed " << fileContents.size() << " B to " << sizeRapidgzipParallel << " B "
+                      << "with rapidgzip (parallel: " << parallelization << " cores):\n";
+            printBandwidths( durationsRapidgzipParallel, fileContents.size(), sizeRapidgzipParallel );
+        } else {
+            throw std::logic_error( "Decompressing with rapidgzip (parallel) decoded a different amount ("
+                                    + std::to_string( sizeRapidgzipParallel ) + ") than libarchive ("
+                                    + std::to_string( expectedSize ) + ")!" );
+        }
     }
 
     const auto [sizeRapidgzipParallelIndex, durationsRapidgzipParallelIndex] = benchmarkFunction<3>(
