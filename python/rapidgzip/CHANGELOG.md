@@ -1,4 +1,67 @@
 
+# Version 0.15.0 built on 2025-08-10
+
+# Features
+
+ - Add option to specify `inf` for range length given to `--ranges` to read until the end of the file.
+ - Add `--test` action argument and make `--verify` not double as a test functionality.
+ - Count newlines during first-time decompression.
+ - Enable tee-like functionality when combining `-o` and `-c`.
+ - Implement `clone` for `BufferedFileReader` and `BufferViewFileReader`.
+ - `GzipReader`: Add support for zlib and raw deflate input.
+ - `GzipReader`: Add `clone` method.
+ - `GzipReader`: Enable seeking when an index was imported.
+
+# Performance
+
+ - Avoid decompression when combining only `--count` and `--import-index`.
+ - Avoid decompression when combining only `--count-lines` and `--import-index` of a gztool index with lines.
+ - Build with zlib-ng instead of zlib for roughly 50% speedup for some cases.
+ - Fix performance degradation when reading less than the chunk size per call.
+ - Implement `loadUnaligned` for big endian.
+ - `ParallelGzipReader`: Use special case with seek when no output file or buffer is given.
+
+# Fixes
+
+ - Avoid dereference of iterator after end during index export when line offsets are requested but missing.
+ - `deflate::Block`: The default copy-constructor wrongly copied the `m_window` pointer to the source `m_window16`.
+ - `ParallelBZ2Reader`: `tellCompressed` did wrongly return 0 at the end of the file.
+
+# API
+
+ - Accept path-likes and bytes for opening files in Python wrapper.
+ - `FileReader`: Make `clone` copy the file position if the overridden `cloneRaw` does not.
+ - Guard and clean up includes.
+ - Make chunk indexing of first-seen chunks extensible with callbacks.
+ - Remove `fileno` method from Python wrapper because it returns the underlying fileno.
+ - Remove `MemoryFileReader` in favor of `BufferedFileReader`.
+ - `StandardFileReader`: Avoid ambiguous overload when calling with `const char*`.
+
+# Build System
+
+ - Add CMake target for import.
+ - Add options for disabling tools, tests, and benchmarks to be built.
+ - Add prefix to CMake options to avoid conflicts.
+ - Add support for building with ISA-L on aarch64.
+ - Enable building on RISCV64 platform.
+ - Fix compilation on macOS.
+ - Fix constexpr problems in dependent projects.
+ - Increase MACOSX_DEPLOYMENT_TARGET to 13.0.
+ - Split ISA-L sources into C and Assembler to make it extensible for aarch64.
+ - Update cxxopts to v3.3.1.
+ - Update ISA-L fork.
+ - Update to rpmalloc rewrite.
+ - Use ISA-L's new CMake system.
+
+# CI
+
+ - Have to upgrade to cibuildwheel 3 and deprecate Python 3.8 because cibuildwheel 2 sources 404s.
+ - Also test on macos-15.
+ - Fix failing pip upgrade on macos-14.
+ - Test ISA-L on macOS ARM.
+ - And much, much more time lost to fix the CI with newer versions and other time sinks.
+
+
 # Version 0.14.5 built on 2025-07-21
 
 ## Fixes
