@@ -1,1 +1,1 @@
-python/indexed_bzip2/CHANGELOG.md
+python/rapidgzip/CHANGELOG.md
