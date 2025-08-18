@@ -1,6 +1,6 @@
 # Version 0.15.2 built on 2025-08-19
 
-# Fixes
+## Fixes
 
  - Decompress to stdout when input is stdin and `-d` has been specified. This worked in the past and is necessary
    for `tar -x --use-compress-program=rapidgzip` to work correctly.
@@ -8,14 +8,14 @@
 
 # Version 0.15.1 built on 2025-08-18
 
-# Fixes
+## Fixes
 
  - Properly link against system libraries if static-linking is disabled.
 
 
 # Version 0.15.0 built on 2025-08-10
 
-# Features
+## Features
 
  - Add option to specify `inf` for range length given to `--ranges` to read until the end of the file.
  - Add `--test` action argument and make `--verify` not double as a test functionality.
@@ -26,7 +26,7 @@
  - `GzipReader`: Add `clone` method.
  - `GzipReader`: Enable seeking when an index was imported.
 
-# Performance
+## Performance
 
  - Avoid decompression when combining only `--count` and `--import-index`.
  - Avoid decompression when combining only `--count-lines` and `--import-index` of a gztool index with lines.
@@ -35,13 +35,13 @@
  - Implement `loadUnaligned` for big endian.
  - `ParallelGzipReader`: Use special case with seek when no output file or buffer is given.
 
-# Fixes
+## Fixes
 
  - Avoid dereference of iterator after end during index export when line offsets are requested but missing.
  - `deflate::Block`: The default copy-constructor wrongly copied the `m_window` pointer to the source `m_window16`.
  - `ParallelBZ2Reader`: `tellCompressed` did wrongly return 0 at the end of the file.
 
-# API
+## API
 
  - Accept path-likes and bytes for opening files in Python wrapper.
  - `FileReader`: Make `clone` copy the file position if the overridden `cloneRaw` does not.
@@ -51,7 +51,7 @@
  - Remove `MemoryFileReader` in favor of `BufferedFileReader`.
  - `StandardFileReader`: Avoid ambiguous overload when calling with `const char*`.
 
-# Build System
+## Build System
 
  - Add CMake target for import.
  - Add options for disabling tools, tests, and benchmarks to be built.
@@ -67,7 +67,7 @@
  - Update to rpmalloc rewrite.
  - Use ISA-L's new CMake system.
 
-# CI
+## CI
 
  - Have to upgrade to cibuildwheel 3 and deprecate Python 3.8 because cibuildwheel 2 sources 404s.
  - Also test on macos-15.
