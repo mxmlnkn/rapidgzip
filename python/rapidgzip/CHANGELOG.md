@@ -1,3 +1,9 @@
+# Version 0.15.1 built on 2025-08-18
+
+# Fixes
+
+ - Properly link against system libraries if static-linking is disabled.
+
 
 # Version 0.15.0 built on 2025-08-10
 

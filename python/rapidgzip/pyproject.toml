@@ -24,7 +24,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rapidgzip"
-version = "0.15.0"
+version = "0.15.1"
 description = "Parallel random access to gzip files"
 authors = [{name = "Maximilian Knespel", email = "mxmlnknp@gmail.com"}]
 license = {text = "MIT"}
