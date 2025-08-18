@@ -227,17 +227,32 @@ for sources_architecture, sources in isal_sources_by_architecture.items():
 isal_sources = ['src/external/isa-l/' + source for source in set(isal_sources)] if withIsal == 'enable' else []
 
 include_dirs = ['src']
+libraries = []
+
 isal_includes = ['src/external/isa-l/include', 'src/external/isa-l/igzip', 'src/external/isa-l']
 if withIsal == 'enable':
     include_dirs += isal_includes
+elif withIsal == 'system':
+    libraries += ['isal']
+
 if withZlibng == 'enable':
     include_dirs += ['src/external/zlib-ng']
+if withZlibng == 'system':
+    libraries += ['z']
+
 if withRpmalloc == 'enable':
     include_dirs += ['src/external/rpmalloc/rpmalloc']
+elif withRpmalloc == 'system':
+    libraries += ['rpmalloc']
+
 if withCxxopts == 'enable':
     include_dirs += ['src/external/cxxopts/include']
 
 rpmalloc_sources = ['src/external/rpmalloc/rpmalloc/rpmalloc.c'] if withRpmalloc == 'enable' else []
+
+print("Rapidgzip options:")
+print(f"  include_dirs: {include_dirs}")
+print(f"  libraries: {libraries}")
 
 extensions = [
     Extension(
@@ -245,6 +260,7 @@ extensions = [
         name         = 'rapidgzip',
         sources      = ['rapidgzip.pyx'] + zlib_sources + isal_sources + rpmalloc_sources,
         include_dirs = include_dirs,
+        libraries    = libraries,
         language     = 'c++',
         # fmt: on
     ),
