@@ -1,3 +1,11 @@
+# Version 0.15.2 built on 2025-08-19
+
+# Fixes
+
+ - Decompress to stdout when input is stdin and `-d` has been specified. This worked in the past and is necessary
+   for `tar -x --use-compress-program=rapidgzip` to work correctly.
+
+
 # Version 0.15.1 built on 2025-08-18
 
 # Fixes
