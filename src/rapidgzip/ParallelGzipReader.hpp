@@ -1376,7 +1376,8 @@ private:
 
         m_chunkFetcher->setShowProfileOnDestruction( m_showProfileOnDestruction );
         m_chunkFetcher->setStatisticsEnabled( m_statisticsEnabled );
-        m_chunkFetcher->addChunkIndexingCallback( [this] ( const auto& chunk, auto ) { gatherLineOffsets( chunk ); } );
+        m_chunkFetcher->addChunkIndexingCallback(
+            [this] ( const auto& chunk, auto ) { this->gatherLineOffsets( chunk ); } );
         applyChunkDataConfiguration();
 
         return *m_chunkFetcher;

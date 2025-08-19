@@ -149,6 +149,16 @@ jobs:
         g++ --version
         clang --version
 
+    - name: Run Tar Test (Clang)
+      env:
+        USE_SYSTEM_ZLIB: ${{ matrix.use_system_zlib }}
+      run: |
+        CXX=clang++ CC=clang cmake -B build-rapidgzip -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLIBRAPIDARCHIVE_WITH_ISAL=ON -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=$LIBRAPIDARCHIVE_USE_SYSTEM_ZLIB .
+        cmake --build build-rapidgzip -v -- rapidgzip
+        echo foo > bar && tar -czf bar.tar.gz bar && rm bar
+        tar -x --use-compress-program=build-rapidgzip/src/tools/rapidgzip -f bar.tar.gz
+        test -f bar
+
     - name: Run Tests With Sanitizers (GCC)
       env:
         LIBRAPIDARCHIVE_USE_SYSTEM_ZLIB: ${{ matrix.use_system_zlib }}
@@ -160,7 +170,7 @@ jobs:
       env:
         USE_SYSTEM_ZLIB: ${{ matrix.use_system_zlib }}
       run: |
-        CXX=clang++ CC=clang cmake -B build-clang -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLIBRAPIDARCHIVE_ISAL=ON -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=$LIBRAPIDARCHIVE_USE_SYSTEM_ZLIB .
+        CXX=clang++ CC=clang cmake -B build-clang -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLIBRAPIDARCHIVE_WITH_ISAL=ON -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=$LIBRAPIDARCHIVE_USE_SYSTEM_ZLIB .
         cmake --build build-clang -v -- check
 
   Check-Without-Isal:

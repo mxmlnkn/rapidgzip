@@ -351,6 +351,14 @@ rapidgzipCLI( int                  argc,
     const auto quiet = parsedArgs["quiet"].as<bool>();
     args.verbose = parsedArgs["verbose"].as<bool>();
 
+    if ( args.verbose ) {
+        std::cerr << "Called with:";
+        for ( int i = 0; i < argc; ++i ) {
+            std::cerr << " '" << argv[i] << "'";
+        }
+        std::cerr << "\n";
+    }
+
     const auto getParallelism = [] ( const auto p ) { return p > 0 ? p : availableCores(); };
     args.decoderParallelism = getParallelism( parsedArgs["decoder-parallelism"].as<unsigned int>() );
 
@@ -557,11 +565,6 @@ rapidgzipCLI( int                  argc,
 
     /* Actually do things as requested. */
 
-    if ( decompress && !doTest && args.verbose ) {
-        std::cerr << "Decompress " << ( inputFilePath.empty() ? "<stdin>" : inputFilePath.c_str() )
-                  << " -> " << ( writeToStdOut ? "<stdout>" : outputFilePath.c_str() ) << "\n";
-    }
-
     if ( !inputFile ) {
         std::cerr << "Could not open input file: " << inputFilePath << "!\n";
         return 1;
@@ -570,7 +573,7 @@ rapidgzipCLI( int                  argc,
     std::unique_ptr<OutputFile> outputFile;
     std::unique_ptr<OutputFile> stdoutFile;
     if ( decompress ) {
-        if ( writeToStdOut ) {
+        if ( writeToStdOut || ( !doTest && outputFilePath.empty() && inputFilePath.empty() ) ) {
             stdoutFile = std::make_unique<OutputFile>( /* empty path implies stdout */ "" );
         }
         if ( !outputFilePath.empty() ) {
@@ -579,6 +582,20 @@ rapidgzipCLI( int                  argc,
     }
     const auto outputFileDescriptor = outputFile ? outputFile->fd() : -1;
     const auto stdoutFileDescriptor = stdoutFile ? stdoutFile->fd() : -1;
+
+    if ( decompress && !doTest && args.verbose ) {
+        std::cerr << "Decompress " << ( inputFilePath.empty() ? "<stdin>" : inputFilePath.c_str() ) << " -> ";
+        if ( stdoutFile ) {
+            std::cerr << "<stdout>";
+            if ( outputFile ) {
+                std::cerr << ", ";
+            }
+        }
+        if ( outputFile ) {
+            std::cerr << outputFilePath;
+        }
+        std::cerr << "\n";
+    }
 
     uint64_t newlineCount{ 0 };
 
