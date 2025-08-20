@@ -145,7 +145,7 @@ if(LIBRAPIDARCHIVE_WITH_ISAL)
     # https://discourse.cmake.org/t/fetchcontent-declare-with-cmake-args-does-not-work/11227
     # https://discourse.cmake.org/t/what-is-the-correct-way-to-set-options-of-a-project-before-fetch-content/268
     set(ISAL_BUILD_TESTS OFF CACHE BOOL "Disable ISA-L tests" FORCE)
-    set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build static ISA-L" FORCE)
+    set(ISAL_BUILD_SHARED_LIBS OFF CACHE BOOL "Build static ISA-L" FORCE)
     FetchContent_MakeAvailable(isal_project)
 
     # I am not using the guarded <isa-l/igzip_lib.h> includes because it would not work in the current setup.py :(.
