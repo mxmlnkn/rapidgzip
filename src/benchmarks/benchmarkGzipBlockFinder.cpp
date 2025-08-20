@@ -46,6 +46,7 @@ https://www.ietf.org/rfc/rfc1952.txt
 #include <rapidgzip/blockfinder/precodecheck/WalkTreeCompressedLUT.hpp>
 #include <rapidgzip/blockfinder/precodecheck/WalkTreeLUT.hpp>
 #include <rapidgzip/blockfinder/precodecheck/WithoutLUT.hpp>
+#include <rapidgzip/gzip/crc32.hpp>
 #include <rapidgzip/gzip/definitions.hpp>
 #include <rapidgzip/gzip/precode.hpp>
 #include <rapidgzip/huffman/HuffmanCodingCheckOnly.hpp>
@@ -744,6 +745,7 @@ toString( CheckPrecodeMethod method )
 }
 
 
+#if 0
 static constexpr uint8_t CLS_TO_CHECK = 6U;
 
 static const std::array<bool, ( 1U << ( CLS_TO_CHECK * rapidgzip::deflate::PRECODE_BITS ) )> PRECHECK_PRECODE_LUT =
@@ -783,6 +785,7 @@ static const std::array<bool, ( 1U << ( CLS_TO_CHECK * rapidgzip::deflate::PRECO
 
         return result;
     } ();
+#endif
 
 
 template<CheckPrecodeMethod CHECK_PRECODE_METHOD>
@@ -2147,6 +2150,27 @@ analyzeDeflateJumpLUT()
 }
 
 
+void
+printLUTSizes()
+{
+    using namespace rapidgzip;
+    std::cerr << "VALID_HUFFMAN_CODINGS                     : "
+              << sizeof( deflate::precode::VALID_HUFFMAN_CODINGS ) << "\n";
+    std::cerr << "CRC32LookupTable                          : " << sizeof( CRC32_TABLE ) << "\n";
+    std::cerr << "CRC32_SLICE_BY_N_LUT                      : " << sizeof( CRC32_SLICE_BY_N_LUT ) << "\n";
+    std::cerr << "NEXT_DEFLATE_CANDIDATE_LUTS_UP_TO_13_BITS : "
+              << sizeof( blockfinder::NEXT_DEFLATE_CANDIDATE_LUTS_UP_TO_13_BITS ) << "\n";
+    std::cerr << "NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<"
+              << static_cast<int>( blockfinder::OPTIMAL_NEXT_DEFLATE_LUT_SIZE ) << ">    : "
+              << sizeof( blockfinder::NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<blockfinder::OPTIMAL_NEXT_DEFLATE_LUT_SIZE> )
+              << "\n";
+    std::cerr << "PRECODE_FREQUENCIES_1_TO_5_VALID_LUT      : "
+              << sizeof( PrecodeCheck::WalkTreeLUT::PRECODE_FREQUENCIES_1_TO_5_VALID_LUT ) << "\n";
+    std::cerr << "PRECODE_TO_FREQUENCIES_LUT<4>             : "
+              << sizeof( PrecodeCheck::WalkTreeLUT::PRECODE_TO_FREQUENCIES_LUT<4> ) << "\n";
+}
+
+
 int
 main( int    argc,
       char** argv )
@@ -2160,6 +2184,8 @@ main( int    argc,
             }
         }
     }
+
+    printLUTSizes();
 
     const auto tmpFolder = createTemporaryDirectory( "rapidgzip.benchmarkGzipBlockFinder" );
     const std::string fileName = std::filesystem::absolute( tmpFolder.path() / "random-base64" );

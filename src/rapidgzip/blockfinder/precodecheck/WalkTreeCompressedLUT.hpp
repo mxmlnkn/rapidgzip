@@ -66,6 +66,12 @@ static const auto COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_VALID_LUT_DICT =
     }();
 
 
+constexpr auto PRECODE_FREQUENCIES_LUT_COUNT = WalkTreeLUT::PRECODE_FREQUENCIES_LUT_COUNT;
+constexpr auto UNIFORM_FREQUENCY_BITS = WalkTreeLUT::UNIFORM_FREQUENCY_BITS;  // 5 (bits)
+using CompressedHistogram = WalkTreeLUT::CompressedHistogram;  // uint64_t
+constexpr auto PRECODE_BITS = rapidgzip::deflate::PRECODE_BITS;  // 19
+
+
 /**
  * @note Requires 4 (precode count) + 57 (maximum precode count * 3) bits to check for validity.
  *       Get all 57 bits at once to avoid a data dependency on the precode count. Note that this is only
@@ -77,16 +83,14 @@ static const auto COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_VALID_LUT_DICT =
 checkPrecode( const uint64_t next4Bits,
               const uint64_t next57Bits )
 {
-    using namespace rapidgzip::PrecodeCheck::WalkTreeLUT;
-
     const auto codeLengthCount = 4 + next4Bits;
     const auto precodeBits = next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS );
-    const auto bitLengthFrequencies = precodesToHistogram<4>( precodeBits );
+    const auto bitLengthFrequencies = WalkTreeLUT::precodesToHistogram<4>( precodeBits );
 
     const auto valueToLookUp = bitLengthFrequencies >> UNIFORM_FREQUENCY_BITS;  // ignore non-zero-counts
     /* Lookup in LUT and subtable */
     {
-        constexpr auto HISTOGRAM_TO_LOOK_UP_BITS = 5U * UNIFORM_FREQUENCY_BITS;
+        constexpr auto HISTOGRAM_TO_LOOK_UP_BITS = PRECODE_FREQUENCIES_LUT_COUNT * UNIFORM_FREQUENCY_BITS;
         const auto& [histogramLUT, validLUT] = COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_VALID_LUT_DICT;
         constexpr auto INDEX_BITS = COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_INDEX_BITS;
         const auto elementIndex = ( valueToLookUp >> INDEX_BITS )

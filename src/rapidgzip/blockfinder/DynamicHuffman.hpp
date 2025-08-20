@@ -98,6 +98,9 @@ nextDeflateCandidate( uint32_t bits )
 }
 
 
+#if defined( LIBRAPIDGZIP_RECURSIVE_COMPILE_TIME_NEXT_DYNAMIC_DEFLATE_CANDIDATE )
+
+
 template<uint8_t CACHED_BIT_COUNT,
          uint8_t MAX_CACHED_BIT_COUNT = CACHED_BIT_COUNT>
 constexpr void
@@ -123,6 +126,7 @@ initializeMergedNextDeflateLUTs( std::array<uint8_t, ( 1ULL << MAX_CACHED_BIT_CO
  * - at offset 8 is a the 8-element LUT for CACHED_BIT_COUNT == 3
  * - ...
  * - at offset 2^CACHED_BIT_COUNT is a the 2^CACHED_BIT_COUNT-element LUT for CACHED_BIT_COUNT
+ * Size: 16 KiB
  */
 static constexpr auto NEXT_DEFLATE_CANDIDATE_LUTS_UP_TO_13_BITS =
     [] ()
@@ -133,25 +137,29 @@ static constexpr auto NEXT_DEFLATE_CANDIDATE_LUTS_UP_TO_13_BITS =
     }();
 
 
+#endif
+
+
 /**
  * @note Using larger result types has no measurable difference, e.g., explained by easier access on 64-bit systems.
  *       But, it increases cache usage, so keep using the 8-bit result type.
  * @verbatim
- * 8-bit   [findDeflateBlocksRapidgzipLUT] ( 8.63 <= 8.7 +- 0.04 <= 8.75 ) MB/s
- * 16-bit  [findDeflateBlocksRapidgzipLUT] ( 8.31 <= 8.42 +- 0.12 <= 8.59 ) MB/s
- * 32-bit  [findDeflateBlocksRapidgzipLUT] ( 8.39 <= 8.53 +- 0.09 <= 8.71 ) MB/s
+ *  8-bit  [findDeflateBlocksRapidgzipLUT] ( 8.63  <= 8.7  +- 0.04 <= 8.75  ) MB/s
+ * 16-bit  [findDeflateBlocksRapidgzipLUT] ( 8.31  <= 8.42 +- 0.12 <= 8.59  ) MB/s
+ * 32-bit  [findDeflateBlocksRapidgzipLUT] ( 8.39  <= 8.53 +- 0.09 <= 8.71  ) MB/s
  * 64-bit  [findDeflateBlocksRapidgzipLUT] ( 8.618 <= 8.65 +- 0.02 <= 8.691 ) MB/s
  * @endverbatim
+ * Size: 13 bits: 8 KiB, 14 bits: 16 KiB, ...
  */
 template<uint8_t CACHED_BIT_COUNT>
-static constexpr auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT =
+constexpr auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT =
     [] ()
     {
         std::array<uint8_t, 1U << CACHED_BIT_COUNT> result{};
 
     /* The recursive-like version that uses previous LUTs to calculate larger ones saves a tad of compile-time
      * but it yields to out-of-memory errors on the CI. Therefore, disable it for now. */
-    #if 1
+    #if 1 || ! defined( LIBRAPIDGZIP_RECURSIVE_COMPILE_TIME_NEXT_DYNAMIC_DEFLATE_CANDIDATE )
         for ( uint32_t i = 0; i < result.size(); ++i ) {
             result[i] = nextDeflateCandidate<CACHED_BIT_COUNT>( i );
         }
@@ -202,7 +210,17 @@ static constexpr auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT =
  * - The version with manual bit buffers and no call to Block::readDynamicHuffmanCoding, which uses
  *   HuffmanCodingCheckOnly is fastest with 14 bits.
  */
-static constexpr uint8_t OPTIMAL_NEXT_DEFLATE_LUT_SIZE = 14;
+constexpr uint8_t OPTIMAL_NEXT_DEFLATE_LUT_SIZE = 14;
+
+
+/**
+ * Precomputed NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT for OPTIMAL_NEXT_DEFLATE_LUT_SIZE with src/tools/generateLUTs
+ * to fix compilation issues.
+ */
+template<>
+constexpr std::array<uint8_t, 16384> NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<14> = {
+    #include "NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT.csv"
+};
 
 
 /**

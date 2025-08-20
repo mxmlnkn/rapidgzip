@@ -16,15 +16,32 @@ function(addRapidgzipTest name)
 endfunction()
 
 
-addRapidgzipTest(testGzipIndexFormat)
-addRapidgzipTest(testHuffmanCoding)
-addRapidgzipTest(testDeflate)
-addRapidgzipTest(testGzipChunk)
-addRapidgzipTest(testGzipBlockFinder)
-addRapidgzipTest(testPrecodeCheck)
 addRapidgzipTest(testCompressedVector)
 addRapidgzipTest(testCRC32)
+addRapidgzipTest(testDeflate)
+addRapidgzipTest(testGzipChunk)
+addRapidgzipTest(testGzipIndexFormat)
+addRapidgzipTest(testHuffmanCoding)
 addRapidgzipTest(testInflateWrapper)
+
+addRapidgzipTest(testGzipBlockFinder)
+target_compile_options(testGzipBlockFinder PRIVATE
+    # The default limit is ~33 M (1<<25) and 99 M seem to be enough currently to compile.
+    # ../src/rapidgzip/blockfinder/DynamicHuffman.hpp:155:16: error: constexpr variable
+    # 'NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<'\x12'>' must be initialized by a constant expression
+    "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-fconstexpr-ops-limit=199000100>"
+    "$<$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang>:-fconstexpr-steps=199000100>"
+)
+
+addRapidgzipTest(testPrecodeCheck)
+target_compile_options(testPrecodeCheck PRIVATE
+    # The default limit is ~33 M (1<<25) and 99 M seem to be enough currently to compile.
+    # ../src/rapidgzip/gzip/precode.hpp:86:16: error: constexpr variable 'VALID_HISTOGRAMS_COUNT'
+    # must be initialized by a constant expression
+    "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-fconstexpr-ops-limit=199000100>"
+    "$<$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang>:-fconstexpr-steps=199000100>"
+)
+
 
 addRapidgzipTest(testDecodedData)
 target_compile_features(testDecodedData INTERFACE cxx_std_20)  # for aggregate initialization

@@ -16,6 +16,7 @@ namespace rapidgzip
 {
 /* CRC32 according to RFC 1952 */
 
+/* Size: 1 KiB */
 using CRC32LookupTable = std::array<uint32_t, 256>;
 
 
@@ -60,6 +61,7 @@ static constexpr size_t MAX_CRC32_SLICE_SIZE = 64;
  * @see https://ieeexplore.ieee.org/document/4531728
  * @see https://create.stephan-brumme.com/crc32/#slicing-by-16-overview
  * @note LUT[n + 1] contains the CRC32 of a byte steam consisting of n zero-bytes.
+ * Size: 64 * 256 * 32 bit = 64 KiB
  */
 alignas( 8 ) static constexpr std::array<std::array<uint32_t, 256>, MAX_CRC32_SLICE_SIZE> CRC32_SLICE_BY_N_LUT =
     [] ()

@@ -9,6 +9,7 @@ recursive-include src/filereader *.hpp
 recursive-include src/huffman *.hpp
 recursive-include src/indexed_bzip2 *.hpp
 recursive-include src/rapidgzip *.hpp
+recursive-include src/rapidgzip *.csv
 recursive-include src/tools *.hpp
 include src/tools/ibzip2.cpp
 include src/tools/rapidgzip.cpp

@@ -79,6 +79,15 @@ target_link_libraries(benchmarkInflate PRIVATE librapidgzip)
 add_executable(benchmarkGzipBlockFinder)
 target_sources(benchmarkGzipBlockFinder PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkGzipBlockFinder.cpp)
 target_link_libraries(benchmarkGzipBlockFinder PRIVATE cxxopts librapidgzip libblockfinder zlibstatic)
+target_compile_definitions(benchmarkGzipBlockFinder PRIVATE
+    LIBRAPIDGZIP_RECURSIVE_COMPILE_TIME_NEXT_DYNAMIC_DEFLATE_CANDIDATE)
+target_compile_options(benchmarkGzipBlockFinder PRIVATE
+    # The default limit is ~33 M (1<<25) and 99 M seem to be enough currently to compile.
+    # DynamicHuffman.hpp:148 has egregious compile-time overhead.
+    # TODO Compute the LUT once, write it out, and include it, maybe even compress it.
+    "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-fconstexpr-ops-limit=199000100>"
+    "$<$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang>:-fconstexpr-steps=199000100>"
+)
 add_custom_target(run-benchmarkGzipBlockFinder
     COMMAND ./benchmarkGzipBlockFinder 2>&1 | tee benchmarkGzipBlockFinder.log
     VERBATIM

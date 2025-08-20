@@ -1,5 +1,11 @@
 #pragma once
 
+/**
+ * @file Contains some compile-time computation of magic constants for the precode huffman codings.
+ *       This whole file is only used in tests, benchmarks, and SingleLUT.hpp, which is now also only used in
+ *       tests and benchmarks. I.e., this file should not increase normal compile-times or binary size.
+ */
+
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -94,6 +100,7 @@ constexpr auto VALID_HISTOGRAMS_COUNT =
 static_assert( VALID_HISTOGRAMS_COUNT == 1526 );
 
 
+/* Size: sizeof( std::array<uint8_t, MAX_DEPTH = 7> ) * 1526 = 10.682 kB */
 static constexpr auto VALID_HISTOGRAMS =
     [] ()
     {
@@ -116,6 +123,13 @@ using PrecodeHuffmanCoding = HuffmanCodingReversedBitsCachedCompressed<uint8_t, 
                                                                        uint8_t, MAX_PRECODE_COUNT>;
 
 
+/**
+ * Stores an instantiated HuffmanCoding object for each of the valid precode histogram counts.
+ * The usage of this is hard because we first need to get the ID of the valid histogram based on our precode
+ * code lengths (turned into a histogram) and then we need to apply an alphabet mapping because these precomputed
+ * Huffman coding objects assume one alphabet.
+ * @note Only used in benchmarks and tests! Size: 488.320 kB.
+ */
 static constexpr auto VALID_HUFFMAN_CODINGS =
     [] ()
     {
