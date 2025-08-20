@@ -89,6 +89,7 @@ nLowestBitsSet()
 }
 
 
+/* Size: uint64_t: 16 KiB, uint32_t: 8 KiB, ... */
 template<typename T>
 static constexpr std::array<T, 256U> N_LOWEST_BITS_SET_LUT =
     [] ()
@@ -117,6 +118,7 @@ nHighestBitsSet( uint8_t nBitsSet )
 }
 
 
+/* Size: uint64_t: 16 KiB, uint32_t: 8 KiB, ... */
 template<typename T>
 static constexpr std::array<T, 256U> N_HIGHEST_BITS_SET_LUT =
     [] ()
@@ -226,9 +228,14 @@ reverseBitsWithoutLUT( uint64_t data )
 
 
 template<typename T>
-[[nodiscard]] constexpr auto
-createReversedBitsLUT()
+[[nodiscard]] constexpr std::array<T, 1ULL << static_cast<uint8_t>( std::numeric_limits<T>::digits )>
+createReversedBitsLUT();
+
+template<>
+[[nodiscard]] constexpr std::array<uint8_t, 1ULL << 8U>
+createReversedBitsLUT<uint8_t>()
 {
+    using T = uint8_t;
     static_assert( std::is_unsigned_v<T> && std::is_integral_v<T> );
 
     std::array<T, 1ULL << static_cast<uint8_t>( std::numeric_limits<T>::digits )> result{};
@@ -238,7 +245,24 @@ createReversedBitsLUT()
     return result;
 }
 
+template<>
+[[nodiscard]] constexpr std::array<uint16_t, 1ULL << 16U>
+createReversedBitsLUT<uint16_t>()
+{
+    using T = uint16_t;
+    static_assert( std::is_unsigned_v<T> && std::is_integral_v<T> );
 
+    constexpr auto REVERSED_BITS_LUT = createReversedBitsLUT<uint8_t>();
+
+    std::array<T, 1ULL << static_cast<uint8_t>( std::numeric_limits<T>::digits )> result{};
+    for ( size_t i = 0; i < result.size(); ++i ) {
+        result[i] = ( REVERSED_BITS_LUT[i & 0xFFU] << 8U ) | REVERSED_BITS_LUT[( i >> 8U ) & 0xFFU];
+    }
+    return result;
+}
+
+
+/* Size: uint16_t: 64 KiB, uint8_t: 256 B */
 template<typename T>
 alignas( 8 ) static constexpr auto REVERSED_BITS_LUT = createReversedBitsLUT<T>();
 

@@ -29,11 +29,3 @@ target_sources(core INTERFACE
 )
 target_link_libraries(core INTERFACE Threads::Threads filereader)
 target_compile_features(core INTERFACE cxx_std_17)
-target_compile_options(core INTERFACE
-    # The default limit is ~33 M (1<<25) and 99 M seem to be enough currently to compile.
-    # BitManipulation.hpp:243:56: note: in call to 'createReversedBitsLUT<unsigned short>()'
-    #   243 | alignas( 8 ) static constexpr auto REVERSED_BITS_LUT = createReversedBitsLUT<T>();
-    # TODO Compute the LUT once, write it out, and include it, maybe even compress it.
-    "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-fconstexpr-ops-limit=199000100>"
-    "$<$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang>:-fconstexpr-steps=199000100>"
-)
