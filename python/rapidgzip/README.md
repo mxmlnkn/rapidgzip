@@ -435,7 +435,7 @@ The license is also permissive enough for most use cases.
 
 Rapidgzip can be added to an existing CMake project using [`FetchContent`](https://cmake.org/cmake/help/latest/module/FetchContent.html), or directly via [`add_subdirectory`](https://cmake.org/cmake/help/latest/command/add_subdirectory.html)
 
-An example CMake build using `FetchContent` can be found [here](https://github.com/mxmlnkn/indexed_bzip2/blob/mars-master/src/examples/cmake-fetch-content/CMakeLists.txt).
+An example CMake build using `FetchContent` can be found [here](https://github.com/mxmlnkn/indexed_bzip2/blob/master/src/examples/cmake-fetch-content/CMakeLists.txt).
 
 
 # Citation
