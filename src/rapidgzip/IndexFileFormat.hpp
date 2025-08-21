@@ -236,7 +236,7 @@ readBigEndianValue( FileReader* const file )
 namespace bgzip
 {
 [[nodiscard]] inline size_t
-countDecompressedBytes( gzip::BitReader                bitReader,  // NOLINT(performance-unnecessary-value-param)
+countDecompressedBytes( gzip::BitReader&&              bitReader,
                         VectorView<std::uint8_t> const initialWindow )
 {
     #ifdef LIBRAPIDARCHIVE_WITH_ISAL
@@ -245,7 +245,6 @@ countDecompressedBytes( gzip::BitReader                bitReader,  // NOLINT(per
         using InflateWrapper = rapidgzip::ZlibInflateWrapper;
     #endif
 
-    // NOLINTNEXTLINE(performance-move-const-arg)
     InflateWrapper inflateWrapper( std::move( bitReader ), std::numeric_limits<size_t>::max() );
     inflateWrapper.setWindow( initialWindow );
 

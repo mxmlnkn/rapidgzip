@@ -107,7 +107,7 @@ testVLPHImplementation()
     static_assert( incrementCount( 0b0'1101'10001'10101'0101'100'10'1'01010UL, 7 )
                    ==              0b0'1110'10001'10101'0101'100'10'1'01010UL );
 
-    const auto getHistogram =
+    constexpr auto getHistogram =
         [] ( const auto values ) { return calculateHistogram</* VALUE_BITS */ 3, /* VALUE_COUNT */ 4>( values ); };
 
     static_assert( getHistogram( 0b000'000'000'000 ) == 0b0'0000'00000'00000'0000'000'00'0'00000UL );
@@ -235,7 +235,7 @@ testSingleLUTImplementation8Precodes()
     /* Starting with these tests there is more than one valid tree configuration and addition of partial histograms
      * comes into play and can be tested. */
 
-    const auto check8Precodes =
+    constexpr auto check8Precodes =
         [] ( const auto values ) { return rapidgzip::PrecodeCheck::SingleLUT::checkPrecode( 4, values ); };
 
     /**

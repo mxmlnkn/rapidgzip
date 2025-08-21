@@ -480,7 +480,7 @@ jobs:
 
   Code-Checks:
     name: Check with Infer
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
       with:
@@ -490,16 +490,19 @@ jobs:
       run: |
         sudo apt update
         sudo apt-get -y install ninja-build wget nasm cmake clang
-        # Install infer
+
+    - name: Install infer
+      run: |
         VERSION=1.1.0
-        wget -q -O- "https://github.com/facebook/infer/releases/download/v$VERSION/infer-linux64-v$VERSION.tar.xz" | tar -xJ
-        echo "$PWD/infer-linux64-v$VERSION/bin" >> $GITHUB_PATH
+        wget -q -O- "https://github.com/facebook/infer/releases/download/v1.2.0/infer-linux-x86_64-v1.2.0.tar.xz" | tar -xJ
+        realpath -- "$( find . -maxdepth 1 -type d -iname 'infer*' )"/bin >> "$GITHUB_PATH"
 
     - name: Run infer
       run: |
         mkdir -p build-compile-commands && cd -- "$_"
         CC=clang CXX=clang++ cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-        infer run --report-blacklist-path-regex '.*testParallelBitStringFinder.cpp' --compilation-database compile_commands.json
+        infer run --no-progress-bar --report-block-list-path-regex '/usr/include/.*' --report-block-list-path-regex '.*testParallelBitStringFinder.cpp' --report-block-list-path-regex '.*/external/.*' --compilation-database compile_commands.json
+        cat infer-out/report.txt
 
   Ibzip2-Tests:
     name: Ibzip2 Tests

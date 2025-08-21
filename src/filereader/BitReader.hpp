@@ -134,12 +134,14 @@ public:
 
     /* File Reader Interface Implementation */
 
+protected:
     [[nodiscard]] UniqueFileReader
     cloneRaw() const override
     {
         return std::make_unique<BitReader>( *this );
     }
 
+public:
     [[nodiscard]] bool
     fail() const override
     {

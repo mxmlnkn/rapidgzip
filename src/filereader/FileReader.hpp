@@ -30,15 +30,20 @@ public:
     virtual
     ~FileReader() = default;
 
-    /* Delete copy constructors and assignments to avoid slicing. */
+    /* Delete copy constructors and assignments for performance and to avoid slicing. */
 
     FileReader( const FileReader& ) = delete;
-
-    FileReader( FileReader&& ) = delete;
 
     FileReader&
     operator=( const FileReader& ) = delete;
 
+    /* Move constructors also are affected by slicing, but for performance, do not delete them to avoid
+     * defaulted move constructores in derived classes not being created! We also do not want to manually
+     * implement move constructors because it is error-prone. The only choice here is between bad and worse :(. */
+
+    FileReader( FileReader&& ) = default;
+
+    /* I almost never use move assignments, but move constructors occur during function calls. */
     FileReader&
     operator=( FileReader&& ) = delete;
 

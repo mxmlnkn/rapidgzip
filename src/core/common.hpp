@@ -138,8 +138,8 @@ operator<<( std::ostream&   out,
 
 template<typename T>
 std::ostream&
-operator<<( std::ostream&  out,
-            std::vector<T> vector )
+operator<<( std::ostream&         out,
+            const std::vector<T>& vector )
 {
     if ( vector.empty() ) {
         out << "{}";

@@ -55,7 +55,8 @@ using namespace rapidgzip;
 
 
 std::ostream&
-operator<<( std::ostream& out, std::vector<size_t> vector )
+operator<<( std::ostream&              out,
+            const std::vector<size_t>& vector )
 {
     constexpr size_t MAX_VALUES_TO_PRINT = 15;
     for ( size_t i = 0; i < std::min( vector.size(), MAX_VALUES_TO_PRINT ); ++i ) {

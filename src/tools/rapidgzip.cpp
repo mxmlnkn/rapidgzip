@@ -242,7 +242,7 @@ parseInputFileSpecification( const cxxopts::ParseResult& parsedArgs )
     }
 
     auto inputFile = openFileOrStdin( inputFilePath );
-    const auto ioReadMethod = parsedArgs["io-read-method"].as<std::string>();
+    const auto& ioReadMethod = parsedArgs["io-read-method"].as<std::string>();
     if ( ioReadMethod == "sequential" ) {
         inputFile = std::make_unique<SinglePassFileReader>( std::move( inputFile ) );
     } else if ( ( ioReadMethod == "locked-read" ) || ( ioReadMethod == "pread" ) ) {
