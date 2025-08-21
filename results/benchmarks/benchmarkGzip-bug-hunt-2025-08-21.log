@@ -1,0 +1,391 @@
+3281cc4e 2024-05-18 mxmlnkn [fix] Specifying an empty file path did show a seeking error instead of a helpful message
+  -> 506
+994ecf51 2024-05-15 mxmlnkn [performance] Avoid window recompressions for gztool indexes
+b75d0f77 2024-05-15 mxmlnkn [fix] Do no erroneously warn about useless index import when specifying an index export path
+99f711bc 2024-05-13 mxmlnkn [feature] Automatically gather newline information when it is needed
+e7d94924 2024-05-12 mxmlnkn [style] Unindent rapidgzip CLI logic
+3b03a07b 2024-05-12 mxmlnkn [feature] Add support for writing gztool indexes
+3bc92751 2024-05-12 mxmlnkn [style] Move writeIndex into indexed_gzip namespace
+b5d94725 2024-05-12 mxmlnkn [feature] Add support for lines given to --ranges when importing a gztool index with line information
+c843809c 2024-05-10 mxmlnkn [feature] Add support for reading indexes created with gztool
+6c7e9a0a 2024-04-23 mxmlnkn [feature] Add option to output specified byte ranges
+db27bd68 2024-05-11 mxmlnkn [fix] Importing bgzip indexes threw an exception
+ -> 506
+16eb36e3 2024-05-10 mxmlnkn [fix] Avoid error when exporting an index for which a window for the end-of-file offset does not exist
+f959e731 2024-05-10 mxmlnkn [fix] Avoid segfault when setting an index without an initialized window map
+f51e8d21 2024-05-05 mxmlnkn [CI] Also run some tests on Windows
+64cbf9c2 2024-05-05 mxmlnkn [test] Disable tests not yet working on the Windows CI
+69ae8261 2024-05-05 mxmlnkn [test] Files cannot be removed while still being open on Windows
+5bac34cb 2024-05-04 mxmlnkn [test] Do not use std::rand because RAND_MAX is only 32 Ki on Windows
+d5e5d7fd 2024-05-04 mxmlnkn [test] Disable bzip2 tests that need to generate data with the installed bzip executable on Windows
+70aa88f1 2024-05-04 mxmlnkn [test] Make return code more robust for large amount of tests
+ea797206 2024-05-04 mxmlnkn [test] Avoid EOL conversions for test data
+3c9a1772 2024-05-03 mxmlnkn [test] Make temporary folder more unique
+3155dbf3 2024-05-01 mxmlnkn [CI] Run tests and build wheels on MacOS ARM and x86-64 architectures
+6b01091f 2024-05-02 mxmlnkn [refactor] Fix compilation errors on MacOS and Windows
+ -> 506
+c2150f57 2024-05-02 mxmlnkn [refactor] Avoid std::filesystem::path -> std::string conversions
+ee2bba0a 2024-04-29 mxmlnkn [build] Move data generation functions into shared header
+ -> 506
+
+    Filtering cascade:
+    +-> Total number of test locations: 101997040
+        Filtered by deflate header test jump LUT: 91171009 (89.3859 %)
+        Remaining locations to test: 10826031
+        +-> Failed checkPrecode calls: 10782163 (99.5948 %)
+            Remaining locations to test: 43868
+            +-> Missing end-of-block symbol: 4571 (10.4199 %)
+            +-> Invalid Distance Huffman Coding: 3734 (8.5119 %)
+                Remaining locations: 40134
+                +-> Failing precode HC usage or literal/distance HC construction: 39628
+                    Location candidates: 506
+
+    Precode CL count:
+         4 : 5443
+         5 : 3405
+         6 : 2928
+         7 : 2938
+         8 : 3645
+         9 : 4243
+        10 : 4035
+        11 : 3883
+        12 : 3118
+        13 : 2629
+        14 : 2078
+        15 : 1679
+        16 : 1723
+        17 : 866
+        18 : 722
+        19 : 532
+
+    Encountered errors:
+         9755660 Constructing a Huffman coding from the given code length sequence failed!
+         1034808 The Huffman coding is not optimal!
+           28909 Invalid number of literal/length codes!
+            5510 Cannot copy last length because this is the first one!
+             637 Failed to decode Huffman bits!
+             506 No error.
+
+    Block candidates (506):  192 205027 410558 616161 822196 1028173 1233472 1439208 1644972 1851126 2057448 2263054 2469118 2675429 2881153 ...
+
+  This commit has this huge functional change, which of course will lead to different results!
+
+    diff --git a/src/core/common.hpp b/src/core/common.hpp
+    index c6f1ef7e..33fe6670 100644
+    --- a/src/core/common.hpp
+    +++ b/src/core/common.hpp
+    @@ -710,7 +623,7 @@ rangesIntersect( const PairA& rangeA,
+     }
+
+
+    -constexpr std::string_view BASE64_SYMBOLS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+/\n";
+    +constexpr std::string_view BASE64_SYMBOLS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+/";
+
+
+     template<typename CharT>
+    @@ -724,6 +637,7 @@ isBase64( std::basic_string_view<CharT> data )
+                 result.resize( BASE64_SYMBOLS.size() );
+                 std::transform( BASE64_SYMBOLS.begin(), BASE64_SYMBOLS.end(), result.begin(),
+                                 [] ( const auto x ) { return static_cast<CharT>( x ); } );
+    +            result.push_back( static_cast<CharT>( '\n' ) );
+                 return result;
+             }();
+
+
+
+a8e360c9 2024-05-02 mxmlnkn [CI] Reduce code duplication for wheel publishing
+ -> 499
+b2257df8 2024-05-02 mxmlnkn [CI] Disable readability-use-anyofallof
+ -> 499
+
+    Filtering cascade:
+    +-> Total number of test locations: 101997272
+        Filtered by deflate header test jump LUT: 91171076 (89.3858 %)
+        Remaining locations to test: 10826196
+        +-> Failed checkPrecode calls: 10782609 (99.5974 %)
+            Remaining locations to test: 43587
+            +-> Missing end-of-block symbol: 4586 (10.5215 %)
+            +-> Invalid Distance Huffman Coding: 3708 (8.50712 %)
+                Remaining locations: 39879
+                +-> Failing precode HC usage or literal/distance HC construction: 39380
+                    Location candidates: 499
+
+    Encountered errors:
+         9756978 Constructing a Huffman coding from the given code length sequence failed!
+         1033925 The Huffman coding is not optimal!
+           28794 Invalid number of literal/length codes!
+            5359 Cannot copy last length because this is the first one!
+             640 Failed to decode Huffman bits!
+             499 No error.
+
+    Block candidates (499):  192 205011 410568 616173 822212 1028196 1233493 1439234 1645000 1851174 2057484 2263096 2469161 2675477 2881190 ...
+
+ff60abc2 2024-05-01 mxmlnkn [build] Extend generator expressions that apply to Clang to also apply to AppleClang
+38b9b3b2 2024-05-01 mxmlnkn [build] Fix warning: argument unused during compilation: '-fstack-clash-protection'
+4043f62e 2024-05-01 mxmlnkn [build] Make cmake work without NASM with WITH_ISAL=OFF
+8de1b3d2 2024-04-28 mxmlnkn [build] Suppress seemingly false positive about BitReader not being moved
+490784e7 2024-04-28 mxmlnkn [refactor] Bzip2: Use more apt types
+ -> 499 BROKEN
+4d0641b9 2024-04-28 mxmlnkn [refactor] Fix type warnings reported by clang-tidy
+486eb6be 2024-04-27 mxmlnkn [refactor] Fix medium clang-tidy issues
+327daec0 2024-04-27 mxmlnkn [fix] Initialize members that were not
+7c0cd920 2024-04-27 mxmlnkn [performance] Declare move constructors noexcept
+f24cdf87 2024-04-27 mxmlnkn [API] FileReader: Add seekTo method to reduce narrowing warnings for the offset
+71c06e21 2024-04-27 mxmlnkn [style] Fix trivial clang-tidy issues or suppress them
+8f1e8530 2024-04-27 mxmlnkn [fix] Resolve bugs uncovered by clang-tidy
+0d36e623 2024-04-27 mxmlnkn [CI] Run clang-tidy via CMake
+2b391963 2024-04-28 mxmlnkn [fix] BitReader: The std::logic_error was not actually thrown
+aeaf69a6 2024-04-28 mxmlnkn [performance] BitReader: Detecting for seeking inside the byte buffer did not fully work
+db9373a3 2024-04-28 mxmlnkn [test] BitReader: Add tests for buffer refilling
+a36cdc97 2024-04-28 mxmlnkn [refactor] BitReader: Also count bit buffer refills
+bb668100 2024-04-28 mxmlnkn [feature] BitReader: Make the byte buffer size configurable
+a3086d4b 2024-04-25 mxmlnkn [test] Add test for BGZF window pruning
+0598df65 2024-04-23 mxmlnkn [performance] Do not store unneeded windows for BGZF files
+6c769b22 2024-03-09 mxmlnkn [test] Add tests for deflate block boundary collection
+5f01d29c 2024-03-08 mxmlnkn [refactor] GzipChunk: Split chunks during decompression
+f8d45b9f 2024-03-08 mxmlnkn [performance] FasterVector: Only reallocate if shrink to fit would save more than 10%
+33979f98 2024-03-08 mxmlnkn [refactor] Remove redundant shrink_to_fit calls
+66c62f82 2024-03-07 mxmlnkn [fix] Avoid unnecessary windows being created during bzip2 decompression
+3d575998 2024-03-07 mxmlnkn [style] decodeBlock -> decodeChunk
+de5f6943 2024-03-07 mxmlnkn [build] GzipChunkFetcher: Split off decode implementations
+d3a0298b 2024-03-07 mxmlnkn [refactor] ChunkData: Move subchunk equality comparison into tests because it is only used there
+12c3154e 2024-03-07 mxmlnkn [refactor] ChunkData: Make subchunks read-only from outside
+bdeae53c 2024-03-05 mxmlnkn [refactor] ChunkData: Compress windows after applying the window
+1a835fe5 2024-04-26 mxmlnkn (tag: rapidgzip-v0.13.3) [version] Bump rapidgzip version to 0.13.3
+  -> 499
+500eae8b 2024-04-27 mxmlnkn [CI] Disable broken code coverage upload
+
+rapidgzip-v0.11.0 -> 499 (BROKEN)
+rapidgzip-v0.10.0 -> 499 (BROKEN)
+
+539e6810 2023-08-29 mxmlnkn (tag: rapidgzip-v0.9.0) [version] Bump rapidgzip version to 0.9.0
+  -> 499 (BROKEN)
+44fb3cc9 2023-08-30 mxmlnkn [doc] Update scaling benchmarks for rapidgzip 0.9.0
+bafe788d 2023-08-30 mxmlnkn [doc] Update results in benchmarkGzip
+b672b6ab 2023-08-30 mxmlnkn [doc] Add short discussion about read call chunk sizes for very old benchmarks
+d3f34f8d 2023-08-30 mxmlnkn [doc] Fix the vanished ideal scaling for the benchmark plots
+6dd869c3 2023-08-30 mxmlnkn [style] IsalInflateWrapper: Remove unused private member
+543d28f6 2023-08-30 mxmlnkn [doc] Update benchmarks in rapidgzip ReadMe
+0a23be7c 2023-08-30 mxmlnkn [fix] Importing index from a Python object was broken
+123ef017 2023-08-29 mxmlnkn [style] Remove unused variable GZIP_FOOTER_SIZE
+ae5897a8 2023-08-29 mxmlnkn [fix] Avoid possibly wrong std::transform for in-place "compression"
+06b8e515 2023-08-29 mxmlnkn [performance] Take care to allocate 128 KiB chunks for markers: +3 %
+e682fd63 2023-08-29 mxmlnkn [doc] Get tracing script to work again without lots of overhead
+27074ca0 2023-08-29 mxmlnkn [performance] Disable real marker count on -v because of up to 30% overhead
+d313a30b 2023-08-28 mxmlnkn [feature] Add decode durations split by backend to --verbose output
+d9447c61 2023-08-28 mxmlnkn [fix] Only show informational message about internal chunk fetcher on --verbose
+d00f5e9c 2023-08-27 mxmlnkn [feature] Parse extra bytes written by pgzf, MiGz, QATzip, pgzip/mgzip, bgzip, dictzip with --analyze
+53e061ed 2023-08-27 mxmlnkn [test] Add files compressed with migz and pgzf
+b78a0acb 2023-08-27 mxmlnkn [test] Rename .pgz files to .pigz to avoid confusion with vorner/pgz
+fcdec09e 2023-08-27 mxmlnkn [feature] Print stream size statistics with --analyze
+ac658f23 2023-08-27 mxmlnkn [test] InflateWrapper: Compare blockBoundaries between implementations
+5604e909 2023-08-26 mxmlnkn [fix] Test and correct the unused footer block boundary
+f6cef4fd 2023-08-25 mxmlnkn [performance] Use ParallelGzipReader even with -P 1: +110%!
+5cb6cfaf 2023-08-22 mxmlnkn [performance] Use ISA-l when window is known even with inexact untilOffset
+73b1549f 2023-08-22 mxmlnkn [refactor] Add stopping points to InflateWrappers
+9656f40c 2023-08-24 mxmlnkn [refactor] Take care to set the correct ChunkData::encodedSizeInBits
+5682ef16 2023-08-22 mxmlnkn [feature] Support BGZI indexes to BGZF files via --import-index
+fc03f69f 2023-08-26 mxmlnkn [CI] Run tests with and without ISA-l
+b284a8e7 2023-08-26 mxmlnkn [fix] InflateWrapper: Ensure that we can always decode until the specified encoded offset
+f47c0ce7 2023-08-24 mxmlnkn [refactor] decodeBlockWithRapidgzip: Remove superfluous, possibly wrong break condition
+ -> requires manual call to git submodule update!
+ -> 499 (BROKEN)
+18175126 2023-08-25 mxmlnkn [API] SharedFileReader: Decouple statistics recording from printing
+ -> 499 (BROKEN)
+ee1b8a7b 2023-08-26 mxmlnkn [API] Add VectorView constructor taking a start and end pointer
+815b1521 2023-08-25 mxmlnkn [doc] Fix badge to point to rapidgzip instead of pragzip
+87d7675b 2023-08-24 mxmlnkn [style] deflateWrapper -> inflateWrapper
+0421fddc 2023-08-24 mxmlnkn [API] deflate::Block Remove unused "window" method
+652e56aa 2023-08-24 mxmlnkn [doc] Add todo about possibly replacing getLastWindow internals with getWindowAt
+3de09403 2023-08-23 mxmlnkn [API] Make SHOW_PROFILE a simple bool member instead of template parameter
+cd927b96 2023-08-22 mxmlnkn [feature] Count and display the number of encountered false positives with -v
+ca8c905e 2023-08-23 mxmlnkn [feature] GzipAnalyzer: Print out the position after the block header
+217934d4 2023-08-22 mxmlnkn [feature] Count actual marker symbols in marker buffers with -v
+c7c8c4bd 2023-08-23 mxmlnkn [API] InflateWrapper: Rename tellEncoded to tellCompressed for consistency with GzipReader
+991e1a3e 2023-08-23 mxmlnkn [style] GzipReader: Rename stoppingPoint -> stoppingPoints
+6c50928d 2023-08-22 mxmlnkn [style] InflateWrapper: Separate long methods from class definition
+ac101bff 2023-08-23 mxmlnkn [fix] Restore std::dec state after CRC32 write in analyzer
+ -> 499 (BROKEN)
+a04d310b 2023-08-22 mxmlnkn [doc] Fix pepy badges
+7c5ba946 2023-08-21 mxmlnkn [doc] Update decompression benchmarks from scratch via Python in ReadMe
+c77c180d 2023-08-20 mxmlnkn [feature] Check against wrong index being loaded
+5c63da01 2023-08-20 mxmlnkn [feature] Improve error messages of zlib and ISA-l wrappers
+f89d42f3 2023-08-20 mxmlnkn [performance] Avoid memory allocations in DecodedData::applyWindow by reinterpreting the existing buffers
+604db065 2023-08-20 mxmlnkn [API] Make DecodedData::data a vector of views
+99b7434e 2023-08-20 mxmlnkn [API] Make DecodedData::Iterator throw when there are still markers
+0f0e8bd5 2023-08-20 mxmlnkn [API] Make DecodedData::data* private
+63574fb0 2023-08-19 mxmlnkn [doc] Try out ISA-l distance Huffman decoder without performance improvements
+ad8ad8f4 2023-08-20 mxmlnkn [doc] Update citation information
+b2486817 2023-08-20 mxmlnkn [doc] Fix typos in ReadMe
+0ee8418c 2023-08-15 mxmlnkn [doc] Try some performance ideas for the dynamic blockfinder
+88fe29c7 2023-08-15 mxmlnkn [build] Avoid ambiguous call to inflate in case a namespace named like this is added
+5543873e 2023-08-15 mxmlnkn [build] Move distance/length table definitions into separate header
+7cc1fdb4 2023-08-12 mxmlnkn [performance] Use ISA-l Huffman decoder for literal/length alphabet: +20-40%
+ -> 499 (BROKEN)
+
+    Filtering cascade:
+    +-> Total number of test locations: 101997272
+        Filtered by deflate header test jump LUT: 91171078 (89.3858 %)  !!! 1 LESS!
+        Remaining locations to test: 10826194
+        +-> Failed checkPrecode calls: 10782607 (99.5974 %)   !!! 1 MORE!
+            Remaining locations to test: 43587
+            +-> Missing end-of-block symbol: 4586 (10.5215 %)
+            +-> Invalid Distance Huffman Coding: 3708 (8.50712 %)
+                Remaining locations: 39879
+                +-> Failing precode HC usage or literal/distance HC construction: 39380  !!! 3 LESS!
+                    Location candidates: 499
+
+    Encountered errors:
+         9756975 Constructing a Huffman coding from the given code length sequence failed!
+         1033926 The Huffman coding is not optimal!
+           28794 Invalid number of literal/length codes!
+            5359 Cannot copy last length because this is the first one!
+             640 Failed to decode Huffman bits!
+             499 No error.
+
+    Block candidates (499):  192 205011 410568 616173 822212 1028196 1233493 1439234 1645000 1851174 2057484 2263096 2469161 2675477 2881190 ...
+
+ - [ ] The HuffmanCoding checks being less stringent kinda makes sense, but would be nice to find out why exactly
+ - [x] The deflate header test jump LUT yielding different results makes no sense to me, for this change!?
+   -> This is probably because of unseeded rand() calls.
+
+  cmake -DWITH_ISAL=OFF .. && m benchmarkGzipBlockFinder && src/benchmarks/benchmarkGzipBlockFinder
+
+    Filtering cascade:
+    +-> Total number of test locations: 101997272
+        Filtered by deflate header test jump LUT: 91171077 (89.3858 %)  !!! 2 LESS!
+        Remaining locations to test: 10826195
+        +-> Failed checkPrecode calls: 10782608 (99.5974 %)
+            Remaining locations to test: 43587
+            +-> Missing end-of-block symbol: 4586 (10.5215 %)
+            +-> Invalid Distance Huffman Coding: 3708 (8.50712 %)
+                Remaining locations: 39879
+                +-> Failing precode HC usage or literal/distance HC construction: 39384
+                    Location candidates: 495
+
+    Encountered errors:
+         9756991 Constructing a Huffman coding from the given code length sequence failed!
+         1033928 The Huffman coding is not optimal!
+           28794 Invalid number of literal/length codes!
+            5359 Cannot copy last length because this is the first one!
+             627 Failed to decode Huffman bits!
+             495 No error.
+
+    Block candidates (495):  192 205011 410568 616173 822212 1028196 1233493 1439234 1645000 1851174 2057484 2263096 2469161 2675477 2881190 ...
+
+  -> yet another value for "Filtered by deflate header test jump LUT": 91171077 ... FUCK!
+  -> Check the LUTs, are they actually different, or is there some indeterministic bug?!
+
+
+988bb71a 2023-08-10 mxmlnkn [fix] Check against zero-length end-of-block symbol
+ -> 495 (WORKS)
+
+    Filtering cascade:
+    +-> Total number of test locations: 101997272
+        Filtered by deflate header test jump LUT: 91171079 (89.3858 %)
+        Remaining locations to test: 10826193
+        +-> Failed checkPrecode calls: 10782606 (99.5974 %)
+            Remaining locations to test: 43587
+            +-> Missing end-of-block symbol: 4586 (10.5215 %)
+            +-> Invalid Distance Huffman Coding: 3708 (8.50712 %)
+                Remaining locations: 39879
+                +-> Failing precode HC usage or literal/distance HC construction: 39384
+                    Location candidates: 495
+
+    Encountered errors:
+         9756987 Constructing a Huffman coding from the given code length sequence failed!
+         1033930 The Huffman coding is not optimal!
+           28794 Invalid number of literal/length codes!
+            5359 Cannot copy last length because this is the first one!
+             627 Failed to decode Huffman bits!
+             495 No error.
+
+    Block candidates (495):  192 205011 410568 616173 822212 1028196 1233493 1439234 1645000 1851174 2057484 2263096 2469161 2675477 2881190 ...
+
+  cmake -DWITH_ISAL=OFF .. && m benchmarkGzipBlockFinder && src/benchmarks/benchmarkGzipBlockFinder
+
+    Filtering cascade:
+    +-> Total number of test locations: 101997272
+        Filtered by deflate header test jump LUT: 91171078 (89.3858 %)
+        Remaining locations to test: 10826194
+        +-> Failed checkPrecode calls: 10782607 (99.5974 %)
+            Remaining locations to test: 43587
+            +-> Missing end-of-block symbol: 4586 (10.5215 %)
+            +-> Invalid Distance Huffman Coding: 3708 (8.50712 %)
+                Remaining locations: 39879
+                +-> Failing precode HC usage or literal/distance HC construction: 39384
+                    Location candidates:
+
+    Encountered errors:
+         9756988 Constructing a Huffman coding from the given code length sequence failed!
+         1033930 The Huffman coding is not optimal!
+           28794 Invalid number of literal/length codes!
+            5359 Cannot copy last length because this is the first one!
+             627 Failed to decode Huffman bits!
+             495 No error.
+
+    Block candidates (495):  192 205011 410568 616173 822212 1028196 1233493 1439234 1645000 1851174 2057484 2263096 2469161 2675477 2881190 ...
+
+ -> ... WHY is "Filtered by deflate header test jump LUT" different?!
+
+    Filtering cascade:
+    +-> Total number of test locations: 101997272
+        Filtered by deflate header test jump LUT: 91171077 (89.3858 %)
+        Remaining locations to test: 10826195
+        +-> Failed checkPrecode calls: 10782608 (99.5974 %)
+            Remaining locations to test: 43587
+            +-> Missing end-of-block symbol: 4586 (10.5215 %)
+            +-> Invalid Distance Huffman Coding: 3708 (8.50712 %)
+                Remaining locations: 39879
+                +-> Failing precode HC usage or literal/distance HC construction: 39384
+                    Location candidates: 495
+
+ -> Another run... ... it simply non-deterministic?! Test-data is random base64 data without calling srand -.-
+
+
+617756f1 2023-08-09 mxmlnkn [doc] Update ideas in benchmarks over commits
+831442a1 2023-08-12 mxmlnkn [refactor] Add BufferViewFileReader (void*, size_t) overload
+110d371e 2023-08-09 mxmlnkn [style] Explain why HDIST may not be 31 or 32
+1bf52a32 2023-08-09 mxmlnkn Revert "[fix] Distance code counts must be in 1-32 (0-31 stored value)!"
+fc1816e0 2023-08-07 mxmlnkn [doc] Benchmark decompression performance of Silesia, Fastq, Base64 over commits
+8d7219fb 2023-08-06 mxmlnkn [doc] Move Installation section above Performance section
+fc6746c8 2023-08-06 mxmlnkn [doc] Add scaling plots to readme
+93f9529d 2023-08-06 mxmlnkn [doc] Redo scaling benchmarks with version 0.8.1 on 128-core AMD processor
+d78c2512 2023-08-06 mxmlnkn [doc] Rename benchmark folders
+d96c82f5 2023-08-05 mxmlnkn [doc] Benchmark decompression performance over commits
+ed5c77f7 2023-08-05 mxmlnkn [test] Rename pragzip to rapidgzip in benchmark script
+096dd408 2023-08-05 mxmlnkn [build] Change cxxopt submodule to properly existing commit in upstream
+6fc8a272 2023-08-04 mxmlnkn [API] Remove unused argument to maxDecompressedChunkSize getter
+b047d879 2023-08-04 mxmlnkn (tag: rapidgzip-v0.8.1) [version] Bump version to pragzip 0.8.1
+
+rapidgzip-v0.8.1 -> 495 (WORKS even if one more)
+rapidgzip-v0.8.0 -> 495 (WORKS even if one more)
+rapidgzip-v0.7.0 -> 494 (WORKS)
+
+    [findDeflateBlocksRapidgzipLUT with 13 bits, Walk Tree Compressed LUT] ( 61.1 <= 62.7 +- 0.8 <= 63.2 ) MB/s (candidates: 494)
+    [findDeflateBlocksRapidgzipLUT with 14 bits, Walk Tree Compressed LUT] ( 63.27 <= 63.40 +- 0.11 <= 63.62 ) MB/s (candidates: 494)
+    [findDeflateBlocksRapidgzipLUT with 15 bits, Walk Tree Compressed LUT] ( 61.92 <= 62.07 +- 0.11 <= 62.23 ) MB/s (candidates: 494)
+    [findDeflateBlocksRapidgzipLUT with 16 bits, Walk Tree Compressed LUT] ( 60.9 <= 62.2 +- 0.7 <= 63.0 ) MB/s (candidates: 494)
+    [findDeflateBlocksRapidgzipLUT with 17 bits, Walk Tree Compressed LUT] ( 62.71 <= 63.19 +- 0.29 <= 63.46 ) MB/s (candidates: 494)
+    [findDeflateBlocksRapidgzipLUT with 18 bits, Walk Tree Compressed LUT] ( 61.0 <= 61.6 +- 0.5 <= 62.3 ) MB/s (candidates: 494)
+    [findDeflateBlocksRapidgzipLUT with 13 bits, Walk Tree LUT] ( 63.4 <= 64.2 +- 1.1 <= 66.4 ) MB/s (candidates: 494)
+    [findDeflateBlocksRapidgzipLUT with 14 bits, Walk Tree LUT] ( 62.9 <= 64.2 +- 1.1 <= 66.9 ) MB/s (candidates: 494)
+    [findDeflateBlocksRapidgzipLUT with 15 bits, Walk Tree LUT] ( 62.7 <= 64.8 +- 1.1 <= 65.7 ) MB/s (candidates: 494)
+    [findDeflateBlocksRapidgzipLUT with 16 bits, Walk Tree LUT] ( 61.9 <= 62.5 +- 0.5 <= 63.4 ) MB/s (candidates: 494)
+    [findDeflateBlocksRapidgzipLUT with 17 bits, Walk Tree LUT] ( 54 <= 59 +- 3 <= 63 ) MB/s (candidates: 494)
+    [findDeflateBlocksRapidgzipLUT with 18 bits, Walk Tree LUT] ( 58.2 <= 59.7 +- 0.5 <= 60.0 ) MB/s (candidates: 494)
+
+pragzip-v0.6.0 -> 494 (WORKS)
+
+    [findDeflateBlocksPragzipLUT with 13 bits, Walk Tree Compressed LUT] ( 55 <= 64 +- 3 <= 66 ) MB/s (candidates: 494)
+    [findDeflateBlocksPragzipLUT with 14 bits, Walk Tree Compressed LUT] ( 64.9 <= 66.0 +- 0.4 <= 66.2 ) MB/s (candidates: 494)
+    [findDeflateBlocksPragzipLUT with 15 bits, Walk Tree Compressed LUT] ( 63.4 <= 64.6 +- 0.7 <= 65.1 ) MB/s (candidates: 494)
+    [findDeflateBlocksPragzipLUT with 16 bits, Walk Tree Compressed LUT] ( 64.7 <= 65.3 +- 0.5 <= 65.9 ) MB/s (candidates: 494)
+    [findDeflateBlocksPragzipLUT with 17 bits, Walk Tree Compressed LUT] ( 65.6 <= 66.2 +- 0.3 <= 66.5 ) MB/s (candidates: 494)
+    [findDeflateBlocksPragzipLUT with 18 bits, Walk Tree Compressed LUT] ( 62.3 <= 63.8 +- 0.6 <= 64.3 ) MB/s (candidates: 494)
+    [findDeflateBlocksPragzipLUT with 13 bits, Walk Tree LUT] ( 65.82 <= 66.31 +- 0.18 <= 66.42 ) MB/s (candidates: 494)
+    [findDeflateBlocksPragzipLUT with 14 bits, Walk Tree LUT] ( 63.7 <= 65.3 +- 1.8 <= 67.7 ) MB/s (candidates: 494)
+    [findDeflateBlocksPragzipLUT with 15 bits, Walk Tree LUT] ( 59.9 <= 61.0 +- 1.5 <= 63.6 ) MB/s (candidates: 494)
+    [findDeflateBlocksPragzipLUT with 16 bits, Walk Tree LUT] ( 63.94 <= 64.29 +- 0.16 <= 64.43 ) MB/s (candidates: 494)
+    [findDeflateBlocksPragzipLUT with 17 bits, Walk Tree LUT] ( 60.0 <= 60.9 +- 0.4 <= 61.3 ) MB/s (candidates: 494)
+    [findDeflateBlocksPragzipLUT with 18 bits, Walk Tree LUT] ( 60.57 <= 60.70 +- 0.05 <= 60.77 ) MB/s (candidates: 494)

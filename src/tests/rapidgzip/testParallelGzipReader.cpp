@@ -1037,7 +1037,7 @@ printClassSizes()
     std::cout << "  ZlibInflateWrapper            : " << sizeof( ZlibInflateWrapper ) << "\n";  // 131320
 #ifdef LIBRAPIDARCHIVE_WITH_ISAL
     std::cout << "  IsalInflateWrapper            : " << sizeof( IsalInflateWrapper ) << "\n";  // 218592
-    std::cout << "  HuffmanCodingISAL             : " << sizeof( HuffmanCodingISAL ) << "\n";  // 18916
+    std::cout << "  HuffmanCodingISAL             : " << sizeof( deflate::HuffmanCodingISAL ) << "\n";  // 18916
 #endif
     /* 18916 */
     std::cout << "  LiteralOrLengthHuffmanCoding  : " << sizeof( deflate::LiteralOrLengthHuffmanCoding ) << "\n";

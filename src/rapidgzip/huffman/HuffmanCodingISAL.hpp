@@ -11,8 +11,10 @@
 
 #include <igzip_lib.h>
 
+#include "HuffmanCodingCheckOnly.hpp"
 
-namespace rapidgzip
+
+namespace rapidgzip::deflate
 {
 /**
  * A wrapper around the Huffman decoder from ISA-l
@@ -37,6 +39,9 @@ public:
     [[nodiscard]] Error
     initializeFromLengths( const VectorView<uint8_t>& codeLengths )
     {
+        HuffmanCodingCheckOnly<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_LITERAL_HUFFMAN_CODE_COUNT> huffmanCheck;
+        m_error = huffmanCheck.initializeFromLengths( codeLengths );
+
         std::array<huff_code, LIT_LEN_ELEMS> lit_and_dist_huff{};
         std::array<uint16_t, MAX_LIT_LEN_COUNT> lit_count{};
         std::array<uint16_t, MAX_LIT_LEN_COUNT> lit_expand_count{};
@@ -67,8 +72,7 @@ public:
         make_inflate_huff_code_lit_len( &m_huffmanCode, lit_and_dist_huff.data(), LIT_LEN_ELEMS,
                                         lit_count.data(), code_list.data(), 0 );
 
-        m_error = Error::NONE;
-        return Error::NONE;
+        return m_error;
     }
 
     [[nodiscard]] bool
@@ -184,4 +188,4 @@ private:
     Error m_error{ Error::INVALID_HUFFMAN_CODE };
     inflate_huff_code_large m_huffmanCode;
 };
-}  // namespace rapidgzip
+}  // namespace rapidgzip::deflate

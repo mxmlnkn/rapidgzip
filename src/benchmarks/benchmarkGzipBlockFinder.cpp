@@ -2150,6 +2150,8 @@ int
 main( int    argc,
       char** argv )
 {
+    std::srand( 0x19AAA8FDU );
+
     if ( argc > 1 ) {
         for ( int i = 1; i < argc; ++i ) {
             if ( std::filesystem::exists( argv[i] ) ) {
