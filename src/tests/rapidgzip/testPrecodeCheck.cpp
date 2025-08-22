@@ -361,36 +361,6 @@ analyzeSingleLUTCompression( const LUT& precodeHistogramValidLUT )
 
 
 void
-analyzeActualLUTCompression()
-{
-    const auto printRealCompressedLUTStatistics =
-        [] ( const auto&        compressedLUT,
-             const size_t       chunkCount,
-             const std::string& label )
-        {
-            const auto& [validLUT, validBitMasks] = compressedLUT;
-            std::cerr << "    " << label << ":\n"
-                      << "        Chunks     : " << chunkCount << "\n"
-                      << "        LUT        : " << formatBytes( validLUT.size() * sizeof( validLUT[0] ) ) << "\n"
-                      << "        Dictionary : "
-                      << formatBytes( validBitMasks.size() * sizeof( validBitMasks[0] ) ) << "\n"
-                      << "        -> Sum : "
-                      << formatBytes( validLUT.size() * sizeof( validLUT[0] )
-                                      + validBitMasks.size() * sizeof( validBitMasks[0] ) ) << "\n\n";
-        };
-
-    std::cerr << "\n== Sizes for actual implementations ==\n\n";
-    using namespace rapidgzip::PrecodeCheck;
-    printRealCompressedLUTStatistics( SingleCompressedLUT::COMPRESSED_PRECODE_HISTOGRAM_VALID_LUT_DICT,
-                                      SingleCompressedLUT::COMPRESSED_PRECODE_HISTOGRAM_CHUNK_COUNT,
-                                      "Whole LUT for variable-length bit-packed histogram" );
-    printRealCompressedLUTStatistics( WalkTreeCompressedLUT::COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_VALID_LUT_DICT,
-                                      WalkTreeCompressedLUT::COMPRESSED_PRECODE_FREQUENCIES_1_TO_5_CHUNK_COUNT,
-                                      "LUT for frequencies 1 to 5 for uniformly bit-packed histogram" );
-}
-
-
-void
 testSingleLUTImplementation()
 {
     using namespace rapidgzip::PrecodeCheck::SingleLUT;
@@ -434,7 +404,7 @@ analyzeValidPrecodeFrequencies()
 
 
 void
-analyzeValidPrecodes()
+analyzeAndTestValidPrecodes()
 {
     std::mt19937_64 randomEngine;
 
@@ -476,8 +446,11 @@ analyzeValidPrecodes()
         checkAlternative( rapidgzip::PrecodeCheck::WithoutLUT::checkPrecodeUsingArray );
         checkAlternative( rapidgzip::PrecodeCheck::WithoutLUT::checkPrecode );
         checkAlternative( rapidgzip::PrecodeCheck::SingleLUT::checkPrecode );
-        checkAlternative( rapidgzip::PrecodeCheck::SingleCompressedLUT::checkPrecode );
-        checkAlternative( rapidgzip::PrecodeCheck::WalkTreeCompressedLUT::checkPrecode );
+        checkAlternative( rapidgzip::PrecodeCheck::SingleCompressedLUT::checkPrecode<4U> );
+        checkAlternative( rapidgzip::PrecodeCheck::WalkTreeCompressedLUT::checkPrecode<4U, 4U> );
+        checkAlternative( rapidgzip::PrecodeCheck::WalkTreeCompressedLUT::checkPrecode<5U, 16U> );
+        checkAlternative( rapidgzip::PrecodeCheck::WalkTreeCompressedLUT::checkPrecode<6U, 64U> );
+        checkAlternative( rapidgzip::PrecodeCheck::WalkTreeCompressedLUT::checkPrecode<7U, 512U> );
     }
 
     {
@@ -497,69 +470,6 @@ analyzeValidPrecodes()
     }
 
     /* Test frequency LUT */
-}
-
-
-/**
- * @param depth A depth of 1 means that we should iterate over 1-bit codes, which can only be 0,1,2.
- * @param freeBits This can be calculated from the histogram but it saves constexpr instructions when
- *        the caller updates this value outside.
- * @note This is an adaptation of @ref createPrecodeFrequenciesValidLUTHelper.
- */
-template<uint32_t FREQUENCY_BITS,
-         uint32_t FREQUENCY_COUNT,
-         uint32_t DEPTH = 1,
-         typename LUT = std::array<uint64_t, ( 1ULL << ( FREQUENCY_BITS * FREQUENCY_COUNT ) ) / 64U> >
-void
-analyzeMaxValidPrecodeFrequenciesHelper( std::function<void( uint64_t )> processValidHistogram,
-                                         uint32_t const                  remainingCount,
-                                         uint64_t const                  histogram = 0,
-                                         uint32_t const                  freeBits = 2 )
-{
-    static_assert( DEPTH <= FREQUENCY_COUNT, "Cannot descend deeper than the frequency counts!" );
-    if ( ( histogram & nLowestBitsSet<uint64_t, ( DEPTH - 1 ) * FREQUENCY_BITS>() ) != histogram ) {
-        throw std::invalid_argument( "Only frequency of bit-lengths less than the depth may be set!" );
-    }
-
-    const auto histogramWithCount =
-        [histogram] ( auto count ) constexpr {
-            return histogram | ( static_cast<uint64_t>( count ) << ( ( DEPTH - 1 ) * FREQUENCY_BITS ) );
-        };
-
-    /* The for loop maximum is given by the invalid Huffman code check, i.e.,
-     * when there are more code lengths on a tree level than there are nodes. */
-    for ( uint32_t count = 0; count <= std::min( remainingCount, freeBits ); ++count ) {
-        const auto newFreeBits = ( freeBits - count ) * 2;
-        [[maybe_unused]] const auto newRemainingCount = remainingCount - count;
-
-        /* The first layer may not be fully filled or even empty. This does not fit any of the general tests. */
-        if constexpr ( DEPTH == 1 ) {
-            if ( count == 1 ) {
-                processValidHistogram( histogramWithCount( count ) );
-            }
-        }
-
-        if constexpr ( DEPTH == FREQUENCY_COUNT ) {
-            if constexpr ( DEPTH == 7 ) {
-                if ( newFreeBits == 0 ) {
-                    processValidHistogram( histogramWithCount( count ) );
-                }
-            } else {
-                /* This filters out bloating Huffman codes, i.e., when the number of free nodes in the tree
-                 * is larger than the maximum possible remaining (precode) symbols to fit into the tree. */
-                if ( newFreeBits <= newRemainingCount ) {
-                    processValidHistogram( histogramWithCount( count ) );
-                }
-            }
-        } else {
-            if ( count == freeBits ) {
-                processValidHistogram( histogramWithCount( count ) );
-            } else {
-                analyzeMaxValidPrecodeFrequenciesHelper<FREQUENCY_BITS, FREQUENCY_COUNT, DEPTH + 1>(
-                    processValidHistogram, newRemainingCount, histogramWithCount( count ), newFreeBits );
-            }
-        }
-    }
 }
 
 
@@ -583,14 +493,15 @@ printCompressedHistogram( const CompressedHistogram histogram )
 }
 
 
+constexpr auto MAX_CL_SYMBOL_COUNT = 19U;
+static constexpr uint32_t FREQUENCY_BITS = 5;  /* minimum bits to represent up to count 19. */
+static constexpr uint32_t FREQUENCY_COUNT = 7;  /* maximum value with 3-bits */
+
+
 template<bool COMPARE_WITH_ALTERNATIVE_METHOD>
 void
 analyzeMaxValidPrecodeFrequencies()
 {
-    constexpr auto MAX_CL_SYMBOL_COUNT = 19U;
-    static constexpr uint32_t FREQUENCY_BITS = 5;  /* minimum bits to represent up to count 19. */
-    static constexpr uint32_t FREQUENCY_COUNT = 7;  /* maximum value with 3-bits */
-
     std::array<uint32_t, FREQUENCY_COUNT> maxFrequencies{};
     std::unordered_set<uint64_t> validHistograms;
 
@@ -611,7 +522,7 @@ analyzeMaxValidPrecodeFrequencies()
             }
         };
 
-    analyzeMaxValidPrecodeFrequenciesHelper<FREQUENCY_BITS, FREQUENCY_COUNT>(
+    PrecodeCheck::WalkTreeLUT::walkValidPrecodeCodeLengthFrequencies<FREQUENCY_BITS, FREQUENCY_COUNT>(
         processValidHistogram, MAX_CL_SYMBOL_COUNT );
 
     std::cerr << "\nMaximum length frequencies of valid histograms:\n";
@@ -1039,6 +950,91 @@ testCachedHuffmanCodings()
 }
 
 
+template<uint16_t CHUNK_COUNT>
+void
+printCompressedPrecodeFrequenciesSingleLUTSizes()
+{
+    using namespace rapidgzip::PrecodeCheck;
+
+    std::cerr << "  " << ( CHUNK_COUNT * 64U ) << " bits (" << CHUNK_COUNT << " B) per subtable):\n";
+
+    const auto& [histogramLUT, validLUT] =
+        SingleCompressedLUT::COMPRESSED_PRECODE_HISTOGRAM_VALID_LUT_DICT<CHUNK_COUNT>;
+    const auto histogramLUTSize = histogramLUT.size() * sizeof( histogramLUT[0] );
+    const auto validLUTSize = validLUT.size() * sizeof( validLUT[0] );
+
+    std::cerr << "    indexes          : " << histogramLUTSize << "\n";
+    std::cerr << "    subtables size   : " << validLUTSize << "\n";
+    std::cerr << "    subtables number : " << validLUTSize / ( CHUNK_COUNT * 64U /* 64-bit chunks */ ) << "\n";
+    std::cerr << "    sum              : " << histogramLUTSize + validLUTSize << "\n";
+}
+
+
+template<uint8_t  PRECODE_FREQUENCIES_LUT_COUNT,
+         uint16_t CHUNK_COUNT>
+void
+printCompressedPrecodeFrequenciesLUTSizes()
+{
+    using namespace rapidgzip::PrecodeCheck;
+
+    const auto MAX_CL = static_cast<size_t>( PRECODE_FREQUENCIES_LUT_COUNT );
+
+    std::cerr << "  CL 1-" << MAX_CL << ", " << ( CHUNK_COUNT * 64U ) << " bits (" << CHUNK_COUNT
+              << " B) per subtable):\n";
+
+    const auto& [histogramLUT, validLUT] =
+        WalkTreeCompressedLUT::PRECODE_FREQUENCIES_VALID_LUT_TWO_STAGES<PRECODE_FREQUENCIES_LUT_COUNT, CHUNK_COUNT>;
+    const auto histogramLUTSize = histogramLUT.size() * sizeof( histogramLUT[0] );
+    const auto validLUTSize = validLUT.size() * sizeof( validLUT[0] );
+
+    std::cerr << "    indexes          : " << histogramLUTSize << "\n";
+    std::cerr << "    subtables size   : " << validLUTSize << "\n";
+    std::cerr << "    subtables number : " << validLUTSize / ( CHUNK_COUNT * 64U /* 64-bit chunks */ ) << "\n";
+    std::cerr << "    sum              : " << histogramLUTSize + validLUTSize << "\n";
+}
+
+
+void
+analyzeActualLUTCompression()
+{
+    std::cerr << "PRECODE_FREQUENCIES_1_TO_5_VALID_LUT      : "
+              << sizeof( PrecodeCheck::WalkTreeLUT::PRECODE_FREQUENCIES_1_TO_5_VALID_LUT ) << "\n";  // 4 MiB
+    std::cerr << "PRECODE_TO_FREQUENCIES_LUT<4>             : "
+              << sizeof( PrecodeCheck::WalkTreeLUT::PRECODE_TO_FREQUENCIES_LUT<4> ) << "\n\n";  // 32 KiB
+
+    std::cerr << "Precode code-length histogram LUT two-stage compressed:\n";
+    printCompressedPrecodeFrequenciesLUTSizes<4U, 1U>();     // 16384 B +  640 B -> 17024 B
+    printCompressedPrecodeFrequenciesLUTSizes<4U, 4U>();     //  4096 B + 2304 B ->  6400 B
+    printCompressedPrecodeFrequenciesLUTSizes<4U, 8U>();     //  2048 B + 4608 B ->  6656 B
+    printCompressedPrecodeFrequenciesLUTSizes<4U, 16U>();    //  1024 B + 9216 B -> 10240 B
+    std::cerr << "\n";
+    printCompressedPrecodeFrequenciesLUTSizes<5U, 8U>();     // 65536 B +  4096 B -> 69632 B
+    printCompressedPrecodeFrequenciesLUTSizes<5U, 16U>();    // 32768 B +  8192 B -> 40960 B  (size-optimal)
+    printCompressedPrecodeFrequenciesLUTSizes<5U, 32U>();    // 16384 B + 40960 B -> 57344 B
+    std::cerr << "\n";
+    printCompressedPrecodeFrequenciesLUTSizes<6U, 32U>();    // 524288 B +  26624 B -> 550912 B
+    printCompressedPrecodeFrequenciesLUTSizes<6U, 64U>();    // 262144 B +  77824 B -> 339968 B  (size-optimal)
+    printCompressedPrecodeFrequenciesLUTSizes<6U, 128U>();   // 131072 B + 204800 B -> 335872 B  (size-optimal)
+    printCompressedPrecodeFrequenciesLUTSizes<6U, 256U>();   //  65536 B + 409600 B -> 475136 B
+    std::cerr << "\n";
+    /* Maximum precode code length is 7! Meaning no manual check necessary for this! */
+    printCompressedPrecodeFrequenciesLUTSizes<7U, 128U>();   // 4   MiB +  212992 B -> 4407296 B
+    printCompressedPrecodeFrequenciesLUTSizes<7U, 256U>();   // 2   MiB +  425984 B -> 2523136 B
+    printCompressedPrecodeFrequenciesLUTSizes<7U, 512U>();   // 1   MiB +  851968 B -> 1900544 B  (size-optimal)
+    printCompressedPrecodeFrequenciesLUTSizes<7U, 1024U>();  // 512 KiB + 3014656 B -> 3538944 B
+    printCompressedPrecodeFrequenciesLUTSizes<7U, 2048U>();  //
+
+    std::cerr << "\nFull precode code-length histogram Single-LUT two-stage compressed:\n";
+    printCompressedPrecodeFrequenciesSingleLUTSizes<4U>();   // 65536 B + 14592 B (456 subtables) -> 80128 B
+    printCompressedPrecodeFrequenciesSingleLUTSizes<8U>();   // 32768 B + 32768 B (512 subtables) -> 65536 B
+
+    printCompressedPrecodeFrequenciesSingleLUTSizes<16U>();  // 16384 B + 60416 B (472 subtables) -> 76800 B
+    printCompressedPrecodeFrequenciesSingleLUTSizes<32U>();  // 8192 B + 202752 B (792 subtables) -> 210944 B
+    printCompressedPrecodeFrequenciesSingleLUTSizes<64U>();  // 4096 B + 327680 B (640 subtables) -> 331776 B
+    printCompressedPrecodeFrequenciesSingleLUTSizes<128U>(); // 2048 B + 458752 B (448 subtables) -> 460800 B
+}
+
+
 int
 main()
 {
@@ -1062,7 +1058,7 @@ main()
     testSingleLUTImplementation();
 
     analyzeMaxValidPrecodeFrequencies</* COMPARE_WITH_ALTERNATIVE_METHOD (quite slow and changes rarely) */ false>();
-    analyzeValidPrecodes();
+    analyzeAndTestValidPrecodes();
 
     analyzeValidPrecodeFrequencies<2>();
     analyzeValidPrecodeFrequencies<3>();
@@ -1252,21 +1248,6 @@ up to multiple 64-bit values mapped to a single dictionary (LUT) entry:
         LUT:  32 KiB
             value LUT (bits) : 5 KiB -> SUM: 37 KiB
             value LUT (bytes): 40 KiB -> SUM: 72 KiB
-
-
-== Sizes for actual implementations ==
-
-    Whole LUT for variable-length bit-packed histogram:
-        Chunks     : 4
-        LUT        : 64 KiB
-        Dictionary : 14 KiB 256 B
-        -> Sum : 78 KiB 256 B
-
-    LUT for frequencies 1 to 5 for uniformly bit-packed histogram:
-        Chunks     : 16
-        LUT        : 32 KiB
-        Dictionary : 8 KiB
-        -> Sum : 40 KiB
 
 
 Tests successful: 500000140 / 500000140

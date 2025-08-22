@@ -15,7 +15,7 @@
 #include <rapidgzip/gzip/deflate.hpp>
 #include <rapidgzip/huffman/HuffmanCodingCheckOnly.hpp>
 
-#include "precodecheck/WalkTreeLUT.hpp"
+#include "precodecheck/WalkTreeCompressedLUT.hpp"
 
 
 namespace rapidgzip::blockfinder
@@ -272,7 +272,7 @@ seekToNonFinalDynamicDeflateBlock( gzip::BitReader& bitReader,
                 const auto next57Bits = ( bitBufferPrecodeBits >> PRECODE_COUNT_BITS )
                                         & nLowestBitsSet<uint64_t, MAX_PRECODE_COUNT * PRECODE_BITS>();
 
-                using rapidgzip::PrecodeCheck::WalkTreeLUT::checkPrecode;
+                using rapidgzip::PrecodeCheck::WalkTreeCompressedLUT::checkPrecode;
                 const auto precodeError = checkPrecode( next4Bits, next57Bits );
 
                 if ( UNLIKELY( precodeError == Error::NONE ) ) [[unlikely]] {

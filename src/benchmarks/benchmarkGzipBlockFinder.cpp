@@ -723,8 +723,9 @@ enum class CheckPrecodeMethod
     WITHOUT_LUT,
     WITHOUT_LUT_USING_ARRAY,
     WALK_TREE_LUT,
-    WALK_TREE_COMPRESSED_LUT,
-    SINGLE_LUT,
+    WALK_TREE_COMPRESSED_LUT,  // Deduplicate the very sparse WALK_TREE_LUT by using an indirect LUTs to chunks.
+    WALK_TREE_COMPRESSED_SINGLE_LUT,  // WALK_TREE_COMPRESSED_LUT taken to the extreme, i.e., up to code length 7.
+    SINGLE_LUT,  // same as WALK_TREE_COMPRESSED_SINGLE_LUT but variable-length bits for histogram.
     SINGLE_COMPRESSED_LUT,
 };
 
@@ -734,12 +735,13 @@ toString( CheckPrecodeMethod method )
 {
     switch ( method )
     {
-    case CheckPrecodeMethod::WITHOUT_LUT             : return "Without LUT";
-    case CheckPrecodeMethod::WITHOUT_LUT_USING_ARRAY : return "Without LUT Using Array";
-    case CheckPrecodeMethod::WALK_TREE_LUT           : return "Walk Tree LUT";
-    case CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT: return "Walk Tree Compressed LUT";
-    case CheckPrecodeMethod::SINGLE_LUT              : return "Single LUT";
-    case CheckPrecodeMethod::SINGLE_COMPRESSED_LUT   : return "Single Compressed LUT";
+    case CheckPrecodeMethod::WITHOUT_LUT                    : return "Without LUT";
+    case CheckPrecodeMethod::WITHOUT_LUT_USING_ARRAY        : return "Without LUT Using Array";
+    case CheckPrecodeMethod::WALK_TREE_LUT                  : return "Walk Tree LUT";
+    case CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT       : return "Walk Tree Compressed LUT";
+    case CheckPrecodeMethod::WALK_TREE_COMPRESSED_SINGLE_LUT: return "Walk Tree Compressed Single LUT";
+    case CheckPrecodeMethod::SINGLE_LUT                     : return "Single LUT";
+    case CheckPrecodeMethod::SINGLE_COMPRESSED_LUT          : return "Single Compressed LUT";
     }
     throw std::invalid_argument( "Unknown check precode method!" );
 }
@@ -841,7 +843,29 @@ checkPrecode( const uint64_t next4Bits,
          * [18 bits] ( 63.3 <= 64.9 +- 0.8 <= 65.9 ) MB/s
          * @endverbatim
          */
-        return WalkTreeCompressedLUT::checkPrecode( next4Bits, next57Bits );
+        /* Size-optimal parameter combinations: (5, 16), (6, 64), (7, 512) */
+        constexpr auto PRECODE_FREQUENCIES_LUT_COUNT = 5U;
+        constexpr auto SUBTABLE_CHUNK_COUNT = 16U;
+        return WalkTreeCompressedLUT::checkPrecode<
+            PRECODE_FREQUENCIES_LUT_COUNT, SUBTABLE_CHUNK_COUNT>( next4Bits, next57Bits );
+    }
+
+    if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_COMPRESSED_SINGLE_LUT ) {
+        /**
+         * @verbatim
+         * [13 bits] ( 69.1 <= 70.9 +- 1.4 <= 73.1 ) MB/s
+         * [14 bits] ( 66.0 <= 68.3 +- 1.1 <= 70.1 ) MB/s
+         * [15 bits] ( 68.9 <= 70.0 +- 0.9 <= 71.9 ) MB/s
+         * [16 bits] ( 70.7 <= 72.5 +- 0.8 <= 73.4 ) MB/s
+         * [17 bits] ( 69.4 <= 72.0 +- 1.7 <= 73.7 ) MB/s
+         * [18 bits] ( 67.7 <= 70.3 +- 1.3 <= 71.3 ) MB/s
+         * @endverbatim
+         */
+        /* Size-optimal parameter combinations: (5, 16), (6, 64), (7, 512) */
+        constexpr auto PRECODE_FREQUENCIES_LUT_COUNT = 7U;
+        constexpr auto SUBTABLE_CHUNK_COUNT = 512U;
+        return WalkTreeCompressedLUT::checkPrecode<
+            PRECODE_FREQUENCIES_LUT_COUNT, SUBTABLE_CHUNK_COUNT>( next4Bits, next57Bits );
     }
 
     if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_LUT ) {
@@ -1089,8 +1113,10 @@ checkAndGetValidHistogramID( const uint64_t precodeBits )
             return std::nullopt;
         }
 
-        const auto& [histogramLUT, validLUT] = COMPRESSED_PRECODE_HISTOGRAM_VALID_LUT_DICT;
-        constexpr auto INDEX_BITS = COMPRESSED_PRECODE_HISTOGRAM_INDEX_BITS;
+        constexpr auto COMPRESSED_LUT_CHUNK_COUNT = 8U;
+        const auto& [histogramLUT, validLUT] =
+            PrecodeCheck::SingleCompressedLUT::COMPRESSED_PRECODE_HISTOGRAM_VALID_LUT_DICT<COMPRESSED_LUT_CHUNK_COUNT>;
+        constexpr auto INDEX_BITS = requiredBits( COMPRESSED_LUT_CHUNK_COUNT * sizeof( uint64_t ) * CHAR_BIT );
         const auto elementIndex = ( histogramToLookUp >> INDEX_BITS )
                                   & nLowestBitsSet<Histogram>( HISTOGRAM_TO_LOOK_UP_BITS - INDEX_BITS );
         const auto subIndex = histogramLUT[elementIndex];
@@ -1191,7 +1217,7 @@ checkDeflateBlock<CheckPrecodeMethod::SINGLE_COMPRESSED_LUT>( const uint64_t   b
  * separate run over the data (to be implemented).
  */
 template<uint8_t            CACHED_BIT_COUNT,
-         CheckPrecodeMethod CHECK_PRECODE_METHOD = CheckPrecodeMethod::WALK_TREE_LUT>
+         CheckPrecodeMethod CHECK_PRECODE_METHOD = CheckPrecodeMethod::WALK_TREE_COMPRESSED_SINGLE_LUT>
 [[nodiscard]] std::vector<size_t>
 findDeflateBlocksRapidgzipLUT( BufferedFileReader::AlignedBuffer data )
 {
@@ -1471,7 +1497,7 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
  * extensive tests by loading and checking the dynamic Huffman trees, which might require seeking back.
  */
 template<uint8_t            CACHED_BIT_COUNT,
-         CheckPrecodeMethod CHECK_PRECODE_METHOD = CheckPrecodeMethod::WALK_TREE_LUT>
+         CheckPrecodeMethod CHECK_PRECODE_METHOD = CheckPrecodeMethod::WALK_TREE_COMPRESSED_SINGLE_LUT>
 [[nodiscard]] std::vector<size_t>
 findDeflateBlocksRapidgzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
 {
@@ -1527,19 +1553,22 @@ findDeflateBlocksRapidgzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
                                <= gzip::BitReader::MAX_BIT_BUFFER_SIZE,
                                "This optimization requires a larger BitBuffer inside BitReader!" );
 
+                using namespace rapidgzip::PrecodeCheck;
                 auto error = rapidgzip::Error::NONE;
                 if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_COMPRESSED_LUT ) {
-                    error = rapidgzip::PrecodeCheck::SingleCompressedLUT::checkPrecode( next4Bits, next57Bits );
+                    error = SingleCompressedLUT::checkPrecode( next4Bits, next57Bits );
                 } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_LUT ) {
-                    error = rapidgzip::PrecodeCheck::SingleLUT::checkPrecode( next4Bits, next57Bits );
+                    error = SingleLUT::checkPrecode( next4Bits, next57Bits );
                 } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_LUT ) {
-                    error = rapidgzip::PrecodeCheck::WalkTreeLUT::checkPrecode( next4Bits, next57Bits );
+                    error = WalkTreeLUT::checkPrecode( next4Bits, next57Bits );
                 } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT ) {
-                    error = rapidgzip::PrecodeCheck::WalkTreeCompressedLUT::checkPrecode( next4Bits, next57Bits );
+                    error = WalkTreeCompressedLUT::checkPrecode<5U, 16U>( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_COMPRESSED_SINGLE_LUT ) {
+                    error = WalkTreeCompressedLUT::checkPrecode<7U, 512U>( next4Bits, next57Bits );
                 } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WITHOUT_LUT_USING_ARRAY ) {
-                    error = rapidgzip::PrecodeCheck::WithoutLUT::checkPrecodeUsingArray( next4Bits, next57Bits );
+                    error = WithoutLUT::checkPrecodeUsingArray( next4Bits, next57Bits );
                 } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WITHOUT_LUT ) {
-                    error = rapidgzip::PrecodeCheck::WithoutLUT::checkPrecode( next4Bits, next57Bits );
+                    error = WithoutLUT::checkPrecode( next4Bits, next57Bits );
                 }
 
                 if ( error != rapidgzip::Error::NONE ) {
@@ -1571,7 +1600,7 @@ findDeflateBlocksRapidgzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
 
 
 template<uint8_t            CACHED_BIT_COUNT,
-         CheckPrecodeMethod CHECK_PRECODE_METHOD = CheckPrecodeMethod::WALK_TREE_LUT>
+         CheckPrecodeMethod CHECK_PRECODE_METHOD = CheckPrecodeMethod::WALK_TREE_COMPRESSED_SINGLE_LUT>
 [[nodiscard]] std::vector<size_t>
 findDeflateBlocksRapidgzipLUTTwoPassWithPrecode( BufferedFileReader::AlignedBuffer data )
 {
@@ -1616,20 +1645,22 @@ findDeflateBlocksRapidgzipLUTTwoPassWithPrecode( BufferedFileReader::AlignedBuff
                 const auto next57Bits = ( bitBufferPrecodeBits >> PRECODE_COUNT_BITS )
                                         & nLowestBitsSet<uint64_t, MAX_PRECODE_COUNT * PRECODE_BITS>();
 
+                using namespace rapidgzip::PrecodeCheck;
                 auto precodeError = rapidgzip::Error::NONE;
                 if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_COMPRESSED_LUT ) {
-                    precodeError = rapidgzip::PrecodeCheck::SingleCompressedLUT::checkPrecode( next4Bits, next57Bits );
+                    precodeError = SingleCompressedLUT::checkPrecode( next4Bits, next57Bits );
                 } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_LUT ) {
-                    precodeError = rapidgzip::PrecodeCheck::SingleLUT::checkPrecode( next4Bits, next57Bits );
+                    precodeError = SingleLUT::checkPrecode( next4Bits, next57Bits );
                 } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_LUT ) {
-                    precodeError = rapidgzip::PrecodeCheck::WalkTreeLUT::checkPrecode( next4Bits, next57Bits );
+                    precodeError = WalkTreeLUT::checkPrecode( next4Bits, next57Bits );
                 } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT ) {
-                    precodeError = rapidgzip::PrecodeCheck::WalkTreeCompressedLUT::checkPrecode( next4Bits,
-                                                                                                 next57Bits );
+                    precodeError = WalkTreeCompressedLUT::checkPrecode<5U, 16U>( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_COMPRESSED_SINGLE_LUT ) {
+                    precodeError = WalkTreeCompressedLUT::checkPrecode<7U, 512U>( next4Bits, next57Bits );
                 } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WITHOUT_LUT_USING_ARRAY ) {
-                    precodeError = rapidgzip::PrecodeCheck::WithoutLUT::checkPrecodeUsingArray( next4Bits, next57Bits );
+                    precodeError = WithoutLUT::checkPrecodeUsingArray( next4Bits, next57Bits );
                 } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WITHOUT_LUT ) {
-                    precodeError = rapidgzip::PrecodeCheck::WithoutLUT::checkPrecode( next4Bits, next57Bits );
+                    precodeError = WithoutLUT::checkPrecode( next4Bits, next57Bits );
                 }
 
                 if ( UNLIKELY( precodeError == rapidgzip::Error::NONE ) ) [[unlikely]] {
@@ -2269,6 +2300,9 @@ main( int    argc,
                 std::cout << "\n";
                 benchmarkLUTSize<CACHED_BIT_COUNT, FULL_CHECK, CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT>( data );
                 std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, FULL_CHECK,
+                                 CheckPrecodeMethod::WALK_TREE_COMPRESSED_SINGLE_LUT>( data );
+                std::cout << "\n";
                 benchmarkLUTSize<CACHED_BIT_COUNT, FULL_CHECK, CheckPrecodeMethod::SINGLE_LUT>( data );
                 std::cout << "\n";
                 benchmarkLUTSize<CACHED_BIT_COUNT, FULL_CHECK, CheckPrecodeMethod::SINGLE_COMPRESSED_LUT>( data );
@@ -2284,6 +2318,9 @@ main( int    argc,
                 std::cout << "\n";
                 benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS, CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT>( data );
                 std::cout << "\n";
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS,
+                                 CheckPrecodeMethod::WALK_TREE_COMPRESSED_SINGLE_LUT>( data );
+                std::cout << "\n";
                 benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS, CheckPrecodeMethod::SINGLE_LUT>( data );
                 std::cout << "\n";
                 benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS, CheckPrecodeMethod::SINGLE_COMPRESSED_LUT>( data );
@@ -2297,7 +2334,8 @@ main( int    argc,
                 std::cout << "\n";
                 benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS_PRE, CheckPrecodeMethod::WALK_TREE_LUT>( data );
                 std::cout << "\n";
-                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS_PRE, CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT>( data );
+                benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS_PRE,
+                                 CheckPrecodeMethod::WALK_TREE_COMPRESSED_SINGLE_LUT>( data );
                 std::cout << "\n";
                 benchmarkLUTSize<CACHED_BIT_COUNT, TWO_PASS_PRE, CheckPrecodeMethod::SINGLE_LUT>( data );
                 std::cout << "\n";
@@ -2308,6 +2346,9 @@ main( int    argc,
                 benchmarkLUTSize<CACHED_BIT_COUNT,
                                  FindDeflateMethod::FULL_CHECK,
                                  CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT>( data );
+                benchmarkLUTSize<CACHED_BIT_COUNT,
+                                 FindDeflateMethod::FULL_CHECK,
+                                 CheckPrecodeMethod::WALK_TREE_COMPRESSED_SINGLE_LUT>( data );
                 benchmarkLUTSize<CACHED_BIT_COUNT,
                                  FindDeflateMethod::FULL_CHECK,
                                  CheckPrecodeMethod::WALK_TREE_LUT>( data );

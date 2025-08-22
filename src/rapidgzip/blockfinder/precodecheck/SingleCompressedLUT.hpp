@@ -1,8 +1,6 @@
 /**
- * @file This is an alternative lookup table to check the precode histogram for validity.
- *       It crams all necessary counts into 24 bits in order to not only have a partial LUT but a complete one,
- *       to save a branch for possibly valid cases.
- *       The bits were shaved off by specially accounting for overflows when adding up partial histograms.
+ * @file Combination of SingleLUT (variable-bit-length histogram frequencies for size reduction) and
+ *       WalkTreeCompressedLUT (chunking + deduplication of the very very sparse LUT).
  */
 
 #pragma once
@@ -30,17 +28,13 @@ using rapidgzip::PrecodeCheck::SingleLUT::VariableLengthPackedHistogram::OVERFLO
 using rapidgzip::PrecodeCheck::SingleLUT::VariableLengthPackedHistogram::OVERFLOW_BITS_MASK;
 
 
-constexpr auto COMPRESSED_PRECODE_HISTOGRAM_CHUNK_COUNT = 4U;
-constexpr auto COMPRESSED_PRECODE_HISTOGRAM_INDEX_BITS =
-    requiredBits( COMPRESSED_PRECODE_HISTOGRAM_CHUNK_COUNT * sizeof( uint64_t ) * CHAR_BIT );
-
+template<uint16_t CHUNK_COUNT = 4U>
 static const auto COMPRESSED_PRECODE_HISTOGRAM_VALID_LUT_DICT =
     [] ()
     {
-        constexpr auto CHUNK_COUNT = COMPRESSED_PRECODE_HISTOGRAM_CHUNK_COUNT;
         constexpr auto LUT_SIZE = PRECODE_HISTOGRAM_VALID_LUT.size();
         using ChunkedValues = std::array<uint64_t, CHUNK_COUNT>;
-        static_assert( sizeof( ChunkedValues ) == sizeof( ChunkedValues::value_type ) * CHUNK_COUNT );
+        static_assert( sizeof( ChunkedValues ) == sizeof( typename ChunkedValues::value_type ) * CHUNK_COUNT );
 
         std::map<ChunkedValues, uint16_t> valueToKey{ { ChunkedValues{}, 0 } };
         std::vector<uint8_t> dictionary( sizeof( ChunkedValues ) * CHAR_BIT, 0 );
@@ -66,7 +60,9 @@ static const auto COMPRESSED_PRECODE_HISTOGRAM_VALID_LUT_DICT =
             compressedLUT[i / CHUNK_COUNT] = match->second;
         }
 
-        assert( valueToKey.size() < std::numeric_limits<CompressedLUT::value_type>::max() );
+        if ( valueToKey.size() >= std::numeric_limits<Address>::max() ) {
+            throw std::logic_error( "Address too large for int type!" );
+        }
 
         return std::make_tuple( compressedLUT, dictionary );
     }();
@@ -79,6 +75,7 @@ static const auto COMPRESSED_PRECODE_HISTOGRAM_VALID_LUT_DICT =
  *       be able to find very small deflate blocks close to the end of the file. because they trigger an EOF.
  *       Note that such very small blocks would normally be Fixed Huffman decoding anyway.
  */
+template<uint16_t COMPRESSED_LUT_CHUNK_COUNT = 8U>
 [[nodiscard]] constexpr rapidgzip::Error
 checkPrecode( const uint64_t next4Bits,
               const uint64_t next57Bits )
@@ -135,8 +132,8 @@ checkPrecode( const uint64_t next4Bits,
         return rapidgzip::Error::INVALID_CODE_LENGTHS;
     }
 
-    const auto& [histogramLUT, validLUT] = COMPRESSED_PRECODE_HISTOGRAM_VALID_LUT_DICT;
-    constexpr auto INDEX_BITS = COMPRESSED_PRECODE_HISTOGRAM_INDEX_BITS;
+    const auto& [histogramLUT, validLUT] = COMPRESSED_PRECODE_HISTOGRAM_VALID_LUT_DICT<COMPRESSED_LUT_CHUNK_COUNT>;
+    constexpr auto INDEX_BITS = requiredBits( COMPRESSED_LUT_CHUNK_COUNT * sizeof( uint64_t ) * CHAR_BIT );
     const auto elementIndex = ( histogramToLookUp >> INDEX_BITS )
                               & nLowestBitsSet<Histogram>( HISTOGRAM_TO_LOOK_UP_BITS - INDEX_BITS );
     const auto subIndex = histogramLUT[elementIndex];

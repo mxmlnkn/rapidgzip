@@ -49,25 +49,20 @@ packHistogramWithNonZeroCount( const std::array<uint8_t, 7>& histogram )
  * @param freeBits This can be calculated from the histogram but it saves constexpr instructions when
  *        the caller updates this value outside.
  */
-template<uint8_t FREQUENCY_BITS,
-         uint8_t FREQUENCY_COUNT,
-         uint8_t DEPTH = 1,
-         typename LUT = std::array<uint64_t, ( 1ULL << uint16_t( FREQUENCY_BITS * FREQUENCY_COUNT ) ) / 64U> >
+template<uint8_t  FREQUENCY_BITS,
+         uint8_t  FREQUENCY_COUNT,
+         uint8_t  DEPTH = 1,
+         typename Callback>
 constexpr void
-createPrecodeFrequenciesValidLUTHelper( LUT&                      result,
-                                        uint32_t const            remainingCount,
-                                        CompressedHistogram const histogram = 0,
-                                        uint32_t const            freeBits = 2 )
+walkValidPrecodeCodeLengthFrequencies( Callback&&                      processValidHistogram,
+                                       uint32_t const                  remainingCount,
+                                       CompressedHistogram const       histogram = 0,
+                                       uint32_t const                  freeBits = 2 )
 {
     static_assert( DEPTH <= FREQUENCY_COUNT, "Cannot descend deeper than the frequency counts!" );
     if ( ( histogram & nLowestBitsSet<uint64_t, ( DEPTH - 1U ) * FREQUENCY_BITS>() ) != histogram ) {
         throw std::invalid_argument( "Only frequency of bit-lengths less than the depth may be set!" );
     }
-
-    const auto processValidHistogram =
-        [&result] ( CompressedHistogram histogramToSetValid ) constexpr {
-            result[histogramToSetValid / 64U] |= CompressedHistogram( 1 ) << ( histogramToSetValid % 64U );
-        };
 
     const auto histogramWithCount =
         [histogram] ( auto count ) constexpr {
@@ -78,7 +73,7 @@ createPrecodeFrequenciesValidLUTHelper( LUT&                      result,
      * when there are more code lengths on a tree level than there are nodes. */
     for ( uint32_t count = 0; count <= std::min( remainingCount, freeBits ); ++count ) {
         const auto newFreeBits = ( freeBits - count ) * 2;
-        const auto newRemainingCount = remainingCount - count;
+        [[maybe_unused]] const auto newRemainingCount = remainingCount - count;
 
         /* The first layer may not be fully filled or even empty. This does not fit any of the general tests. */
         if constexpr ( DEPTH == 1 ) {
@@ -103,8 +98,8 @@ createPrecodeFrequenciesValidLUTHelper( LUT&                      result,
             if ( count == freeBits ) {
                 processValidHistogram( histogramWithCount( count ) );
             } else {
-                createPrecodeFrequenciesValidLUTHelper<FREQUENCY_BITS, FREQUENCY_COUNT, DEPTH + 1>(
-                    result, newRemainingCount, histogramWithCount( count ), newFreeBits );
+                walkValidPrecodeCodeLengthFrequencies<FREQUENCY_BITS, FREQUENCY_COUNT, DEPTH + 1>(
+                    processValidHistogram, newRemainingCount, histogramWithCount( count ), newFreeBits );
             }
         }
     }
@@ -125,8 +120,14 @@ createPrecodeFrequenciesValidLUT()
 {
     static_assert( ( 1ULL << uint16_t( FREQUENCY_BITS * FREQUENCY_COUNT ) ) % 64U == 0,
                    "LUT size must be a multiple of 64-bit for the implemented bit-packing!" );
+
     std::array<uint64_t, ( 1ULL << uint16_t( FREQUENCY_BITS * FREQUENCY_COUNT ) ) / 64U> result{};
-    createPrecodeFrequenciesValidLUTHelper<FREQUENCY_BITS, FREQUENCY_COUNT>( result, deflate::MAX_PRECODE_COUNT );
+    const auto processValidHistogram =
+        [&result] ( CompressedHistogram histogramToSetValid ) constexpr {
+            result[histogramToSetValid / 64U] |= CompressedHistogram( 1 ) << ( histogramToSetValid % 64U );
+        };
+
+    walkValidPrecodeCodeLengthFrequencies<FREQUENCY_BITS, FREQUENCY_COUNT>( processValidHistogram, deflate::MAX_PRECODE_COUNT );
     return result;
 }
 
@@ -204,8 +205,12 @@ precodesToHistogram( uint64_t precodeBits )
  * 4 * 5 = 20 bits LUT map to bool, i.e., 2^17 B = 512 KiB! -> segfault
  * 5 * 5 = 25 bits LUT map to bool, i.e., 2^22 B =   4 MiB!
  * 6 * 5 = 30 bits LUT map to bool, i.e., 2^27 B =  32 MiB! -> testPrecodeCheck fails
+ * 7 * 5 = 35 bits LUT map to bool, i.e., 2^27 B = 256 MiB! -> untested
+ * 8 * 5 = 40 bits LUT map to bool, i.e., 2^27 B =   2 GiB! -> untested. Might be doable with nested LUTs?
  */
 static constexpr auto PRECODE_FREQUENCIES_LUT_COUNT = 5U;
+static_assert( PRECODE_FREQUENCIES_LUT_COUNT <= deflate::MAX_PRECODE_LENGTH,
+               "A maximum histogram frequency bin than the maximum precode code length makes no sense." );
 static constexpr auto PRECODE_FREQUENCIES_1_TO_5_VALID_LUT =
     createPrecodeFrequenciesValidLUT<UNIFORM_FREQUENCY_BITS, PRECODE_FREQUENCIES_LUT_COUNT>();
 
