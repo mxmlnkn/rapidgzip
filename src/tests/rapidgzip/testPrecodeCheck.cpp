@@ -1086,7 +1086,72 @@ main()
 
 
 /*
-cmake --build . -- benchmarkGzipBlockFinder && taskset 0x08 src/benchmarks/benchmarkGzipBlockFinder random.gz
+cmake --build . -- testPrecodeCheck && taskset 0x08 src/tests/rapidgzip/testPrecodeCheck
+
+Size of valid precomputed precode huffman codings: 476 KiB 896 B
+
+Subtable size in number of bits: 4
+    LUT size: 2 MiB
+    Unique Subtables: 1096
+    Subtable size: 32 B
+    Subtables size: 34 KiB 256 B
+    Total size: 2 MiB 34 KiB 256 B
+
+Subtable size in number of bits: 5
+    LUT size: 1 MiB
+    Unique Subtables: 678
+    Subtable size: 64 B
+    Subtables size: 42 KiB 384 B
+    Total size: 1 MiB 42 KiB 384 B
+
+Subtable size in number of bits: 6
+    LUT size: 512 KiB
+    Unique Subtables: 465
+    Subtable size: 128 B
+    Subtables size: 58 KiB 128 B
+    Total size: 570 KiB 128 B
+
+Subtable size in number of bits: 7
+    LUT size: 256 KiB
+    Unique Subtables: 465
+    Subtable size: 256 B
+    Subtables size: 116 KiB 256 B
+    Total size: 372 KiB 256 B
+
+Subtable size in number of bits: 8
+    LUT size: 128 KiB
+    Unique Subtables: 276
+    Subtable size: 512 B
+    Subtables size: 138 KiB
+    Total size: 266 KiB
+
+Subtable size in number of bits: 9
+    LUT size: 32 KiB
+    Unique Subtables: 184
+    Subtable size: 1 KiB
+    Subtables size: 184 KiB
+    Total size: 216 KiB
+
+Subtable size in number of bits: 10
+    LUT size: 16 KiB
+    Unique Subtables: 150
+    Subtable size: 2 KiB
+    Subtables size: 300 KiB
+    Total size: 316 KiB
+
+Subtable size in number of bits: 11
+    LUT size: 8 KiB
+    Unique Subtables: 150
+    Subtable size: 4 KiB
+    Subtables size: 600 KiB
+    Total size: 608 KiB
+
+Subtable size in number of bits: 12
+    LUT size: 4 KiB
+    Unique Subtables: 88
+    Subtable size: 8 KiB
+    Subtables size: 704 KiB
+    Total size: 708 KiB
 
 Valid Histogram with >=16 codes of the same length: 1:0 2:0 3:0 4:16 5:0 6:0 7:0 (0x0000000000080000)
 Valid Histogram with >=16 codes of the same length: 1:0 2:1 3:2 4:0 5:16 6:0 7:0 (0x0000000001000820)
@@ -1188,6 +1253,7 @@ up to multiple 64-bit values mapped to a single dictionary (LUT) entry:
             value LUT (bits) : 5 KiB -> SUM: 37 KiB
             value LUT (bytes): 40 KiB -> SUM: 72 KiB
 
+
 == Sizes for actual implementations ==
 
     Whole LUT for variable-length bit-packed histogram:
@@ -1203,5 +1269,5 @@ up to multiple 64-bit values mapped to a single dictionary (LUT) entry:
         -> Sum : 40 KiB
 
 
-Tests successful: 10 / 10
+Tests successful: 500000140 / 500000140
 */
