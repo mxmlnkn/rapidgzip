@@ -68,6 +68,7 @@ public:
         }
 
     public:
+        /** Using C++20, we would be able to use std::atomic<double> instead of the mutex! Same for other tracking. */
         mutable std::mutex mutex;
         uint64_t preemptiveStopCount{ 0 };
         double queuePostProcessingDuration{ 0 };

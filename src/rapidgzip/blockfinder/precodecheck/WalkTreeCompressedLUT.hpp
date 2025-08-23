@@ -15,6 +15,9 @@
 #include <vector>
 
 #include <core/BitManipulation.hpp>
+#if ! defined( LIBRAPIDARCHIVE_SKIP_LOAD_FROM_CSV )
+    #include <core/SimpleRunLengthEncoding.hpp>
+#endif
 
 #include "WalkTreeLUT.hpp"
 
@@ -102,6 +105,29 @@ static const auto PRECODE_FREQUENCIES_VALID_LUT_TWO_STAGES =
 
         return std::make_tuple( compressedLUT, dictionary );
     }();
+
+
+#if ! defined( LIBRAPIDARCHIVE_SKIP_LOAD_FROM_CSV )
+
+/**
+ * Load precomputed LUTs from run-length encoded CSV at compile-time for optimal case of template parameters.
+ */
+template<>
+const auto PRECODE_FREQUENCIES_VALID_LUT_TWO_STAGES<7, 512> =
+    [] ()
+    {
+        constexpr std::array<uint8_t, 1576> histogramLUT = {
+            #include "PRECODE_FREQUENCIES_VALID_LUT_TWO_STAGES_7_512_HISTOGRAM_TO_INDEX.csv"
+        };
+        constexpr std::array<uint8_t, 534> validLUT = {
+            #include "PRECODE_FREQUENCIES_VALID_LUT_TWO_STAGES_7_512_INDEX_TO_VALID.csv"
+        };
+
+        return std::make_tuple(
+            SimpleRunLengthEncoding::simpleRunLengthDecode<std::array<uint8_t, 1_Mi> >( histogramLUT, 1_Mi ),
+            SimpleRunLengthEncoding::simpleRunLengthDecode<std::array<uint8_t, 832_Ki> >( validLUT, 832_Ki ) );
+    }();
+#endif
 
 
 /**

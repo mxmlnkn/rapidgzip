@@ -146,9 +146,16 @@ operator<<( std::ostream&         out,
         return out;
     }
 
-    out << "{ " << vector.front();
-    for ( auto value = std::next( vector.begin() ); value != vector.end(); ++value ) {
-        out << ", " << *value;
+    out << "{ ";
+    for ( auto value = vector.begin(); value != vector.end(); ++value ) {
+        if ( value != vector.begin() ) {
+            out << ", ";
+        }
+        if constexpr ( std::is_same_v<T, uint8_t> ) {
+            out << static_cast<uint16_t>( *value );
+        } else {
+            out << *value;
+        }
     }
     out << " }";
 

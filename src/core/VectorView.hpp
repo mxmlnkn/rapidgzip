@@ -12,6 +12,7 @@ namespace rapidgzip
 {
 /**
  * Views are by their name read-only. This represents a read-only non-owned memory chunk.
+ * Probably could be removed in favor of C++20 std::span.
  */
 template<typename T>
 class VectorView
