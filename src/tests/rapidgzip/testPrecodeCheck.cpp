@@ -21,6 +21,7 @@
 #include <rapidgzip/blockfinder/precodecheck/SingleCompressedLUT.hpp>
 #include <rapidgzip/blockfinder/precodecheck/SingleLUT.hpp>
 #include <rapidgzip/blockfinder/precodecheck/WalkTreeCompressedLUT.hpp>
+#include <rapidgzip/blockfinder/precodecheck/WalkTreeCompressedSingleLUT.hpp>
 #include <rapidgzip/blockfinder/precodecheck/WalkTreeLUT.hpp>
 #include <rapidgzip/blockfinder/precodecheck/WithoutLUT.hpp>
 #include <rapidgzip/gzip/precode.hpp>
@@ -451,6 +452,7 @@ analyzeAndTestValidPrecodes()
         checkAlternative( rapidgzip::PrecodeCheck::WalkTreeCompressedLUT::checkPrecode<5U, 16U> );
         checkAlternative( rapidgzip::PrecodeCheck::WalkTreeCompressedLUT::checkPrecode<6U, 64U> );
         checkAlternative( rapidgzip::PrecodeCheck::WalkTreeCompressedLUT::checkPrecode<7U, 512U> );
+        checkAlternative( rapidgzip::PrecodeCheck::WalkTreeCompressedSingleLUT::checkPrecode<512U> );
     }
 
     {
@@ -952,6 +954,27 @@ testCachedHuffmanCodings()
 
 template<uint16_t CHUNK_COUNT>
 void
+printCompressedPrecodeFrequenciesWTCSLUTSizes()
+{
+    using namespace rapidgzip::PrecodeCheck;
+
+    std::cerr << "  " << ( CHUNK_COUNT * 64U ) << " bits (" << CHUNK_COUNT << " B) per subtable):\n";
+
+    const auto& [histogramLUT, validLUT] =
+        WalkTreeCompressedSingleLUT::PRECODE_FREQUENCIES_VALID_LUT_TWO_STAGES<CHUNK_COUNT>;
+    const auto histogramLUTSize = histogramLUT.size() * sizeof( histogramLUT[0] );
+    const auto validLUTSize = validLUT.size() * sizeof( validLUT[0] );
+
+    std::cerr << "    indexes          : " << histogramLUTSize << "\n";
+    std::cerr << "    subtables size   : " << validLUTSize << "\n";
+    std::cerr << "    subtables number : "
+              << validLUTSize / ( CHUNK_COUNT * sizeof( uint64_t ) /* 64-bit chunks bit-packed */ ) << "\n";
+    std::cerr << "    sum              : " << histogramLUTSize + validLUTSize << "\n";
+}
+
+
+template<uint16_t CHUNK_COUNT>
+void
 printCompressedPrecodeFrequenciesSingleLUTSizes()
 {
     using namespace rapidgzip::PrecodeCheck;
@@ -1024,10 +1047,15 @@ analyzeActualLUTCompression()
     printCompressedPrecodeFrequenciesLUTSizes<7U, 1024U>();  // 512 KiB + 3014656 B -> 3538944 B
     printCompressedPrecodeFrequenciesLUTSizes<7U, 2048U>();  //
 
+    std::cerr << "\nFull precode code-length histogram Walk-Tree Single-LUT two-stage compressed plus bit-packed:\n";
+    printCompressedPrecodeFrequenciesWTCSLUTSizes<256U>();   // 2097152 B +  53248 B (26 subtables) -> 2150400
+    printCompressedPrecodeFrequenciesWTCSLUTSizes<512U>();   // 1048576 B + 106496 B (26 subtables) -> 1155072
+    printCompressedPrecodeFrequenciesWTCSLUTSizes<1024U>();  //  524288 B + 376832 B (46 subtables) ->  901120
+    printCompressedPrecodeFrequenciesWTCSLUTSizes<2048U>();  //  262144 B + 966656 B (59 subtables) -> 1228800
+
     std::cerr << "\nFull precode code-length histogram Single-LUT two-stage compressed:\n";
     printCompressedPrecodeFrequenciesSingleLUTSizes<4U>();   // 65536 B + 14592 B (456 subtables) -> 80128 B
     printCompressedPrecodeFrequenciesSingleLUTSizes<8U>();   // 32768 B + 32768 B (512 subtables) -> 65536 B
-
     printCompressedPrecodeFrequenciesSingleLUTSizes<16U>();  // 16384 B + 60416 B (472 subtables) -> 76800 B
     printCompressedPrecodeFrequenciesSingleLUTSizes<32U>();  // 8192 B + 202752 B (792 subtables) -> 210944 B
     printCompressedPrecodeFrequenciesSingleLUTSizes<64U>();  // 4096 B + 327680 B (640 subtables) -> 331776 B

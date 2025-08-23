@@ -154,6 +154,10 @@ checkPrecode( const uint64_t next4Bits,
         const auto elementIndex = ( valueToLookUp >> INDEX_BITS )
                                   & nLowestBitsSet<CompressedHistogram>( HISTOGRAM_TO_LOOK_UP_BITS - INDEX_BITS );
         const auto subIndex = histogramLUT[elementIndex];
+        /* This seems to help slightly (3%). */
+        if ( subIndex == 0 ) {
+            return rapidgzip::Error::INVALID_CODE_LENGTHS;
+        }
 
         /* We could do a preemptive return here for subIndex == 0 but it degrades performance by ~3%. */
 
