@@ -388,7 +388,7 @@ checkPrecode( const uint64_t next4Bits,
     const auto bitToLookUp = 1ULL << ( histogramToLookUp % 64 );
     constexpr auto INDEX_BIT_COUNT = HISTOGRAM_TO_LOOK_UP_BITS - 6 /* log2 64 = 6 */;
     const auto elementIndex = ( histogramToLookUp / 64 ) & nLowestBitsSet<Histogram, INDEX_BIT_COUNT>();
-    if ( LIKELY( ( PRECODE_HISTOGRAM_VALID_LUT[elementIndex] & bitToLookUp ) == 0 ) ) [[unlikely]] {
+    if ( LIKELY( ( PRECODE_HISTOGRAM_VALID_LUT[elementIndex] & bitToLookUp ) == 0 ) ) [[likely]] {
         /* This also handles the case of all being zero, which in the other version returns EMPTY_ALPHABET!
          * Some might also not be bloating but simply invalid, we cannot differentiate that but it can be
          * helpful for tests to have different errors. For actual usage comparison with NONE is sufficient. */

@@ -144,7 +144,7 @@ checkPrecode( const uint64_t next4Bits,
     /* We could do a preemptive return here for subIndex == 0 but it degrades performance by ~3%. */
 
     const auto validIndex = ( subIndex << INDEX_BITS ) + ( histogramToLookUp & nLowestBitsSet<uint64_t>( INDEX_BITS ) );
-    if ( LIKELY( ( validLUT[validIndex] ) == 0 ) ) [[unlikely]] {
+    if ( LIKELY( ( validLUT[validIndex] ) == 0 ) ) [[likely]] {
         /* This also handles the case of all being zero, which in the other version returns EMPTY_ALPHABET!
          * Some might also not be bloating but simply invalid, we cannot differentiate that but it can be
          * helpful for tests to have different errors. For actual usage comparison with NONE is sufficient. */

@@ -802,12 +802,12 @@ checkPrecode( const uint64_t next4Bits,
          * The lookup itself also isn't more expensive because the same bits are now stored in bytes,
          * which avoids a third stage of bit-shifting and masking.
          * @verbatim
-         * [13 bits] ( 53.0 <= 53.9 +- 1.0 <= 55.5 ) MB/s
-         * [14 bits] ( 52.3 <= 54.3 +- 1.0 <= 55.1 ) MB/s
-         * [15 bits] ( 51.1 <= 53.3 +- 1.0 <= 53.9 ) MB/s
-         * [16 bits] ( 52.2 <= 53.4 +- 1.0 <= 55.3 ) MB/s
-         * [17 bits] ( 52.5 <= 53.0 +- 0.8 <= 54.7 ) MB/s
-         * [18 bits] ( 52.5 <= 53.4 +- 0.6 <= 53.9 ) MB/s
+         * [13 bits] ( 52.8 <= 54.8 +- 1.4 <= 56.6 ) MB/s
+         * [14 bits] ( 53.7 <= 55.9 +- 1.3 <= 57.2 ) MB/s
+         * [15 bits] ( 51.6 <= 53.1 +- 1.2 <= 54.7 ) MB/s
+         * [16 bits] ( 52.1 <= 54.0 +- 1.1 <= 55.1 ) MB/s
+         * [17 bits] ( 53.5 <= 54.9 +- 0.6 <= 55.4 ) MB/s
+         * [18 bits] ( 52.1 <= 54.0 +- 1.3 <= 55.5 ) MB/s
          * @endverbatim
          */
         return SingleCompressedLUT::checkPrecode( next4Bits, next57Bits );
@@ -819,12 +819,12 @@ checkPrecode( const uint64_t next4Bits,
          * in case the precode might be valid judging from the first 5 frequency counts.
          * But the overflow checking might add too much more instructions in all cases.
          * @verbatim
-         * [13 bits] ( 54.3 <= 55.1 +- 1.0 <= 57.2 ) MB/s
-         * [14 bits] ( 53.6 <= 55.8 +- 1.4 <= 57.4 ) MB/s
-         * [15 bits] ( 55.1 <= 55.8 +- 0.6 <= 56.7 ) MB/s
-         * [16 bits] ( 54.4 <= 55.8 +- 1.0 <= 57.0 ) MB/s
-         * [17 bits] ( 54.2 <= 55.2 +- 1.1 <= 56.9 ) MB/s
-         * [18 bits] ( 52.7 <= 53.9 +- 1.0 <= 56.0 ) MB/s
+         * [13 bits] ( 55.7 <= 56.7 +- 0.6 <= 57.2 ) MB/s
+         * [14 bits] ( 53.4 <= 55.9 +- 1.3 <= 56.9 ) MB/s
+         * [15 bits] ( 53.8 <= 54.5 +- 0.8 <= 56.6 ) MB/s
+         * [16 bits] ( 53.1 <= 55.2 +- 1.3 <= 56.6 ) MB/s
+         * [17 bits] ( 54.1 <= 55.2 +- 0.8 <= 57.2 ) MB/s
+         * [18 bits] ( 54.3 <= 55.4 +- 0.8 <= 56.3 ) MB/s
          * @endverbatim
          */
         return SingleLUT::checkPrecode( next4Bits, next57Bits );
@@ -833,12 +833,12 @@ checkPrecode( const uint64_t next4Bits,
     if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT ) {
         /**
          * @verbatim
-         * [13 bits] ( 61.9 <= 63.0 +- 0.4 <= 63.4 ) MB/s
-         * [14 bits] ( 62.1 <= 63.8 +- 1.6 <= 66.1 ) MB/s
-         * [15 bits] ( 61.4 <= 61.9 +- 0.4 <= 62.5 ) MB/s
-         * [16 bits] ( 62.7 <= 64.5 +- 1.5 <= 66.2 ) MB/s
-         * [17 bits] ( 64.4 <= 66.2 +- 1.0 <= 67.2 ) MB/s
-         * [18 bits] ( 59.6 <= 62.8 +- 1.5 <= 64.4 ) MB/s
+         * [13 bits] ( 65.2 <= 66.3 +- 0.4 <= 66.7 ) MB/s
+         * [14 bits] ( 60.3 <= 64.7 +- 1.8 <= 65.8 ) MB/s
+         * [15 bits] ( 61.9 <= 63.4 +- 1.6 <= 65.6 ) MB/s
+         * [16 bits] ( 62.6 <= 63.4 +- 0.5 <= 64.3 ) MB/s
+         * [17 bits] ( 63.6 <= 65.3 +- 1.0 <= 66.7 ) MB/s
+         * [18 bits] ( 63.3 <= 64.9 +- 0.8 <= 65.9 ) MB/s
          * @endverbatim
          */
         return WalkTreeCompressedLUT::checkPrecode( next4Bits, next57Bits );
@@ -855,12 +855,12 @@ checkPrecode( const uint64_t next4Bits,
          *       algorithm to skip a temporary creation of the 128 MiB table, especially if I want
          *       to have it constexpr.
          * @verbatim
-         * [13 bits] ( 64.5  <= 65.9  +- 0.8  <= 66.6  ) MB/s
-         * [14 bits] ( 62.8  <= 63.4  +- 0.5  <= 64.2  ) MB/s
-         * [15 bits] ( 62.6  <= 64.4  +- 1.3  <= 65.8  ) MB/s
-         * [16 bits] ( 60.8  <= 62.9  +- 1.4  <= 65.9  ) MB/s
-         * [17 bits] ( 62.50 <= 62.69 +- 0.12 <= 62.84 ) MB/s
-         * [18 bits] ( 59.45 <= 59.66 +- 0.11 <= 59.76 ) MB/s
+         * [13 bits] ( 65.3 <= 66.3 +- 0.5 <= 66.7 ) MB/s
+         * [14 bits] ( 62.3 <= 63.8 +- 1.6 <= 66.6 ) MB/s
+         * [15 bits] ( 62.3 <= 64.6 +- 1.1 <= 66.1 ) MB/s
+         * [16 bits] ( 62.5 <= 64.8 +- 1.4 <= 66.0 ) MB/s
+         * [17 bits] ( 64.3 <= 65.7 +- 0.7 <= 66.5 ) MB/s
+         * [18 bits] ( 63.3 <= 64.1 +- 0.3 <= 64.4 ) MB/s
          * @endverbatim
          */
         return WalkTreeLUT::checkPrecode( next4Bits, next57Bits );

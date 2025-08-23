@@ -100,7 +100,7 @@ checkPrecode( const uint64_t next4Bits,
         /* We could do a preemptive return here for subIndex == 0 but it degrades performance by ~3%. */
 
         const auto validIndex = ( subIndex << INDEX_BITS ) + ( valueToLookUp & nLowestBitsSet<uint64_t>( INDEX_BITS ) );
-        if ( LIKELY( ( validLUT[validIndex] ) == 0 ) ) [[unlikely]] {
+        if ( LIKELY( ( validLUT[validIndex] ) == 0 ) ) [[likely]] {
             /* Might also be bloating not only invalid. */
             return rapidgzip::Error::INVALID_CODE_LENGTHS;
         }
