@@ -5,7 +5,9 @@
 
 #include <core/SimpleRunLengthEncoding.hpp>
 #include <rapidgzip/rapidgzip.hpp>
-#include <rapidgzip/blockfinder/precodecheck/WalkTreeCompressedLUT.hpp>
+#include <rapidgzip/blockfinder/precodecheck/WalkTreeCompressedSingleLUT.hpp>
+
+using namespace rapidgzip;
 
 
 void
@@ -25,7 +27,7 @@ writeDataAsCSV( const std::vector<uint8_t>& data,
 void
 writeNextDeflateLUT()
 {
-    using namespace rapidgzip::blockfinder;
+    using namespace blockfinder;
     const std::string path{ "OPTIMAL_NEXT_DEFLATE_LUT_SIZE.csv" };
     std::ofstream file{ path };
     constexpr auto lutSize = 1U << OPTIMAL_NEXT_DEFLATE_LUT_SIZE;
@@ -44,7 +46,7 @@ void
 writeDataAsRLECompressedCSV( const std::vector<uint8_t>& data,
                              const std::string&          path )
 {
-    using namespace rapidgzip::SimpleRunLengthEncoding;
+    using namespace SimpleRunLengthEncoding;
 
     const auto compressed = simpleRunLengthEncode( data );
     const auto restored =
@@ -60,15 +62,17 @@ writeDataAsRLECompressedCSV( const std::vector<uint8_t>& data,
 void
 writeWalkTreeCompressedLUT()
 {
-    constexpr auto PRECODE_FREQUENCIES_LUT_COUNT = 7U;
-    constexpr auto SUBTABLE_CHUNK_COUNT = 512U;
+    constexpr auto SUBTABLE_CHUNK_COUNT = 128U;
     const auto& [histogramLUT, validLUT] =
-        rapidgzip::PrecodeCheck::WalkTreeCompressedLUT::PRECODE_FREQUENCIES_VALID_LUT_TWO_STAGES
-            <PRECODE_FREQUENCIES_LUT_COUNT, SUBTABLE_CHUNK_COUNT>;
+        PrecodeCheck::WalkTreeCompressedSingleLUT::PRECODE_FREQUENCIES_VALID_LUT_TWO_STAGES<SUBTABLE_CHUNK_COUNT>;
 
-    writeDataAsRLECompressedCSV( histogramLUT,
-                                 "PRECODE_FREQUENCIES_VALID_LUT_TWO_STAGES_7_512_HISTOGRAM_TO_INDEX.csv" );
-    writeDataAsRLECompressedCSV( validLUT, "PRECODE_FREQUENCIES_VALID_LUT_TWO_STAGES_7_512_INDEX_TO_VALID.csv" );
+    writeDataAsRLECompressedCSV(
+        histogramLUT,
+        "PRECODE_FREQUENCIES_VALID_FULL_LUT_TWO_STAGES_" + std::to_string( SUBTABLE_CHUNK_COUNT )
+        + "_HISTOGRAM_TO_INDEX.csv" );
+    writeDataAsRLECompressedCSV(
+        validLUT, "PRECODE_FREQUENCIES_VALID_FULL_LUT_TWO_STAGES_" + std::to_string( SUBTABLE_CHUNK_COUNT )
+        + "_INDEX_TO_VALID.csv" );
 }
 
 

@@ -17,6 +17,9 @@
 #include <vector>
 
 #include <core/BitManipulation.hpp>
+#if ! defined( LIBRAPIDARCHIVE_SKIP_LOAD_FROM_CSV )
+    #include <core/SimpleRunLengthEncoding.hpp>
+#endif
 
 #include "WalkTreeLUT.hpp"
 
@@ -26,9 +29,8 @@ namespace rapidgzip::PrecodeCheck::WalkTreeCompressedSingleLUT
 constexpr auto UNIFORM_FREQUENCY_BITS = WalkTreeLUT::UNIFORM_FREQUENCY_BITS;  // 5 (bits)
 using CompressedHistogram = WalkTreeLUT::CompressedHistogram;  // uint64_t
 constexpr auto PRECODE_BITS = rapidgzip::deflate::PRECODE_BITS;  // 19
-
-constexpr auto HISTOGRAM_BITS = uint16_t( UNIFORM_FREQUENCY_BITS * deflate::MAX_PRECODE_LENGTH - 2U );
-static_assert( HISTOGRAM_BITS == 33 );
+constexpr auto HISTOGRAM_BITS = uint16_t( UNIFORM_FREQUENCY_BITS * deflate::MAX_PRECODE_LENGTH - 5U );
+static_assert( HISTOGRAM_BITS == 30 );
 
 
 [[nodiscard]] constexpr CompressedHistogram
@@ -45,6 +47,96 @@ removeTwoBits( const CompressedHistogram histogram )
         throw std::logic_error( "Transformation not reversible!" );
     }
     return twoBitsRemoved;
+}
+
+
+[[nodiscard]] constexpr CompressedHistogram
+rearrangeHistogram(  CompressedHistogram histogram )
+{
+#if 1
+    /* This is much more benign on the number of compile-time expressions than the version below! */
+    const auto counts1 = histogram & nLowestBitsSet<uint64_t, UNIFORM_FREQUENCY_BITS>();
+    const auto result = ( histogram >> UNIFORM_FREQUENCY_BITS ) | ( counts1 << ( 6 * UNIFORM_FREQUENCY_BITS ) );
+    return result;
+#else
+    std::array<uint8_t, deflate::MAX_PRECODE_LENGTH> bins{};
+    for ( size_t i = 0; i < bins.size(); ++i ) {
+        bins[i] = ( histogram >> ( i * UNIFORM_FREQUENCY_BITS ) ) & nLowestBitsSet<uint64_t, UNIFORM_FREQUENCY_BITS>();
+    }
+
+    auto newBins = bins;
+    /* The lowest bin must be that for code-length 2 because it has up to 3 bits, perfect for bit lookup in a byte. */
+    newBins[0] = bins[1];
+
+    /**
+     * We can rearrange the order of these bins freely to find the order that produces the most chunk duplicates
+     * and therefore the smallest total LUT size! Let's specify the order in terms of accessing the original
+     * indexes, e.g., the first one, which is simply bit-shifted: 23456 (->12345)
+     * @verbatim
+     * Order 23456:
+     *   32 B per subtable: 512 KiB +   16896 B ( 66 subtables) -> 541184 B
+     *   64 B per subtable: 256 KiB +   37888 B ( 74 subtables) -> 300032 B
+     *  128 B per subtable: 128 KiB +   75776 B ( 74 subtables) -> 206848 B <-
+     *  256 B per subtable: 64  KiB +  256000 B (125 subtables) -> 321536 B
+     *  512 B per subtable: 32  KiB +  487424 B (119 subtables) -> 520192 B
+     * 1024 B per subtable: 16  KiB +  778240 B ( 95 subtables) -> 794624 B
+     * 2048 B per subtable: 8   KiB + 1294336 B ( 79 subtables) -> 1302528 B
+     *
+     * Order 32456:
+     *
+     *   32 B per subtable: 512 KiB +   18944 B ( 74) -> 543232 B
+     *   64 B per subtable: 256 KiB +   37888 B ( 74) -> 300032 B
+     *  128 B per subtable: 128 KiB +   75776 B ( 74) -> 206848 B <-
+     *  256 B per subtable: 64  KiB +  256000 B (125) -> 321536 B
+     *  512 B per subtable: 32  KiB +  487424 B (119) -> 520192 B
+     * 1024 B per subtable: 16  KiB +  778240 B ( 95) -> 794624 B
+     * 2048 B per subtable: 8   KiB + 1294336 B ( 79) -> 1302528 B
+     *
+     * Order 65432:
+     *   32 B per subtable: 512 KiB +   23296 B ( 91 subtables) -> 547584 B
+     *   64 B per subtable: 256 KiB +   60416 B (118 subtables) -> 322560 B
+     *  128 B per subtable: 128 KiB +  121856 B (119 subtables) -> 252928 B
+     *  256 B per subtable: 64  KiB +  155648 B ( 76 subtables) -> 221184 B <-
+     *  512 B per subtable: 32  KiB +  360448 B ( 88 subtables) -> 393216 B
+     * 1024 B per subtable: 16  KiB +  827392 B (101 subtables) -> 843776 B
+     * 2048 B per subtable: 8   KiB + 1425408 B ( 87 subtables) -> 1433600 B
+     *
+     * Order 62345:
+     *   32 B per subtable: 512 KiB +   28160 B (110 subtables) -> 552448 B
+     *   64 B per subtable: 256 KiB +   56320 B (110 subtables) -> 318464 B
+     *  128 B per subtable: 128 KiB +  112640 B (110 subtables) -> 243712 B <-
+     *  256 B per subtable: 64  KiB +  382976 B (187 subtables) -> 448512 B
+     *  512 B per subtable: 32  KiB +  860160 B (210 subtables) -> 892928 B
+     * 1024 B per subtable: 16  KiB + 1613824 B (197 subtables) -> 1630208 B
+     * 2048 B per subtable: 8   KiB + 2867200 B (175 subtables) -> 2875392 B
+     *
+     * Order 65234:
+     *   32 B per subtable: 512 KiB +   23296 B ( 91 subtables) ->  547584 B
+     *   64 B per subtable: 256 KiB +   60416 B (118 subtables) ->  322560 B
+     *  128 B per subtable: 128 KiB +  121856 B (119 subtables) ->  252928 B <-
+     *  256 B per subtable: 64  KiB +  382976 B (187 subtables) ->  448512 B
+     *  512 B per subtable: 32  KiB +  688128 B (168 subtables) ->  720896 B
+     * 1024 B per subtable: 16  KiB + 1286144 B (157 subtables) -> 1302528 B
+     * 2048 B per subtable: 8   KiB + 2572288 B (157 subtables) -> 2580480 B
+     * @endverbatim
+     *  -> Well, seems like the first order, is already the most optimal. Too bad we cannot reduce it further.
+     */
+    newBins[1] = bins[2];
+    newBins[2] = bins[3];
+    newBins[3] = bins[4];
+    newBins[4] = bins[5];
+    newBins[5] = bins[6];
+
+    /* The highest-order bin must be that for code-length 1 because it can only have up to 2 bits, making
+     * easy truncation of the 3 higher bits in this 5-bit-width bin easily possible before look-up in the table! */
+    newBins[6] = bins[0];
+
+    uint64_t reconstructed{ 0 };
+    for ( size_t i = 0; i < newBins.size(); ++i ) {
+        reconstructed |= static_cast<uint64_t>( newBins[i] ) << ( i * UNIFORM_FREQUENCY_BITS );
+    }
+    return reconstructed;
+#endif
 }
 
 
@@ -70,8 +162,8 @@ static const auto PRECODE_FREQUENCIES_VALID_LUT_TWO_STAGES =
          *        |                     Access inside one chunk (CHUNK_COUNT == 1 -> 6 bits for 64-bit chunk)
          *        +--------------------------------+
          *        Used for access into compressedLUT
-         * @todo Another idea would be to switch it up! Use the first three bits to the end / use them for
-         *       bit access, because the last bits may filter out much more!
+         * Another idea would be to switch it up! Use the first three bits to the end / use them for
+         * bit access, because the last bits may filter out much more. See rearrangeHistogram.
          */
         constexpr auto LUT_SIZE = ( 1ULL << HISTOGRAM_BITS ) / 64U;
         static_assert( LUT_SIZE % CHUNK_COUNT == 0, "Bit-valued-LUT size must be a multiple of the chunk size!" );
@@ -88,7 +180,7 @@ static const auto PRECODE_FREQUENCIES_VALID_LUT_TWO_STAGES =
         std::vector<uint64_t> validHistograms;
         const auto processValidHistogram =
             [&validHistograms] ( CompressedHistogram histogramToSetValid ) {
-                validHistograms.push_back( removeTwoBits( histogramToSetValid ) );
+                validHistograms.push_back( removeTwoBits( rearrangeHistogram( histogramToSetValid ) ) );
             };
         WalkTreeLUT::walkValidPrecodeCodeLengthFrequencies<UNIFORM_FREQUENCY_BITS, deflate::MAX_PRECODE_LENGTH>(
             processValidHistogram, deflate::MAX_PRECODE_COUNT );
@@ -141,6 +233,30 @@ static const auto PRECODE_FREQUENCIES_VALID_LUT_TWO_STAGES =
     }();
 
 
+#if ! defined( LIBRAPIDARCHIVE_SKIP_LOAD_FROM_CSV )
+
+/**
+ * Load precomputed LUTs from run-length encoded CSV at compile-time for optimal case of template parameters.
+ */
+template<>
+const auto PRECODE_FREQUENCIES_VALID_LUT_TWO_STAGES<128U> =
+    [] ()
+    {
+        constexpr std::array<uint8_t, 882> histogramLUT = {
+            #include "PRECODE_FREQUENCIES_VALID_FULL_LUT_TWO_STAGES_128_HISTOGRAM_TO_INDEX.csv"
+        };
+        constexpr std::array<uint8_t, 2921> validLUT = {
+            #include "PRECODE_FREQUENCIES_VALID_FULL_LUT_TWO_STAGES_128_INDEX_TO_VALID.csv"
+        };
+
+        return std::make_tuple(
+            SimpleRunLengthEncoding::simpleRunLengthDecode<std::array<uint8_t, 128_Ki> >( histogramLUT, 128_Ki ),
+            SimpleRunLengthEncoding::simpleRunLengthDecode<std::array<uint8_t, 74_Ki> >( validLUT, 74_Ki ) );
+    }();
+
+#endif
+
+
 template<uint8_t FREQUENCY_BITS,
          uint8_t VALUE_BITS,
          uint8_t VALUE_COUNT>
@@ -149,8 +265,9 @@ createCompressedHistogramLUT()
 {
     std::array<CompressedHistogram, 1ULL << uint16_t( VALUE_COUNT * VALUE_BITS )> result{};
     for ( size_t i = 0; i < result.size(); ++i ) {
-        result[i] = WalkTreeLUT::calculateCompressedHistogram<FREQUENCY_BITS, VALUE_BITS, VALUE_COUNT>( i )
-                    >> FREQUENCY_BITS;  // Remove unused non-zero counts.
+        result[i] = rearrangeHistogram(
+                        WalkTreeLUT::calculateCompressedHistogram<FREQUENCY_BITS, VALUE_BITS, VALUE_COUNT>( i )
+                        >> FREQUENCY_BITS );  // Remove unused non-zero counts.
     }
     return result;
 }
@@ -180,101 +297,89 @@ precodesToHistogram( uint64_t precodeBits )
 
 /**
  * @see WalkTreeLUT::checkPrecode, but this one uses the two-staged compressed LUT.
+ * cmake --build . -- benchmarkGzipBlockFinder && taskset 1 src/benchmarks/benchmarkGzipBlockFinder
  * @verbatim
- * [13 bits, Walk Tree Compressed Single LUT] ( 70.3 <= 72.6 +- 1.3 <= 74.6 ) MB/s
- * [14 bits, Walk Tree Compressed Single LUT] ( 70.1 <= 73.1 +- 1.9 <= 75.3 ) MB/s
- * [15 bits, Walk Tree Compressed Single LUT] ( 69.7 <= 72.9 +- 1.5 <= 74.4 ) MB/s
- * [16 bits, Walk Tree Compressed Single LUT] ( 70.7 <= 72.6 +- 1.0 <= 74.4 ) MB/s
- * [17 bits, Walk Tree Compressed Single LUT] ( 70.5 <= 71.7 +- 1.7 <= 74.7 ) MB/s
- * [18 bits, Walk Tree Compressed Single LUT] ( 71.2 <= 72.7 +- 0.6 <= 73.2 ) MB/s
+ * [13 bits, Walk Tree Compressed Single LUT (optimized)] ( 68.3 <= 71.9 +- 1.7 <= 73.6 ) MB/s
+ * [14 bits, Walk Tree Compressed Single LUT (optimized)] ( 63.8 <= 71.3 +- 2.9 <= 73.6 ) MB/s
+ * [15 bits, Walk Tree Compressed Single LUT (optimized)] ( 70.8 <= 71.8 +- 0.6 <= 72.4 ) MB/s
+ * [16 bits, Walk Tree Compressed Single LUT (optimized)] ( 70.2 <= 71.4 +- 1.1 <= 73.1 ) MB/s
+ * [17 bits, Walk Tree Compressed Single LUT (optimized)] ( 71.5 <= 72.8 +- 0.7 <= 73.5 ) MB/s
+ * [18 bits, Walk Tree Compressed Single LUT (optimized)] ( 70.6 <= 71.4 +- 0.4 <= 71.7 ) MB/s
  *
- * [13 bits, this with chunk count 1] ( 62.9 <= 64.5 +- 1.0 <= 65.5 ) MB/s
- * [14 bits, this with chunk count 1] ( 62.4 <= 64.5 +- 0.9 <= 65.1 ) MB/s
- * [15 bits, this with chunk count 1] ( 62.3 <= 64.0 +- 0.8 <= 64.7 ) MB/s
- * [16 bits, this with chunk count 1] ( 60.6 <= 63.5 +- 1.1 <= 64.1 ) MB/s
- * [17 bits, this with chunk count 1] ( 58.8 <= 62.3 +- 1.5 <= 63.2 ) MB/s
- * [18 bits, this with chunk count 1] ( 54.3 <= 58.0 +- 1.9 <= 61.2 ) MB/s
+ * [13 bits, this with chunk count    1] ( 65.5 <= 68.3 +- 1.2 <= 69.3 ) MB/s
+ * [14 bits, this with chunk count    1] ( 65.7 <= 67.2 +- 1.1 <= 68.7 ) MB/s
+ * [15 bits, this with chunk count    1] ( 64.0 <= 65.9 +- 1.2 <= 67.8 ) MB/s
+ * [16 bits, this with chunk count    1] ( 65.7 <= 67.2 +- 0.8 <= 68.0 ) MB/s
+ * [17 bits, this with chunk count    1] ( 43   <= 61   +- 10  <= 67   ) MB/s
+ * [18 bits, this with chunk count    1] ( 43   <= 60   +- 6   <= 63   ) MB/s
  *
- * [13 bits, this with chunk count 2] ( 55 <= 65 +- 4 <= 68 ) MB/s
- * [14 bits, this with chunk count 2] ( 64.1 <= 65.4 +- 1.2 <= 68.1 ) MB/s
- * [15 bits, this with chunk count 2] ( 62.6 <= 64.3 +- 1.6 <= 67.7 ) MB/s
- * [16 bits, this with chunk count 2] ( 63.1 <= 63.6 +- 0.4 <= 64.3 ) MB/s
- * [17 bits, this with chunk count 2] ( 63.0 <= 65.0 +- 1.5 <= 66.4 ) MB/s
- * [18 bits, this with chunk count 2] ( 61.3 <= 63.1 +- 1.7 <= 65.3 ) MB/s
+ * [13 bits, this with chunk count    8] ( 68.8 <= 70.8 +- 1.1 <= 71.7 ) MB/s
+ * [14 bits, this with chunk count    8] ( 69.4 <= 71.6 +- 0.8 <= 72.1 ) MB/s
+ * [15 bits, this with chunk count    8] ( 66.3 <= 69.7 +- 1.5 <= 71.1 ) MB/s
+ * [16 bits, this with chunk count    8] ( 68.7 <= 70.5 +- 1.1 <= 71.9 ) MB/s
+ * [17 bits, this with chunk count    8] ( 70.9 <= 72.0 +- 0.4 <= 72.3 ) MB/s
+ * [18 bits, this with chunk count    8] ( 53   <= 62   +- 7   <= 70   ) MB/s
  *
- * [13 bits, this with chunk count 8] ( 64.9 <= 71.4 +- 2.6 <= 74.4 ) MB/s
- * [14 bits, this with chunk count 8] ( 65.7 <= 69.5 +- 2.7 <= 73.6 ) MB/s
- * [15 bits, this with chunk count 8] ( 68.4 <= 71.8 +- 2.4 <= 74.0 ) MB/s
- * [16 bits, this with chunk count 8] ( 62.0 <= 68.9 +- 2.7 <= 71.1 ) MB/s
- * [17 bits, this with chunk count 8] ( 69.8 <= 71.1 +- 1.0 <= 73.4 ) MB/s
- * [18 bits, this with chunk count 8] ( 64.2 <= 66.9 +- 1.9 <= 70.2 ) MB/s
+ * [13 bits, this with chunk count  128] ( 71.4 <= 73.5 +- 1.0 <= 74.5 ) MB/s
+ * [14 bits, this with chunk count  128] ( 72.5 <= 73.0 +- 0.5 <= 73.6 ) MB/s
+ * [15 bits, this with chunk count  128] ( 68.9 <= 71.8 +- 1.1 <= 72.6 ) MB/s
+ * [16 bits, this with chunk count  128] ( 69.8 <= 70.9 +- 1.1 <= 73.1 ) MB/s
+ * [17 bits, this with chunk count  128] ( 66.7 <= 71.0 +- 2.2 <= 74.3 ) MB/s
+ * [18 bits, this with chunk count  128] ( 68.6 <= 71.4 +- 1.0 <= 72.0 ) MB/s
  *
- * [13 bits, this with chunk count 128] ( 65.1 <= 72.1 +- 2.6 <= 74.3 ) MB/s
- * [14 bits, this with chunk count 128] ( 69.1 <= 73.2 +- 1.7 <= 74.4 ) MB/s
- * [15 bits, this with chunk count 128] ( 73.45 <= 73.69 +- 0.15 <= 73.92 ) MB/s
- * [16 bits, this with chunk count 128] ( 70.1 <= 73.4 +- 1.3 <= 74.1 ) MB/s
- * [17 bits, this with chunk count 128] ( 72.1 <= 73.6 +- 1.2 <= 74.7 ) MB/s
- * [18 bits, this with chunk count 128] ( 69.6 <= 70.6 +- 1.0 <= 72.1 ) MB/s
+ *  -> size-optimal with 202 KiB.
+ *     Still not quite nothing, but better than 2 MiB in the original WalkTreeLUT with a full LUT for all bins.
  *
- * [13 bits, this with chunk count 256] ( 63.7 <= 70.4 +- 2.5 <= 72.1 ) MB/s
- * [14 bits, this with chunk count 256] ( 68.3 <= 72.6 +- 2.3 <= 74.5 ) MB/s
- * [15 bits, this with chunk count 256] ( 68.8 <= 71.1 +- 1.0 <= 71.9 ) MB/s
- * [16 bits, this with chunk count 256] ( 71.9 <= 73.4 +- 1.1 <= 74.6 ) MB/s
- * [17 bits, this with chunk count 256] ( 69.4 <= 71.0 +- 1.4 <= 74.5 ) MB/s
- * [18 bits, this with chunk count 256] ( 67.4 <= 68.5 +- 0.7 <= 70.1 ) MB/s
+ * [13 bits, this with chunk count  256] ( 69.3  <= 72.0  +- 1.5  <= 73.1  ) MB/s
+ * [14 bits, this with chunk count  256] ( 71.6  <= 72.6  +- 0.5  <= 73.1  ) MB/s
+ * [15 bits, this with chunk count  256] ( 69.6  <= 71.2  +- 0.8  <= 71.9  ) MB/s
+ * [16 bits, this with chunk count  256] ( 69.0  <= 70.4  +- 1.4  <= 72.6  ) MB/s
+ * [17 bits, this with chunk count  256] ( 72.75 <= 73.23 +- 0.30 <= 73.71 ) MB/s
+ * [18 bits, this with chunk count  256] ( 70.9  <= 71.3  +- 0.3  <= 72.0  ) MB/s
  *
- * [13 bits, this with chunk count 512] ( 70.7 <= 74.0 +- 1.8 <= 75.4 ) MB/s
- * [14 bits, this with chunk count 512] ( 70.7 <= 72.8 +- 1.6 <= 74.8 ) MB/s
- * [15 bits, this with chunk count 512] ( 69.3 <= 71.8 +- 1.0 <= 72.4 ) MB/s
- * [16 bits, this with chunk count 512] ( 70.2 <= 71.3 +- 1.0 <= 73.6 ) MB/s
- * [17 bits, this with chunk count 512] ( 72.26 <= 72.49 +- 0.13 <= 72.64 ) MB/s
- * [18 bits, this with chunk count 512] ( 67.1 <= 71.8 +- 2.2 <= 73.7 ) MB/s
+ * [13 bits, this with chunk count  512] ( 66.6 <= 70.7 +- 2.4 <= 72.8 ) MB/s
+ * [14 bits, this with chunk count  512] ( 68.0 <= 71.8 +- 2.1 <= 73.7 ) MB/s
+ * [15 bits, this with chunk count  512] ( 68.7 <= 71.1 +- 1.2 <= 72.2 ) MB/s
+ * [16 bits, this with chunk count  512] ( 70.7 <= 72.3 +- 0.9 <= 73.3 ) MB/s
+ * [17 bits, this with chunk count  512] ( 70.6 <= 72.7 +- 1.1 <= 73.7 ) MB/s
+ * [18 bits, this with chunk count  512] ( 68.9 <= 71.0 +- 1.0 <= 72.0 ) MB/s
  *
- * [13 bits, this with chunk count 1024] ( 59.9 <= 67.6 +- 2.8 <= 69.6 ) MB/s
- * [14 bits, this with chunk count 1024] ( 66.8 <= 67.6 +- 0.3 <= 67.9 ) MB/s
- * [15 bits, this with chunk count 1024] ( 65.5 <= 67.2 +- 1.5 <= 70.8 ) MB/s
- * [16 bits, this with chunk count 1024] ( 66.7 <= 68.3 +- 1.2 <= 70.9 ) MB/s
- * [17 bits, this with chunk count 1024] ( 68.6 <= 69.3 +- 0.3 <= 70.0 ) MB/s
- * [18 bits, this with chunk count 1024] ( 63.7 <= 66.5 +- 1.8 <= 69.9 ) MB/s
+ * [13 bits, this with chunk count 1024] ( 72.9 <= 74.3 +- 0.6 <= 74.7 ) MB/s
+ * [14 bits, this with chunk count 1024] ( 65.5 <= 73.1 +- 2.7 <= 74.1 ) MB/s
+ * [15 bits, this with chunk count 1024] ( 69.3 <= 71.7 +- 1.4 <= 72.9 ) MB/s
+ * [16 bits, this with chunk count 1024] ( 70.7 <= 72.5 +- 0.8 <= 73.1 ) MB/s
+ * [17 bits, this with chunk count 1024] ( 71.9 <= 73.1 +- 0.5 <= 73.7 ) MB/s
+ * [18 bits, this with chunk count 1024] ( 66.9 <= 70.1 +- 1.3 <= 71.1 ) MB/s
  *
- * [13 bits, this with chunk count 2048] ( 59 <= 69 +- 4 <= 72 ) MB/s
- * [14 bits, this with chunk count 2048] ( 67.9 <= 70.7 +- 1.3 <= 71.8 ) MB/s
- * [15 bits, this with chunk count 2048] ( 65.6 <= 69.8 +- 2.2 <= 71.5 ) MB/s
- * [16 bits, this with chunk count 2048] ( 66.9 <= 68.8 +- 1.1 <= 70.7 ) MB/s
- * [17 bits, this with chunk count 2048] ( 69.7 <= 71.1 +- 1.2 <= 72.7 ) MB/s
- * [18 bits, this with chunk count 2048] ( 65.5 <= 66.7 +- 0.6 <= 67.3 ) MB/s
  * @endverbatim
  * -> It is insanely stable over the SUBTABLE_CHUNK_COUNT parameter. It made me question the correctness, but
  *    for CHUNK_COUNT < 8, there finally are some measurable slowdowns.
  * @endverbatim
  */
-template<uint16_t SUBTABLE_CHUNK_COUNT = 512U>
+template<uint16_t SUBTABLE_CHUNK_COUNT = 128U>
 [[nodiscard]] inline rapidgzip::Error
 checkPrecode( const uint64_t next4Bits,
               const uint64_t next57Bits )
 {
     constexpr auto INDEX_BITS = requiredBits( SUBTABLE_CHUNK_COUNT * sizeof( uint64_t ) * CHAR_BIT );
+    constexpr auto HIGH_BITS_TO_BE_ZERO = 0b11100'00000'00000'00000'00000'10000'11000ULL;
 
     const auto codeLengthCount = 4 + next4Bits;
     const auto precodeBits = next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS );
-    const auto valueToLookUp = precodesToHistogram<4>( precodeBits );
-    if ( ( valueToLookUp & 0b10000'11000'11100ULL ) != 0 ) {
-        return rapidgzip::Error::INVALID_CODE_LENGTHS;
-    }
+    const auto histogram = precodesToHistogram<4>( precodeBits );
+    const auto valueToLookUp = histogram & ~HIGH_BITS_TO_BE_ZERO;
 
     /* Lookup in LUT and subtable */
     const auto& [histogramLUT, validLUT] = PRECODE_FREQUENCIES_VALID_LUT_TWO_STAGES<SUBTABLE_CHUNK_COUNT>;
     const auto subIndex = histogramLUT[valueToLookUp >> ( INDEX_BITS + 2U )];
-    /* This seems to help, especially as the lookup becomes ever more expensive! */
-    //if ( subIndex == 0 ) {
-    //    return rapidgzip::Error::INVALID_CODE_LENGTHS;
-    //}
     const auto bitMaskToTest = 1ULL << ( valueToLookUp & 0b111U );
-
-    /* We could do a preemptive return here for subIndex == 0 but it degrades performance by ~3%. */
     const auto validIndex = ( subIndex << ( INDEX_BITS - 3U ) )
                             | ( ( valueToLookUp >> 5U ) & nLowestBitsSet<uint64_t>( INDEX_BITS - 3U ) );
-    return ( validLUT[validIndex] & bitMaskToTest ) == 0
+    const auto valid = validLUT[validIndex] & bitMaskToTest;
+
+    /* It seems that the branching || is fine as long as we compute everything beforehand.
+     * This probably lets the compiler prefetch, for example, validLUT. */
+    return ( ( histogram & HIGH_BITS_TO_BE_ZERO ) != 0 ) || ( valid == 0 )
            ? rapidgzip::Error::INVALID_CODE_LENGTHS
            : rapidgzip::Error::NONE;
 }

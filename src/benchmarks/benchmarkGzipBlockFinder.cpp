@@ -874,12 +874,12 @@ checkPrecode( const uint64_t next4Bits,
     if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_COMPRESSED_SINGLE_LUT_2 ) {
         /**
          * @verbatim
-         * [13 bits, chunk count 512] ( 58   <= 70   +- 4   <= 72   ) MB/s
-         * [14 bits, chunk count 512] ( 68.5 <= 71.5 +- 1.8 <= 73.5 ) MB/s
-         * [15 bits, chunk count 512] ( 70.6 <= 71.9 +- 1.1 <= 73.4 ) MB/s
-         * [16 bits, chunk count 512] ( 71.8 <= 72.5 +- 0.6 <= 73.6 ) MB/s
-         * [17 bits, chunk count 512] ( 69.1 <= 72.1 +- 1.9 <= 75.3 ) MB/s
-         * [18 bits, chunk count 512] ( 67.9 <= 69.2 +- 1.4 <= 71.7 ) MB/s
+         * [13 bits, chunk count 128] ( 71.4 <= 73.5 +- 1.0 <= 74.5 ) MB/s
+         * [14 bits, chunk count 128] ( 72.5 <= 73.0 +- 0.5 <= 73.6 ) MB/s
+         * [15 bits, chunk count 128] ( 68.9 <= 71.8 +- 1.1 <= 72.6 ) MB/s
+         * [16 bits, chunk count 128] ( 69.8 <= 70.9 +- 1.1 <= 73.1 ) MB/s
+         * [17 bits, chunk count 128] ( 66.7 <= 71.0 +- 2.2 <= 74.3 ) MB/s
+         * [18 bits, chunk count 128] ( 68.6 <= 71.4 +- 1.0 <= 72.0 ) MB/s
          * @endverbatim
          */
         return WalkTreeCompressedSingleLUT::checkPrecode( next4Bits, next57Bits );
