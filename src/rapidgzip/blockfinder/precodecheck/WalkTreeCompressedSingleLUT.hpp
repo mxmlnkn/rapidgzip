@@ -9,6 +9,7 @@
 #pragma once
 
 #include <array>
+#include <bitset>
 #include <cstdint>
 #include <limits>
 #include <map>
@@ -25,7 +26,26 @@ namespace rapidgzip::PrecodeCheck::WalkTreeCompressedSingleLUT
 constexpr auto UNIFORM_FREQUENCY_BITS = WalkTreeLUT::UNIFORM_FREQUENCY_BITS;  // 5 (bits)
 using CompressedHistogram = WalkTreeLUT::CompressedHistogram;  // uint64_t
 constexpr auto PRECODE_BITS = rapidgzip::deflate::PRECODE_BITS;  // 19
-constexpr auto HISTOGRAM_BITS = uint16_t( UNIFORM_FREQUENCY_BITS * deflate::MAX_PRECODE_LENGTH );
+
+constexpr auto HISTOGRAM_BITS = uint16_t( UNIFORM_FREQUENCY_BITS * deflate::MAX_PRECODE_LENGTH - 2U );
+static_assert( HISTOGRAM_BITS == 33 );
+
+
+[[nodiscard]] constexpr CompressedHistogram
+removeTwoBits( const CompressedHistogram histogram )
+{
+    const auto twoBitsRemoved = ( ( histogram >> 2U ) & ~nLowestBitsSet<uint64_t, 3>() )
+                                | ( histogram & nLowestBitsSet<uint64_t, 3>() );
+    const auto restored = ( ( twoBitsRemoved & ~nLowestBitsSet<uint64_t, 3>() ) << 2U )
+                          | ( twoBitsRemoved & nLowestBitsSet<uint64_t, 3>() );
+    if ( restored != histogram ) {
+        std::cerr << "Tried to compress: " << std::bitset<64>( histogram ) << "\n";
+        std::cerr << "Got compressed   : " << std::bitset<64>( twoBitsRemoved ) << "\n";
+        std::cerr << "Restored         : " << std::bitset<64>( restored ) << "\n";
+        throw std::logic_error( "Transformation not reversible!" );
+    }
+    return twoBitsRemoved;
+}
 
 
 /* Not constexpr because it would kill the compiler. Probably should simply be precomputed. */
@@ -33,6 +53,26 @@ template<uint16_t CHUNK_COUNT>
 static const auto PRECODE_FREQUENCIES_VALID_LUT_TWO_STAGES =
     [] ()
     {
+        /* The histogram uses 5 bits per bin, but if we do some checking, which we do, then that histogram would
+         * have some higher bits always zero: 0b11111'11111'11111'11111'01111'00111'00011
+         * Without proper fast PEXT instruction support, it can get quite expensive to bit-compress the histogram
+         * further. However, especially the last bits are juicy, even more so because we are doing shifts already
+         * anyway to access the bit mask! Namely, the lowest 3 bits are used to access the uint8_t.
+         * Only the lowest 2 bits can be something else then 0, but oh well, at least we can get rid of bit 4 and 5
+         * for free!
+         *                      2 bits we can remove for free (no additional bitwise instructions)
+         *                                            ++
+         *      0b11111'11111'11111'11111'01111'00111'00011
+         *        |                                ||   | |
+         *        |                                ||   +-+ access bits in uint8_t
+         *        |                                ||     |
+         *        |                                |+-----+
+         *        |                     Access inside one chunk (CHUNK_COUNT == 1 -> 6 bits for 64-bit chunk)
+         *        +--------------------------------+
+         *        Used for access into compressedLUT
+         * @todo Another idea would be to switch it up! Use the first three bits to the end / use them for
+         *       bit access, because the last bits may filter out much more!
+         */
         constexpr auto LUT_SIZE = ( 1ULL << HISTOGRAM_BITS ) / 64U;
         static_assert( LUT_SIZE % CHUNK_COUNT == 0, "Bit-valued-LUT size must be a multiple of the chunk size!" );
 
@@ -48,8 +88,7 @@ static const auto PRECODE_FREQUENCIES_VALID_LUT_TWO_STAGES =
         std::vector<uint64_t> validHistograms;
         const auto processValidHistogram =
             [&validHistograms] ( CompressedHistogram histogramToSetValid ) {
-                // LUT.at( histogramToSetValid / 64U ) |= CompressedHistogram( 1 ) << ( histogramToSetValid % 64U );
-                validHistograms.push_back( histogramToSetValid );
+                validHistograms.push_back( removeTwoBits( histogramToSetValid ) );
             };
         WalkTreeLUT::walkValidPrecodeCodeLengthFrequencies<UNIFORM_FREQUENCY_BITS, deflate::MAX_PRECODE_LENGTH>(
             processValidHistogram, deflate::MAX_PRECODE_COUNT );
@@ -219,21 +258,23 @@ checkPrecode( const uint64_t next4Bits,
     const auto codeLengthCount = 4 + next4Bits;
     const auto precodeBits = next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS );
     const auto valueToLookUp = precodesToHistogram<4>( precodeBits );
-
-    /* Lookup in LUT and subtable */
-    const auto& [histogramLUT, validLUT] = PRECODE_FREQUENCIES_VALID_LUT_TWO_STAGES<SUBTABLE_CHUNK_COUNT>;
-    const auto elementIndex = ( valueToLookUp >> INDEX_BITS )
-                              & nLowestBitsSet<CompressedHistogram>( HISTOGRAM_BITS - INDEX_BITS );
-    const auto subIndex = histogramLUT[elementIndex];
-    /* This seems to help, especially as the lookup becomes ever more expensive! */
-    if ( subIndex == 0 ) {
+    if ( ( valueToLookUp & 0b10000'11000'11100ULL ) != 0 ) {
         return rapidgzip::Error::INVALID_CODE_LENGTHS;
     }
 
-    /* We could do a preemptive return here for subIndex == 0 but it degrades performance by ~3%. */
+    /* Lookup in LUT and subtable */
+    const auto& [histogramLUT, validLUT] = PRECODE_FREQUENCIES_VALID_LUT_TWO_STAGES<SUBTABLE_CHUNK_COUNT>;
+    const auto subIndex = histogramLUT[valueToLookUp >> ( INDEX_BITS + 2U )];
+    /* This seems to help, especially as the lookup becomes ever more expensive! */
+    //if ( subIndex == 0 ) {
+    //    return rapidgzip::Error::INVALID_CODE_LENGTHS;
+    //}
+    const auto bitMaskToTest = 1ULL << ( valueToLookUp & 0b111U );
 
-    const auto validIndex = ( subIndex << INDEX_BITS ) + ( valueToLookUp & nLowestBitsSet<uint64_t>( INDEX_BITS ) );
-    return ( validLUT[validIndex >> 3U] & ( 1ULL << ( validIndex & 0b111U ) ) ) == 0
+    /* We could do a preemptive return here for subIndex == 0 but it degrades performance by ~3%. */
+    const auto validIndex = ( subIndex << ( INDEX_BITS - 3U ) )
+                            | ( ( valueToLookUp >> 5U ) & nLowestBitsSet<uint64_t>( INDEX_BITS - 3U ) );
+    return ( validLUT[validIndex] & bitMaskToTest ) == 0
            ? rapidgzip::Error::INVALID_CODE_LENGTHS
            : rapidgzip::Error::NONE;
 }

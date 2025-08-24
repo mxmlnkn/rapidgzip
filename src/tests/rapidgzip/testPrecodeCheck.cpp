@@ -1048,10 +1048,10 @@ analyzeActualLUTCompression()
     printCompressedPrecodeFrequenciesLUTSizes<7U, 2048U>();  //
 
     std::cerr << "\nFull precode code-length histogram Walk-Tree Single-LUT two-stage compressed plus bit-packed:\n";
-    printCompressedPrecodeFrequenciesWTCSLUTSizes<256U>();   // 2097152 B +  53248 B (26 subtables) -> 2150400
-    printCompressedPrecodeFrequenciesWTCSLUTSizes<512U>();   // 1048576 B + 106496 B (26 subtables) -> 1155072
-    printCompressedPrecodeFrequenciesWTCSLUTSizes<1024U>();  //  524288 B + 376832 B (46 subtables) ->  901120
-    printCompressedPrecodeFrequenciesWTCSLUTSizes<2048U>();  //  262144 B + 966656 B (59 subtables) -> 1228800
+    printCompressedPrecodeFrequenciesWTCSLUTSizes<256U>();   // 524288 B +  94208 B (46 subtables) ->  618496 B
+    printCompressedPrecodeFrequenciesWTCSLUTSizes<512U>();   // 262144 B + 241664 B (59 subtables) ->  503808 B
+    printCompressedPrecodeFrequenciesWTCSLUTSizes<1024U>();  // 131072 B + 540672 B (66 subtables) ->  671744 B
+    printCompressedPrecodeFrequenciesWTCSLUTSizes<2048U>();  //  65536 B + 999424 B (61 subtables) -> 1064960 B
 
     std::cerr << "\nFull precode code-length histogram Single-LUT two-stage compressed:\n";
     printCompressedPrecodeFrequenciesSingleLUTSizes<4U>();   // 65536 B + 14592 B (456 subtables) -> 80128 B
