@@ -19,6 +19,7 @@
 #include <filereader/Buffered.hpp>
 #include <rapidgzip/blockfinder/precodecheck/BruteForceLUT.hpp>
 #include <rapidgzip/blockfinder/precodecheck/SingleCompressedLUT.hpp>
+#include <rapidgzip/blockfinder/precodecheck/SingleCompressedLUTOptimized.hpp>
 #include <rapidgzip/blockfinder/precodecheck/SingleLUT.hpp>
 #include <rapidgzip/blockfinder/precodecheck/WalkTreeCompressedLUT.hpp>
 #include <rapidgzip/blockfinder/precodecheck/WalkTreeCompressedSingleLUT.hpp>
@@ -228,6 +229,10 @@ testSingleLUTImplementation4Precodes()
      * versions, but the detection is too expensive, so simply depend on the subsequent more strict checks for speed. */
     //REQUIRE( check4Precodes( 0b001'010'001'001 ) != rapidgzip::Error::NONE );
     REQUIRE( check4Precodes( 0b001'010'001'001 ) == rapidgzip::Error::NONE );
+
+    /* Because it 19 with code length 7 will overflow the histogram, do note expect a correct result.
+     * But, more importantly, check that it does not segfault when accessing the LUT with such an overflow! */
+    REQUIRE( check4Precodes( ~uint64_t( 0 ) ) != rapidgzip::Error::NONE );
 }
 
 
@@ -523,6 +528,7 @@ analyzeAndTestValidPrecodes()
      * Single Compressed LUT is inexact. Number of invalid precodes that were not filtered: 367646 (0.367646 %) */
     checkFuzzyAlternative( SingleLUT::checkPrecode, "Single LUT" );
     checkFuzzyAlternative( SingleCompressedLUT::checkPrecode<8U>, "Single Compressed LUT" );
+    checkFuzzyAlternative( SingleCompressedLUTOptimized::checkPrecode<8U>, "Single Compressed LUT (optimized)" );
     std::cerr << "\n";
 
     {
@@ -569,6 +575,374 @@ printCompressedHistogram( const CompressedHistogram histogram )
 constexpr auto MAX_CL_SYMBOL_COUNT = 19U;
 static constexpr uint32_t FREQUENCY_BITS = 5;  /* minimum bits to represent up to count 19. */
 static constexpr uint32_t FREQUENCY_COUNT = 7;  /* maximum value with 3-bits */
+
+
+[[nodiscard]] std::unordered_set<uint64_t>
+computeValidPrecodeHistograms()
+{
+    std::unordered_set<uint64_t> validHistograms;
+    const auto processValidHistogram =
+        [&validHistograms] ( const uint64_t validHistogram ) constexpr { validHistograms.insert( validHistogram ); };
+
+    PrecodeCheck::WalkTreeLUT::walkValidPrecodeCodeLengthFrequencies<FREQUENCY_BITS, FREQUENCY_COUNT>(
+        processValidHistogram, MAX_CL_SYMBOL_COUNT );
+
+    return validHistograms;
+}
+
+
+[[nodiscard]] std::unordered_set<uint64_t>
+computeValidPrecodeHistogramsPacked()
+{
+    std::unordered_set<uint64_t> validHistograms;
+    const auto processValidHistogram =
+        [&validHistograms] ( const uint64_t validHistogram ) constexpr
+        {
+            constexpr auto MASK = 0b11111'11111'11111'11111'01111'00111'00011ULL;
+            if ( ( validHistogram & MASK ) != validHistogram ) {
+                throw std::logic_error( "Unexpected histogram!" );
+            }
+
+            const auto packed = ( ( validHistogram & 0b11111'11111'11111'11111'00000'00000'00000ULL ) >> 6U ) |
+                                ( ( validHistogram & 0b01111'00000'00000ULL ) >> 5U ) |
+                                ( ( validHistogram & 0b00111'00000ULL ) >> 3U ) |
+                                ( validHistogram & 0b00011ULL );
+            validHistograms.insert( packed );
+        };
+
+    PrecodeCheck::WalkTreeLUT::walkValidPrecodeCodeLengthFrequencies<FREQUENCY_BITS, FREQUENCY_COUNT>(
+        processValidHistogram, MAX_CL_SYMBOL_COUNT );
+
+    return validHistograms;
+}
+
+
+template<typename Substring,
+         size_t   HISTOGRAM_LENGTH_IN_BITS,
+         typename HistogramContainer>
+void
+analyzePrecodeHistogramLinearSearchTables( const HistogramContainer& validHistograms )
+{
+    constexpr auto SUBSTRING_LENGTH_IN_BITS = std::numeric_limits<Substring>::digits;
+
+    std::unordered_set<Substring> validSubstrings;
+    for ( size_t shift = 0; shift <= HISTOGRAM_LENGTH_IN_BITS - SUBSTRING_LENGTH_IN_BITS; ++shift ) {
+        validSubstrings.clear();
+        for ( const auto histogram : validHistograms ) {
+            validSubstrings.insert( static_cast<Substring>( ( histogram >> shift )
+                                    & nLowestBitsSet<Substring, SUBSTRING_LENGTH_IN_BITS>() ) );
+        }
+
+        const auto filterRate = 100.0 * static_cast<double>( validSubstrings.size() )
+                                / static_cast<double>( 1ULL << SUBSTRING_LENGTH_IN_BITS );
+        std::cerr << "Valid histogram substrings (" << SUBSTRING_LENGTH_IN_BITS << "-bit) (start position: lowest bit "
+                  << shift << "): " << validSubstrings.size() << " -> filter rate: (" << filterRate << " %)\n";
+    }
+
+    std::cerr << "\n";
+}
+
+/**
+ * The idea here is to avoid lookup tables, which are 99.999% zeros, and instead store all valid histograms
+ * in a vector to linearly search. 1526 histograms * 64 bit would be 12768 B, which seems too large to linearly
+ * search, especially as the most frequent case would be to not find a match, i.e., would have to read everything!
+ *
+ * For filtering, we do not have to be exact, therefore, similarly to nested lookup tables, we could search for
+ * prefixes, suffixes, or even midfixes in a vector! Substring lengths of 8-bit, 16-bit or 32-bit would be ideal.
+ * These might also be implemented with SIMD (or memchr for 8-bit?) by the compiler.
+ * Naively, one would assume that the set size to linearly search would reduce in size respectively to the bits.
+ * However, we might get lucky and get overlapping substrings, therefore yielding superlinear size reductions!
+ * Let's test for that.
+ *
+ * @todo Compute actual filter rate with random data.
+ *
+ * Implement, test, and benchmark vectorized linear searches:
+
+static inline bool contains_u16_u64(const uint16_t* p, size_t count, uint16_t key) noexcept {
+    // Broadcast key to 4×16-bit words
+    uint64_t k = uint64_t(key) * 0x0001000100010001ULL;
+
+    for (size_t i = 0; i < count; i += 4) {
+        uint64_t v;
+        std::memcpy(&v, p + i, sizeof(v));  // safe unaligned load
+
+        uint64_t x = v ^ k;  // 16-bit lane will be 0 if equal
+
+        // Check if any 16-bit lane == 0
+        // (x - 0x00010001...) & ~x & 0x8000800080008000ULL trick
+        uint64_t z = (x - 0x0001000100010001ULL) & ~x & 0x8000800080008000ULL;
+        if (z) return true;
+    }
+    return false;
+}
+ */
+void
+analyzePrecodeHistogramLinearSearchTables()
+{
+    const auto encodeHistogram =
+        [] ( const auto& histogram )
+        {
+            constexpr std::array<uint8_t, deflate::MAX_PRECODE_LENGTH> MEMBER_BIT_WIDTHS = { 1, 2, 3, 3, 3, 2, 2 };
+            if ( histogram.size() != MEMBER_BIT_WIDTHS.size() ) {
+                throw std::logic_error( "" );
+            }
+
+            size_t width{ 0 };
+            uint16_t result{ 0 };
+            for ( size_t i = 0; i < MEMBER_BIT_WIDTHS.size(); ++i ) {
+                result |= histogram[i] << width;
+                width += MEMBER_BIT_WIDTHS[i];
+            }
+            if ( width > sizeof( result ) * CHAR_BIT ) {
+                throw std::logic_error( "Histogram bit widths do not fit the result type!" );
+            }
+            return result;
+        };
+
+    for ( size_t precodeCount = 4; precodeCount <= 19; ++precodeCount ) {
+        std::set<uint16_t> validSmallHistograms;
+        size_t totalHistograms{ 0 };
+        for ( const auto& histogram : deflate::precode::VALID_HISTOGRAMS ) {
+            const auto sum = std::accumulate( histogram.begin(), histogram.end(), size_t( 0 ) );
+            if ( sum <= precodeCount ) {
+                validSmallHistograms.insert( encodeHistogram( histogram ) );
+                ++totalHistograms;
+            }
+        }
+
+        const auto avxRegisterCount = static_cast<double>( validSmallHistograms.size() ) * CHAR_BIT / 256.;
+        std::cout << "precode count: " << precodeCount << ": valid histograms packed into 16-bit: "
+                  << validSmallHistograms.size() << " (out of " << totalHistograms << " qualifying) -> "
+                  << avxRegisterCount << " 256-bit registers\n";
+        /*
+         * precode count:  4: 16-bit histograms:    5 (out of    5 qualifying) ->  0.15625  256-bit registers
+         * precode count:  5: 16-bit histograms:    8 (out of    8 qualifying) ->  0.25     256-bit registers
+         * precode count:  6: 16-bit histograms:   13 (out of   13 qualifying) ->  0.40625  256-bit registers
+         * precode count:  7: 16-bit histograms:   22 (out of   22 qualifying) ->  0.6875   256-bit registers
+         * precode count:  8: 16-bit histograms:   38 (out of   38 qualifying) ->  1.1875   256-bit registers
+         * precode count:  9: 16-bit histograms:   65 (out of   65 qualifying) ->  2.03125  256-bit registers
+         * precode count: 10: 16-bit histograms:  107 (out of  107 qualifying) ->  3.34375  256-bit registers
+         * precode count: 11: 16-bit histograms:  166 (out of  166 qualifying) ->  5.1875   256-bit registers
+         * precode count: 12: 16-bit histograms:  246 (out of  246 qualifying) ->  7.6875   256-bit registers
+         *  -> This would be a very nice cut-off, especially as the ~8 register can be nicely aggregated
+         *     in a binary tree fashion to reduce operation count and dependence. [(1|2)|(3|4)]|[(5|6)|(7|8)]
+         * precode count: 13: 16-bit histograms:  350 (out of  350 qualifying) -> 10.9375   256-bit registers
+         * precode count: 14: 16-bit histograms:  476 (out of  476 qualifying) -> 14.875    256-bit registers
+         * precode count: 15: 16-bit histograms:  627 (out of  627 qualifying) -> 19.5938   256-bit registers
+         * precode count: 16: 16-bit histograms:  808 (out of  808 qualifying) -> 25.25     256-bit registers
+         * precode count: 17: 16-bit histograms: 1016 (out of 1017 qualifying) -> 31.75     256-bit registers
+         *  -> This is the first case for which we get duplicates because of overflows.
+         *     At this point the compressed histogram is more like a bloom filter via "hashes".
+         * precode count: 18: 16-bit histograms: 1250 (out of 1255 qualifying) -> 39.0625   256-bit registers
+         * precode count: 19: 16-bit histograms: 1514 (out of 1526 qualifying) -> 47.3125   256-bit registers
+         */
+    }
+
+    {
+        using namespace PrecodeCheck::SingleCompressedLUTOptimized::ShortVariableLengthPackedHistogram;
+
+        alignas( 64 ) constexpr auto validHistograms = createValidHistogramsList<12>();
+        std::cout << "Valid histograms with maximum precode count 12: " << validHistograms.size() << "\n";
+        for ( const auto histogram : validHistograms ) {
+            std::cout << " " << histogram;
+        }
+        std::cout << "\n";
+
+        for ( const uint16_t value : { 2, 3, 4, 5, 37496 } ) {
+            std::cout << "Contains " << value << ": " << std::boolalpha
+                      << containsU16AVX2<validHistograms.size()>( validHistograms.data(), value ) << "\n";
+        }
+    }
+
+    const auto validHistograms = computeValidPrecodeHistograms();
+    std::cerr << "Valid histograms: " << validHistograms.size() << "\n\n";
+
+    /* We can pack the histogram by using variable-bit-length per histogram bin.
+     * This can save us 6 bits: 7 * 5 = 35 -> 29 bits. */
+    const auto validHistogramsWithInvalidBinBitSet = std::count_if(
+        validHistograms.begin(), validHistograms.end(), [] ( const auto histogram ) {
+            return ( histogram & 0b10000'11000'11100ULL ) != 0ULL;
+        } );
+    std::cerr << "Valid histograms with invalid bin bits set: " << validHistogramsWithInvalidBinBitSet << "\n\n";  // 0
+
+    constexpr auto HIGHEST_BIN_BIT_MASK = 0b10000'10000'10000'10000'11000'11100'11110ULL;
+    /* Valid histograms with highest bin bit set: 1->1, 2 ->, 2->4, 3->7, 4->8, 5->9, 6->10, 7->11
+     * The idea is to shave off even more bits because the highest allowed count per bin is often 0b10..0, i.e.,
+     * only a single number with that highest bit is valid. We could therefore simply check in a very short "list"
+     * of valid histogram counts in case any of those higher bits is set and then remove them to get an even smaller
+     * lookup table. This also kinda is a nested LUT, but different.
+     *
+     * if ( ( histogram & HIGHEST_BIN_BIT_MASK ) != 0ULL ) {
+     *     return validHistogramsWithThoseHighestBinBits.contains( histogram )
+     *            ? Error::NONE : ERROR::INVALID_CODE_LENGTHS;
+     * }
+     * return validLUT[_pext_u64( ~HIGHEST_BIN_BIT_MASK )] ? Error::NONE : ERROR::INVALID_CODE_LENGTHS;
+     *
+     * As shown, above we have some trade-off. As each valid histogram takes up 64-bit and a cache line is often 64 B,
+     * using those with 8 possible valid values might make sense. I don't think a second cache line would kill us
+     * though and would save us 3 more bits, i.e., 8x more size reduction!
+     * A 256-bit (32 B) SIMD register can hold 4 64-bit values. I.e., we could check existence with 2-3 SIMD
+     * comparisons plus 2 or so logical ORs!
+     * This would let us compress the histogram from 35 bits -> 29 bits -> 22 bits (4 Mi values, storable in 512 KiB!)
+     */
+    for ( size_t binCount : { 1U, 2U, 3U, 4U, 5U, 6U, 7U } ) {
+        const auto bitMask = HIGHEST_BIN_BIT_MASK
+                             & ( nLowestBitsSet<uint64_t>( binCount * 5U ) << ( ( 7U - binCount ) * 5U ) );
+        const auto count = std::count_if(
+            validHistograms.begin(), validHistograms.end(), [bitMask] ( const auto histogram ) {
+                return ( histogram & bitMask ) != 0ULL;
+            } );
+        std::cerr << "Valid histograms with highest bin bit set (" << binCount << " largest CL bins only): "
+                  << count << "\n";
+    }
+    std::cerr << "\n";
+
+    /* We can extend the above idea to not only cut off the highest bits but also the next one. I fear that this
+     * explodes the number of valid histogram counts we have to look up, but it might not be as bad as feared.
+     * Valid histograms with highest two bin bits set (1-7 largest CL bins only):
+     *   1->181, 2->359, 3->521, 4->633, 5->865, 6->1131, 7->1407
+     * -> it is as bad as I feared, even worse. The last one comes close to the total of 1526 valid histograms!
+     */
+    for ( size_t binCount : { 1U, 2U, 3U, 4U, 5U, 6U, 7U } ) {
+        constexpr auto TWO_HIGHEST_BIN_BIT_MASK = 0b11000'11000'11000'11000'11100'11110'11111ULL;
+        const auto bitMask = TWO_HIGHEST_BIN_BIT_MASK
+                             & ( nLowestBitsSet<uint64_t>( binCount * 5U ) << ( ( 7U - binCount ) * 5U ) );
+        const auto count = std::count_if(
+            validHistograms.begin(), validHistograms.end(), [bitMask] ( const auto histogram ) {
+                return ( histogram & bitMask ) != 0ULL;
+            } );
+        std::cerr << "Valid histograms with highest two bin bits set (" << binCount << " largest CL bins only): "
+                  << count << "\n";
+    }
+    std::cerr << "\n";
+
+    /* 1->1, 2->542, 3->966, 4->1218, 5->1355, 6->1431, 7->1473 -> trash idea */
+    for ( size_t binCount : { 1U, 2U, 3U, 4U, 5U, 6U, 7U } ) {
+        constexpr auto HIGHEST_AND_LOWEST_BIN_BIT_MASK = 0b10001'10001'10001'10001'11001'11101'11111ULL;
+        const auto bitMask = HIGHEST_AND_LOWEST_BIN_BIT_MASK
+                             & ( nLowestBitsSet<uint64_t>( binCount * 5U ) << ( ( 7U - binCount ) * 5U ) );
+        const auto count = std::count_if(
+            validHistograms.begin(), validHistograms.end(), [bitMask] ( const auto histogram ) {
+                return ( histogram & bitMask ) != 0ULL;
+            } );
+        std::cerr << "Valid histograms with highest and lowest bin bits set (" << binCount << " largest CL bins only): "
+                  << count << "\n";
+    }
+    std::cerr << "\n";
+
+    analyzePrecodeHistogramLinearSearchTables<uint8_t, FREQUENCY_BITS * FREQUENCY_COUNT>( validHistograms );
+    analyzePrecodeHistogramLinearSearchTables<uint16_t, FREQUENCY_BITS * FREQUENCY_COUNT>( validHistograms );
+
+    /* Do the same analysis as above but with the compressed histogram representation, which can only be used
+     * after doing some checks prior. */
+    const auto validHistogramsPacked = computeValidPrecodeHistogramsPacked();
+    std::cerr << "Valid histograms (bit-packed): " << validHistograms.size() << "\n\n";
+
+    analyzePrecodeHistogramLinearSearchTables<uint8_t, FREQUENCY_BITS * FREQUENCY_COUNT - 6U>( validHistogramsPacked );
+    analyzePrecodeHistogramLinearSearchTables<uint16_t, FREQUENCY_BITS * FREQUENCY_COUNT - 6U>( validHistogramsPacked );
+}
+
+/*
+Valid histograms: 1526
+
+Valid histogram substrings (8-bit) (start position: lowest bit 0): 9 -> filter rate: (3.51562 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 1): 6 -> filter rate: (2.34375 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 2): 5 -> filter rate: (1.95312 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 3): 9 -> filter rate: (3.51562 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 4): 16 -> filter rate: (6.25 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 5): 24 -> filter rate: (9.375 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 6): 15 -> filter rate: (5.85938 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 7): 10 -> filter rate: (3.90625 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 8): 17 -> filter rate: (6.64062 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 9): 32 -> filter rate: (12.5 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 10): 56 -> filter rate: (21.875 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 11): 44 -> filter rate: (17.1875 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 12): 27 -> filter rate: (10.5469 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 13): 34 -> filter rate: (13.2812 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 14): 59 -> filter rate: (23.0469 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 15): 101 -> filter rate: (39.4531 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 16): 84 -> filter rate: (32.8125 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 17): 46 -> filter rate: (17.9688 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 18): 49 -> filter rate: (19.1406 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 19): 56 -> filter rate: (21.875 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 20): 93 -> filter rate: (36.3281 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 21): 76 -> filter rate: (29.6875 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 22): 44 -> filter rate: (17.1875 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 23): 27 -> filter rate: (10.5469 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 24): 18 -> filter rate: (7.03125 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 25): 29 -> filter rate: (11.3281 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 26): 40 -> filter rate: (15.625 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 27): 24 -> filter rate: (9.375 %)
+
+Valid histogram substrings (16-bit) (start position: lowest bit 0): 61 -> filter rate: (0.0930786 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 1): 82 -> filter rate: (0.125122 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 2): 125 -> filter rate: (0.190735 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 3): 153 -> filter rate: (0.233459 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 4): 154 -> filter rate: (0.234985 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 5): 268 -> filter rate: (0.408936 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 6): 345 -> filter rate: (0.526428 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 7): 339 -> filter rate: (0.517273 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 8): 415 -> filter rate: (0.63324 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 9): 417 -> filter rate: (0.636292 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 10): 667 -> filter rate: (1.01776 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 11): 857 -> filter rate: (1.30768 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 12): 598 -> filter rate: (0.912476 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 13): 464 -> filter rate: (0.708008 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 14): 464 -> filter rate: (0.708008 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 15): 464 -> filter rate: (0.708008 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 16): 406 -> filter rate: (0.619507 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 17): 237 -> filter rate: (0.361633 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 18): 183 -> filter rate: (0.279236 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 19): 150 -> filter rate: (0.228882 %)
+
+Valid histograms (bit-packed): 1526
+
+Valid histogram substrings (8-bit) (start position: lowest bit 0): 34 -> filter rate: (13.2812 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 1): 26 -> filter rate: (10.1562 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 2): 45 -> filter rate: (17.5781 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 3): 49 -> filter rate: (19.1406 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 4): 57 -> filter rate: (22.2656 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 5): 80 -> filter rate: (31.25 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 6): 45 -> filter rate: (17.5781 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 7): 51 -> filter rate: (19.9219 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 8): 60 -> filter rate: (23.4375 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 9): 101 -> filter rate: (39.4531 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 10): 84 -> filter rate: (32.8125 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 11): 46 -> filter rate: (17.9688 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 12): 49 -> filter rate: (19.1406 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 13): 56 -> filter rate: (21.875 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 14): 93 -> filter rate: (36.3281 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 15): 76 -> filter rate: (29.6875 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 16): 44 -> filter rate: (17.1875 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 17): 27 -> filter rate: (10.5469 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 18): 18 -> filter rate: (7.03125 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 19): 29 -> filter rate: (11.3281 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 20): 40 -> filter rate: (15.625 %)
+Valid histogram substrings (8-bit) (start position: lowest bit 21): 24 -> filter rate: (9.375 %)
+
+Valid histogram substrings (16-bit) (start position: lowest bit 0): 445 -> filter rate: (0.679016 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 1): 555 -> filter rate: (0.846863 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 2): 557 -> filter rate: (0.849915 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 3): 557 -> filter rate: (0.849915 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 4): 668 -> filter rate: (1.01929 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 5): 975 -> filter rate: (1.48773 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 6): 975 -> filter rate: (1.48773 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 7): 677 -> filter rate: (1.03302 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 8): 465 -> filter rate: (0.709534 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 9): 464 -> filter rate: (0.708008 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 10): 406 -> filter rate: (0.619507 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 11): 237 -> filter rate: (0.361633 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 12): 183 -> filter rate: (0.279236 %)
+Valid histogram substrings (16-bit) (start position: lowest bit 13): 150 -> filter rate: (0.228882 %)
+
+ -> Huh, it is Unexpected that packing leads to worse look up tables. But, I guess this is to be expected,
+    because the first n-bits are the most "compressible" and therefore, including more bits, leads to
+    more random values.
+ -> The filter rate is also wrong. We would have to test with some random data to get the actual filter
+    rate because the histogram value to look up is not uniformly random, quite far from it!
+ -> The 61 16-bit values fit into 2 cache lines (64 B) and 4 256-bit SIMD registers!
+    This sounds like it should be pretty fast.
+*/
 
 
 template<bool COMPARE_WITH_ALTERNATIVE_METHOD>
@@ -761,6 +1135,114 @@ printValidHistograms()
         std::cerr << "\n";
     }
     std::cerr << "\n";
+}
+
+
+void
+printValidHistogramsByPrecodeCount()
+{
+    using deflate::precode::VALID_HISTOGRAMS;
+
+    struct Statistics
+    {
+        size_t validHistograms{ 0 };
+        size_t maxCodeLength{ 0 };
+        std::array<uint8_t, deflate::MAX_PRECODE_LENGTH> maxFrequencies{ 0 };
+    };
+
+    std::array<Statistics, deflate::MAX_PRECODE_COUNT + 1> statisticsByPrecodeCount{};
+    for ( const auto& histogram : VALID_HISTOGRAMS ) {
+        const auto precodeCount = std::accumulate( histogram.begin(), histogram.end(), size_t( 0 ) );
+        auto& statistics = statisticsByPrecodeCount.at( precodeCount );
+        ++statistics.validHistograms;
+
+        for ( size_t i = 0; i < histogram.size(); ++i ) {
+            if ( histogram[i] > 0 ) {
+                statistics.maxCodeLength = std::max( statistics.maxCodeLength, i + 1 );
+            }
+        }
+
+        for ( size_t i = 0; i < histogram.size(); ++i ) {
+            statistics.maxFrequencies[i] = std::max( statistics.maxFrequencies[i], histogram[i] );
+        }
+    }
+
+    std::cerr << "== Valid histograms (" << VALID_HISTOGRAMS.size() << ") grouped by precode count ==\n\n";
+    for ( size_t precodeCount = 0; precodeCount < statisticsByPrecodeCount.size(); ++precodeCount ) {
+        auto& statistics = statisticsByPrecodeCount.at( precodeCount );
+        std::cout << "  precode count " << precodeCount << " -> valid: " << statistics.validHistograms
+                  << ", max code length: " << statistics.maxCodeLength << ", max. frequencies:";
+        for ( size_t i = 0; i < statistics.maxFrequencies.size(); ++i ) {
+            std::cout << " " << ( i + 1 ) << ":" << static_cast<int>( statistics.maxFrequencies.at( i ) );
+        }
+        std::cout << "\n";
+    }
+    std::cerr << "\n";
+
+    /**
+     * precode count 0 -> valid: 0, max code length: 0, max. frequencies: 1:0 2:0 3:0 4:0 5:0 6:0 7:0
+     * precode count 1 -> valid: 1, max code length: 1, max. frequencies: 1:1 2:0 3:0 4:0 5:0 6:0 7:0
+     * precode count 2 -> valid: 1, max code length: 1, max. frequencies: 1:2 2:0 3:0 4:0 5:0 6:0 7:0
+     * precode count 3 -> valid: 1, max code length: 2, max. frequencies: 1:1 2:2 3:0 4:0 5:0 6:0 7:0
+     * precode count 4 -> valid: 2, max code length: 3, max. frequencies: 1:1 2:4 3:2 4:0 5:0 6:0 7:0
+     * precode count 5 -> valid: 3, max code length: 4, max. frequencies: 1:1 2:3 3:4 4:2 5:0 6:0 7:0
+     * precode count 6 -> valid: 5, max code length: 5, max. frequencies: 1:1 2:3 3:4 4:4 5:2 6:0 7:0
+     * precode count 7 -> valid: 9, max code length: 6, max. frequencies: 1:1 2:3 3:6 4:4 5:4 6:2 7:0
+     *
+     * Several considerations for precode count <= 7:
+     *  - 7 precodes can be done with two chunked-by-4 precode-to-histogram table lookups and one addition.
+     *  - We don't even need the bin for code length 7 for storing the valid histograms because max code length is 6.
+     *    - We still need to compute it to filter correctly ...
+     *  - We only need up to 3 bits per code length -> 3 * 6 = 18 bit
+     *    - It is harder to get this to 16 bit to halve the amount of SIMD search operations...
+     *    - Based on the maximum frequencies, the required bits would be: 2, 3, 3, 3, 3, 2, 0 = 16!
+     *      No overflows for valid histograms! There might be overflows for invalids, but we do not care
+     *      for false positives.
+     *      Allowing for a single overflow, would get the bits per bin: 1, 2, 3, 2, 2, 1 = 11
+     *      ALlowing for overlow in the highest bits is questionable though, as it would overflow the actual number.
+     *  - Only 22 valid histograms This seems very searchable with SIMD!
+     *    - 22 * 32 bit histograms = 704 bit = 2.75 * 256-bit SIMD register lookups.
+     *    - 22 * 16 bit histograms = 352 bit... could be done in single 512-bit SIMD AVX2 (which I don't have)
+     *
+     * precode count  8 -> valid:  16, max code length: 7, max. frequencies: 1:1 2:3 3:8 4:6  5:4  6:4  7:2
+     *  -> Allowing for "exact" overflows except in the highest bits, would get us bit widths: 1, 2, 3, 3, 2, 2, 2 = 15
+     * precode count  9 -> valid:  27, max code length: 7, max. frequencies: 1:1 2:3 3:7 4:8  5:6  6:4  7:4
+     *  -> Allowing for "exact" overflows except in the highest bits, would get us bit widths: 1, 2, 3, 3, 3, 2, 3 = 17
+     *     But, we probably can allow for the highest bin to overflow, it might only net us some more false positives.
+     *  -> 65 * 16 = 1040 bit = 4x 256 bit... :( such bad luck. Maybe some of the overflown histograms results
+     *     in a duplicate so that is suffices to check 64?
+     * precode count 10 -> valid:  42, max code length: 7, max. frequencies: 1:1 2:3 3:7 4:8  5:8  6:6  7:4
+     *  -> For 8-10, the required bits would be: 1, 2, 4, 4, 4, 4, 3 = 22, long over 16, so yeah.
+     *     I probably could make it work woth 16-bit even with the a single overflow for these!
+     *  -> 107 valids * 16-bit = 1712 bit = 6.6875 256-bit SIMD registers. Does not sound much...
+     * precode count 11 -> valid:  59, max code length: 7, max. frequencies: 1:1 2:3 3:7 4:8  5:8  6:8  7:6
+     *  -> Even this might still be workable because the only overflows are 8s!
+     *  -> 2656 b = 332 B = 10.375 x 256 bit SIMD
+     *  -> Allowing for "exact" overflows except in the highest bits, would get us bit widths: 1, 2, 3, 3, 3, 3, 3 = 18
+     *
+     * precode count 12 -> valid:  80, max code length: 7, max. frequencies: 1:1 2:3 3:7 4:10 5:8  6:8  7:8
+     *  -> here, I think that overflows become to get difficult because of the 10.
+     * precode count 13 -> valid: 104, max code length: 7, max. frequencies: 1:1 2:3 3:7 4:12 5:10 6:8  7:8
+     * precode count 14 -> valid: 126, max code length: 7, max. frequencies: 1:1 2:3 3:7 4:12 5:12 6:10 7:8
+     * precode count 15 -> valid: 151, max code length: 7, max. frequencies: 1:1 2:3 3:7 4:14 5:12 6:12 7:10
+     *
+     * Several considerations for precode count <= 7:
+     *  - Because the 4 bits for the precode count - 4 is basically random, we have 12 out of 16 assumable values
+     *    that lead to this case, i.e., 75 % (including precode count <= 7) or 8 out of 16 -> 50 % (excluding
+     *    precode count <= 7). This is a big chunk that could profit from LUT and instruction count optimizations!
+     *  - We could do the chunked histogram computation in 4 lookups instead of 5, saving one lookup and addition.
+     *  - We would only need 4 bits per bin and could avoid checking for overflows.
+     *  - Using variable-length encoding and don't caring about some of the smaller overflows, we could
+     *    pack the histogram into 1 2 3 4 4 4 4 bits per bin totaling 22 bits (4 Mi) -> 512 KiB (without compression)
+     *    Using a two-staged LUT, would be even more benign if we ignored al valid histograms for counts >= 16!
+     *    This would leave 605 valid histograms (8 <= precode count <= 15) or 627 (precode count <= 15),
+     *    almost a third of the total valid histogram count, possibly increasing compressibility of the LUT by 3.
+     *
+     * precode count 16 -> valid: 181, max code length: 7, max. frequencies: 1:1 2:3 3:7 4:16 5:14 6:12 7:12
+     * precode count 17 -> valid: 209, max code length: 7, max. frequencies: 1:1 2:3 3:7 4:15 5:16 6:14 7:12
+     * precode count 18 -> valid: 238, max code length: 7, max. frequencies: 1:1 2:3 3:7 4:15 5:16 6:16 7:14
+     * precode count 19 -> valid: 271, max code length: 7, max. frequencies: 1:1 2:3 3:7 4:15 5:16 6:16 7:16
+     */
 }
 
 
@@ -1140,6 +1622,8 @@ analyzeActualLUTCompression()
 int
 main()
 {
+    analyzePrecodeHistogramLinearSearchTables();  /** @todo fix filter rates */
+
     testCachedHuffmanCodings();
 
     testValidHistograms();
@@ -1156,6 +1640,7 @@ main()
 
     /** @see results/deflate/valid-precode-histograms.txt */
     //printValidHistograms();
+    printValidHistogramsByPrecodeCount();
 
     testSingleLUTImplementation();
 

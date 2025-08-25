@@ -42,6 +42,7 @@ https://www.ietf.org/rfc/rfc1952.txt
 #include <rapidgzip/blockfinder/Bgzf.hpp>
 #include <rapidgzip/blockfinder/DynamicHuffman.hpp>
 #include <rapidgzip/blockfinder/precodecheck/SingleCompressedLUT.hpp>
+#include <rapidgzip/blockfinder/precodecheck/SingleCompressedLUTOptimized.hpp>
 #include <rapidgzip/blockfinder/precodecheck/SingleLUT.hpp>
 #include <rapidgzip/blockfinder/precodecheck/WalkTreeCompressedLUT.hpp>
 #include <rapidgzip/blockfinder/precodecheck/WalkTreeCompressedSingleLUT.hpp>
@@ -729,6 +730,7 @@ enum class CheckPrecodeMethod
     WALK_TREE_COMPRESSED_SINGLE_LUT_2,  // Ibid, but slightly bit-compressed for size.
     SINGLE_LUT,  // same as WALK_TREE_COMPRESSED_SINGLE_LUT but variable-length bits for histogram.
     SINGLE_COMPRESSED_LUT,
+    SINGLE_COMPRESSED_LUT_2,
     VALID_HISTOGRAMS_LUT,  // Looks up histogram in the LUT of 1576 valid ones and reuses cached precode huffman codings
 };
 
@@ -746,6 +748,7 @@ toString( CheckPrecodeMethod method )
     case CheckPrecodeMethod::WALK_TREE_COMPRESSED_SINGLE_LUT_2: return "Walk Tree Compressed Single LUT (optimized)";
     case CheckPrecodeMethod::SINGLE_LUT                       : return "Single LUT";
     case CheckPrecodeMethod::SINGLE_COMPRESSED_LUT            : return "Single Compressed LUT";
+    case CheckPrecodeMethod::SINGLE_COMPRESSED_LUT_2          : return "Single Compressed LUT (optimized)";
     case CheckPrecodeMethod::VALID_HISTOGRAMS_LUT             : return "Valid Histograms LUT";
     }
     throw std::invalid_argument( "Unknown check precode method!" );
@@ -804,6 +807,20 @@ checkPrecode( const uint64_t next4Bits,
               const uint64_t next57Bits )
 {
     using namespace rapidgzip::PrecodeCheck;
+
+    if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_COMPRESSED_LUT_2 ) {
+        /**
+         * @verbatim
+         * [13 bits] ( 65.3 <= 70.8 +- 2.1 <= 72.6 ) MB/s
+         * [14 bits] ( 71.1 <= 72.4 +- 0.9 <= 73.3 ) MB/s
+         * [15 bits] ( 67.7 <= 70.1 +- 0.9 <= 70.8 ) MB/s
+         * [16 bits] ( 68.0 <= 69.0 +- 1.1 <= 71.1 ) MB/s
+         * [17 bits] ( 63.5 <= 70.4 +- 2.6 <= 72.9 ) MB/s
+         * [18 bits] ( 64.6 <= 66.1 +- 1.0 <= 67.5 ) MB/s
+         * @endverbatim
+         */
+        return SingleCompressedLUTOptimized::checkPrecode( next4Bits, next57Bits );
+    }
 
     if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_COMPRESSED_LUT ) {
         /**
@@ -1517,7 +1534,9 @@ findDeflateBlocksRapidgzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
 
                 using namespace rapidgzip::PrecodeCheck;
                 auto error = rapidgzip::Error::NONE;
-                if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_COMPRESSED_LUT ) {
+                if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_COMPRESSED_LUT_2 ) {
+                    error = SingleCompressedLUTOptimized::checkPrecode( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_COMPRESSED_LUT ) {
                     error = SingleCompressedLUT::checkPrecode( next4Bits, next57Bits );
                 } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_LUT ) {
                     error = SingleLUT::checkPrecode( next4Bits, next57Bits );
@@ -1613,7 +1632,9 @@ findDeflateBlocksRapidgzipLUTTwoPassWithPrecode( BufferedFileReader::AlignedBuff
 
                 using namespace rapidgzip::PrecodeCheck;
                 auto precodeError = rapidgzip::Error::NONE;
-                if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_COMPRESSED_LUT ) {
+                if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_COMPRESSED_LUT_2 ) {
+                    precodeError = SingleCompressedLUTOptimized::checkPrecode( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_COMPRESSED_LUT ) {
                     precodeError = SingleCompressedLUT::checkPrecode( next4Bits, next57Bits );
                 } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_LUT ) {
                     precodeError = SingleLUT::checkPrecode( next4Bits, next57Bits );
@@ -2144,6 +2165,8 @@ benchmarkLUTSizeAllCheckPrecodeMethods( const BufferedFileReader::AlignedBuffer&
     std::cout << "\n";
     benchmarkLUTSize<CACHED_BIT_COUNT, FIND_METHOD, CPM::SINGLE_COMPRESSED_LUT>( buffer );  // ~90 MB/s
     std::cout << "\n";
+    benchmarkLUTSize<CACHED_BIT_COUNT, FIND_METHOD, CPM::SINGLE_COMPRESSED_LUT_2>( buffer );  // ~90 MB/s
+    std::cout << "\n";
     benchmarkLUTSize<CACHED_BIT_COUNT, FIND_METHOD, CPM::WITHOUT_LUT_USING_ARRAY>( buffer );  // ~45 MB/s
     std::cout << "\n";
     benchmarkLUTSize<CACHED_BIT_COUNT, FIND_METHOD, CPM::WITHOUT_LUT>( buffer );  // ~45 MB/s
@@ -2203,6 +2226,10 @@ printLUTSizes()
               << formatBytes( sizeof( PrecodeCheck::SingleLUT::ValidHistogramID::HISTOGRAM_TO_ID_LUT ) ) << "\n";
     std::cerr << "PRECODE_HISTOGRAM_VALID_LUT               : "  // 2 MiB
               << formatBytes( sizeof( PrecodeCheck::SingleLUT::PRECODE_HISTOGRAM_VALID_LUT ) ) << "\n";
+    //std::cerr << "PRECODE_FREQUENCIES_VALID_LUT             : "  // 32 MiB
+    //          << formatBytes( sizeof( PrecodeCheck::SingleCompressedLUTOptimized
+    //                                  ::ShortUniformLengthPackedHistogram::PRECODE_FREQUENCIES_VALID_LUT ) )
+    //          << "\n";
 }
 
 
@@ -2317,7 +2344,7 @@ main( int    argc,
                 std::cout << "=== Full test and precode check ===\n\n";
                 benchmarkLUTSize<MAX_CACHED_BIT_COUNT,
                                  FindDeflateMethod::FULL_CHECK,
-                                 CheckPrecodeMethod::SINGLE_LUT>( data );
+                                 CheckPrecodeMethod::SINGLE_COMPRESSED_LUT_2>( data );
                 benchmarkLUTSize<MAX_CACHED_BIT_COUNT,
                                  FindDeflateMethod::FULL_CHECK,
                                  CheckPrecodeMethod::SINGLE_COMPRESSED_LUT>( data );

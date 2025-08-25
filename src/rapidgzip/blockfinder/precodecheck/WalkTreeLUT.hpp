@@ -114,7 +114,8 @@ walkValidPrecodeCodeLengthFrequencies( Callback&&                      processVa
  * we can reduce instructions by initializing to invalid and then iterating only over the valid possibilities.
  */
 template<uint8_t FREQUENCY_BITS,
-         uint8_t FREQUENCY_COUNT>
+         uint8_t FREQUENCY_COUNT,
+         uint8_t MAX_PRECODE_COUNT = deflate::MAX_PRECODE_COUNT>
 [[nodiscard]] constexpr auto
 createPrecodeFrequenciesValidLUT()
 {
@@ -127,7 +128,7 @@ createPrecodeFrequenciesValidLUT()
             result[histogramToSetValid / 64U] |= CompressedHistogram( 1 ) << ( histogramToSetValid % 64U );
         };
 
-    walkValidPrecodeCodeLengthFrequencies<FREQUENCY_BITS, FREQUENCY_COUNT>( processValidHistogram, deflate::MAX_PRECODE_COUNT );
+    walkValidPrecodeCodeLengthFrequencies<FREQUENCY_BITS, FREQUENCY_COUNT>( processValidHistogram, MAX_PRECODE_COUNT );
     return result;
 }
 
@@ -180,24 +181,42 @@ createCompressedHistogramLUT()
 constexpr auto UNIFORM_FREQUENCY_BITS = 5U;
 
 /* Max values to cache in LUT (4 * 3 bits = 12 bits LUT key -> 2^12 * 8B = 32 KiB LUT size) */
-template<uint8_t PRECODE_CHUNK_SIZE>
+template<uint8_t PRECODE_CHUNK_SIZE,
+         uint8_t FREQUENCY_BITS = UNIFORM_FREQUENCY_BITS>
 static constexpr auto PRECODE_TO_FREQUENCIES_LUT =
     createCompressedHistogramLUT<UNIFORM_FREQUENCY_BITS, deflate::PRECODE_BITS, PRECODE_CHUNK_SIZE>();
 
 
-template<uint8_t PRECODE_CHUNK_SIZE>
+template<uint8_t PRECODE_CHUNK_SIZE,
+         uint8_t MAX_PRECODE_COUNT = deflate::MAX_PRECODE_COUNT,
+         uint8_t FREQUENCY_BITS = UNIFORM_FREQUENCY_BITS>
 [[nodiscard]] constexpr CompressedHistogram
 precodesToHistogram( uint64_t precodeBits )
 {
-    constexpr auto& LUT = PRECODE_TO_FREQUENCIES_LUT<PRECODE_CHUNK_SIZE>;
-    constexpr auto CACHED_BITS = deflate::PRECODE_BITS * PRECODE_CHUNK_SIZE;  // 12
-    return LUT[precodeBits & nLowestBitsSet<uint64_t, CACHED_BITS>()]
-           + LUT[( precodeBits >> ( 1U * CACHED_BITS ) ) & nLowestBitsSet<uint64_t, CACHED_BITS>()]
-           + LUT[( precodeBits >> ( 2U * CACHED_BITS ) ) & nLowestBitsSet<uint64_t, CACHED_BITS>()]
-           + LUT[( precodeBits >> ( 3U * CACHED_BITS ) ) & nLowestBitsSet<uint64_t, CACHED_BITS>()]
-           /* The last requires no bit masking because BitReader::read already has masked to the lowest 57 bits
-            * and this shifts 48 bits to the right, leaving only 9 (<12) bits set anyways. */
-           + LUT[( precodeBits >> ( 4U * CACHED_BITS ) )];
+    constexpr auto& LUT = PRECODE_TO_FREQUENCIES_LUT<PRECODE_CHUNK_SIZE, FREQUENCY_BITS>;
+    constexpr auto CACHED_BITS = deflate::PRECODE_BITS * PRECODE_CHUNK_SIZE;
+    if constexpr ( CACHED_BITS == 12 ) {
+        return LUT[precodeBits & nLowestBitsSet<uint64_t, CACHED_BITS>()]
+               + LUT[( precodeBits >> ( 1U * CACHED_BITS ) ) & nLowestBitsSet<uint64_t, CACHED_BITS>()]
+               + LUT[( precodeBits >> ( 2U * CACHED_BITS ) ) & nLowestBitsSet<uint64_t, CACHED_BITS>()]
+               + LUT[( precodeBits >> ( 3U * CACHED_BITS ) ) & nLowestBitsSet<uint64_t, CACHED_BITS>()]
+               /* The last requires no bit masking because BitReader::read already has masked to the lowest 57 bits
+                * and this shifts 48 bits to the right, leaving only 9 (<12) bits set anyways. */
+               + LUT[( precodeBits >> ( 4U * CACHED_BITS ) )];
+    } else {
+        constexpr auto CHUNK_COUNT = ceilDiv( MAX_PRECODE_COUNT, PRECODE_CHUNK_SIZE );
+        CompressedHistogram histogram{ 0 };
+        for ( size_t chunk = 0; chunk < CHUNK_COUNT; ++chunk ) {
+            auto precodeChunk = precodeBits >> ( chunk * CACHED_BITS );
+            /* The last requires no bit masking because @ref next57Bits is already sufficiently masked.
+             * This branch will hopefully get unrolled, else it could hinder performance. */
+            if ( chunk != CHUNK_COUNT - 1 ) {
+                precodeChunk &= nLowestBitsSet<uint64_t, CACHED_BITS>();
+            }
+            histogram = histogram + LUT[precodeChunk];
+        }
+        return histogram;
+    }
 }
 
 
@@ -212,7 +231,8 @@ static constexpr auto PRECODE_FREQUENCIES_LUT_COUNT = 5U;
 static_assert( PRECODE_FREQUENCIES_LUT_COUNT <= deflate::MAX_PRECODE_LENGTH,
                "A maximum histogram frequency bin than the maximum precode code length makes no sense." );
 static constexpr auto PRECODE_FREQUENCIES_1_TO_5_VALID_LUT =
-    createPrecodeFrequenciesValidLUT<UNIFORM_FREQUENCY_BITS, PRECODE_FREQUENCIES_LUT_COUNT>();
+    createPrecodeFrequenciesValidLUT<
+        UNIFORM_FREQUENCY_BITS, PRECODE_FREQUENCIES_LUT_COUNT, deflate::MAX_PRECODE_COUNT>();
 
 
 /**
@@ -229,7 +249,7 @@ checkPrecode( const uint64_t             next4Bits,
 {
     const auto codeLengthCount = 4 + next4Bits;
     const auto precodeBits = next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * deflate::PRECODE_BITS );
-    const auto bitLengthFrequencies = precodesToHistogram<4>( precodeBits );
+    const auto bitLengthFrequencies = precodesToHistogram<4, deflate::MAX_PRECODE_COUNT>( precodeBits );
 
     /* Lookup in LUT and subtable (64 values in uint64_t) */
     const auto valueToLookUp = bitLengthFrequencies >> UNIFORM_FREQUENCY_BITS;  // ignore non-zero-counts;
