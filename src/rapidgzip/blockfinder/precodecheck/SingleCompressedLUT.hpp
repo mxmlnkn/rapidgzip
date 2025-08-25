@@ -28,7 +28,7 @@ using rapidgzip::PrecodeCheck::SingleLUT::VariableLengthPackedHistogram::OVERFLO
 using rapidgzip::PrecodeCheck::SingleLUT::VariableLengthPackedHistogram::OVERFLOW_BITS_MASK;
 
 
-template<uint16_t CHUNK_COUNT = 4U>
+template<uint16_t CHUNK_COUNT>
 static const auto COMPRESSED_PRECODE_HISTOGRAM_VALID_LUT_DICT =
     [] ()
     {
@@ -80,6 +80,8 @@ template<uint16_t COMPRESSED_LUT_CHUNK_COUNT = 8U>
 checkPrecode( const uint64_t next4Bits,
               const uint64_t next57Bits )
 {
+    //#define SINGLE_COMPRESSED_LUT_ENABLE_EXACT_CHECK
+
     constexpr auto PRECODE_BITS = rapidgzip::deflate::PRECODE_BITS;
     const auto codeLengthCount = 4 + next4Bits;
     const auto precodeBits = next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS );
@@ -91,8 +93,10 @@ checkPrecode( const uint64_t next4Bits,
     static_assert( CHUNK_COUNT == 5 );
 
     Histogram bitLengthFrequencies{ 0 };
-    Histogram overflowsInSum{ 0 };
-    Histogram overflowsInLUT{ 0 };
+    #ifdef SINGLE_COMPRESSED_LUT_ENABLE_EXACT_CHECK
+        Histogram overflowsInSum{ 0 };
+        Histogram overflowsInLUT{ 0 };
+    #endif
 
     for ( size_t chunk = 0; chunk < CHUNK_COUNT; ++chunk ) {
         auto precodeChunk = precodeBits >> ( chunk * CACHED_BITS );
@@ -113,24 +117,41 @@ checkPrecode( const uint64_t next4Bits,
          *    setting the resulting bit only to 1 if both source bits are different.
          *    This result needs to be masked to the bits of interest but that can be done last to reduce instructions.
          */
-        const auto carrylessSum = bitLengthFrequencies ^ partialHistogram;
+        #ifdef SINGLE_COMPRESSED_LUT_ENABLE_EXACT_CHECK
+            const auto carrylessSum = bitLengthFrequencies ^ partialHistogram;
+        #endif
         bitLengthFrequencies = bitLengthFrequencies + partialHistogram;
-        overflowsInSum |= carrylessSum ^ bitLengthFrequencies;
-        overflowsInLUT |= partialHistogram;
+        #ifdef SINGLE_COMPRESSED_LUT_ENABLE_EXACT_CHECK
+            overflowsInSum |= carrylessSum ^ bitLengthFrequencies;
+            overflowsInLUT |= partialHistogram;
+        #endif
     }
 
     /* Ignore non-zero and overflow counts for lookup. */
     const auto histogramToLookUp = ( bitLengthFrequencies >> 5U )
                                    & nLowestBitsSet<Histogram>( HISTOGRAM_TO_LOOK_UP_BITS );
     const auto nonZeroCount = bitLengthFrequencies & nLowestBitsSet<Histogram>( 5 );
+
+    /* We cannot skip this check because it would result in false negatives, which is "unrecoverable"!
+     * (It can be recovered from, but at a much much higher level, namely the chunk prefetching, and therefore
+     * will reduce parallel decompression speed a lot. */
     if ( UNLIKELY( POWER_OF_TWO_SPECIAL_CASES[nonZeroCount] == histogramToLookUp ) ) [[unlikely]] {
         return rapidgzip::Error::NONE;
     }
 
-    if ( ( ( overflowsInSum & OVERFLOW_BITS_MASK ) != 0 )
-         || ( ( overflowsInLUT & ( ~Histogram( 0 ) << OVERFLOW_MEMBER_OFFSET ) ) != 0 ) ) {
-        return rapidgzip::Error::INVALID_CODE_LENGTHS;
-    }
+    #ifdef SINGLE_COMPRESSED_LUT_ENABLE_EXACT_CHECK
+        /**
+         * We can skip this check to gain ~12 % bandwidth. This results in ~0.37% invalids not being filtered,
+         * but this is rare enough that the subsequent more expensive checks are not a problem on average!
+         * Note that the completely meaningless overflown histogram is used to look up validLUT.
+         * This will still filter most of it, albeit almost randomly. That's why the false positive rate is
+         * lower than one might think!
+         */
+        if ( ( ( overflowsInSum & OVERFLOW_BITS_MASK ) != 0 )
+             || ( ( overflowsInLUT & ( ~Histogram( 0 ) << OVERFLOW_MEMBER_OFFSET ) ) != 0 ) ) {
+            return rapidgzip::Error::INVALID_CODE_LENGTHS;
+        }
+    #endif
 
     const auto& [histogramLUT, validLUT] = COMPRESSED_PRECODE_HISTOGRAM_VALID_LUT_DICT<COMPRESSED_LUT_CHUNK_COUNT>;
     constexpr auto INDEX_BITS = requiredBits( COMPRESSED_LUT_CHUNK_COUNT * sizeof( uint64_t ) * CHAR_BIT );

@@ -332,6 +332,8 @@ POWER_OF_TWO_SPECIAL_CASES = {
 checkPrecode( const uint64_t next4Bits,
               const uint64_t next57Bits )
 {
+    //#define SINGLE_COMPRESSED_LUT_ENABLE_EXACT_CHECK
+
     constexpr auto PRECODE_BITS = rapidgzip::deflate::PRECODE_BITS;
     const auto codeLengthCount = 4 + next4Bits;
     const auto precodeBits = next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS );
@@ -343,8 +345,10 @@ checkPrecode( const uint64_t next4Bits,
     static_assert( CHUNK_COUNT == 5 );
 
     Histogram bitLengthFrequencies{ 0 };
-    Histogram overflowsInSum{ 0 };
-    Histogram overflowsInLUT{ 0 };
+    #ifdef SINGLE_COMPRESSED_LUT_ENABLE_EXACT_CHECK
+        Histogram overflowsInSum{ 0 };
+        Histogram overflowsInLUT{ 0 };
+    #endif
 
     for ( size_t chunk = 0; chunk < CHUNK_COUNT; ++chunk ) {
         auto precodeChunk = precodeBits >> ( chunk * CACHED_BITS );
@@ -365,10 +369,14 @@ checkPrecode( const uint64_t next4Bits,
          *    setting the resulting bit only to 1 if both source bits are different.
          *    This result needs to be masked to the bits of interest but that can be done last to reduce instructions.
          */
-        const auto carrylessSum = bitLengthFrequencies ^ partialHistogram;
+        #ifdef SINGLE_COMPRESSED_LUT_ENABLE_EXACT_CHECK
+            const auto carrylessSum = bitLengthFrequencies ^ partialHistogram;
+        #endif
         bitLengthFrequencies = bitLengthFrequencies + partialHistogram;
-        overflowsInSum |= carrylessSum ^ bitLengthFrequencies;
-        overflowsInLUT |= partialHistogram;
+        #ifdef SINGLE_COMPRESSED_LUT_ENABLE_EXACT_CHECK
+            overflowsInSum |= carrylessSum ^ bitLengthFrequencies;
+            overflowsInLUT |= partialHistogram;
+        #endif
     }
 
     /* Ignore non-zero and overflow counts for lookup. */
@@ -380,10 +388,12 @@ checkPrecode( const uint64_t next4Bits,
         return rapidgzip::Error::NONE;
     }
 
-    if ( ( ( overflowsInSum & OVERFLOW_BITS_MASK ) != 0 )
-         || ( ( overflowsInLUT & ( ~Histogram( 0 ) << OVERFLOW_MEMBER_OFFSET ) ) != 0 ) ) {
-        return rapidgzip::Error::INVALID_CODE_LENGTHS;
-    }
+    #ifdef SINGLE_COMPRESSED_LUT_ENABLE_EXACT_CHECK
+        if ( ( ( overflowsInSum & OVERFLOW_BITS_MASK ) != 0 )
+             || ( ( overflowsInLUT & ( ~Histogram( 0 ) << OVERFLOW_MEMBER_OFFSET ) ) != 0 ) ) {
+            return rapidgzip::Error::INVALID_CODE_LENGTHS;
+        }
+    #endif
 
     const auto bitToLookUp = 1ULL << ( histogramToLookUp % 64 );
     constexpr auto INDEX_BIT_COUNT = HISTOGRAM_TO_LOOK_UP_BITS - 6 /* log2 64 = 6 */;

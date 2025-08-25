@@ -752,7 +752,7 @@ toString( CheckPrecodeMethod method )
 }
 
 
-constexpr auto OPTIMAL_CHECK_PRECODE_METHOD = CheckPrecodeMethod::WALK_TREE_COMPRESSED_SINGLE_LUT;
+constexpr auto OPTIMAL_CHECK_PRECODE_METHOD = CheckPrecodeMethod::SINGLE_COMPRESSED_LUT;
 
 
 #if 0
@@ -811,13 +811,16 @@ checkPrecode( const uint64_t next4Bits,
          * only 78 KiB 256 B LUT as opposed to SingleLUT, which requires a 2 MiB LUT.
          * The lookup itself also isn't more expensive because the same bits are now stored in bytes,
          * which avoids a third stage of bit-shifting and masking.
+         * -> Finally similarly fast, although not faster than WALK_TREE_COMPRESSED_SINGLE_LUT by
+         *    avoiding the overflow check in favor of false positives!
+         *    On my notebook, it actually is ~10% faster than WALK_TREE_COMPRESSED_SINGLE_LUT!
          * @verbatim
-         * [13 bits] ( 52.9 <= 54.1 +- 1.1 <= 55.7 ) MB/s
-         * [14 bits] ( 49.6 <= 54.2 +- 2.2 <= 56.2 ) MB/s
-         * [15 bits] ( 51.6 <= 53.7 +- 1.1 <= 55.1 ) MB/s
-         * [16 bits] ( 53.5 <= 55.1 +- 0.6 <= 55.9 ) MB/s
-         * [17 bits] ( 51.7 <= 55.4 +- 1.5 <= 56.6 ) MB/s
-         * [18 bits] ( 54.9 <= 55.9 +- 0.5 <= 56.5 ) MB/s
+         * [13 bits] ( 65.2 <= 70.9 +- 2.5 <= 73.2 ) MB/s
+         * [14 bits] ( 65.4 <= 69.3 +- 2.5 <= 72.7 ) MB/s
+         * [15 bits] ( 65.7 <= 69.4 +- 1.8 <= 71.7 ) MB/s
+         * [16 bits] ( 69.0 <= 70.7 +- 0.9 <= 71.9 ) MB/s
+         * [17 bits] ( 68.0 <= 71.0 +- 1.6 <= 72.6 ) MB/s
+         * [18 bits] ( 60   <= 69   +- 3   <= 72   ) MB/s
          * @endverbatim
          */
         return SingleCompressedLUT::checkPrecode( next4Bits, next57Bits );
@@ -829,12 +832,12 @@ checkPrecode( const uint64_t next4Bits,
          * in case the precode might be valid judging from the first 5 frequency counts.
          * But the overflow checking might add too much more instructions in all cases.
          * @verbatim
-         * [13 bits] ( 53.9 <= 54.9 +- 1.0 <= 56.3 ) MB/s
-         * [14 bits] ( 50.7 <= 53.7 +- 1.5 <= 56.4 ) MB/s
-         * [15 bits] ( 46   <= 54   +- 3   <= 56   ) MB/s
-         * [16 bits] ( 45   <= 51   +- 3   <= 55   ) MB/s
-         * [17 bits] ( 52.2 <= 54.8 +- 1.3 <= 56.3 ) MB/s
-         * [18 bits] ( 39   <= 50   +- 5   <= 54   ) MB/s
+         * [13 bits] ( 66.2 <= 70.0 +- 1.4 <= 71.6 ) MB/s
+         * [14 bits] ( 54   <= 70   +- 6   <= 74   ) MB/s
+         * [15 bits] ( 62.7 <= 70.1 +- 2.7 <= 71.7 ) MB/s
+         * [16 bits] ( 68.1 <= 70.6 +- 1.0 <= 71.5 ) MB/s
+         * [17 bits] ( 69.5 <= 70.0 +- 0.5 <= 71.0 ) MB/s
+         * [18 bits] ( 58   <= 66   +- 3   <= 70   ) MB/s
          * @endverbatim
          */
         return SingleLUT::checkPrecode( next4Bits, next57Bits );
@@ -2137,9 +2140,9 @@ benchmarkLUTSizeAllCheckPrecodeMethods( const BufferedFileReader::AlignedBuffer&
     std::cout << "\n";
     benchmarkLUTSize<CACHED_BIT_COUNT, FIND_METHOD, CPM::WALK_TREE_COMPRESSED_LUT>( buffer );  // ~70 MB/S
     std::cout << "\n";
-    benchmarkLUTSize<CACHED_BIT_COUNT, FIND_METHOD, CPM::SINGLE_LUT>( buffer );  // ~65 MB/s
+    benchmarkLUTSize<CACHED_BIT_COUNT, FIND_METHOD, CPM::SINGLE_LUT>( buffer );  // ~90 MB/s
     std::cout << "\n";
-    benchmarkLUTSize<CACHED_BIT_COUNT, FIND_METHOD, CPM::SINGLE_COMPRESSED_LUT>( buffer );  // ~65 MB/s
+    benchmarkLUTSize<CACHED_BIT_COUNT, FIND_METHOD, CPM::SINGLE_COMPRESSED_LUT>( buffer );  // ~90 MB/s
     std::cout << "\n";
     benchmarkLUTSize<CACHED_BIT_COUNT, FIND_METHOD, CPM::WITHOUT_LUT_USING_ARRAY>( buffer );  // ~45 MB/s
     std::cout << "\n";
@@ -2312,6 +2315,12 @@ main( int    argc,
                 std::cout << "\n";
             #else
                 std::cout << "=== Full test and precode check ===\n\n";
+                benchmarkLUTSize<MAX_CACHED_BIT_COUNT,
+                                 FindDeflateMethod::FULL_CHECK,
+                                 CheckPrecodeMethod::SINGLE_LUT>( data );
+                benchmarkLUTSize<MAX_CACHED_BIT_COUNT,
+                                 FindDeflateMethod::FULL_CHECK,
+                                 CheckPrecodeMethod::SINGLE_COMPRESSED_LUT>( data );
                 benchmarkLUTSize<MAX_CACHED_BIT_COUNT,
                                  FindDeflateMethod::FULL_CHECK,
                                  CheckPrecodeMethod::WALK_TREE_COMPRESSED_SINGLE_LUT_2>( data );

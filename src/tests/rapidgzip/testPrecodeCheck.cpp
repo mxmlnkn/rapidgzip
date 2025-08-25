@@ -224,9 +224,10 @@ testSingleLUTImplementation4Precodes()
     /* And even with 4 values, there is still only one tree that is valid: code lengths: 2, 2, 2, 2. */
     REQUIRE( check4Precodes( 0b010'010'010'010 ) == rapidgzip::Error::NONE );
 
-    /* Too many of the same value overflows the variable-length bit-packed histogram,
-     * which should be detected and yield an error. */
-    REQUIRE( check4Precodes( 0b001'010'001'001 ) != rapidgzip::Error::NONE );
+    /* Too many of the same value overflows the variable-length bit-packed histogram. This was detected in earlier
+     * versions, but the detection is too expensive, so simply depend on the subsequent more strict checks for speed. */
+    //REQUIRE( check4Precodes( 0b001'010'001'001 ) != rapidgzip::Error::NONE );
+    REQUIRE( check4Precodes( 0b001'010'001'001 ) == rapidgzip::Error::NONE );
 }
 
 
@@ -404,6 +405,69 @@ analyzeValidPrecodeFrequencies()
 }
 
 
+template<typename CheckPrecode,
+         typename RandomEngine>
+uint64_t
+testValidPrecodes( const CheckPrecode&                                   checkPrecode,
+                   RandomEngine&                                         randomEngine,
+                   const uint64_t                                        repetitionCount,
+                   const std::string_view                                title,
+                   std::unordered_map<rapidgzip::Error, uint64_t>* const errorCounts = nullptr,
+                   const bool                                            isExact = false )
+{
+    uint64_t validPrecodeCount{ 0 };
+    uint64_t filteredValids{ 0 };  // Precodes that are valid but were filtered erroneously (forbidden!)
+    uint64_t unfilteredInvalids{ 0 };  // Precodes that are invalid but not filtered (allowed)
+    for ( uint64_t i = 0; i < repetitionCount; ++i ) {
+        using namespace rapidgzip::deflate;
+        const auto precodeBits = randomEngine();
+        const auto next4Bits = precodeBits & nLowestBitsSet<uint64_t, 4>();
+        const auto next57Bits = ( precodeBits >> 4U ) & nLowestBitsSet<uint64_t>( MAX_PRECODE_COUNT * PRECODE_BITS );
+
+        const auto error = rapidgzip::PrecodeCheck::WalkTreeLUT::checkPrecode( next4Bits, next57Bits );
+
+        if ( errorCounts != nullptr ) {
+            const auto [count, wasInserted] = errorCounts->try_emplace( error, 1 );
+            if ( !wasInserted ) {
+                count->second++;
+            }
+        }
+
+        const auto isValid = error == rapidgzip::Error::NONE;
+        validPrecodeCount += isValid ? 1 : 0;
+
+        /* Compare ground truth with alternative checkPrecode functions. */
+        const auto alternativeIsValid = checkPrecode( next4Bits, next57Bits ) == rapidgzip::Error::NONE;
+        if ( alternativeIsValid && !isValid ) {
+            ++unfilteredInvalids;
+        }
+        if ( !alternativeIsValid && isValid ) {
+            ++filteredValids;
+            REQUIRE( isValid && alternativeIsValid );
+            const auto codeLengthCount = 4 + next4Bits;
+            std::cerr << "    next 4 bits: " << std::bitset<4>( next4Bits ) << ", next 57 bits: "
+                      << ( next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS ) ) << "\n";
+        }
+    }
+
+    /* Filtered valid precodes are not allowed because we cannot recover from this!
+     * Forgetting to filter some invalid precodes is allowed because there are stronger checks following the
+     * precode check. The precode check was only introduced as a kind of "cache" to speed up those stronger checks! */
+    REQUIRE_EQUAL( filteredValids, uint64_t( 0 ) );
+    if ( isExact ) {
+        REQUIRE_EQUAL( unfilteredInvalids, uint64_t( 0 ) );
+    }
+
+    if ( !title.empty() && unfilteredInvalids ) {
+        std::cout << title << " is inexact. Number of invalid precodes that were not filtered: " << unfilteredInvalids
+                  << " (" << static_cast<double>( unfilteredInvalids ) / static_cast<double>( repetitionCount ) * 100
+                  << " %)\n";
+    }
+
+    return validPrecodeCount;
+}
+
+
 void
 analyzeAndTestValidPrecodes()
 {
@@ -413,51 +477,58 @@ analyzeAndTestValidPrecodes()
      * Actually, the search space is a bit smaller because the 57 bits are the maximum and the actual length
      * depends on the 4 bits. */
     static constexpr uint64_t MONTE_CARLO_TEST_COUNT = 100'000'000;
+    uint64_t alternativesCount{ 0 };
     uint64_t validPrecodeCount{ 0 };
     std::unordered_map<rapidgzip::Error, uint64_t> errorCounts;
-    for ( uint64_t i = 0; i < MONTE_CARLO_TEST_COUNT; ++i ) {
-        using namespace rapidgzip::deflate;
-        const auto precodeBits = randomEngine();
-        const auto next4Bits = precodeBits & nLowestBitsSet<uint64_t, 4>();
-        const auto next57Bits = ( precodeBits >> 4U ) & nLowestBitsSet<uint64_t>( MAX_PRECODE_COUNT * PRECODE_BITS );
 
-        const auto error = rapidgzip::PrecodeCheck::WalkTreeLUT::checkPrecode( next4Bits, next57Bits );
+    /* Compare with alternative checkPrecode functions. */
+    const auto checkExactAlternative =
+        [&] ( const auto&            checkPrecode,
+              const std::string_view title )
+        {
+            validPrecodeCount +=
+                testValidPrecodes( checkPrecode, randomEngine, MONTE_CARLO_TEST_COUNT, title, &errorCounts, true );
+            ++alternativesCount;
+        };
 
-        const auto [count, wasInserted] = errorCounts.try_emplace( error, 1 );
-        if ( !wasInserted ) {
-            count->second++;
-        }
+    /* Titles are basically those in toString( CheckPrecodeMethod ) in benchmarkGzipBlockFinder. */
+    using namespace rapidgzip::PrecodeCheck;
+    checkExactAlternative( WithoutLUT::checkPrecodeUsingArray, "Without LUT" );
+    checkExactAlternative( WithoutLUT::checkPrecode, "Without LUT Using Array" );
 
-        const auto isValid = error == rapidgzip::Error::NONE;
-        validPrecodeCount += isValid ? 1 : 0;
+    const auto checkWithInexactErrorCode =
+        [&] ( const auto&            checkPrecode,
+              const std::string_view title )
+        {
+            testValidPrecodes( checkPrecode, randomEngine, MONTE_CARLO_TEST_COUNT, title, nullptr, true );
+        };
 
-        /* Compare with alternative checkPrecode functions. */
-        const auto checkAlternative =
-            [&] ( const auto& checkPrecode )
-            {
-                const auto alternativeIsValid = checkPrecode( next4Bits, next57Bits ) == rapidgzip::Error::NONE;
-                REQUIRE_EQUAL( isValid, alternativeIsValid );
-                if ( isValid != alternativeIsValid ) {
-                    const auto codeLengthCount = 4 + next4Bits;
-                    std::cerr << "    next 4 bits: " << std::bitset<4>( next4Bits ) << ", next 57 bits: "
-                              << ( next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS ) ) << "\n";
-                }
-            };
+    /* "Walk Tree LUT" is our ground truth, therefore not listed here separately. */
+    checkWithInexactErrorCode( WalkTreeCompressedLUT::checkPrecode<4U, 4U>, "Walk Tree Compressed LUT (4 bins)" );
+    checkWithInexactErrorCode( WalkTreeCompressedLUT::checkPrecode<5U, 16U>, "Walk Tree Compressed LUT (5 bins)" );
+    checkWithInexactErrorCode( WalkTreeCompressedLUT::checkPrecode<6U, 64U>, "Walk Tree Compressed LUT (6 bins)" );
+    checkWithInexactErrorCode( WalkTreeCompressedLUT::checkPrecode<7U, 512U>, "Walk Tree Compressed LUT (all bins)" );
+    checkWithInexactErrorCode( WalkTreeCompressedSingleLUT::checkPrecode<512U>, "Walk Tree Compressed Single LUT" );
 
-        checkAlternative( rapidgzip::PrecodeCheck::WithoutLUT::checkPrecodeUsingArray );
-        checkAlternative( rapidgzip::PrecodeCheck::WithoutLUT::checkPrecode );
-        checkAlternative( rapidgzip::PrecodeCheck::SingleLUT::checkPrecode );
-        checkAlternative( rapidgzip::PrecodeCheck::SingleCompressedLUT::checkPrecode<4U> );
-        checkAlternative( rapidgzip::PrecodeCheck::WalkTreeCompressedLUT::checkPrecode<4U, 4U> );
-        checkAlternative( rapidgzip::PrecodeCheck::WalkTreeCompressedLUT::checkPrecode<5U, 16U> );
-        checkAlternative( rapidgzip::PrecodeCheck::WalkTreeCompressedLUT::checkPrecode<6U, 64U> );
-        checkAlternative( rapidgzip::PrecodeCheck::WalkTreeCompressedLUT::checkPrecode<7U, 512U> );
-        checkAlternative( rapidgzip::PrecodeCheck::WalkTreeCompressedSingleLUT::checkPrecode<512U> );
-    }
+    /* The error code might be inexact (except for Error::NONE) AND it may even forget to miss to filter some invalid
+     * precodes, which need to be filtered by subsequent more strict tests. */
+    const auto checkFuzzyAlternative =
+        [&] ( const auto&            checkPrecode,
+              const std::string_view title )
+        {
+            testValidPrecodes( checkPrecode, randomEngine, MONTE_CARLO_TEST_COUNT, title, nullptr, false );
+        };
+
+    /* Single LUT is inexact. Number of invalid precodes that were not filtered: 368161 (0.368161 %)
+     * Single Compressed LUT is inexact. Number of invalid precodes that were not filtered: 367646 (0.367646 %) */
+    checkFuzzyAlternative( SingleLUT::checkPrecode, "Single LUT" );
+    checkFuzzyAlternative( SingleCompressedLUT::checkPrecode<8U>, "Single Compressed LUT" );
+    std::cerr << "\n";
 
     {
-        std::cerr << "Valid precodes " << validPrecodeCount << " out of " << MONTE_CARLO_TEST_COUNT << " tested -> "
-                  << static_cast<double>( validPrecodeCount ) / static_cast<double>( MONTE_CARLO_TEST_COUNT ) * 100
+        const auto totalCount = alternativesCount * MONTE_CARLO_TEST_COUNT;
+        std::cerr << "Valid precodes " << validPrecodeCount << " out of " << totalCount << " tested -> "
+                  << static_cast<double>( validPrecodeCount ) / static_cast<double>( totalCount ) * 100
                   << " %\n";
 
         std::multimap<uint64_t, rapidgzip::Error, std::greater<> > sortedErrorTypes;
@@ -1056,12 +1127,13 @@ analyzeActualLUTCompression()
     printCompressedPrecodeFrequenciesWTCSLUTSizes<2048U>();  //   8 KiB + 1264 kiB ( 79 subtables) -> 1272 KiB
 
     std::cerr << "\nFull precode code-length histogram Single-LUT two-stage compressed:\n";
-    printCompressedPrecodeFrequenciesSingleLUTSizes<4U>();   // 65536 B + 14592 B (456 subtables) -> 80128 B
-    printCompressedPrecodeFrequenciesSingleLUTSizes<8U>();   // 32768 B + 32768 B (512 subtables) -> 65536 B
-    printCompressedPrecodeFrequenciesSingleLUTSizes<16U>();  // 16384 B + 60416 B (472 subtables) -> 76800 B
-    printCompressedPrecodeFrequenciesSingleLUTSizes<32U>();  // 8192 B + 202752 B (792 subtables) -> 210944 B
-    printCompressedPrecodeFrequenciesSingleLUTSizes<64U>();  // 4096 B + 327680 B (640 subtables) -> 331776 B
-    printCompressedPrecodeFrequenciesSingleLUTSizes<128U>(); // 2048 B + 458752 B (448 subtables) -> 460800 B
+    printCompressedPrecodeFrequenciesSingleLUTSizes<1U>();   // 256 KiB +   1600 B ( 25 subtables) -> 263744 B
+    printCompressedPrecodeFrequenciesSingleLUTSizes<4U>();   //  64 KiB +  14592 B (456 subtables) ->  80128 B
+    printCompressedPrecodeFrequenciesSingleLUTSizes<8U>();   //  32 KiB +  32768 B (512 subtables) ->  65536 B
+    printCompressedPrecodeFrequenciesSingleLUTSizes<16U>();  //  16 KiB +  60416 B (472 subtables) ->  76800 B
+    printCompressedPrecodeFrequenciesSingleLUTSizes<32U>();  //   8 KiB + 202752 B (792 subtables) -> 210944 B
+    printCompressedPrecodeFrequenciesSingleLUTSizes<64U>();  //   4 KiB + 327680 B (640 subtables) -> 331776 B
+    printCompressedPrecodeFrequenciesSingleLUTSizes<128U>(); //   2 KiB + 458752 B (448 subtables) -> 460800 B
 }
 
 
