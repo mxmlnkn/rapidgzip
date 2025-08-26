@@ -11,6 +11,7 @@ target_sources(libblockfinder INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/precodecheck/BruteForceLUT.hpp
     ${CMAKE_CURRENT_LIST_DIR}/precodecheck/SingleCompressedLUT.hpp
     ${CMAKE_CURRENT_LIST_DIR}/precodecheck/SingleCompressedLUTOptimized.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/precodecheck/SingleFuzzyLUT.hpp
     ${CMAKE_CURRENT_LIST_DIR}/precodecheck/SingleLUT.hpp
     ${CMAKE_CURRENT_LIST_DIR}/precodecheck/WalkTreeCompressedLUT.hpp
     ${CMAKE_CURRENT_LIST_DIR}/precodecheck/WalkTreeCompressedSingleLUT.hpp
