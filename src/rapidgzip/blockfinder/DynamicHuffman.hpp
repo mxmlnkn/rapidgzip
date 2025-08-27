@@ -11,11 +11,11 @@
 #include <core/BitManipulation.hpp>
 #include <core/common.hpp>
 #include <core/Error.hpp>
+#include <huffman/HuffmanCodingBase.hpp>
 #include <rapidgzip/gzip/definitions.hpp>
 #include <rapidgzip/gzip/deflate.hpp>
-#include <rapidgzip/huffman/HuffmanCodingCheckOnly.hpp>
 
-#include "precodecheck/WalkTreeCompressedSingleLUT.hpp"
+#include "precodecheck/CountAllocatedLeaves.hpp"
 
 
 namespace rapidgzip::blockfinder
@@ -272,8 +272,7 @@ seekToNonFinalDynamicDeflateBlock( gzip::BitReader& bitReader,
                 const auto next57Bits = ( bitBufferPrecodeBits >> PRECODE_COUNT_BITS )
                                         & nLowestBitsSet<uint64_t, MAX_PRECODE_COUNT * PRECODE_BITS>();
 
-                using rapidgzip::PrecodeCheck::WalkTreeCompressedSingleLUT::checkPrecode;
-                const auto precodeError = checkPrecode( next4Bits, next57Bits );
+                const auto precodeError = PrecodeCheck::CountAllocatedLeaves::checkPrecode( next4Bits, next57Bits );
 
                 if ( UNLIKELY( precodeError == Error::NONE ) ) [[unlikely]] {
                 #ifndef NDEBUG
@@ -314,18 +313,12 @@ seekToNonFinalDynamicDeflateBlock( gzip::BitReader& bitReader,
 
                     /* Check distance code lengths. */
                     if ( UNLIKELY( error == Error::NONE ) ) [[unlikely]] {
-                        HuffmanCodingCheckOnly<uint16_t, MAX_CODE_LENGTH,
-                                               uint8_t, MAX_DISTANCE_SYMBOL_COUNT> distanceHC;
-                        error = distanceHC.initializeFromLengths(
-                            VectorView<uint8_t>( literalCL.data() + literalCodeCount, distanceCodeCount ) );
-                    }
-
-                    /* Check literal code lengths. */
-                    if ( UNLIKELY( error == Error::NONE ) ) [[unlikely]] {
-                        HuffmanCodingCheckOnly<uint16_t, MAX_CODE_LENGTH,
-                                               uint16_t, MAX_LITERAL_HUFFMAN_CODE_COUNT> literalHC;
-                        error = literalHC.initializeFromLengths(
-                            VectorView<uint8_t>( literalCL.data(), literalCodeCount ) );
+                        if ( !checkHuffmanCodeLengths<MAX_CODE_LENGTH>(
+                            VectorView<uint8_t>( literalCL.data() + literalCodeCount, distanceCodeCount ) )
+                            || !checkHuffmanCodeLengths<MAX_CODE_LENGTH>(
+                            VectorView<uint8_t>( literalCL.data(), literalCodeCount ) ) ) {
+                            error = Error::INVALID_CODE_LENGTHS;
+                        }
                     }
 
                     if ( UNLIKELY( error == Error::NONE ) ) [[unlikely]] {

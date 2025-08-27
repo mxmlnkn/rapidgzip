@@ -39,6 +39,7 @@ https://www.ietf.org/rfc/rfc1952.txt
 #include <core/TestHelpers.hpp>
 #include <filereader/Buffered.hpp>
 #include <filereader/Standard.hpp>
+#include <huffman/HuffmanCodingBase.hpp>
 #include <rapidgzip/blockfinder/Bgzf.hpp>
 #include <rapidgzip/blockfinder/DynamicHuffman.hpp>
 #include <rapidgzip/blockfinder/precodecheck/SingleCompressedLUT.hpp>
@@ -52,7 +53,6 @@ https://www.ietf.org/rfc/rfc1952.txt
 #include <rapidgzip/gzip/crc32.hpp>
 #include <rapidgzip/gzip/definitions.hpp>
 #include <rapidgzip/gzip/precode.hpp>
-#include <rapidgzip/huffman/HuffmanCodingCheckOnly.hpp>
 
 
 using namespace rapidgzip;
@@ -723,6 +723,7 @@ countDeflateBlocksPreselectionManualSlidingBuffer( BufferedFileReader::AlignedBu
 
 enum class CheckPrecodeMethod
 {
+    COUNT_ALLOCATED_LEAVES,  // Project each code length into number of leaves taken up at maximum depth
     WITHOUT_LUT,
     WITHOUT_LUT_USING_ARRAY,
     WALK_TREE_LUT,
@@ -742,6 +743,7 @@ toString( CheckPrecodeMethod method )
 {
     switch ( method )
     {
+    case CheckPrecodeMethod::COUNT_ALLOCATED_LEAVES           : return "Count Allocated Leaves";
     case CheckPrecodeMethod::WITHOUT_LUT                      : return "Without LUT";
     case CheckPrecodeMethod::WITHOUT_LUT_USING_ARRAY          : return "Without LUT Using Array";
     case CheckPrecodeMethod::WALK_TREE_LUT                    : return "Walk Tree LUT";
@@ -758,7 +760,7 @@ toString( CheckPrecodeMethod method )
 }
 
 
-constexpr auto OPTIMAL_CHECK_PRECODE_METHOD = CheckPrecodeMethod::SINGLE_COMPRESSED_LUT;
+constexpr auto OPTIMAL_CHECK_PRECODE_METHOD = CheckPrecodeMethod::COUNT_ALLOCATED_LEAVES;
 
 
 #if 0
@@ -810,6 +812,20 @@ checkPrecode( const uint64_t next4Bits,
               const uint64_t next57Bits )
 {
     using namespace rapidgzip::PrecodeCheck;
+
+    if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::COUNT_ALLOCATED_LEAVES ) {
+        /**
+         * @verbatim
+         * [13 bits] ( 79.5 <= 81.9 +- 1.3 <= 83.2 ) MB/s
+         * [14 bits] ( 79.7 <= 81.2 +- 0.6 <= 82.2 ) MB/s
+         * [15 bits] ( 78.3 <= 80.3 +- 1.3 <= 82.4 ) MB/s
+         * [16 bits] ( 76.9 <= 78.1 +- 1.2 <= 80.7 ) MB/s
+         * [17 bits] ( 77.0 <= 79.5 +- 1.9 <= 81.9 ) MB/s
+         * [18 bits] ( 74.1 <= 77.3 +- 1.5 <= 78.7 ) MB/s
+         * @endverbatim
+         */
+        return CountAllocatedLeaves::checkPrecode( next4Bits, next57Bits );
+    }
 
     if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_FUZZY_LUT ) {
         /**
@@ -1181,19 +1197,15 @@ checkDeflateBlock( const uint64_t   bitBufferForLUT,
     }
 
     /* Check distance code lengths. */
-    HuffmanCodingCheckOnly<uint16_t, MAX_CODE_LENGTH,
-                           uint8_t, MAX_DISTANCE_SYMBOL_COUNT> distanceHC;
-    error = distanceHC.initializeFromLengths(
-        VectorView<uint8_t>( literalCL.data() + literalCodeCount, distanceCodeCount ) );
-
-    if ( LIKELY( error != Error::NONE ) ) [[likely]] {
-        return error;
+    if ( LIKELY( !checkHuffmanCodeLengths<MAX_CODE_LENGTH>(
+        VectorView<uint8_t>( literalCL.data() + literalCodeCount, distanceCodeCount ) ) ) ) [[likely]] {
+        return Error::INVALID_CODE_LENGTHS;
     }
 
     /* Check literal code lengths. */
-    HuffmanCodingCheckOnly<uint16_t, MAX_CODE_LENGTH,
-                           uint16_t, MAX_LITERAL_HUFFMAN_CODE_COUNT> literalHC;
-    error = literalHC.initializeFromLengths( VectorView<uint8_t>( literalCL.data(), literalCodeCount ) );
+    if ( !checkHuffmanCodeLengths<MAX_CODE_LENGTH>( VectorView<uint8_t>( literalCL.data(), literalCodeCount ) ) ) {
+        error = Error::INVALID_CODE_LENGTHS;
+    }
 
 #ifndef NDEBUG
     if ( oldTell != bitReader.tell() ) {
@@ -1571,6 +1583,8 @@ findDeflateBlocksRapidgzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
                     error = WithoutLUT::checkPrecodeUsingArray( next4Bits, next57Bits );
                 } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WITHOUT_LUT ) {
                     error = WithoutLUT::checkPrecode( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::COUNT_ALLOCATED_LEAVES ) {
+                    error = CountAllocatedLeaves::checkPrecode( next4Bits, next57Bits );
                 } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::VALID_HISTOGRAMS_LUT ) {
                     throw std::logic_error( "Not supported" );
                 }
@@ -1671,6 +1685,8 @@ findDeflateBlocksRapidgzipLUTTwoPassWithPrecode( BufferedFileReader::AlignedBuff
                     precodeError = WithoutLUT::checkPrecodeUsingArray( next4Bits, next57Bits );
                 } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WITHOUT_LUT ) {
                     precodeError = WithoutLUT::checkPrecode( next4Bits, next57Bits );
+                } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::COUNT_ALLOCATED_LEAVES ) {
+                    precodeError = CountAllocatedLeaves::checkPrecode( next4Bits, next57Bits );
                 } else if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::VALID_HISTOGRAMS_LUT ) {
                     throw std::logic_error( "Not supported" );
                 }
@@ -2194,6 +2210,8 @@ benchmarkLUTSizeAllCheckPrecodeMethods( const BufferedFileReader::AlignedBuffer&
     std::cout << "\n";
     benchmarkLUTSize<CACHED_BIT_COUNT, FIND_METHOD, CPM::WITHOUT_LUT>( buffer );  // ~45 MB/s
     std::cout << "\n";
+    benchmarkLUTSize<CACHED_BIT_COUNT, FIND_METHOD, CPM::COUNT_ALLOCATED_LEAVES>( buffer );  // ~90 MB/s
+    std::cout << "\n";
 }
 
 
@@ -2367,7 +2385,7 @@ main( int    argc,
                 std::cout << "=== Full test and precode check ===\n\n";
                 benchmarkLUTSize<MAX_CACHED_BIT_COUNT,
                                  FindDeflateMethod::FULL_CHECK,
-                                 CheckPrecodeMethod::SINGLE_FUZZY_LUT>( data );
+                                 CheckPrecodeMethod::COUNT_ALLOCATED_LEAVES>( data );
                 benchmarkLUTSize<MAX_CACHED_BIT_COUNT,
                                  FindDeflateMethod::FULL_CHECK,
                                  CheckPrecodeMethod::SINGLE_LUT>( data );

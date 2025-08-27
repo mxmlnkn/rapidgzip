@@ -211,4 +211,27 @@ protected:
     /** Only indexes [0, m_maxCodeLength - m_minCodeLength) contain valid data! */
     std::array<HuffmanCode, MAX_CODE_LENGTH + 1> m_minimumCodeValuesPerLevel{};
 };
+
+
+template<uint8_t  MAX_CODE_LENGTH,
+         typename CodeLengths>
+[[nodiscard]] constexpr bool
+checkHuffmanCodeLengths( const CodeLengths& codeLengths )
+{
+    size_t virtualLeafCount{ 0 };
+    for ( const auto codeLength : codeLengths ) {
+        virtualLeafCount += codeLength > 0 ? 1U << ( MAX_CODE_LENGTH - codeLength ) : 0U;
+    }
+
+    if ( virtualLeafCount == ( 1U << ( MAX_CODE_LENGTH - 1U ) ) ) {
+        size_t greaterThanOne{ 0 };
+        for ( const auto codeLength : codeLengths ) {
+            if ( codeLength > 1 ) {
+                ++greaterThanOne;
+            }
+        }
+        return greaterThanOne == 0;
+    }
+    return virtualLeafCount == ( 1U << MAX_CODE_LENGTH );
+}
 }  // namespace rapidgzip

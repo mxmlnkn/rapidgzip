@@ -7,11 +7,10 @@
 #include <core/common.hpp>                  // forceinline
 #include <core/Error.hpp>
 #include <core/VectorView.hpp>
+#include <huffman/HuffmanCodingBase.hpp>
 #include <rapidgzip/gzip/definitions.hpp>   // BitReader
 
 #include <igzip_lib.h>
-
-#include "HuffmanCodingCheckOnly.hpp"
 
 
 namespace rapidgzip::deflate
@@ -39,8 +38,7 @@ public:
     [[nodiscard]] Error
     initializeFromLengths( const VectorView<uint8_t>& codeLengths )
     {
-        HuffmanCodingCheckOnly<uint16_t, MAX_CODE_LENGTH, uint16_t, MAX_LITERAL_HUFFMAN_CODE_COUNT> huffmanCheck;
-        m_error = huffmanCheck.initializeFromLengths( codeLengths );
+        m_error = checkHuffmanCodeLengths<MAX_CODE_LENGTH>( codeLengths ) ? Error::NONE : Error::INVALID_CODE_LENGTHS;
 
         std::array<huff_code, LIT_LEN_ELEMS> lit_and_dist_huff{};
         std::array<uint16_t, MAX_LIT_LEN_COUNT> lit_count{};
