@@ -150,7 +150,7 @@ static const auto PRECODE_FREQUENCIES_VALID_LUT_TWO_STAGES =
          * Without proper fast PEXT instruction support, it can get quite expensive to bit-compress the histogram
          * further. However, especially the last bits are juicy, even more so because we are doing shifts already
          * anyway to access the bit mask! Namely, the lowest 3 bits are used to access the uint8_t.
-         * Only the lowest 2 bits can be something else then 0, but oh well, at least we can get rid of bit 4 and 5
+         * Only the lowest 2 bits can be something else than 0, but oh well, at least we can get rid of bit 4 and 5
          * for free!
          *                      2 bits we can remove for free (no additional bitwise instructions)
          *                                            ++

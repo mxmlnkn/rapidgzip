@@ -123,7 +123,7 @@ createPrecodeFrequenciesValidLUT()
 
     std::array<uint64_t, ( 1ULL << uint16_t( FREQUENCY_BITS * FREQUENCY_COUNT ) ) / 64U> result{};
     const auto processValidHistogram =
-        [&result] ( CompressedHistogram histogramToSetValid ) constexpr {
+        [&result] ( auto histogramToSetValid ) constexpr {
             result[histogramToSetValid / 64U] |= CompressedHistogram( 1 ) << ( histogramToSetValid % 64U );
         };
 
