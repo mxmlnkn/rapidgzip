@@ -667,7 +667,7 @@ countDeflateBlocksPreselection( BufferedFileReader::AlignedBuffer data )
             }
 
             ++candidateCount;
-            ++offset;
+            offset += -nextPosition;
         } catch ( const gzip::BitReader::EndOfFileReached& ) {
             /* This might happen when calling readDynamicHuffmanCoding quite some bytes before the end! */
             break;
@@ -703,8 +703,8 @@ countDeflateBlocksPreselectionManualSlidingBuffer( BufferedFileReader::AlignedBu
              * Therefore, rechecking the LUT for non-zero skips not only ensures that we aren't wasting time in
              * readHeader but it also ensures that we can avoid checking the first three bits again inside readHeader
              * and instead start reading and checking the dynamic Huffman code directly! */
-            if ( nextPosition == 0 ) {
-                nextPosition = 1;
+            if ( nextPosition <= 0 ) {
+                nextPosition = -nextPosition;
                 ++candidateCount;
             }
 
@@ -816,12 +816,12 @@ checkPrecode( const uint64_t next4Bits,
     if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::COUNT_ALLOCATED_LEAVES ) {
         /**
          * @verbatim
-         * [13 bits] ( 79.5 <= 81.9 +- 1.3 <= 83.2 ) MB/s
-         * [14 bits] ( 79.7 <= 81.2 +- 0.6 <= 82.2 ) MB/s
-         * [15 bits] ( 78.3 <= 80.3 +- 1.3 <= 82.4 ) MB/s
-         * [16 bits] ( 76.9 <= 78.1 +- 1.2 <= 80.7 ) MB/s
-         * [17 bits] ( 77.0 <= 79.5 +- 1.9 <= 81.9 ) MB/s
-         * [18 bits] ( 74.1 <= 77.3 +- 1.5 <= 78.7 ) MB/s
+         * [13 bits] ( 87.7 <= 88.2 +- 0.4 <= 89.0 ) MB/s
+         * [14 bits] ( 86.9 <= 89.5 +- 1.0 <= 90.8 ) MB/s
+         * [15 bits] ( 90.9 <= 92.0 +- 0.5 <= 92.5 ) MB/s
+         * [16 bits] ( 88.8 <= 90.8 +- 0.9 <= 91.9 ) MB/s
+         * [17 bits] ( 87.1 <= 90.2 +- 1.5 <= 92.2 ) MB/s
+         * [18 bits] ( 86.5 <= 89.2 +- 1.6 <= 91.9 ) MB/s
          * @endverbatim
          */
         return CountAllocatedLeaves::checkPrecode( next4Bits, next57Bits );
@@ -830,12 +830,12 @@ checkPrecode( const uint64_t next4Bits,
     if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_FUZZY_LUT ) {
         /**
          * @verbatim
-         * [13 bits] ( 44.5 <= 50.2 +- 2.9 <= 53.1 ) MB/s
-         * [14 bits] ( 49.4 <= 50.2 +- 0.6 <= 51.1 ) MB/s
-         * [15 bits] ( 35   <= 46   +- 6   <= 50   ) MB/s
-         * [16 bits] ( 45.7 <= 51.5 +- 2.2 <= 52.9 ) MB/s
-         * [17 bits] ( 43   <= 50   +- 4   <= 53   ) MB/s
-         * [18 bits] ( 47.5 <= 49.1 +- 0.8 <= 50.6 ) MB/s
+         * [13 bits] ( 56.5 <= 58.0 +- 0.8 <= 58.9 ) MB/s
+         * [14 bits] ( 47   <= 56   +- 3   <= 58   ) MB/s
+         * [15 bits] ( 51.6 <= 57.0 +- 2.0 <= 58.4 ) MB/s
+         * [16 bits] ( 54.2 <= 57.8 +- 1.7 <= 59.6 ) MB/s
+         * [17 bits] ( 55.1 <= 56.9 +- 1.0 <= 58.7 ) MB/s
+         * [18 bits] ( 52.9 <= 55.4 +- 1.0 <= 56.4 ) MB/s
          * @endverbatim
          */
         return SingleFuzzyLUT::checkPrecode( next4Bits, next57Bits );
@@ -844,12 +844,12 @@ checkPrecode( const uint64_t next4Bits,
     if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::SINGLE_COMPRESSED_LUT_2 ) {
         /**
          * @verbatim
-         * [13 bits] ( 65.3 <= 70.8 +- 2.1 <= 72.6 ) MB/s
-         * [14 bits] ( 71.1 <= 72.4 +- 0.9 <= 73.3 ) MB/s
-         * [15 bits] ( 67.7 <= 70.1 +- 0.9 <= 70.8 ) MB/s
-         * [16 bits] ( 68.0 <= 69.0 +- 1.1 <= 71.1 ) MB/s
-         * [17 bits] ( 63.5 <= 70.4 +- 2.6 <= 72.9 ) MB/s
-         * [18 bits] ( 64.6 <= 66.1 +- 1.0 <= 67.5 ) MB/s
+         * [13 bits] ( 78.0 <= 80.3 +- 1.1 <= 81.7 ) MB/s
+         * [14 bits] ( 69   <= 74   +- 3   <= 80   ) MB/s
+         * [15 bits] ( 75.2 <= 77.7 +- 1.3 <= 79.3 ) MB/s
+         * [16 bits] ( 77.7 <= 79.7 +- 1.0 <= 81.0 ) MB/s
+         * [17 bits] ( 76.5 <= 80.8 +- 2.2 <= 83.7 ) MB/s
+         * [18 bits] ( 81.2 <= 82.3 +- 0.8 <= 84.1 ) MB/s
          * @endverbatim
          */
         return SingleCompressedLUTOptimized::checkPrecode( next4Bits, next57Bits );
@@ -865,12 +865,12 @@ checkPrecode( const uint64_t next4Bits,
          *    avoiding the overflow check in favor of false positives!
          *    On my notebook, it actually is ~10% faster than WALK_TREE_COMPRESSED_SINGLE_LUT!
          * @verbatim
-         * [13 bits] ( 65.2 <= 70.9 +- 2.5 <= 73.2 ) MB/s
-         * [14 bits] ( 65.4 <= 69.3 +- 2.5 <= 72.7 ) MB/s
-         * [15 bits] ( 65.7 <= 69.4 +- 1.8 <= 71.7 ) MB/s
-         * [16 bits] ( 69.0 <= 70.7 +- 0.9 <= 71.9 ) MB/s
-         * [17 bits] ( 68.0 <= 71.0 +- 1.6 <= 72.6 ) MB/s
-         * [18 bits] ( 60   <= 69   +- 3   <= 72   ) MB/s
+         * [13 bits] ( 76.1 <= 77.5 +- 1.3 <= 79.9 ) MB/s
+         * [14 bits] ( 79.8 <= 80.4 +- 0.3 <= 80.8 ) MB/s
+         * [15 bits] ( 78.8 <= 80.8 +- 1.4 <= 82.7 ) MB/s
+         * [16 bits] ( 78.8 <= 80.5 +- 0.8 <= 81.7 ) MB/s
+         * [17 bits] ( 72   <= 82   +- 4   <= 85   ) MB/s
+         * [18 bits] ( 80.0 <= 81.5 +- 1.2 <= 83.5 ) MB/s
          * @endverbatim
          */
         return SingleCompressedLUT::checkPrecode( next4Bits, next57Bits );
@@ -882,12 +882,12 @@ checkPrecode( const uint64_t next4Bits,
          * in case the precode might be valid judging from the first 5 frequency counts.
          * But the overflow checking might add too much more instructions in all cases.
          * @verbatim
-         * [13 bits] ( 66.2 <= 70.0 +- 1.4 <= 71.6 ) MB/s
-         * [14 bits] ( 54   <= 70   +- 6   <= 74   ) MB/s
-         * [15 bits] ( 62.7 <= 70.1 +- 2.7 <= 71.7 ) MB/s
-         * [16 bits] ( 68.1 <= 70.6 +- 1.0 <= 71.5 ) MB/s
-         * [17 bits] ( 69.5 <= 70.0 +- 0.5 <= 71.0 ) MB/s
-         * [18 bits] ( 58   <= 66   +- 3   <= 70   ) MB/s
+         * [13 bits] ( 73.8 <= 79.3 +- 2.4 <= 81.5 ) MB/s
+         * [14 bits] ( 77.9 <= 80.0 +- 1.4 <= 82.4 ) MB/s
+         * [15 bits] ( 75.8 <= 78.8 +- 1.7 <= 80.4 ) MB/s
+         * [16 bits] ( 79.0 <= 80.1 +- 0.6 <= 81.0 ) MB/s
+         * [17 bits] ( 80.4 <= 82.0 +- 1.5 <= 84.2 ) MB/s
+         * [18 bits] ( 74   <= 80   +- 3   <= 83   ) MB/s
          * @endverbatim
          */
         return SingleLUT::checkPrecode( next4Bits, next57Bits );
@@ -896,12 +896,12 @@ checkPrecode( const uint64_t next4Bits,
     if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_COMPRESSED_LUT ) {
         /**
          * @verbatim
-         * [13 bits] ( 65.2 <= 66.3 +- 0.4 <= 66.7 ) MB/s
-         * [14 bits] ( 60.3 <= 64.7 +- 1.8 <= 65.8 ) MB/s
-         * [15 bits] ( 61.9 <= 63.4 +- 1.6 <= 65.6 ) MB/s
-         * [16 bits] ( 62.6 <= 63.4 +- 0.5 <= 64.3 ) MB/s
-         * [17 bits] ( 63.6 <= 65.3 +- 1.0 <= 66.7 ) MB/s
-         * [18 bits] ( 63.3 <= 64.9 +- 0.8 <= 65.9 ) MB/s
+         * [13 bits] ( 63.6 <= 67.4 +- 1.9 <= 68.6 ) MB/s
+         * [14 bits] ( 53   <= 67   +- 5   <= 69   ) MB/s
+         * [15 bits] ( 57   <= 67   +- 3   <= 70   ) MB/s
+         * [16 bits] ( 63.1 <= 67.1 +- 2.1 <= 69.4 ) MB/s
+         * [17 bits] ( 54   <= 67   +- 5   <= 70   ) MB/s
+         * [18 bits] ( 62.0 <= 68.0 +- 2.9 <= 70.9 ) MB/s
          * @endverbatim
          */
         /* Size-optimal parameter combinations: (5, 16), (6, 64), (7, 512) */
@@ -914,12 +914,12 @@ checkPrecode( const uint64_t next4Bits,
     if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_COMPRESSED_SINGLE_LUT ) {
         /**
          * @verbatim
-         * [13 bits] ( 69.1 <= 70.9 +- 1.4 <= 73.1 ) MB/s
-         * [14 bits] ( 66.0 <= 68.3 +- 1.1 <= 70.1 ) MB/s
-         * [15 bits] ( 68.9 <= 70.0 +- 0.9 <= 71.9 ) MB/s
-         * [16 bits] ( 70.7 <= 72.5 +- 0.8 <= 73.4 ) MB/s
-         * [17 bits] ( 69.4 <= 72.0 +- 1.7 <= 73.7 ) MB/s
-         * [18 bits] ( 67.7 <= 70.3 +- 1.3 <= 71.3 ) MB/s
+         * [13 bits] ( 68.6 <= 76.8 +- 2.9 <= 78.1 ) MB/s
+         * [14 bits] ( 79.3 <= 80.6 +- 0.6 <= 81.4 ) MB/s
+         * [15 bits] ( 56   <= 76   +- 11  <= 84   ) MB/s
+         * [16 bits] ( 82.5 <= 85.4 +- 1.1 <= 86.4 ) MB/s
+         * [17 bits] ( 83.5 <= 85.4 +- 1.1 <= 87.1 ) MB/s
+         * [18 bits] ( 80.6 <= 82.0 +- 0.9 <= 83.1 ) MB/s
          * @endverbatim
          */
         /* Size-optimal parameter combinations: (5, 16), (6, 64), (7, 512) */
@@ -932,12 +932,12 @@ checkPrecode( const uint64_t next4Bits,
     if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WALK_TREE_COMPRESSED_SINGLE_LUT_2 ) {
         /**
          * @verbatim
-         * [13 bits, chunk count 128] ( 71.4 <= 73.5 +- 1.0 <= 74.5 ) MB/s
-         * [14 bits, chunk count 128] ( 72.5 <= 73.0 +- 0.5 <= 73.6 ) MB/s
-         * [15 bits, chunk count 128] ( 68.9 <= 71.8 +- 1.1 <= 72.6 ) MB/s
-         * [16 bits, chunk count 128] ( 69.8 <= 70.9 +- 1.1 <= 73.1 ) MB/s
-         * [17 bits, chunk count 128] ( 66.7 <= 71.0 +- 2.2 <= 74.3 ) MB/s
-         * [18 bits, chunk count 128] ( 68.6 <= 71.4 +- 1.0 <= 72.0 ) MB/s
+         * [13 bits] ( 74.3 <= 77.8 +- 2.0 <= 79.9 ) MB/s
+         * [14 bits] ( 69.4 <= 72.9 +- 1.4 <= 74.2 ) MB/s
+         * [15 bits] ( 69.4 <= 74.8 +- 2.1 <= 76.6 ) MB/s
+         * [16 bits] ( 77.4 <= 78.3 +- 0.7 <= 79.4 ) MB/s
+         * [17 bits] ( 79.0 <= 79.9 +- 0.7 <= 80.7 ) MB/s
+         * [18 bits] ( 70.7 <= 77.7 +- 2.6 <= 79.4 ) MB/s
          * @endverbatim
          */
         return WalkTreeCompressedSingleLUT::checkPrecode( next4Bits, next57Bits );
@@ -954,12 +954,12 @@ checkPrecode( const uint64_t next4Bits,
          *       algorithm to skip a temporary creation of the 128 MiB table, especially if I want
          *       to have it constexpr.
          * @verbatim
-         * [13 bits] ( 65.3 <= 66.3 +- 0.5 <= 66.7 ) MB/s
-         * [14 bits] ( 62.3 <= 63.8 +- 1.6 <= 66.6 ) MB/s
-         * [15 bits] ( 62.3 <= 64.6 +- 1.1 <= 66.1 ) MB/s
-         * [16 bits] ( 62.5 <= 64.8 +- 1.4 <= 66.0 ) MB/s
-         * [17 bits] ( 64.3 <= 65.7 +- 0.7 <= 66.5 ) MB/s
-         * [18 bits] ( 63.3 <= 64.1 +- 0.3 <= 64.4 ) MB/s
+         * [13 bits] ( 63.0 <= 67.2 +- 1.9 <= 68.8 ) MB/s
+         * [14 bits] ( 68.6 <= 71.2 +- 1.6 <= 73.5 ) MB/s
+         * [15 bits] ( 66.6 <= 69.3 +- 2.0 <= 72.3 ) MB/s
+         * [16 bits] ( 71.4 <= 73.3 +- 1.4 <= 75.3 ) MB/s
+         * [17 bits] ( 71.5 <= 74.7 +- 1.4 <= 76.0 ) MB/s
+         * [18 bits] ( 67.8 <= 69.7 +- 0.7 <= 70.4 ) MB/s
          * @endverbatim
          */
         return WalkTreeLUT::checkPrecode( next4Bits, next57Bits );
@@ -968,12 +968,12 @@ checkPrecode( const uint64_t next4Bits,
     if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WITHOUT_LUT_USING_ARRAY ) {
         /**
          * @verbatim
-         * [13 bits] ( 38.3  <= 39.1  +- 0.8  <= 40.6  ) MB/s
-         * [14 bits] ( 40.63 <= 41.05 +- 0.22 <= 41.23 ) MB/s
-         * [15 bits] ( 39.3  <= 39.9  +- 0.5  <= 41.1  ) MB/s
-         * [16 bits] ( 35.4  <= 38.7  +- 1.2  <= 39.5  ) MB/s
-         * [17 bits] ( 37.8  <= 39.0  +- 0.9  <= 40.0  ) MB/s
-         * [18 bits] ( 37.9  <= 38.3  +- 0.6  <= 39.8  ) MB/s
+         * [13 bits] ( 41.0 <= 41.8 +- 0.7 <= 42.7 ) MB/s
+         * [14 bits] ( 33.0 <= 40.1 +- 2.6 <= 41.6 ) MB/s
+         * [15 bits] ( 39.8 <= 41.4 +- 0.8 <= 42.1 ) MB/s
+         * [16 bits] ( 40.6 <= 41.8 +- 0.8 <= 43.1 ) MB/s
+         * [17 bits] ( 42.2 <= 43.0 +- 0.5 <= 43.7 ) MB/s
+         * [18 bits] ( 41.6 <= 42.5 +- 0.4 <= 43.0 ) MB/s
          * @endverbatim
          */
         return WithoutLUT::checkPrecodeUsingArray( next4Bits, next57Bits );
@@ -982,12 +982,12 @@ checkPrecode( const uint64_t next4Bits,
     if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::WITHOUT_LUT ) {
         /**
          * @verbatim
-         * [13 bits] ( 36.3 <= 37.2 +- 0.5 <= 37.9 ) MB/s
-         * [14 bits] ( 37.9 <= 38.5 +- 0.3 <= 38.8 ) MB/s
-         * [15 bits] ( 37.9 <= 38.7 +- 0.5 <= 39.1 ) MB/s
-         * [16 bits] ( 36.6 <= 37.8 +- 0.6 <= 38.6 ) MB/s
-         * [17 bits] ( 34.0 <= 34.7 +- 0.6 <= 36.1 ) MB/s
-         * [18 bits] ( 35.5 <= 37.4 +- 0.9 <= 38.3 ) MB/s
+         * [13 bits] ( 36.5  <= 37.2  +- 0.7  <= 38.3  ) MB/s
+         * [14 bits] ( 38.36 <= 38.80 +- 0.22 <= 39.08 ) MB/s
+         * [15 bits] ( 37.7  <= 38.3  +- 0.7  <= 39.4  ) MB/s
+         * [16 bits] ( 38.1  <= 38.7  +- 0.6  <= 39.7  ) MB/s
+         * [17 bits] ( 37.6  <= 38.8  +- 0.6  <= 39.8  ) MB/s
+         * [18 bits] ( 37.6  <= 38.4  +- 0.7  <= 39.5  ) MB/s
          * @endverbatim
          */
         return WithoutLUT::checkPrecode( next4Bits, next57Bits );
@@ -1094,12 +1094,12 @@ checkDeflateBlock( const uint64_t   bitBufferForLUT,
     if constexpr ( CHECK_PRECODE_METHOD == CheckPrecodeMethod::VALID_HISTOGRAMS_LUT ) {
         /**
          * @verbatim
-         * [13 bits] ( 51.3 <= 52.8 +- 0.9 <= 54.4 ) MB/s
-         * [14 bits] ( 45.1 <= 52.4 +- 2.9 <= 54.4 ) MB/s
-         * [15 bits] ( 46.7 <= 51.6 +- 2.0 <= 54.0 ) MB/s
-         * [16 bits] ( 51.2 <= 53.7 +- 1.1 <= 54.5 ) MB/s
-         * [17 bits] ( 50.5 <= 55.3 +- 2.0 <= 57.3 ) MB/s
-         * [18 bits] ( 53.0 <= 54.6 +- 0.8 <= 55.3 ) MB/s
+         * [13 bits] ( 55.75 <= 56.11 +- 0.27 <= 56.51 ) MB/s
+         * [14 bits] ( 56.4  <= 58.1  +- 0.9  <= 58.9  ) MB/s
+         * [15 bits] ( 56.6  <= 57.1  +- 0.7  <= 58.8  ) MB/s
+         * [16 bits] ( 56.0  <= 57.3  +- 0.7  <= 57.8  ) MB/s
+         * [17 bits] ( 57.2  <= 58.3  +- 0.6  <= 59.0  ) MB/s
+         * [18 bits] ( 57.9  <= 60.0  +- 1.3  <= 61.2  ) MB/s
          * @endverbatim
          */
         const auto codeLengthCount = 4 + next4Bits;
@@ -1266,8 +1266,8 @@ findDeflateBlocksRapidgzipLUT( BufferedFileReader::AlignedBuffer data )
              * Therefore, rechecking the LUT for non-zero skips not only ensures that we aren't wasting time in
              * readHeader but it also ensures that we can avoid checking the first three bits again inside readHeader
              * and instead start reading and checking the dynamic Huffman code directly! */
-            if ( nextPosition == 0 ) {
-                nextPosition = 1;
+            if ( nextPosition <= 0 ) {
+                nextPosition = -nextPosition;
 
                 const auto error = checkDeflateBlock<CHECK_PRECODE_METHOD>( bitBufferForLUT, bitBufferPrecodeBits,
                                                                             offset, bitReader );
@@ -1366,12 +1366,12 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
             }
 
             if ( error != rapidgzip::Error::NONE ) {
-                ++offset;
+                offset += -nextPosition;
                 continue;
             }
 
             bitOffsets.push_back( offset );
-            ++offset;
+            offset += -nextPosition;
         } catch ( const gzip::BitReader::EndOfFileReached& ) {
             /* This might happen when calling readDynamicHuffmanCoding quite some bytes before the end! */
             break;
@@ -1525,10 +1525,10 @@ findDeflateBlocksRapidgzipLUTTwoPass( BufferedFileReader::AlignedBuffer data )
     for ( size_t offset = 0; offset <= nBitsToTest; ) {
         try {
             const auto nextPosition = LUT[bitReader.peek<CACHED_BIT_COUNT>()];
-            if ( nextPosition == 0 ) {
+            if ( nextPosition <= 0 ) {
                 bitOffsetCandidates.push_back( offset );
-                ++offset;
-                bitReader.seekAfterPeek( 1 );
+                offset += -nextPosition;
+                bitReader.seekAfterPeek( -nextPosition );
             } else {
                 offset += nextPosition;
                 bitReader.seekAfterPeek( nextPosition );
@@ -1656,8 +1656,8 @@ findDeflateBlocksRapidgzipLUTTwoPassWithPrecode( BufferedFileReader::AlignedBuff
     try {
         for ( size_t offset = oldOffset; offset <= nBitsToTest; ) {
             auto nextPosition = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<CACHED_BIT_COUNT>[bitBufferForLUT];
-            if ( nextPosition == 0 ) {
-                nextPosition = 1;
+            if ( nextPosition <= 0 ) {
+                nextPosition = -nextPosition;
 
                 const auto next4Bits = bitBufferPrecodeBits & nLowestBitsSet<uint64_t, PRECODE_COUNT_BITS>();
                 const auto next57Bits = ( bitBufferPrecodeBits >> PRECODE_COUNT_BITS )
@@ -2228,7 +2228,7 @@ analyzeDeflateJumpLUT()
               << formatBytes( LUT.size() * sizeof( LUT[0] ) ) << " with the following jump distance distribution:\n";
     std::map<uint32_t, uint64_t> jumpFrequencies;
     for ( const auto x : LUT ) {
-        jumpFrequencies[x]++;
+        jumpFrequencies[std::abs( x )]++;
     }
     for ( const auto& [distance, count] : jumpFrequencies ) {
         if ( count > 0 ) {
@@ -2252,8 +2252,6 @@ printLUTSizes()
               << formatBytes( sizeof( deflate::precode::VALID_HUFFMAN_CODINGS ) ) << "\n";
     std::cerr << "CRC32LookupTable                          : " << sizeof( CRC32_TABLE ) << "\n";  // 1 KiB
     std::cerr << "CRC32_SLICE_BY_N_LUT                      : " << sizeof( CRC32_SLICE_BY_N_LUT ) << "\n";  // 64 KiB
-    std::cerr << "NEXT_DEFLATE_CANDIDATE_LUTS_UP_TO_13_BITS : "  // 16 KiB
-              << formatBytes( sizeof( blockfinder::NEXT_DEFLATE_CANDIDATE_LUTS_UP_TO_13_BITS ) ) << "\n";
     std::cerr << "NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<"
               << static_cast<int>( blockfinder::OPTIMAL_NEXT_DEFLATE_LUT_SIZE ) << ">    : "  // 16 KiB
               << formatBytes( sizeof(

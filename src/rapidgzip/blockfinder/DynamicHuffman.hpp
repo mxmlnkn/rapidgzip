@@ -98,48 +98,6 @@ nextDeflateCandidate( uint32_t bits )
 }
 
 
-#if defined( LIBRAPIDGZIP_RECURSIVE_COMPILE_TIME_NEXT_DYNAMIC_DEFLATE_CANDIDATE )
-
-
-template<uint8_t CACHED_BIT_COUNT,
-         uint8_t MAX_CACHED_BIT_COUNT = CACHED_BIT_COUNT>
-constexpr void
-initializeMergedNextDeflateLUTs( std::array<uint8_t, ( 1ULL << MAX_CACHED_BIT_COUNT ) * 2ULL>& lut )
-{
-    constexpr auto size = 1U << CACHED_BIT_COUNT;
-    constexpr auto offset = size;
-    for ( uint32_t i = 0; i < size; ++i ) {
-        lut[offset + i] = nextDeflateCandidate<CACHED_BIT_COUNT>( i );
-    }
-
-    if constexpr ( CACHED_BIT_COUNT > 1 ) {
-        initializeMergedNextDeflateLUTs<CACHED_BIT_COUNT - 1, MAX_CACHED_BIT_COUNT>( lut );
-    }
-}
-
-
-/**
- * Contains LUTs for all CACHED_BIT_COUNT in [1,13].
- * They are packed into the array like this: [+ ++ ++++ ++++++++], i.e.,
- * - at offset 2 is a the 2-element LUT for CACHED_BIT_COUNT == 1
- * - at offset 4 is a the 4-element LUT for CACHED_BIT_COUNT == 2
- * - at offset 8 is a the 8-element LUT for CACHED_BIT_COUNT == 3
- * - ...
- * - at offset 2^CACHED_BIT_COUNT is a the 2^CACHED_BIT_COUNT-element LUT for CACHED_BIT_COUNT
- * Size: 16 KiB
- */
-static constexpr auto NEXT_DEFLATE_CANDIDATE_LUTS_UP_TO_13_BITS =
-    [] ()
-    {
-        std::array<uint8_t, ( 1ULL << MAX_EVALUATED_BITS ) * 2ULL> result{};
-        initializeMergedNextDeflateLUTs<MAX_EVALUATED_BITS>( result );
-        return result;
-    }();
-
-
-#endif
-
-
 /**
  * @note Using larger result types has no measurable difference, e.g., explained by easier access on 64-bit systems.
  *       But, it increases cache usage, so keep using the 8-bit result type.
@@ -155,44 +113,13 @@ template<uint8_t CACHED_BIT_COUNT>
 constexpr auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT =
     [] ()
     {
-        std::array<uint8_t, 1U << CACHED_BIT_COUNT> result{};
-
-    /* The recursive-like version that uses previous LUTs to calculate larger ones saves a tad of compile-time
-     * but it yields to out-of-memory errors on the CI. Therefore, disable it for now. */
-    #if 1 || ! defined( LIBRAPIDGZIP_RECURSIVE_COMPILE_TIME_NEXT_DYNAMIC_DEFLATE_CANDIDATE )
+        std::array<int8_t, 1U << CACHED_BIT_COUNT> result{};
         for ( uint32_t i = 0; i < result.size(); ++i ) {
             result[i] = nextDeflateCandidate<CACHED_BIT_COUNT>( i );
-        }
-    #else
-        const auto& SMALL_LUT = NEXT_DEFLATE_CANDIDATE_LUTS_UP_TO_13_BITS;
-
-        /* nextDeflateCandidate only actually checks the first 13 bits, we can composite anything longer by looking
-         * up 13-bits successively in the partial LUT to reduce constexpr instructions! */
-        if constexpr ( CACHED_BIT_COUNT <= MAX_EVALUATED_BITS ) {
-            for ( uint32_t i = 0; i < result.size(); ++i ) {
-                result[i] = SMALL_LUT[result.size() + i];
-            }
-        } else {
-            for ( size_t i = 0; i < result.size(); ++i ) {
-                auto nextPosition = 0;
-                for ( uint32_t bitsSkipped = 0; bitsSkipped < CACHED_BIT_COUNT - MAX_EVALUATED_BITS; ) {
-                    const auto bitsToLookUpCount = std::min( MAX_EVALUATED_BITS, CACHED_BIT_COUNT - bitsSkipped );
-                    const auto bitsToLookUp = ( i >> bitsSkipped ) & nLowestBitsSet<uint32_t>( bitsToLookUpCount );
-                    auto possibleNextPosition = SMALL_LUT[( 1U << bitsToLookUpCount ) + bitsToLookUp];
-
-                    nextPosition = possibleNextPosition + bitsSkipped;
-
-                    if ( possibleNextPosition == 0 ) {
-                        break;
-                    }
-                    bitsSkipped += nextPosition;
-                }
-
-                result[i] = nextPosition;
+            if ( result[i] == 0 ) {
+                result[i] = -static_cast<uint8_t>( 1U + nextDeflateCandidate<CACHED_BIT_COUNT - 1U>( i >> 1U ) );
             }
         }
-    #endif
-
         return result;
     }();
 
@@ -209,8 +136,13 @@ constexpr auto NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT =
  *   is fastest with 15 bits.
  * - The version with manual bit buffers and no call to Block::readDynamicHuffmanCoding, which uses
  *   HuffmanCodingCheckOnly is fastest with 14 bits.
+ * @todo cache more than one next candidate and even if the first candidate is not at position 0?
+ *       Would especially be helpful for lut sizes larger than 13 because we would then have extra bits.
+ *       I.e., all next candidates with 0 and 1 could be "exact", i.e., match all conditions in nextDeflateCandidate.
+ *       A LUT size of 16 or 17 might then even make sense because there are lots of next candidates at 1-3.
+ *       For 4+, it seems the frequency and expected returns diminish. This might complicate the loop though.
  */
-constexpr uint8_t OPTIMAL_NEXT_DEFLATE_LUT_SIZE = 14;
+constexpr uint8_t OPTIMAL_NEXT_DEFLATE_LUT_SIZE = 15;
 
 
 /**
@@ -218,8 +150,8 @@ constexpr uint8_t OPTIMAL_NEXT_DEFLATE_LUT_SIZE = 14;
  * to fix compilation issues.
  */
 template<>
-constexpr std::array<uint8_t, 16384> NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<14> = {
-    #include "NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT.csv"
+constexpr std::array<int8_t, 1U << 15U> NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<15U> = {
+    #include "NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT_15.csv"
 };
 
 
@@ -260,13 +192,14 @@ seekToNonFinalDynamicDeflateBlock( gzip::BitReader& bitReader,
 
         for ( size_t offset = oldOffset; offset < untilOffset; ) {
             auto nextPosition = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<CACHED_BIT_COUNT>[bitBufferForLUT];
+            const auto bitsToLoad = std::abs( nextPosition );
 
             /* If we can skip forward, then that means that the new position only has been partially checked.
              * Therefore, rechecking the LUT for non-zero skips not only ensures that we aren't wasting time in
              * readHeader but it also ensures that we can avoid checking the first three bits again inside readHeader
              * and instead start reading and checking the dynamic Huffman code directly! */
-            if ( nextPosition == 0 ) {
-                nextPosition = 1;
+            if ( nextPosition <= 0 ) {
+                nextPosition = -nextPosition;
 
                 const auto next4Bits = bitBufferPrecodeBits & nLowestBitsSet<uint64_t, PRECODE_COUNT_BITS>();
                 const auto next57Bits = ( bitBufferPrecodeBits >> PRECODE_COUNT_BITS )
@@ -338,8 +271,6 @@ seekToNonFinalDynamicDeflateBlock( gzip::BitReader& bitReader,
                 }
             }
 
-            const auto bitsToLoad = nextPosition;
-
             /* Refill bit buffer for LUT using the bits from the higher precode bit buffer. */
             bitBufferForLUT >>= bitsToLoad;
             if constexpr ( CACHED_BIT_COUNT > 13 ) {
@@ -357,7 +288,7 @@ seekToNonFinalDynamicDeflateBlock( gzip::BitReader& bitReader,
             bitBufferPrecodeBits |= bitReader.read( bitsToLoad )
                                     << static_cast<uint8_t>( ALL_PRECODE_BITS - bitsToLoad );
 
-            offset += nextPosition;
+            offset += bitsToLoad;
         }
     } catch ( const gzip::BitReader::EndOfFileReached& ) {
         /* This might happen when calling readDynamicHuffmanCoding quite some bytes before the end! */

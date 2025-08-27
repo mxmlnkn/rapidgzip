@@ -81,8 +81,8 @@ testDynamicHuffmanBlockFinder()
 
     const auto& LUT = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<18>;
     for ( uint32_t bits = 0; bits < LUT.size(); ++bits ) {
-        REQUIRE( isValidDynamicHuffmanBlock( bits ) == ( LUT[bits] == 0 ) );
-        if ( isValidDynamicHuffmanBlock( bits ) != ( LUT[bits] == 0 ) ) {
+        REQUIRE( isValidDynamicHuffmanBlock( bits ) == ( LUT[bits] <= 0 ) );
+        if ( isValidDynamicHuffmanBlock( bits ) != ( LUT[bits] <= 0 ) ) {
             std::cerr << "Results differ for bits: 0x" << std::hex << bits << std::dec
                       << ", isValidDynamicHuffmanBlock: " << ( isValidDynamicHuffmanBlock( bits ) ? "true" : "false" )
                       << "\n";

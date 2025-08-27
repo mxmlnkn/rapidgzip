@@ -485,7 +485,7 @@ findDeflateBlocksRapidgzipLUT( const std::vector<char>& buffer )
         const auto nextPosition =
             rapidgzip::blockfinder::NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<CACHED_BIT_COUNT>[bitBufferForLUT];
 
-        const auto bitsToLoad = std::max( static_cast<std::decay_t<decltype( nextPosition )> >( 1 ), nextPosition );
+        const auto bitsToLoad = std::abs( nextPosition );
         bitBufferForLUT >>= bitsToLoad;
         bitBufferForLUT |= bitReader.read( bitsToLoad )
                            << static_cast<uint8_t>( CACHED_BIT_COUNT - bitsToLoad );
@@ -508,7 +508,7 @@ findDeflateBlocksRapidgzipLUT( const std::vector<char>& buffer )
             break;
         }
 
-        ++offset;
+        offset += bitsToLoad;
     }
     return { duration( t0 ), count };
 }
