@@ -8,15 +8,7 @@ target_sources(libblockfinder INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/PigzNaive.hpp
     ${CMAKE_CURRENT_LIST_DIR}/PigzParallel.hpp
     ${CMAKE_CURRENT_LIST_DIR}/PigzStringView.hpp
-    ${CMAKE_CURRENT_LIST_DIR}/precodecheck/BruteForceLUT.hpp
-    ${CMAKE_CURRENT_LIST_DIR}/precodecheck/SingleCompressedLUT.hpp
-    ${CMAKE_CURRENT_LIST_DIR}/precodecheck/SingleCompressedLUTOptimized.hpp
-    ${CMAKE_CURRENT_LIST_DIR}/precodecheck/SingleFuzzyLUT.hpp
-    ${CMAKE_CURRENT_LIST_DIR}/precodecheck/SingleLUT.hpp
-    ${CMAKE_CURRENT_LIST_DIR}/precodecheck/WalkTreeCompressedLUT.hpp
-    ${CMAKE_CURRENT_LIST_DIR}/precodecheck/WalkTreeCompressedSingleLUT.hpp
-    ${CMAKE_CURRENT_LIST_DIR}/precodecheck/WalkTreeLUT.hpp
-    ${CMAKE_CURRENT_LIST_DIR}/precodecheck/WithoutLUT.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/precodecheck/CountAllocatedLeaves.hpp
 )
 target_link_libraries(libblockfinder INTERFACE core)
 target_compile_features(libblockfinder INTERFACE cxx_std_17)

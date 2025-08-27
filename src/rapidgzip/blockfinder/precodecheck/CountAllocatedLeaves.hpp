@@ -13,7 +13,9 @@
 #include <cstdint>
 
 #include <core/BitManipulation.hpp>
+#include <core/Error.hpp>
 #include <core/common.hpp>
+#include <rapidgzip/gzip/definitions.hpp>
 
 
 namespace rapidgzip::PrecodeCheck::CountAllocatedLeaves

@@ -3,9 +3,7 @@
 
 #define LIBRAPIDARCHIVE_SKIP_LOAD_FROM_CSV
 
-#include <core/SimpleRunLengthEncoding.hpp>
 #include <rapidgzip/rapidgzip.hpp>
-#include <rapidgzip/blockfinder/precodecheck/WalkTreeCompressedSingleLUT.hpp>
 
 using namespace rapidgzip;
 
@@ -46,45 +44,10 @@ writeNextDeflateLUT()
 }
 
 
-void
-writeDataAsRLECompressedCSV( const std::vector<uint8_t>& data,
-                             const std::string&          path )
-{
-    using namespace SimpleRunLengthEncoding;
-
-    const auto compressed = simpleRunLengthEncode( data );
-    const auto restored =
-        simpleRunLengthDecode<std::vector<uint8_t> >( compressed, data.size() );
-    if ( restored != data ) {
-        throw std::logic_error( "RLE encoding is broking!" );
-    }
-    writeDataAsCSV( compressed, path );
-    std::cout << "Wrote " << path << " sized " << data.size() << " B -> compressed to: " << compressed.size() << " B\n";
-}
-
-
-void
-writeWalkTreeCompressedLUT()
-{
-    constexpr auto SUBTABLE_CHUNK_COUNT = 128U;
-    const auto& [histogramLUT, validLUT] =
-        PrecodeCheck::WalkTreeCompressedSingleLUT::PRECODE_FREQUENCIES_VALID_LUT_TWO_STAGES<SUBTABLE_CHUNK_COUNT>;
-
-    writeDataAsRLECompressedCSV(
-        histogramLUT,
-        "PRECODE_FREQUENCIES_VALID_FULL_LUT_TWO_STAGES_" + std::to_string( SUBTABLE_CHUNK_COUNT )
-        + "_HISTOGRAM_TO_INDEX.csv" );
-    writeDataAsRLECompressedCSV(
-        validLUT, "PRECODE_FREQUENCIES_VALID_FULL_LUT_TWO_STAGES_" + std::to_string( SUBTABLE_CHUNK_COUNT )
-        + "_INDEX_TO_VALID.csv" );
-}
-
-
 int
 main()
 {
     writeNextDeflateLUT();
-    writeWalkTreeCompressedLUT();
 
     return 0;
 }

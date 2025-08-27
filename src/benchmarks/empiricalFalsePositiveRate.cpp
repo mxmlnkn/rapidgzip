@@ -21,8 +21,9 @@
 #include <filereader/BitReader.hpp>
 #include <filereader/BufferView.hpp>
 #include <rapidgzip/blockfinder/Uncompressed.hpp>
-#include <rapidgzip/blockfinder/precodecheck/WithoutLUT.hpp>
+#include <rapidgzip/blockfinder/precodecheck/CountAllocatedLeaves.hpp>
 #include <rapidgzip/gzip/definitions.hpp>
+#include <rapidgzip/gzip/deflate.hpp>
 
 
 using namespace rapidgzip;
@@ -172,7 +173,7 @@ findNonCompressedFalsePositives()
 
             size_t matches{ 0 };
             for ( size_t offset = 0; offset < bitReaderSize;
-                  offset = rapidgzip::blockfinder::seekToNonFinalUncompressedDeflateBlock( bitReader ).second )
+                  offset = blockfinder::seekToNonFinalUncompressedDeflateBlock( bitReader ).second )
             {
                 ++matches;
                 bitReader.seek( static_cast<long long int>( offset ) + 1 );
@@ -244,11 +245,11 @@ static constexpr size_t MAXIMUM_CHECKED_TAIL_BITS =
     /* distance code count */ 5 +
     /* literal code count */ 4 +
     /* precode */
-    rapidgzip::deflate::MAX_PRECODE_COUNT * rapidgzip::deflate::PRECODE_BITS +
+    deflate::MAX_PRECODE_COUNT * deflate::PRECODE_BITS +
     /* distance code lengths */
-    rapidgzip::deflate::MAX_DISTANCE_SYMBOL_COUNT * rapidgzip::deflate::MAX_PRECODE_LENGTH +
+    deflate::MAX_DISTANCE_SYMBOL_COUNT * deflate::MAX_PRECODE_LENGTH +
     /* literal code lengths */
-    rapidgzip::deflate::MAX_LITERAL_OR_LENGTH_SYMBOLS * rapidgzip::deflate::MAX_PRECODE_LENGTH;
+    deflate::MAX_LITERAL_OR_LENGTH_SYMBOLS * deflate::MAX_PRECODE_LENGTH;
 
 
 // NOLINTNEXTLINE(clang-analyzer-optin.performance.Padding)
@@ -277,7 +278,7 @@ public:
     // NOLINTBEGIN(misc-non-private-member-variables-in-classes)
     // NOLINTBEGIN(cppcoreguidelines-non-private-member-variables-in-classes)
 
-    rapidgzip::deflate::Block</* enable analysis */ true> block;
+    deflate::Block</* enable analysis */ true> block;
 
     const size_t experimentCount;
 
@@ -305,7 +306,7 @@ public:
     // NOLINTEND(misc-non-private-member-variables-in-classes)
 
 private:
-    std::unordered_map<rapidgzip::Error, uint64_t> m_errorCounts;
+    std::unordered_map<Error, uint64_t> m_errorCounts;
 
     /* Random generator */
     std::random_device m_randomDevice;
@@ -342,6 +343,38 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives()
 }
 
 
+[[nodiscard]] constexpr Error
+checkPrecode( const uint64_t next4Bits,
+              const uint64_t next57Bits )
+{
+    using namespace PrecodeCheck::CountAllocatedLeaves;
+    const auto codeLengthCount = 4 + next4Bits;
+    const auto virtualLeafCount = getVirtualLeafCount( next57Bits, codeLengthCount );
+
+    /* Is allowed for a single code length of 1. */
+    if ( virtualLeafCount == 64 ) {
+        size_t greatherThanOne{ 0 };
+        for ( size_t i = 0; i < codeLengthCount; ++i ) {
+            const auto value = ( next57Bits >> ( i * deflate::PRECODE_BITS ) )
+                               & nLowestBitsSet<uint64_t, deflate::PRECODE_BITS>();
+            if ( value > 1 ) {
+                ++greatherThanOne;
+            }
+        }
+        return greatherThanOne == 0 ? Error::NONE : Error::BLOATING_HUFFMAN_CODING;
+    }
+
+    /* The nice property of this virtual leaf count approach is that we can return exact error codes. */
+    if ( virtualLeafCount > 128 ) {
+        return Error::INVALID_CODE_LENGTHS;
+    }
+    if ( virtualLeafCount < 128 ) {
+        return Error::BLOATING_HUFFMAN_CODING;
+    }
+    return Error::NONE;
+}
+
+
 void
 AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>& data,
                                                         size_t                   nBitsToTest )
@@ -355,7 +388,6 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>&
 
         try
         {
-            using namespace rapidgzip::blockfinder;
             const auto peeked = bitReader.peek<CACHED_BIT_COUNT>();
 
             const auto isFinalBlock = ( peeked & 1U ) != 0;
@@ -371,13 +403,13 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>&
             }
 
             const auto literalCodeCount = 257 + ( ( peeked >> 3U ) & 0b11111U );
-            if ( literalCodeCount >= rapidgzip::deflate::MAX_LITERAL_OR_LENGTH_SYMBOLS ) {
+            if ( literalCodeCount >= deflate::MAX_LITERAL_OR_LENGTH_SYMBOLS ) {
                 ++filteredByLiteralCount;
                 continue;
             }
 
             const auto distanceCodeCount = 1 + ( ( peeked >> ( 3U + 5U ) ) & 0b11111U );
-            if ( distanceCodeCount >= rapidgzip::deflate::MAX_DISTANCE_SYMBOL_COUNT ) {
+            if ( distanceCodeCount >= deflate::MAX_DISTANCE_SYMBOL_COUNT ) {
                 ++filteredByDistanceCount;
                 continue;
             }
@@ -385,24 +417,22 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>&
             ++passedDeflateHeaderTest;
 
             bitReader.seek( static_cast<long long int>( offset ) + 13 );
-            const auto next4Bits = bitReader.read( rapidgzip::deflate::PRECODE_COUNT_BITS );
-            const auto next57Bits = bitReader.peek( rapidgzip::deflate::MAX_PRECODE_COUNT
-                                                    * rapidgzip::deflate::PRECODE_BITS );
-            static_assert( rapidgzip::deflate::MAX_PRECODE_COUNT * rapidgzip::deflate::PRECODE_BITS
+            const auto next4Bits = bitReader.read( deflate::PRECODE_COUNT_BITS );
+            const auto next57Bits = bitReader.peek( deflate::MAX_PRECODE_COUNT * deflate::PRECODE_BITS );
+            static_assert( deflate::MAX_PRECODE_COUNT * deflate::PRECODE_BITS
                            <= gzip::BitReader::MAX_BIT_BUFFER_SIZE,
                            "This optimization requires a larger BitBuffer inside BitReader!" );
-            /* Do not use a LUT because it cannot return specific errors. */
-            using rapidgzip::PrecodeCheck::WithoutLUT::checkPrecode;
+
             const auto precodeError = checkPrecode( next4Bits, next57Bits );
             switch ( precodeError )
             {
-            case rapidgzip::Error::NONE:
+            case Error::NONE:
                 break;
-            case rapidgzip::Error::EMPTY_ALPHABET:
-            case rapidgzip::Error::INVALID_CODE_LENGTHS:
+            case Error::EMPTY_ALPHABET:
+            case Error::INVALID_CODE_LENGTHS:
                 ++filteredByInvalidPrecode;
                 break;
-            case rapidgzip::Error::BLOATING_HUFFMAN_CODING:
+            case Error::BLOATING_HUFFMAN_CODING:
                 ++filteredByBloatingPrecode;
                 break;
             default:
@@ -411,7 +441,7 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>&
 
             m_offsetsTestedMoreInDepth++;
             auto error = precodeError;
-            if ( precodeError == rapidgzip::Error::NONE ) {
+            if ( precodeError == Error::NONE ) {
                 const auto oldMissingEOBSymbol = block.missingEOBSymbol;
                 const auto oldFailedDistanceInit = block.failedDistanceInit;
                 const auto oldFailedLiteralInit = block.failedLiteralInit;
@@ -420,10 +450,9 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>&
                 error = block.readDynamicHuffmanCoding( bitReader );
 
                 if ( block.failedPrecodeInit > 0 ) {
-                    using namespace rapidgzip::deflate;
-
-                    const auto codeLengthCount = 4 + next4Bits;
-                    const auto precodeBits = next57Bits & nLowestBitsSet<uint64_t>( codeLengthCount * PRECODE_BITS );
+                    const auto codeLengthCount = 4U + next4Bits;
+                    const auto precodeBits = next57Bits
+                                             & nLowestBitsSet<uint64_t>( codeLengthCount * deflate::PRECODE_BITS );
 
                     std::cerr << "Failed to handle the following precode correctly:\n";
                     std::cerr << "    bitReader.tell(): " << bitReader.tell() << " out of "
@@ -431,7 +460,7 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>&
                     std::cerr << "    precode code length count: " << codeLengthCount << "\n";
                     std::cerr << "    code lengths:";
                     for ( size_t i = 0; i < codeLengthCount; ++i ) {
-                        std::cerr << " " << ( ( precodeBits >> ( i * PRECODE_BITS ) ) & 0b111U );
+                        std::cerr << " " << ( ( precodeBits >> ( i * deflate::PRECODE_BITS ) ) & 0b111U );
                     }
                     std::cerr << "\n";
                     std::cerr << std::bitset<57>( precodeBits ) << "\n";
@@ -446,13 +475,13 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>&
                 if ( oldFailedDistanceInit != block.failedDistanceInit ) {
                     switch ( error )
                     {
-                    case rapidgzip::Error::NONE:
+                    case Error::NONE:
                         break;
-                    case rapidgzip::Error::EMPTY_ALPHABET:
-                    case rapidgzip::Error::INVALID_CODE_LENGTHS:
+                    case Error::EMPTY_ALPHABET:
+                    case Error::INVALID_CODE_LENGTHS:
                         ++filteredByInvalidDistanceCoding;
                         break;
-                    case rapidgzip::Error::BLOATING_HUFFMAN_CODING:
+                    case Error::BLOATING_HUFFMAN_CODING:
                         ++filteredByBloatingDistanceCoding;
                         break;
                     default:
@@ -463,14 +492,14 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>&
                 if ( oldFailedLiteralInit != block.failedLiteralInit ) {
                     switch ( error )
                     {
-                    case rapidgzip::Error::NONE:
+                    case Error::NONE:
                         break;
-                    case rapidgzip::Error::EMPTY_ALPHABET:
-                    case rapidgzip::Error::INVALID_CODE_LENGTHS:
-                    case rapidgzip::Error::INVALID_HUFFMAN_CODE:
+                    case Error::EMPTY_ALPHABET:
+                    case Error::INVALID_CODE_LENGTHS:
+                    case Error::INVALID_HUFFMAN_CODE:
                         ++filteredByInvalidLiteralCoding;
                         break;
-                    case rapidgzip::Error::BLOATING_HUFFMAN_CODING:
+                    case Error::BLOATING_HUFFMAN_CODING:
                         ++filteredByBloatingLiteralCoding;
                         break;
                     default:
@@ -486,7 +515,7 @@ AnalyzeDynamicBlockFalsePositives::countFalsePositives( const std::vector<char>&
                 count->second++;
             }
 
-            if ( error != rapidgzip::Error::NONE ) {
+            if ( error != Error::NONE ) {
                 continue;
             }
 
