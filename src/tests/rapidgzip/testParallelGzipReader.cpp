@@ -402,7 +402,7 @@ testWithLargeFiles( const TemporaryDirectory& tmpFolder )
     createRandomNumbers( filePaths.back(), 32_Mi );
 
     filePaths.emplace_back( std::filesystem::absolute( tmpFolder.path() / "random" ).string() );
-    createRandom( filePaths.back(), 8_Mi );
+    createRandomFile( filePaths.back(), 8_Mi );
 
     filePaths.emplace_back( std::filesystem::absolute( tmpFolder.path() / "zeros" ).string() );
     createZeros( filePaths.back(), 32_Mi );

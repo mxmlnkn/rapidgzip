@@ -1,7 +1,7 @@
 /**
  * @file This was the first implementation of a LUT to check histograms with 5-bits per count for validity.
  *       It is inferior because it checks all x million possibilities even though only ~1000 are valid and the
- *       rest could be initialized as invalid with a simply memset.
+ *       rest could be initialized as invalid with a simple memset.
  */
 
 #pragma once

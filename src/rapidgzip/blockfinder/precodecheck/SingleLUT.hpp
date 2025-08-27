@@ -99,7 +99,6 @@ static_assert( OVERFLOW_MEMBER_OFFSET + 3 <= std::numeric_limits<Histogram>::dig
 /** This is for the histogram version during the summing, i.e., WITH zero an overflow bits! */
 static constexpr auto LOWEST_MEMBER_BITS_MASK = [] () constexpr {
     Histogram result{ 0 };
-    using namespace VariableLengthPackedHistogram;
     for ( const auto offset : MEMBER_OFFSETS ) {
         result |= Histogram( 1 ) << static_cast<uint8_t>( offset );
     }
@@ -107,8 +106,7 @@ static constexpr auto LOWEST_MEMBER_BITS_MASK = [] () constexpr {
 }();
 static_assert( LOWEST_MEMBER_BITS_MASK == 0b0001'00001'00001'0001'001'01'1'00001ULL );
 
-static constexpr auto OVERFLOW_BITS_MASK =
-    LOWEST_MEMBER_BITS_MASK | ( ~Histogram( 0 ) << VariableLengthPackedHistogram::OVERFLOW_MEMBER_OFFSET );
+static constexpr auto OVERFLOW_BITS_MASK = LOWEST_MEMBER_BITS_MASK | ( ~Histogram( 0 ) << OVERFLOW_MEMBER_OFFSET );
 static_assert( OVERFLOW_BITS_MASK == 0b111'0001'00001'00001'0001'001'01'1'00001ULL );
 
 

@@ -765,7 +765,7 @@ analyzeMaxValidPrecodeFrequencies()
 void
 printValidHistograms()
 {
-    using rapidgzip::deflate::precode::VALID_HISTOGRAMS;
+    using deflate::precode::VALID_HISTOGRAMS;
     std::cerr << "== Valid histograms (" << VALID_HISTOGRAMS.size() << ") shown as \"code length: count\" ==\n\n";
     for ( const auto& histogram : VALID_HISTOGRAMS ) {
         std::cerr << "   ";

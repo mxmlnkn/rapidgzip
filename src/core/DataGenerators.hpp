@@ -16,7 +16,7 @@ namespace rapidgzip
 {
 inline void
 createRandomTextFile( const std::string& path,
-                      uint64_t           size )
+                      const uint64_t     size )
 {
     std::ofstream textFile( path );
     for ( uint64_t i = 0; i < size; ++i ) {
@@ -27,8 +27,25 @@ createRandomTextFile( const std::string& path,
 
 
 inline void
+fillWithRandomData( void* const  data,
+                    const size_t size )
+{
+    std::mt19937_64 randomEngine;
+    std::array<uint64_t, 1_Ki> buffer{};  // 8 KiB of buffer
+    for ( size_t nBytesWritten = 0; nBytesWritten < size; ) {
+        for ( auto& x : buffer ) {
+            x = randomEngine();
+        }
+        const auto nBytesToWrite = std::min<uint64_t>( buffer.size() * sizeof( buffer[0] ), size - nBytesWritten );
+        std::memcpy( reinterpret_cast<char*>( data ) + nBytesWritten, buffer.data(), nBytesToWrite);
+        nBytesWritten += nBytesToWrite;
+    }
+}
+
+
+inline void
 createRandomFile( const std::string& path,
-                  uint64_t           size )
+                  const uint64_t     size )
 {
     std::ofstream textFile( path );
 
@@ -109,17 +126,6 @@ createRandomNumbers( const std::string& filePath,
     for ( size_t i = 0; i < fileSize; ++i ) {
         file << ( ( i + 1 == fileSize ) || ( ( i + 1 ) % 77 == 0 )
                   ? '\n' : DIGITS[static_cast<size_t>( rand() ) % DIGITS.size()] );
-    }
-}
-
-
-inline void
-createRandom( const std::string& filePath,
-              const size_t       fileSize )
-{
-    std::ofstream file{ filePath };
-    for ( size_t i = 0; i < fileSize; ++i ) {
-        file << static_cast<char>( rand() );
     }
 }
 
