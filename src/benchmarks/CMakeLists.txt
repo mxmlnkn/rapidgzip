@@ -46,17 +46,6 @@ add_custom_target(run-benchmarkMarkerReplacement
 add_dependencies(run-benchmarks run-benchmarkMarkerReplacement)
 
 
-add_executable(benchmarkPigzBlockFinder)
-target_sources(benchmarkPigzBlockFinder PRIVATE ${CMAKE_CURRENT_LIST_DIR}/benchmarkPigzBlockFinder.cpp)
-target_link_libraries(benchmarkPigzBlockFinder PRIVATE librapidgzip libblockfinder)
-add_custom_target(run-benchmarkPigzBlockFinder
-    COMMAND ./benchmarkPigzBlockFinder 2>&1 | tee benchmarkPigzBlockFinder.log
-    VERBATIM
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-)
-add_dependencies(run-benchmarks run-benchmarkPigzBlockFinder)
-
-
 if(TARGET LibArchive::LibArchive)
 
 add_executable(benchmarkGzip)

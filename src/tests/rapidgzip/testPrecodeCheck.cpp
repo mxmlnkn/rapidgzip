@@ -5,6 +5,7 @@
 #include <core/TestHelpers.hpp>
 #include <rapidgzip/blockfinder/precodecheck/CountAllocatedLeaves.hpp>
 #include <rapidgzip/gzip/definitions.hpp>
+#include <rapidgzip/gzip/deflate.hpp>
 #include <rapidgzip/gzip/precode.hpp>
 
 
@@ -25,7 +26,7 @@ checkPrecodeDirectly( size_t   next4Bits,
         precodeCL[deflate::PRECODE_ALPHABET[i]] = ( precodeBits >> ( i * 3U ) ) & 0b111U;
     }
 
-    deflate::precode::PrecodeHuffmanCoding precodeHC;
+    deflate::PrecodeHuffmanCoding precodeHC;
     return precodeHC.initializeFromLengths( VectorView<uint8_t>( precodeCL.data(), precodeCL.size() ) );
 }
 

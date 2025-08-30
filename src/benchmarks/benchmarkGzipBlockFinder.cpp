@@ -1,12 +1,3 @@
-/*
-DEFLATE Compressed Data Format Specification version 1.3
-https://www.rfc-editor.org/rfc/rfc1951.txt
-
-GZIP file format specification version 4.3
-https://www.ietf.org/rfc/rfc1952.txt
-*/
-
-
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -42,6 +33,7 @@ https://www.ietf.org/rfc/rfc1952.txt
 #include <huffman/HuffmanCodingBase.hpp>
 #include <rapidgzip/blockfinder/Bgzf.hpp>
 #include <rapidgzip/blockfinder/DynamicHuffman.hpp>
+#include <rapidgzip/blockfinder/PigzStringView.hpp>
 #include <rapidgzip/blockfinder/precodecheck/CountAllocatedLeaves.hpp>
 #include <rapidgzip/gzip/crc32.hpp>
 #include <rapidgzip/gzip/definitions.hpp>
@@ -105,13 +97,14 @@ findGzipStreams( const std::string& fileName )
 }
 
 
+template<typename BlockFinder>
 [[nodiscard]] std::vector<size_t>
-findBgzStreams( const std::string& fileName )
+findWithBlockFinder( const std::string_view path )
 {
     std::vector<size_t> streamOffsets;
 
     try {
-        blockfinder::Bgzf blockFinder( std::make_unique<StandardFileReader>( fileName ) );
+        BlockFinder blockFinder( std::make_unique<StandardFileReader>( path ) );
 
         while ( true ) {
             const auto offset = blockFinder.find();
@@ -814,7 +807,8 @@ findDeflateBlocksRapidgzipLUT( BufferedFileReader::AlignedBuffer data )
  * instead of random data.
  */
 [[nodiscard]] std::vector<size_t>
-countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
+countFilterEfficiencies( BufferedFileReader::AlignedBuffer data,
+                         bool                              printStatistics = false )
 {
     const size_t nBitsToTest = data.size() * CHAR_BIT;
     gzip::BitReader bitReader( std::make_unique<BufferedFileReader>( std::move( data ) ) );
@@ -876,6 +870,10 @@ countFilterEfficiencies( BufferedFileReader::AlignedBuffer data )
             /* This might happen when calling readDynamicHuffmanCoding quite some bytes before the end! */
             break;
         }
+    }
+
+    if ( !printStatistics ) {
+        return bitOffsets;
     }
 
     /* From 101984512 bits to test, found 10793213 (10.5832 %) candidates and reduced them down further to 494. */
@@ -1132,6 +1130,31 @@ benchmarkGzip( const std::string& fileName )
                   << blockCandidates << "\n\n";
     }
 
+    const auto isBgzfFile =
+        rapidgzip::blockfinder::Bgzf::isBgzfFile( std::make_unique<StandardFileReader>( fileName ) );
+    if ( isBgzfFile ) {
+        const auto [blockCandidates, durations] =
+            benchmarkFunction<10>( [fileName] () { return findWithBlockFinder<blockfinder::Bgzf>( fileName ); } );
+        std::cout << "[findBgzStreams] " << formatBandwidth( durations, fileSize( fileName ) ) << "\n";
+        std::cout << "    Block candidates (" << blockCandidates.size() << "): " << blockCandidates << "\n\n";
+    }
+
+    {
+        const auto [blockCandidates, durations] =
+            benchmarkFunction<10>( [fileName] () {
+                return findWithBlockFinder<blockfinder::PigzStringView>( fileName );
+            } );
+        std::cout << "[findPigzFlushPoints] " << formatBandwidth( durations, fileSize( fileName ) ) << "\n";
+        std::cout << "    Block candidates (" << blockCandidates.size() << "): " << blockCandidates << "\n\n";
+    }
+
+    {
+        const auto gzipStreams = findGzipStreams( fileName );
+        if ( !gzipStreams.empty() ) {
+            std::cout << "Found " << gzipStreams.size() << " gzip stream candidates!\n" << gzipStreams << "\n\n";
+        }
+    }
+
     /* Ground truth offsets. */
     const auto [streamOffsets, blockOffsets] = parseWithZlib( fileName );
     std::cout << "Gzip streams (" << streamOffsets.size() << "): " << streamOffsets << "\n";
@@ -1190,10 +1213,11 @@ benchmarkGzip( const std::string& fileName )
 
     {
         const auto buffer = bufferFile( fileName, 256_Ki );
+        std::cout << "[findDeflateBlocksZlib] " << std::flush;
         const auto [blockCandidates, durations] = benchmarkFunction<10>(
             [&buffer] () { return findDeflateBlocksZlib( buffer ); } );
 
-        std::cout << "[findDeflateBlocksZlib] " << formatBandwidth( durations, buffer.size() ) << "\n";
+        std::cout << formatBandwidth( durations, buffer.size() ) << "\n";
         std::cout << "    Block candidates (" << blockCandidates.size() << "): "
                   << blockCandidates << "\n\n";
         verifyCandidates( blockCandidates, buffer.size() );
@@ -1201,11 +1225,9 @@ benchmarkGzip( const std::string& fileName )
 
     /* Benchmarks with own implementation (rapidgzip). */
     {
-        static constexpr auto OPTIMAL_NEXT_DEFLATE_LUT_SIZE = blockfinder::OPTIMAL_NEXT_DEFLATE_LUT_SIZE;
-        const auto buffer = bufferFile( fileName, 16_Mi );
-
+        std::cout << "[findDeflateBlocksRapidgzip] " << std::flush;
+        const auto buffer = bufferFile( fileName, 4_Mi );
         const auto blockCandidates = countFilterEfficiencies( buffer );
-        std::cout << "Block candidates (" << blockCandidates.size() << "): " << blockCandidates << "\n\n";
 
         const auto [blockCandidatesRapidgzip, durations] = benchmarkFunction<10>(
             [&buffer] () { return findDeflateBlocksRapidgzip( buffer ); } );
@@ -1216,19 +1238,15 @@ benchmarkGzip( const std::string& fileName )
                 << blockCandidatesRapidgzip.size() << "): " << blockCandidatesRapidgzip;
             throw std::logic_error( std::move( msg ).str() );
         }
-        std::cout << std::setw( 37 ) << std::left << "[findDeflateBlocksRapidgzip] " << std::right
-                  << formatBandwidth( durations, buffer.size() ) << "\n";
+        std::cout << formatBandwidth( durations, buffer.size() ) << "\n";
+    }
 
-        /* Same as above but with a LUT that can skip bits similar to the Boyer–Moore string-search algorithm. */
-
-        /* Call findDeflateBlocksRapidgzipLUT once to initialize the static variables! */
-        if ( const auto blockCandidatesLUT = findDeflateBlocksRapidgzipLUT<OPTIMAL_NEXT_DEFLATE_LUT_SIZE>( buffer );
-             blockCandidatesLUT != blockCandidates ) {
-            std::stringstream msg;
-            msg << "Results with findDeflateBlocksRapidgzipLUT differ! Block candidates ("
-                << blockCandidatesLUT.size() << "): " << blockCandidatesLUT;
-            throw std::logic_error( std::move( msg ).str() );
-        }
+    /* Same as above but with a LUT that can skip bits similar to the Boyer–Moore string-search algorithm. */
+    {
+        std::cout << "[findDeflateBlocksRapidgzipLUT] " << std::flush;
+        static constexpr auto OPTIMAL_NEXT_DEFLATE_LUT_SIZE = blockfinder::OPTIMAL_NEXT_DEFLATE_LUT_SIZE;
+        const auto buffer = bufferFile( fileName, 128_Mi );
+        const auto blockCandidates = countFilterEfficiencies( buffer );
 
         const auto [blockCandidatesLUT, durationsLUT] = benchmarkFunction<10>(
             /* As for choosing CACHED_BIT_COUNT == 13, see the output of the results at the end of the file.
@@ -1242,26 +1260,7 @@ benchmarkGzip( const std::string& fileName )
                 << blockCandidatesLUT.size() << "): " << blockCandidatesLUT;
             throw std::logic_error( std::move( msg ).str() );
         }
-        std::cout << std::setw( 37 ) << std::left << "[findDeflateBlocksRapidgzipLUT] " << std::right
-                  << formatBandwidth( durationsLUT, buffer.size() ) << "\n";
-    }
-
-    const auto isBgzfFile =
-        rapidgzip::blockfinder::Bgzf::isBgzfFile( std::make_unique<StandardFileReader>( fileName ) );
-    if ( isBgzfFile ) {
-        const auto [blockCandidates, durations] =
-            benchmarkFunction<10>( [fileName] () { return findBgzStreams( fileName ); } );
-
-        std::cout << "[findBgzStreams] " << formatBandwidth( durations, fileSize( fileName ) ) << "\n";
-        std::cout << "    Block candidates (" << blockCandidates.size() << "): "
-                  << blockCandidates << "\n\n";
-    }
-
-    {
-        const auto gzipStreams = findGzipStreams( fileName );
-        if ( !gzipStreams.empty() ) {
-            std::cout << "Found " << gzipStreams.size() << " gzip stream candidates!\n" << gzipStreams << "\n\n";
-        }
+        std::cout << formatBandwidth( durationsLUT, buffer.size() ) << "\n\n";
     }
 
     std::cout << "\n";
@@ -1282,7 +1281,7 @@ benchmarkLUTSizeOnlySkipManualSlidingBufferLUT( const BufferedFileReader::Aligne
     const auto [candidateCount, durations] = benchmarkFunction<10>(
         [&buffer] () { return countDeflateBlocksPreselectionManualSlidingBuffer<CACHED_BIT_COUNT>( buffer ); } );
 
-    std::cout << "[findDeflateBlocksRapidgzipLUT with " << static_cast<int>( CACHED_BIT_COUNT ) << " bits] "
+    std::cout << "[skipTableManualSlidingBuffer with " << static_cast<int>( CACHED_BIT_COUNT ) << " bits] "
               << formatBandwidth( durations, buffer.size() ) << " (" << candidateCount << " candidates)\n";
 
     if ( alternativeCandidateCount && ( *alternativeCandidateCount != candidateCount ) ) {
@@ -1381,15 +1380,43 @@ analyzeDeflateJumpLUT()
 void
 printLUTSizes()
 {
-    std::cerr << "VALID_HUFFMAN_CODINGS                     : "  // 488320 B
-              << formatBytes( sizeof( deflate::precode::VALID_HUFFMAN_CODINGS ) ) << "\n";
-    std::cerr << "CRC32LookupTable                          : " << sizeof( CRC32_TABLE ) << "\n";  // 1 KiB
-    std::cerr << "CRC32_SLICE_BY_N_LUT                      : " << sizeof( CRC32_SLICE_BY_N_LUT ) << "\n";  // 64 KiB
+    std::cerr << "CRC32LookupTable                       : " << sizeof( CRC32_TABLE ) << "\n";  // 1 KiB
+    std::cerr << "CRC32_SLICE_BY_N_LUT                   : " << sizeof( CRC32_SLICE_BY_N_LUT ) << "\n";  // 64 KiB
     std::cerr << "NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<"
-              << static_cast<int>( blockfinder::OPTIMAL_NEXT_DEFLATE_LUT_SIZE ) << ">    : "  // 16 KiB
+              << static_cast<int>( blockfinder::OPTIMAL_NEXT_DEFLATE_LUT_SIZE ) << "> : "  // 16 KiB
               << formatBytes( sizeof(
                      blockfinder::NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<blockfinder::OPTIMAL_NEXT_DEFLATE_LUT_SIZE> ) )
               << "\n";
+}
+
+
+[[nodiscard]] std::string
+compressFile( const std::string&          command,
+              const std::filesystem::path filePath,
+              const std::filesystem::path newFilePath )
+{
+    /* Python3 module pgzip does not create the .gz file beside the input file but in the current directory,
+     * so change current directory to the input file first. */
+    const auto oldCWD = std::filesystem::current_path();
+    std::filesystem::current_path( filePath.parent_path() );
+
+    const auto fullCommand = command + " " + std::string( filePath );
+    const auto returnCode = std::system( fullCommand.c_str() );
+
+    std::filesystem::current_path( oldCWD );
+
+    if ( returnCode != 0 ) {
+        std::cerr << "Failed to encode the temporary file with: " << fullCommand << "\n";
+        return {};
+    }
+
+    if ( !std::filesystem::exists( filePath.string() + ".gz" ) ) {
+        std::cerr << "Encoded file was not found!\n";
+        return {};
+    }
+
+    std::filesystem::rename( filePath.string() + ".gz", newFilePath );
+    return newFilePath;
 }
 
 
@@ -1410,7 +1437,7 @@ main( int    argc,
     printLUTSizes();
 
     const auto tmpFolder = createTemporaryDirectory( "rapidgzip.benchmarkGzipBlockFinder" );
-    const std::string fileName = std::filesystem::absolute( tmpFolder.path() / "random-base64" );
+    const std::string filePath = std::filesystem::absolute( tmpFolder.path() / "random-base64" );
 
     const std::vector<std::tuple<std::string, std::string, std::string, std::string > > testEncoders = {
         { "gzip", "gzip --version", "gzip -k --force", "gzip" },
@@ -1424,40 +1451,19 @@ main( int    argc,
     try
     {
         for ( const auto& [name, getVersion, command, extension] : testEncoders ) {
-            /* Check for the uncompressed file inside the loop because "bgzip" does not have a --keep option!
-             * https://github.com/samtools/htslib/pull/1331 */
-            if ( !std::filesystem::exists( fileName ) ) {
-                createRandomBase64( fileName, 16_Mi );
-            }
-
-            /* Python3 module pgzip does not create the .gz file beside the input file but in the current directory,
-             * so change current directory to the input file first. */
-            const auto oldCWD = std::filesystem::current_path();
-            std::filesystem::current_path( tmpFolder );
-
-            const auto fullCommand = command + " " + fileName;
-            const auto returnCode = std::system( fullCommand.c_str() );
-
-            std::filesystem::current_path( oldCWD );
-
-            if ( returnCode != 0 ) {
-                std::cerr << "Failed to encode the temporary file with: " << fullCommand << "\n";
-                continue;
-            }
-
-            if ( !std::filesystem::exists( fileName + ".gz" ) ) {
-                std::cerr << "Encoded file was not found!\n";
-                continue;
-            }
-
-            const auto newFileName = fileName + "." + extension;
-            std::filesystem::rename( fileName + ".gz", newFileName );
-
-
             /* Benchmark Rapidgzip LUT version with different LUT sizes. */
-
             if ( name == "gzip" ) {
-                const auto data = bufferFile( newFileName );
+                /* Too large sizes also make no sense to benchmark because usually, the block finder should find a
+                 * block after at most 128 KiB. Larger block sizes are very rare and handled by limiting the number
+                 * of bytes to analyze. */
+                if ( !std::filesystem::exists( filePath ) ) {
+                    createRandomBase64( filePath + "-16MiB", 16_Mi );
+                }
+                const auto newFileName = compressFile( command, filePath + "-16MiB", filePath + "-16MiB." + extension );
+                if ( newFileName.empty() ) {
+                    continue;
+                }
+                const auto data = bufferFile( newFileName, 16_Mi );
 
                 /* CACHED_BIT_COUNT == 19 fails on GCC because it requires > 99 M constexpr steps.
                  * CACHED_BIT_COUNT == 18 fail on clang because it requires > 99 M constexpr steps.
@@ -1483,6 +1489,17 @@ main( int    argc,
             }
 
             /* Benchmark all different blockfinder implementations with the current encoded file. */
+
+            /* Check for the uncompressed file inside the loop because "bgzip" does not have a --keep option!
+             * https://github.com/samtools/htslib/pull/1331 */
+            if ( !std::filesystem::exists( filePath ) ) {
+                createRandomBase64( filePath + "-512MiB", 512_Mi );
+            }
+            const auto newFileName = compressFile( command, filePath + "-512MiB", filePath + "-512MiB." + extension );
+            if ( newFileName.empty() ) {
+                continue;
+            }
+            const auto data = bufferFile( newFileName );
 
             std::cout << "=== Testing with encoder: " << name << " ===\n\n";
 
