@@ -48,7 +48,6 @@ target_compile_options(testPrecodeCheck PRIVATE
 addRapidgzipTest(testDecodedData)
 target_compile_features(testDecodedData INTERFACE cxx_std_20)  # for aggregate initialization
 
-if(NOT WIN32)
 addRapidgzipTest(testGzip)
 addRapidgzipTest(testParallelGzipReader)
 
@@ -56,4 +55,3 @@ addRapidgzipTest(testCLI)
 target_include_directories(testCLI PRIVATE ${CMAKE_CURRENT_LIST_DIR}/../../tools)
 target_compile_options(testCLI PRIVATE -Wno-braced-scalar-init)
 target_link_libraries(testCLI PRIVATE librapidgzip cxxopts)
-endif()
