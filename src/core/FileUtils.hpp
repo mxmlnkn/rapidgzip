@@ -846,7 +846,11 @@ public:
         } else {
         #ifndef _MSC_VER
             if ( fileExists( filePath ) ) {
-                m_oldOutputFileSize = fileSize( filePath );
+                try {
+                    m_oldOutputFileSize = fileSize( filePath );
+                } catch ( const std::filesystem::filesystem_error& ) {
+                    /* This happens, e.g., when trying to write to /dev/null. */
+                }
                 /* Opening an existing file and overwriting its data can be much slower because posix_fallocate
                  * can be relatively slow compared to the decoding speed and memory bandwidth! Note that std::fopen
                  * would open a file with O_TRUNC, deallocating all its contents before it has to be reallocated. */
