@@ -524,7 +524,7 @@ testDirectFileReadingBitReaderBug( const std::filesystem::path& path )
 
     /* Read bytes and especially trigger the byte reading DIRECTLY from the file!
      * This only gets triggered when reading more than 1 KiB, or at least requesting that much at once. */
-    std::array<char, 4_Ki> buffer;
+    std::array<char, 4_Ki> buffer{};
     REQUIRE( bitReader.read( buffer.data(), buffer.size() ) > 0 );
     REQUIRE_EQUAL( bitReader.tell(), bitReader.size().value() );
 

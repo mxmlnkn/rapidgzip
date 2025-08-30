@@ -40,7 +40,7 @@ public:
     }
 
 public:
-    std::array<VectorView<uint16_t>, 2> dataWithMarkers;
-    std::array<VectorView<uint8_t>, 2> data;
+    std::array<VectorView<uint16_t>, 2> dataWithMarkers{};
+    std::array<VectorView<uint8_t>, 2> data{};
 };
 }  // namespace rapidgzip::deflate

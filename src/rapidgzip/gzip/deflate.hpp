@@ -773,7 +773,7 @@ private:
             throw std::invalid_argument( "Requested more bytes than fit in the buffer. Data is missing!" );
         }
 
-        std::array<View, 2> result;
+        std::array<View, 2> result{};
         if ( size == 0 ) {
             return result;
         }

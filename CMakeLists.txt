@@ -3,7 +3,8 @@ cmake_minimum_required(VERSION 3.17)
 
 project("Indexed BZip2/Gzip Decoder" CXX)
 
-option(LIBRAPIDARCHIVE_BUILD_TESTS "Build tests and benchmarks" ON)
+option(LIBRAPIDARCHIVE_BUILD_BENCHMARKS "Build benchmarks" OFF)
+option(LIBRAPIDARCHIVE_BUILD_TESTS "Build tests" ON)
 option(LIBRAPIDARCHIVE_BUILD_TOOLS "Build tools" ON)
 option(LIBRAPIDARCHIVE_CODE_COVERAGE "Enable coverage reporting" OFF)
 option(LIBRAPIDARCHIVE_USE_SYSTEM_ZLIB "Use the system-installed zlib library instead of compiling it from source" OFF)
@@ -49,7 +50,13 @@ add_compile_options(
     "$<$<AND:$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>,$<NOT:$<PLATFORM_ID:Windows>>>:-fstack-clash-protection>"
     # Fix error with MINGW: Fatal error: can't write 94 bytes to section .text of testCLI.cpp.obj: 'file too big'
     "$<$<AND:$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>,$<PLATFORM_ID:Windows>>:-Wa,-mbig-obj>"
+    "$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/bigobj>"
 )
+
+# I had some issues with the per-target enabling of C++20 not working on Windows -.-. This works.
+if(${LIBRAPIDARCHIVE_BUILD_TEST} OR ${SLIBRAPIDARCHIVE_BUILD_BENCHMARKS})
+    add_compile_options("$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/std:c++20>")
+endif()
 
 if(NOT ${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm" AND NOT ${CMAKE_SYSTEM_PROCESSOR} MATCHES "aarch" AND NOT ${CMAKE_SYSTEM_PROCESSOR} MATCHES "riscv64")
     add_compile_options("$<$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>:-fcf-protection=full>")

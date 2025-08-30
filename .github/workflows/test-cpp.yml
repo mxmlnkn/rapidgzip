@@ -239,30 +239,27 @@ jobs:
     - name: Build Examples
       working-directory: src/examples/cmake-fetch-content
       run: |
-        cmake -G Ninja -B build -DLIBRAPIDARCHIVE_WITH_ISAL=OFF -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=OFF .
+        cmake -G Ninja -B build -DLIBRAPIDARCHIVE_WITH_ISAL=OFF .
         cmake --build build
 
     - name: Run Tests With Sanitizers
       if: "startsWith(matrix.os , 'ubuntu')"
       run: |
-        mkdir -p "build" && cd -- "$_"
-        cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLIBRAPIDARCHIVE_WITH_ISAL=OFF -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=OFF ..
-        cmake --build . -- check
+        cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Debug -DLIBRAPIDARCHIVE_WITH_ISAL=OFF .
+        cmake --build build -- check
 
     - name: Run Tests With Sanitizers
       if: "startsWith(matrix.os , 'macos')"
       run: |
         # For some reason MacOS ARM is much slower and runs into a timeout without -DSHORT_TESTS :/
-        mkdir -p "build" && cd -- "$_"
-        cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLIBRAPIDARCHIVE_WITH_ISAL=OFF -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=OFF -DCMAKE_CXX_FLAGS="-DSHORT_TESTS" ..
-        cmake --build . -- check
+        cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Debug -DLIBRAPIDARCHIVE_WITH_ISAL=OFF -DCMAKE_CXX_FLAGS="-DSHORT_TESTS" .
+        cmake --build build -- check
 
     - name: Run Tests With Sanitizers
       if: "startsWith(matrix.os , 'windows')"
       run: |
-        mkdir -p "build" && cd -- "build"
-        cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLIBRAPIDARCHIVE_WITH_ISAL=OFF ..
-        cmake --build . -- check
+        cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Debug -DLIBRAPIDARCHIVE_WITH_ISAL=OFF .
+        cmake --build build -- check
 
   Asan:
     name: ASan

@@ -99,7 +99,7 @@ private:
         const auto checkBoundary = m_bufferSize > 0;
         /* We want to be able to find strings even if only their first byte is in the last buffer
          * or even if only their last byte is in the next buffer and of course all cases between. */
-        std::array<char, 2 * nBytesToRetain> boundaryBuffer;
+        std::array<char, 2 * nBytesToRetain> boundaryBuffer{};
         std::size_t boundaryBufferSize = 0;
 
         if ( checkBoundary ) {
@@ -165,7 +165,7 @@ private:
     const UniqueFileReader m_fileReader;
     const std::optional<std::size_t> m_fileSize;
 
-    alignas( 64 ) std::array<char, BUFFER_SIZE> m_buffer;
+    alignas( 64 ) std::array<char, BUFFER_SIZE> m_buffer{};
     size_t m_bufferSize{ 0 };
 
     bool foundFirstBlock{ false };

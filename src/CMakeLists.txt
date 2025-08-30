@@ -18,25 +18,32 @@ target_sources(cxxopts INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/external/cxxopts/in
 
 # rpmalloc
 
-project(rpmalloc C)
+if(LIBRAPIDARCHIVE_WITH_RPMALLOC)
+    project(rpmalloc C)
 
-add_library(rpmalloc STATIC)
-set(RPMALLOC_HOME "${CMAKE_CURRENT_SOURCE_DIR}/external/rpmalloc/rpmalloc")
-target_include_directories(rpmalloc SYSTEM INTERFACE ${RPMALLOC_HOME})
-target_sources(rpmalloc PRIVATE
-    ${RPMALLOC_HOME}/rpmalloc.c
-    ${RPMALLOC_HOME}/rpmalloc.h
-    # Do not use! Overriding operator new/delete is too bug-prone.
-    #${RPMALLOC_HOME}/rpnew.h
-)
-set_target_properties(rpmalloc PROPERTIES C_STANDARD 11)
-set_target_properties(rpmalloc PROPERTIES LINKER_LANGUAGE C)
-# ENABLE_OVERRIDE=1 results in a segfault from _dl_start_user
-target_compile_definitions(rpmalloc PUBLIC ENABLE_OVERRIDE=0 ENABLE_ASSERTS=0)
+    add_library(rpmalloc STATIC)
+    set(RPMALLOC_HOME "${CMAKE_CURRENT_SOURCE_DIR}/external/rpmalloc/rpmalloc")
+    target_include_directories(rpmalloc SYSTEM INTERFACE ${RPMALLOC_HOME})
+    target_sources(rpmalloc PRIVATE
+        ${RPMALLOC_HOME}/rpmalloc.c
+        ${RPMALLOC_HOME}/rpmalloc.h
+        # Do not use! Overriding operator new/delete is too bug-prone.
+        #${RPMALLOC_HOME}/rpnew.h
+    )
+    set_target_properties(rpmalloc PROPERTIES C_STANDARD 11)
+    set_target_properties(rpmalloc PROPERTIES LINKER_LANGUAGE C)
+    # ENABLE_OVERRIDE=1 results in a segfault from _dl_start_user
+    target_compile_definitions(rpmalloc PUBLIC ENABLE_OVERRIDE=0 ENABLE_ASSERTS=0)
+    if(MSVC)
+        # To fix errors with atomic support and the -D_WIN32_WINNT to fix this error:
+        # rpmalloc.c(2110): error C2440: 'function': cannot convert from 'void (__cdecl *)(void *)' to 'PFLS_CALLBACK_FUNCTION'
+        target_compile_options(rpmalloc PUBLIC /experimental:c11atomics -D_WIN32_WINNT=0xA00)
+    endif()
 
-option(ENABLE_RPMALLOC_STATISTICS "Enables statistics for rpmalloc" OFF)
-if (ENABLE_RPMALLOC_STATISTICS)
-	target_compile_definitions(rpmalloc PRIVATE -DENABLE_STATISTICS=1)
+    option(ENABLE_RPMALLOC_STATISTICS "Enables statistics for rpmalloc" OFF)
+    if (ENABLE_RPMALLOC_STATISTICS)
+        target_compile_definitions(rpmalloc PRIVATE -DENABLE_STATISTICS=1)
+    endif()
 endif()
 
 #add_subdirectory(external/zlib)
@@ -97,6 +104,7 @@ if(NOT LIBRAPIDARCHIVE_USE_SYSTEM_ZLIB AND LIBRAPIDARCHIVE_USE_ZLIB_NG)
         ${ZLIB_HOME}/arch/generic/slide_hash_c.c
     )
     set_target_properties(zlibstatic PROPERTIES LINKER_LANGUAGE C)
+    set_target_properties(zlibstatic PROPERTIES C_STANDARD 11)
     target_compile_definitions(zlibstatic PUBLIC ZLIB_COMPAT)
 elseif(NOT LIBRAPIDARCHIVE_USE_SYSTEM_ZLIB)
     project(zlibstatic C)
@@ -160,8 +168,9 @@ add_subdirectory(huffman)
 add_subdirectory(indexed_bzip2)
 add_subdirectory(rapidgzip)
 add_subdirectory(tools)
-
-if (LIBRAPIDARCHIVE_BUILD_TESTS)
+if (LIBRAPIDARCHIVE_BUILD_BENCHMARKS)
     add_subdirectory(benchmarks)
+endif()
+if (LIBRAPIDARCHIVE_BUILD_TESTS)
     add_subdirectory(tests)
 endif()

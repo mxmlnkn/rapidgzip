@@ -63,7 +63,7 @@ public:
             return ( m_currentChunk < m_data.data.size() ) && ( m_processedSize < m_size );
         }
 
-        [[nodiscard]] std::pair<const void*, uint64_t>
+        [[nodiscard]] std::pair<const void*, size_t>
         operator*() const
         {
             const auto& chunk = m_data.data[m_currentChunk];

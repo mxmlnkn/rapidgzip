@@ -69,7 +69,7 @@ main( int    argc,
     size_t windowBatchCount{ 0 };
     size_t windowCount{ 0 };
 
-    std::array<uint8_t, 64_Ki> windowPatches;
+    std::array<uint8_t, 64_Ki> windowPatches{};
 
     gzip::BitReader bitReader( file->clone() );
     WindowMap windows;

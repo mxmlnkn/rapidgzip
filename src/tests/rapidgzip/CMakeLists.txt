@@ -31,6 +31,7 @@ target_compile_options(testGzipBlockFinder PRIVATE
     # 'NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<'\x12'>' must be initialized by a constant expression
     "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-fconstexpr-ops-limit=199000100>"
     "$<$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang>:-fconstexpr-steps=199000100>"
+    "$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/constexpr:steps;199000100>"
 )
 
 addRapidgzipTest(testPrecodeCheck)
@@ -40,6 +41,7 @@ target_compile_options(testPrecodeCheck PRIVATE
     # must be initialized by a constant expression
     "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-fconstexpr-ops-limit=199000100>"
     "$<$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang>:-fconstexpr-steps=199000100>"
+    "$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/constexpr:steps;199000100>"
 )
 
 

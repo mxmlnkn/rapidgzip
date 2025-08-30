@@ -180,7 +180,9 @@ testSerialDecoder( std::filesystem::path const& decodedFilePath,
     std::vector<char> decodedBuffer( bufferSize );
     std::vector<char> buffer( bufferSize );
 
+    const auto decodeFileSize = fileSize( decodedFilePath );
     std::ifstream decodedFile( decodedFilePath, std::ios_base::in | std::ios_base::binary );
+
     GzipReader gzipReader( std::make_unique<StandardFileReader>( encodedFilePath ) );
     gzipReader.setCRC32Enabled( true );
 
@@ -194,9 +196,19 @@ testSerialDecoder( std::filesystem::path const& decodedFilePath,
         }
 
         /* Compare with ground truth. */
-        decodedBuffer.resize( buffer.size() );
-        decodedFile.read( decodedBuffer.data(), static_cast<std::ptrdiff_t>( decodedBuffer.size() ) );
+        if ( totalBytesDecoded > decodeFileSize ) {
+            REQUIRE( totalBytesDecoded <= decodeFileSize );
+            return;
+        }
+        decodedBuffer.resize( std::min( bufferSize, decodeFileSize - totalBytesDecoded ) );
+        decodedFile.read( decodedBuffer.data(), decodedBuffer.size() );
         REQUIRE( !decodedFile.fail() );
+        if ( decodedFile.fail() ) {
+            std::cerr << "Failed to read from decoded ground-truth " << decodedFilePath.filename()
+                      << " with buffer size " << bufferSize << " after decoding " << formatBytes( nBytesRead )
+                      << " gcount: " << decodedFile.gcount() << "\n";
+            return;
+        }
         REQUIRE( static_cast<size_t>( decodedFile.gcount() ) == buffer.size() );
 
         REQUIRE( std::equal( buffer.begin(), buffer.end(), decodedBuffer.begin() ) );
@@ -329,9 +341,9 @@ testTwoStagedDecoding( const std::string& encodedFilePath,
 }
 
 void
-testSeekingWithIndex( const std::string& encodedFilePath,
-                      const std::string& gzipIndexPath,
-                      const std::string& decodedFilePath )
+testSeekingWithIndex( const std::filesystem::path& encodedFilePath,
+                      const std::filesystem::path& gzipIndexPath,
+                      const std::filesystem::path& decodedFilePath )
 {
     GzipReader gzipReader{ std::make_unique<StandardFileReader>( encodedFilePath ) };
 
@@ -374,7 +386,7 @@ testSeekingWithIndex( const std::string& encodedFilePath,
 }
 
 void
-testCloning( const std::string& encodedFilePath )
+testCloning( const std::filesystem::path& encodedFilePath )
 {
     GzipReader gzipReader{ std::make_unique<StandardFileReader>( encodedFilePath ) };
 
@@ -445,7 +457,7 @@ main( int    argc,
 
         for ( const auto bufferSize : std::vector<size_t>{ 1, 2, 12, 32, 1000, 1_Ki, 128_Ki, 1_Mi, 64_Mi } ) {
             try {
-                testSerialDecoder( decodedFilePath.string(), encodedFilePath.string(), bufferSize );
+                testSerialDecoder( decodedFilePath, encodedFilePath, bufferSize );
             } catch ( const std::exception& e ) {
                 std::cerr << "Exception was thrown: " << e.what() << "\n";
                 REQUIRE( false );

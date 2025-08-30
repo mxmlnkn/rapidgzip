@@ -79,7 +79,7 @@ testDynamicHuffmanBlockFinder()
     REQUIRE( nextDeflateCandidate<10>( 0x7CU ) == 0 );
     REQUIRE( nextDeflateCandidate<14>( 0x7CU ) == 0 );
 
-    const auto& LUT = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<18>;
+    const auto& LUT = NEXT_DYNAMIC_DEFLATE_CANDIDATE_LUT<OPTIMAL_NEXT_DEFLATE_LUT_SIZE>;
     for ( uint32_t bits = 0; bits < LUT.size(); ++bits ) {
         REQUIRE( isValidDynamicHuffmanBlock( bits ) == ( LUT[bits] <= 0 ) );
         if ( isValidDynamicHuffmanBlock( bits ) != ( LUT[bits] <= 0 ) ) {

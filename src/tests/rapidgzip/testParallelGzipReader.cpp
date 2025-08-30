@@ -252,11 +252,11 @@ testParallelDecodingWithIndex( const TemporaryDirectory& tmpFolder )
 
     {
         const auto command =
-            R"(python3 -c 'import indexed_gzip as ig; f = ig.IndexedGzipFile( ")"
+            R"(python3 -c "import indexed_gzip as ig; f = ig.IndexedGzipFile( ')"
             + encodedFile
-            + R"(" ); f.build_full_index(); f.export_index( ")"
+            + R"(' ); f.build_full_index(); f.export_index( ')"
             + indexFile
-            + R"(" );')";
+            + R"(' );")";
         const auto returnCode = std::system( command.c_str() );
         REQUIRE( returnCode == 0 );
         if ( returnCode != 0 ) {
@@ -337,7 +337,9 @@ testParallelDecodingWithIndex( const TemporaryDirectory& tmpFolder )
 }
 
 
-const std::vector<std::tuple<std::string, std::string, std::string, std::string > > TEST_ENCODERS = {
+using EncoderMetadata = std::tuple<std::string, std::string, std::string, std::string>;
+
+const std::vector<EncoderMetadata> TEST_ENCODERS = {
     /* [name, getVersion, command, extension] */
     { "gzip", "gzip --version", "gzip -k --force", "gzip" },
     { "pigz", "pigz --version", "pigz -k --force", "pigz" },
@@ -362,7 +364,10 @@ encodeTestFile( const std::string&           filePath,
     /* Create backup of the uncompressed file because "bgzip" does not have a --keep option!
      * https://github.com/samtools/htslib/pull/1331 */
     const auto backupPath = std::filesystem::path( filePath ).filename().string() + ".bak";
-    std::filesystem::copy( filePath, backupPath, std::filesystem::copy_options::overwrite_existing );
+    /* The overwrite_existing option seems to be ignored on Windows :/ */
+    if ( !std::filesystem::exists( backupPath ) ) {
+        std::filesystem::copy( filePath, backupPath, std::filesystem::copy_options::overwrite_existing );
+    }
 
     const auto fullCommand = command + " " + filePath;
     const auto returnCode = std::system( fullCommand.c_str() );
@@ -390,7 +395,8 @@ encodeTestFile( const std::string&           filePath,
 
 
 void
-testWithLargeFiles( const TemporaryDirectory& tmpFolder )
+testWithLargeFiles( const TemporaryDirectory&        tmpFolder,
+                    const std::set<EncoderMetadata>& installedEncoders )
 {
     std::vector<std::string> filePaths;
 
@@ -417,21 +423,9 @@ testWithLargeFiles( const TemporaryDirectory& tmpFolder )
 #endif
 
     try {
-        std::set<std::tuple<std::string, std::string, std::string, std::string> > INSTALLED_ENCODERS;
-        for ( const auto& [name, getVersion, command, extension] : TEST_ENCODERS ) {
-            std::cout << "=== Get version for encoder: " << name << " ===\n\n";
-            std::cout << "> " << getVersion << "\n";
-            const auto versionReturnCode = std::system( ( getVersion + " > out" ).c_str() );
-            if ( versionReturnCode == 0 ) {
-                INSTALLED_ENCODERS.emplace( std::make_tuple( name, getVersion, command, extension ) );
-            }
-            std::cout << std::ifstream( "out" ).rdbuf();
-            std::cout << "\n";
-        }
-
         for ( const auto& fileName : filePaths ) {
             for ( const auto& [name, getVersion, command, extension] : TEST_ENCODERS ) {
-                if ( INSTALLED_ENCODERS.count( std::make_tuple( name, getVersion, command, extension ) ) == 0 ) {
+                if ( installedEncoders.count( std::make_tuple( name, getVersion, command, extension ) ) == 0 ) {
                     continue;
                 }
                 const auto encodedFilePath = encodeTestFile( fileName, tmpFolder, command );
@@ -995,10 +989,15 @@ testWindowPruningMultiGzipStreams( const size_t gzipStreamSize,
 
 
 void
-testWindowPruning( const TemporaryDirectory& tmpFolder )
+testWindowPruning( const TemporaryDirectory&        tmpFolder,
+                   const std::set<EncoderMetadata>& installedEncoders )
 {
     testWindowPruningSimpleBase64Compression( tmpFolder, "gzip" );
-    testWindowPruningSimpleBase64Compression( tmpFolder, "bgzip" );
+    if ( std::any_of( installedEncoders.begin(), installedEncoders.end(), [] ( const auto& metadata ) {
+        return std::get<0>( metadata ) == "bgzip";
+    } ) ) {
+        testWindowPruningSimpleBase64Compression( tmpFolder, "bgzip" );
+    }
 
     /* BGZF window pruning only works because all chunks are ensured to start at the first deflate block
      * inside a gzip stream. For non-BGZF files with non-single-block gzip streams, more intricate pruning
@@ -1147,7 +1146,6 @@ main( int    argc,
 
     const auto tmpFolder = createTemporaryDirectory( "rapidgzip.testParallelGzipReader" );
 
-    testWindowPruning( tmpFolder );
     testPerformance( tmpFolder );
 
     /* The second and last encoded offset should always be at the end of the file, i.e., equal the file size in bits. */
@@ -1214,7 +1212,20 @@ main( int    argc,
         REQUIRE( false );
     }
 
-    testWithLargeFiles( tmpFolder );
+    std::set<EncoderMetadata> installedEncoders;
+    for ( const auto& [name, getVersion, command, extension] : TEST_ENCODERS ) {
+        std::cout << "=== Get version for encoder: " << name << " ===\n\n";
+        std::cout << "> " << getVersion << "\n";
+        const auto versionReturnCode = std::system( ( getVersion + " > out" ).c_str() );
+        if ( versionReturnCode == 0 ) {
+            installedEncoders.emplace( std::make_tuple( name, getVersion, command, extension ) );
+        }
+        std::cout << std::ifstream( "out", std::ios_base::in | std::ios_base::binary ).rdbuf();
+        std::cout << "\n";
+    }
+
+    testWindowPruning( tmpFolder, installedEncoders );
+    testWithLargeFiles( tmpFolder, installedEncoders );
 
     std::cout << "Tests successful: " << ( gnTests - gnTestErrors ) << " / " << gnTests << "\n";
 

@@ -195,14 +195,13 @@ public:
             m_currentDeflateBlock->reset();
         }
 
-        m_atEndOfFile = false;
         m_currentPosition = blockInfo.decodedOffsetInBytes;
+        m_atEndOfFile = m_currentPosition >= m_blockMap->back().second;
         m_bitReader.seekTo( blockInfo.encodedOffsetInBits );
         readBlockHeader();
         m_didReadHeader = false;
         read( -1, nullptr, positiveOffset - m_currentPosition );
         return m_currentPosition;
-
     }
 
     void
