@@ -600,10 +600,11 @@ rapidgzipCLI( int                  argc,
     uint64_t newlineCount{ 0 };
 
     const auto t0 = now();
+    double writeDuration{ 0 };
 
     size_t totalBytesRead{ 0 };
     const auto writeAndCount =
-        [outputFileDescriptor, stdoutFileDescriptor, countLines, &newlineCount, &totalBytesRead]
+        [outputFileDescriptor, stdoutFileDescriptor, countLines, &newlineCount, &totalBytesRead, &writeDuration]
         ( const std::shared_ptr<rapidgzip::ChunkData>& chunkData,
           size_t const                                 offsetInChunk,
           size_t const                                 dataToWriteSize )
@@ -613,7 +614,9 @@ rapidgzipCLI( int                  argc,
                     continue;
                 }
 
+                const auto tWriteStart = now();
                 const auto errorCode = writeAll( chunkData, fileDescriptor, offsetInChunk, dataToWriteSize );
+                writeDuration += duration( tWriteStart );
                 if ( errorCode == EPIPE ) {
                     throw BrokenPipeException();
                 }
@@ -801,6 +804,7 @@ rapidgzipCLI( int                  argc,
 
     const auto t1 = now();
     if ( args.verbose ) {
+        std::cerr << "Spent " << writeDuration << " s writing to output.\n";
         std::cerr << "Decompressed in total " << totalBytesRead << " B in " << duration( t0, t1 ) << " s -> "
                   << static_cast<double>( totalBytesRead ) / 1e6 / duration( t0, t1 ) << " MB/s\n";
     }
