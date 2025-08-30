@@ -151,7 +151,7 @@ jobs:
 
     - name: Run Tar Test (Clang)
       env:
-        USE_SYSTEM_ZLIB: ${{ matrix.use_system_zlib }}
+        LIBRAPIDARCHIVE_USE_SYSTEM_ZLIB: ${{ matrix.use_system_zlib }}
       run: |
         CXX=clang++ CC=clang cmake -B build-rapidgzip -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLIBRAPIDARCHIVE_WITH_ISAL=ON -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=$LIBRAPIDARCHIVE_USE_SYSTEM_ZLIB .
         cmake --build build-rapidgzip -v -- rapidgzip
@@ -168,7 +168,7 @@ jobs:
 
     - name: Run Tests With Sanitizers (Clang)
       env:
-        USE_SYSTEM_ZLIB: ${{ matrix.use_system_zlib }}
+        LIBRAPIDARCHIVE_USE_SYSTEM_ZLIB: ${{ matrix.use_system_zlib }}
       run: |
         CXX=clang++ CC=clang cmake -B build-clang -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLIBRAPIDARCHIVE_WITH_ISAL=ON -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=$LIBRAPIDARCHIVE_USE_SYSTEM_ZLIB .
         cmake --build build-clang -v -- check
