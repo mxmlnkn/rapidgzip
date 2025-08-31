@@ -2,7 +2,7 @@ name: Python Module Tests
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "main" ]
   pull_request:
   workflow_dispatch:
 
@@ -32,7 +32,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        submodules: true
+        submodules: recursive
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
@@ -72,14 +72,6 @@ jobs:
       run: |
         python3 -m pip install --upgrade build
 
-    - name: Test indexed_bzip2 Installation From Tarball
-      working-directory: python/indexed_bzip2
-      shell: bash
-      run: |
-        python3 -m build
-        twine check dist/*
-        python3 -m pip install dist/*.tar.gz
-
     - name: Test rapidgzip Installation From Tarball
       working-directory: python/rapidgzip
       shell: bash
@@ -100,25 +92,19 @@ jobs:
         cat base64-1KiB.gz | rapidgzip -d -c
         rapidgzip -d -c base64-1KiB.gz
 
-    - name: Test Simple Startup ibzip2
-      run: |
-        ibzip2 --help
-        ibzip2 --version
-
     - name: Test Python Packages
       if: "! startsWith(matrix.os , 'windows')"
       shell: bash
       run: |
         printf 'bt all\nquit 1\n' > btall.batch
         lldb --batch -o "run" --source-on-crash btall.batch -- python3 -X dev -u -m pytest src/tests/testGIL.py
-        lldb --batch -o "run" --source-on-crash btall.batch -- python3 -X dev -u src/tests/testPythonWrappers.py
 
     - name: Test Python Packages
       if: "startsWith(matrix.os , 'windows')"
+      working-directory: librapidarchive
       shell: bash
       run: |
         python3 -X dev -u -m pytest src/tests/testGIL.py
-        python3 -X dev -u src/tests/testPythonWrappers.py
 
     - name: Test rapidgzip Installation From Tarball
       working-directory: python/rapidgzip

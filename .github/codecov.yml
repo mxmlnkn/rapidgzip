@@ -1,7 +1,0 @@
-coverage:
-  status:
-    # pull-requests only
-    project:
-      default:
-        target: 50.0%
-    patch: off
