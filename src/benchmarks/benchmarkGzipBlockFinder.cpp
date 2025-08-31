@@ -1505,7 +1505,7 @@ main( int    argc,
 
             std::cout << "> " << getVersion << "\n";
             [[maybe_unused]] const auto versionReturnCode = std::system( ( getVersion + " > out" ).c_str() );
-            std::cout << std::ifstream( "out" ).rdbuf();
+            std::cout << std::ifstream( "out", std::ios_base::in | std::ios_base::binary ).rdbuf();
             std::cout << "\n";
 
             benchmarkGzip( newFileName );

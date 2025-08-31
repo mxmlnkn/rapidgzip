@@ -180,7 +180,7 @@ testSerialDecoder( std::filesystem::path const& decodedFilePath,
     std::vector<char> decodedBuffer( bufferSize );
     std::vector<char> buffer( bufferSize );
 
-    std::ifstream decodedFile( decodedFilePath );
+    std::ifstream decodedFile( decodedFilePath, std::ios_base::in | std::ios_base::binary );
     GzipReader gzipReader( std::make_unique<StandardFileReader>( encodedFilePath ) );
     gzipReader.setCRC32Enabled( true );
 
@@ -254,7 +254,7 @@ testTwoStagedDecoding( const std::string& encodedFilePath,
     std::cout << "Test two-staged decoding for " << encodedFilePath << "\n";
 
     /* Check that decompressed data and the last window match the ground truth. */
-    std::ifstream decodedFile( decodedFilePath );
+    std::ifstream decodedFile( decodedFilePath, std::ios_base::in | std::ios_base::binary );
     std::vector<char> uncompressed( decompressed.size() );
     decodedFile.read( uncompressed.data(), static_cast<std::ptrdiff_t>( uncompressed.size() ) );
     REQUIRE( std::equal( decompressed.begin(), decompressed.end(), uncompressed.begin() ) );

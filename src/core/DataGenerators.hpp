@@ -18,7 +18,7 @@ inline void
 createRandomTextFile( const std::string& path,
                       const uint64_t     size )
 {
-    std::ofstream textFile( path );
+    std::ofstream textFile( path, std::ios_base::out | std::ios_base::binary );
     for ( uint64_t i = 0; i < size; ++i ) {
         const auto c = i % 80 == 0 ? '\n' : 'A' + ( rand() % ( 'Z' - 'A' ) );
         textFile << static_cast<char>( c );
@@ -47,7 +47,7 @@ inline void
 createRandomFile( const std::string& path,
                   const uint64_t     size )
 {
-    std::ofstream textFile( path );
+    std::ofstream textFile( path, std::ios_base::out | std::ios_base::binary );
 
     std::mt19937_64 randomEngine;
     std::array<uint64_t, 4_Ki> buffer{};  // 32 KiB of buffer
@@ -87,7 +87,7 @@ inline void
 createRandomBase64( const std::string& filePath,
                     const size_t       fileSize )
 {
-    std::ofstream file{ filePath };
+    std::ofstream file{ filePath, std::ios_base::out | std::ios_base::binary };
     for ( size_t i = 0; i < fileSize; ++i ) {
         file << ( ( i + 1 == fileSize ) || ( ( i + 1 ) % 77 == 0 )
                   ? '\n' : BASE64_SYMBOLS[static_cast<size_t>( rand() ) % BASE64_SYMBOLS.size()] );
@@ -122,7 +122,7 @@ createRandomNumbers( const std::string& filePath,
                      const size_t       fileSize )
 {
     constexpr std::string_view DIGITS = "0123456789";
-    std::ofstream file{ filePath };
+    std::ofstream file{ filePath, std::ios_base::out | std::ios_base::binary };
     for ( size_t i = 0; i < fileSize; ++i ) {
         file << ( ( i + 1 == fileSize ) || ( ( i + 1 ) % 77 == 0 )
                   ? '\n' : DIGITS[static_cast<size_t>( rand() ) % DIGITS.size()] );
@@ -134,7 +134,7 @@ inline void
 createZeros( const std::string& filePath,
              const size_t       fileSize )
 {
-    std::ofstream file{ filePath };
+    std::ofstream file{ filePath, std::ios_base::out | std::ios_base::binary };
     static constexpr std::array<char, 4_Ki> BUFFER{};
     for ( size_t i = 0; i < fileSize; i += BUFFER.size() ) {
         const auto size = std::min( fileSize - i, BUFFER.size() );
@@ -155,7 +155,7 @@ createRandomWords( const std::string& filePath,
         }
     }
 
-    std::ofstream file{ filePath };
+    std::ofstream file{ filePath, std::ios_base::out | std::ios_base::binary };
     for ( size_t i = 0; i < fileSize; ) {
         const auto iWord = static_cast<size_t>( rand() ) % words.size();
         file.write( words[iWord].data(), words[iWord].size() );

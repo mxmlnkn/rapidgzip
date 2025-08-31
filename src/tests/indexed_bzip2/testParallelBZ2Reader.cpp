@@ -46,13 +46,13 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
 {
     size_t decodedFileSize = 0;
     {
-        std::ifstream file( decodedTestFilePath );
+        std::ifstream file( decodedTestFilePath, std::ios_base::in | std::ios_base::binary );
         file.seekg( 0, std::ios::end );
         decodedFileSize = file.tellg();
     }
     std::cerr << "Decoded file size: " << decodedFileSize << "\n";
 
-    std::ifstream decodedFile( decodedTestFilePath );
+    std::ifstream decodedFile( decodedTestFilePath, std::ios_base::in | std::ios_base::binary );
     auto encodedFile =
         std::make_unique<ParallelBZ2Reader>( std::make_unique<StandardFileReader>( encodedTestFilePath ) );
 

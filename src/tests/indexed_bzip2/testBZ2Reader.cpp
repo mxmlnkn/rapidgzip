@@ -134,7 +134,7 @@ testDecodingBz2ForFirstTime( const std::string& decodedTestFilePath,
     size_t decodedFileSize = fileSize( decodedTestFilePath );
     std::cerr << "Decoded file size: " << decodedFileSize << "\n";
 
-    std::ifstream decodedFile( decodedTestFilePath );
+    std::ifstream decodedFile( decodedTestFilePath, std::ios_base::in | std::ios_base::binary );
     auto encodedFile = std::make_unique<BZ2Reader>( std::make_unique<StandardFileReader>( encodedTestFilePath ) );
 
     const auto seek =
@@ -263,7 +263,7 @@ testSeekBeforeOffsetCompletion( const std::string& decodedTestFilePath,
     const auto blockOffsets =
         std::make_unique<BZ2Reader>( std::make_unique<StandardFileReader>( encodedTestFilePath ) )->blockOffsets();
 
-    std::ifstream decodedFile( decodedTestFilePath );
+    std::ifstream decodedFile( decodedTestFilePath, std::ios_base::in | std::ios_base::binary );
     auto encodedFile = std::make_unique<BZ2Reader>( std::make_unique<StandardFileReader>( encodedTestFilePath ) );
 
     const auto seek =

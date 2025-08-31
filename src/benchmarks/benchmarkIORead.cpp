@@ -21,7 +21,7 @@ struct TemporaryFile
     TemporaryFile( const size_t requestedSize ) :
         size( requestedSize )
     {
-        std::ofstream file( path );
+        std::ofstream file( path, std::ios_base::out | std::ios_base::binary );
         std::vector<char> dataToWrite( 1_Mi );
         for ( auto& x : dataToWrite ) {
             x = static_cast<char>( rand() );

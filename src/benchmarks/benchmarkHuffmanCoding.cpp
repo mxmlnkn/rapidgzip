@@ -232,7 +232,10 @@ benchmarkHuffmanCodings( const std::vector<uint8_t>&              codeLengths,
 void
 benchmarkHuffmanCodingsWithData( size_t encodedSize )
 {
-    std::ofstream outputFile{ "benchmarkHuffmanCoding-" + std::to_string( encodedSize / 1024 ) + "KiB.dat" };
+    std::ofstream outputFile{
+        "benchmarkHuffmanCoding-" + std::to_string( encodedSize / 1024 ) + "KiB.dat",
+        std::ios_base::out | std::ios_base::binary
+    };
     outputFile << "Implementation;Code Length Distribution;Minimum Length;Maximum Length;Runtime Average;"
                   "Runtime StdDev;Construction Time Average;Construction Time StdDev;Decode Time Average;"
                   "Decode Time StdDev\n";

@@ -152,7 +152,7 @@ originToString( int origin )
 inline bool
 fileExists( const std::string& filePath )
 {
-    return std::ifstream( filePath ).good();
+    return std::ifstream( filePath, std::ios_base::in | std::ios_base::binary ).good();
 }
 
 

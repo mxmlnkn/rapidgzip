@@ -20,7 +20,7 @@ fillFile( const std::string& fileName )
 {
     std::stringstream result;
 
-    std::ofstream outFile( fileName );
+    std::ofstream outFile( fileName, std::ios_base::out | std::ios_base::binary );
     for ( int i = 0; i < 100; ++i ) {
         outFile << i;
         result << i;

@@ -193,7 +193,7 @@ benchmarkCRC32( const std::vector<char>&                                  data,
             return std::make_pair( duration( tCRC32Start ), static_cast<uint64_t>( result ) );
         } );
 
-    std::ofstream dataFile( "compute-crc32.dat" );
+    std::ofstream dataFile( "compute-crc32.dat", std::ios_base::out | std::ios_base::binary );
     dataFile << "# dataSize/B runtime/s\n";
     for ( const auto time : times ) {
         dataFile << data.size() << " " << time << "\n";

@@ -133,7 +133,7 @@ findCompressedBlocks( const std::string& inputFilePath,
             std::cout << offset << "\n";
         }
     } else {
-        std::ofstream file( offsetOutputFilePath );
+        std::ofstream file( offsetOutputFilePath, std::ios_base::out | std::ios_base::binary );
         dumpOffsets( file, offsets );
     }
 
@@ -434,7 +434,7 @@ ibzip2CLI( int argc, char** argv )
 
         if ( listOffsets ) {
             if ( !offsetsFilePath.empty() ) {
-                std::ofstream file( offsetsFilePath );
+                std::ofstream file( offsetsFilePath, std::ios_base::out | std::ios_base::binary );
                 dumpOffsets( file, offsets );
             } else if ( outputFilePath.empty() ) {
                 dumpOffsets( std::cerr, offsets );
@@ -445,7 +445,7 @@ ibzip2CLI( int argc, char** argv )
 
         if ( listCompressedOffsets ) {
             if ( !compressedOffsetsFilePath.empty() ) {
-                std::ofstream file( compressedOffsetsFilePath );
+                std::ofstream file( compressedOffsetsFilePath, std::ios_base::out | std::ios_base::binary );
                 dumpOffsets( file, compressedOffsets );
             } else if ( outputFilePath.empty() ) {
                 dumpOffsets( std::cerr, compressedOffsets );

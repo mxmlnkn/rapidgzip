@@ -304,7 +304,7 @@ testCLI()
     const auto decompressed = createRandomWords( 128_Mi );  // Compresses to only ~8 MiB.
     const auto compressed = rapidgzip::compressWithZlib<std::vector<char> >( decompressed );
     {
-        std::ofstream file( compressedFilePath );
+        std::ofstream file( compressedFilePath, std::ios_base::out | std::ios_base::binary );
         file.write( compressed.data(), compressed.size() );
     }
 
