@@ -2,7 +2,7 @@ name: Build Conda Packages (rapidgzip)
 
 on:
   push:
-    branches: 'master'
+    branches: 'main'
     tags:
       - 'rapidgzip-v*.*.*'
   workflow_dispatch:

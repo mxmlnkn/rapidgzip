@@ -1,18 +1,3 @@
-[submodule "external/bzip2-tests"]
-	path = src/external/bzip2-tests
-	url = https://sourceware.org/git/bzip2-tests.git
-[submodule "src/external/zlib"]
-	path = src/external/zlib
-	url = https://github.com/madler/zlib.git
-[submodule "src/external/rpmalloc"]
-	path = src/external/rpmalloc
-	url = https://github.com/mjansson/rpmalloc.git
-[submodule "src/external/cxxopts"]
-	path = src/external/cxxopts
-	url = https://github.com/jarro2783/cxxopts.git
-[submodule "src/external/isa-l"]
-	path = src/external/isa-l
-	url = https://github.com/mxmlnkn/isa-l
-[submodule "src/external/zlib-ng"]
-	path = src/external/zlib-ng
-	url = https://github.com/zlib-ng/zlib-ng.git
+[submodule "librapidarchive"]
+	path = librapidarchive
+	url = https://github.com/mxmlnkn/indexed_bzip2.git
