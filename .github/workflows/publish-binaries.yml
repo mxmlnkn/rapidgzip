@@ -38,16 +38,10 @@ jobs:
       run: |
         brew install -q ninja pigz htslib
 
-    - uses: conda-incubator/setup-miniconda@v3
-      if: startsWith( matrix.os, 'windows' )
-      with:
-        auto-update-conda: true
-
     - name: Install System Dependencies
       if: startsWith( matrix.os, 'windows' )
       run: |
         choco install ninja nasm
-        conda install conda-forge::pigz
 
     - name: Fix pip
       run: |
@@ -93,11 +87,21 @@ jobs:
 
     - name: Build
       run: |
-        cmake --build build
+        cmake --build build -v
+
+    - uses: conda-incubator/setup-miniconda@v3
+      if: startsWith( matrix.os, 'windows' )
+      with:
+        auto-update-conda: true
+
+    - name: Install Test Dependencies
+      if: startsWith( matrix.os, 'windows' )
+      run: |
+        conda install conda-forge::pigz
 
     - name: Run Tests
       run: |
-        cmake --build build -- check
+        cmake --build build -v -- check
 
     - name: Package Binary
       shell: bash
