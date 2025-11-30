@@ -1,3 +1,18 @@
+# Version 0.16.0 built on 2025-11-30
+
+## Performance
+
+ - Simplify block finder to reduce the library size, reduce the compile-time,
+   and improve the speed from 64 MB/s to 92 MB/s.
+ - `BitReader`: Defaulted move constructor was not generated because parent class move was deleted.
+
+## Fixes
+
+ - Make ISA-L Huffman code implementation return the same errors as the others.
+ - Writing to `/dev/null` did not work because getting the file size fails.
+ - Make `import_index` and `export_index` work with `PathLike` input.
+
+
 # Version 0.15.2 built on 2025-08-19
 
 ## Fixes
