@@ -128,10 +128,10 @@ jobs:
         CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux-image }}
         CIBW_BEFORE_ALL_LINUX: "uname -a; apk add nasm"
         CIBW_BUILD_VERBOSITY: 1
-        # Skip cp14 because it is not time yet to release wheels and because cp14t has problems:
-        # https://github.com/pypa/cibuildwheel/issues/2531#issuecomment-3168087550
         CIBW_BUILD: "*musllinux*"
-        CIBW_SKIP: "*cp31[4-9]*"
+        # Skip cp14t on Windows because it has problems:
+        # https://github.com/pypa/cibuildwheel/issues/2676
+        CIBW_SKIP: "*cp3??t-win*"
         CIBW_ENABLE: "pypy"
 
       run: python -m cibuildwheel --output-dir dist python/rapidgzip
@@ -146,9 +146,9 @@ jobs:
           brew install nasm;
           export PATH="$PATH:/usr/local/bin"
         CIBW_BUILD_VERBOSITY: 1
-        # Skip cp14 because it is not time yet to release wheels and because cp14t has problems:
-        # https://github.com/pypa/cibuildwheel/issues/2531#issuecomment-3168087550
-        CIBW_SKIP: "*musllinux* *cp31[4-9]*"
+        # Skip cp14t on Windows because it has problems:
+        # https://github.com/pypa/cibuildwheel/issues/2676
+        CIBW_SKIP: "*musllinux* *cp3??t-win*"
         CIBW_ENABLE: "pypy"
 
       run: python -m cibuildwheel --output-dir dist python/rapidgzip
