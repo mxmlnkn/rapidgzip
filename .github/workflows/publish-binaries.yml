@@ -31,7 +31,7 @@ jobs:
       if: startsWith( matrix.os, 'ubuntu' )
       run: |
         sudo apt update
-        sudo apt-get -y install clang-19 g++ ninja-build gzip tabix pigz gztool libarchive-dev zlib1g-dev isal nasm
+        sudo apt-get -y install clang-20 g++ ninja-build gzip tabix pigz gztool libarchive-dev zlib1g-dev isal nasm
 
     - name: Install System Dependencies
       if: startsWith( matrix.os, 'macos' )
@@ -61,11 +61,11 @@ jobs:
         EXTRA_ARGS+=( -DLIBRAPIDARCHIVE_BUILD_BENCHMARKS=OFF )
         EXTRA_ARGS+=( -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=$LIBRAPIDARCHIVE_USE_SYSTEM_ZLIB )
         EXTRA_ARGS+=( -DCMAKE_POSITION_INDEPENDENT_CODE=ON )
-        if command -v clang-19 &>/dev/null; then
+        if command -v clang-20 &>/dev/null; then
             # Use the most recent compiler for hopefully better performance.
             # E.g., my simple std::find test only was compiled into SIMD with GCC 15.0.
-            CC=clang-19
-            CXX=clang++-19
+            CC=clang-20
+            CXX=clang++-20
             export CC CXX
             # Compiling with C++26 might improve performance thanks to better trivial relocation support.
             EXTRA_ARGS+=( -DCMAKE_CXX_FLAGS='-std=c++2c' )
