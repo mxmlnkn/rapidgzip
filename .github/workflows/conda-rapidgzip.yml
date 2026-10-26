@@ -17,7 +17,7 @@ jobs:
         # ld: unsupported tapi file type '!tapi-tbd' in YAML file '/Applications/Xcode_14.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib/libSystem.tbd' for architecture x86_64
         # The only real difference to indexed_bzip2 is the NASM build requirement, so that might be the problem?
         # Disabling ISA-L does not help. It might be an issue with zlib then?
-        os: [ubuntu-latest]
+        os: [ubuntu-24.04]
 
     env:
       MACOSX_DEPLOYMENT_TARGET: "13.0"

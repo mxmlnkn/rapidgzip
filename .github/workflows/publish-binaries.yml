@@ -12,7 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             artifact_suffix: 'linux-x86_64.tar.gz'
           - os: ubuntu-24.04-arm
             artifact_suffix: 'linux-aarch64.tar.gz'
@@ -124,7 +124,7 @@ jobs:
         path: "rapidgzip-*${{ matrix.artifact_suffix }}"
 
   Static-Binary-Release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [Static-Binary-Build]
     steps:
     - uses: actions/checkout@v7
