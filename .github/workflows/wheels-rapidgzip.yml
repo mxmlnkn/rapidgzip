@@ -17,7 +17,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v7
       with:
-        python-version: '3.14'
+        python-version: '3.15'
 
     - name: Install Dependencies
       run: |
@@ -97,7 +97,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v7
       with:
-        python-version: '3.14'
+        python-version: '3.15'
 
     - name: Install Dependencies
       # cibuildwheel-2.23.3 fails with:
@@ -106,7 +106,7 @@ jobs:
       #  -> fails because it is 404 now :( This means I have to drop Python 3.8 support.
       run: |
         python3 -m pip install --upgrade pip
-        python3 -m pip install --upgrade-strategy eager --upgrade cython twine cibuildwheel~=3.0 build requests
+        python3 -m pip install --upgrade-strategy eager --upgrade cython twine cibuildwheel~=4.3 build requests
 
     - name: Install NASM (Windows)
       if: "startsWith(matrix.os, 'windows')"

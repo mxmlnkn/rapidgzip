@@ -24,7 +24,7 @@ jobs:
         # 3.13 was released 2024-10-07 and end-of-life will be 2029-10
         # 3.14 was released 2025-10-07 and end-of-life will be 2030-10
         # https://raw.githubusercontent.com/actions/python-versions/main/versions-manifest.json
-        python-version: ['3.9', '3.13', '3.14']
+        python-version: ['3.9', '3.13', '3.14', '3.15']
         # 2024-04-27: macos-latest, which points to macos-14-arm64, does not work anymore because of error 134 close
         #             towards the end when testing with parallelization=8. Could be a problem with compiling for ARM.
         os: [macos-14, macos-15, macos-15-intel, ubuntu-24.04, ubuntu-24.04-arm, windows-latest]
