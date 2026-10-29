@@ -33,7 +33,7 @@ requirements:
   host:
     - libcxx {{ cxx_compiler_version }}  # [osx]
     - python
-    - setuptools >=61.2
+    - setuptools >=61.2,<85
     - wheel
     - cython >=3
     - pip
