@@ -14,7 +14,7 @@ authors:
     orcid: "https://orcid.org/0000-0001-9568-3075"
     email: maximilian.knespel@tu-dresden.de
 
-repository-code: "https://github.com/mxmlnkn/indexed_bzip2"
+repository-code: "https://github.com/mxmlnkn/librapidarchive"
 repository: "https://github.com/mxmlnkn/rapidgzip"
 abstract: >-
   A replacement for gzip for decompressing gzip files using

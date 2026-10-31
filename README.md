@@ -16,7 +16,7 @@
 [![Discord](https://img.shields.io/discord/783411320354766878?label=discord)](https://discord.gg/Wra6t6akh2)
 [![Telegram](https://img.shields.io/badge/Chat-Telegram-%2330A3E6)](https://t.me/joinchat/FUdXxkXIv6c4Ib8bgaSxNg)
 
-![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/asciinema/rapidgzip-comparison.gif)
+![](https://raw.githubusercontent.com/mxmlnkn/librapidarchive/master/results/asciinema/rapidgzip-comparison.gif)
 
 
 </div>
@@ -28,7 +28,7 @@ Alternatively, you can use this simply as a **parallelized** gzip decoder as a r
 
 The random seeking support is the same as provided by [indexed_gzip](https://github.com/pauldmccarthy/indexed_gzip), but further speedups are realized at the cost of higher memory usage thanks to a least-recently-used cache in combination with a parallelized prefetcher.
 
-[This](https://github.com/mxmlnkn/rapidgzip) repository is a light-weight fork of the [indexed_bzip2](https://github.com/mxmlnkn/indexed_bzip2) repository, in which the main development takes place.
+[This](https://github.com/mxmlnkn/rapidgzip) repository is a light-weight fork of the [indexed_bzip2](https://github.com/mxmlnkn/librapidarchive) repository, in which the main development takes place.
 This repository was created for visibility reasons and in order to keep indexed_bzip2 and rapidgzip releases and packaging separate.
 It will be updated at least for each release.
 Issues regarding rapidgzip should be opened [here](https://github.com/mxmlnkn/rapidgzip/issues).
@@ -107,7 +107,7 @@ Thin blobs signal very reproducible timings, while thick blobs signal a large va
 
 ### Decompression of Silesia Corpus
 
-![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/rapidgzip-0.9.0-scaling-benchmarks-2023-08-30/plots/result-parallel-decompression-silesia-dev-null-bandwidths-number-of-threads.png)
+![](https://raw.githubusercontent.com/mxmlnkn/librapidarchive/master/results/benchmarks/rapidgzip-0.9.0-scaling-benchmarks-2023-08-30/plots/result-parallel-decompression-silesia-dev-null-bandwidths-number-of-threads.png)
 
 This benchmark uses the [Silesia corpus](https://sun.aei.polsl.pl//~sdeor/index.php?page=silesia) compressed as a .tar.gz file to show the decompression performance.
 However, the compressed dataset is only ~69 MB, which is not sufficiently large to show parallelization over 128 cores.
@@ -123,7 +123,7 @@ Pugz is not shown as a comparison because it is not able to decompress the Siles
 
 ### Decompression of Gzip-Compressed Base64 Data
 
-![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/rapidgzip-0.9.0-scaling-benchmarks-2023-08-30/plots/result-parallel-decompression-base64-dev-null-bandwidths-number-of-threads.png)
+![](https://raw.githubusercontent.com/mxmlnkn/librapidarchive/master/results/benchmarks/rapidgzip-0.9.0-scaling-benchmarks-2023-08-30/plots/result-parallel-decompression-base64-dev-null-bandwidths-number-of-threads.png)
 
 This benchmark uses random data, that has been base64 encoded and then gzip-compressed.
 This is the next best case for rapidgzip after the trivial case of purely random data, which cannot be compressed and therefore can be decompressed with a simple memory copy.
@@ -133,7 +133,7 @@ Without LZ77 back-references, parallel decompression can be done more independen
 
 ### Decompression of Gzip-Compressed FASTQ Data
 
-![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/rapidgzip-0.9.0-scaling-benchmarks-2023-08-30/plots/result-parallel-decompression-fastq-dev-null-bandwidths-number-of-threads.png)
+![](https://raw.githubusercontent.com/mxmlnkn/librapidarchive/master/results/benchmarks/rapidgzip-0.9.0-scaling-benchmarks-2023-08-30/plots/result-parallel-decompression-fastq-dev-null-bandwidths-number-of-threads.png)
 
 This benchmarks uses gzip-compressed [FASTQ data](http://ftp.sra.ebi.ac.uk/vol1/fastq/SRR224/085/SRR22403185/SRR22403185_2.fastq.gz).
 That's why the TAR file is repeated as often as there are number of cores in the benchmark to hold the decompression times roughly constant in order to make the benchmark over this large a range feasible.
@@ -143,7 +143,7 @@ This is also the reason why it fails to scale above 64 cores, i.e, to the second
 The first and second decompression stages are completely independently submitted to a thread pool, which on this NUMA architecture means, that data needs to be costly transferred from one processor socket to the other if the second step for a chunk is not done on the same processor as the first.
 This should be fixable by making the ThreadPool NUMA-aware.
 
-These three scaling plots were created with rapidgzip 0.9.0, while the ones in the [paper](https://github.com/mxmlnkn/indexed_bzip2/blob/master/results/paper/Knespel%2C%20Brunst%20-%202023%20-%20Rapidgzip%20-%20Parallel%20Decompression%20and%20Seeking%20in%20Gzip%20Files%20Using%20Cache%20Prefetching.pdf) were created with 0.5.0.
+These three scaling plots were created with rapidgzip 0.9.0, while the ones in the [paper](https://github.com/mxmlnkn/librapidarchive/blob/master/results/paper/Knespel%2C%20Brunst%20-%202023%20-%20Rapidgzip%20-%20Parallel%20Decompression%20and%20Seeking%20in%20Gzip%20Files%20Using%20Cache%20Prefetching.pdf) were created with 0.5.0.
 
 
 ## Scaling Benchmarks on Ryzen 3900X
@@ -186,7 +186,7 @@ These benchmarks on my local workstation with a Ryzen 3900X that only has 12 cor
 
 ## Benchmarks for Different Compressors
 
-![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/rapidgzip-comparison-benchmarks-2023-09-05T20-45-10/rapidgzip-compressor-comparison.png)
+![](https://raw.githubusercontent.com/mxmlnkn/librapidarchive/master/results/benchmarks/rapidgzip-comparison-benchmarks-2023-09-05T20-45-10/rapidgzip-compressor-comparison.png)
 
 This benchmark compresses the enlarged Silesia TAR with different gzip implementations, each with different compression levels.
 Rapidgzip is then used to decompress the resulting files with 128 cores.
@@ -208,7 +208,7 @@ The values in this chart are higher than in table 3 in the [paper](#citation) be
 
 ## Benchmarks for Different Decompressors
 
-![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/rapidgzip-comparison-benchmarks-2023-09-05T20-45-10/rapidgzip-compression-format-comparison.png)
+![](https://raw.githubusercontent.com/mxmlnkn/librapidarchive/master/results/benchmarks/rapidgzip-comparison-benchmarks-2023-09-05T20-45-10/rapidgzip-compression-format-comparison.png)
 
 These benchmarks use different compressors and different decompressors to show multiple things:
 
@@ -219,7 +219,7 @@ These benchmarks use different compressors and different decompressors to show m
  - Even for bgzip-compressed files, rapidgzip is always faster than `bgzip` for decompression, thanks to ISA-L and better multi-threading.
  - Rapidgzip scales higher than pzstd for decompression with many cores, and can be more than twice as fast when an index exists: 24.3 GB/s vs. 9.5 GB/s.
 
-The values in this chart are higher than in table 4 in the [paper](#citation) because the measurements were done with rapidgzip 0.10.1 instead of [version 0.5.0](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/rapidgzip-comparison-benchmarks-2023-09-05T20-45-10/rapidgzip-0.5.0-compression-format-comparison.png).
+The values in this chart are higher than in table 4 in the [paper](#citation) because the measurements were done with rapidgzip 0.10.1 instead of [version 0.5.0](https://raw.githubusercontent.com/mxmlnkn/librapidarchive/master/results/benchmarks/rapidgzip-comparison-benchmarks-2023-09-05T20-45-10/rapidgzip-0.5.0-compression-format-comparison.png).
 
 </details>
 
@@ -435,14 +435,14 @@ The license is also permissive enough for most use cases.
 
 Rapidgzip can be added to an existing CMake project using [`FetchContent`](https://cmake.org/cmake/help/latest/module/FetchContent.html), or directly via [`add_subdirectory`](https://cmake.org/cmake/help/latest/command/add_subdirectory.html)
 
-An example CMake build using `FetchContent` can be found [here](https://github.com/mxmlnkn/indexed_bzip2/blob/master/src/examples/cmake-fetch-content/CMakeLists.txt).
+An example CMake build using `FetchContent` can be found [here](https://github.com/mxmlnkn/librapidarchive/blob/master/src/examples/cmake-fetch-content/CMakeLists.txt).
 
 
 # Citation
 
 A paper describing the implementation details and showing the scaling behavior with up to 128 cores has been submitted to and [accepted](https://www.hpdc.org/2023/program/technical-sessions/) in [ACM HPDC'23](https://www.hpdc.org/2023/), The 32nd International Symposium on High-Performance Parallel and Distributed Computing.
 The paper can also be accessed [on ACM DL](https://doi.org/10.1145/3588195.3592992) or [Arxiv](https://arxiv.org/abs/2308.08955).
-The accompanying presentation can be found [here](https://github.com/mxmlnkn/indexed_bzip2/blob/master/results/Presentation-2023-06-22.pdf).
+The accompanying presentation can be found [here](https://github.com/mxmlnkn/librapidarchive/blob/master/results/Presentation-2023-06-22.pdf).
 
 If you use this software for your scientific publication, please cite it as:
 
@@ -469,7 +469,7 @@ If you use this software for your scientific publication, please cite it as:
 # About
 
 This tool originated as a backend for [ratarmount](https://github.com/mxmlnkn/ratarmount).
-After writing the bzip2 backend for [ratarmount](https://github.com/mxmlnkn/indexed_bzip2), my hesitation about reimplementing custom decoders for existing file formats has vastly diminished.
+After writing the bzip2 backend for [ratarmount](https://github.com/mxmlnkn/librapidarchive), my hesitation about reimplementing custom decoders for existing file formats has vastly diminished.
 And, while random access to gzip files did exist with [indexed_gzip](https://github.com/pauldmccarthy/indexed_gzip), it did not support parallel decompression neither for the index creation nor when the index already exists.
 The latter of which is trivial, when ignoring load balancing issues, but parallelizing even the index creation is vastly more complicated because decompressing data requires the previous 32 KiB of decompressed data to be known.
 
@@ -483,7 +483,7 @@ Furthermore, the additional ID could be interpreted to stand for Index and Decom
 
 # Internal Architecture
 
-The main part of the [internal architecture](https://github.com/mxmlnkn/indexed_bzip2/tree/master/python/indexed_bzip2#internal-architecture) used for parallelizing is the same as used for [indexed_bzip2](https://github.com/mxmlnkn/indexed_bzip2).
+The main part of the [internal architecture](https://github.com/mxmlnkn/librapidarchive/tree/master/python/indexed_bzip2#internal-architecture) used for parallelizing is the same as used for [indexed_bzip2](https://github.com/mxmlnkn/librapidarchive).
 
 
 # Tracing the Decoder
@@ -532,9 +532,9 @@ scorep-info config-summary
 
 ### Results for a version from 2023-02-04
 
-![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/Screenshot_2023-01-28_17-16-49.png)
+![](https://raw.githubusercontent.com/mxmlnkn/librapidarchive/master/results/Screenshot_2023-01-28_17-16-49.png)
 
 ### Comparison without and with rpmalloc preloaded
 
-![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/malloc/Summary_Timeline_scorep-pragzip-2023-02-04-without-rpmalloc.png)
-![](https://raw.githubusercontent.com/mxmlnkn/indexed_bzip2/master/results/benchmarks/malloc/Summary_Timeline_scorep-pragzip-2023-02-04-with-rpmalloc.png)
+![](https://raw.githubusercontent.com/mxmlnkn/librapidarchive/master/results/benchmarks/malloc/Summary_Timeline_scorep-pragzip-2023-02-04-without-rpmalloc.png)
+![](https://raw.githubusercontent.com/mxmlnkn/librapidarchive/master/results/benchmarks/malloc/Summary_Timeline_scorep-pragzip-2023-02-04-with-rpmalloc.png)
