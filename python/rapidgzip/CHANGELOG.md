@@ -1,1 +1,1 @@
-../../CHANGELOG.md
+../../librapidarchive/python/rapidgzip/CHANGELOG.md
