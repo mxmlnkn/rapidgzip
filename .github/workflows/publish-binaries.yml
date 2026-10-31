@@ -3,7 +3,7 @@ name: Build and Publish Static Binaries
 on:
   push:
     branches: [ "main" ]
-    tags: 'v*'
+    tags: [ 'rapidgzip-v*' ]
   workflow_dispatch:
 
 jobs:
@@ -137,7 +137,7 @@ jobs:
     # For some dumb reason, Github creates a dummy tag with the commit message as contents?!
     # Therefore, delete that and fetch the actual tag -.-
     - name: Fetch tags
-      if: startsWith(github.ref, 'refs/tags/v')
+      if: startsWith(github.ref, 'refs/tags/rapidgzip-v')
       run: |
         git tag -n99 -l  # Print wrong auto-generated tag.
         git tag -d ${{ github.ref_name }} || true
@@ -152,7 +152,7 @@ jobs:
         cat .github/workflows/release-template.md >> release.md
 
     - uses: ncipollo/release-action@v1
-      if: startsWith(github.ref, 'refs/tags/v')
+      if: startsWith(github.ref, 'refs/tags/rapidgzip-v')
       with:
         artifacts: "rapidgzip*"
         tag: ${{ github.ref_name }}
