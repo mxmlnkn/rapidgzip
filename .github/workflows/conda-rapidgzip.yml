@@ -27,6 +27,15 @@ jobs:
       with:
         submodules: recursive
 
+    - name: Check source version against tag
+      shell: bash
+      run: |
+        if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+          python3 .github/workflows/check-version.py "${GITHUB_REF_NAME}" --check-changelog
+        else
+          python3 .github/workflows/check-version.py
+        fi
+
     - uses: conda-incubator/setup-miniconda@v4
       with:
         auto-update-conda: true

@@ -7,8 +7,25 @@ on:
   workflow_dispatch:
 
 jobs:
+  Check-Version:
+    runs-on: ubuntu-slim
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        submodules: recursive
+
+    - name: Check source version against tag
+      shell: bash
+      run: |
+        if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+          python3 .github/workflows/check-version.py "${GITHUB_REF_NAME}" --check-changelog
+        else
+          python3 .github/workflows/check-version.py
+        fi
+
   Tarball:
-    runs-on: ubuntu-24.04
+    needs: Check-Version
+    runs-on: ubuntu-slim
     steps:
     - uses: actions/checkout@v7
       with:
@@ -44,6 +61,7 @@ jobs:
         path: "python/rapidgzip/dist/*.tar.gz"
 
   Wheels:
+    needs: Check-Version
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:

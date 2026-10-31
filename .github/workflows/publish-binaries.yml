@@ -124,7 +124,7 @@ jobs:
         path: "rapidgzip-*${{ matrix.artifact_suffix }}"
 
   Static-Binary-Release:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-slim
     needs: [Static-Binary-Build]
     steps:
     - uses: actions/checkout@v7
