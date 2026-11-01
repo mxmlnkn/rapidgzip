@@ -140,12 +140,17 @@ jobs:
           sed -E 's|^(rapidgzip?)|#\1|; s|^([A-Z][A-Za-z]*)|## \1|' > release.md
         cat .github/workflows/release-template.md >> release.md
 
+    - name: Strip tag prefix from release title
+      if: startsWith(github.ref, 'refs/tags/rapidgzip-v')
+      id: release-title
+      run: echo "version=${GITHUB_REF_NAME#rapidgzip-v}" >> "$GITHUB_OUTPUT"
+
     - uses: ncipollo/release-action@v1
       if: startsWith(github.ref, 'refs/tags/rapidgzip-v')
       with:
         artifacts: "rapidgzip*"
         tag: ${{ github.ref_name }}
-        name: "rapidgzip ${{ github.ref_name }}"
+        name: "rapidgzip ${{ steps.release-title.outputs.version }}"
         bodyFile: release.md
         allowUpdates: true
         removeArtifacts: true
