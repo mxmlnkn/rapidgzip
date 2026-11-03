@@ -25,6 +25,7 @@ jobs:
     steps:
     - uses: actions/checkout@v7
       with:
+        persist-credentials: false
         submodules: recursive
 
     - name: Install System Dependencies
@@ -128,6 +129,8 @@ jobs:
     needs: [Static-Binary-Build]
     steps:
     - uses: actions/checkout@v7
+      with:
+        persist-credentials: false
 
     - uses: actions/download-artifact@v8
       with:

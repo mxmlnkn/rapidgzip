@@ -39,6 +39,7 @@ jobs:
     steps:
     - uses: actions/checkout@v7
       with:
+        persist-credentials: false
         submodules: recursive
 
     - name: Set up Python ${{ matrix.python-version }}

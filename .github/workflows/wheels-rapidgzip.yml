@@ -12,6 +12,7 @@ jobs:
     steps:
     - uses: actions/checkout@v7
       with:
+        persist-credentials: false
         submodules: recursive
 
     - name: Check source version against tag
@@ -29,6 +30,7 @@ jobs:
     steps:
     - uses: actions/checkout@v7
       with:
+        persist-credentials: false
         submodules: recursive
 
     - name: Set up Python
@@ -114,6 +116,7 @@ jobs:
     steps:
     - uses: actions/checkout@v7
       with:
+        persist-credentials: false
         submodules: recursive
 
     - name: Set up Python
