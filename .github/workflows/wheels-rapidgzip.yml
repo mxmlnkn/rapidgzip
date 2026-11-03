@@ -66,8 +66,6 @@ jobs:
     strategy:
       matrix:
         os:
-        - macos-15
-        - macos-15-intel
         - macos-26
         - macos-26-intel
         - ubuntu-24.04-arm
@@ -75,10 +73,9 @@ jobs:
         - windows-latest
         archs: [auto64]
         manylinux-image: [manylinux_2_28]
-        # Build with both x86-64 (macos-13) and ARM64 (macos-14) runners.
-        # For some reason, macos-14-latest seems to use macos-14-arm64, but when I try to specify macos-14-arm64
-        # directly, then the actions does not find any runner to run on and macos-14 also uses arm64...
-        # https://github.com/actions/runner-images/blob/main/images/macos/macos-14-Readme.md
+        # One runner per architecture is enough because MACOSX_DEPLOYMENT_TARGET pins the wheel tag. Building
+        # on a newer macOS runner therefore does not raise the minimum supported macOS version, and using two
+        # runners per architecture would only produce competing wheels with identical file names.
         #
         # manylinux1 is not supported anymore because it won't compile C++17 code
         # manylinux2010 runs into this problem https://github.com/pypa/cibuildwheel/issues/1001
