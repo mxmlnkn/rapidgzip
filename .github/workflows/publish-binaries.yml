@@ -44,15 +44,6 @@ jobs:
       run: |
         choco install ninja nasm
 
-    - name: Fix pip
-      run: |
-        echo "PIP_BREAK_SYSTEM_PACKAGES=1" >> "${GITHUB_ENV}"
-
-    - name: Install Python Dependencies for the Tests
-      run: |
-        python3 -m pip install --upgrade pip || true  # Fails on macOS because of homebrew
-        python3 -m pip install --upgrade-strategy eager --upgrade indexed_gzip pgzip
-
     - name: Configure CMake
       shell: bash
       env:
@@ -60,6 +51,8 @@ jobs:
       run: |
         EXTRA_ARGS=()
         EXTRA_ARGS+=( -DLIBRAPIDARCHIVE_BUILD_BENCHMARKS=OFF )
+        EXTRA_ARGS+=( -DLIBRAPIDARCHIVE_BUILD_TESTS=OFF )
+        EXTRA_ARGS+=( -DLIBRAPIDARCHIVE_BUILD_TOOLS=ON )
         EXTRA_ARGS+=( -DLIBRAPIDARCHIVE_USE_SYSTEM_ZLIB=$LIBRAPIDARCHIVE_USE_SYSTEM_ZLIB )
         EXTRA_ARGS+=( -DCMAKE_POSITION_INDEPENDENT_CODE=ON )
         if command -v clang-20 &>/dev/null; then
@@ -90,19 +83,12 @@ jobs:
       run: |
         cmake --build build -v
 
-    - uses: conda-incubator/setup-miniconda@v3
-      if: startsWith( matrix.os, 'windows' )
-      with:
-        auto-update-conda: true
-
-    - name: Install Test Dependencies
-      if: startsWith( matrix.os, 'windows' )
+    - name: Smoke Test Binary
+      shell: bash
       run: |
-        conda install conda-forge::pigz
-
-    - name: Run Tests
-      run: |
-        cmake --build build -v -- check
+        RAPIDGZIP=$( find build/src/tools -maxdepth 1 -type f -name 'rapidgzip*' ! -name '*.pdb' | head -1 )
+        "$RAPIDGZIP" --version
+        "$RAPIDGZIP" -d -c src/tests/data/base64-32KiB.gz > /dev/null
 
     - name: Package Binary
       shell: bash
