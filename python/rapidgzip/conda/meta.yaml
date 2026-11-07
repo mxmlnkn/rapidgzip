@@ -2,7 +2,7 @@
 
 package:
   name: rapidgzip
-  version: 0.14.4
+  version: 0.16.2
   #version: {{ data.get('version') }}  # Broken -.-
 
 # 'git_url' has the problem that I cannot specify a subfolder for the setup.py.
